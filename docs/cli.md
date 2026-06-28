@@ -87,7 +87,7 @@ fastevals view --out .fastevals/report.html  # 导出静态 HTML,不启动服务
 fastevals clean                        # 清掉这些历史运行结果
 ```
 
-默认运行会写 `.fastevals/<timestamp>/summary.json` 与 `results.jsonl`;`view` 直接读这些结构化工件。当前查看器先提供 Next.js evals 风格的密集榜单:按 agent/model 聚合、可排序、可搜索、可展开看单个 eval attempt 的断言/错误/用量。
+默认运行会写 `.fastevals/<timestamp>/summary.json` 与 `results.jsonl`;`view` 直接读这些结构化工件。当前查看器先提供 Next.js evals 风格的密集榜单:按 experiment 聚合、可排序、可搜索、可展开看单个 eval attempt 的断言/错误/用量。
 
 ## 输出
 

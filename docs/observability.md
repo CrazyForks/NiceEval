@@ -196,7 +196,7 @@ fastevals view --out .fastevals/report.html  # 导出静态 HTML
 它不连任何服务,只读 `.fastevals/<时间戳>/` 这些**结构化工件**(每 eval 已带 `usage` + `estimatedCostUSD`),因此能渲染:
 
 - **运行总览** —— pass / fail / scored 计数、总 token、总 $。
-- **agent 对比榜单** —— 同一批 eval 下 claude-code / codex / bub 的通过率 + 平均耗时 + token + 成本并列(对应 playground 的 compare 视图)。这是评 coding agent 最想要的一张图。
+- **experiment 对比榜单** —— 同一批 eval 下各个实验配置的通过率 + 平均耗时 + token + 成本并列;agent/model 是实验配置的属性,不是主键。这是评 coding agent 最想要的一张图。
 - **eval attempt 钻取** —— 点开单行看具体 eval 的断言、错误、耗时、用量与样例 JSON。
 - **质量 × 成本散点** —— 每个 eval(或每个 agent)一个点,一眼看出「贵且不准」的角落。
 - **跨运行趋势** —— 每次运行是带时间戳的目录,于是成本 / 通过率能画成随提交变化的折线,抓性能或成本回归。

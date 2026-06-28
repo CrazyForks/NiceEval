@@ -183,6 +183,7 @@ async function runAttempt(
   const base: EvalResult = {
     id: evalDef.id,
     experimentId: run.experimentId,
+    experiment: experimentRunInfo(run),
     agent: run.agent.name,
     model: run.model,
     verdict: "failed",
@@ -324,6 +325,7 @@ async function runAttempt(
     return {
       id: evalDef.id,
       experimentId: run.experimentId,
+      experiment: experimentRunInfo(run),
       agent: run.agent.name,
       model: run.model,
       verdict,
@@ -354,6 +356,18 @@ async function runAttempt(
     }
     if (sandbox) await sandbox.stop().catch(() => {});
   }
+}
+
+function experimentRunInfo(run: AgentRun): EvalResult["experiment"] {
+  return {
+    id: run.experimentId,
+    flags: run.flags,
+    runs: run.runs,
+    earlyExit: run.earlyExit,
+    sandbox: run.sandbox,
+    timeoutMs: run.timeoutMs,
+    budget: run.budget,
+  };
 }
 
 async function resolveWorkspace(

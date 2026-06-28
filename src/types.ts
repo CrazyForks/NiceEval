@@ -312,9 +312,20 @@ export interface PriceEntry {
   cacheWritePerMTok?: number;
 }
 
+export interface ExperimentRunInfo {
+  id?: string;
+  flags?: Record<string, unknown>;
+  runs?: number;
+  earlyExit?: boolean;
+  sandbox?: string;
+  timeoutMs?: number;
+  budget?: number;
+}
+
 export interface EvalResult {
   id: string;
   experimentId?: string;
+  experiment?: ExperimentRunInfo;
   agent: string;
   model?: string;
   verdict: Verdict;

@@ -25,6 +25,8 @@ interface LoadedSummary {
 interface LeaderboardRow {
   key: string;
   experimentId?: string;
+  experiment?: EvalResult["experiment"];
+  group?: string;
   label: string;
   agent: string;
   model?: string;
@@ -427,6 +429,28 @@ function renderHtml(loaded: LoadedSummary[]): string {
       padding: 20px 30px 24px;
       border-bottom: 1px solid var(--line);
     }
+    .config-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 18px;
+    }
+    .config-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+      border: 1px solid color-mix(in oklch, var(--line), transparent 16%);
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .config-chip b {
+      color: var(--text);
+      font-weight: 560;
+    }
     .detail-kpis {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -552,6 +576,7 @@ function renderHtml(loaded: LoadedSummary[]): string {
       .section-head { align-items: stretch; flex-direction: column; }
       .search { width: 100%; min-width: 0; }
       .detail { padding: 18px 16px 20px; }
+      .config-strip { gap: 6px; }
       .detail-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
       .eval-grid-head,
       .eval-item { grid-template-columns: 72px minmax(180px, 1fr) minmax(220px, 1fr) 76px 78px 72px 50px; }
@@ -606,7 +631,7 @@ function renderHtml(loaded: LoadedSummary[]): string {
       const q = state.query.trim().toLowerCase();
       const filtered = rows.filter(row => {
         if (!q) return true;
-        return [row.label, row.experimentId || "", row.agent, row.model || "", ...row.results.map(r => r.id)].join(" ").toLowerCase().includes(q);
+        return [row.label, row.group || "", row.experimentId || "", row.agent, row.model || "", ...row.results.map(r => r.id)].join(" ").toLowerCase().includes(q);
       });
       filtered.sort((a, b) => compareRows(a, b, state.sort) * state.dir);
       tbody.innerHTML = filtered.map(row => renderRow(row)).join("");
@@ -621,6 +646,7 @@ function renderHtml(loaded: LoadedSummary[]): string {
 
     function valueFor(row, key) {
       if (key === "experiment") return row.label;
+      if (key === "model") return row.model || "";
       if (key === "agent") return row.agent;
       if (key === "cost") return row.estimatedCostUSD || 0;
       return row[key] || 0;
@@ -631,7 +657,8 @@ function renderHtml(loaded: LoadedSummary[]): string {
       const tone = row.passRate >= 0.8 ? "good" : row.passRate >= 0.5 ? "warn" : "bad";
       return \`
         <tr class="main-row \${open ? "is-open" : ""}" data-key="\${escapeAttr(row.key)}" tabindex="0">
-          <td><span class="chev"></span><span class="name">\${escapeHtml(row.label)}</span><div class="sub">\${escapeHtml(row.model ? row.model + " · " : "")}\${row.runs} eval result\${row.runs === 1 ? "" : "s"}</div></td>
+          <td><span class="chev"></span><span class="name">\${escapeHtml(row.label)}</span><div class="sub">\${escapeHtml(row.group ? row.group + " · " : "")}\${row.runs} eval result\${row.runs === 1 ? "" : "s"}</div></td>
+          <td>\${escapeHtml(row.model || "default")}</td>
           <td>\${escapeHtml(row.agent)}</td>
           <td class="num">\${formatDuration(row.avgDurationMs)}</td>
           <td class="num \${tone}">\${formatPercent(row.passRate)}</td>
@@ -658,8 +685,9 @@ function renderHtml(loaded: LoadedSummary[]): string {
       const sample = JSON.stringify(sampleResult, null, 2);
       return \`
         <tr class="detail-row">
-          <td class="detail-cell" colspan="7">
+          <td class="detail-cell" colspan="8">
             <div class="detail">
+              <div class="config-strip">\${renderConfigChips(row)}</div>
               <div class="detail-kpis">
                 <div class="detail-kpi"><span>Attempts</span><b>\${row.runs}</b></div>
                 <div class="detail-kpi"><span>Passed</span><b class="good">\${row.passed}</b></div>
@@ -677,6 +705,30 @@ function renderHtml(loaded: LoadedSummary[]): string {
           </td>
         </tr>
       \`;
+    }
+
+    function renderConfigChips(row) {
+      const exp = row.experiment || {};
+      const flags = exp.flags && Object.keys(exp.flags).length
+        ? Object.entries(exp.flags).map(([k, v]) => k + "=" + formatConfigValue(v)).join(", ")
+        : "none";
+      const chips = [
+        ["experiment", row.experimentId || row.label],
+        ["model", row.model || "default"],
+        ["agent", row.agent],
+        ["runs", exp.runs ?? row.runs],
+        ["earlyExit", exp.earlyExit === undefined ? "n/a" : String(exp.earlyExit)],
+        ["sandbox", exp.sandbox || "default"],
+        ["budget", exp.budget === undefined ? "none" : "$" + exp.budget],
+        ["flags", flags],
+      ];
+      return chips.map(([label, value]) => \`<span class="config-chip"><span>\${escapeHtml(label)}</span><b>\${escapeHtml(value)}</b></span>\`).join("");
+    }
+
+    function formatConfigValue(value) {
+      if (value === null) return "null";
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+      return JSON.stringify(value);
     }
 
     function totalTokens(usage) {
@@ -743,6 +795,7 @@ function renderTable(rows: LeaderboardRow[]): string {
       <thead>
         <tr>
           <th><button data-sort="experiment">Experiment</button></th>
+          <th><button data-sort="model">Model</button></th>
           <th><button data-sort="agent">Agent</button></th>
           <th><button data-sort="avgDurationMs">Avg Duration</button></th>
           <th><button data-sort="passRate">Success Rate</button></th>
@@ -770,9 +823,11 @@ function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {
   return Array.from(groups.entries()).map(([key, results]) => {
     const first = results[0]!;
     const experimentId = first.experimentId;
+    const experiment = first.experiment;
     const agent = first.agent;
     const modelRaw = first.model;
-    const label = experimentId ?? fallbackExperimentLabel(first);
+    const label = displayExperimentName(experimentId) ?? fallbackExperimentLabel(first);
+    const group = experimentGroup(experimentId);
     const usage = sumUsage(results.map((r) => r.usage));
     const passed = results.filter((r) => r.verdict === "passed").length;
     const failed = results.filter((r) => r.verdict === "failed").length;
@@ -785,6 +840,8 @@ function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {
     return {
       key,
       experimentId,
+      experiment,
+      group,
       label,
       agent,
       model: modelRaw || undefined,
@@ -802,7 +859,18 @@ function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {
   });
 }
 
+function displayExperimentName(id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  return id.split("/").filter(Boolean).at(-1) ?? id;
+}
+
+function experimentGroup(id: string | undefined): string | undefined {
+  if (!id || !id.includes("/")) return undefined;
+  return id.split("/").slice(0, -1).join("/");
+}
+
 function fallbackExperimentLabel(result: EvalResult): string {
+  if (result.experiment?.id) return displayExperimentName(result.experiment.id) ?? result.experiment.id;
   if (result.model) return `${result.agent}/${result.model}`;
   return result.agent || "ad hoc run";
 }
