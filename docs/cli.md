@@ -25,6 +25,7 @@ fastevals [pattern...]        # 发现并运行(默认命令)
 fastevals exp [组|配置]        # 跑实验:全部 / 一组(文件夹,互为对照)/ 单个配置(见 experiments.md)
 fastevals init                # 生成 evals/ 与 fastevals.config.ts
 fastevals list                # 只列出发现到的 eval,不运行
+fastevals clean               # 删除 .fastevals/ 历史运行工件
 fastevals watch               # 监听文件变化,改即重跑(= run --watch)
 fastevals view [结果目录|summary.json]  # 起本地 web 查看器,读 .fastevals/ 历史运行出图
 ```
@@ -83,6 +84,7 @@ fastevals view                         # 起本地 web,读 .fastevals/
 fastevals view .fastevals/<run>/summary.json
 fastevals view --port 4317             # 固定端口;被占用时向后找可用端口
 fastevals view --out .fastevals/report.html  # 导出静态 HTML,不启动服务
+fastevals clean                        # 清掉这些历史运行结果
 ```
 
 默认运行会写 `.fastevals/<timestamp>/summary.json` 与 `results.jsonl`;`view` 直接读这些结构化工件。当前查看器先提供 Next.js evals 风格的密集榜单:按 agent/model 聚合、可排序、可搜索、可展开看单个 eval attempt 的断言/错误/用量。

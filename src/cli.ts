@@ -2,9 +2,10 @@
 //   fastevals [pattern...]            发现并运行(默认 agent)
 //   fastevals exp [组|配置] [pattern]  跑实验
 //   fastevals list                    只列出发现到的 eval
+//   fastevals clean                   删除 .fastevals/ 历史运行工件
 //   fastevals --agent <name> ...
 
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -40,7 +41,7 @@ function parseArgs(argv: string[]): { command: string; positionals: string[]; fl
   let i = 0;
 
   // 第一个非 flag token 若是已知命令,则为命令
-  const commands = new Set(["exp", "list", "view", "init", "watch", "run"]);
+  const commands = new Set(["exp", "list", "view", "clean", "init", "watch", "run"]);
   if (argv[0] && !argv[0].startsWith("-") && commands.has(argv[0])) {
     command = argv[0];
     i = 1;
@@ -138,6 +139,12 @@ async function main(): Promise<void> {
     process.stdout.write(`fastevals view: ${server.url}\n`);
     process.stdout.write("按 Ctrl+C 退出。\n");
     await new Promise(() => {});
+  }
+
+  if (command === "clean") {
+    await rm(join(cwd, ".fastevals"), { recursive: true, force: true });
+    process.stdout.write("已删除 .fastevals/ 历史运行工件。\n");
+    process.exit(0);
   }
 
   if (command === "init" || command === "watch") {
