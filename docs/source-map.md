@@ -1,7 +1,7 @@
 # Source Map —— 文档行为 → 实现文件
 
 文档是设计依据,真相以代码为准。这一页把每条文档行为映射回具体源码文件(参考 crabbox 的做法),
-方便对照「设计 vs 实现」。fastevals 以 TS 源码经 `tsx` 运行,无编译步骤(`bin/fastevals.mjs` 注册
+方便对照「设计 vs 实现」。fasteval 以 TS 源码经 `tsx` 运行,无编译步骤(`bin/fasteval.mjs` 注册
 `tsx/esm/api` 后加载 `src/cli.ts`)。
 
 ## 总览:模块 → 文件
@@ -9,7 +9,7 @@
 | 设计文档里的概念 | 实现文件 |
 |---|---|
 | 核心类型契约(StreamEvent / Agent / Sandbox / TestContext / 评分 …) | `src/types.ts` |
-| 公开导出(`fastevals`) | `src/index.ts` |
+| 公开导出(`fasteval`) | `src/index.ts` |
 | `defineEval` / `defineConfig` / `defineExperiment` / `defineAgent` / `defineSandboxAgent` | `src/define.ts` |
 | `requireEnv` / 工具 | `src/util.ts` |
 
@@ -21,7 +21,7 @@
 | `defineSandboxAgent` / `defineAgent` | `src/define.ts` |
 | 注册表(按名字选,核心不分支) | `src/agents/registry.ts` |
 | `shared` 工具袋(ensureInstalled / captureLatestJsonl / writeFile / extractJsonlFromStdout / codexThreadId / firstJsonField / parseCodex·parseClaudeCode·parseBub) | `src/agents/shared.ts` |
-| 内置 adapter(claude-code / codex / bub) | **由被测项目自带**(`agents/*.ts`),fastevals 提供 `shared` + 解析器 |
+| 内置 adapter(claude-code / codex / bub) | **由被测项目自带**(`agents/*.ts`),fasteval 提供 `shared` + 解析器 |
 
 ## 标准事件流与可观测性([observability.md](observability.md))
 
@@ -29,7 +29,7 @@
 |---|---|
 | 原始 transcript → 标准 `StreamEvent[]` + 用量 + 压缩计数 | `src/o11y/parsers/{codex,claude-code,bub}.ts`、`parsers/index.ts`(`ParsedTranscript`) |
 | `deriveRunFacts`(toolCalls / subagents / parked / compactions) | `src/o11y/derive.ts` |
-| o11y 摘要(注入 `__fastevals__/results.json` 的字段) | `src/o11y/derive.ts`(`buildO11ySummary`) |
+| o11y 摘要(注入 `__fasteval__/results.json` 的字段) | `src/o11y/derive.ts`(`buildO11ySummary`) |
 | codex 用量从 `turn.completed.usage` 抠出 | `src/o11y/parsers/codex.ts` |
 | 用量 → 成本(实测优先 → 用户覆盖 → 内置快照) | `src/runner/pricing.ts` |
 
@@ -73,7 +73,7 @@
 
 ## 与设计文档的已知差异(实现取舍)
 
-- **judge 走 OpenAI 兼容 `/chat/completions`**,base/key 解析顺序:`judge.baseUrl/apiKeyEnv` → `FASTEVALS_JUDGE_BASE`/`CODEX_BASE_URL` → OpenAI 官方。这样在只有 OpenAI 兼容代理(无 Anthropic key)的环境里 judge 自动复用代理。
-- **MVP 范围**:`fastevals view`(web 查看器)、`init`、`watch`、指纹缓存、Vercel/三方沙箱、生命周期 `hooks` 的完整接线、失败分类暂未实现(`view`/`init`/`watch` 打印未实现提示)。运行器目前只跑沙箱型 agent(remote agent 的 `send` 已可定义,但调度路径待补)。
+- **judge 走 OpenAI 兼容 `/chat/completions`**,base/key 解析顺序:`judge.baseUrl/apiKeyEnv` → `FASTEVAL_JUDGE_BASE`/`CODEX_BASE_URL` → OpenAI 官方。这样在只有 OpenAI 兼容代理(无 Anthropic key)的环境里 judge 自动复用代理。
+- **MVP 范围**:`fasteval view`(web 查看器)、`init`、`watch`、指纹缓存、Vercel/三方沙箱、生命周期 `hooks` 的完整接线、失败分类暂未实现(`view`/`init`/`watch` 打印未实现提示)。运行器目前只跑沙箱型 agent(remote agent 的 `send` 已可定义,但调度路径待补)。
 - **compaction 可观测性**:codex 的 `codex exec --json` stdout 流不暴露压缩事件(压缩只在 rollout 文件、且 exec 模式覆盖不全),所以 `t.transcript.compactions()` 对 codex 恒为 0 → 长程压缩类 eval 对 codex 自动 skip(诚实降级,不误判)。
 - **TestContext 类型**:用一个宽接口承载全部动作(运行时按 capability 守卫),而非文档设想的 TS 条件类型 —— 因为被测项目经 `tsx` 运行(不做类型检查),宽接口更省心且不影响运行时正确性。

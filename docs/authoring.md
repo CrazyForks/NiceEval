@@ -7,7 +7,7 @@
 ## `defineEval` 的形状
 
 ```typescript
-import { defineEval } from "fastevals";
+import { defineEval } from "fasteval";
 
 export default defineEval({
   description?: string;            // 人读的描述,出现在报告里
@@ -27,8 +27,8 @@ export default defineEval({
 
 ```typescript
 // evals/weather/brooklyn.eval.ts
-import { defineEval } from "fastevals";
-import { includes } from "fastevals/expect";
+import { defineEval } from "fasteval";
+import { includes } from "fasteval/expect";
 
 export default defineEval({
   description: "布鲁克林天气查询",
@@ -53,8 +53,8 @@ export default defineEval({
 
 ```typescript
 // evals/draft-then-send.eval.ts
-import { defineEval } from "fastevals";
-import { includes } from "fastevals/expect";
+import { defineEval } from "fasteval";
+import { includes } from "fasteval/expect";
 
 export default defineEval({
   description: "先拟稿,确认后再发送",
@@ -78,9 +78,9 @@ export default defineEval({
 
 ```typescript
 // evals/sql.eval.ts
-import { defineEval } from "fastevals";
-import { loadYaml } from "fastevals/loaders";
-import { equals } from "fastevals/expect";
+import { defineEval } from "fasteval";
+import { loadYaml } from "fasteval/loaders";
+import { equals } from "fasteval/expect";
 
 const doc = await loadYaml("evals/data/sql-cases.yaml");
 const rows = doc.cases as { task: string; prompt: string; sql: string }[];
@@ -158,7 +158,7 @@ import { test, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 test("用脚手架命令初始化,而不是手搓", () => {
-  const o11y = JSON.parse(readFileSync("__fastevals__/results.json", "utf-8")).o11y;
+  const o11y = JSON.parse(readFileSync("__fasteval__/results.json", "utf-8")).o11y;
   const cmds = o11y.shellCommands.map((c: { command: string }) => c.command);
   expect(cmds.some((c) => c.includes("create-next-app"))).toBe(true);
 });
@@ -172,7 +172,7 @@ test("用脚手架命令初始化,而不是手搓", () => {
 
 ```typescript
 // evals/refactor.eval.ts
-import { defineAgentEval } from "fastevals";
+import { defineAgentEval } from "fasteval";
 
 export default defineAgentEval({
   description: "把回调改写成 async/await",

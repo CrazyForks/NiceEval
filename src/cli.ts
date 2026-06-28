@@ -1,9 +1,9 @@
-// fastevals CLI 入口。两类输入:位置参数选「哪些 eval」(id 前缀),flag 选「怎么跑」。
-//   fastevals [pattern...]            发现并运行(默认 agent)
-//   fastevals exp [组|配置] [pattern]  跑实验
-//   fastevals list                    只列出发现到的 eval
-//   fastevals clean                   删除 .fastevals/ 历史运行工件
-//   fastevals --agent <name> ...
+// fasteval CLI 入口。两类输入:位置参数选「哪些 eval」(id 前缀),flag 选「怎么跑」。
+//   fasteval [pattern...]            发现并运行(默认 agent)
+//   fasteval exp [组|配置] [pattern]  跑实验
+//   fasteval list                    只列出发现到的 eval
+//   fasteval clean                   删除 .fasteval/ 历史运行工件
+//   fasteval --agent <name> ...
 
 import { readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -104,12 +104,12 @@ async function loadDotenv(cwd: string): Promise<void> {
 }
 
 async function loadConfig(cwd: string): Promise<Config> {
-  const path = join(cwd, "fastevals.config.ts");
+  const path = join(cwd, "fasteval.config.ts");
   if (!existsSync(path)) {
-    throw new Error("找不到 fastevals.config.ts(请在项目根运行)。");
+    throw new Error("找不到 fasteval.config.ts(请在项目根运行)。");
   }
   const mod = (await import(pathToFileURL(path).href)) as { default?: Config };
-  if (!mod.default) throw new Error("fastevals.config.ts 需要 default export(defineConfig(...))。");
+  if (!mod.default) throw new Error("fasteval.config.ts 需要 default export(defineConfig(...))。");
   return mod.default;
 }
 
@@ -136,14 +136,14 @@ async function main(): Promise<void> {
       process.exit(0);
     }
     const server = await startViewServer({ input: positionals[0], port: flags.port });
-    process.stdout.write(`fastevals view: ${server.url}\n`);
+    process.stdout.write(`fasteval view: ${server.url}\n`);
     process.stdout.write("按 Ctrl+C 退出。\n");
     await new Promise(() => {});
   }
 
   if (command === "clean") {
-    await rm(join(cwd, ".fastevals"), { recursive: true, force: true });
-    process.stdout.write("已删除 .fastevals/ 历史运行工件。\n");
+    await rm(join(cwd, ".fasteval"), { recursive: true, force: true });
+    process.stdout.write("已删除 .fasteval/ 历史运行工件。\n");
     process.exit(0);
   }
 
@@ -197,7 +197,7 @@ async function main(): Promise<void> {
     }
   } else {
     // 给了 pattern 却匹配不到任何 eval:别静默跑 0 个。多半是把实验组/实验名当成了 eval
-    // (例:`fastevals dev` 实为 run 命令 + pattern "dev")—— 明确报错并指路 `exp`。
+    // (例:`fasteval dev` 实为 run 命令 + pattern "dev")—— 明确报错并指路 `exp`。
     if (positionals.length > 0 && !evals.some((e) => makeFilter(positionals)(e.id))) {
       const experiments = await discoverExperiments(cwd);
       const asExp = experiments.filter((e) =>
@@ -205,7 +205,7 @@ async function main(): Promise<void> {
       );
       process.stderr.write(`没有匹配的 eval:${positionals.join(" ")}。\n`);
       if (asExp.length > 0) {
-        process.stderr.write(`提示:"${positionals[0]}" 是实验${asExp.length > 1 ? "组" : ""},你大概想跑:fastevals exp ${positionals[0]}\n`);
+        process.stderr.write(`提示:"${positionals[0]}" 是实验${asExp.length > 1 ? "组" : ""},你大概想跑:fasteval exp ${positionals[0]}\n`);
       } else {
         process.stderr.write(`已发现 ${evals.length} 个 eval:${evals.map((e) => e.id).join(", ") || "(无)"}\n`);
       }
@@ -256,6 +256,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  process.stderr.write(`fastevals 出错:${e instanceof Error ? e.stack ?? e.message : String(e)}\n`);
+  process.stderr.write(`fasteval 出错:${e instanceof Error ? e.stack ?? e.message : String(e)}\n`);
   process.exit(2);
 });

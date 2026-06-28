@@ -34,7 +34,7 @@ const DEFAULT_TIMEOUT = 600_000;
 const CONTAINER_WORKDIR = "/home/sandbox/workspace";
 
 // 容器「主日志」文件:PID1 tail 它 → `docker logs` 实时显示;agent 命令的 stream 输出 tee 进来。
-const CONTAINER_LOG = "/tmp/fastevals-agent.log";
+const CONTAINER_LOG = "/tmp/fasteval-agent.log";
 
 /** 单引号包裹 + 转义,把一个参数安全嵌进 shell 命令串。 */
 function shellQuote(s: string): string {
@@ -251,42 +251,27 @@ export class DockerSandbox implements Sandbox {
     const stream = await exec.start({ hijack: true, stdin: false });
 
     return new Promise<CommandResult>((resolve, reject) => {
-      // Docker 把 stdout/stderr 复用在同一条流里,需手动 demux。
+      // Docker 把 stdout/stderr 复用在同一条流里(8 字节头 + 载荷),需手动 demux。
+      // 头:[stream_type(1B), 0, 0, 0, size(4B 大端)];stream_type:1=stdout,2=stderr。
+      //
+      // 关键:一帧可能被 Node 的可读流切到【多个 data 事件】里(尤其大输出,如 cat 一个
+      // ~100KB 的文件),帧头 / 载荷都可能跨 chunk。所以必须跨 data 累积一个 leftover,
+      // 只消费「已到齐的完整帧」,残帧留到下个 data —— 否则会在 chunk 边界丢字节 / 串帧,
+      // 表现为 transcript 里随机损坏的行(曾导致 bub tape 的 tool_result/tool_call 被吞)。
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
+      let buffer: Buffer = Buffer.alloc(0); // 跨 data 累积的残帧;注解为 Buffer 以容纳 concat 的 ArrayBufferLike
 
       stream.on("data", (chunk: Buffer) => {
-        // Docker 流格式:8 字节头 + 载荷。
-        // 头:[stream_type(1B), 0, 0, 0, size(4B 大端)]。
-        // stream_type:1 = stdout,2 = stderr。
-        let offset = 0;
-        while (offset < chunk.length) {
-          if (offset + 8 > chunk.length) {
-            // 头不完整,剩余当 stdout。
-            stdoutChunks.push(chunk.subarray(offset));
-            break;
-          }
-
-          const streamType = chunk[offset];
-          const size = chunk.readUInt32BE(offset + 4);
-
-          if (offset + 8 + size > chunk.length) {
-            // 载荷不完整,剩余当 stdout。
-            stdoutChunks.push(chunk.subarray(offset + 8));
-            break;
-          }
-
-          const payload = chunk.subarray(offset + 8, offset + 8 + size);
-          if (streamType === 1) {
-            stdoutChunks.push(payload);
-          } else if (streamType === 2) {
-            stderrChunks.push(payload);
-          } else {
-            // 未知类型,当 stdout。
-            stdoutChunks.push(payload);
-          }
-
-          offset += 8 + size;
+        buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk;
+        while (buffer.length >= 8) {
+          const streamType = buffer[0];
+          const size = buffer.readUInt32BE(4);
+          if (buffer.length < 8 + size) break; // 载荷未到齐 → 等下个 data
+          const payload = buffer.subarray(8, 8 + size);
+          if (streamType === 2) stderrChunks.push(payload);
+          else stdoutChunks.push(payload); // 1 / 0 / 未知 → 归 stdout
+          buffer = buffer.subarray(8 + size);
         }
       });
 

@@ -1,14 +1,14 @@
 # Agents 与 Adapters
 
-这一篇讲 fastevals 如何"连到一个被测对象"。这是整个库最容易被想歪的地方,先把两个核心论点摆出来:
+这一篇讲 fasteval 如何"连到一个被测对象"。这是整个库最容易被想歪的地方,先把两个核心论点摆出来:
 
-> 1. **fastevals 不定义任何 agent 协议。** 每一个被测对象 —— 你自己的 agent、你的后端服务、Claude Code / Codex 这种 coding agent —— **都是自己实现的 adapter**。你按**名字**选(`--agent <name>`),而不是给一个 url。
+> 1. **fasteval 不定义任何 agent 协议。** 每一个被测对象 —— 你自己的 agent、你的后端服务、Claude Code / Codex 这种 coding agent —— **都是自己实现的 adapter**。你按**名字**选(`--agent <name>`),而不是给一个 url。
 > 2. **adapter 真正的难点不是"连上",而是把各 agent 五花八门的原始返回归一化成一套标准的[事件流](#标准事件流adapter-的核心难点)。** 归一化之后,整套断言都是免费的、与 agent 无关的。
 
 两个词:
 
-- **Agent** —— 抽象。fastevals 眼里"一个被测对象",带[能力位](#能力位决定-t-的形状),按名字选。运行器只认 Agent 契约。
-- **Adapter** —— 实现。某个 agent 的具体代码,**由用户编写**(fastevals 也内置几个常用 coding agent)。一个 Adapter 实现一个 Agent。
+- **Agent** —— 抽象。fasteval 眼里"一个被测对象",带[能力位](#能力位决定-t-的形状),按名字选。运行器只认 Agent 契约。
+- **Adapter** —— 实现。某个 agent 的具体代码,**由用户编写**(fasteval 也内置几个常用 coding agent)。一个 Adapter 实现一个 Agent。
 
 按 transport 分两种,但**能力完全一样**(都能 `send`、都返回同一套标准结果):
 
@@ -17,14 +17,14 @@
 
 ## 为什么有 `--agent` 却没有 `--url`
 
-eve 能用一个 url 当被测对象,是因为它**定义了一套自己的协议**、被测 agent 恰好会说 —— 于是"连哪"退化成"哪个 url"。fastevals 没有这个前提:不存在一套通用协议让任意 agent 都会说。所以:
+eve 能用一个 url 当被测对象,是因为它**定义了一套自己的协议**、被测 agent 恰好会说 —— 于是"连哪"退化成"哪个 url"。fasteval 没有这个前提:不存在一套通用协议让任意 agent 都会说。所以:
 
 - **没有 `--url`、没有通用的 "http agent"。** 要连你的 HTTP 服务,你写一个 agent,它内部知道你服务的协议(URL、鉴权、消息格式都是它的私事)。
 - **只有 `--agent <name>`。** 一个 flag,选任意一个自实现的 agent。"评本地 vs 评线上"靠 agent 自己读 env,或注册成两个 agent:
 
 ```sh
-MY_BOT_URL=http://localhost:3000    npx fastevals weather --agent my-bot   # 评本地
-MY_BOT_URL=https://prod.example.com npx fastevals weather --agent my-bot   # 评线上
+MY_BOT_URL=http://localhost:3000    npx fasteval weather --agent my-bot   # 评本地
+MY_BOT_URL=https://prod.example.com npx fasteval weather --agent my-bot   # 评线上
 ```
 
 ## Agent 契约
@@ -137,7 +137,7 @@ interface DerivedFacts {
 
 ```typescript
 // agents/my-agent.ts —— 进程内
-import { defineAgent } from "fastevals";
+import { defineAgent } from "fasteval";
 import { myAgent } from "../src/agent.js";
 
 export default defineAgent({
@@ -152,7 +152,7 @@ export default defineAgent({
 ```
 
 ```typescript
-// agents/support-bot.ts —— 远程,URL 是它的私事(fastevals 不定协议)
+// agents/support-bot.ts —— 远程,URL 是它的私事(fasteval 不定协议)
 export default defineAgent({
   name: "support-bot",
   capabilities: { conversation: true, toolObservability: true },
@@ -184,11 +184,11 @@ claude-code 和 codex 用**同一套**模型,绝大部分**共享**,只有 5 个
 | 读 transcript → 解析成 events | ✗ | `~/.claude/projects/.../{session}.jsonl` 最新一个 | `--json` stdout 即 JSONL |
 | 归一化 events → diff → 验证 | ✅ 共享 | — | — |
 
-"共享"的部分由 fastevals 提供成可复用工具(下文 [shared](#shared沙箱型-adapter-的共享工具)),所以**每个沙箱 adapter 真正要写的,就是中间那 5 行差异 + 一个 transcript 解析器**。
+"共享"的部分由 fasteval 提供成可复用工具(下文 [shared](#shared沙箱型-adapter-的共享工具)),所以**每个沙箱 adapter 真正要写的,就是中间那 5 行差异 + 一个 transcript 解析器**。
 
 ```typescript
 // agents/claude-code.ts(内置;接 bub 照抄此形状)
-import { defineSandboxAgent, shared, requireEnv } from "fastevals";
+import { defineSandboxAgent, shared, requireEnv } from "fasteval";
 
 // 本地配:这个 agent 怎么连它自己 —— 鉴权在这里读;注意「没有 model」(留空,实验决定)
 const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });
@@ -271,12 +271,12 @@ export default defineSandboxAgent({
 
 ## shared:沙箱型 adapter 的共享工具
 
-跨所有沙箱 adapter 复用、不属于任何单个 agent 的逻辑,由 fastevals 提供(对应 agent-eval 的 `shared.ts`),保证所有 coding agent 的"上传 / 基线 / 采 diff / 验证"严格一致:
+跨所有沙箱 adapter 复用、不属于任何单个 agent 的逻辑,由 fasteval 提供(对应 agent-eval 的 `shared.ts`),保证所有 coding agent 的"上传 / 基线 / 采 diff / 验证"严格一致:
 
 - **`prepareWorkspace(sandbox, fixture)`** —— 上传 workspace files(藏起 `EVAL.ts` 等 test files,防作弊),`git init && commit` 打基线。
 - **`captureGeneratedFiles(sandbox)`** —— `git diff HEAD` 得到 `{ generated, deleted }`。
 - **`runValidation(sandbox, scripts, mode)`** —— 上传 test files,跑 `EVAL.ts`(Vitest)+ npm scripts。
-- **`injectO11yContext(sandbox, events)`** —— 由标准事件流派生 o11y,写 `__fastevals__/results.json`,供 `EVAL.ts` 断言行为。
+- **`injectO11yContext(sandbox, events)`** —— 由标准事件流派生 o11y,写 `__fasteval__/results.json`,供 `EVAL.ts` 断言行为。
 - **`captureLatestJsonl(sandbox, dir)`** / transcript 定位辅助。
 
 运行器对沙箱型 agent 的编排:`prepareWorkspace` → `agent.send`(adapter 在沙箱里跑 + 解析成 events)→ `runValidation` → `captureGeneratedFiles` → `sandbox.stop`。adapter 只填中间那一段。
@@ -284,8 +284,8 @@ export default defineSandboxAgent({
 ## 注册与选择
 
 ```typescript
-// fastevals.config.ts
-import { defineConfig } from "fastevals";
+// fasteval.config.ts
+import { defineConfig } from "fasteval";
 import myAgent from "./agents/my-agent.js";
 import supportBot from "./agents/support-bot.js";
 

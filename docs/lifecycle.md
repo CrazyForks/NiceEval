@@ -1,6 +1,6 @@
 # Lifecycle —— 环境的起停钩子
 
-评测要在"干净又就绪"的环境里跑。而"环境"因实验而异:起一个 mock API、装一组额外依赖、连一个外部 DB、跑完再把这些关掉。fastevals 把这些**起停**收敛成一组分层、同构的生命周期钩子:核心负责固定编排(沙箱起停、上传、git 基线、采 diff、跑验证),用户钩子只填"我这套环境怎么起、怎么停"。
+评测要在"干净又就绪"的环境里跑。而"环境"因实验而异:起一个 mock API、装一组额外依赖、连一个外部 DB、跑完再把这些关掉。fasteval 把这些**起停**收敛成一组分层、同构的生命周期钩子:核心负责固定编排(沙箱起停、上传、git 基线、采 diff、跑验证),用户钩子只填"我这套环境怎么起、怎么停"。
 
 > 承重墙重申(见 [Vision](vision.md#边界画在行为上)):钩子是**中性**的 —— 它让用户在固定编排的缝隙里插自己的环境逻辑,而不需要核心按 agent / sandbox 名字分支。这正是"一个中性的小 hook,几乎总比把 `name === ...` 的分支穿过核心要干净"的落点。
 
@@ -29,7 +29,7 @@ interface LifecycleHooks {
 ## 三个嵌套作用域
 
 ```text
-RUN(一次 fastevals 调用 = 一个实验矩阵)
+RUN(一次 fasteval 调用 = 一个实验矩阵)
 │  hooks.run.setup(run)            ← 全程一次:起共享环境(mock API、license、共享 DB、预热)
 │
 ├── ATTEMPT(eval × model × run 的一次运行)—— 沙箱作用域
@@ -55,7 +55,7 @@ RUN(一次 fastevals 调用 = 一个实验矩阵)
 
 ## 哪个作用域放哪 —— 和已有边界一致
 
-fastevals 已经把边界定死:**config = 环境与默认,experiment = 怎么跑这批,eval = 测什么**。生命周期钩子照这条线落位:
+fasteval 已经把边界定死:**config = 环境与默认,experiment = 怎么跑这批,eval = 测什么**。生命周期钩子照这条线落位:
 
 | 钩子 | 作用域 | 归属 | 干什么 |
 |---|---|---|---|
@@ -116,7 +116,7 @@ hooks: {
 `hooks.run.setup` 的产物经 `run.share(...)` 暴露给每个 attempt 的 **`ctx.shared`**(只读)。比如起一个 mock server,把 url 共享下去,再由各 attempt 的 `hooks.sandbox.setup` 写进各自沙箱的 `.env`:
 
 ```typescript
-// fastevals.config.ts —— 所有实验共享
+// fasteval.config.ts —— 所有实验共享
 export default defineConfig({
   hooks: {
     run: {

@@ -50,20 +50,20 @@ const VERDICT_ORDER: Record<Verdict, number> = {
 };
 
 const TEMPLATE_PLACEHOLDERS = {
-  styles: "<!-- __FASTEVALS_STYLES__ -->",
-  lastRun: "__FASTEVALS_LAST_RUN__",
-  sourceList: "__FASTEVALS_SOURCE_LIST__",
-  passRate: "__FASTEVALS_PASS_RATE__",
-  resultCount: "__FASTEVALS_RESULT_COUNT__",
-  duration: "__FASTEVALS_DURATION__",
-  cost: "__FASTEVALS_COST__",
-  resultsBody: "<!-- __FASTEVALS_RESULTS_BODY__ -->",
-  rowsJson: "__FASTEVALS_ROWS_JSON__",
+  styles: "<!-- __FASTEVAL_STYLES__ -->",
+  lastRun: "__FASTEVAL_LAST_RUN__",
+  sourceList: "__FASTEVAL_SOURCE_LIST__",
+  passRate: "__FASTEVAL_PASS_RATE__",
+  resultCount: "__FASTEVAL_RESULT_COUNT__",
+  duration: "__FASTEVAL_DURATION__",
+  cost: "__FASTEVAL_COST__",
+  resultsBody: "<!-- __FASTEVAL_RESULTS_BODY__ -->",
+  rowsJson: "__FASTEVAL_ROWS_JSON__",
 } as const;
 
 export async function buildView(opts: ViewOptions = {}): Promise<string> {
   const summaries = await loadSummaries(opts.input);
-  const out = resolve(opts.out ?? ".fastevals/report.html");
+  const out = resolve(opts.out ?? ".fasteval/report.html");
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, await renderHtml(summaries), "utf-8");
   return out;
@@ -146,7 +146,7 @@ async function renderHtml(loaded: LoadedSummary[]): Promise<string> {
     .replace(TEMPLATE_PLACEHOLDERS.lastRun, escapeHtml(latest ? formatDate(latest.startedAt) : "No runs yet"))
     .replace(
       TEMPLATE_PLACEHOLDERS.sourceList,
-      escapeHtml(loaded.slice(0, 6).map((s) => relativeName(s.path)).join(", ") || ".fastevals"),
+      escapeHtml(loaded.slice(0, 6).map((s) => relativeName(s.path)).join(", ") || ".fasteval"),
     )
     .replace(TEMPLATE_PLACEHOLDERS.passRate, formatPercent(totals.passRate))
     .replace(TEMPLATE_PLACEHOLDERS.resultCount, String(totals.results))
@@ -190,7 +190,7 @@ async function listen(server: Server, preferredPort: number): Promise<number> {
 
 /** 服务/解析工件的根目录:输入是目录就用它,是文件就用其所在目录。 */
 function viewRoot(input?: string): string {
-  const t = resolve(input ?? ".fastevals");
+  const t = resolve(input ?? ".fasteval");
   try {
     return statSync(t).isFile() ? dirname(t) : t;
   } catch {
@@ -199,7 +199,7 @@ function viewRoot(input?: string): string {
 }
 
 async function loadSummaries(input?: string): Promise<LoadedSummary[]> {
-  const target = resolve(input ?? ".fastevals");
+  const target = resolve(input ?? ".fasteval");
   if (!existsSync(target)) return [];
   const root = viewRoot(input);
   const s = await stat(target);
@@ -217,7 +217,7 @@ async function loadSummaries(input?: string): Promise<LoadedSummary[]> {
       attachArtifactBase(summary, path, root);
       loaded.push({ path, summary });
     } catch {
-      // Ignore unrelated JSON files under .fastevals.
+      // Ignore unrelated JSON files under .fasteval.
     }
   }
   loaded.sort((a, b) => b.summary.startedAt.localeCompare(a.summary.startedAt));
@@ -243,7 +243,7 @@ async function findSummaryFiles(dir: string): Promise<string[]> {
 async function readSummary(path: string): Promise<RunSummary> {
   const data = JSON.parse(await readFile(path, "utf-8")) as RunSummary;
   if (!Array.isArray(data.results) || typeof data.startedAt !== "string") {
-    throw new Error(`${path} is not a fastevals summary`);
+    throw new Error(`${path} is not a fasteval summary`);
   }
   return data;
 }
@@ -269,7 +269,7 @@ function renderTable(): string {
 }
 
 function renderEmptyState(): string {
-  return `<div class="empty">No summary.json files found. Run <code>fastevals</code> or pass <code>fastevals view path/to/summary.json</code>.</div>`;
+  return `<div class="empty">No summary.json files found. Run <code>fasteval</code> or pass <code>fasteval view path/to/summary.json</code>.</div>`;
 }
 
 function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {

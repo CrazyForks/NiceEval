@@ -1,11 +1,11 @@
 {
-  "name": "fastevals",
+  "name": "fasteval",
   "version": "0.0.1",
   "description": "写得快、跑得快、看得快的 TypeScript evals 库",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "fastevals": "bin/fastevals.mjs"
+    "fasteval": "bin/fasteval.mjs"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -19,12 +19,13 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "fastevals": "node bin/fastevals.mjs",
+    "fasteval": "node bin/fasteval.mjs",
     "site:dev": "vite site --host 127.0.0.1 --port 5174",
     "site:build": "vite build site"
   },
   "dependencies": {
     "dockerode": "^4.0.2",
+    "effect": "^3.21.4",
     "tar-stream": "^3.1.7",
     "tsx": "^4.19.2"
   },

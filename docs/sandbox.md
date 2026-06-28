@@ -91,7 +91,7 @@ await sandbox.runCommand("npm", ["install"]);
 
 `createSandbox` 的 `default` 分支留给三方沙箱服务(E2B、Modal、Daytona、Anthropic Sandbox Runtime 等)。约定:三方后端实现同一个 `Sandbox` 接口并以包名注册,`--sandbox e2b` 即用。
 
-这与 crabbox 的 provider 模型同构:**核心定义接口,后端各自实现**,新后端不改核心。fastevals 的沙箱抽象刻意保持小(只需 run/read/write/cwd/stop),让接一个三方后端的成本最低。
+这与 crabbox 的 provider 模型同构:**核心定义接口,后端各自实现**,新后端不改核心。fasteval 的沙箱抽象刻意保持小(只需 run/read/write/cwd/stop),让接一个三方后端的成本最低。
 
 ## 沙箱在生命周期里的位置
 

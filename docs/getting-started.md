@@ -2,20 +2,20 @@
 
 这一篇带你从零跑通三种 eval:一个进程内函数 eval、一个会话型 agent eval、一个沙箱里的 coding-agent eval。读完你就有了能在 CI 里跑的最小骨架。
 
-> 注:fastevals 目前处于设计阶段,本篇描述的是目标用法(目标 DX),作为实现依据。
+> 注:fasteval 目前处于设计阶段,本篇描述的是目标用法(目标 DX),作为实现依据。
 
 ## 安装
 
 ```sh
-npm install -D fastevals
-npx fastevals init        # 生成 evals/、fastevals.config.ts、示例 eval
+npm install -D fasteval
+npx fasteval init        # 生成 evals/、fasteval.config.ts、示例 eval
 ```
 
 `init` 后的目录:
 
 ```
 your-project/
-├─ fastevals.config.ts
+├─ fasteval.config.ts
 └─ evals/
    ├─ hello.eval.ts            # 示例:会话型
    └─ fixtures/
@@ -28,13 +28,13 @@ your-project/
 ## 配置
 
 ```typescript
-// fastevals.config.ts
-import { defineConfig } from "fastevals";
-import { Console, JUnit } from "fastevals/reporters";
+// fasteval.config.ts
+import { defineConfig } from "fasteval";
+import { Console, JUnit } from "fasteval/reporters";
 
 export default defineConfig({
   judge: { model: "anthropic/claude-haiku-4-5" }, // 默认评判模型
-  reporters: [Console(), JUnit(".fastevals/junit.xml")],
+  reporters: [Console(), JUnit(".fasteval/junit.xml")],
   maxConcurrency: 8,
   timeoutMs: 300_000,
   sandbox: "auto",                                 // 有云 token 用云,否则 docker
@@ -47,7 +47,7 @@ export default defineConfig({
 
 ```typescript
 // agents/classify.ts —— 进程内 agent
-import { defineAgent } from "fastevals";
+import { defineAgent } from "fasteval";
 import { classifyIntent } from "../src/agent.js";   // 你自己的代码
 
 export default defineAgent({
@@ -60,8 +60,8 @@ export default defineAgent({
 
 ```typescript
 // evals/classify.eval.ts
-import { defineEval } from "fastevals";
-import { equals } from "fastevals/expect";
+import { defineEval } from "fasteval";
+import { equals } from "fasteval/expect";
 
 export default defineEval({
   description: "意图分类:退款",
@@ -73,19 +73,19 @@ export default defineEval({
 });
 ```
 
-(把 `classify` 加进 `fastevals.config.ts` 的 `agents: [...]`,或设成 `defaultAgent`。)
+(把 `classify` 加进 `fasteval.config.ts` 的 `agents: [...]`,或设成 `defaultAgent`。)
 
 ```sh
-npx fastevals classify
+npx fasteval classify
 ```
 
 ## 2. 评一个会话型 agent(本地或远程)
 
-驱动一个暴露会话接口的 agent,断言它的回复与工具调用。连你的服务也是写一个 agent —— 它内部按你服务的协议发请求,URL 是它读 env 的私事(fastevals 不定义 agent 协议,所以没有 `--url`):
+驱动一个暴露会话接口的 agent,断言它的回复与工具调用。连你的服务也是写一个 agent —— 它内部按你服务的协议发请求,URL 是它读 env 的私事(fasteval 不定义 agent 协议,所以没有 `--url`):
 
 ```typescript
 // agents/weather-bot.ts —— 远程 agent,URL 是它的私事
-import { defineAgent } from "fastevals";
+import { defineAgent } from "fasteval";
 
 export default defineAgent({
   name: "weather-bot",
@@ -104,8 +104,8 @@ export default defineAgent({
 
 ```typescript
 // evals/weather/brooklyn.eval.ts
-import { defineEval } from "fastevals";
-import { includes } from "fastevals/expect";
+import { defineEval } from "fasteval";
+import { includes } from "fasteval/expect";
 
 export default defineEval({
   description: "布鲁克林天气",
@@ -121,7 +121,7 @@ export default defineEval({
 ```
 
 ```sh
-AGENT_URL=https://my-agent.example.com npx fastevals weather --agent weather-bot
+AGENT_URL=https://my-agent.example.com npx fasteval weather --agent weather-bot
 ```
 
 ## 3. 评一个塞进沙箱的 coding agent
@@ -153,7 +153,7 @@ test("接受 label / onClick", () => {
 
 // 也能断言 agent 的「行为」,而不只是结果:
 test("没有暴力删库", () => {
-  const o11y = JSON.parse(readFileSync("__fastevals__/results.json", "utf-8")).o11y;
+  const o11y = JSON.parse(readFileSync("__fasteval__/results.json", "utf-8")).o11y;
   expect(o11y.shellCommands.map((c) => c.command)).not.toContain("rm -rf");
 });
 ```
@@ -172,10 +172,10 @@ test("没有暴力删库", () => {
 ```sh
 # 直连 API + 本地 Docker,不需要任何云 token
 export ANTHROPIC_API_KEY=sk-ant-...
-npx fastevals --agent claude-code --sandbox docker fixtures/button
+npx fasteval --agent claude-code --sandbox docker fixtures/button
 
 # 跑 10 次取通过率,先过一次就早停
-npx fastevals --agent claude-code --runs 10 --early-exit fixtures/button
+npx fasteval --agent claude-code --runs 10 --early-exit fixtures/button
 ```
 
 ## 看结果
@@ -194,13 +194,13 @@ Discovered 3 evals
 Results:  2 passed, 1 failed, 0 scored, 0 skipped
 ```
 
-详细工件落在 `.fastevals/<时间戳>/`:`summary.json`、逐 eval 结果、事件流、transcript、生成文件 diff、测试输出。结构详见 [Observability](observability.md)。
+详细工件落在 `.fasteval/<时间戳>/`:`summary.json`、逐 eval 结果、事件流、transcript、生成文件 diff、测试输出。结构详见 [Observability](observability.md)。
 
 ## 接进 CI
 
 ```yaml
 # .github/workflows/evals.yml
-- run: npx fastevals --strict --junit .fastevals/junit.xml
+- run: npx fasteval --strict --junit .fasteval/junit.xml
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```

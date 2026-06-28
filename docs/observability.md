@@ -2,7 +2,7 @@
 
 评测的价值不止"过/挂",更在"为什么"。这一篇讲三件事:agent 的 **transcript** 如何被归一化成统一 trace、跑完落盘的**工件**长什么样、**报告器**如何把结果回传。
 
-这是 fastevals "看得快"承诺的落点,见 [Vision](vision.md#看得快)。
+这是 fasteval "看得快"承诺的落点,见 [Vision](vision.md#看得快)。
 
 ## Transcript → 标准事件流
 
@@ -44,10 +44,10 @@ interface O11ySummary {
 
 ### 注入沙箱:让测试断言「行为」
 
-这份摘要被写进沙箱的 `__fastevals__/results.json`,于是 `EVAL.ts` 能断言 agent **干了什么**,而不只是**产出了什么**:
+这份摘要被写进沙箱的 `__fasteval__/results.json`,于是 `EVAL.ts` 能断言 agent **干了什么**,而不只是**产出了什么**:
 
 ```typescript
-const o11y = JSON.parse(readFileSync("__fastevals__/results.json", "utf-8")).o11y;
+const o11y = JSON.parse(readFileSync("__fasteval__/results.json", "utf-8")).o11y;
 
 // 用了正确的脚手架,而不是手搓
 expect(o11y.shellCommands.some((c) => c.command.includes("create-next-app"))).toBe(true);
@@ -61,10 +61,10 @@ expect(o11y.totalToolCalls).toBeLessThan(50);
 
 ## 工件落盘
 
-每次运行落一份结构化工件到 `.fastevals/<时间戳>/`:
+每次运行落一份结构化工件到 `.fasteval/<时间戳>/`:
 
 ```text
-.fastevals/2026-06-28T10-30-45/
+.fasteval/2026-06-28T10-30-45/
 ├─ summary.json                  # 运行汇总(各判决计数、agent、起止时间)
 ├─ results.jsonl                 # 每行一个 eval 结果(紧凑)
 └─ evals/
@@ -105,7 +105,7 @@ expect(o11y.totalToolCalls).toBeLessThan(50);
 
 评测很贵 —— 每个 case 可能是几十次模型调用。**「花了多少 token / 多少钱」是一等公民**,因为评 coding agent 时最值钱的对比维度是**质量 × 成本**:同一批 eval 跑 claude-code / codex / bub,谁的通过率高、谁更省钱,一目了然。
 
-参考项目这块都是空的:eve 在模型层有 token 数但 eval 不聚合成本;agent-eval 连抠都没抠(opencode 解析器里只留了句 "could extract token usage if needed" 的 TODO)。fastevals 把它补齐。
+参考项目这块都是空的:eve 在模型层有 token 数但 eval 不聚合成本;agent-eval 连抠都没抠(opencode 解析器里只留了句 "could extract token usage if needed" 的 TODO)。fasteval 把它补齐。
 
 ### 用量从哪来
 
@@ -122,10 +122,10 @@ expect(o11y.totalToolCalls).toBeLessThan(50);
 token 数能可靠拿到;难点是 token→$ 的价格表 —— 价格会随时间、provider、网关、企业折扣、自托管而变,写死必然过期。所以成本解析是**分层的,且"实测优先于估算"**:
 
 1. **网关实测成本(最高优先)。** 不少网关(Vercel AI Gateway、OpenRouter…)每次请求直接回真实 cost。只要 agent 把它带进 `Turn.usage.costUSD`,就直接用它 —— **根本不需要价格表**。这绕开了一大半场景。
-2. **内置默认价格表 ⊕ 用户覆盖。** 没有实测时,用观测到的模型查价。fastevals 内置一份**带版本的快照**覆盖常见模型(零配置即有 $),用户在 config 里**覆盖或补充**(网关/企业折扣/自托管/自定义费率,用户赢):
+2. **内置默认价格表 ⊕ 用户覆盖。** 没有实测时,用观测到的模型查价。fasteval 内置一份**带版本的快照**覆盖常见模型(零配置即有 $),用户在 config 里**覆盖或补充**(网关/企业折扣/自托管/自定义费率,用户赢):
 
    ```typescript
-   // fastevals.config.ts —— 合并在内置默认之上,用户优先
+   // fasteval.config.ts —— 合并在内置默认之上,用户优先
    defineConfig({
      pricing: {
        "anthropic/claude-opus-4-8": { inputPerMTok: 5, outputPerMTok: 25, cacheReadPerMTok: 0.5 },
@@ -176,24 +176,24 @@ Run totals:  3 evals · 142k tok · $1.12   (agent: claude-code)
 | **token 用量** | 同 | 标准事件流 / transcript 抠出 |
 | **估算成本 $** | 同 | usage × 价格表(或网关实测) |
 
-三个都留是因为**它们不总相关**:命中缓存的运行可能便宜但慢,推理重的可能贵但快 —— 只看一个会误判。所以控制台 `(42s) 38.2k tok $0.31` 三个并列,`fastevals view` 也能画「质量 × 成本 × 延迟」。
+三个都留是因为**它们不总相关**:命中缓存的运行可能便宜但慢,推理重的可能贵但快 —— 只看一个会误判。所以控制台 `(42s) 38.2k tok $0.31` 三个并列,`fasteval view` 也能画「质量 × 成本 × 延迟」。
 
 ### 把成本变成可断言 / 可护栏的维度
 
 - **断言效率**(见 [Scoring](scoring.md#5-效率成本断言)):`t.maxTokens(50_000)` / `t.maxCost(0.5)` —— agent 答对了但烧太多,也判失败。
 - **预算护栏**:`--budget <usd>` 给整轮设上限,累计花费超了就停止派发新 attempt(借鉴 crabbox 的 spend cap),避免一次跑爆账单。
 
-## 结果可视化:`fastevals view`
+## 结果可视化:`fasteval view`
 
-控制台和 `summary.json` 是「当下」的;但你常常想**事后看图**:这次比上次贵了多少?哪个 agent 性价比高?所以 fastevals 提供一个本地查看器(对标 agent-eval 的 playground:一个读结果目录的 web UI)。
+控制台和 `summary.json` 是「当下」的;但你常常想**事后看图**:这次比上次贵了多少?哪个 agent 性价比高?所以 fasteval 提供一个本地查看器(对标 agent-eval 的 playground:一个读结果目录的 web UI)。
 
 ```sh
-fastevals view                         # 起本地 web,读 .fastevals/ 下所有历史运行
-fastevals view .fastevals/<run>/summary.json
-fastevals view --out .fastevals/report.html  # 导出静态 HTML
+fasteval view                         # 起本地 web,读 .fasteval/ 下所有历史运行
+fasteval view .fasteval/<run>/summary.json
+fasteval view --out .fasteval/report.html  # 导出静态 HTML
 ```
 
-它不连任何服务,只读 `.fastevals/<时间戳>/` 这些**结构化工件**(每 eval 已带 `usage` + `estimatedCostUSD`),因此能渲染:
+它不连任何服务,只读 `.fasteval/<时间戳>/` 这些**结构化工件**(每 eval 已带 `usage` + `estimatedCostUSD`),因此能渲染:
 
 - **运行总览** —— pass / fail / scored 计数、总 token、总 $。
 - **experiment 对比榜单** —— 同一批 eval 下各个实验配置的通过率 + 平均耗时 + token + 成本并列;agent/model 是实验配置的属性,不是主键。这是评 coding agent 最想要的一张图。
@@ -221,7 +221,7 @@ interface Reporter {
 报告器在**独立串行队列**上被回调,不阻塞执行池(见 [Runner](runner.md#调度有界并发))。内置:
 
 - **`Console()`** —— 默认,流式逐行输出,失败断言内联展开。
-- **`Artifacts()`** —— 默认写 `.fastevals/<timestamp>/summary.json` 与 `results.jsonl`,供 `fastevals view` 读取。
+- **`Artifacts()`** —— 默认写 `.fasteval/<timestamp>/summary.json` 与 `results.jsonl`,供 `fasteval view` 读取。
 - **`JUnit(path)`** —— JUnit XML,接 CI 测试报告 UI。
 - **`Json(path)`** —— 机器可读全量。
 - **第三方实验跟踪** —— 接 Braintrust 这类平台,把每次运行作为一个实验上报,跨提交比较。
@@ -229,8 +229,8 @@ interface Reporter {
 配置全局或单 eval 专用:
 
 ```typescript
-// fastevals.config.ts —— 全局,观测所有 eval
-defineConfig({ reporters: [Console(), JUnit(".fastevals/junit.xml")] });
+// fasteval.config.ts —— 全局,观测所有 eval
+defineConfig({ reporters: [Console(), JUnit(".fasteval/junit.xml")] });
 
 // 某个 eval 专用
 defineEval({ reporters: [Braintrust({ project: "weather" })], async test(t) { ... } });

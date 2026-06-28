@@ -12,27 +12,27 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const githubUrl = "https://github.com/ctrdh/fastevals";
+const githubUrl = "https://github.com/ctrdh/fasteval";
 
 const files = {
-  humans: ["evals/weather.eval.ts", "fastevals.config.ts", ".fastevals/latest"],
-  agents: ["PROMPT.md", "EVAL.ts", "__fastevals__/results.json"],
+  humans: ["evals/weather.eval.ts", "fasteval.config.ts", ".fasteval/latest"],
+  agents: ["PROMPT.md", "EVAL.ts", "__fasteval__/results.json"],
 };
 
 const copy = {
   en: {
-    meta: "fastevals is a lightweight TypeScript agent eval tool for agents, services, functions, and coding-agent fixtures.",
+    meta: "fasteval is a lightweight TypeScript agent eval tool for agents, services, functions, and coding-agent fixtures.",
     navStart: "Start",
     languageLabel: "Switch language",
     modes: {
       humans: {
         label: "For teams",
-        command: "npx fastevals init",
+        command: "npx fasteval init",
         caption: "Write a TypeScript eval, run it across targets, and read the evidence without building a bespoke harness.",
       },
       agents: {
         label: "For agents",
-        command: "npx fastevals --agent codex fixtures/button",
+        command: "npx fasteval --agent codex fixtures/button",
         caption: "Give any agent a real task, then grade the answer, the workspace, and the path it took.",
       },
     },
@@ -41,10 +41,10 @@ const copy = {
     copied: "copied",
     primaryAction: "Start",
     github: "GitHub",
-    visualLabel: "fastevals product diagram",
+    visualLabel: "fasteval product diagram",
     runStatusPassed: "passed",
     scoreLabel: "Pass rate",
-    workflowLabel: "fastevals workflow",
+    workflowLabel: "fasteval workflow",
     steps: [
       ["Define", "Describe correct behavior in a small TypeScript file."],
       ["Run", "Use the same eval for agents, services, functions, or fixtures."],
@@ -54,18 +54,18 @@ const copy = {
     setupTitle: "Install. Init. Evaluate.",
   },
   zh: {
-    meta: "fastevals 是轻量、通用、DX 体验好的 TypeScript agent eval 工具，适合评 agents、services、functions 和 coding-agent fixtures。",
+    meta: "fasteval 是轻量、通用、DX 体验好的 TypeScript agent eval 工具，适合评 agents、services、functions 和 coding-agent fixtures。",
     navStart: "开始",
     languageLabel: "切换语言",
     modes: {
       humans: {
         label: "给团队",
-        command: "npx fastevals init",
+        command: "npx fasteval init",
         caption: "写一个 TypeScript eval，就能在不同目标上运行并查看证据，不用自建评测脚手架。",
       },
       agents: {
         label: "给 Agent",
-        command: "npx fastevals --agent codex fixtures/button",
+        command: "npx fasteval --agent codex fixtures/button",
         caption: "给任意 agent 一个真实任务，再评它的回答、工作区结果和执行路径。",
       },
     },
@@ -74,10 +74,10 @@ const copy = {
     copied: "已复制",
     primaryAction: "开始",
     github: "GitHub",
-    visualLabel: "fastevals 产品示意图",
+    visualLabel: "fasteval 产品示意图",
     runStatusPassed: "通过",
     scoreLabel: "通过率",
-    workflowLabel: "fastevals 工作流",
+    workflowLabel: "fasteval 工作流",
     steps: [
       ["定义", "用一个小 TypeScript 文件描述什么算正确。"],
       ["运行", "同一个 eval 可评 agents、services、functions 或 fixtures。"],
@@ -91,7 +91,7 @@ const copy = {
 function detectLocale() {
   let saved;
   try {
-    saved = window.localStorage.getItem("fastevals-locale");
+    saved = window.localStorage.getItem("fasteval-locale");
   } catch {
     saved = undefined;
   }
@@ -105,7 +105,7 @@ function App() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("fastevals-locale", locale);
+      window.localStorage.setItem("fasteval-locale", locale);
     } catch {
       // Language selection still works for the current session.
     }
@@ -130,9 +130,9 @@ function Header({ locale, setLocale, t }) {
 
   return (
     <header className="topbar shell">
-      <a className="brand" href="#top" aria-label="fastevals home">
+      <a className="brand" href="#top" aria-label="fasteval home">
         <span className="mark" />
-        <span>fastevals</span>
+        <span>fasteval</span>
       </a>
       <nav className="nav" aria-label="Primary">
         <a href="#setup">{t.navStart}</a>
@@ -226,7 +226,7 @@ function ProductVisual({ mode, t }) {
         </ul>
       </div>
       <div className="run-card">
-        <code>$ fastevals</code>
+        <code>$ fasteval</code>
         <div className="run-line">
           <CheckCircle2 size={16} />
           <span>weather</span>
@@ -279,9 +279,9 @@ function Setup({ t }) {
         <p className="eyebrow">{t.setupEyebrow}</p>
         <h2>{t.setupTitle}</h2>
       </div>
-      <pre>{`npm install -D fastevals
-npx fastevals init
-npx fastevals`}</pre>
+      <pre>{`npm install -D fasteval
+npx fasteval init
+npx fasteval`}</pre>
     </section>
   );
 }

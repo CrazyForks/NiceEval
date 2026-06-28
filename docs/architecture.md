@@ -1,6 +1,6 @@
 # Architecture
 
-fastevals 把一个评测过程拆成四段职责:**发现**要跑什么、**驱动**被测对象产生结果、**评分**得出判决、**报告**落盘与回传。核心拥有这四段里对所有被测对象都一样的部分;被测对象的差异被收进 `Agent`(契约)/ `Adapter`(你写的实现)/ `Sandbox` 三层。
+fasteval 把一个评测过程拆成四段职责:**发现**要跑什么、**驱动**被测对象产生结果、**评分**得出判决、**报告**落盘与回传。核心拥有这四段里对所有被测对象都一样的部分;被测对象的差异被收进 `Agent`(契约)/ `Adapter`(你写的实现)/ `Sandbox` 三层。
 
 这条边界是有意为之的,理由见 [Vision](vision.md)。本篇给出模块分层、数据流,以及一次运行的端到端时序。
 
@@ -13,7 +13,7 @@ fastevals 把一个评测过程拆成四段职责:**发现**要跑什么、**驱
   └─ fixtures/*/          │   (发现)       (调度)     (评分)      (判决)      (报告)         │
        PROMPT.md          │                  │                                  │          │
        EVAL.ts            │                  │ 驱动                              ▼          │
-                          └──────────────────┼──────────────────────────  .fastevals/<run>/ │
+                          └──────────────────┼──────────────────────────  .fasteval/<run>/ │
                                              │
                                              ▼  对接口分发,不按名字分支
                           ┌──────────── Agent(自实现 Adapter)────────────┐
@@ -88,7 +88,7 @@ src/
 
 ## 两个授权面,共享一切下游
 
-fastevals 有两个写 eval 的入口,但它们汇流到同一套评分 / 运行 / 报告:
+fasteval 有两个写 eval 的入口,但它们汇流到同一套评分 / 运行 / 报告:
 
 | | `defineEval`(会话型) | `defineAgentEval` / Fixture(沙箱型) |
 |---|---|---|
@@ -116,17 +116,17 @@ fastevals 有两个写 eval 的入口,但它们汇流到同一套评分 / 运行
 
 以一个沙箱型 agent eval 为例(会话型是它的子集,跳过 2–4、9–10):
 
-1. **加载配置。** CLI 合并 标志 → 环境变量 → `fastevals.config.ts` → 默认值。
+1. **加载配置。** CLI 合并 标志 → 环境变量 → `fasteval.config.ts` → 默认值。
 2. **发现。** 扫 `evals/`,收集 `*.eval.ts` 与含 `PROMPT.md` 的 fixture;据路径推导 id,排序;按过滤器(id 前缀 / `--tag`)筛。
 3. **指纹与缓存。** 对每个 eval 算 `(fixture 内容 + 配置)` 指纹;已通过且指纹未变的,标记跳过(除非 `--force`)。
 4. **建尝试列表。** 每个 eval × `runs` 次 → 一批 attempt。为每个 eval 建一个 `AbortController`(供早停)。
 5. **有界并发调度。** 维持至多 `maxConcurrency` 个 attempt 在飞;池满则 `Promise.race` 等任一完成再补位。可疑的"秒挂"(< 5s 且非超时)按指数退避重试。
 6. **驱动 Agent。** 对沙箱型 agent:`Sandbox.create` → 上传 workspace files(藏起 test files)→ `git init` 打基线 → 跑 `hooks.sandbox.setup` → 装依赖 + 装 agent CLI → `agent.send()` 在沙箱里跑 agent → 抓 transcript。
-7. **采集结果。** `git diff HEAD` 得到生成/删除的文件;把 transcript 解析成标准事件流,派生 o11y,注入 `__fastevals__/results.json`。
+7. **采集结果。** `git diff HEAD` 得到生成/删除的文件;把 transcript 解析成标准事件流,派生 o11y,注入 `__fasteval__/results.json`。
 8. **验证 + 评分。** 上传 test files → 跑 `EVAL.ts`(Vitest)与配置的 npm scripts;同时运行作用域断言、值级断言、judge。全部折叠成 `Assertion[]`。
 9. **判决。** `verdict.ts` 把断言 + 执行错误 + 跳过原因折叠成 `passed`/`failed`/`scored`/`skipped`。
 10. **早停。** 若该 attempt 通过且开了 `earlyExit`,`abort()` 掉同一 eval 的其余 attempt。
-11. **报告。** 每个 eval 完成即在串行报告队列上回调 `onEvalComplete`(不阻塞执行池);全部完成后回调 `onRunComplete`,落盘工件到 `.fastevals/<run>/`。
+11. **报告。** 每个 eval 完成即在串行报告队列上回调 `onEvalComplete`(不阻塞执行池);全部完成后回调 `onRunComplete`,落盘工件到 `.fasteval/<run>/`。
 12. **退出码。** 有 `failed`(或 `--strict` 下有 `scored`)→ 非零退出,供 CI 判红。
 
 ## 错误隔离

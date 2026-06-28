@@ -1,4 +1,4 @@
-// fastevals 的核心类型契约。所有模块对着这里编程;agents/ 与 sandbox/ 之外不出现
+// fasteval 的核心类型契约。所有模块对着这里编程;agents/ 与 sandbox/ 之外不出现
 // agent 名 / sandbox 名的行为分支(见 docs/architecture.md)。
 
 // ───────────────────────── 基础 ─────────────────────────
@@ -110,7 +110,7 @@ export interface TraceSpan {
   attributes?: Record<string, JsonValue>;
 }
 
-/** 给人 / 给 EVAL.ts 看的 o11y 摘要(注入沙箱 __fastevals__/results.json)。 */
+/** 给人 / 给 EVAL.ts 看的 o11y 摘要(注入沙箱 __fasteval__/results.json)。 */
 export interface O11ySummary {
   totalTurns: number;
   toolCalls: Record<string, number>;

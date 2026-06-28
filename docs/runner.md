@@ -2,7 +2,7 @@
 
 运行器是把"一批 eval"变成"一份结果"的调度引擎。它拥有对所有被测对象都一样的部分:发现、有界并发、重试、早停、缓存、报告编排。被测对象的差异它一概不管 —— 它只对着 `Agent` 接口(统一动词 `send`)驱动。
 
-这是 fastevals "跑得快"承诺的落点,见 [Vision](vision.md#跑得快)。
+这是 fasteval "跑得快"承诺的落点,见 [Vision](vision.md#跑得快)。
 
 ## 职责边界
 
@@ -18,7 +18,7 @@
 - 找所有含 `PROMPT.md` 的目录(fixture),据相对路径推导 id。
 - 按相对路径排序,保证 id 稳定、输出可比。
 - 应用过滤:位置参数(id 前缀,如 `weather` 命中 `weather/*`)、`--tag`。
-- `fastevals exp` 时另从 `experiments/` 扫实验文件(默认导出 `defineExperiment` 的 `.ts`),据路径推导实验 id;**目录段即"可对比组"** —— `fastevals exp <组>` 跑整个文件夹、同组互为对照(见 [实验怎么组织](experiments.md#实验怎么组织文件夹--一组可对比的实验))。实验的 `evals` 字段再筛要跑哪些 eval(见[矩阵展开](#矩阵展开与通过率))。
+- `fasteval exp` 时另从 `experiments/` 扫实验文件(默认导出 `defineExperiment` 的 `.ts`),据路径推导实验 id;**目录段即"可对比组"** —— `fasteval exp <组>` 跑整个文件夹、同组互为对照(见 [实验怎么组织](experiments.md#实验怎么组织文件夹--一组可对比的实验))。实验的 `evals` 字段再筛要跑哪些 eval(见[矩阵展开](#矩阵展开与通过率))。
 
 ## 调度:有界并发
 

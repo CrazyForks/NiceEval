@@ -3,6 +3,7 @@
 // 采 diff→跑脚本→评分→判决→停沙箱),adapter 只填「把 agent 跑起来」一段。
 
 import { resolve as resolvePath } from "node:path";
+import { Effect, Cause } from "effect";
 import { createSandbox } from "../sandbox/resolve.ts";
 import { createTraceReceiver, type TraceReceiver } from "../o11y/otlp/receiver.ts";
 import { selectTraceSpans, enrichTraceWithIO } from "../o11y/otlp/select.ts";
@@ -91,35 +92,33 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
 
   const results: EvalResult[] = [];
   const passedKeys = new Set<string>();
-  let reportQueue: Promise<unknown> = Promise.resolve();
 
-  const queue = [...attempts];
-  const inFlight = new Set<Promise<void>>();
+  // reporter 的 onEvalComplete 要「每个 attempt 完成即时触发」(保流式输出),又不能让
+  // 并发 worker 交错写 → 用一个 permit=1 的信号量串起来(替代原先手搓的 reportQueue 链)。
+  const reportMutex = Effect.runSync(Effect.makeSemaphore(1));
 
-  const launch = (a: Attempt): Promise<void> => {
-    const p = (async () => {
-      // 早停:同 key 已通过且开了 earlyExit → 跳过
-      if (a.run.earlyExit && passedKeys.has(a.key)) return;
-      const result = await runAttempt(a, opts.config, opts.signal);
-      results.push(result);
-      if (result.verdict === "passed") passedKeys.add(a.key);
-      reportQueue = reportQueue.then(() =>
-        Promise.all(opts.reporters.map((r) => r.onEvalComplete?.(result))),
-      );
-    })().finally(() => {
-      inFlight.delete(p);
-    });
-    inFlight.add(p);
-    return p;
-  };
-
-  while (queue.length || inFlight.size) {
-    while (queue.length && inFlight.size < opts.maxConcurrency) {
-      launch(queue.shift()!);
-    }
-    if (inFlight.size) await Promise.race(inFlight);
-  }
-  await reportQueue;
+  // 有界并发调度:Effect.forEach({ concurrency }) 取代手写 queue / inFlight / Promise.race。
+  // 每个 attempt 跑在自己的 fiber;runAttemptEffect 永不 fail(错误已收进 EvalResult.error),
+  // 所以一条挂掉不会中断其它 attempt —— 与原 launch 的隔离语义一致。
+  await Effect.runPromise(
+    Effect.forEach(
+      attempts,
+      (a) =>
+        Effect.gen(function* () {
+          // 早停:同 key 已通过且开了 earlyExit → 跳过(语义同原 launch 时的检查)。
+          if (a.run.earlyExit && passedKeys.has(a.key)) return;
+          const result = yield* runAttemptEffect(a, opts.config, opts.signal);
+          results.push(result);
+          if (result.verdict === "passed") passedKeys.add(a.key);
+          yield* reportMutex.withPermits(1)(
+            Effect.promise(() =>
+              Promise.all(opts.reporters.map((r) => r.onEvalComplete?.(result))),
+            ),
+          );
+        }),
+      { concurrency: opts.maxConcurrency, discard: true },
+    ),
+  );
 
   // 稳定排序:按发现顺序 + attempt
   const order = new Map(opts.evals.map((e, i) => [e.id, i]));
@@ -131,7 +130,6 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   );
 
   const summary = summarize(results, firstAgent?.name ?? "", startedAt, Date.now() - t0);
-  reportQueue = Promise.resolve();
   for (const r of opts.reporters) await r.onRunComplete?.(summary);
   return summary;
 }
@@ -169,19 +167,17 @@ function summarize(
   };
 }
 
-async function runAttempt(
+// 单个 attempt 的资源生命周期用 Effect.Scope 接管:沙箱 + OTLP 接收器经 acquireRelease
+// 注册,无论 body 成功 / 抛错 / 被中断,stop() / close() 都保证执行(治容器与端口泄漏)——
+// 这是手写 try/finally 在并发+中断下很难做对的部分。adapter 的 Promise 边界(setup/send)
+// 原样保留:body 仍是个 async,经 Effect.promise 接进来。
+function runAttemptEffect(
   a: Attempt,
   config: Config,
   parentSignal?: AbortSignal,
-): Promise<EvalResult> {
+): Effect.Effect<EvalResult> {
   const { evalDef, run, attempt } = a;
   const t0 = Date.now();
-  const timeoutMs = run.timeoutMs ?? evalDef.timeoutMs ?? config.timeoutMs ?? 600_000;
-
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const signal = parentSignal
-    ? AbortSignal.any([parentSignal, timeoutSignal])
-    : timeoutSignal;
 
   const base: EvalResult = {
     id: evalDef.id,
@@ -196,35 +192,82 @@ async function runAttempt(
   };
 
   if (run.agent.kind !== "sandbox") {
-    return { ...base, error: `runner 暂只支持沙箱型 agent(收到 ${run.agent.kind})` };
+    return Effect.succeed({ ...base, error: `runner 暂只支持沙箱型 agent(收到 ${run.agent.kind})` });
   }
 
-  // 流式进度打到宿主 stderr(结果走 stdout,互不干扰)。
-  // 注意:容器主日志【不】放这些 harness 进度标记 —— 那里留给 agent 的【原始输出】
-  //(adapter 给 agent 命令开 { stream: true },见各 adapter)。
+  const timeoutMs = run.timeoutMs ?? evalDef.timeoutMs ?? config.timeoutMs ?? 600_000;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
+
+  // 流式进度打到宿主 stderr(结果走 stdout,互不干扰)。容器主日志【不】放这些进度标记 ——
+  // 那里留给 agent 的原始输出(adapter 给 agent 命令开 { stream: true })。
   const who = run.model ? `${run.agent.name}/${run.model}` : run.agent.name;
-  let sandbox: Sandbox | undefined;
+  const log = (m: string) => process.stderr.write(`  · ${evalDef.id} [${who}] ${m}\n`);
+
+  return Effect.scoped(
+    Effect.gen(function* () {
+      // ── 沙箱:acquire=起,release=stop(成功 / 失败 / 中断都跑)──
+      log("起沙箱…");
+      const sandbox = yield* Effect.acquireRelease(
+        Effect.promise(() =>
+          createSandbox({ backend: run.sandbox ?? config.sandbox, timeout: timeoutMs, runtime: "node24" }),
+        ),
+        (sb) => Effect.promise(() => sb.stop().catch(() => {})),
+      );
+
+      // ── tracing:本机 OTLP 接收器同样用 Scope 接管(release=close,免端口泄漏)──
+      let receiver: TraceReceiver | undefined;
+      let telemetry: { endpoint: string } | undefined;
+      if (run.agent.capabilities.tracing) {
+        receiver = yield* Effect.acquireRelease(
+          Effect.promise(() => createTraceReceiver()),
+          (r) => Effect.promise(() => r.close().catch(() => {})),
+        );
+        const host = process.env.FASTEVAL_OTLP_HOST ?? "host.docker.internal";
+        telemetry = { endpoint: receiver.endpoint(host) };
+        log(`OTLP 接收器 → ${telemetry.endpoint}`);
+      }
+
+      // body 是 Promise(adapter 边界);沙箱 / 接收器的回收交给上面的 Scope,不在 body 里。
+      return yield* Effect.promise(() =>
+        runAttemptBody(a, config, t0, base, { sandbox, receiver, telemetry, signal, log }),
+      );
+    }),
+  ).pipe(
+    // body 自己已兜了 agent 执行错;这里兜的是资源获取 / Scope 层的意外(起沙箱失败、被中断)。
+    Effect.catchAllCause((cause) =>
+      Effect.succeed({ ...base, durationMs: Date.now() - t0, error: causeToError(cause) }),
+    ),
+  );
+}
+
+function causeToError(cause: Cause.Cause<never>): string {
+  const e = Cause.squash(cause);
+  return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+}
+
+interface AttemptResources {
+  sandbox: Sandbox;
+  receiver?: TraceReceiver;
+  telemetry?: { endpoint: string };
+  signal: AbortSignal;
+  log: (m: string) => void;
+}
+
+// attempt 的固定段(上传→基线→setup→驱动 agent→采 diff→脚本→评分→判决)。
+// 资源已由 runAttemptEffect 的 Scope 持有;这里只在 finally 跑 agent 自己的 cleanup/teardown。
+async function runAttemptBody(
+  a: Attempt,
+  config: Config,
+  t0: number,
+  base: EvalResult,
+  res: AttemptResources,
+): Promise<EvalResult> {
+  const { evalDef, run, attempt } = a;
+  const { sandbox, receiver, telemetry, signal, log } = res;
   let agentCleanup: Cleanup | void = undefined;
   let agentSetupCtx: AgentContext | undefined;
-  let receiver: TraceReceiver | undefined;
-  let telemetry: { endpoint: string } | undefined;
-  const log = (m: string) => process.stderr.write(`  · ${evalDef.id} [${who}] ${m}\n`);
   try {
-    log("起沙箱…");
-    sandbox = await createSandbox({
-      backend: run.sandbox ?? config.sandbox,
-      timeout: timeoutMs,
-      runtime: "node24",
-    });
-
-    // tracing agent:起一个本机 OTLP 接收器,端点经 ctx.telemetry 交给 agent。
-    if (run.agent.capabilities.tracing) {
-      receiver = await createTraceReceiver();
-      const host = process.env.FASTEVALS_OTLP_HOST ?? "host.docker.internal";
-      telemetry = { endpoint: receiver.endpoint(host) };
-      log(`OTLP 接收器 → ${telemetry.endpoint}`);
-    }
-
     // 上传 workspace + git 基线
     const wsDir = await resolveWorkspace(evalDef, config);
     if (wsDir) {
@@ -379,14 +422,14 @@ async function runAttempt(
     };
   } finally {
     // agent teardown / cleanup 一律在 finally 跑(失败也跑),不改判决。
+    // 沙箱 stop / 接收器 close 不在这里 —— 由 runAttemptEffect 的 Scope 在本函数返回后回收
+    //(LIFO:先 close 接收器,再 stop 沙箱,顺序与原 finally 一致)。
     try {
       if (typeof agentCleanup === "function") await agentCleanup();
       if (sandbox && agentSetupCtx) await run.agent.teardown?.(sandbox, agentSetupCtx);
     } catch {
       // teardown 失败只是 diagnostic,不影响已出的结果
     }
-    if (receiver) await receiver.close().catch(() => {});
-    if (sandbox) await sandbox.stop().catch(() => {});
   }
 }
 

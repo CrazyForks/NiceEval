@@ -2,7 +2,7 @@
 // agent-as-judge(t.judge.agent)= 让评判模型读沙箱里 agent 的产出再判。
 //
 // 评判模型走 OpenAI 兼容的 /chat/completions。base_url + key 解析优先级:
-//   judge.baseUrl / judge.apiKeyEnv  →  FASTEVALS_JUDGE_BASE / CODEX_BASE_URL  →  OpenAI 官方
+//   judge.baseUrl / judge.apiKeyEnv  →  FASTEVAL_JUDGE_BASE / CODEX_BASE_URL  →  OpenAI 官方
 // 这样在只有 s2a 代理(无 Anthropic key)的环境里,judge 自动复用代理。
 
 import type { AssertionCollector } from "./collector.ts";
@@ -19,13 +19,13 @@ function resolveJudge(judge: JudgeConfig | undefined): ResolvedJudge {
   const model = judge?.model ?? "gpt-5.4-mini";
   const baseUrl =
     judge?.baseUrl ??
-    getEnv("FASTEVALS_JUDGE_BASE") ??
+    getEnv("FASTEVAL_JUDGE_BASE") ??
     getEnv("CODEX_BASE_URL") ??
     getEnv("OPENAI_BASE_URL") ??
     "https://api.openai.com/v1";
   const apiKey =
     (judge?.apiKeyEnv ? getEnv(judge.apiKeyEnv) : undefined) ??
-    getEnv("FASTEVALS_JUDGE_KEY") ??
+    getEnv("FASTEVAL_JUDGE_KEY") ??
     getEnv("CODEX_API_KEY") ??
     getEnv("OPENAI_API_KEY");
   return { model, baseUrl, apiKey };

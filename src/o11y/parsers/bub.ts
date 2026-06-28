@@ -181,11 +181,18 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
           });
         } else if (kind === "event") {
           const data = get(payload, "data");
-          if (get(payload, "name") === "run") addUsage(get(data, "usage"));
+          // 用量:run 事件首选 data.usage;但新版 bub.tape 不一定每轮都发 run/usage,
+          // 所以任何 event 上挂的 usage 也兜底累加(addUsage 自带去重式全零跳过)。
+          addUsage(get(data, "usage"));
+          // 仅在「真失败」时记 error:有 error 字段,或 status 命中失败词。
+          // loop.step 这类控制事件 status=="continue"/"running" 不是错误 —— 别再当 error 刷屏。
           const status = get(data, "status");
-          if (typeof status === "string" && status !== "ok") {
-            const err = get(data, "error");
-            events.push({ type: "error", message: typeof err === "string" ? err : `${String(get(payload, "name"))}: ${status}` });
+          const errVal = get(data, "error");
+          const failed =
+            (errVal != null && errVal !== false && errVal !== "") ||
+            (typeof status === "string" && /^(error|failed|aborted|cancell?ed|timeout)$/i.test(status));
+          if (failed) {
+            events.push({ type: "error", message: typeof errVal === "string" && errVal ? errVal : `${String(get(payload, "name"))}: ${String(status)}` });
           }
         } else if (kind === "anchor") {
           // 非 bootstrap 的 anchor = tape.handoff = 一次压缩检查点(供 t.transcript.compactions() 守卫)。

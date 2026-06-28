@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>fastevals experiment view</title>
-  <!-- __FASTEVALS_STYLES__ -->
+  <title>fasteval experiment view</title>
+  <!-- __FASTEVAL_STYLES__ -->
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="mark"></span><span>fastevals</span></div>
+    <div class="brand"><span class="mark"></span><span>fasteval</span></div>
     <nav class="nav" aria-label="Report">
       <strong>Experiments</strong>
       <span>Runs</span>
@@ -20,17 +20,17 @@
       <h1>Eval Run Results</h1>
       <p class="subtitle">Local experiment results for coding agents, comparing pass rate, execution time, token usage, and estimated cost.</p>
       <div class="meta">
-        <span><b>Last run:</b> __FASTEVALS_LAST_RUN__</span>
+        <span><b>Last run:</b> __FASTEVAL_LAST_RUN__</span>
         <span class="slash">/</span>
-        <span><b>Sources:</b> __FASTEVALS_SOURCE_LIST__</span>
+        <span><b>Sources:</b> __FASTEVAL_SOURCE_LIST__</span>
       </div>
     </section>
 
     <section class="summary" aria-label="Run summary">
-      <div class="metric"><div class="label">Pass Rate</div><div class="value">__FASTEVALS_PASS_RATE__</div></div>
-      <div class="metric"><div class="label">Eval Results</div><div class="value">__FASTEVALS_RESULT_COUNT__</div></div>
-      <div class="metric"><div class="label">Duration</div><div class="value">__FASTEVALS_DURATION__</div></div>
-      <div class="metric"><div class="label">Estimated Cost</div><div class="value">__FASTEVALS_COST__</div></div>
+      <div class="metric"><div class="label">Pass Rate</div><div class="value">__FASTEVAL_PASS_RATE__</div></div>
+      <div class="metric"><div class="label">Eval Results</div><div class="value">__FASTEVAL_RESULT_COUNT__</div></div>
+      <div class="metric"><div class="label">Duration</div><div class="value">__FASTEVAL_DURATION__</div></div>
+      <div class="metric"><div class="label">Estimated Cost</div><div class="value">__FASTEVAL_COST__</div></div>
     </section>
 
     <section>
@@ -40,11 +40,11 @@
           <input id="search" class="search" type="search" placeholder="Filter experiment, agent, model, or eval..." autocomplete="off">
         </div>
       </div>
-      <!-- __FASTEVALS_RESULTS_BODY__ -->
+      <!-- __FASTEVAL_RESULTS_BODY__ -->
     </section>
   </main>
   <script>
-    const rows = __FASTEVALS_ROWS_JSON__;
+    const rows = __FASTEVAL_ROWS_JSON__;
     const state = { sort: "passRate", dir: -1, query: "", open: new Set() };
     const tbody = document.querySelector("#results-body");
     const search = document.querySelector("#search");
@@ -284,7 +284,7 @@
         slot.innerHTML = renderTrace(await resp.json());
       } catch (e) {
         d.dataset.loaded = "";
-        slot.innerHTML = '<div class="trace-span-meta">trace load failed (static report has no server — use <code>fastevals view</code>): ' + escapeHtml(String(e)) + '</div>';
+        slot.innerHTML = '<div class="trace-span-meta">trace load failed (static report has no server — use <code>fasteval view</code>): ' + escapeHtml(String(e)) + '</div>';
       }
     }, true);
 

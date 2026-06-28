@@ -1,7 +1,7 @@
-// 默认本地工件报告器:给 `fastevals view` 提供稳定的离线输入。
+// 默认本地工件报告器:给 `fasteval view` 提供稳定的离线输入。
 //
 // 布局(每 eval-attempt 一个文件夹,重数据分文件;summary.json 只留榜单元数据):
-//   .fastevals/<run>/
+//   .fasteval/<run>/
 //     summary.json                         # run 元数据 + 各 result 的判决/usage/断言/引用(瘦身)
 //     <evalId>/<agent>/<model>/a<attempt>/
 //       events.json  trace.json  o11y.json  diff.json
@@ -35,7 +35,7 @@ function slimResult(r: EvalResult): EvalResult {
   };
 }
 
-export function Artifacts(root = ".fastevals"): Reporter {
+export function Artifacts(root = ".fasteval"): Reporter {
   let outputDir = "";
   const ensureDir = async (): Promise<void> => {
     if (!outputDir) outputDir = join(root, safeTimestamp(new Date()));

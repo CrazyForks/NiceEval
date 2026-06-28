@@ -1,4 +1,4 @@
-// fastevals 公开导出(import { … } from "fastevals")。
+// fasteval 公开导出(import { … } from "fasteval")。
 
 export {
   defineEval,

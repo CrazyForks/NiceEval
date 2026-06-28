@@ -16,7 +16,7 @@
 
 ### M0 —— 竖切:进程内函数 eval(最薄能跑)
 
-目标:`npx fastevals` 能发现并跑一个进程内 agent 的会话型 eval,出控制台结果与 `summary.json`。
+目标:`npx fasteval` 能发现并跑一个进程内 agent 的会话型 eval,出控制台结果与 `summary.json`。
 
 - `defineEval` + `defineConfig` + 路径推导 id + 数组扇出。
 - `defineAgent`(进程内)+ `agents` 注册 + `defaultAgent`;`t.send` / `t.reply` / `t.check`。
@@ -39,18 +39,18 @@
 
 ### M2 —— 远程 agent
 
-- 远程 `defineAgent`:用户在 `send` 里按**自己服务的协议**发请求、收响应(fastevals 不定协议;URL 等是 agent 私事)。
+- 远程 `defineAgent`:用户在 `send` 里按**自己服务的协议**发请求、收响应(fasteval 不定协议;URL 等是 agent 私事)。
 - `--agent` 覆盖默认连接;"同一批 eval 换着对象跑"成立。
 
 ### M3 —— 竖切:沙箱里的 coding agent(第二条主轴)
 
-目标:`fastevals --agent claude-code --sandbox docker fixtures/x` 端到端跑通一个 fixture。
+目标:`fasteval --agent claude-code --sandbox docker fixtures/x` 端到端跑通一个 fixture。
 
 - `Sandbox` 接口 + **Docker 后端**(默认,零云依赖)。
 - `Adapter` 接口 + **`claude-code` adapter**(先做直连 API 一个变体)。
 - `adapters/shared.ts`:上传 / git 基线 / `collectGeneratedFiles` / `runValidation`(Vitest)。
 - Fixture 发现(含 `PROMPT.md` 的目录);`splitTestFiles` 防作弊。
-- transcript 归一化框架 + `o11y/parsers/claude-code.ts` + o11y 派生 + 注入 `__fastevals__/results.json`。
+- transcript 归一化框架 + `o11y/parsers/claude-code.ts` + o11y 派生 + 注入 `__fasteval__/results.json`。
 - 沙箱型作用域断言:`fileChanged` / `testsPassed` / `scriptPassed`。
 - 工件:`events.ndjson`(标准事件流)/ `transcript-raw.jsonl` / `outputs/` / `project/`。
 
@@ -58,7 +58,7 @@
 
 ### M4 —— agent 评测的工程化
 
-- 实验层:`defineExperiment` + `fastevals exp`,`agent × model × eval × runs` 矩阵展开。
+- 实验层:`defineExperiment` + `fasteval exp`,`agent × model × eval × runs` 矩阵展开。
 - `--runs` 通过率 + `earlyExit` + 可疑快速失败重试。
 - 指纹缓存(`--force`)。
 - [生命周期钩子](lifecycle.md):`hooks.run` / `hooks.sandbox` 各 `setup` / `teardown`(`teardown` 必在 finally 跑);下游分析走 reporter,不设 `onRunComplete` 实验钩子(对照 [Experiments 砍字段](experiments.md))。
@@ -77,7 +77,7 @@
 ### M6 —— 生态与打磨
 
 - 第三方实验跟踪 reporter(Braintrust 等),跨提交比较。
-- `--watch`;本地查看器 `fastevals view`(读 `.fastevals/` 工件出图:质量×成本散点、跨 agent 对比、跨运行趋势、transcript 钻取)。
+- `--watch`;本地查看器 `fasteval view`(读 `.fasteval/` 工件出图:质量×成本散点、跨 agent 对比、跨运行趋势、transcript 钻取)。
 - 数据集 loader(`loadYaml` / `loadJson`)、`mockModel`。
 - source-map 文档:把每条文档行为映射回实现文件(仿 crabbox)。
 
@@ -94,7 +94,7 @@
 - 会话型 `t.send` 的传输:进程内直调 vs 统一走一个内部消息总线(后者让 fn/http 同构,代价是开销)。
 - 沙箱复用的默认值:默认全新(干净)还是默认复用(快)?倾向默认全新、显式开复用。
 - judge 模型与被测 agent 的 key 共用还是强制分离配置?倾向分离,避免混淆账单与自评。
-- monorepo 还是单包?倾向单包起步(`fastevals`),adapter/sandbox 作为子路径导出,三方后端用可选 peer 依赖。
+- monorepo 还是单包?倾向单包起步(`fasteval`),adapter/sandbox 作为子路径导出,三方后端用可选 peer 依赖。
 
 ## 相关阅读
 
