@@ -11,6 +11,11 @@ export {
 export { shared } from "./agents/shared.ts";
 export type { Shared } from "./agents/shared.ts";
 
+export { BUILTIN_AGENTS } from "./agents/builtin.ts";
+export { default as claudeCodeAgent } from "./agents/claude-code.ts";
+export { default as codexAgent } from "./agents/codex.ts";
+export { default as bubAgent } from "./agents/bub.ts";
+
 export { requireEnv, getEnv, stripComments } from "./util.ts";
 export { createCheckpoint, restoreCheckpoint } from "./sandbox/checkpoint.ts";
 

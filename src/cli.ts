@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildRegistry, resolveAgent } from "./agents/registry.ts";
+import { BUILTIN_AGENTS } from "./agents/builtin.ts";
 import { discoverEvals, discoverExperiments, makeFilter } from "./runner/discover.ts";
 import { runEvals, type AgentRun } from "./runner/run.ts";
 import { Console as ConsoleReporter } from "./runner/reporters/console.ts";
@@ -203,7 +204,8 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfig(cwd);
-  const registry = buildRegistry(config.agents ?? []);
+  // 内置 agents 放前面;config.agents 同名的覆盖(registry 后写后赢)。
+  const registry = buildRegistry([...BUILTIN_AGENTS, ...(config.agents ?? [])]);
   const evals = await discoverEvals(cwd);
 
   if (command === "list") {

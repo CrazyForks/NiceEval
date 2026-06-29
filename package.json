@@ -1,17 +1,33 @@
 {
   "name": "fasteval",
-  "version": "0.0.1",
-  "description": "写得快、跑得快、看得快的 TypeScript evals 库",
+  "version": "0.1.0",
+  "description": "Lightweight TypeScript agent eval tool — eval agents, services, functions, and coding-agent fixtures",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
     "fasteval": "bin/fasteval.js"
   },
+  "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./expect": "./src/expect/index.ts",
-    "./reporters": "./src/runner/reporters/index.ts",
-    "./loaders": "./src/loaders/index.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./expect": {
+      "types": "./src/expect/index.ts",
+      "import": "./src/expect/index.ts"
+    },
+    "./reporters": {
+      "types": "./src/runner/reporters/index.ts",
+      "import": "./src/runner/reporters/index.ts"
+    },
+    "./loaders": {
+      "types": "./src/loaders/index.ts",
+      "import": "./src/loaders/index.ts"
+    }
   },
   "files": [
     "src",

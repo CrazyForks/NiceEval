@@ -8,17 +8,16 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="mark"></span><span>fasteval</span></div>
+    <a class="brand" href="https://github.com/CorrectRoadH/fasteval" target="_blank" rel="noopener"><span class="mark"></span><span>fasteval</span></a>
     <nav class="nav" aria-label="Report">
-      <strong>Experiments</strong>
-      <span>Runs</span>
-      <span>Traces</span>
+      <button class="nav-tab is-active" data-tab="experiments">Experiments</button>
+      <button class="nav-tab" data-tab="runs">Runs</button>
+      <button class="nav-tab" data-tab="traces">Traces</button>
     </nav>
   </header>
   <main>
     <section class="hero">
       <h1>Eval Run Results</h1>
-      <p class="subtitle">Local experiment results for coding agents, comparing pass rate, execution time, token usage, and estimated cost.</p>
       <div class="meta">
         <span><b>Last run:</b> __FASTEVAL_LAST_RUN__</span>
       </div>
@@ -31,7 +30,7 @@
       <div class="metric"><div class="label">Estimated Cost</div><div class="value">__FASTEVAL_COST__</div></div>
     </section>
 
-    <section>
+    <section id="tab-experiments">
       <div class="section-head">
         <h2>Experiment Performance Results</h2>
         <div class="controls">
@@ -39,6 +38,23 @@
         </div>
       </div>
       <!-- __FASTEVAL_RESULTS_BODY__ -->
+    </section>
+
+    <section id="tab-runs" hidden>
+      <div class="section-head">
+        <h2>Individual Runs</h2>
+        <div class="controls">
+          <input id="runs-search" class="search" type="search" placeholder="Filter eval ID or experiment..." autocomplete="off">
+        </div>
+      </div>
+      <div id="runs-container"></div>
+    </section>
+
+    <section id="tab-traces" hidden>
+      <div class="section-head">
+        <h2>Traces</h2>
+      </div>
+      <div id="traces-container"></div>
     </section>
   </main>
   <script>
@@ -370,6 +386,13 @@
     }
     function escapeAttr(value) { return escapeHtml(value); }
 
+    function updateSortIcons() {
+      document.querySelectorAll("[data-sort]").forEach((btn) => {
+        if (btn.dataset.sort === state.sort) btn.dataset.sorted = state.dir === 1 ? "asc" : "desc";
+        else delete btn.dataset.sorted;
+      });
+    }
+
     document.addEventListener("click", (event) => {
       const sort = event.target.closest("[data-sort]");
       if (sort) {
@@ -377,6 +400,7 @@
         if (state.sort === key) state.dir *= -1;
         else { state.sort = key; state.dir = key === "experiment" || key === "agent" ? 1 : -1; }
         render();
+        updateSortIcons();
         return;
       }
       const row = event.target.closest(".main-row");
@@ -420,6 +444,100 @@
     }, true);
 
     render();
+    updateSortIcons();
+
+    // ── Tab switching ──────────────────────────────────────────────────────────
+    const navTabs = document.querySelectorAll(".nav-tab");
+    function switchTab(name) {
+      navTabs.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.tab === name));
+      document.getElementById("tab-experiments").hidden = name !== "experiments";
+      document.getElementById("tab-runs").hidden = name !== "runs";
+      document.getElementById("tab-traces").hidden = name !== "traces";
+      if (name === "runs") renderRunsView();
+      if (name === "traces") renderTracesView();
+    }
+    navTabs.forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+
+    // ── Runs view ──────────────────────────────────────────────────────────────
+    const allRuns = rows.flatMap((row) =>
+      row.results.map((r) => Object.assign({}, r, { rowLabel: row.label, rowAgent: row.agent, rowModel: row.model }))
+    );
+    let runsState = { query: "", rendered: false };
+    function renderRunsView() {
+      const container = document.getElementById("runs-container");
+      if (!container) return;
+      if (!runsState.rendered) {
+        runsState.rendered = true;
+        if (!allRuns.length) {
+          container.innerHTML = '<div class="empty">No individual runs found.</div>';
+          return;
+        }
+        const q = () => runsState.query.trim().toLowerCase();
+        const buildTable = () => {
+          const filtered = allRuns.filter((r) =>
+            !q() || (r.id + " " + r.rowLabel + " " + r.rowAgent + " " + (r.rowModel || "")).toLowerCase().includes(q())
+          );
+          const trs = filtered.map((r) => {
+            const tone = r.verdict === "passed" ? "good" : r.verdict === "failed" ? "bad" : "warn";
+            return `<tr>
+              <td><span class="name">${escapeHtml(r.id)}</span></td>
+              <td>${escapeHtml(r.rowLabel)}</td>
+              <td class="${tone}">${escapeHtml(r.verdict)}</td>
+              <td>${escapeHtml(r.rowAgent)}</td>
+              <td>${escapeHtml(r.rowModel || "default")}</td>
+              <td class="num">${formatDuration(r.durationMs)}</td>
+              <td class="num">${formatTokens(totalTokens(r.usage))}</td>
+              <td class="num">${formatCost(r.estimatedCostUSD)}</td>
+              <td class="num">${r.startedAt ? formatDateTime(r.startedAt) : "—"}</td>
+            </tr>`;
+          }).join("");
+          return `<div class="table-wrap"><table>
+            <thead><tr>
+              <th>Eval ID</th><th>Experiment</th><th>Verdict</th><th>Agent</th><th>Model</th>
+              <th>Duration</th><th>Tokens</th><th>Cost</th><th>Ran At</th>
+            </tr></thead>
+            <tbody>${trs || '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No results match the filter.</td></tr>'}</tbody>
+          </table></div>`;
+        };
+        container.innerHTML = buildTable();
+        document.getElementById("runs-search")?.addEventListener("input", (e) => {
+          runsState.query = e.target.value;
+          container.innerHTML = buildTable();
+        });
+      }
+    }
+
+    // ── Traces view ────────────────────────────────────────────────────────────
+    let tracesRendered = false;
+    function renderTracesView() {
+      if (tracesRendered) return;
+      tracesRendered = true;
+      const container = document.getElementById("traces-container");
+      if (!container) return;
+      const traceable = allRuns.filter((r) => r.hasEvents || r.hasTrace);
+      if (!traceable.length) {
+        container.innerHTML = '<div class="empty">No traces available. Traces are collected during eval runs when artifacts are saved.</div>';
+        return;
+      }
+      container.innerHTML = traceable.map((r) => {
+        const tone = r.verdict === "passed" ? "good" : r.verdict === "failed" ? "bad" : "warn";
+        const transcript = (r.hasEvents && r.artifactBase)
+          ? `<details class="trace-details transcript-lazy" data-src="${escapeAttr(r.artifactBase + "/events.json")}"><summary>transcript</summary><div class="trace-slot"><div class="trace-span-meta">loading…</div></div></details>`
+          : "";
+        const trace = (r.hasTrace && r.artifactBase)
+          ? `<details class="trace-details trace-lazy" data-src="${escapeAttr(r.artifactBase + "/trace.json")}"><summary>timing trace</summary><div class="trace-slot"><div class="trace-span-meta">loading…</div></div></details>`
+          : "";
+        return `<div class="traces-entry">
+          <div class="traces-entry-head">
+            <span class="${tone} traces-verdict">${escapeHtml(r.verdict)}</span>
+            <span class="eval-id">${escapeHtml(r.id)}</span>
+            <span class="traces-exp">${escapeHtml(r.rowLabel)}</span>
+            <span class="num traces-dur">${formatDuration(r.durationMs)}</span>
+          </div>
+          ${transcript}${trace}
+        </div>`;
+      }).join("");
+    }
   </script>
 </body>
 </html>
