@@ -22,7 +22,12 @@ export function JUnit(path: string): Reporter {
           const name = xmlAttr(`${r.id} [${r.agent}${r.model ? "/" + r.model : ""}]`);
           const time = (r.durationMs / 1000).toFixed(3);
           if (r.verdict === "failed") {
-            const msg = xmlAttr(r.error ?? r.assertions.filter((a) => !a.passed).map((a) => a.name).join("; "));
+            // JUnit 区分 <error>(执行错误 / 崩溃)与 <failure>(断言没过)—— 对齐 fasteval 自己的
+            // errored ⊆ failed 语义:r.error 在 = 执行错误,否则是 gate 断言失败。
+            if (r.error) {
+              return `    <testcase name="${name}" time="${time}"><error message="${xmlAttr(r.error)}"/></testcase>`;
+            }
+            const msg = xmlAttr(r.assertions.filter((a) => !a.passed).map((a) => a.name).join("; "));
             return `    <testcase name="${name}" time="${time}"><failure message="${msg}"/></testcase>`;
           }
           if (r.verdict === "skipped") {
@@ -31,9 +36,11 @@ export function JUnit(path: string): Reporter {
           return `    <testcase name="${name}" time="${time}"/>`;
         })
         .join("\n");
+      // failures 只数真·断言失败(failed - errored),errored 单列到 errors —— 与控制台汇总口径一致。
+      const failures = summary.failed - summary.errored;
       const xml =
         `<?xml version="1.0" encoding="UTF-8"?>\n` +
-        `<testsuite name="fasteval" tests="${summary.results.length}" failures="${summary.failed}" skipped="${summary.skipped}" time="${(summary.durationMs / 1000).toFixed(3)}">\n` +
+        `<testsuite name="fasteval" tests="${summary.results.length}" failures="${failures}" errors="${summary.errored}" skipped="${summary.skipped}" time="${(summary.durationMs / 1000).toFixed(3)}">\n` +
         `${cases}\n</testsuite>\n`;
       await writeFile(path, xml, "utf-8");
     },

@@ -525,8 +525,18 @@ export interface RunSummary {
   outputDir?: string;
 }
 
+/** onRunStart 的运行规模:去重后 eval 数 × 配置(agent×model×flags)数 → 总运行(attempt)数。 */
+export interface RunShape {
+  /** 去重后实际要跑的 eval 数(= evals.length)。 */
+  evals: number;
+  /** (agent, model, flags) 配置组合数;compare 多 agent 时 > 1。 */
+  configs: number;
+  /** 总 attempt 数(evals × configs × runs);逐行输出与汇总计数都按它。 */
+  totalRuns: number;
+}
+
 export interface Reporter {
-  onRunStart?(evals: { id: string }[], agent: Agent): void | Promise<void>;
+  onRunStart?(evals: { id: string }[], agent: Agent, shape?: RunShape): void | Promise<void>;
   onEvalComplete?(result: EvalResult): void | Promise<void>;
   onRunComplete?(summary: RunSummary): void | Promise<void>;
 }

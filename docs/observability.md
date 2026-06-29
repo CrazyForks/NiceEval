@@ -267,12 +267,13 @@ Run totals:  3 evals · 142k tok · $1.12   (agent: claude-code)
 控制台和 `summary.json` 是「当下」的;但你常常想**事后看图**:这次比上次贵了多少?哪个 agent 性价比高?所以 fasteval 提供一个本地查看器(对标 agent-eval 的 playground:一个读结果目录的 web UI)。
 
 ```sh
-fasteval view                         # 起本地 web,读 .fasteval/ 下所有历史运行
+fasteval view                         # 起本地 web,自动打开浏览器,读 .fasteval/ 下所有历史运行
 fasteval view .fasteval/<run>/summary.json
+fasteval view --no-open               # 只打印 URL,不打开浏览器
 fasteval view --out .fasteval/report.html  # 导出静态 HTML
 ```
 
-它不连任何服务,只读 `.fasteval/<时间戳>/` 这些**结构化工件**(每 eval 已带 `usage` + `estimatedCostUSD`),因此能渲染:
+它不连任何外部服务,只起本机 web 服务并读 `.fasteval/<时间戳>/` 这些**结构化工件**(每 eval 已带 `usage` + `estimatedCostUSD`),因此能渲染:
 
 - **运行总览** —— pass / fail / scored 计数、总 token、总 $。
 - **experiment 对比榜单** —— 同一批 eval 下各个实验配置的通过率 + 平均耗时 + token + 成本并列;agent/model 是实验配置的属性,不是主键。这是评 coding agent 最想要的一张图。

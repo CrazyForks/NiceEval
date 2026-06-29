@@ -3,7 +3,7 @@
 // 采 diff→跑脚本→评分→判决→停沙箱),adapter 只填「把 agent 跑起来」一段。
 
 import { resolve as resolvePath } from "node:path";
-import { Effect, Cause } from "effect";
+import { Effect, Cause, Duration } from "effect";
 import { createSandbox } from "../sandbox/resolve.ts";
 import { createTraceReceiver, type TraceReceiver } from "../o11y/otlp/receiver.ts";
 import { selectTraceSpans, enrichTraceWithIO } from "../o11y/otlp/select.ts";
@@ -27,7 +27,10 @@ import type {
   DiscoveredEval,
   EvalResult,
   JudgeConfig,
+  LifecycleHooks,
   Reporter,
+  RunShape,
+  RunContext,
   RunSummary,
   Sandbox,
   ScoringContext,
@@ -49,6 +52,9 @@ export interface AgentRun {
   budget?: number;
   evalFilter: (id: string) => boolean;
   experimentId?: string;
+  /** 实验级生命周期钩子(叠加在 config.hooks 之上);run 作用域按 experimentId 各跑一次,
+   *  sandbox 作用域每个 attempt 跑一次。来自 ExperimentDef.hooks,由 CLI 透传。 */
+  hooks?: LifecycleHooks;
 }
 
 export interface RunOptions {
@@ -90,9 +96,20 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   const runningIds = new Set(attempts.map((a) => a.evalDef.id));
   const runningEvals = [...runningIds].map((id) => ({ id }));
   const firstAgent = opts.agentRuns[0]?.agent;
+  const shape: RunShape = {
+    evals: runningEvals.length,
+    configs: opts.agentRuns.length,
+    totalRuns: attempts.length,
+  };
   for (const r of opts.reporters) {
-    await r.onRunStart?.(runningEvals, firstAgent as Agent);
+    // reporter 只是结果消费方:单个 reporter 抛错记 diagnostic,不能让整次调度崩(P2)。
+    await runReporter("onRunStart", () => r.onRunStart?.(runningEvals, firstAgent as Agent, shape));
   }
+
+  // run 作用域生命周期钩子(整轮一次)产出的共享物:经 run.share() 写进来,透给每个 attempt 的
+  // ctx.shared。每个 attempt 不再各起一个空 {},而是读这同一份(语义同 docs/lifecycle.md)。
+  const runShared: Record<string, unknown> = {};
+  const runTeardowns = await setupRunHooks(opts, runShared);
 
   const results: EvalResult[] = [];
   const passedKeys = new Set<string>();
@@ -114,37 +131,49 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   //         → 每个 attempt 的 Scope 跑 release(sb.stop)→ 容器全部停掉(治孤儿)。Effect 保证
   //         所有 finalizer 跑完后 runPromise 才结算,所以下面 summarize 时容器已清理干净。
   let interrupted = false;
-  await Effect.runPromise(
-    Effect.forEach(
-      attempts,
-      (a) =>
-        Effect.gen(function* () {
-          // 早停:同 key 已通过且开了 earlyExit → 跳过(语义同原 launch 时的检查)。
-          if (a.run.earlyExit && passedKeys.has(a.key)) return;
-          const result = yield* runAttemptEffect(a, opts.config, sandboxSem, opts.signal);
-          results.push(result);
-          if (result.verdict === "passed") passedKeys.add(a.key);
-          yield* reportMutex.withPermits(1)(
-            Effect.promise(() =>
-              Promise.all(opts.reporters.map((r) => r.onEvalComplete?.(result))),
-            ),
-          );
+  try {
+    await Effect.runPromise(
+      Effect.forEach(
+        attempts,
+        (a) =>
+          Effect.gen(function* () {
+            // 早停:同 key 已通过且开了 earlyExit → 跳过(语义同原 launch 时的检查)。
+            if (a.run.earlyExit && passedKeys.has(a.key)) return;
+            const result = yield* runAttemptEffect(a, opts.config, sandboxSem, runShared, opts.signal);
+            results.push(result);
+            if (result.verdict === "passed") passedKeys.add(a.key);
+            yield* reportMutex.withPermits(1)(
+              // 每个 reporter 单独兜错:一个写文件失败 / 自定义 reporter 抛错只记 diagnostic,
+              // 不让 Promise.all 整体 reject —— 否则 Effect.promise 把它当 defect,fail 掉 forEach、
+              // 停掉后续 attempt(P2)。
+              Effect.promise(() =>
+                Promise.all(
+                  opts.reporters.map((r) =>
+                    runReporter("onEvalComplete", () => r.onEvalComplete?.(result)),
+                  ),
+                ),
+              ),
+            );
+          }),
+        { concurrency: opts.maxConcurrency, discard: true },
+      ).pipe(
+        // 中断(用户 Ctrl+C):finalizer 已在中断过程中跑完(容器已停),这里只是把它咽下,
+        // 好让流程走到 summarize / onRunComplete,用已完成的 results 出一份部分汇总,而不是抛栈。
+        Effect.catchAllCause((cause) => {
+          if (Cause.isInterrupted(cause)) {
+            interrupted = true;
+            return Effect.void;
+          }
+          return Effect.failCause(cause); // 非中断的意外缺陷:照常抛出
         }),
-      { concurrency: opts.maxConcurrency, discard: true },
-    ).pipe(
-      // 中断(用户 Ctrl+C):finalizer 已在中断过程中跑完(容器已停),这里只是把它咽下,
-      // 好让流程走到 summarize / onRunComplete,用已完成的 results 出一份部分汇总,而不是抛栈。
-      Effect.catchAllCause((cause) => {
-        if (Cause.isInterrupted(cause)) {
-          interrupted = true;
-          return Effect.void;
-        }
-        return Effect.failCause(cause); // 非中断的意外缺陷:照常抛出
-      }),
-    ),
-    { signal: opts.signal },
-  );
-  if (interrupted) process.stderr.write("  · 已中断:沙箱容器已清理,输出本次已完成的部分结果。\n");
+      ),
+      { signal: opts.signal },
+    );
+    if (interrupted) process.stderr.write("  · 已中断:沙箱容器已清理,输出本次已完成的部分结果。\n");
+  } finally {
+    // run 作用域 teardown / cleanup 必跑(成功 / 失败 / 中断都跑),LIFO,各自兜错。
+    for (const td of runTeardowns.reverse()) await runReporter("run.teardown", td);
+  }
 
   // 稳定排序:按发现顺序 + attempt
   const order = new Map(opts.evals.map((e, i) => [e.id, i]));
@@ -156,8 +185,72 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   );
 
   const summary = summarize(results, firstAgent?.name ?? "", startedAt, Date.now() - t0);
-  for (const r of opts.reporters) await r.onRunComplete?.(summary);
+  for (const r of opts.reporters) {
+    await runReporter("onRunComplete", () => r.onRunComplete?.(summary));
+  }
   return summary;
+}
+
+// reporter / 生命周期钩子调用的统一兜错:它们是「消费方 / 资源起停」,单个失败只记 diagnostic
+// 到 stderr,不能让整次调度崩。返回 void,永不 reject(供 Promise.all 安全聚合)。
+async function runReporter(stage: string, fn: () => unknown): Promise<void> {
+  try {
+    await fn();
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    process.stderr.write(`  · [diagnostic] ${stage} 失败(已忽略):${msg}\n`);
+  }
+}
+
+// run 作用域生命周期钩子(整轮一次):config.hooks(全局)+ 每个实验各一次(叠加在 config 之上)。
+// 每个 provider 的 setup 立即跑,返回的 cleanup 与 teardown 收成一个闭包入栈;调用方在 finally 里
+// LIFO 跑这些闭包(见 docs/lifecycle.md)。setup 失败只记 diagnostic,不阻断后续 provider / 调度。
+async function setupRunHooks(
+  opts: RunOptions,
+  shared: Record<string, unknown>,
+): Promise<Array<() => Promise<void> | void>> {
+  const signal = opts.signal ?? new AbortController().signal;
+  const mkCtx = (runs: AgentRun[], experimentId?: string): RunContext => ({
+    experimentId,
+    evals: [
+      ...new Set(opts.evals.filter((e) => runs.some((r) => r.evalFilter(e.id))).map((e) => e.id)),
+    ],
+    agents: [...new Set(runs.map((r) => r.agent.name))],
+    flags: runs[0]?.flags ?? {},
+    signal,
+    log: (m) => process.stderr.write(`  · [hooks] ${m}\n`),
+    share: (k, v) => {
+      shared[k] = v;
+    },
+  });
+
+  // 收集 run-scope 提供方:config 覆盖全部 run;每个带 hooks.run 的实验各一组(按 experimentId 去重)。
+  const providers: Array<{ hooks: LifecycleHooks; runs: AgentRun[]; experimentId?: string }> = [];
+  if (opts.config.hooks?.run) providers.push({ hooks: opts.config.hooks, runs: opts.agentRuns });
+  const seen = new Set<string>();
+  for (const r of opts.agentRuns) {
+    if (!r.hooks?.run || !r.experimentId || seen.has(r.experimentId)) continue;
+    seen.add(r.experimentId);
+    providers.push({
+      hooks: r.hooks,
+      runs: opts.agentRuns.filter((x) => x.experimentId === r.experimentId),
+      experimentId: r.experimentId,
+    });
+  }
+
+  const teardowns: Array<() => Promise<void> | void> = [];
+  for (const p of providers) {
+    const ctx = mkCtx(p.runs, p.experimentId);
+    let cleanup: Cleanup | void = undefined;
+    await runReporter("run.setup", async () => {
+      cleanup = await p.hooks.run?.setup?.(ctx);
+    });
+    teardowns.push(async () => {
+      if (typeof cleanup === "function") await cleanup();
+      await p.hooks.run?.teardown?.(ctx);
+    });
+  }
+  return teardowns;
 }
 
 function summarize(
@@ -201,6 +294,7 @@ function runAttemptEffect(
   a: Attempt,
   config: Config,
   sandboxSem: Effect.Semaphore,
+  runShared: Record<string, unknown>,
   parentSignal?: AbortSignal,
 ): Effect.Effect<EvalResult> {
   const { evalDef, run, attempt } = a;
@@ -224,6 +318,9 @@ function runAttemptEffect(
   }
 
   const timeoutMs = run.timeoutMs ?? evalDef.timeoutMs ?? config.timeoutMs ?? 600_000;
+  // timeoutSignal:给协作式 adapter / docker 命令的「软」截止信号(到点 abort,让能看 signal 的
+  // 提前优雅停)。但它【不是】attempt 总超时的硬保证 —— 真正的硬边界是下面的 Effect.timeoutTo:
+  // 它中断整段 body,触发 Scope release(停容器),从而即便 adapter 完全无视 signal 也能停掉(P1)。
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const signal = parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
 
@@ -255,12 +352,34 @@ function runAttemptEffect(
         log(`OTLP 接收器 → ${endpoint}${proto ? ` (${proto})` : ""}`);
       }
 
-      // body 是 Promise(adapter 边界);沙箱 / 接收器的回收交给上面的 Scope,不在 body 里。
-      return yield* Effect.promise(() =>
-        runAttemptBody(a, config, t0, base, { sandbox, receiver, telemetry, signal, log }),
+      // body 是 Promise(adapter 边界)。Effect.promise 给的 AbortSignal 在本 fiber 被中断
+      //(用户 Ctrl+C / 下面 timeoutTo 到点)时 abort —— 并进 signal,让真正观察 signal 的
+      // adapter / docker 命令随中断一起停,而不只靠 Scope release 兜底。
+      return yield* Effect.promise((interruptSignal) =>
+        runAttemptBody(a, config, t0, base, {
+          sandbox,
+          receiver,
+          telemetry,
+          signal: AbortSignal.any([signal, interruptSignal]),
+          shared: runShared,
+          log,
+        }),
       );
     }),
   ).pipe(
+    // ── attempt 总超时的硬边界(P1)──
+    // timeoutMs 是「整个 attempt(setup+agent+脚本+评分)」的上限,不是 docker 单条命令的。
+    // 到点 → 中断整段 body → Scope 跑 release(停容器、关接收器)→ 产出一条 errored 结果。
+    // 即便 adapter / test 完全无视 signal 挂死,这一层也能把它停下来并回收资源。
+    Effect.timeoutTo({
+      duration: Duration.millis(timeoutMs),
+      onSuccess: (r: EvalResult) => r,
+      onTimeout: (): EvalResult => ({
+        ...base,
+        durationMs: Date.now() - t0,
+        error: `attempt 超时(${timeoutMs}ms)`,
+      }),
+    }),
     // body 自己已兜了 agent 执行错;这里兜的是资源获取 / Scope 层的意外(起沙箱失败等)。
     // 中断【不】吞:此时 Scope 已跑完 release(容器已停),把中断继续上抛,让 forEach 整体停掉,
     // 否则会把中断「恢复」成一条 errored 结果、并让后续 attempt 继续起 —— 那就停不下来了。
@@ -282,6 +401,8 @@ interface AttemptResources {
   receiver?: TraceReceiver;
   telemetry?: Telemetry;
   signal: AbortSignal;
+  /** run 作用域钩子(hooks.run.setup → run.share)产出的共享物;透给 ctx.shared。 */
+  shared: Record<string, unknown>;
   log: (m: string) => void;
 }
 
@@ -295,9 +416,22 @@ async function runAttemptBody(
   res: AttemptResources,
 ): Promise<EvalResult> {
   const { evalDef, run, attempt } = a;
-  const { sandbox, receiver, telemetry, signal, log } = res;
+  const { sandbox, receiver, telemetry, signal, shared, log } = res;
+  // 整个 attempt 共用一份 agent ctx(sandbox 钩子 / agent setup / tracing configure / teardown 都用它)。
+  const attemptCtx: AgentContext = {
+    signal,
+    model: run.model,
+    flags: run.flags,
+    sandbox,
+    session: { id: undefined, isNew: true },
+    shared,
+    telemetry,
+    log,
+  };
   let agentCleanup: Cleanup | void = undefined;
-  let agentSetupCtx: AgentContext | undefined;
+  let agentDidSetup = false;
+  // sandbox 作用域钩子的回收闭包(config + 实验,叠加);finally 里 LIFO 跑(必跑,各自兜错)。
+  const sandboxTeardowns: Array<() => Promise<void> | void> = [];
   try {
     // 上传 workspace + git 基线
     const wsDir = await resolveWorkspace(evalDef, config);
@@ -307,6 +441,19 @@ async function runAttemptBody(
       log(`上传 workspace(${files.length} 文件)`);
     }
     await initGitAndCommit(sandbox);
+
+    // sandbox 作用域 setup(每个 attempt 一次):写 .env / 起 mock 服务 / 连外部 DB 等。
+    // 顺序同 docs/architecture.md:git 基线之后、装依赖之前。config.hooks 先、实验 hooks 叠加在后。
+    for (const h of [config.hooks?.sandbox, run.hooks?.sandbox]) {
+      if (!h) continue;
+      let cleanup: Cleanup | void = undefined;
+      log("sandbox setup(钩子)…");
+      cleanup = await h.setup?.(sandbox, attemptCtx);
+      sandboxTeardowns.push(async () => {
+        if (typeof cleanup === "function") await cleanup();
+        await h.teardown?.(sandbox, attemptCtx);
+      });
+    }
 
     // eval 级 setup(starter prep:npm install / 装系统依赖等)。命令默认非 root;
     // setup 里需要 root 的(apt/pip)自己传 { root: true }。
@@ -318,34 +465,15 @@ async function runAttemptBody(
     // agent 自己的 lifecycle:装 CLI、写 config(每个沙箱一次,不在每轮 send 里)。
     if (run.agent.setup) {
       log("agent setup(装 CLI / 写配置)…");
-      agentSetupCtx = {
-        signal,
-        model: run.model,
-        flags: run.flags,
-        sandbox,
-        session: { id: undefined, isNew: true },
-        shared: {},
-        telemetry,
-        log,
-      };
-      agentCleanup = await run.agent.setup(sandbox, agentSetupCtx);
+      agentDidSetup = true;
+      agentCleanup = await run.agent.setup(sandbox, attemptCtx);
     }
 
     // OTLP 导出配置(file-based,如 codex 的 config.toml [otel] 块):与 setup 分开,
     // 在主配置写完后追加。仅当 tracing 开 + 有 endpoint 时调一次(env-based 的不实现 configure)。
     if (telemetry && run.agent.tracing?.configure) {
-      const tracingCtx: AgentContext = agentSetupCtx ?? {
-        signal,
-        model: run.model,
-        flags: run.flags,
-        sandbox,
-        session: { id: undefined, isNew: true },
-        shared: {},
-        telemetry,
-        log,
-      };
       log("agent tracing(写 otel 导出配置)…");
-      await run.agent.tracing.configure(sandbox, tracingCtx);
+      await run.agent.tracing.configure(sandbox, attemptCtx);
     }
 
     // 构造 t,跑 test
@@ -356,7 +484,7 @@ async function runAttemptBody(
       sandbox,
       model: run.model,
       flags: run.flags,
-      shared: {},
+      shared,
       signal,
       log,
       judge,
@@ -473,15 +601,16 @@ async function runAttemptBody(
       error: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
     };
   } finally {
-    // agent teardown / cleanup 一律在 finally 跑(失败也跑),不改判决。
-    // 沙箱 stop / 接收器 close 不在这里 —— 由 runAttemptEffect 的 Scope 在本函数返回后回收
-    //(LIFO:先 close 接收器,再 stop 沙箱,顺序与原 finally 一致)。
+    // teardown / cleanup 一律在 finally 跑(失败也跑),不改判决,各自兜错(diagnostic)。
+    // LIFO:先 agent(setup 最晚),再 sandbox 钩子(实验 → config)。
+    // 沙箱 stop / 接收器 close 不在这里 —— 由 runAttemptEffect 的 Scope 在本函数返回后回收。
     try {
       if (typeof agentCleanup === "function") await agentCleanup();
-      if (sandbox && agentSetupCtx) await run.agent.teardown?.(sandbox, agentSetupCtx);
+      if (agentDidSetup) await run.agent.teardown?.(sandbox, attemptCtx);
     } catch {
       // teardown 失败只是 diagnostic,不影响已出的结果
     }
+    for (const td of sandboxTeardowns.reverse()) await runReporter("sandbox.teardown", td);
   }
 }
 

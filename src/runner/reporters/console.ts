@@ -21,8 +21,15 @@ function fmtDuration(ms: number): string {
 
 export function Console(): Reporter {
   return {
-    onRunStart(evals) {
-      process.stdout.write(`\n本次运行 ${evals.length} 个 eval\n\n`);
+    onRunStart(evals, _agent, shape) {
+      // compare(多 agent / 多 model)或 runs>1 时,实际 attempt 数 > eval 数。头部如实报清,
+      // 否则「本次运行 5 个 eval」会和末尾「5 passed, 5 failed」(按 attempt 计 10)对不上。
+      const n = shape?.evals ?? evals.length;
+      const extra =
+        shape && shape.totalRuns > n
+          ? ` × ${shape.configs} 配置 = ${shape.totalRuns} 次运行`
+          : "";
+      process.stdout.write(`\n本次运行 ${n} 个 eval${extra}\n\n`);
     },
     onEvalComplete(result: EvalResult) {
       const sym = SYMBOL[result.verdict] ?? "?";
@@ -57,9 +64,18 @@ export function Console(): Reporter {
       const tok = (summary.usage?.inputTokens ?? 0) + (summary.usage?.outputTokens ?? 0);
       const tokStr = tok > 0 ? `${fmtTokens(tok)} tok` : "— tok";
       const cost = summary.estimatedCostUSD !== undefined ? ` · $${summary.estimatedCostUSD.toFixed(2)}` : "";
+      // errored ⊆ failed(执行错误也判 failed)。汇总里把它从 failed 拆出来单列,否则
+      // 「断言没过」与「agent 压根没跑成(超时 / 0 返回)」混成一类 —— 那正是 verdict 的语义陷阱。
+      const failedOnly = summary.failed - summary.errored;
+      const parts = [
+        `${summary.passed} passed`,
+        `${failedOnly} failed`,
+        ...(summary.errored > 0 ? [`${summary.errored} errored`] : []),
+        `${summary.scored} scored`,
+        `${summary.skipped} skipped`,
+      ];
       process.stdout.write(
-        `\n结果:${summary.passed} passed, ${summary.failed} failed, ${summary.scored} scored, ${summary.skipped} skipped` +
-          `  (${fmtDuration(summary.durationMs)} · ${tokStr}${cost})\n\n`,
+        `\n结果:${parts.join(", ")}  (${fmtDuration(summary.durationMs)} · ${tokStr}${cost})\n\n`,
       );
     },
   };

@@ -16,9 +16,9 @@ export class EvalRequirementFailed extends Error {
   }
 }
 
-/** 某一轮 send 返回 failed,作者调了 expectOk():视为执行错误(eval failed)。 */
+/** 本轮 send 返回 failed,作者调了 expectOk():视为执行错误(eval failed)。 */
 export class TurnFailed extends Error {
-  constructor(message = "上一轮运行失败(turn status = failed)") {
+  constructor(message = "本轮 send 返回 failed(turn status = failed)") {
     super(message);
     this.name = "TurnFailed";
   }

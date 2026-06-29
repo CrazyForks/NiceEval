@@ -44,6 +44,37 @@ npx fasteval button --agent codex --sandbox docker
 npx fasteval view
 ```
 
+## Architecture
+
+```text
+              evals/*.eval.ts
+                    │
+                    ▼
+   ┌───────────────────────────────────────────┐
+   │                fasteval core               │
+   │   discover → schedule → score → report     │
+   │                → artifacts                 │
+   └───────────────────────────────────────────┘
+          │                            │
+          │ Agent adapter boundary     │ Sandbox backend
+          ▼                            ▼
+   ┌─────────────────────────┐   ┌──────────────┐
+   │ Codex / Claude Code /   │   │    Docker    │
+   │ your own AI agent stack │   │  (isolated   │
+   │ (AI SDK·LangGraph·Pi…)  │   │  workspace)  │
+   └─────────────────────────┘   └──────────────┘
+                    │
+                    ▼
+   verdicts · traces · costs · diffs · transcripts · artifacts
+```
+
+- **fasteval core** owns discovery, scheduling, scoring, reporting, and artifacts.
+- **Agent adapters** are the open boundary: you decide how to call the system
+  under test — Codex, Claude Code, or your own AI agent framework (AI SDK /
+  LangGraph / Pi, etc.).
+- **Sandbox backends** decide where isolated work runs; Docker is the
+  implemented backend, and others can sit behind the same interface.
+
 ## Why fasteval
 
 Agent evals should be cheap enough to keep beside the code they protect.
@@ -173,7 +204,8 @@ fasteval list                         # list discovered evals
 fasteval --dry                        # show what would run
 fasteval <id-prefix> --agent <name>   # run matching eval ids
 fasteval exp [group-or-id]            # run checked-in experiment configs
-fasteval view                         # open the local artifact viewer
+fasteval view                         # open the local artifact viewer in your browser
+fasteval view --no-open               # start the viewer and only print the URL
 fasteval view --out report.html       # export a static HTML report
 fasteval clean                        # remove .fasteval/ artifacts
 ```

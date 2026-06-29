@@ -16,6 +16,7 @@ import type {
   Sandbox,
   ScoringContext,
   ScriptResult,
+  StreamEvent,
   Telemetry,
   TestContext,
   Turn,
@@ -196,7 +197,16 @@ function makeTurnHandle(turn: Turn, collector: AssertionCollector): TurnHandle {
     data: turn.data,
     usage: turn.usage,
     expectOk() {
-      if (turn.status === "failed") throw new TurnFailed();
+      if (turn.status === "failed") {
+        // 把 adapter 在事件流里留下的诊断(provider 超时 / stream 断 / 退出码…)带进 TurnFailed,
+        // 否则 EvalResult.error 只剩泛泛的「本轮 send 返回 failed」,看不出到底是谁、为什么挂。
+        const lastError = [...turn.events]
+          .reverse()
+          .find((e): e is Extract<StreamEvent, { type: "error" }> => e.type === "error");
+        throw new TurnFailed(
+          lastError ? `本轮 send 返回 failed(turn status = failed):${lastError.message}` : undefined,
+        );
+      }
       return handle;
     },
     outputEquals: (value) =>

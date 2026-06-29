@@ -5,6 +5,7 @@
 //   fasteval clean                   删除 .fasteval/ 历史运行工件
 //   fasteval --agent <name> ...
 
+import { spawn } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -29,13 +30,26 @@ interface Flags {
   dry: boolean;
   strict: boolean;
   quiet: boolean;
+  open?: boolean;
   out?: string;
   port?: number;
 }
 
-const BOOL_FLAGS = new Set(["dry", "strict", "quiet", "early-exit", "no-early-exit", "force", "watch", "json"]);
+const BOOL_FLAGS = new Set([
+  "dry",
+  "strict",
+  "quiet",
+  "early-exit",
+  "no-early-exit",
+  "open",
+  "no-open",
+  "force",
+  "watch",
+  "json",
+]);
 
 function parseArgs(argv: string[]): { command: string; positionals: string[]; flags: Flags } {
+  if (argv[0] === "--") argv = argv.slice(1);
   const positionals: string[] = [];
   const flags: Flags = { dry: false, strict: false, quiet: false };
   let command = "run";
@@ -58,6 +72,14 @@ function parseArgs(argv: string[]): { command: string; positionals: string[]; fl
       }
       if (name === "early-exit") {
         flags.earlyExit = true;
+        continue;
+      }
+      if (name === "no-open") {
+        flags.open = false;
+        continue;
+      }
+      if (name === "open") {
+        flags.open = true;
         continue;
       }
       if (BOOL_FLAGS.has(name)) {
@@ -115,6 +137,28 @@ async function loadConfig(cwd: string): Promise<Config> {
   return mod.default;
 }
 
+async function openBrowser(url: string): Promise<boolean> {
+  const command =
+    process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+
+  return new Promise((resolveOpen) => {
+    let done = false;
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolveOpen(ok);
+    };
+
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    const timer = setTimeout(() => finish(true), 1500);
+    child.once("error", () => finish(false));
+    child.once("exit", (code) => finish(code === 0));
+    child.unref();
+  });
+}
+
 function evalsFilterFromExperiment(
   evals: DiscoveredExperiment["evals"],
   patterns: string[],
@@ -139,6 +183,10 @@ async function main(): Promise<void> {
     }
     const server = await startViewServer({ input: positionals[0], port: flags.port });
     process.stdout.write(`fasteval view: ${server.url}\n`);
+    if (flags.open !== false) {
+      const opened = await openBrowser(server.url);
+      if (!opened) process.stderr.write(`无法自动打开浏览器,请手动访问:${server.url}\n`);
+    }
     process.stdout.write("按 Ctrl+C 退出。\n");
     await new Promise(() => {});
   }
@@ -193,6 +241,7 @@ async function main(): Promise<void> {
             budget: exp.budget,
             evalFilter: evalsFilterFromExperiment(exp.evals, extraPatterns),
             experimentId: exp.id,
+            hooks: exp.hooks,
           });
         }
       }
