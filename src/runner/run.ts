@@ -105,8 +105,13 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   );
 
   // 有界并发调度:Effect.forEach({ concurrency }) 取代手写 queue / inFlight / Promise.race。
-  // 每个 attempt 跑在自己的 fiber;runAttemptEffect 永不 fail(错误已收进 EvalResult.error),
-  // 所以一条挂掉不会中断其它 attempt —— 与原 launch 的隔离语义一致。
+  // 每个 attempt 跑在自己的 fiber;runAttemptEffect 只把「执行错误」收进 EvalResult.error(不 fail),
+  // 但中断(Ctrl+C / kill)照常向上传播 —— 所以一条挂掉不会中断其它 attempt,而中断能停掉全部。
+  //
+  // signal:把 opts.signal 喂给 runPromise → abort 触发根 fiber 中断 → forEach 中断所有子 fiber
+  //         → 每个 attempt 的 Scope 跑 release(sb.stop)→ 容器全部停掉(治孤儿)。Effect 保证
+  //         所有 finalizer 跑完后 runPromise 才结算,所以下面 summarize 时容器已清理干净。
+  let interrupted = false;
   await Effect.runPromise(
     Effect.forEach(
       attempts,
@@ -124,8 +129,20 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
           );
         }),
       { concurrency: opts.maxConcurrency, discard: true },
+    ).pipe(
+      // 中断(用户 Ctrl+C):finalizer 已在中断过程中跑完(容器已停),这里只是把它咽下,
+      // 好让流程走到 summarize / onRunComplete,用已完成的 results 出一份部分汇总,而不是抛栈。
+      Effect.catchAllCause((cause) => {
+        if (Cause.isInterrupted(cause)) {
+          interrupted = true;
+          return Effect.void;
+        }
+        return Effect.failCause(cause); // 非中断的意外缺陷:照常抛出
+      }),
     ),
+    { signal: opts.signal },
   );
+  if (interrupted) process.stderr.write("  · 已中断:沙箱容器已清理,输出本次已完成的部分结果。\n");
 
   // 稳定排序:按发现顺序 + attempt
   const order = new Map(opts.evals.map((e, i) => [e.id, i]));
@@ -238,9 +255,13 @@ function runAttemptEffect(
       );
     }),
   ).pipe(
-    // body 自己已兜了 agent 执行错;这里兜的是资源获取 / Scope 层的意外(起沙箱失败、被中断)。
+    // body 自己已兜了 agent 执行错;这里兜的是资源获取 / Scope 层的意外(起沙箱失败等)。
+    // 中断【不】吞:此时 Scope 已跑完 release(容器已停),把中断继续上抛,让 forEach 整体停掉,
+    // 否则会把中断「恢复」成一条 errored 结果、并让后续 attempt 继续起 —— 那就停不下来了。
     Effect.catchAllCause((cause) =>
-      Effect.succeed({ ...base, durationMs: Date.now() - t0, error: causeToError(cause) }),
+      Cause.isInterrupted(cause)
+        ? Effect.failCause(cause)
+        : Effect.succeed({ ...base, durationMs: Date.now() - t0, error: causeToError(cause) }),
     ),
   );
 }

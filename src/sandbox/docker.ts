@@ -32,6 +32,13 @@ const DOCKER_IMAGES: Record<string, string> = {
 // 单条命令默认超时(10 分钟)。
 const DEFAULT_TIMEOUT = 600_000;
 
+// 容器「存活上限」(dead-man switch):PID1 用 `timeout <TTL> tail -F` 跑,到点自动退出 →
+// 容器停止 → AutoRemove 清理。这样即便宿主进程被 kill -9 / 崩溃 / 断电(SIGINT handler 来不及
+// 跑 stop()),孤儿容器也会在 TTL 后自行消失,不靠任何外部状态。TTL 取 attempt 超时的 2 倍并设
+// 下限,确保正常运行(setup + agent + 脚本,本就受 attempt 超时约束)绝不会被它误杀。
+const TTL_MULTIPLIER = 2;
+const TTL_FLOOR_MS = 1_200_000; // 20 分钟
+
 // 容器内工作目录。
 const CONTAINER_WORKDIR = "/home/sandbox/workspace";
 
@@ -134,12 +141,15 @@ export class DockerSandbox implements Sandbox {
     // PID1 改成 tail 一个日志文件(而非 sleep infinity):这样容器「主日志」= 这个文件,
     // `docker logs` / Docker UI 的 Logs 标签页能实时显示我们 appendLog 进去的 agent 逐轮活动。
     // 文件先 touch + chmod 666,好让之后以 1000 用户跑的 exec 也能往里 append。
+    // 外层 `timeout <TTL>` 是 dead-man switch:宿主异常退出(kill -9 / 崩溃)留下的孤儿容器,
+    // 到 TTL 后 PID1 自动退出 → 容器停止 → AutoRemove 清理(见 TTL_* 常量)。
+    const ttlSec = Math.ceil(Math.max(this.timeout * TTL_MULTIPLIER, TTL_FLOOR_MS) / 1000);
     this.container = await this.docker.createContainer({
       Image: imageName,
       Cmd: [
         "sh",
         "-c",
-        `touch ${CONTAINER_LOG}; chmod 666 ${CONTAINER_LOG}; exec tail -n +1 -F ${CONTAINER_LOG}`,
+        `touch ${CONTAINER_LOG}; chmod 666 ${CONTAINER_LOG}; exec timeout ${ttlSec} tail -n +1 -F ${CONTAINER_LOG}`,
       ],
       WorkingDir: CONTAINER_WORKDIR,
       Tty: true,

@@ -245,6 +245,20 @@ async function main(): Promise<void> {
   reporters.push(ArtifactsReporter());
   reporters.push(...(config.reporters ?? []));
 
+  // Ctrl+C / kill:abort 这个 controller → runEvals 把它喂给 Effect.runPromise 的 signal,
+  // 触发根 fiber 中断 → 每个 attempt 的 Scope 跑 release → 所有容器 stop()(治孤儿容器)。
+  // 第二次信号则直接硬退出,不再等 graceful 清理。
+  const ctrl = new AbortController();
+  let aborting = false;
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.on(sig, () => {
+      if (aborting) process.exit(130); // 第二次:不耐烦了,硬退
+      aborting = true;
+      process.stderr.write("\n收到中断,正在清理沙箱容器…(再按一次强制退出)\n");
+      ctrl.abort();
+    });
+  }
+
   const summary = await runEvals({
     config,
     evals,
@@ -252,6 +266,7 @@ async function main(): Promise<void> {
     reporters,
     maxConcurrency: flags.maxConcurrency ?? config.maxConcurrency ?? 4,
     sandboxConcurrency: flags.sandboxConcurrency ?? config.sandboxConcurrency,
+    signal: ctrl.signal,
   });
 
   const failedExit = summary.failed > 0 || (flags.strict && summary.scored > 0);
