@@ -97,19 +97,19 @@ turn.outputEquals({ status: "ok" });                  // turn.data 深度相等
 turn.outputMatches(z.object({ status: z.string() })); // Standard Schema 校验
 ```
 
-**沙箱 / 工作区维度(沙箱型 Agent):**
+**沙箱 / 工作区维度(沙箱型 Agent)——都挂在 `t.sandbox` 下:**
 
 ```typescript
-t.fileChanged("src/Button.tsx");
-t.fileDeleted("src/old.ts");
-t.diff.isEmpty();                    // 这一轮没动任何仓库文件
-t.notInDiff(/sk-[A-Za-z0-9]/);       // 改动里不含某模式(密钥、内联 style…)
-t.testsPassed();                     // EVAL.ts 全绿
-t.scriptPassed("build");             // npm run build 退出 0
-t.noFailedShellCommands();
+t.sandbox.fileChanged("src/Button.tsx");
+t.sandbox.fileDeleted("src/old.ts");
+t.sandbox.diff.isEmpty();            // 这一轮没动任何仓库文件
+t.sandbox.notInDiff(/sk-[A-Za-z0-9]/); // 改动里不含某模式(密钥、内联 style…)
+t.sandbox.testsPassed();             // EVAL.ts 全绿
+t.sandbox.scriptPassed("build");     // npm run build 退出 0
+t.sandbox.noFailedShellCommands();
 ```
 
-`t.diff` 是可查询对象:`t.diff.get(path)`(取某文件改后内容)、`t.diff.isEmpty()`、`t.diff.matches(re)` / `t.notInDiff(re)`(对全部改动正则匹配)。
+工作区相关的全在 `t.sandbox` 命名空间下;没 `workspace` 能力就没有 `t.sandbox`。`t.sandbox.diff` 是可查询对象:`t.sandbox.diff.get(path)`(取某文件改后内容)、`.isEmpty()`、`.matches(re)` / `t.sandbox.notInDiff(re)`(对全部改动正则匹配)。详见 [Assertions · 工作区断言](assertions.md#工作区断言tsandbox仅-workspace-能力)。
 
 ## 3. LLM-as-judge
 
@@ -124,7 +124,7 @@ t.judge.score("自定义评分标准的一段话", { on: t.reply });
 
 `{ on }` 指定被评的值(默认 `t.reply`),`{ model }` 可单次覆盖评判模型。
 
-> **judge 默认只看最后一轮。** `t.reply` 是最后一条 assistant 消息,所以多轮里直接 `t.judge.agent("整段对话是否…")` 只会拿到最后一轮、证据不足。要评跨轮一致性,把整段对话拼出来传进去:`t.judge.agent("…", { on: t.transcript.text() }).atLeast(0.7)`。每条断言看哪一轮、各自来源,见 [Assertions](assertions.md)(尤其[作用域:三层](assertions.md#作用域三层看哪一轮))。
+> **judge 默认只看最后一轮。** `t.reply` 是最后一条 assistant 消息,所以多轮里直接 `t.judge.score("整段对话是否…")` 只会拿到最后一轮、证据不足。要评跨轮一致性,把整段对话拼出来传进去:`t.judge.score("…", { on: t.transcript.text() }).atLeast(0.7)`。(评工作区产物/diff 用沙箱型的 `t.sandbox.judge`。)每条断言看哪一轮、各自来源,见 [Assertions](assertions.md)(尤其[作用域:三层](assertions.md#作用域三层看哪一轮))。
 
 **模型解析优先级**(高 → 低):单次调用的 `{ model }` → 这个 eval 的 `judge.model` → 配置的 `judge.model`。
 

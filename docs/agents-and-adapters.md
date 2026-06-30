@@ -41,7 +41,7 @@ interface Agent {
 interface AgentCapabilities {
   conversation?: boolean;        // 支持多轮 send → t.send 多次
   toolObservability?: boolean;   // 能产出 action.* 事件 → t.calledTool
-  workspace?: boolean;           // 在文件系统上工作 → t.diff / t.sandbox
+  workspace?: boolean;           // 在文件系统上工作 → t.sandbox(工作区断言 + diff + 句柄)
 }
 
 interface AgentContext {
@@ -238,7 +238,7 @@ export default defineSandboxAgent({
 - 任意 agent → `t.send` / `t.check` / `t.require` / `t.judge` / `t.log` / `t.skip`。
 - `conversation` → `t.send` 可多次、`t.reply`、`t.newSession`。
 - `toolObservability` → `t.calledTool` / `t.toolOrder` / `t.usedNoTools` / `t.calledSubagent` / `t.event`…。
-- `workspace`(沙箱型)→ `t.sandbox` / `t.diff` / `t.transcript` / 跑 `EVAL.ts`。
+- `workspace`(沙箱型)→ `t.sandbox`(工作区断言 + `t.sandbox.diff` + 句柄 + `t.sandbox.judge`)/ `t.transcript` / 跑 `EVAL.ts`。
 
 作者写 `t.calledTool` 时若 agent 没声明 `toolObservability`,在类型层面就拿不到这个方法,不会跑起来才报错。
 
@@ -253,7 +253,7 @@ export default defineSandboxAgent({
 | 取消信号 | `ctx.signal` | `t.signal` | 同一份 |
 | 日志 | `ctx.log()` | `t.log()` | 同一个 |
 | 会话 | `ctx.session`(`id`/`isNew`,用来 resume) | `t.newSession()`(发起新会话) | `t` 发起 → 运行器置 `isNew` → `ctx` 执行 |
-| 沙箱 | `ctx.sandbox`(底层 `Sandbox` 句柄) | `t.sandbox`/`t.diff`/`t.transcript`(高层视图) | `t.*` 是 `ctx.sandbox` 的高层封装 |
+| 沙箱 | `ctx.sandbox`(底层 `Sandbox` 句柄) | `t.sandbox`(句柄 + 工作区断言 + `t.sandbox.diff`)/`t.transcript`(高层视图) | `t.sandbox.*` 是 `ctx.sandbox` 的高层封装 |
 | 一轮结果 | `send` 返回的 `Turn`(`events` 为核心) | `t.send()` 的返回 / `t.reply` / `turn.outputEquals` | core 把 `Turn` 转交给 eval |
 | 鉴权 / CLI 细节 | agent 本地(**不在 ctx**) | — | 谁都不暴露给对方 |
 | 断言 / judge / transcript 派生 | — | `t.check`/`t.calledTool`/`t.judge`/`t.transcript`/`t.maxTokens`… | 只在 eval 侧 |

@@ -95,7 +95,7 @@ fasteval 有两个写 eval 的入口,但它们汇流到同一套评分 / 运行 
 | 灵感来源 | eve evals | Vercel agent-eval |
 | Task 形态 | `t.send(...)` 序列 | `PROMPT.md` |
 | 典型 Agent | 进程内 / 远程 agent(会话型) | 沙箱 agent(coding agent + Sandbox) |
-| `t` 暴露什么 | `send`/`reply`/`calledTool`/`judge` | 上述 + `sandbox`/`diff`/`transcript`/测试 |
+| `t` 暴露什么 | `send`/`reply`/`calledTool`/`judge` | 上述 + `t.sandbox`(工作区断言/diff/句柄/`judge`)/`transcript`/测试 |
 | 评分手段 | expect + 作用域断言 + judge | 上述 + 跑 `EVAL.ts` |
 | 共享 | **Scorer、Verdict、Runner、Reporter、Config、工件格式全部共享** | 同 → |
 
@@ -108,7 +108,7 @@ fasteval 有两个写 eval 的入口,但它们汇流到同一套评分 / 运行 
 - 任何 Agent → `t.check` / `t.require`(值级断言)、`t.log`、`t.skip`、`t.signal`、`t.judge`。
 - 声明 `conversation` 能力 → `t.send` / `t.respond` / `t.reply` / `t.newSession`。
 - 声明 `tool-observability` 能力 → `t.calledTool` / `t.toolOrder` / `t.usedNoTools`。
-- 声明 `workspace` 能力(沙箱型)→ `t.sandbox`(命令/文件)、`t.diff`(生成/删除的文件)、`t.transcript`(归一化事件 + o11y)。
+- 声明 `workspace` 能力(沙箱型)→ `t.sandbox`(命令/文件句柄 + 工作区断言 `fileChanged`/`testsPassed`/… + `t.sandbox.diff` + `t.sandbox.judge`)、`t.transcript`(归一化事件 + o11y)。
 
 作者写 `t.calledTool` 时若 Agent 不支持工具观测,在类型层面就拿不到这个方法(TS 条件类型),不会跑起来才报错。
 

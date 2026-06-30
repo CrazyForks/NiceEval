@@ -85,7 +85,7 @@ await t.send("中间那个形状是什么颜色的?");
 
 // judge 默认 on: t.reply(最后一轮)。要评"整段三轮",传整段对话:
 t.judge
-  .agent("助手是否始终基于第一轮的图片作答?", { on: t.transcript.text() })
+  .score("助手是否始终基于第一轮的图片作答?", { on: t.transcript.text() })
   .atLeast(0.7);
 ```
 
@@ -193,10 +193,10 @@ export default defineAgentEval({
   files: "./fixtures/legacy-callbacks",     // workspace 起始文件
   async test(t) {
     await t.run();                          // 驱动 agent
-    t.fileChanged("src/legacy.js");
-    t.check(t.diff.get("src/legacy.js"), includes("await"));
+    t.sandbox.fileChanged("src/legacy.js");
+    t.check(t.sandbox.diff.get("src/legacy.js"), includes("await"));
     await t.script("test");                 // 跑 npm run test
-    t.testsPassed();
+    t.sandbox.testsPassed();
   },
 });
 ```
