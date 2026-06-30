@@ -13,7 +13,7 @@
 
 </div>
 
-fasteval is a general-purpose agent eval tool inspired by [eve](eve.dev). It has an excellent DX design — anyone can get started and configured in about 10 minutes. It's also very versatile: it can eval plugins, Hooks, and Skills written for Claude Code/Codex coding agents, and can directly eval your own AI Agent framework (no matter if it's based on AI SDK, LangGraph, Pi, or any other interface, it's easy to integrate).
+fasteval is a general-purpose agent eval tool inspired by [eve](https://eve.dev). It has an excellent DX design — anyone can get started and configured in about 10 minutes. It's also very versatile: it can eval plugins, Hooks, and Skills written for Claude Code/Codex coding agents, and can directly eval your own AI Agent framework (no matter if it's based on AI SDK, LangGraph, Pi, or any other interface, it's easy to integrate).
 
 After the eval completes, it generates readable reports and lets you view agent behavior details. Convenient for debugging and optimization.
 

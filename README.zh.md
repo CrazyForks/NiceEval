@@ -12,7 +12,7 @@
 
 </div>
 
-fasteval 是一个受[eve](eve.dev)启发的通用型 agent eval 工具。首先有非常优秀的 DX 设计，任何人可以在 10 分钟左右上手并配置。并且设计非常的通用。即可以用来 eval 给 Claude Code/Codex 写的 coding agent 的插件、Hook还有Skill。更可以直接 eval 自己的 AI Agent 框架(无论是基于 AI SDK、LangGraph、Pi还是什么接口都可以轻松接入)。
+fasteval 是一个受[eve](https://eve.dev)启发的通用型 agent eval 工具。首先有非常优秀的 DX 设计，任何人可以在 10 分钟左右上手并配置。并且设计非常的通用。即可以用来 eval 给 Claude Code/Codex 写的 coding agent 的插件、Hook还有Skill。更可以直接 eval 自己的 AI Agent 框架(无论是基于 AI SDK、LangGraph、Pi还是什么接口都可以轻松接入)。
 
 在 eval 完成之后可以生成易读的报告与查看 Agent 的行为细节。方便 Debug 与优化。
 
