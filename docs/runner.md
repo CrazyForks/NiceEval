@@ -98,13 +98,15 @@ run:start          { total, agent, model }
 run:setup          { }                          # hooks.run.setup 开始(见 Lifecycle)
 run:setupComplete  { durationMs }
 eval:start         { id, attempt }
-eval:complete      { id, attempt, verdict, durationMs, usage, costUSD }
+eval:complete      { id, attempt, verdict, outcome, durationMs, usage, costUSD }
 run:earlyExit      { id }
 run:budgetExceeded { spentUSD, budgetUSD }
 run:teardown       { }                          # hooks.run.teardown 开始
 run:saved          { outputDir }
 run:summary        { passed, failed, scored, skipped, errored, durationMs, usage, estimatedCostUSD }
 ```
+
+`verdict` 保留评分折叠语义;`outcome` 是互斥报告分类。`run:summary.failed` 只统计断言/评分不通过,环境、超时、adapter 或 agent runtime 问题统计到 `errored`。
 
 起停失败另发 `run:setupFailed` / `attempt:teardownFailed` / `run:teardownFailed`,完整事件表见 [Lifecycle:生命周期事件](lifecycle.md#生命周期事件)。
 

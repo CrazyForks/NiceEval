@@ -33,6 +33,7 @@ interface LeaderboardRow {
   runs: number;
   passed: number;
   failed: number;
+  errored: number;
   scored: number;
   skipped: number;
   passRate: number;
@@ -257,7 +258,7 @@ function renderTable(): string {
           <th><button data-sort="passRate">Success Rate</button></th>
           <th><button data-sort="tokens">Tokens</button></th>
           <th><button data-sort="cost">Est. Cost</button></th>
-          <th>Verdicts</th>
+          <th>Outcomes</th>
         </tr>
       </thead>
       <tbody id="results-body"></tbody>
@@ -295,10 +296,11 @@ function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {
       model: first.model,
       lastRunAt: lastRunAt.get(key),
       runs: results.length,
-      passed: results.filter((r) => r.verdict === "passed").length,
-      failed: results.filter((r) => r.verdict === "failed").length,
-      scored: results.filter((r) => r.verdict === "scored").length,
-      skipped: results.filter((r) => r.verdict === "skipped").length,
+      passed: results.filter((r) => resultOutcome(r) === "passed").length,
+      failed: results.filter((r) => resultOutcome(r) === "failed").length,
+      errored: results.filter((r) => resultOutcome(r) === "errored").length,
+      scored: results.filter((r) => resultOutcome(r) === "scored").length,
+      skipped: results.filter((r) => resultOutcome(r) === "skipped").length,
       passRate: results.length ? results.filter((r) => r.verdict === "passed").length / results.length : 0,
       avgDurationMs: avg(results.map((r) => r.durationMs)),
       usage: sumUsage(results.map((r) => r.usage)),
@@ -308,6 +310,10 @@ function aggregateRows(loaded: LoadedSummary[]): LeaderboardRow[] {
         .sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.id.localeCompare(b.id)),
     };
   });
+}
+
+function resultOutcome(result: EvalResult): EvalResult["outcome"] {
+  return result.outcome ?? (result.error !== undefined ? "errored" : result.verdict);
 }
 
 function summarizeAll(loaded: LoadedSummary[]) {

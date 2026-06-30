@@ -511,6 +511,13 @@ export interface DiffData {
 
 export type Verdict = "passed" | "failed" | "scored" | "skipped";
 
+/**
+ * 面向报告 / CI 的互斥结果分类。
+ * `verdict` 保留评分语义:执行错误为了兼容仍折叠为 failed。
+ * `outcome` 则把“断言没过”和“环境/执行错误”拆开。
+ */
+export type ResultOutcome = "passed" | "failed" | "errored" | "scored" | "skipped";
+
 // ───────────────────────── Judge ─────────────────────────
 
 export interface JudgeConfig {
@@ -546,6 +553,7 @@ export interface EvalResult {
   agent: string;
   model?: string;
   verdict: Verdict;
+  outcome: ResultOutcome;
   attempt: number;
   /** 本 attempt 开始的墙钟时刻(ISO);view 按 eval 粒度展示「何时跑的」。 */
   startedAt?: string;
@@ -576,9 +584,11 @@ export interface RunSummary {
   startedAt: string;
   completedAt: string;
   passed: number;
+  /** 断言 / 评分不通过的数量;不包含 errored。 */
   failed: number;
   scored: number;
   skipped: number;
+  /** 环境、超时、adapter、agent runtime 等执行错误数量;与 failed 互斥。 */
   errored: number;
   durationMs: number;
   usage?: Usage;

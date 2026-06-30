@@ -5,6 +5,7 @@ import type { EvalResult, Reporter, RunSummary } from "../../types.ts";
 const SYMBOL: Record<string, string> = {
   passed: "✓",
   failed: "✗",
+  errored: "!",
   scored: "~",
   skipped: "○",
 };
@@ -32,14 +33,15 @@ export function Console(): Reporter {
       process.stdout.write(`\n本次运行 ${n} 个 eval${extra}\n\n`);
     },
     onEvalComplete(result: EvalResult) {
-      const sym = SYMBOL[result.verdict] ?? "?";
+      const sym = SYMBOL[result.outcome] ?? SYMBOL[result.verdict] ?? "?";
       const tok = (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0);
       // requests > 0 但 tokens = 0 → agent 跑了但不上报用量(如 bub);显示 — 而非误导性的 0
       const tokStr = tok > 0 ? `${fmtTokens(tok)} tok` : (result.usage?.requests ?? 0) > 0 ? `— tok` : `0 tok`;
       const cost = result.estimatedCostUSD !== undefined ? `  $${result.estimatedCostUSD.toFixed(3)}` : "";
       const who = result.model ? `${result.agent}/${result.model}` : result.agent;
       const meta = `(${fmtDuration(result.durationMs)}  ${tokStr}${cost})`;
-      process.stdout.write(`  ${sym} ${result.id}  [${who}]  ${meta}\n`);
+      const label = result.outcome === result.verdict ? "" : ` ${result.outcome}`;
+      process.stdout.write(`  ${sym} ${result.id}${label}  [${who}]  ${meta}\n`);
 
       if (result.skipReason) {
         process.stdout.write(`      ○ skipped: ${result.skipReason}\n`);
@@ -64,12 +66,9 @@ export function Console(): Reporter {
       const tok = (summary.usage?.inputTokens ?? 0) + (summary.usage?.outputTokens ?? 0);
       const tokStr = tok > 0 ? `${fmtTokens(tok)} tok` : "— tok";
       const cost = summary.estimatedCostUSD !== undefined ? ` · $${summary.estimatedCostUSD.toFixed(2)}` : "";
-      // errored ⊆ failed(执行错误也判 failed)。汇总里把它从 failed 拆出来单列,否则
-      // 「断言没过」与「agent 压根没跑成(超时 / 0 返回)」混成一类 —— 那正是 verdict 的语义陷阱。
-      const failedOnly = summary.failed - summary.errored;
       const parts = [
         `${summary.passed} passed`,
-        `${failedOnly} failed`,
+        `${summary.failed} failed`,
         ...(summary.errored > 0 ? [`${summary.errored} errored`] : []),
         `${summary.scored} scored`,
         `${summary.skipped} skipped`,

@@ -1,6 +1,6 @@
 // 判决:把执行结果 + 断言 + 跳过原因折叠成一个 Verdict(见 docs/scoring.md)。
 
-import type { AssertionResult, Verdict } from "../types.ts";
+import type { AssertionResult, ResultOutcome, Verdict } from "../types.ts";
 
 export function computeVerdict(input: {
   error?: string;
@@ -18,4 +18,11 @@ export function computeVerdict(input: {
 
   if (input.skipReason !== undefined) return "skipped";
   return demoted ? "scored" : "passed";
+}
+
+export function computeOutcome(input: {
+  error?: string;
+  verdict: Verdict;
+}): ResultOutcome {
+  return input.error !== undefined ? "errored" : input.verdict;
 }

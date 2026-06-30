@@ -63,6 +63,7 @@ export type {
   ValueAssertion,
   Severity,
   Verdict,
+  ResultOutcome,
   EvalDef,
   ExperimentDef,
   Config,

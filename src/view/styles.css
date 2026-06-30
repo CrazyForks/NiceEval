@@ -320,7 +320,7 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .detail-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
   margin: -2px 0 18px;
 }
@@ -382,10 +382,15 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .assertions-cell {
   min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   overflow-wrap: anywhere;
   line-height: 1.25;
 }
 .assertions {
+  min-width: 0;
+  flex: 1;
   color: color-mix(in oklch, var(--muted), var(--text) 6%);
   /* 长 reason 不撑高行:最多 2 行,溢出省略;完整文本见 title 悬浮。 */
   display: -webkit-box;
@@ -395,21 +400,38 @@ tbody tr:last-child td { border-bottom: 0; }
   overflow: hidden;
 }
 .copy-reason {
-  background: none;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 1px 6px;
-  margin-top: 4px;
   color: var(--muted);
-  font-size: 11px;
   font-family: inherit;
-  display: block;
   opacity: 0;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s, background 0.1s;
 }
-.eval-item:hover .copy-reason { opacity: 1; }
+.copy-reason svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.eval-item:hover .copy-reason,
+.copy-reason:focus-visible,
+.copy-reason.is-copied { opacity: 1; }
 .copy-reason:hover { color: var(--text); border-color: var(--line-strong); }
+.copy-reason.is-copied {
+  color: var(--good);
+  border-color: color-mix(in oklch, var(--good), var(--line) 40%);
+  background: color-mix(in oklch, var(--good), transparent 88%);
+}
 .raw-details {
   margin-top: 16px;
   border-top: 1px solid color-mix(in oklch, var(--line), transparent 15%);

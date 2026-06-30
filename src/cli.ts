@@ -352,7 +352,7 @@ async function main(): Promise<void> {
   // 跑顺利时登记表已空,是 no-op。
   await stopAllSandboxes();
 
-  const failedExit = summary.failed > 0 || (flags.strict && summary.scored > 0);
+  const failedExit = summary.failed > 0 || summary.errored > 0 || (flags.strict && summary.scored > 0);
   process.exit(failedExit ? 1 : 0);
 }
 

@@ -111,8 +111,9 @@
       return [...groupMap.keys()].sort().map(group => {
         const groupRows = groupMap.get(group);
         const allResults = groupRows.flatMap(r => r.results);
-        const passed = allResults.filter(r => r.verdict === "passed").length;
-        const failed = allResults.filter(r => r.verdict === "failed").length;
+        const passed = allResults.filter(r => outcomeOf(r) === "passed").length;
+        const failed = allResults.filter(r => outcomeOf(r) === "failed").length;
+        const errored = allResults.filter(r => outcomeOf(r) === "errored").length;
         const passRate = allResults.length ? passed / allResults.length : 0;
         const tone = passRate >= 0.8 ? "good" : passRate >= 0.5 ? "warn" : "bad";
         const totalCost = groupRows.reduce((s, r) => s + (r.estimatedCostUSD || 0), 0);
@@ -121,7 +122,7 @@
         return `<div class="group-card${sel ? " is-selected" : ""}" data-group="${escapeAttr(group)}" tabindex="0" role="button">
           <div class="group-card-name">${escapeHtml(group)}</div>
           <div class="group-card-rate ${tone}">${formatPercent(passRate)}</div>
-          <div class="group-card-meta">${groupRows.length} experiment${groupRows.length === 1 ? "" : "s"} · ${formatCost(totalCost)}</div>
+          <div class="group-card-meta">${groupRows.length} experiment${groupRows.length === 1 ? "" : "s"} · ${failed} failed${errored ? " · " + errored + " errors" : ""} · ${formatCost(totalCost)}</div>
           ${lastRun ? `<div class="group-card-time">${escapeHtml(formatDateTime(lastRun))}</div>` : ""}
         </div>`;
       }).join("");
@@ -154,7 +155,7 @@
           <td class="num ${tone}">${formatPercent(row.passRate)}</td>
           <td class="num">${formatTokens(totalTokens(row.usage))}</td>
           <td class="num">${formatCost(row.estimatedCostUSD)}</td>
-          <td><span class="pill">${row.passed} passed / ${row.failed} failed</span></td>
+          <td><span class="pill">${verdictSummary(row)}</span></td>
         </tr>
         ${open ? renderDetail(row) : ""}
       `;
@@ -162,17 +163,17 @@
 
     function renderDetail(row) {
       const totalDuration = row.results.reduce((sum, r) => sum + (r.durationMs || 0), 0);
-      const sampleResult = row.results.find((r) => r.verdict === "failed") || row.results[0] || {};
+      const sampleResult = row.results.find((r) => outcomeOf(r) === "errored") || row.results.find((r) => outcomeOf(r) === "failed") || row.results[0] || {};
       const details = row.results
         .slice()
         .sort((a, b) => a.id.localeCompare(b.id) || a.attempt - b.attempt)
         .map((r) => {
-          const bad = (r.assertions || []).filter((a) => !a.passed).map((a) => a.name).join(", ");
-          const isInfraErr = r.verdict === "failed" && !!r.error && !bad;
-          const statusClass = r.verdict === "passed" ? "good" : isInfraErr ? "infra-err" : r.verdict === "failed" ? "bad" : "warn";
-          const statusLabel = isInfraErr ? "error" : r.verdict;
-          const reason = r.error || bad;
-          const copyBtn = reason ? `<button class="copy-reason" data-copy="${escapeAttr(reason)}" title="Copy reason">Copy reason</button>` : "";
+          const outcome = outcomeOf(r);
+          const failedAssertions = failingAssertions(r);
+          const statusClass = outcomeClass(outcome);
+          const statusLabel = outcomeLabel(outcome);
+          const reason = reasonFor(r, failedAssertions);
+          const copyBtn = reason ? renderCopyReasonButton(reason) : "";
           const item = `<div class="eval-item"><span class="${statusClass}">${statusLabel}</span><span class="eval-id">${escapeHtml(r.id)}</span><div class="assertions-cell"><span class="assertions"${reason ? ` title="${escapeAttr(reason)}"` : ""}>${reason ? escapeHtml(reason) : '<span class="reason-empty">all assertions passed</span>'}</span>${copyBtn}</div><span class="num">${formatDuration(r.durationMs)}${r.startedAt ? `<small class="ran-at">${escapeHtml(formatClock(r.startedAt))}</small>` : ""}</span><span class="num">${formatTokens(totalTokens(r.usage))}</span><span class="num">${formatCost(r.estimatedCostUSD)}</span><span class="num" title="attempt ${r.attempt + 1} of ${row.runs}">#${r.attempt + 1}</span></div>`;
           // 按需懒加载:展开时才 fetch 该 eval 的工件(见下方 toggle 处理)。
           // transcript 是主视图(events.json,读「agent 做了什么」);timing trace 退为次要(trace.json,瀑布图)。
@@ -195,6 +196,7 @@
                 <div class="detail-kpi"><span>Attempts</span><b>${row.runs}</b></div>
                 <div class="detail-kpi"><span>Passed</span><b class="good">${row.passed}</b></div>
                 <div class="detail-kpi"><span>Failed</span><b class="${row.failed ? "bad" : ""}">${row.failed}</b></div>
+                <div class="detail-kpi"><span>Errored</span><b class="${row.errored ? "infra-err" : ""}">${row.errored}</b></div>
                 <div class="detail-kpi"><span>Total Time</span><b>${formatDuration(totalDuration)}</b></div>
                 <div class="detail-kpi"><span>Total Cost</span><b>${formatCost(row.estimatedCostUSD)}</b></div>
                 <div class="detail-kpi"><span>Ran</span><b title="${escapeAttr(row.lastRunAt || '')}">${formatDateTime(row.lastRunAt)}</b></div>
@@ -209,6 +211,34 @@
           </td>
         </tr>
       `;
+    }
+
+    function outcomeOf(r) {
+      return r.outcome || (r.error ? "errored" : r.verdict);
+    }
+    function outcomeClass(outcome) {
+      return outcome === "passed" ? "good" : outcome === "errored" ? "infra-err" : outcome === "failed" ? "bad" : "warn";
+    }
+    function outcomeLabel(outcome) {
+      return outcome === "errored" ? "error" : outcome;
+    }
+    function failingAssertions(r) {
+      return (r.assertions || []).filter((a) => !a.passed);
+    }
+    function reasonFor(r, failedAssertions) {
+      if (r.error) return r.error;
+      if (r.skipReason) return r.skipReason;
+      return failedAssertions.map((a) => a.detail ? `${a.name}: ${a.detail}` : a.name).join(", ");
+    }
+    function verdictSummary(row) {
+      const parts = [`${row.passed} passed`, `${row.failed} failed`];
+      if (row.errored) parts.push(`${row.errored} errors`);
+      if (row.scored) parts.push(`${row.scored} scored`);
+      if (row.skipped) parts.push(`${row.skipped} skipped`);
+      return parts.join(" / ");
+    }
+    function renderCopyReasonButton(reason) {
+      return `<button class="copy-reason" data-copy="${escapeAttr(reason)}" aria-label="Copy reason" title="Copy reason"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M5 15V7a2 2 0 0 1 2-2h8"></path></svg></button>`;
     }
 
     function renderConfigChips(row) {
@@ -438,6 +468,20 @@
       return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
     }
     function escapeAttr(value) { return escapeHtml(value); }
+    async function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
 
     function updateSortIcons() {
       document.querySelectorAll("[data-sort]").forEach((btn) => {
@@ -451,10 +495,9 @@
       if (copyBtn) {
         event.stopPropagation();
         const text = copyBtn.dataset.copy || "";
-        navigator.clipboard.writeText(text).catch(() => {});
-        const orig = copyBtn.textContent;
-        copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+        copyText(text).catch(() => {});
+        copyBtn.classList.add("is-copied");
+        setTimeout(() => { copyBtn.classList.remove("is-copied"); }, 1200);
         return;
       }
       const sort = event.target.closest("[data-sort]");
@@ -547,11 +590,12 @@
             !q() || (r.id + " " + r.rowLabel + " " + r.rowAgent + " " + (r.rowModel || "")).toLowerCase().includes(q())
           );
           const trs = filtered.map((r) => {
-            const tone = r.verdict === "passed" ? "good" : r.verdict === "failed" ? "bad" : "warn";
+            const outcome = outcomeOf(r);
+            const tone = outcomeClass(outcome);
             return `<tr>
               <td><span class="name">${escapeHtml(r.id)}</span></td>
               <td>${escapeHtml(r.rowLabel)}</td>
-              <td class="${tone}">${escapeHtml(r.verdict)}</td>
+              <td class="${tone}">${escapeHtml(outcomeLabel(outcome))}</td>
               <td>${escapeHtml(r.rowAgent)}</td>
               <td>${escapeHtml(r.rowModel || "default")}</td>
               <td class="num">${formatDuration(r.durationMs)}</td>
@@ -562,7 +606,7 @@
           }).join("");
           return `<div class="table-wrap"><table>
             <thead><tr>
-              <th>Eval ID</th><th>Experiment</th><th>Verdict</th><th>Agent</th><th>Model</th>
+              <th>Eval ID</th><th>Experiment</th><th>Outcome</th><th>Agent</th><th>Model</th>
               <th>Duration</th><th>Tokens</th><th>Cost</th><th>Ran At</th>
             </tr></thead>
             <tbody>${trs || '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No results match the filter.</td></tr>'}</tbody>
@@ -589,7 +633,8 @@
         return;
       }
       container.innerHTML = traceable.map((r) => {
-        const tone = r.verdict === "passed" ? "good" : r.verdict === "failed" ? "bad" : "warn";
+        const outcome = outcomeOf(r);
+        const tone = outcomeClass(outcome);
         const transcript = (r.hasEvents && r.artifactBase)
           ? `<details class="trace-details transcript-lazy" data-src="${escapeAttr(r.artifactBase + "/events.json")}"><summary>transcript</summary><div class="trace-slot"><div class="trace-span-meta">loading…</div></div></details>`
           : "";
@@ -598,7 +643,7 @@
           : "";
         return `<div class="traces-entry">
           <div class="traces-entry-head">
-            <span class="${tone} traces-verdict">${escapeHtml(r.verdict)}</span>
+            <span class="${tone} traces-verdict">${escapeHtml(outcomeLabel(outcome))}</span>
             <span class="eval-id">${escapeHtml(r.id)}</span>
             <span class="traces-exp">${escapeHtml(r.rowLabel)}</span>
             <span class="num traces-dur">${formatDuration(r.durationMs)}</span>

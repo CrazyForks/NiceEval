@@ -20,7 +20,9 @@
 
 **Assertion** / **断言** —— Scorer 的一次具体应用,带名字、严重级([gate / soft](#severity))、可选阈值,产出一个 0–1 的分数和过/挂。
 
-**Verdict** / **判决** —— 一个 Eval 的最终结论:`passed` / `failed` / `scored` / `skipped`。规则:执行出错或任一 gate 挂 → `failed`;显式跳过 → `skipped`;gate 全过但有 soft 低于阈值 → `scored`(仅 `--strict` 下才算失败);否则 `passed`。
+**Verdict** / **判决** —— 一个 Eval 的评分结论:`passed` / `failed` / `scored` / `skipped`。规则:执行出错或任一 gate 挂 → `failed`;显式跳过 → `skipped`;gate 全过但有 soft 低于阈值 → `scored`(仅 `--strict` 下才算失败);否则 `passed`。它保留评分兼容语义,所以执行错误仍会折叠到 `failed` verdict。
+
+**Outcome** / **结果分类** —— 一个 Eval 的报告 / CI 结论:`passed` / `failed` / `errored` / `scored` / `skipped`。其中 `failed` 只表示断言或评分不通过,`errored` 表示环境、超时、adapter、agent runtime 等执行问题。看报告、JUnit 或 `fasteval view` 时优先看 outcome,不要用 `verdict === "failed"` 判断是不是 agent 做错了任务。
 
 **Severity** / **严重级** —— 断言的两档。**gate**:硬性要求,不过即判 `failed`。**soft**:带阈值的质量分,低于阈值降级为 `scored` 而非直接挂。
 

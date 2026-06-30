@@ -10,7 +10,7 @@ import { selectTraceSpans, enrichTraceWithIO } from "../o11y/otlp/select.ts";
 import { mapSpansToCanonical } from "../o11y/otlp/mappers/index.ts";
 import { createEvalContext } from "../context/context.ts";
 import { EvalRequirementFailed, EvalSkipped, TurnFailed } from "../context/control-flow.ts";
-import { computeVerdict } from "../scoring/verdict.ts";
+import { computeOutcome, computeVerdict } from "../scoring/verdict.ts";
 import { deriveRunFacts, buildO11ySummary } from "../o11y/derive.ts";
 import {
   captureGeneratedFiles,
@@ -303,8 +303,7 @@ function summarize(
   let outTok = 0;
   let cost = 0;
   for (const r of results) {
-    counts[r.verdict] += 1;
-    if (r.error) counts.errored += 1;
+    counts[r.outcome] += 1;
     inTok += r.usage?.inputTokens ?? 0;
     outTok += r.usage?.outputTokens ?? 0;
     cost += r.estimatedCostUSD ?? 0;
@@ -345,6 +344,7 @@ function runAttemptEffect(
     agent: run.agent.name,
     model: run.model,
     verdict: "failed",
+    outcome: "errored",
     attempt,
     startedAt: new Date(t0).toISOString(),
     durationMs: 0,
@@ -607,6 +607,7 @@ async function runAttemptBody(
     if (!skipReason) log("评分 / judge…");
     const assertions = skipReason ? [] : await state.collector.finalize(scoringContext);
     const verdict: Verdict = computeVerdict({ error, assertions, skipReason });
+    const outcome = computeOutcome({ error, verdict });
 
     // 收 OTLP trace:给最后一批导出留点落地时间,再 collect(空则不挂)。
     // codex 的 OTLP 把内部 Rust tracing 全导出来(handle_responses / append_items … 上万条);
@@ -637,6 +638,7 @@ async function runAttemptBody(
       agent: run.agent.name,
       model: run.model,
       verdict,
+      outcome,
       attempt,
       startedAt: new Date(t0).toISOString(),
       durationMs,
