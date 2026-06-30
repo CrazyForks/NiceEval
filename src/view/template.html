@@ -168,9 +168,12 @@
         .sort((a, b) => a.id.localeCompare(b.id) || a.attempt - b.attempt)
         .map((r) => {
           const bad = (r.assertions || []).filter((a) => !a.passed).map((a) => a.name).join(", ");
-          const statusClass = r.verdict === "passed" ? "good" : r.verdict === "failed" ? "bad" : "warn";
+          const isInfraErr = r.verdict === "failed" && !!r.error && !bad;
+          const statusClass = r.verdict === "passed" ? "good" : isInfraErr ? "infra-err" : r.verdict === "failed" ? "bad" : "warn";
+          const statusLabel = isInfraErr ? "error" : r.verdict;
           const reason = r.error || bad;
-          const item = `<div class="eval-item"><span class="${statusClass}">${r.verdict}</span><span class="eval-id">${escapeHtml(r.id)}</span><span class="assertions"${reason ? ` title="${escapeAttr(reason)}"` : ""}>${reason ? escapeHtml(reason) : '<span class="reason-empty">all assertions passed</span>'}</span><span class="num">${formatDuration(r.durationMs)}${r.startedAt ? `<small class="ran-at">${escapeHtml(formatClock(r.startedAt))}</small>` : ""}</span><span class="num">${formatTokens(totalTokens(r.usage))}</span><span class="num">${formatCost(r.estimatedCostUSD)}</span><span class="num" title="attempt ${r.attempt + 1} of ${row.runs}">#${r.attempt + 1}</span></div>`;
+          const copyBtn = reason ? `<button class="copy-reason" data-copy="${escapeAttr(reason)}" title="Copy reason">Copy reason</button>` : "";
+          const item = `<div class="eval-item"><span class="${statusClass}">${statusLabel}</span><span class="eval-id">${escapeHtml(r.id)}</span><div class="assertions-cell"><span class="assertions"${reason ? ` title="${escapeAttr(reason)}"` : ""}>${reason ? escapeHtml(reason) : '<span class="reason-empty">all assertions passed</span>'}</span>${copyBtn}</div><span class="num">${formatDuration(r.durationMs)}${r.startedAt ? `<small class="ran-at">${escapeHtml(formatClock(r.startedAt))}</small>` : ""}</span><span class="num">${formatTokens(totalTokens(r.usage))}</span><span class="num">${formatCost(r.estimatedCostUSD)}</span><span class="num" title="attempt ${r.attempt + 1} of ${row.runs}">#${r.attempt + 1}</span></div>`;
           // 按需懒加载:展开时才 fetch 该 eval 的工件(见下方 toggle 处理)。
           // transcript 是主视图(events.json,读「agent 做了什么」);timing trace 退为次要(trace.json,瀑布图)。
           const transcript = (r.hasEvents && r.artifactBase)
@@ -444,6 +447,16 @@
     }
 
     document.addEventListener("click", (event) => {
+      const copyBtn = event.target.closest(".copy-reason");
+      if (copyBtn) {
+        event.stopPropagation();
+        const text = copyBtn.dataset.copy || "";
+        navigator.clipboard.writeText(text).catch(() => {});
+        const orig = copyBtn.textContent;
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+        return;
+      }
       const sort = event.target.closest("[data-sort]");
       if (sort) {
         const key = sort.dataset.sort;
