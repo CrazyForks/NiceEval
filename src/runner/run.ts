@@ -32,6 +32,7 @@ import type {
   EvalResult,
   JudgeConfig,
   LifecycleHooks,
+  LocalizedText,
   Reporter,
   RunShape,
   RunContext,
@@ -277,7 +278,7 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
       a.attempt - b.attempt,
   );
 
-  const summary = summarize(allResults, firstAgent?.name ?? "", startedAt, Date.now() - t0);
+  const summary = summarize(allResults, firstAgent?.name ?? "", startedAt, Date.now() - t0, opts.config.name);
   for (const r of opts.reporters) {
     await runReporter("onRunComplete", () => r.onRunComplete?.(summary));
   }
@@ -351,6 +352,7 @@ function summarize(
   agent: string,
   startedAt: string,
   durationMs: number,
+  name?: LocalizedText,
 ): RunSummary {
   const counts = { passed: 0, failed: 0, skipped: 0, errored: 0 };
   let inTok = 0;
@@ -363,6 +365,7 @@ function summarize(
     cost += r.estimatedCostUSD ?? 0;
   }
   return {
+    name,
     agent,
     startedAt,
     completedAt: new Date().toISOString(),

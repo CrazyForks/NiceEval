@@ -145,6 +145,7 @@ async function renderHtml(loaded: LoadedSummary[]): Promise<string> {
   const app = await readViewAsset("client-dist/app.js");
   const viewData = {
     rows,
+    name: latest?.name,
     lastRun: latest ? formatDate(latest.startedAt) : "No runs yet",
     passRate: formatPercent(totals.passRate),
     resultCount: String(totals.results),

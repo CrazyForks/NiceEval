@@ -603,7 +603,15 @@ export interface EvalResult {
   hasSources?: boolean;
 }
 
+/**
+ * 可本地化文案:纯字符串,或按 locale 代码(如 "en"、"zh-CN")映射多语言。
+ * view 按当前界面语言挑一条,挑不到回退到 en / 第一条。
+ */
+export type LocalizedText = string | Record<string, string>;
+
 export interface RunSummary {
+  /** 项目名(来自 config.name),透传给 `fasteval view` 顶部 hero 显示。 */
+  name?: LocalizedText;
   agent: string;
   model?: string;
   startedAt: string;
@@ -715,6 +723,11 @@ export interface DiscoveredExperiment extends ExperimentDef {
 }
 
 export interface Config {
+  /**
+   * 项目名,显示在 `fasteval view` 顶部 hero(`<h1>`),省略则回退到通用标题。
+   * 可传字符串,或按 locale 提供多语言(如 `{ en: "...", "zh-CN": "..." }`),随 view 语言切换。
+   */
+  name?: LocalizedText;
   sandbox?: SandboxOption;
   workspace?: string;
   judge?: JudgeConfig;

@@ -2,12 +2,15 @@ import type {
   AssertionResult,
   EvalResult,
   JsonValue,
+  LocalizedText,
   SourceArtifact,
   SourceLoc,
   StreamEvent,
   TraceSpan,
   Usage,
 } from "../../types.ts";
+
+export type { LocalizedText };
 
 export type Locale = "en" | "zh-CN";
 
@@ -54,6 +57,8 @@ export type Assertion = AssertionResult;
 
 export interface ViewData {
   rows?: ViewRow[];
+  /** 项目名(来自 config.name);hero 标题,可按 locale 多语言。 */
+  name?: LocalizedText;
   lastRun: string;
   passRate: string;
   resultCount: string;

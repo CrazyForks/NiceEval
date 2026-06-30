@@ -67,6 +67,7 @@ export type {
   EvalDef,
   ExperimentDef,
   Config,
+  LocalizedText,
   JudgeConfig,
   Reporter,
   EvalResult,
