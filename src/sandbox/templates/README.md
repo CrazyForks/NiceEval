@@ -33,12 +33,19 @@ export default defineExperiment({
 
 ## E2B
 
-需先 `e2b auth login`。[`e2b.toml`](./e2b.toml) 已把同目录 `Dockerfile` 配成模板 `fasteval-agents`:
+需先 `e2b auth login`。`e2b template create` 直接读同目录 `Dockerfile` 构建模板 `fasteval-agents`
+(内存必须显式给大 —— e2b 默认 base 只有 ~481MB,跑 `npm install` Next.js 依赖会 OOM):
 
 ```bash
 cd src/sandbox/templates
-e2b template build
+e2b template create fasteval-agents \
+  --memory-mb 4096 --cpu-count 2 \
+  -c "tail -f /dev/null" \
+  --ready-cmd "command -v codex && command -v claude && command -v bub"
 ```
+
+> 内存/CPU 在**构建时**定,创建沙箱时不能改 —— 这正是必须用预制模板(而非默认 base)的原因。
+> 旧版 CLI 的 `e2b template build` 已废弃;[`e2b.toml`](./e2b.toml) 记录等价参数备查。
 
 用:
 
@@ -77,10 +84,14 @@ export default defineExperiment({
 
 ## 改了 bub 的安装规格怎么办
 
-bub 的 `BUB_OVERRIDE` / `OTEL_PLUGIN` 在三处出现,改一处要同步另两处:
+bub 的 `BUB_OVERRIDE` / `OTEL_PLUGIN` 在几处出现,改一处要同步其余:
 
 1. [`agents/bub.ts`](../../agents/bub.ts)(运行时回退安装 + 探测)
-2. [`Dockerfile`](./Dockerfile)(docker / e2b 烘焙)
+2. [`bub-override.txt`](./bub-override.txt)(docker / e2b 烘焙时 `COPY` 进去的 override 行)
+   + [`Dockerfile`](./Dockerfile) 里 `--with` 的 OTEL 插件 URL
 3. [`build-vercel-snapshot.mts`](./build-vercel-snapshot.mts)(vercel 烘焙)
+
+> override 文件用 `COPY` 而非 shell 写入 —— e2b 的 Dockerfile 解析会吃掉反斜杠 / 双引号。
+> `--overrides` 不能省:OTEL 插件依赖上游 `bubbuild/bub`,与 fork 冲突,靠 override 统一解析。
 
 改完重新构建对应后端的模板。

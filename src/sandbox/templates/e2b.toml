@@ -1,8 +1,10 @@
-# E2B 模板配置 —— `e2b template build` 读它,把同目录 Dockerfile 构建成名为
-# "fasteval-agents" 的 e2b 模板(烘焙好 codex / claude-code / bub)。
+# E2B 模板参数备查(烘焙好 codex / claude-code / bub 的 "fasteval-agents" 模板)。
 #
-# 构建(需先 `e2b auth login`):
-#   cd src/sandbox/templates && e2b template build
+# 注意:e2b CLI 2.x 用 `e2b template create` + 命令行 flag 构建,不再读本文件;
+# 本文件只作参数记录。实际构建命令(需先 `e2b auth login`):
+#   cd src/sandbox/templates
+#   e2b template create fasteval-agents --memory-mb 4096 --cpu-count 2 \
+#     -c "tail -f /dev/null" --ready-cmd "command -v codex && command -v claude && command -v bub"
 #
 # 构建完在 eval 里用:
 #   import { e2bSandbox } from "fasteval";

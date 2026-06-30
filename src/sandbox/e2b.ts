@@ -5,7 +5,7 @@
 // 模板:opts.template 选 e2b 模板名/ID;省略用 e2b 默认 "base"。预制模板(烘焙好
 //       codex/claude-code/bub 的 "fasteval-agents")见 sandbox/templates/。
 
-import { Sandbox as E2BSdkSandbox } from "e2b";
+import { Sandbox as E2BSdkSandbox, CommandExitError } from "e2b";
 import type {
   Sandbox,
   CommandResult,
@@ -69,13 +69,22 @@ export class E2BSandbox implements Sandbox {
   async runShell(script: string, opts: CommandOptions = {}): Promise<CommandResult> {
     // e2b commands.run 经 bash 执行 → 支持 && / 管道 / $()。root 用户映射到 { user: "root" },
     // 否则用模板默认(非 root)用户 —— 跨后端语义一致(见 types.ts 的 CommandOptions.root)。
-    const res = await this.sbx.commands.run(script, {
-      cwd: opts.cwd ?? this.workDir,
-      envs: opts.env,
-      user: opts.root ? "root" : undefined,
-      timeoutMs: this.commandTimeoutMs,
-    });
-    return { stdout: res.stdout, stderr: res.stderr, exitCode: res.exitCode };
+    try {
+      const res = await this.sbx.commands.run(script, {
+        cwd: opts.cwd ?? this.workDir,
+        envs: opts.env,
+        user: opts.root ? "root" : undefined,
+        timeoutMs: this.commandTimeoutMs,
+      });
+      return { stdout: res.stdout, stderr: res.stderr, exitCode: res.exitCode };
+    } catch (e) {
+      // e2b 在退出码非 0 时【抛】CommandExitError;但 Sandbox 契约要求【返回】带 exitCode 的结果
+      // (与 docker / vercel 一致)——否则 agent 命令 / build / 测试一旦非 0 退出就会炸,而不是被判分。
+      if (e instanceof CommandExitError) {
+        return { stdout: e.stdout, stderr: e.stderr, exitCode: e.exitCode };
+      }
+      throw e;
+    }
   }
 
   private abs(path: string): string {
