@@ -1,0 +1,69 @@
+---
+title: "Eval Your Skill on Claude Code / Codex"
+sidebarTitle: "Eval Skills in Agents"
+description: ""
+---
+
+A Skill's quality isn't just about whether the final answer is correct — it's also about whether the agent loads the Skill in the right context, follows the Skill's prescribed flow, and calls the tools it's supposed to call. fasteval lets you turn all of these into repeatable, automated evals.
+
+This kind of eval typically uses **Sandbox mode** as well. You give the agent a real task, let it execute in an environment where the Skill is installed, then verify the artifact, test results, and behavioral traces in the assertion phase.
+
+## What to evaluate
+
+- Whether the Skill is triggered correctly.
+- Whether the Skill's instructions steer the agent through the expected flow.
+- Whether the Skill improves pass rate, cost, or latency.
+- Whether the Skill prevents wrong tools, wrong files, or wrong commands.
+
+## Define the experiment and install the Skill
+
+```ts
+export default defineExperiment({
+  description: "claude-code",
+  agent: claudeCodeAgent(
+    {
+      skill: ["username/repo"]
+    }
+  ),
+  model: "claude-sonnet-4-6",
+  sandbox: "docker",
+  runs: 3,
+  earlyExit: false,
+  budget: 10,
+})
+```
+
+`username/repo` is your Skill repository on GitHub. The corresponding agent adapter will use `npx skill add` to install and configure the Skill automatically.
+
+## Write the eval
+
+```ts EVAL.ts
+import { test, expect } from "vitest";
+import { readFileSync } from "node:fs";
+
+test("adds schema validation", () => {
+  const src = readFileSync("src/input.ts", "utf-8");
+  expect(src).toContain("email");
+  expect(src).toContain("age");
+  expect(src).toMatch(/schema|Schema|zod|validator/);
+});
+
+test("project tests pass", async () => {
+  // If package.json already has a test script, fasteval will run it during the verify phase.
+  expect(true).toBe(true);
+});
+```
+
+If the agent's transcript exposes Skill load events, you can check them via o11y or the event stream. When event names are unstable across agents, prefer verifying the final artifact and real tests over checking events directly.
+
+## Run
+
+```bash
+pnpm exec fasteval exp experiment-name
+```
+
+## Next steps
+
+- [Fixtures](/guides/fixtures) — organize tasks and verification scripts.
+- [Experiments](/guides/experiments) — run with-Skill vs without-Skill controlled experiments.
+- [Scoring Guide](/guides/scoring-guide) — score both final results and behavioral constraints together.

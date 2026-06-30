@@ -1,0 +1,103 @@
+---
+title: "Eval Your Claude Code / Codex Plugin"
+sidebarTitle: "Eval CC/Codex Plugins"
+description: ""
+---
+
+If you're building a plugin for Claude Code or Codex, the right eval approach is to drop it into a real workspace, let the coding agent execute a set of tasks, and measure pass rate, latency, and cost against a known baseline. This is how you demonstrate — with data — exactly how much your plugin improves outcomes.
+
+This kind of eval is a natural fit for **Sandbox mode**: the agent runs inside a Docker or cloud sandbox where it can read and write files, execute commands, and call your plugin.
+
+## Recommended directory structure
+
+```text
+evals/fixtures/plugin/create-button/
+├─ PROMPT.md
+├─ EVAL.ts
+├─ package.json
+├─ tsconfig.json
+└─ src/
+```
+
+`PROMPT.md` is the task description the agent reads. `EVAL.ts` is the verification script fasteval runs after the agent finishes. Plugin installation, configuration, or tokens can live in the fixture files, in a sandbox lifecycle hook, or in your agent adapter's `setup()`.
+
+## Write the task
+
+```md PROMPT.md
+Use the project plugin to create `src/components/Button.tsx`.
+
+The component must:
+- accept `label: string`
+- accept `onClick: () => void`
+- render a native `<button>`
+- pass the existing test suite
+```
+
+Tasks should read like real user requests — don't give away the answer. To verify whether the plugin was actually used, check the result in `EVAL.ts` or inspect the o11y summary for tool calls or shell commands.
+
+## Write the verification
+
+```ts EVAL.ts
+import { test, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+
+test("created Button component", () => {
+  expect(existsSync("src/components/Button.tsx")).toBe(true);
+});
+
+test("supports required props", () => {
+  const src = readFileSync("src/components/Button.tsx", "utf-8");
+  expect(src).toContain("label");
+  expect(src).toContain("onClick");
+  expect(src).toContain("button");
+});
+```
+
+If your plugin triggers a specific tool, you can also inspect `__fasteval__/results.json`:
+
+```ts
+import { test, expect } from "vitest";
+import { readFileSync } from "node:fs";
+
+test("plugin tool was used", () => {
+  const result = JSON.parse(readFileSync("__fasteval__/results.json", "utf-8"));
+  expect(result.o11y.totalToolCalls).toBeGreaterThan(0);
+});
+```
+
+## Run
+
+```bash
+npx fasteval --agent claude-code --sandbox docker fixtures/plugin/create-button
+npx fasteval --agent codex --sandbox docker fixtures/plugin/create-button
+```
+
+The positional argument `fixtures/plugin/create-button` is an eval ID prefix, not an agent name. Select the agent with `--agent`.
+
+## Compare plugin impact
+
+Model "plugin on" vs "plugin off" as two agents or two experiment cells:
+
+```bash
+npx fasteval exp plugin-regression fixtures/plugin/create-button
+```
+
+Key things to look at:
+
+- Whether `pass@N` improves.
+- Whether average latency and token usage are acceptable.
+- Whether the agent actually invoked the plugin in failing transcripts.
+- Whether the diff only touched task-relevant files.
+
+## Copy to your agent
+
+```text
+READ docs-site/example/claude-code-codex-plugin.mdx and install fasteval for this repo.
+Create the first fixture from one real plugin workflow, then run it with both claude-code and codex.
+```
+
+## Next steps
+
+- [Fixtures](/guides/fixtures) — full reference for the fixture directory layout and `EVAL.ts`.
+- [Sandbox Agent](/guides/sandbox-agent) — built-in `claude-code`, `codex`, and custom sandbox agents.
+- [Viewing Results](/guides/viewing-results) — inspect transcripts, diffs, and the event stream.

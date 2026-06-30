@@ -1,0 +1,148 @@
+---
+title: "Eval Your AI Agent Application"
+sidebarTitle: "Eval AI Agent Applications"
+description: ""
+---
+
+This example shows how to use fasteval to evaluate your own AI agent application.
+
+See the full example code: https://github.com/CorrectRoadH/fasteval/tree/main/examples/zh/ai-sdk
+
+The system under test is a general-purpose AI assistant HTTP service built with an AI SDK tool loop. It handles messages, calls tools (weather / calculator / search), understands images, and uses Langfuse for its own observability. The application doesn't need a sandbox during testing — fasteval reaches it directly through its HTTP protocol via an adapter.
+
+## Directory structure
+
+```text
+examples/zh/ai-sdk/
+  ai-sdk-agent/            # web agent under test (POST /api/turn, 3 tools + image understanding)
+  agents/web-agent.ts      # fasteval adapter: factory webAgent({ baseUrl })
+  evals/                   # conversational evals
+    weather-tool.eval.ts        # ask about weather → calls get_weather
+    image-understanding.eval.ts # image understanding
+  experiments/
+    compare-models/        # experiment group: one file per model
+      gpt-4o-mini.ts
+      gpt-4o.ts
+  fasteval.config.ts       # register adapter, judge, concurrency
+```
+
+## Define the adapter
+
+The adapter tells fasteval how to send requests to the AI agent and how to read responses as a standard event stream. It's a factory function: `baseUrl` (where the service runs) is passed in from the outside so the adapter never hardcodes it or reads from env.
+
+```ts
+// agents/web-agent.ts
+import { defineAgent } from "fasteval";
+import type { Agent, StreamEvent } from "fasteval";
+import type { AgentEvent, AgentResponse } from "../ai-sdk-agent/src/protocol.ts";
+
+export function webAgent(opts: { baseUrl: string }): Agent {
+  const baseUrl = opts.baseUrl.replace(/\/$/, "");
+  return defineAgent({
+    name: "web-agent",
+    capabilities: { conversation: true, toolObservability: true, tracing: true },
+    async send(input, ctx) {
+      const response = await fetch(`${baseUrl}/api/turn`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: ctx.session.id,
+          message: input.text,
+          model: ctx.model,
+          otelEndpoint: ctx.telemetry?.endpoint, // dual observability: let the app send this turn's spans back to fasteval
+        }),
+        signal: ctx.signal,
+      });
+      // Shared contract within the same workspace — read as AgentResponse directly, no need to validate as unknown.
+      const body = (await response.json()) as AgentResponse;
+      ctx.session.id = body.sessionId;
+      return {
+        events: body.events.map(toStreamEvent),
+        data: body.data,
+        status: "completed" as const,
+      };
+    },
+  });
+}
+
+function toStreamEvent(event: AgentEvent): StreamEvent {
+  if (event.type === "action.called") return { ...event, tool: "unknown" };
+  return event;
+}
+```
+
+## Multi-turn messages
+
+`t.send()` automatically carries `ctx.session.id` to continue the same session. The adapter writes the service's returned `sessionId` back to `ctx.session.id`. To split traffic by feature flag within an experiment, see [Experiments](/guides/experiments).
+
+## Define evals
+
+Each eval sends a message and asserts on the reply, tool calls, and image understanding. Deterministic assertions (`calledTool`, `messageIncludes`) run without an API key; open-ended scoring with a judge requires a key to be set.
+
+```ts
+// evals/weather-tool.eval.ts
+import { defineEval } from "fasteval";
+
+export default defineEval({
+  description: "AI assistant: asking about weather calls get_weather",
+  async test(t) {
+    const turn = await t.send("What's the weather like in Brooklyn today?");
+    turn.expectOk();
+    await t.group("calls get_weather with correct city", () => {
+      t.calledTool("get_weather", { input: { city: "Brooklyn" } });
+      t.messageIncludes(/°[CF]|temperature|weather/i);
+    });
+    t.judge.agent("Does the assistant answer based on the tool's returned weather data, not a hallucination?").atLeast(0.7);
+  },
+});
+```
+
+For image understanding, put the image URL in the message text (`send` carries text only), and the assistant uses its multimodal vision model to describe the image:
+
+```ts
+// evals/image-understanding.eval.ts
+import { SAMPLE_IMAGE_URL } from "../ai-sdk-agent/src/assistant.ts";
+
+const turn = await t.send(`What's in this image? ${SAMPLE_IMAGE_URL}`);
+t.messageIncludes(/cat/i); // the sample image is a cat
+```
+
+## Define experiments
+
+**One experiment file = one configuration** (single model). For cross-model comparison, write multiple files in the same experiment group folder:
+
+```ts
+// experiments/compare-models/gpt-4o.ts
+import { defineExperiment } from "fasteval";
+import { webAgent } from "../../agents/web-agent.ts";
+
+export default defineExperiment({
+  description: "AI assistant: gpt-4o",
+  agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
+  model: "gpt-4o", // single string; copy this file and change one line for each model
+  runs: 3,
+});
+```
+
+## Start evaluating
+
+First start the service under test (defaults to mock mode — no API key required). This example is a standalone npm project where `fasteval` is a local dependency:
+
+```bash
+cd examples/zh/ai-sdk && pnpm install && pnpm dev
+```
+
+Open a second terminal and run evals:
+
+```bash
+cd examples/zh/ai-sdk
+pnpm exec fasteval                  # run everything
+pnpm exec fasteval weather-tool     # run one eval
+pnpm exec fasteval exp compare-models   # cross-model comparison (requires OPENAI_API_KEY)
+```
+
+## Next steps
+
+- [Remote Agent](/guides/remote-agent) — full reference for `defineAgent`.
+- [Authoring Evals](/guides/authoring) — single-turn, multi-turn, and dataset evals.
+- [CI Integration](/guides/ci-integration) — put agent regression tests in PRs.
