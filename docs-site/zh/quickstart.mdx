@@ -23,7 +23,7 @@ description: ""
 也可以把下面的指令直接交给你的 coding agent：
 
 ```text
-READ dohttps://raw.githubusercontent.com/CorrectRoadH/fasteval/refs/heads/main/INIT.md and install fasteval for this repo.
+READ https://raw.githubusercontent.com/CorrectRoadH/fasteval/refs/heads/main/INIT.md and install fasteval for this repo.
 ```
 
 <Steps>
@@ -32,12 +32,12 @@ READ dohttps://raw.githubusercontent.com/CorrectRoadH/fasteval/refs/heads/main/I
     npm install -D fasteval
     ```
   </Step>
-  <Step title="初始化">
+  <Step title="创建目录">
     ```bash
-    npx fasteval init
+    mkdir -p evals
     ```
   </Step>
-  <Step title="查看生成文件">
+  <Step title="项目结构">
     ```text
     evals/
     fasteval.config.ts
@@ -47,7 +47,7 @@ READ dohttps://raw.githubusercontent.com/CorrectRoadH/fasteval/refs/heads/main/I
 
 ## 配置项目
 
-`fasteval.config.ts` 是项目级入口：
+新建 `fasteval.config.ts`，这是项目级入口：
 
 ```ts
 import { defineConfig } from "fasteval";
@@ -59,7 +59,7 @@ export default defineConfig({
 
 ## Eval 1: 进程内函数
 
-适合把 eval 当成语义级单元测试：
+适合把 eval 当成语义级单元测试。eval ID 由文件路径推导（`evals/classify.eval.ts` → `classify`）：
 
 ```ts evals/classify.eval.ts
 import { defineEval } from "fasteval";
@@ -78,8 +78,10 @@ export default defineEval({
 });
 ```
 
+`--agent` 是必选项。对于不调用 `t.send()` 的纯函数 eval，任意内置 agent 都可以（不会产生实际 agent 交互）：
+
 ```bash
-npx fasteval eval 
+npx fasteval --agent claude-code classify
 ```
 
 ## Eval 2: 对话 agent
@@ -92,7 +94,6 @@ import { includes } from "fasteval/expect";
 
 export default defineEval({
   description: "Brooklyn weather query",
-  agent: "my-agent",
   async test(t) {
     await t.send("What's the weather in Brooklyn today?");
     t.succeeded();
@@ -102,18 +103,44 @@ export default defineEval({
 });
 ```
 
+<Note>
+  `agent` 字段（如 `agent: "my-agent"`）仅用于文档说明，不影响运行时路由。要接入自定义 HTTP agent，需用 `defineExperiment` 注册 adapter，然后通过 `npx fasteval exp` 运行——详见 [评估 AI Agent 应用](/zh/example/ai-agent-application)。若使用内置 agent（如 `claude-code`），直接用 `--agent` 指定即可：
+  ```bash
+  npx fasteval --agent claude-code weather/brooklyn
+  ```
+</Note>
+
 ## Eval 3: 沙箱里的 coding agent
 
-Coding-agent fixture 是一个目录：
+Coding agent eval 用 `workspace` 指定 agent 的起始代码目录，eval 文件本身对 agent 不可见：
 
 ```text
-evals/fixtures/button/
-├─ PROMPT.md
-├─ EVAL.ts
-└─ package.json
+evals/
+  fixtures/
+    button/           ← agent 可见的 workspace（起始代码）
+      package.json
+      src/
+    button.eval.ts    ← eval 定义（agent 不可见）
 ```
 
-`PROMPT.md` 是发给 agent 的任务，`EVAL.ts` 是验证逻辑。验证文件对 agent 不可见，只有 agent 完成任务后才会放进沙箱运行。
+```ts evals/fixtures/button.eval.ts
+import { defineEval } from "fasteval";
+
+export default defineEval({
+  description: "实现 Button 组件",
+  workspace: "./fixtures/button",
+  async test(t) {
+    await t.send(
+      "在 src/Button.tsx 里实现一个 Button 组件，支持 variant='primary' | 'secondary'。"
+    );
+    t.succeeded();
+    t.fileChanged("src/Button.tsx");
+    t.testsPassed();
+  },
+});
+```
+
+eval ID 为 `fixtures/button`，用 `--sandbox docker` 在本地容器里隔离运行：
 
 ```bash
 npx fasteval --agent claude-code --sandbox docker fixtures/button
@@ -141,7 +168,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - run: npm ci
-      - run: npx fasteval --strict
+      - run: npx fasteval --agent claude-code --sandbox docker --strict
 ```
 
 <Tip>
