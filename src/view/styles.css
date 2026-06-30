@@ -497,6 +497,72 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 .reason-empty { color: var(--soft); }
 .ran-at { display: block; margin-top: 2px; color: var(--soft); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* Collapsible attempt rows */
+details.attempt-wrap > summary.eval-item {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+details.attempt-wrap > summary.eval-item::marker,
+details.attempt-wrap > summary.eval-item::-webkit-details-marker { display: none; }
+details.attempt-wrap[open] > summary.eval-item { border-bottom: none; }
+.attempt-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.attempt-chev {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 150ms ease;
+}
+.attempt-chev-hidden { visibility: hidden; }
+details.attempt-wrap[open] .attempt-chev { transform: rotate(90deg); }
+.attempt-body {
+  padding: 4px 0 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--line), transparent 35%);
+}
+.attempt-body > .trace-details:last-child { border-bottom: none; padding-bottom: 6px; }
+
+/* Assertion score chips */
+.assertion-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 8px;
+}
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  border: 1px solid;
+}
+.score-chip-good {
+  border-color: color-mix(in oklch, var(--good), var(--line) 55%);
+  background: color-mix(in oklch, var(--good), transparent 92%);
+  color: var(--good);
+}
+.score-chip-bad {
+  border-color: color-mix(in oklch, var(--bad), var(--line) 55%);
+  background: color-mix(in oklch, var(--bad), transparent 92%);
+  color: var(--bad);
+}
+.score-chip-warn {
+  border-color: color-mix(in oklch, var(--warn), var(--line) 55%);
+  background: color-mix(in oklch, var(--warn), transparent 92%);
+  color: var(--warn);
+}
+.score-name { opacity: 0.7; }
+.score-val { font-weight: 640; font-variant-numeric: tabular-nums; }
+.score-threshold { opacity: 0.55; font-weight: 400; }
+
 .trace-details {
   border-bottom: 1px solid color-mix(in oklch, var(--line), transparent 35%);
   padding: 4px 0 10px;

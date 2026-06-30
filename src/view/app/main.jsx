@@ -336,34 +336,79 @@ function Kpi({ label, value, className = "", title }) {
 
 function Attempt({ result, totalRuns }) {
   const outcome = outcomeOf(result);
-  const failedAssertions = failingAssertions(result);
-  const reason = reasonFor(result, failedAssertions);
-  return (
+  const gates = failingAssertions(result);
+  const reason = reasonFor(result, gates);
+  const allAssertions = result.assertions || [];
+  const hasScores = allAssertions.some((a) => a.score !== undefined && a.score !== null);
+  const hasBody = result.hasEvents || result.hasTrace || hasScores;
+
+  // Inline hint in the reason cell for passed evals that have soft scores
+  const inlineScores = !reason && outcome === "passed" ? scoresSummary(allAssertions) : "";
+  const displayReason = reason || inlineScores;
+
+  const cells = (
     <>
-      <div className="eval-item">
+      <span className="attempt-status">
+        <ChevronRight className={`attempt-chev${hasBody ? "" : " attempt-chev-hidden"}`} aria-hidden="true" />
         <span className={outcomeClass(outcome)}>{outcomeLabel(outcome)}</span>
-        <span className="eval-id">{result.id}</span>
-        <div className="assertions-cell">
-          <span className="assertions" title={reason || undefined}>
-            {reason || <span className="reason-empty">all assertions passed</span>}
-          </span>
-          {reason ? <CopyReason text={reason} /> : null}
-        </div>
-        <span className="num">
-          {formatDuration(result.durationMs)}
-          {result.startedAt ? <small className="ran-at">{formatClock(result.startedAt)}</small> : null}
+      </span>
+      <span className="eval-id">{result.id}</span>
+      <div className="assertions-cell">
+        <span className="assertions" title={displayReason || undefined}>
+          {displayReason || <span className="reason-empty">—</span>}
         </span>
-        <span className="num">{formatTokens(totalTokens(result.usage))}</span>
-        <span className="num">{formatCost(result.estimatedCostUSD)}</span>
-        <span className="num" title={`attempt ${result.attempt + 1} of ${totalRuns}`}>
-          #{result.attempt + 1}
-        </span>
+        {reason ? <CopyReason text={reason} /> : null}
       </div>
-      {result.hasEvents && result.artifactBase ? (
-        <LazyArtifact type="transcript" src={`${result.artifactBase}/events.json`} />
-      ) : null}
-      {result.hasTrace && result.artifactBase ? <LazyArtifact type="trace" src={`${result.artifactBase}/trace.json`} /> : null}
+      <span className="num">
+        {formatDuration(result.durationMs)}
+        {result.startedAt ? <small className="ran-at">{formatClock(result.startedAt)}</small> : null}
+      </span>
+      <span className="num">{formatTokens(totalTokens(result.usage))}</span>
+      <span className="num">{formatCost(result.estimatedCostUSD)}</span>
+      <span className="num" title={`attempt ${result.attempt + 1} of ${totalRuns}`}>
+        #{result.attempt + 1}
+      </span>
     </>
+  );
+
+  if (!hasBody) {
+    return <div className="eval-item">{cells}</div>;
+  }
+
+  return (
+    <details className="attempt-wrap">
+      <summary className="eval-item">{cells}</summary>
+      <div className="attempt-body">
+        {hasScores ? <AssertionScores assertions={allAssertions} /> : null}
+        {result.hasEvents && result.artifactBase ? (
+          <LazyArtifact type="transcript" src={`${result.artifactBase}/events.json`} />
+        ) : null}
+        {result.hasTrace && result.artifactBase ? (
+          <LazyArtifact type="trace" src={`${result.artifactBase}/trace.json`} />
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function AssertionScores({ assertions }) {
+  const scored = (assertions || []).filter((a) => a.score !== undefined && a.score !== null);
+  if (!scored.length) return null;
+  return (
+    <div className="assertion-scores">
+      {scored.map((a, i) => {
+        const cls = a.passed ? "good" : a.severity === "gate" ? "bad" : "warn";
+        return (
+          <span key={i} className={`score-chip score-chip-${cls}`}>
+            <span className="score-name">{a.name}</span>
+            <span className="score-val">
+              {formatPercent(a.score)}
+              {a.threshold !== undefined ? <span className="score-threshold">/{formatPercent(a.threshold)}</span> : null}
+            </span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -864,7 +909,9 @@ function configChips(row) {
 }
 
 function outcomeOf(result) {
-  return result.outcome || (result.error ? "errored" : result.verdict);
+  const raw = result.outcome || (result.error ? "errored" : result.verdict);
+  // "scored" = soft-only failures, no gate failed → counts as pass
+  return raw === "scored" ? "passed" : raw;
 }
 
 function outcomeClass(outcome) {
@@ -872,23 +919,39 @@ function outcomeClass(outcome) {
 }
 
 function outcomeLabel(outcome) {
-  return outcome === "errored" ? "error" : outcome;
+  if (outcome === "passed") return "pass";
+  if (outcome === "failed") return "fail";
+  if (outcome === "errored") return "error";
+  return outcome || "—";
 }
 
+// Only gate-severity failures are eval "failure reasons"; soft failures show as scores
 function failingAssertions(result) {
-  return (result.assertions || []).filter((a) => !a.passed);
+  return (result.assertions || []).filter((a) => !a.passed && a.severity === "gate");
 }
 
-function reasonFor(result, failedAssertions) {
+function reasonFor(result, failedGates) {
   if (result.error) return result.error;
   if (result.skipReason) return result.skipReason;
-  return failedAssertions.map((a) => (a.detail ? `${a.name}: ${a.detail}` : a.name)).join(", ");
+  return failedGates.map((a) => (a.detail ? `${a.name}: ${a.detail}` : a.name)).join(", ");
+}
+
+function scoresSummary(assertions) {
+  const scored = (assertions || []).filter((a) => a.score !== undefined && a.score !== null);
+  if (!scored.length) return "";
+  return scored
+    .map((a) => {
+      const pct = formatPercent(a.score);
+      return a.threshold !== undefined ? `${a.name} ${pct}/${formatPercent(a.threshold)}` : `${a.name} ${pct}`;
+    })
+    .join(" · ");
 }
 
 function outcomeSummary(row) {
-  const parts = [`${row.passed} passed`, `${row.failed} failed`];
+  // fold "scored" (soft-only) into passed count
+  const passed = (row.passed || 0) + (row.scored || 0);
+  const parts = [`${passed} passed`, `${row.failed} failed`];
   if (row.errored) parts.push(`${row.errored} errors`);
-  if (row.scored) parts.push(`${row.scored} scored`);
   if (row.skipped) parts.push(`${row.skipped} skipped`);
   return parts.join(" / ");
 }

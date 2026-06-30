@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fasteval view (dev)</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.jsx"></script>
+    <script>
+      if (import.meta.env && import.meta.env.DEV) {
+        import("https://cdn.jsdelivr.net/npm/grab@latest/dist/grab.esm.js");
+      }
+    </script>
+  </body>
+</html>
