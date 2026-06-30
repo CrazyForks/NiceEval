@@ -362,7 +362,13 @@ function runAttemptEffect(
   // 流式进度打到宿主 stderr(结果走 stdout,互不干扰)。容器主日志【不】放这些进度标记 ——
   // 那里留给 agent 的原始输出(adapter 给 agent 命令开 { stream: true })。
   const who = run.model ? `${run.agent.name}/${run.model}` : run.agent.name;
-  const log = (m: string) => process.stderr.write(`  · ${evalDef.id} [${who}] ${m}\n`);
+  // 同时保留最近 20 条进度消息,timeout 时嵌入 error 字段方便定位卡在哪一步。
+  const recentLogs: string[] = [];
+  const log = (m: string) => {
+    recentLogs.push(m);
+    if (recentLogs.length > 20) recentLogs.shift();
+    process.stderr.write(`  · ${evalDef.id} [${who}] ${m}\n`);
+  };
 
   return Effect.scoped(
     Effect.gen(function* () {
@@ -443,7 +449,7 @@ function runAttemptEffect(
       onTimeout: (): EvalResult => ({
         ...base,
         durationMs: Date.now() - t0,
-        error: `attempt 超时(${timeoutMs}ms)`,
+        error: `attempt 超时(${timeoutMs}ms)\n最近进度:\n${recentLogs.map((l) => `  · ${l}`).join("\n")}`,
       }),
     }),
     // body 自己已兜了 agent 执行错;这里兜的是资源获取 / Scope 层的意外(起沙箱失败等)。
