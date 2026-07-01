@@ -29,7 +29,7 @@
 | `t.requireInputRequest(filter?)` | 断言恰好有一个待处理输入请求,并返回它 | gate;filter 可匹配工具名、action input、prompt、display、option ids |
 | `await t.respond(...responses)` | 回答指定待处理输入请求 | 响应会作为下一轮发送 |
 | `await t.respondAll(optionId)` | 用同一 option 回答所有待处理输入请求 | 响应会作为下一轮发送 |
-| `t.reply` | 最后一条 assistant 消息 | 值级 judge / matcher 的默认材料 |
+| `t.reply` | 最后一条 assistant 消息 | 常用于值级 matcher;不是 `t.judge` 的默认材料 |
 | `t.sessionId` | 当前主会话 id | adapter 返回时填入;用于 resume / 调试 |
 | `t.events` | 主 session 目前已捕获的强类型事件流 | 即时读取主 session;`t.*` 最终断言会聚合全部 session |
 | `t.newSession()` | 开一条独立会话线 | 返回 `session`;事件仍汇入 `t.*` run 级断言 |
@@ -153,14 +153,17 @@
 
 | API | 作用 | 备注 |
 |---|---|---|
-| `t.judge.autoevals.closedQA(criteria, opts?)` | 闭合式判断 | 默认材料是 `t.reply` |
-| `t.judge.autoevals.factuality(expected, opts?)` | 事实一致性 | 默认材料是 `t.reply` |
-| `t.judge.autoevals.summarizes(source, opts?)` | 是否忠实摘要 | 默认材料是 `t.reply` |
+| `t.judge.autoevals.closedQA(criteria, opts?)` | 闭合式判断 | 默认材料是当前 session 对话 |
+| `t.judge.autoevals.factuality(expected, opts?)` | 事实一致性 | 默认材料是当前 session 对话 |
+| `t.judge.autoevals.summarizes(source, opts?)` | 是否忠实摘要 | 默认材料是当前 session 对话 |
+| `session.judge.autoevals.closedQA(criteria, opts?)` | 闭合式判断 | 默认材料是这个 session 对话 |
+| `session.judge.autoevals.factuality(expected, opts?)` | 事实一致性 | 默认材料是这个 session 对话 |
+| `session.judge.autoevals.summarizes(source, opts?)` | 是否忠实摘要 | 默认材料是这个 session 对话 |
 | `turn.judge.autoevals.closedQA(criteria, opts?)` | 闭合式判断 | 默认材料是 `turn.message` |
 | `turn.judge.autoevals.factuality(expected, opts?)` | 事实一致性 | 默认材料是 `turn.message` |
 | `turn.judge.autoevals.summarizes(source, opts?)` | 是否忠实摘要 | 默认材料是 `turn.message` |
 
-judge 是值级评分,不是作用域断言:`t.judge` 不会像 `t.calledTool()` 那样聚合所有消息。它默认只评 `t.reply`(最后一条 assistant 消息);`turn.judge` 默认只评 `turn.message`。评多轮对话时,自己收集每轮 `turn.message` 再传 `{ on }`;评 sandbox 产物时,显式传 `t.sandbox.diff.get(path)` 或 `await t.sandbox.readFile(path)`。
+judge 是评分器,默认材料也由接收者决定:`t.judge` / `session.judge` 是 session 级,默认评对应 session 的对话文本;`turn.judge` 是 turn 级,默认只评 `turn.message`。评 sandbox 产物或其它自定义值时,显式传 `t.sandbox.diff.get(path)`、`await t.sandbox.readFile(path)` 或其它 `{ on }` 材料。
 
 ## 作用域规则
 
@@ -168,13 +171,13 @@ judge 是值级评分,不是作用域断言:`t.judge` 不会像 `t.calledTool()`
 
 | 层 | 谁 | 作用域 |
 |---|---|---|
-| **值级** | `t.check(value, matcher)`、judge 的 `{ on }` | 只评你传进去的值;默认值通常是 `t.reply` |
+| **值级** | `t.check(value, matcher)`、judge 的 `{ on }` | 只评你传进去的值 |
 | **t 级 / run 级** | `t.succeeded()`、`t.calledTool()`、`t.event()` 等 | `test` 跑完后,看本次运行的全部 session 和全部 turn |
 | **session 级** | `session.succeeded()`、`session.calledTool()`、`session.event()` 等 | 只看这个 session 在断言记录时已有的事件 |
 | **turn 级** | `turn.succeeded()`、`turn.calledTool()`、`turn.event()` 等 | 只看这一轮自己的事件 |
 | **sandbox 结果级** | `t.sandbox.fileChanged()`、`t.sandbox.diff` 等 | 只看本次 eval run 最终 sandbox diff,不按轮次切分 |
 
-值级 judge / matcher 默认看你给的材料;`t.judge` 的默认材料是 `t.reply`,和 `t.*` 作用域断言默认看全程不是一套规则。要评整段多轮对话,显式收集材料:
+judge 默认材料按接收者分层:`t.judge` / `session.judge` 默认评对应 session 对话;`turn.judge` 默认评当前 turn。要评 sandbox 产物或其它非对话材料,显式传 `{ on }`:
 
 ```typescript
 const turns = [
@@ -183,8 +186,7 @@ const turns = [
   await t.send("中间那个形状是什么颜色的?"),
 ];
 
-const conversation = turns.map((turn) => turn.message).join("\n");
-t.judge.autoevals.closedQA("助手是否始终基于第一轮的图片作答?", { on: conversation }).atLeast(0.7);
+t.judge.autoevals.closedQA("助手是否始终基于第一轮的图片作答?").atLeast(0.7);
 ```
 
 ## 命令结果怎么评分
@@ -249,6 +251,7 @@ t.judge.autoevals.closedQA("语气是否礼貌").atLeast(0.7);   // soft 阈值
 
 - **成本聚合** —— 用量 → 成本价格表估算 + `t.maxCost()`。
 - **匹配器扩展** —— `excludes` / `isDefined` / `isTrue` / `isFalse` / `commandSucceeded`。
+- **judge 接收者默认材料** —— `t.judge` / `session.judge` 评 session;`turn.judge` 评单轮,避免为了单轮 judge 手写 `{ on: turn.message }`。
 - **sandbox author API 分层** —— 文件 IO / 命令执行 / 结果断言都在 `t.sandbox`,但生命周期动作如 `stop()` 不暴露给 eval 作者。
 - **本地结果查看器** —— 读 `.fasteval/<run>/` 结构化工件出图。
 

@@ -43,7 +43,7 @@ export default rows.map((row) =>
 - `session.ts:73-83`:`t.newSession()` 返回的 session 也绑同一套断言,但它是 snapshot scope,只看这个 session 在断言记录时已经发生的事件。
 - `session.ts:298-308`(`EvalTurn` 构造函数):`t.send()` 返回的 turn 对象绑 `{ timing: "snapshot", select: () => this.#assertionSubject() }`,`#assertionSubject()` 只读**这一轮自己的** `events`(`session.ts:221-243` 的 `#recordTurn` 传入的就是这次 `send()` 的 `result.events`,不含之前轮次)。
 
-两处绑定共享**同一套完整函数**,区别只是"挂在哪个对象上",不是"叫什么名字"——eve 没有"`messageIncludes` 天生看全部、`calledTool` 天生看单轮"这种按名字区分的不一致。1.1 要避免的正是这种不一致,eve 靠"位置决定作用域、每个位置给全套词汇"解决,不是靠"取消聚合"解决。
+这些绑定共享**同一套完整函数**,区别只是"挂在哪个对象上",不是"叫什么名字"——eve 没有"`messageIncludes` 天生看全部、`calledTool` 天生看单轮"这种按名字区分的不一致。1.1 要避免的正是这种不一致,eve 靠"位置决定作用域、每个位置给全套词汇"解决,不是靠"取消聚合"解决。
 
 **fasteval 对齐到这个设计,不是取消聚合**:
 
@@ -119,7 +119,7 @@ export default defineEval({
 });
 ```
 
-需要并行的独立会话时用 `t.newSession()` 开一条互不干扰的对话线。新 session 有同一套 drive API(`send` / `sendFile` / `respond` / `events`)和同一套作用域断言;它自己的 `session.*` 只看这条 session,但事件仍会汇入 `t.*` run 级断言。
+需要并行的独立会话时用 `t.newSession()` 开一条互不干扰的对话线。新 session 有同一套 drive API(`send` / `sendFile` / `respond` / `events`)、同一套作用域断言和 `session.judge`;它自己的 `session.*` / `session.judge` 只看这条 session,但事件仍会汇入 `t.*` run 级断言。
 
 ### HITL / 待输入请求
 
@@ -150,23 +150,23 @@ t.succeeded();
 
 ### 多轮里评整段对话
 
-多轮最容易踩的坑:**judge 默认只看最后一轮**(`t.reply`),而 `t.messageIncludes` 这类作用域断言看的是**整个 eval run**——这是两条独立的默认规则,不是同一套语义。完整的作用域规则与每条断言看哪一轮,见 [Assertions · 作用域规则](assertions.md#作用域规则)。
+多轮里要分清 judge 的接收者:`t.judge` / `session.judge` 是 session 级,默认评对应 session 的对话;`turn.judge` 才是 turn 级,默认只评这一轮的 `turn.message`。完整的作用域规则与每条断言看哪一轮,见 [Assertions · 作用域规则](assertions.md#作用域规则)。
 
-要让 judge 评「整段多轮对话」(典型:跨轮一致性),别用默认材料,把全程对话拼出来显式喂进去:
+要让 judge 评「整段多轮对话」(典型:跨轮一致性),直接挂在 `t.judge` 上;要只评某一轮,挂在那一轮的 `turn.judge` 上:
 
 ```typescript
 const turn1 = await t.send("这张图里有什么?");          // 第一轮:看图
 const turn2 = await t.send("背景是什么颜色?");          // 第二、三轮:纯文字追问,考跨轮记忆
 const turn3 = await t.send("中间那个形状是什么颜色的?");
 
-// judge 默认 on: t.reply(最后一轮)。要评"整段三轮",自己把每轮的回复拼起来:
-const wholeConversation = [turn1, turn2, turn3].map((turn) => turn.message).join("\n");
 t.judge.autoevals
-  .closedQA("助手是否始终基于第一轮的图片作答?", { on: wholeConversation })
+  .closedQA("助手是否始终基于第一轮的图片作答?")
   .atLeast(0.7);
+
+turn3.judge.autoevals.closedQA("这一轮是否回答了形状颜色?").gate();
 ```
 
-手工收集每轮的 `turn.message` 再 `join`,跟核心原因 1.1 说的"想评整个消息,自己拼接、保存每轮的回复"是同一件事。
+如果要评 sandbox diff、文件内容或其它不是会话本身的材料,仍然用 `{ on }` 显式传值。
 
 ## 数据集扇出
 

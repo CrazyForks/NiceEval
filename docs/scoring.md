@@ -4,9 +4,9 @@
 
 五类(详情见 Assertions 对应小节):
 
-1. **值级断言** —— `t.check` / `t.require` 配 `expect` 里的匹配器,就地评估。见 [Assertions · 值级断言](assertions.md#值级断言tcheck--trequire--匹配器)。
+1. **值级断言** —— `t.check` / `t.require` 配 `expect` 里的匹配器,就地评估。见 [Assertions · 值级断言](assertions.md#值级断言)。
 2. **作用域断言** —— `t.succeeded()` / `t.calledTool()` 等,在 `test` 结束后对本次 eval run 聚合评估;同一套断言挂在 `session` 上看单条 session,挂在 `turn` 上只看这一轮。见 [Assertions · API 分组速查](assertions.md#api-分组速查)。
-3. **LLM-as-judge** —— 用一个评判模型给开放式回答打分,`t.judge` 默认看 `t.reply`,`turn.judge` 默认看 `turn.message`,细节见下文。
+3. **LLM-as-judge** —— 用一个评判模型给开放式回答打分,`t.judge` / `session.judge` 默认评对应 session,`turn.judge` 默认评当前 turn,细节见下文。
 4. **测试即评分**(沙箱型) —— 手工在沙箱里跑测试与命令,把命令结果交给 `t.check`。
 5. **效率 / 成本断言** —— `t.maxTokens()` / `t.maxCost()`,把 token 花费也变成可判的维度。见 [Assertions · t 级作用域断言](assertions.md#t-级作用域断言)。
 
@@ -41,11 +41,11 @@ const turn = await t.send("解释一下量子隧穿。");
 turn.judge.autoevals.closedQA("这一轮回答是否适合高中生理解");
 ```
 
-`closedQA`/`factuality`/`summarizes` 挂在 `t.judge.autoevals.*` 和 `turn.judge.autoevals.*` 下,不留平铺别名。judge 就是这三个固定形状,评什么都落进 `closedQA`/`factuality`/`summarizes` 之一,材料也可以通过 `{ on }` 显式传。
+`closedQA`/`factuality`/`summarizes` 挂在 `t.judge.autoevals.*`、`session.judge.autoevals.*` 和 `turn.judge.autoevals.*` 下,不留平铺别名。judge 就是这三个固定形状,评什么都落进 `closedQA`/`factuality`/`summarizes` 之一,材料也可以通过 `{ on }` 显式传。
 
-`{ on }` 指定被评的值,`{ model }` 可单次覆盖评判模型。默认材料由接收者决定:`t.judge` 默认 `t.reply`;`turn.judge` 默认 `turn.message`。
+`{ on }` 指定被评的值,`{ model }` 可单次覆盖评判模型。默认材料由接收者决定:`t.judge` / `session.judge` 默认评对应 session 的对话文本;`turn.judge` 默认评这一轮的 `turn.message`。
 
-> **judge 默认不聚合多轮。** `t.judge` 默认只看 `t.reply`,也就是最后一条 assistant 消息;`turn.judge` 默认只看这一轮的 `turn.message`。要评跨轮一致性,自己把每轮的 `turn.message` 收集拼起来再传进去:`t.judge.autoevals.closedQA("…", { on: turns.map(t => t.message).join("\n") }).atLeast(0.7)`。(评 sandbox 产物/diff 用同一个 `closedQA`,材料换成 `t.sandbox.diff.get(path)`。)每条断言看哪一轮、各自来源,见 [Assertions](assertions.md)。
+> **judge 默认材料按接收者分层。** `t.judge` / `session.judge` 是 session 级,适合评当前会话的整体回答质量或跨轮一致性;`turn.judge` 是 turn 级,只评这一轮的 `turn.message`。要评 sandbox 产物/diff 或其它自定义材料,显式传 `{ on }`,例如 `t.judge.autoevals.closedQA("…", { on: t.sandbox.diff.get(path) }).atLeast(0.7)`。每条断言看哪一轮、各自来源,见 [Assertions](assertions.md)。
 
 **模型解析优先级**(高 → 低):单次调用的 `{ model }` → 这个 eval 的 `judge.model` → 配置的 `judge.model`。
 
