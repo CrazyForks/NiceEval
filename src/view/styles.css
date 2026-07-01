@@ -934,8 +934,18 @@ a.brand:hover { opacity: 0.75; }
   background: color-mix(in oklch, var(--bad), var(--panel) 52%);
   color: color-mix(in oklch, var(--bad), var(--text) 45%);
 }
+/* soft 断言没过阈值:不影响 outcome,视觉上跟真正的 gate 失败(红)区分开,用 warn(黄)。 */
+.code-line.line-warn {
+  background: color-mix(in oklch, var(--warn), var(--panel) 74%);
+  border-left-color: var(--warn);
+}
+.code-line.line-warn .ln {
+  background: color-mix(in oklch, var(--warn), var(--panel) 52%);
+  color: color-mix(in oklch, var(--warn), var(--text) 45%);
+}
 .code-line.line-pass.line-clickable:hover { background: color-mix(in oklch, var(--good), var(--panel) 64%); }
 .code-line.line-fail.line-clickable:hover { background: color-mix(in oklch, var(--bad), var(--panel) 64%); }
+.code-line.line-warn.line-clickable:hover { background: color-mix(in oklch, var(--warn), var(--panel) 64%); }
 
 .ln {
   text-align: right;
@@ -954,6 +964,7 @@ a.brand:hover { opacity: 0.75; }
 .gstat { font-size: 13px; font-weight: 800; line-height: 1; }
 .gstat.good { color: var(--good); }
 .gstat.bad { color: var(--bad); }
+.gstat.warn { color: var(--warn); }
 
 .ctext { white-space: pre; overflow-x: auto; color: var(--text); padding-left: 8px; }
 .ctext::-webkit-scrollbar { height: 0; }
@@ -970,6 +981,7 @@ a.brand:hover { opacity: 0.75; }
 }
 .abadge.good { color: var(--good); border-color: color-mix(in oklch, var(--good), var(--line) 55%); background: color-mix(in oklch, var(--good), transparent 90%); }
 .abadge.bad { color: var(--bad); border-color: color-mix(in oklch, var(--bad), var(--line) 55%); background: color-mix(in oklch, var(--bad), transparent 90%); }
+.abadge.warn { color: var(--warn); border-color: color-mix(in oklch, var(--warn), var(--line) 55%); background: color-mix(in oklch, var(--warn), transparent 90%); }
 .abadge-th { opacity: 0.55; font-weight: 400; }
 
 /* 可点击行的显式提示:send 行一个 "reply" 药丸,断言行一个右侧展开箭头;hover 时变亮。 */

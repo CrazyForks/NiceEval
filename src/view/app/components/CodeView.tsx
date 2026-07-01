@@ -6,6 +6,12 @@ import { TOOL_VERB, highlightTs, indexAsserts, indexTurns, locKey, resultBody, t
 import { formatScore, previewText, truncate } from "../lib/format.ts";
 import { Transcript } from "./Transcript.tsx";
 
+/** soft 断言没过阈值不影响 outcome,颜色上跟 gate 失败(红)区分开,用 warn(黄)。 */
+function assertTone(a: Assertion): "good" | "warn" | "bad" {
+  if (a.passed) return "good";
+  return a.severity === "soft" ? "warn" : "bad";
+}
+
 export function CodeView({ sources, events, assertions, t }: { sources: CodeSource[]; events: TranscriptEvent[]; assertions: Assertion[]; t: T }) {
   const turns = useMemo(() => indexTurns(events), [events]);
   const asserts = useMemo(() => indexAsserts(assertions), [assertions]);
@@ -112,7 +118,14 @@ export function CodeLine({
 }) {
   const hasReply = !!turn;
   const hasAsserts = !!(asserts && asserts.length);
-  const status = hasAsserts ? (asserts?.every((a: Assertion) => a.passed) ? "pass" : "fail") : null;
+  // 只有 gate 断言没过才算这一行真的"fail";只剩 soft 断言没过阈值时是"warn"(不影响 outcome)。
+  const status = hasAsserts
+    ? asserts?.every((a: Assertion) => a.passed)
+      ? "pass"
+      : asserts?.some((a: Assertion) => !a.passed && a.severity === "gate")
+        ? "fail"
+        : "warn"
+    : null;
   const clickable = hasReply || hasAsserts;
   const rowCls =
     "code-line" +
@@ -132,7 +145,9 @@ export function CodeLine({
         <span className="ln">{n}</span>
         <span className="gmark">
           {hasAsserts ? (
-            <span className={`gstat ${status === "pass" ? "good" : "bad"}`}>{status === "pass" ? "✓" : "✗"}</span>
+            <span className={`gstat ${status === "pass" ? "good" : status === "warn" ? "warn" : "bad"}`}>
+              {status === "pass" ? "✓" : status === "warn" ? "!" : "✗"}
+            </span>
           ) : hasReply ? (
             <ChevronRight className={`gchev${isOpen ? " is-open" : ""}`} aria-hidden="true" />
           ) : null}
@@ -158,7 +173,7 @@ export function AssertBadge({ a }: { a: Assertion }) {
   const showPct = a.threshold !== undefined || (a.score > 0 && a.score < 1);
   if (!showPct) return null;
   return (
-    <span className={`abadge ${a.passed ? "good" : "bad"}`}>
+    <span className={`abadge ${assertTone(a)}`}>
       {formatScore(a.score)}
       {a.threshold !== undefined ? <span className="abadge-th">/{formatScore(a.threshold)}</span> : null}
     </span>
@@ -208,7 +223,7 @@ export function AssertDetail({ asserts, t }: { asserts: Assertion[]; t: T }) {
     <div className="line-detail assert-detail">
       {asserts.map((a: Assertion, i: number) => (
         <div key={i} className="assert-row">
-          <span className={`abadge ${a.passed ? "good" : "bad"}`}>{a.passed ? t("assert.pass") : t("assert.fail")}</span>
+          <span className={`abadge ${assertTone(a)}`}>{a.passed ? t("assert.pass") : t("assert.fail")}</span>
           <span className="assert-name">{a.name}</span>
           {a.severity === "soft" ? <span className="assert-sev">{t("assert.soft")}</span> : null}
           {a.threshold !== undefined ? (
