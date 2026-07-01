@@ -44,7 +44,7 @@ export default defineConfig({
 
 ```typescript
 // agents/classify.ts —— 进程内 agent
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { classifyIntent } from "../src/agent.js";   // 你自己的代码
 
 export default defineAgent({
@@ -81,7 +81,7 @@ npx fasteval exp local classify
 
 ```typescript
 // agents/weather-bot.ts —— 远程 agent,URL 是它的私事
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 export default defineAgent({
   name: "weather-bot",

@@ -3,13 +3,13 @@
 // 后端名的行为分支只允许出现在 sandbox/ 内(见 docs/architecture.md)。
 
 import { Effect } from "effect";
-import type { Sandbox, SandboxBackend, SandboxOption, SandboxRuntime } from "../types.ts";
+import type { CustomSandboxSpec, Sandbox, SandboxBackend, SandboxOption, SandboxRuntime } from "../types.ts";
 import { registerSandbox, stopSandbox } from "./registry.ts";
 import { t } from "../i18n/index.ts";
 
 /** 归一化后的沙箱描述:确定的后端 + 各后端参数(只有对应后端用得上的会有值)。 */
 export interface ResolvedSandbox {
-  backend: "docker" | "vercel" | "e2b";
+  backend: string;
   runtime?: SandboxRuntime;
   /** docker */
   image?: string;
@@ -17,6 +17,9 @@ export interface ResolvedSandbox {
   snapshotId?: string;
   /** e2b */
   template?: string;
+  /** 自定义后端(defineSandbox):有它就直接调用,跳过下面的内置 backend switch。 */
+  create?: CustomSandboxSpec["create"];
+  recommendedConcurrency?: number;
 }
 
 /**
@@ -66,6 +69,7 @@ export function sandboxRecommendedConcurrency(opt: SandboxOption | undefined): n
     case "docker":  return 10;
     case "e2b":     return 20;
     case "vercel":  return 1;
+    default:        return r.recommendedConcurrency ?? 5;
   }
 }
 
@@ -100,6 +104,8 @@ export function createSandbox(opts: {
 }
 
 async function createBackend(r: ResolvedSandbox, timeout?: number): Promise<Sandbox> {
+  // 自定义后端(defineSandbox):不认后端名,直接调用用户给的 create()。
+  if (r.create) return r.create({ timeout, runtime: r.runtime });
   switch (r.backend) {
     case "docker": {
       const { DockerSandbox } = await import("./docker.ts").catch(() => {
@@ -119,5 +125,7 @@ async function createBackend(r: ResolvedSandbox, timeout?: number): Promise<Sand
       });
       return E2BSandbox.create({ timeout, runtime: r.runtime, template: r.template });
     }
+    default:
+      throw new Error(t("sandbox.backendNotImplemented", { backend: r.backend }));
   }
 }

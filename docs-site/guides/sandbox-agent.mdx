@@ -70,7 +70,7 @@ createSandbox(backend, timeout)
 A sandbox adapter receives a `ctx` whose `ctx.sandbox` is the live `Sandbox` handle for the current isolated environment. Your `send` function uses that handle to install the CLI, authenticate, run the agent, and read back the transcript.
 
 ```ts
-import { defineSandboxAgent } from "fasteval";
+import { defineSandboxAgent } from "fasteval/adapter";
 
 defineSandboxAgent({
   name: string;
@@ -95,7 +95,8 @@ The source for the built-in Claude Code adapter illustrates all five steps and h
 
 ```ts
 // agents/claude-code.ts  (built-in; custom agents follow the same shape)
-import { defineSandboxAgent, shared, requireEnv } from "fasteval";
+import { defineSandboxAgent, shared } from "fasteval/adapter";
+import { requireEnv } from "fasteval";
 
 // Authentication is the adapter's private business — never passed through ctx
 const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });

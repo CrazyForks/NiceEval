@@ -1,5 +1,6 @@
-import { defineAgent } from "fasteval";
-import type { Agent, StreamEvent, Usage } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
+import type { Agent } from "fasteval/adapter";
+import type { StreamEvent, Usage } from "fasteval";
 import type { AgentEvent, AgentResponse } from "../src/protocol.ts";
 
 /**

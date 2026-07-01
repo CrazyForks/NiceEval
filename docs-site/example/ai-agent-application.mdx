@@ -32,8 +32,9 @@ The adapter tells fasteval how to send requests to the AI agent and how to read 
 
 ```ts
 // agents/web-agent.ts
-import { defineAgent } from "fasteval";
-import type { Agent, StreamEvent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
+import type { Agent } from "fasteval/adapter";
+import type { StreamEvent } from "fasteval";
 import type { AgentEvent, AgentResponse } from "../ai-sdk-agent/src/protocol.ts";
 
 export function webAgent(opts: { baseUrl: string }): Agent {

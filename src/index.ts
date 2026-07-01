@@ -1,32 +1,11 @@
 // fasteval 公开导出(import { … } from "fasteval")。
+// Agent/Adapter 相关见 "fasteval/adapter";Sandbox 相关见 "fasteval/sandbox"。
 
-export {
-  defineEval,
-  defineConfig,
-  defineExperiment,
-  defineAgent,
-  defineSandboxAgent,
-  dockerSandbox,
-  vercelSandbox,
-  e2bSandbox,
-} from "./define.ts";
-
-export { shared } from "./agents/shared.ts";
-export type { Shared } from "./agents/shared.ts";
-
-export { BUILTIN_AGENTS } from "./agents/builtin.ts";
-export { claudeCodeAgent } from "./agents/claude-code.ts";
-export { codexAgent } from "./agents/codex.ts";
-export { bubAgent } from "./agents/bub.ts";
-export type { ClaudeCodeConfig } from "./agents/claude-code.ts";
-export type { CodexConfig } from "./agents/codex.ts";
-export type { BubConfig } from "./agents/bub.ts";
-export type { McpServer } from "./types.ts";
+export { defineEval, defineConfig, defineExperiment } from "./define.ts";
 
 export { requireEnv, getEnv, stripComments } from "./util.ts";
-export { createCheckpoint, restoreCheckpoint } from "./sandbox/checkpoint.ts";
 
-// 类型(沙箱 adapter / eval 作者会用到)
+// 类型(eval 作者会用到;跑哪个 agent / 用哪个 sandbox 见对应子路径)
 export type {
   StreamEvent,
   ToolName,
@@ -37,29 +16,6 @@ export type {
   InputFile,
   TurnHandle,
   SessionHandle,
-  Agent,
-  AgentContext,
-  AgentCapabilities,
-  AgentSession,
-  AgentTracing,
-  Telemetry,
-  SandboxAgentDef,
-  RemoteAgentDef,
-  Sandbox,
-  SandboxHandle,
-  SandboxFile,
-  SourceFile,
-  SourceFiles,
-  ReadSourceFilesOptions,
-  SandboxBackend,
-  SandboxOption,
-  SandboxSpec,
-  SandboxRuntime,
-  DockerSandboxSpec,
-  VercelSandboxSpec,
-  E2BSandboxSpec,
-  CommandResult,
-  CommandOptions,
   TestContext,
   ToolMatch,
   ValueAssertion,

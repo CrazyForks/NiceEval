@@ -13,7 +13,7 @@ Every agent in fasteval is an **adapter** — a piece of code you write that kno
 Use `defineAgent` for any agent you can drive in-process or over HTTP. The `send` function is your responsibility: call your code, fire a `fetch`, stream from a WebSocket — whatever your backend requires. Map the result to the standard event stream and return a `Turn`.
 
 ```ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 ```
 
 ### Options
@@ -156,7 +156,7 @@ Your `send` function must return an object satisfying the `Turn` interface.
 
 ```ts
 // agents/my-agent.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { classifyIntent } from "../src/agent.js";
 
 export default defineAgent({
@@ -179,7 +179,7 @@ export default defineAgent({
 
 ```ts
 // agents/support-bot.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 export default defineAgent({
   name: "support-bot",
@@ -214,7 +214,7 @@ export default defineAgent({
 Use `defineSandboxAgent` for coding agents that run as a CLI inside an isolated sandbox (Docker container or cloud VM). The runner provisions the sandbox and passes it via `ctx.sandbox`. Your `send` function installs the CLI, runs the agent with the task prompt, reads back the transcript, and parses it into the standard event stream.
 
 ```ts
-import { defineSandboxAgent, shared } from "fasteval";
+import { defineSandboxAgent, shared } from "fasteval/adapter";
 ```
 
 `defineSandboxAgent` accepts exactly the same options as `defineAgent` (see above), plus `ctx.sandbox` is always populated.
@@ -290,7 +290,7 @@ import { defineSandboxAgent, shared } from "fasteval";
 
 ### shared helpers
 
-The `shared` object from `fasteval` provides utilities that are common across all sandbox agent adapters, ensuring that workspace preparation, diff collection, validation, and observability injection work consistently regardless of which agent CLI you're wrapping.
+The `shared` object from `fasteval/adapter` provides utilities that are common across all sandbox agent adapters, ensuring that workspace preparation, diff collection, validation, and observability injection work consistently regardless of which agent CLI you're wrapping.
 
 <ResponseField name="shared.prepareWorkspace(sandbox, fixture)" type="function">
   Uploads workspace files to the sandbox (hiding `EVAL.ts` and other test files
@@ -330,7 +330,8 @@ The `shared` object from `fasteval` provides utilities that are common across al
 
 ```ts
 // agents/claude-code.ts
-import { defineSandboxAgent, shared, requireEnv } from "fasteval";
+import { defineSandboxAgent, shared } from "fasteval/adapter";
+import { requireEnv } from "fasteval";
 
 const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });
 

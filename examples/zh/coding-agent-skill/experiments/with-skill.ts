@@ -1,4 +1,5 @@
-import { defineExperiment, claudeCodeAgent } from "fasteval";
+import { defineExperiment } from "fasteval";
+import { claudeCodeAgent } from "fasteval/adapter";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

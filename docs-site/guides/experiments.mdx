@@ -12,7 +12,7 @@ An experiment is a `defineExperiment` configuration that describes one agent, on
 
 ```ts
 import { defineExperiment } from "fasteval";
-import { codexAgent } from "fasteval";
+import { codexAgent } from "fasteval/adapter";
 
 export default defineExperiment({
   agent: codexAgent(),                  // one agent per experiment file
@@ -97,7 +97,7 @@ Each file is an independent `defineExperiment` configuration. Running `fasteval 
 <CodeGroup>
 ```ts experiments/compare/bub-gpt-5.4.ts
 import { defineExperiment } from "fasteval";
-import { bubAgent } from "fasteval";
+import { bubAgent } from "fasteval/adapter";
 
 export default defineExperiment({
   agent: bubAgent(),
@@ -109,7 +109,7 @@ export default defineExperiment({
 
 ```ts experiments/compare/codex-gpt-5.4.ts
 import { defineExperiment } from "fasteval";
-import { codexAgent } from "fasteval";
+import { codexAgent } from "fasteval/adapter";
 
 export default defineExperiment({
   agent: codexAgent(),

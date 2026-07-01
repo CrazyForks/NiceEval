@@ -166,7 +166,7 @@ interface DerivedFacts {
 
 ```typescript
 // agents/my-agent.ts —— 进程内
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { myAgent } from "../src/agent.js";
 
 export default defineAgent({
@@ -217,7 +217,8 @@ claude-code 和 codex 用**同一套**模型,绝大部分**共享**,只有 5 个
 
 ```typescript
 // agents/claude-code.ts(内置;接 bub 照抄此形状)
-import { defineSandboxAgent, shared, requireEnv } from "fasteval";
+import { defineSandboxAgent, shared } from "fasteval/adapter";
+import { requireEnv } from "fasteval";
 
 // 本地配:这个 agent 怎么连它自己 —— 鉴权在这里读;注意「没有 model」(留空,实验决定)
 const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });
@@ -314,7 +315,7 @@ experiment.agent    选「连哪个被测对象」(自实现的 adapter)
 
 这些都是**给 adapter 作者复用的工具函数**,不是运行器包在 `agent.send()` 外面的固定编排——除了"沙箱创建时打一次 git 基线、销毁前采一次 diff"这两头是核心自动做的,中间"什么时候写入文件、什么时候调 `t.send()`、什么时候手工跑校验命令"全部是 eval 的 `test(t)` 自己决定,见 [Eval Authoring · 沙箱型](../eval-authoring.md#沙箱型手工把文件放进沙箱)。
 
-没有按名字选 agent 的注册表——一个 config 文件对应一个(或一组固定的)agent,内置 coding-agent(`claude-code` / `codex` / `bub` …)从 `fasteval` 导出,在 experiment 文件里直接引用。要换 agent 或 model,复制一个 experiment 文件改配置,不是靠 `--agent` 这类运行时选择器。
+没有按名字选 agent 的注册表——一个 config 文件对应一个(或一组固定的)agent,内置 coding-agent(`claude-code` / `codex` / `bub` …)从 `fasteval/adapter` 导出,在 experiment 文件里直接引用。要换 agent 或 model,复制一个 experiment 文件改配置,不是靠 `--agent` 这类运行时选择器。
 
 ## 接一个新 agent:分档递进,不用一次做全套
 

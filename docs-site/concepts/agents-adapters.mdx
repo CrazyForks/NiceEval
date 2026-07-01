@@ -107,7 +107,7 @@ Use `defineAgent` when your subject under test is a function you can call direct
 <CodeGroup>
 ```ts In-process adapter
 // agents/my-agent.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { myAgent } from "../src/agent.js";
 
 export default defineAgent({
@@ -126,7 +126,7 @@ export default defineAgent({
 
 ```ts Remote HTTP adapter
 // agents/support-bot.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 export default defineAgent({
   name: "support-bot",
@@ -156,7 +156,8 @@ Use `defineSandboxAgent` when the subject under test is a coding agent CLI (Clau
 
 ```ts
 // agents/claude-code.ts (built-in)
-import { defineSandboxAgent, shared, requireEnv } from "fasteval";
+import { defineSandboxAgent, shared } from "fasteval/adapter";
+import { requireEnv } from "fasteval";
 
 const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });
 

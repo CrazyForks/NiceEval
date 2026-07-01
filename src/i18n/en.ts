@@ -48,6 +48,8 @@ export const en = {
   "define.experimentAgentRequired": "defineExperiment requires agent.",
   "define.experimentIdRejected": "defineExperiment does not accept id; ids are derived from file paths.",
   "define.sandboxAgentNameRequired": "defineSandboxAgent requires name.",
+  "define.sandboxCreateRequired": "defineSandbox requires a create() function.",
+  "define.sandboxNameRequired": "defineSandbox requires name.",
   "docker.commandTimeout": "Command timed out after {{timeoutMs}}ms",
   "docker.containerNotInitialized": "Container not initialized",
   "docker.imagePullDone": "Docker image ready: {{image}}",

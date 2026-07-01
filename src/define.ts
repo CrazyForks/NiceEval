@@ -4,6 +4,7 @@
 import type {
   Agent,
   Config,
+  CustomSandboxSpec,
   DockerSandboxSpec,
   E2BSandboxSpec,
   EvalDef,
@@ -94,4 +95,18 @@ export function vercelSandbox(opts: Omit<VercelSandboxSpec, "backend"> = {}): Ve
 /** E2B 沙箱。`template` 选 e2b 模板名/ID(预制模板:如 `"fasteval-agents"`);省略用 e2b 默认 `"base"`。 */
 export function e2bSandbox(opts: Omit<E2BSandboxSpec, "backend"> = {}): E2BSandboxSpec {
   return { backend: "e2b", ...opts };
+}
+
+/**
+ * 自定义沙箱后端:`create` 直接返回一个实现 `Sandbox` 接口的实例,不需要 fasteval 内置支持
+ * 这个后端名字。用于接入 docker/vercel/e2b 之外的运行环境(自建 VM、Modal、Fly 等)。
+ */
+export function defineSandbox(def: {
+  name: string;
+  create: CustomSandboxSpec["create"];
+  recommendedConcurrency?: number;
+}): CustomSandboxSpec {
+  if (!def.name) throw new Error(t("define.sandboxNameRequired"));
+  if (typeof def.create !== "function") throw new Error(t("define.sandboxCreateRequired"));
+  return { backend: def.name, create: def.create, recommendedConcurrency: def.recommendedConcurrency };
 }

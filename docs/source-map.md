@@ -9,8 +9,10 @@
 | 设计文档里的概念 | 实现文件 |
 |---|---|
 | 核心类型契约(StreamEvent / Agent / Sandbox / TestContext / 评分 …) | `src/types.ts` |
-| 公开导出(`fasteval`) | `src/index.ts` |
-| `defineEval` / `defineConfig` / `defineExperiment` / `defineAgent` / `defineSandboxAgent` | `src/define.ts` |
+| 公开导出(`fasteval`,eval 作者用的核心面) | `src/index.ts` |
+| 公开导出(`fasteval/adapter`,Agent/Adapter) | `src/agents/index.ts` |
+| 公开导出(`fasteval/sandbox`,Sandbox) | `src/sandbox/index.ts` |
+| `defineEval` / `defineConfig` / `defineExperiment` / `defineAgent` / `defineSandboxAgent` / `defineSandbox` | `src/define.ts` |
 | `requireEnv` / 工具 | `src/util.ts` |
 
 ## Agents 与 Adapters([adapters/README.md](adapters/README.md))
@@ -39,6 +41,7 @@
 | `Sandbox` 统一接口 | `src/types.ts`(`Sandbox`) |
 | Docker 后端(dockerode,node:24-slim,非 root,tar 上传,流解复用) | `src/sandbox/docker.ts` |
 | 后端选择(`auto` / `docker` / `vercel`,核心不按名字分支) | `src/sandbox/resolve.ts` |
+| `defineSandbox`(自定义后端逃生舱:`create()` 直接产出 `Sandbox` 实例,`resolve.ts` 里 `r.create` 优先于内置 backend switch) | `src/define.ts`、`src/sandbox/resolve.ts`(`createBackend`) |
 | 沙箱编排固定段(git 基线 / 采 diff;起始文件上传已改为 `test()` 里手工调用,不再是固定段) | `src/runner/sandbox-prep.ts` |
 
 ## Scoring([scoring.md](scoring.md))

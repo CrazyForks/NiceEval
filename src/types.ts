@@ -402,7 +402,18 @@ export interface E2BSandboxSpec {
   /** 仅作记录;e2b 的 node 版本由模板决定,不在创建时选。 */
   readonly runtime?: SandboxRuntime;
 }
-export type SandboxSpec = DockerSandboxSpec | VercelSandboxSpec | E2BSandboxSpec;
+/**
+ * 用户自定义后端:`create` 直接产出一个 `Sandbox` 实例,不经 resolve.ts 的内置 backend switch。
+ * 用 `defineSandbox()` 构造(见 src/define.ts)。`backend` 只用于展示 / 日志,不参与分发。
+ */
+export interface CustomSandboxSpec {
+  readonly backend: string;
+  readonly runtime?: SandboxRuntime;
+  readonly recommendedConcurrency?: number;
+  readonly create: (opts: { timeout?: number; runtime?: SandboxRuntime }) => Promise<Sandbox>;
+}
+
+export type SandboxSpec = DockerSandboxSpec | VercelSandboxSpec | E2BSandboxSpec | CustomSandboxSpec;
 
 /** config / experiment 的 `sandbox` 字段:后端名(字符串)或带参数的 spec 数据结构。 */
 export type SandboxOption = SandboxBackend | SandboxSpec;

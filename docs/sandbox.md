@@ -84,10 +84,10 @@ export function resolveBackend(opts): SandboxBackend {
 
 ## Sandbox 作为数据结构(带参数)
 
-后端名只是个字符串,带不了参数。和 [agent](adapters/README.md) 一样,sandbox 也能用**数据结构**定义,于是每个后端可带自己的参数。工厂函数(从 `fasteval` 导出)产出 spec,放进 `experiment.sandbox`;字符串后端名仍然兼容。
+后端名只是个字符串,带不了参数。和 [agent](adapters/README.md) 一样,sandbox 也能用**数据结构**定义,于是每个后端可带自己的参数。工厂函数(从 `fasteval/sandbox` 导出)产出 spec,放进 `experiment.sandbox`;字符串后端名仍然兼容。
 
 ```typescript
-import { dockerSandbox, vercelSandbox, e2bSandbox } from "fasteval";
+import { dockerSandbox, vercelSandbox, e2bSandbox } from "fasteval/sandbox";
 
 dockerSandbox({ image: "fasteval-agents:node24" })  // docker:指定镜像
 vercelSandbox({ snapshotId: "snap_xxx" })            // vercel:从快照起
@@ -138,9 +138,25 @@ await sandbox.runCommand("npm", ["install"], { cwd: "/workspace" });
 
 ## 再接一个后端
 
-新后端只需:实现 `Sandbox` 接口的一个类(`create()` + run/read/write/stop/up-down-load),在 `sandbox/resolve.ts` 的 `resolveSandbox` / `createBackend` 加一个 `case`,需要带参数就在 `types.ts` 加一个 `XxxSandboxSpec` 并在 `define.ts` 加工厂。
+两条路,取决于新后端是不是打算贡献回 fasteval:
 
-**核心定义接口,后端各自实现**,新后端不改核心其余部分。fasteval 的沙箱抽象刻意保持小(只需 run/read/write/stop),让接一个新后端的成本最低。
+- **贡献进 fasteval**(像 docker/vercel/e2b 那样内置):实现 `Sandbox` 接口的一个类(`create()` + run/read/write/stop/up-down-load),在 `sandbox/resolve.ts` 的 `resolveSandbox` / `createBackend` 加一个 `case`,需要带参数就在 `types.ts` 加一个 `XxxSandboxSpec` 并在 `define.ts` 加工厂。
+- **只在自己项目里用,不改 fasteval**:用 [`defineSandbox`](adapters/README.md)(`fasteval/sandbox` 导出)——传 `create()` 直接产出一个实现 `Sandbox` 接口的实例,`resolve.ts` 认到 `create` 就直接调用,跳过内置 backend switch,不需要 fasteval 认识这个后端的名字:
+
+```typescript
+import { defineSandbox } from "fasteval/sandbox";
+
+export default defineSandbox({
+  name: "modal",                          // 只用于展示 / 日志,不参与分发
+  recommendedConcurrency: 8,               // 可选;省略默认 5
+  create: async ({ timeout, runtime }) => {
+    // 返回一个实现 Sandbox 接口(run/read/write/stop/...)的实例
+    return new MyModalSandbox({ timeout, runtime });
+  },
+});
+```
+
+**核心定义接口,后端各自实现**,两条路都不改核心其余部分。fasteval 的沙箱抽象刻意保持小(只需 run/read/write/stop),让接一个新后端的成本最低。
 
 ## 沙箱在生命周期里的位置
 

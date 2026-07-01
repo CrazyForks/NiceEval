@@ -85,7 +85,7 @@ First, create the agent adapter that wraps your function:
 
 ```ts
 // agents/classify.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { classifyIntent } from "../src/agent.js"; // your own code
 
 export default defineAgent({
@@ -130,7 +130,7 @@ Define the remote agent adapter:
 
 ```ts
 // agents/weather-bot.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 export default defineAgent({
   name: "weather-bot",

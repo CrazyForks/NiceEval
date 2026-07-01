@@ -46,6 +46,8 @@ export const zhCN = {
   "define.experimentAgentRequired": "defineExperiment 需要 agent。",
   "define.experimentIdRejected": "defineExperiment 不接受 id —— id 由文件路径推导。",
   "define.sandboxAgentNameRequired": "defineSandboxAgent 需要 name。",
+  "define.sandboxCreateRequired": "defineSandbox 需要一个 create() 函数。",
+  "define.sandboxNameRequired": "defineSandbox 需要 name。",
   "docker.commandTimeout": "Command timed out after {{timeoutMs}}ms",
   "docker.containerNotInitialized": "Container not initialized",
   "docker.imagePullDone": "Docker image ready: {{image}}",

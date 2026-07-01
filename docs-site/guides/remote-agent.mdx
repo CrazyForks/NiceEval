@@ -22,7 +22,7 @@ Every system under test in fasteval is an **agent** — a named object that rece
 `defineAgent` accepts a plain object with three fields. The `send` function is the only place you need to write any logic.
 
 ```ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 defineAgent({
   name: string;                          // used for reports and grouping
@@ -83,7 +83,7 @@ Use an in-process adapter when your agent is a TypeScript function you can impor
 
 ```ts
 // agents/classify.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 import { classifyIntent } from "../src/agent.js";
 
 export default defineAgent({
@@ -115,7 +115,7 @@ When your agent lives behind an HTTP endpoint, `send` is just a `fetch`. The URL
 
 ```ts
 // agents/weather-bot.ts
-import { defineAgent } from "fasteval";
+import { defineAgent } from "fasteval/adapter";
 
 export default defineAgent({
   name: "weather-bot",

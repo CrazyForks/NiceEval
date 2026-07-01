@@ -31,7 +31,7 @@ docker build -t fasteval-agents:node24 .
 用(eval / experiment 里):
 
 ```ts
-import { dockerSandbox } from "fasteval";
+import { dockerSandbox } from "fasteval/sandbox";
 export default defineExperiment({
   sandbox: dockerSandbox({ image: "fasteval-agents:node24" }),
   // …
@@ -60,7 +60,7 @@ e2b template create fasteval-agents \
 用:
 
 ```ts
-import { e2bSandbox } from "fasteval";
+import { e2bSandbox } from "fasteval/sandbox";
 export default defineExperiment({
   sandbox: e2bSandbox({ template: "fasteval-agents" }),
   // …
@@ -83,7 +83,7 @@ node --import tsx sandbox/vercel/build-vercel-snapshot.mts
 用:
 
 ```ts
-import { vercelSandbox } from "fasteval";
+import { vercelSandbox } from "fasteval/sandbox";
 export default defineExperiment({
   sandbox: vercelSandbox({ snapshotId: "snap_xxx" }),
   // …

@@ -18,7 +18,8 @@ experiments/  # 怎么跑 —— 运行矩阵:agent × model × runs over 选定
 ## `defineExperiment` 的形状
 
 ```typescript
-import { defineExperiment, type Agent } from "fasteval";
+import { defineExperiment } from "fasteval";
+import type { Agent } from "fasteval/adapter";
 
 export default defineExperiment({
   description?: string;                       // 人读
