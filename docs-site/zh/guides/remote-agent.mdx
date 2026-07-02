@@ -1,12 +1,12 @@
 ---
-title: "把远程或进程内 agent 接到 niceeval"
-sidebarTitle: "远程 Agent"
-description: "用 defineAgent 包装你的 AI Agent 为 niceeval agent，把响应映射到标准事件流，并按名字注册。"
+title: "把远程或进程内 agent 接到 NiceEval"
+sidebarTitle: "远程接入"
+description: "用 defineAgent 包装你的 AI Agent 为 NiceEval agent，把响应映射到标准事件流，并按名字注册。"
 ---
 
 `defineAgent` 用于连接不需要 sandbox 的 AI agent：本地 runtime、已部署 agent、WebSocket agent 或任何自定义框架。
 
-不确定该做到哪一档（事件流、多轮、HITL、tracing）？先读[渐进式接入你的 agent](/zh/guides/connect-your-agent)——从 10 行最小接入开始逐档往上，每档解锁一组具体断言。
+不确定该做到哪些能力（事件流、会话续接、HITL、tracing）？先读[接入你的 agent](/zh/guides/connect-your-agent)——从 10 行最小接入开始，按需补能力位，每个能力对应一组具体断言。
 
 ## 何时使用 `defineAgent`
 

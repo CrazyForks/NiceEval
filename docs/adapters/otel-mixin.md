@@ -91,10 +91,13 @@ events: otelEvents({
 
 | 方言 | 识别信号 | action.called/result | message | usage |
 |---|---|---|---|---|
-| AI SDK `ai.*` | `operation.name: "ai.toolCall"` 等 | `ai.toolCall.name/.id/.args/.result` | `ai.response.text` | `gen_ai.usage.*`(doGenerate span) |
-| gen_ai semconv | `gen_ai.operation.name: "execute_tool"` | `gen_ai.tool.name/.call.id/.call.arguments/.call.result` | `gen_ai.output.messages`(opt-in) | `gen_ai.usage.*` |
+| AI SDK `ai.*`(legacy `experimental_telemetry`) | `operation.name: "ai.toolCall"` 等 | `ai.toolCall.name/.id/.args/.result` | `ai.response.text` | `gen_ai.usage.*`(doGenerate span) |
+| gen_ai semconv | `gen_ai.operation.name: "execute_tool"` | `gen_ai.tool.name/.call.id/.call.arguments/.call.result` | `gen_ai.output.messages`(opt-in;AI SDK 新模式 / OpenClaw 默认可开) | `gen_ai.usage.*` |
 | OpenInference | `openinference.span.kind: "TOOL"/"LLM"` | `tool.name` + `input.value`/`output.value`、`tool_call.id` | `llm.output_messages` | `llm.token_count.*` |
 | OpenLLMetry | `gen_ai.prompt.{i}.*` 索引式属性 | `…tool_calls.{j}.id/.name/.arguments` | `gen_ai.completion.{i}.content` | `gen_ai.usage.*` |
+| LangSmith 混合(`LANGSMITH_OTEL_ENABLED` 路线) | `langsmith.span.kind: "llm"/"tool"/"chain"` | span 名 = run name(节点/类名),工具字段混 `gen_ai.*` 与 `langsmith.*` | 默认全采 | `gen_ai.usage.*` |
+
+方言表有一条趋好的变化(2026-07 调研,见 [targets.md](targets.md)):AI SDK 官方新模式 `@ai-sdk/otel` 与 OpenClaw 已原生产 GenAI semconv,直接命中 gen_ai 行——说标准话的被测对象越多,方言表越薄。
 
 派生规则:
 

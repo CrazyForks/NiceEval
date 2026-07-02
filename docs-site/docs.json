@@ -23,6 +23,10 @@
       "href": "https://github.com/CorrectRoadH/niceeval"
     }
   },
+  "redirects": [
+    { "source": "/concepts/scoring", "destination": "/concepts/assert" },
+    { "source": "/zh/concepts/scoring", "destination": "/zh/concepts/assert" }
+  ],
   "navigation": {
     "languages": [
       {
@@ -54,7 +58,9 @@
                   "concepts/overview",
                   "concepts/evals",
                   "concepts/agents-adapters",
-                  "concepts/scoring"
+                  "concepts/drive",
+                  "concepts/assert",
+                  "concepts/judge"
                 ]
               },
               {
@@ -135,7 +141,9 @@
                   "zh/concepts/overview",
                   "zh/concepts/evals",
                   "zh/concepts/agents-adapters",
-                  "zh/concepts/scoring"
+                  "zh/concepts/drive",
+                  "zh/concepts/assert",
+                  "zh/concepts/judge"
                 ]
               },
               {
@@ -151,6 +159,7 @@
                 "group": "连接 Agent",
                 "pages": [
                   "zh/guides/connect-your-agent",
+                  "zh/guides/connect-otel",
                   "zh/guides/remote-agent",
                   "zh/guides/sandbox-agent",
                   "zh/guides/sandbox-backends"
@@ -175,6 +184,8 @@
                 "pages": [
                   "zh/reference/define-eval",
                   "zh/reference/define-agent",
+                  "zh/reference/events",
+                  "zh/reference/capabilities",
                   "zh/reference/builtin-agents",
                   "zh/reference/define-config",
                   "zh/reference/expect"

@@ -79,7 +79,7 @@ npx niceeval exp local weather/brooklyn # runs exactly this one eval
     Once your `test(t)` function completes, the core evaluates every registered assertion — value assertions (`t.check`, `t.require`), scoped assertions (`t.succeeded()`, `t.calledTool()`, etc.), and LLM-as-judge calls — against the collected turn data.
   </Step>
   <Step title="Outcome">
-    All assertion results are folded into a single outcome by `outcome.ts`. The rules are deterministic and described in full in the [Scoring](/concepts/scoring) page.
+    All assertion results are folded into a single outcome by `outcome.ts`. The rules are deterministic and described in full in the [Assert](/concepts/assert) page.
   </Step>
   <Step title="Report">
     The outcome and all assertion details stream to the console in real time. When the full run finishes, reporters write structured output (JUnit, JSON, etc.) and the `.niceeval/<run>/` directory is populated with artifacts: `summary.json` plus per-attempt `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json` files.
@@ -122,7 +122,7 @@ t.check(t.reply, similarity(expected).gate());    // promote similarity to gate
 t.judge.autoevals.factuality(reference).atLeast(0.8);       // soft with explicit threshold
 ```
 
-Full details on all matchers, scoped assertions, LLM-as-judge, and the outcome folding rules are on the [Scoring](/concepts/scoring) page.
+Full details on all matchers and scoped assertions are on the [Assert](/concepts/assert) page; LLM-as-judge has its own [Judge](/concepts/judge) page.
 
 ## The `*.eval.ts` naming convention
 
@@ -166,5 +166,7 @@ Dataset fan-out is the fastest way to go from a spreadsheet of expected inputs a
 ## Related pages
 
 - [Agents & Adapters](/concepts/agents-adapters) — how the `agent` field connects your eval to a subject under test.
-- [Scoring](/concepts/scoring) — the complete assertion vocabulary and outcome rules.
+- [Drive](/concepts/drive) — `t.send()`, sessions, and HITL: how a `test(t)` function produces `Turn` data.
+- [Assert](/concepts/assert) — the complete assertion vocabulary and outcome rules.
+- [Judge](/concepts/judge) — LLM-as-judge, for open-ended quality.
 - [Overview](/concepts/overview) — the full architecture diagram and layer responsibilities.

@@ -1,10 +1,10 @@
 ---
-title: "niceeval agents 与 adapters: 连接任意 AI 系统"
-sidebarTitle: "Agents & Adapters"
-description: "了解 niceeval 如何通过命名 agent adapters 连接任意 AI。direct agent 连接你的 runtime，sandbox agent 在隔离环境中运行 CLI。"
+title: "NiceEval agents 与 adapters：连接任意 AI 系统"
+sidebarTitle: "Agent 与 Adapter"
+description: "了解 NiceEval 如何通过命名 agent adapters 连接任意 AI。direct agent 连接你的 runtime，sandbox agent 在隔离环境中运行 CLI。"
 ---
 
-在 niceeval 里，`Agent` 是 core 调用的抽象，`Adapter` 是具体实现。你通过名字选择 agent，adapter 决定怎么调用被测系统、怎么把输出转成标准事件流。
+在 NiceEval 里，`Agent` 是 core 调用的抽象，`Adapter` 是具体实现。你通过名字选择 agent，adapter 决定怎么调用被测系统、怎么把输出转成标准事件流。
 
 ## 两个词，一个边界
 
@@ -52,7 +52,7 @@ capabilities: {
 
 ## 标准事件流
 
-niceeval 用标准 `StreamEvent[]` 表示 agent 行为，包括文本输出、工具调用、子 agent、命令和错误。每个 adapter 可以从自己的原始 transcript 转换到这个 canonical stream。
+NiceEval 用标准 `StreamEvent[]` 表示 agent 行为，包括文本输出、工具调用、子 agent、命令和错误。每个 adapter 可以从自己的原始 transcript 转换到这个 canonical stream。
 
 <Tip>
   如果你接的是已有 agent 应用，优先在 adapter 里写一个小 mapper，把响应转换成标准 events。不要让 eval 文件直接理解私有格式。
@@ -104,14 +104,15 @@ export default defineSandboxAgent({
 
 ## 内置 agents
 
-niceeval 内置 `claude-code`、`codex` 和 `bub` 的 sandbox adapters。自定义 adapter 用 `defineAgent` / `defineSandboxAgent` 创建,再从 experiment 文件引用。三者具体做到哪一档能力（事件流、多轮会话、tracing…）见 [内置 Agent 分档参考](/zh/reference/builtin-agents)。
+NiceEval 内置 `claude-code`、`codex` 和 `bub` 的 sandbox adapters。自定义 adapter 用 `defineAgent` / `defineSandboxAgent` 创建，再从 experiment 文件引用。三者具体做到哪些能力（事件流、会话续接、tracing…）见 [内置 Agent 能力参考](/zh/reference/builtin-agents)。
 
 ## Agent × Sandbox 正交
 
-`experiment.agent` 选择谁来执行任务，`experiment.sandbox`（用 `niceeval/sandbox` 的 `dockerSandbox()` / `vercelSandbox()` / `e2bSandbox()` 构造）选择在哪里执行任务；`niceeval.config.ts` 里的 `sandbox` 是项目级兜底（`exp.sandbox ?? config.sandbox`）。一个 sandbox agent 可以运行在 Docker，也可以运行在云端 sandbox。没有对应的 CLI flag，也没有自动探测——sandbox agent 的 experiment（或作为兜底的 config）必须显式设置 `sandbox`，否则 niceeval 在创建 sandbox 时会直接报错。
+`experiment.agent` 选择谁来执行任务，`experiment.sandbox`（用 `niceeval/sandbox` 的 `dockerSandbox()` / `vercelSandbox()` / `e2bSandbox()` 构造）选择在哪里执行任务；`niceeval.config.ts` 里的 `sandbox` 是项目级兜底（`exp.sandbox ?? config.sandbox`）。一个 sandbox agent 可以运行在 Docker，也可以运行在云端 sandbox。没有对应的 CLI flag，也没有自动探测——sandbox agent 的 experiment（或作为兜底的 config）必须显式设置 `sandbox`，否则 NiceEval 在创建 sandbox 时会直接报错。
 
 ## 相关阅读
 
-- [评分](/zh/concepts/scoring) — 标准事件流如何驱动作用域断言。
+- [Drive](/zh/concepts/drive) — `t.send()`、`t.newSession()` 与 HITL：能力位如何决定你能对 `Turn` 做什么。
+- [Assert](/zh/concepts/assert) — 标准事件流如何驱动作用域断言。
 - [架构概览](/zh/concepts/overview) — 四层架构和边界。
 - [远程 Agent](/zh/guides/remote-agent) — 编写 direct agent adapter。

@@ -1,14 +1,14 @@
 ---
-title: "在 GitHub Actions 和 CI 中运行 niceeval"
+title: "在 GitHub Actions 和 CI 中运行 NiceEval"
 sidebarTitle: "CI 集成"
-description: "把 niceeval 接入 GitHub Actions 或任意 CI。eval 失败时非零退出，输出 JUnit XML，并通过缓存加速重复运行。"
+description: "把 NiceEval 接入 GitHub Actions 或任意 CI。eval 失败时非零退出，输出 JUnit XML，并通过缓存加速重复运行。"
 ---
 
 Evals 应该和测试一样进入 CI。它们能在 PR 阶段发现 agent 行为回退，也能在 nightly job 中跟踪模型、成本和延迟变化。
 
 ## 退出码
 
-默认情况下，只要存在失败的 gate，niceeval 将以非零状态码退出。CI 中通常使用 `--strict`，让失败更明确。
+默认情况下，只要存在失败的 gate，NiceEval 将以非零状态码退出。CI 中通常使用 `--strict`，让失败更明确。
 
 ```bash
 npx niceeval exp ci --strict

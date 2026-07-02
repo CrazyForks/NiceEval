@@ -1,6 +1,6 @@
 ---
-title: "niceeval 中的 eval: 生命周期、outcome 与文件"
-sidebarTitle: "Evals"
+title: "NiceEval 中的 eval：生命周期、outcome 与文件"
+sidebarTitle: "评测用例"
 description: "eval 是一个测试用例：描述、agent 引用和 test 函数。了解 eval 如何被发现、调度、评分和报告。"
 ---
 
@@ -32,7 +32,7 @@ export default defineEval({
 | `test(t)` | 交互和断言逻辑 |
 
 <Note>
-  不要手写 `id` 或 `name`。niceeval 从文件路径推导 ID。
+  不要手写 `id` 或 `name`。NiceEval 从文件路径推导 ID。
 </Note>
 
 ## 路径即身份
@@ -59,7 +59,7 @@ npx niceeval exp local weather/brooklyn
     `t.send()` 调用被选中的 agent adapter，并得到标准 `Turn`。
   </Step>
   <Step title="Scoring">
-    niceeval 收集值断言、作用域断言、judge 分数和测试结果。
+    NiceEval 收集值断言、作用域断言、judge 分数和测试结果。
   </Step>
   <Step title="Outcome">
     所有断言结果折叠成一个最终 outcome。
@@ -88,7 +88,7 @@ npx niceeval exp local weather/brooklyn
 
 ## gate 与 soft
 
-`gate` 是硬门槛，失败会让 eval 失败；`soft` 参与打分，但不一定让 eval 失败。完整规则见 [评分](/zh/concepts/scoring)。
+`gate` 是硬门槛，失败会让 eval 失败；`soft` 参与打分，但不一定让 eval 失败。完整规则见 [Assert](/zh/concepts/assert)。
 
 ## `*.eval.ts` 约定
 

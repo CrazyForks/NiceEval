@@ -1,7 +1,7 @@
 ---
-title: "niceeval runner 如何调度和执行 eval"
-sidebarTitle: "Runner"
-description: "niceeval runner 发现 eval，用有界并发调度，缓存结果，重试脆弱基础设施，并执行预算保护。"
+title: "NiceEval runner 如何调度和执行 eval"
+sidebarTitle: "运行器"
+description: "NiceEval runner 发现 eval，用有界并发调度，缓存结果，重试脆弱基础设施，并执行预算保护。"
 ---
 
 Runner 是把 eval 文件变成一次实际运行的执行引擎。它负责发现、过滤、调度、缓存、attempt、reporters 和 artifact 输出。
@@ -49,7 +49,7 @@ npx niceeval exp local fixtures/button --runs 5 --early-exit
 
 ## 缓存
 
-niceeval 可以根据输入、配置和相关文件 fingerprint 跳过已通过结果。缓存适合加速迭代，但如果你在调试非确定性行为，应该明确关闭或清理相关缓存。
+NiceEval 可以根据输入、配置和相关文件 fingerprint 跳过已通过结果。缓存适合加速迭代，但如果你在调试非确定性行为，应该明确关闭或清理相关缓存。
 
 ## 超时和预算
 

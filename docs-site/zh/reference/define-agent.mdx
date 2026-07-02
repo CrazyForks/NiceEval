@@ -1,10 +1,10 @@
 ---
-title: "defineAgent 和 defineSandboxAgent: adapter 参考"
+title: "defineAgent 和 defineSandboxAgent：adapter 参考"
 sidebarTitle: "defineAgent"
 description: "defineAgent 和 defineSandboxAgent 参考：AgentContext、Sandbox 接口、StreamEvent 类型和共享 sandbox helpers。"
 ---
 
-每个 niceeval agent 都是一个 adapter：一段知道如何驱动特定 backend，并把输出转成标准事件流的代码。runner 只调用 `agent.send(input, ctx)`。
+每个 NiceEval agent 都是一个 adapter：一段知道如何驱动特定 backend，并把输出转成标准事件流的代码。runner 只调用 `agent.send(input, ctx)`。
 
 ## `defineAgent`
 

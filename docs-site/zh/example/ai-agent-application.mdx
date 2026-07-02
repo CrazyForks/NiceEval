@@ -4,18 +4,18 @@ sidebarTitle: "评估 AI Agent 应用"
 description: ""
 ---
 
-这个例子演示如何用 niceeval 评估你自己的 AI Agent 应用。
+这个例子演示如何用 NiceEval 评估你自己的 AI Agent 应用。
 
 查看示例代码：https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/ai-sdk
 
-被测对象是一个用 AI SDK tool loop 实现的【普通 AI 助手】应用：会发消息、调用工具（查天气 / 算数 / 搜索）、理解图片，并用 langfuse 做自己的可观测。该应用在测试时不需要 sandbox —— niceeval 通过 direct adapter 连接它。
+被测对象是一个用 AI SDK tool loop 实现的【普通 AI 助手】应用：会发消息、调用工具（查天气 / 算数 / 搜索）、理解图片，并用 langfuse 做自己的可观测。该应用在测试时不需要 sandbox —— NiceEval 通过 direct adapter 连接它。
 
 # 目录结构
 
 ```text
 examples/zh/ai-sdk/
   src/                     # 被测 web agent(POST /api/turn,内含工具 + 图片理解)
-  adapter/adapter.ts       # niceeval adapter:工厂 webAgent({ baseUrl })
+  adapter/adapter.ts       # NiceEval adapter：工厂 webAgent({ baseUrl })
   evals/                   # 会话型 eval
     weather-tool.eval.ts        # 问天气 → 调 get_weather
     image-understanding.eval.ts # 图片理解
@@ -28,7 +28,7 @@ examples/zh/ai-sdk/
 
 # 定义适配器
 
-adapter 告诉 niceeval 怎么给 AI Agent 发请求、怎么把响应读成标准事件流。它是个工厂函数：`baseUrl`（被测 agent 跑在哪）由外面传进来，adapter 自己不写死、不读 env。
+adapter 告诉 NiceEval 怎么给 AI Agent 发请求、怎么把响应读成标准事件流。它是个工厂函数：`baseUrl`（被测 agent 跑在哪）由外面传进来，adapter 自己不写死、不读 env。
 
 ```ts
 // adapter/adapter.ts
@@ -51,7 +51,7 @@ export function webAgent(opts: { baseUrl: string }): Agent {
           message: input.text,
           model: ctx.model,
           files: input.files,
-          otelEndpoint: ctx.telemetry?.endpoint, // 双可观测:让 app 把本轮 span 也发回 niceeval
+          otelEndpoint: ctx.telemetry?.endpoint, // 双可观测：让 app 把本轮 span 也发回 NiceEval
         }),
         signal: ctx.signal,
       });

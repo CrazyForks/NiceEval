@@ -1,42 +1,34 @@
 ---
-title: "渐进式接入你的 agent"
-sidebarTitle: "接入你的 agent"
-description: "把任何 AI agent 接进 niceeval：从 10 行的最小接入开始，一档一档往上爬，每一档解锁一组具体的断言。"
+title: "接入你的 Agent"
+sidebarTitle: "接入 Agent"
+description: "写一个 send 函数、一个 experiment 文件、一条 eval，跑通第一次评测；再按需补事件流、多轮、HITL 和 tracing。"
 ---
 
-把一个被测对象接进 niceeval，本质上只是实现一个 `send` 函数：**接一次输入，驱动你的 agent，交回一轮结果**。最小接入十几行就能跑。
+<Note>
+🧪 **设计预览**：本页按 capabilities-by-construction 提案的目标态书写（能力默认不承诺、由实现证明），对应代码尚未发布。
+</Note>
 
-关键在于：接入不是全有或全无。niceeval 把 adapter 能力拆成几档递进——**每爬一档，解锁的是一组具体的 `t` 函数和断言，而不是笼统的"更多能力"**。先用 T0 跑通第一条 eval，需要更细的信号时再补一档，已经写好的 eval 不用改。
+把一个被测对象接进 NiceEval 要写三个文件：**agent 文件**（一个 `send` 函数：接一次输入，驱动你的 agent，返回这一轮结果）、**experiment 文件**（指定评谁、怎么跑）、**eval 文件**（断言）。第一次跑通只需要十几分钟，之后事件流、多轮、HITL、tracing 都是可选的增量，加哪个就解锁哪组断言，已写的 eval 不用改。
 
 ## 先选路：你的被测对象是什么？
 
 <CardGroup cols={3}>
   <Card title="AI SDK 应用" icon="bolt" href="/zh/reference/builtin-agents">
-    用 Vercel AI SDK（`generateText` 工具循环）写的应用：直接用内建工厂 `aiSdkAgent`，零适配拿到全档（T0 + T1 + T2 + HITL，tracing 可选）。不用读本文。
+    用 Vercel AI SDK（`generateText` 工具循环）写的应用：直接用内建工厂 `aiSdkAgent`，所有能力都已做好。不用读本文。
   </Card>
   <Card title="Coding agent CLI" icon="terminal" href="/zh/guides/sandbox-agent">
-    评 claude-code / codex / bub 这类改文件的 coding agent：用内置 sandbox agent，全档 + workspace + sandbox 已经做好。
+    评 claude-code / codex / bub 这类改文件的 coding agent：用内置 sandbox agent。
   </Card>
   <Card title="其它 AI Agent" icon="plug">
-    自研 agent loop、LangGraph / OpenAI Agents SDK 应用、已部署 agent：**本文的路**——`defineAgent` 从 T0 起步，逐档往上。
+    自研 agent loop、LangGraph / OpenAI Agents SDK 应用、已部署 agent：本文的路。
   </Card>
 </CardGroup>
 
-## 档位地图：接到哪，解锁什么
+## 第一步：跑通最小接入
 
-| 档位 | 你要做什么 | 解锁的断言 / API |
-|---|---|---|
-| **T0 · 收发消息** | 实现 `send`，返回 `{ data, events, status }` | `t.send()`、`t.reply`、`turn.outputEquals` / `outputMatches`、`t.succeeded()`、judge 评分 |
-| **T1 · 事件流** | 把"调了什么工具"映射成标准事件 | `calledTool` / `toolOrder` / `notCalledTool` / `maxToolCalls` / `noFailedActions` / `event` / `eventOrder` 等整套作用域断言 |
-| **T2 · 多轮会话** | 处理 `ctx.session.isNew / id` | `t.send()` 多次、跨轮记忆断言、`t.newSession()` 隔离 |
-| **HITL · 人工介入** | 停轮时返回 `waiting` + `input.requested`，resume 交回 | `t.parked()`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()` |
-| **T3 · tracing** | 把 span 按 OTLP 发到 niceeval 给的端点 | `niceeval view` 的调用瀑布图、跨 agent 时延对比 |
+假设项目已经 `npx niceeval init` 过（有 `niceeval.config.ts` 和 `evals/` 目录）。
 
-下面按档位一步一步来。每一步结尾都有一条能跑的 eval——**接到哪一档，就能写到哪一类断言**。
-
-## T0：十几行接上，先跑起来
-
-只实现 `send`。你的 agent 说了什么放一条 `message` 事件，结构化输出放 `data`：
+**1. 写 agent 文件。** 你的 agent 说了什么放一条 `message` 事件，结构化输出放 `data`：
 
 ```ts
 // agents/my-bot.ts
@@ -44,8 +36,6 @@ import { defineAgent } from "niceeval/adapter";
 
 export default defineAgent({
   name: "my-bot",
-  // 诚实声明:还没做到的能力显式关掉(见下方 Warning)
-  capabilities: { conversation: false, toolObservability: false },
   async send(input, ctx) {
     const r = await fetch(`${process.env.MY_BOT_URL}/chat`, {
       method: "POST",
@@ -63,7 +53,23 @@ export default defineAgent({
 });
 ```
 
-如果你的 agent runtime 就在当前代码库里，`fetch` 也可以换成直接调用。这一档就能写文本与结构化断言，judge 评分也已可用：
+agent runtime 就在当前代码库里的话，`fetch` 换成直接调用即可。
+
+**2. 注册进一个 experiment。** experiment 文件回答"评谁、跑几次"，agent 直接 import：
+
+```ts
+// experiments/my-bot.ts
+import { defineExperiment } from "niceeval";
+import myBot from "../agents/my-bot.ts";
+
+export default defineExperiment({
+  description: "my-bot 基线",
+  agent: myBot,
+  runs: 1,
+});
+```
+
+**3. 写第一条 eval，然后跑：**
 
 ```ts
 // evals/refund-policy.eval.ts
@@ -83,48 +89,29 @@ export default defineEval({
 });
 ```
 
-<Warning>
-`defineAgent` 的能力位默认开着 `conversation` 和 `toolObservability`。**做不到就显式关掉**：声明了 `toolObservability` 但事件不完整时，`notCalledTool` / `maxToolCalls` 这类负断言会**静默通过**——比断言失败更危险，因为没有任何报错。
-</Warning>
+```bash
+npx niceeval exp my-bot        # 跑这个 experiment 下的全部 eval
+npx niceeval exp my-bot refund # 只跑 ID 以 refund 开头的
+npx niceeval view              # 本地查看器里看结果
+```
 
-## T1：吐出事件流，解锁工具断言
+到这里接入已经完成：文本断言、结构化断言、judge 评分都能用。`t.send()` 也可以调多次——但在做第三步之前，第二轮不会记得第一轮说了什么，每次 send 是独立的一轮。
 
-T1 的活是把你的 agent"这一轮做了什么"翻成标准事件流 `StreamEvent[]`。核心是三种事件：
+<Note>
+注意这里**一个能力位都没写**：不声明 = 不承诺，此时只有基础断言可用，这是诚实的默认。后面每做到一个能力，要么由实现自动证明（用官方转换器、写 `tracing` 块），要么你验证过了亲手声明一行。哪些能自动、哪些要声明，见[能力位参考](/zh/reference/capabilities)。
+</Note>
+
+## 第二步：吐事件流，解锁工具断言
+
+把你的 agent"这一轮调了什么工具"翻成标准事件，工具断言就可用了。核心是三种事件（完整词汇见[事件流参考](/zh/reference/events)）：
 
 ```ts
-{ type: "message", role: "assistant", text: "..." }                       // 说了什么
+{ type: "message", role: "assistant", text: "..." }                        // 说了什么
 { type: "action.called", callId: "c1", name: "get_weather", input: {...} } // 调了什么
 { type: "action.result", callId: "c1", output: {...}, status: "completed" } // 结果如何
 ```
 
-如果你的 agent 返回里带工具调用记录，映射就是一段小循环：
-
-```ts
-function toStreamEvents(body: MyBotResponse): StreamEvent[] {
-  const events: StreamEvent[] = [];
-  for (const step of body.steps) {
-    if (step.type === "tool_call") {
-      events.push({ type: "action.called", callId: step.id, name: step.tool, input: step.args });
-      events.push({
-        type: "action.result",
-        callId: step.id,
-        output: step.result,
-        status: step.error ? "failed" : "completed",
-      });
-    }
-    if (step.type === "text") events.push({ type: "message", role: "assistant", text: step.text });
-  }
-  return events;
-}
-```
-
-映射时守三条纪律：
-
-1. **时序即语义**——事件按真实发生顺序排，`toolOrder` / `eventOrder` 靠子序匹配；
-2. **`callId` 配对**——每个 `action.called` 配一个同 `callId` 的 `action.result`，并发调用也不会错配；
-3. **完整覆盖**——声明 `toolObservability: true` 承诺的是"所有调用都在流里"，漏一半比不吐更糟。
-
-做到后打开能力位，整套作用域断言解锁：
+agent 返回里带工具调用记录的话，映射就是一段小循环（[示例](/zh/reference/events#一个完整的映射示例)）。要点三条：按真实顺序排、`callId` 配对、**全部**调用都在流里。前两条错了断言会失真；第三条做到并验证过之后，声明 `capabilities: { toolObservability: true }`——手工映射的完整性只有你知道，这是少数要亲手声明的能力（用 `fromAiSdk` 这类官方转换器则自动带证明，不用声明）。之后：
 
 ```ts
 export default defineEval({
@@ -133,35 +120,59 @@ export default defineEval({
     await t.send("北京今天多少度?");
     t.calledTool("get_weather", { input: { city: "北京" }, count: 1 });
     t.toolOrder(["get_weather"]);
-    t.notCalledTool("send_email");     // 负断言:从 T1 起才可信
+    t.notCalledTool("send_email");     // 负断言:有完整事件流才可信
     t.noFailedActions();
-    t.eventOrder(["action.called", "action.result", "message"]);
   },
 });
 ```
 
-每轮能拿到 token 用量的话顺手带上 `usage`（`{ inputTokens, outputTokens }`），`t.maxTokens()` / `t.maxCost()` 与成本报表就都有了。
+每轮能拿到 token 用量就顺手带上 `usage`（`{ inputTokens, outputTokens }`），`t.maxTokens()` / `t.maxCost()` 与成本报表就都有了。
 
-## T2：会话续接，解锁多轮
+## 第三步：`conversation`——让第二轮接得上第一轮
 
-T2 只有一条义务：**看 `ctx.session`**。`isNew === true` 开全新会话并把新 id 写回 `ctx.session.id`；`isNew === false` 且有 `id`，续接同一会话。你的 agent 有原生会话 id 就直接透传；没有就在 adapter 里自己存历史：
+`t.send()` 本来就能连调多次，问题是第二轮接不接得上第一轮的上下文。`conversation` 这个能力位管的就是这件事。实现的落点是 `ctx.session`，它只有两个字段：
+
+```ts
+interface AgentSession {
+  id?: string;             // 可写:adapter 回传,供下一轮续接
+  readonly isNew: boolean; // 这条会话线的第一轮为 true,之后为 false
+}
+```
+
+约定很短：`isNew === true` 时开新会话，把新 id 写回 `ctx.session.id`；`isNew === false` 时按 `ctx.session.id` 续接。具体怎么写，取决于你的 agent 接口把对话历史存在哪一边——分两种情况。
+
+**服务端存历史**（OpenAI Responses API 这类：请求只带新消息和上一轮的 id）。id 直接透传就行：
+
+```ts
+async send(input, ctx) {
+  const r = await callMyBot({
+    message: input.text,
+    previousResponseId: ctx.session.isNew ? undefined : ctx.session.id,
+  }, ctx.signal);
+  ctx.session.id = r.responseId;   // 写回,下一轮续接
+  return { status: "completed", data: r, events: toStreamEvents(r) };
+}
+```
+
+你的 agent 有原生会话 id（`--resume <id>`、`session_id` 参数）的，也是这个写法。
+
+**客户端带全量历史**（OpenAI Chat Completions 这类：服务端无状态，每次请求要发完整 messages）。历史由 adapter 自己存，拿 `ctx.session.id` 当 key：
 
 ```ts
 const sessions = new Map<string, MyMessage[]>();
 
 async send(input, ctx) {
-  const id = !ctx.session.isNew && ctx.session.id ? ctx.session.id : crypto.randomUUID();
-  ctx.session.id = id;
-  const history = sessions.get(id) ?? [];
+  if (ctx.session.isNew) ctx.session.id = crypto.randomUUID();
+  const history = sessions.get(ctx.session.id!) ?? [];
   history.push({ role: "user", content: input.text });
   const body = await callMyBot(history, ctx.signal);
   history.push(...body.newMessages);
-  sessions.set(id, history);
+  sessions.set(ctx.session.id!, history);
   return { status: "completed", data: body, events: toStreamEvents(body) };
 }
 ```
 
-声明 `conversation: true` 后，多轮与会话隔离断言解锁：
+两种写法对 eval 侧完全一样。声明 `conversation: true` 后，跨轮记忆与会话隔离断言可用：
 
 ```ts
 export default defineEval({
@@ -179,12 +190,24 @@ export default defineEval({
 ```
 
 <Warning>
-最危险的违约是**忽略 `isNew` 一律续接**：`t.newSession()` 造出的"独立会话"实际共享上下文，隔离断言全部失真且没有任何报错。写完 T2 先用上面这条 eval 验一下隔离。
+常见错误是忽略 `isNew` 一律续接：`t.newSession()` 造出的"新会话"实际共享上下文，隔离断言全部失真，而且不会报错。写完先用上面这条 eval 验一下隔离。
 </Warning>
 
-## HITL：停轮等人，解锁审批流断言
+## HITL 是什么，哪些 agent 不需要
 
-你的 agent 会停下来等人批准（部署确认、发邮件审批、工具权限）？在 T2 之上加两条行为：
+HITL（human-in-the-loop，人工介入）指 agent 在一轮执行中间停下来，等人给出输入再继续。最常见的是敏感操作前的审批——部署确认、发邮件、危险工具调用——也可能是向人索要缺失的信息。在 NiceEval 里，它表现为一轮 `send` 以 `status: "waiting"` 结束；eval 用 `t.respond()` 替人回答，agent 拿到回答后继续跑。
+
+不是每个 agent 都有这条路径。下面几种情况直接跳过 HITL，不用实现，也不用管 `waiting` 状态：
+
+- **每轮一口气跑完的 agent**：问答、检索、翻译这类单发即回的服务，执行中没有任何等人的环节；
+- **工具全部自动执行的 agent**：没有审批门，模型决定调就调。内置的 `claude-code` / `codex` / `bub` 在沙箱里就是这样跑的（跳过权限确认），所以它们都不做 HITL；
+- **审批发生在你的执行循环之外**：比如工单系统里人工复核 agent 的产出。那是另一个系统的流程，不经过 `send`，eval 评不到也不该评。
+
+要做 HITL 的判断标准只有一条：你的 agent 执行循环里存在"停下来等人、拿到回答再继续"的分支，而你想把这条分支（批准、拒绝）写进 eval。
+
+## 接 HITL：停轮等人，审批流断言可用
+
+在会话续接之上加两条行为：
 
 1. agent 停下时，`send` 返回 `status: "waiting"`，并且每个待回答的问题吐一条 `input.requested` 事件；
 2. 下一次 `send`（就是 `t.respond` 的回答，adapter 看到的只是一次带 resume 的普通 send）把人的回答交回 agent。
@@ -225,13 +248,12 @@ export default defineEval({
 
 人否决和工具故障是两回事：拒绝的调用把 `action.result` 的 `status` 置 `"rejected"`（而不是 `"failed"`），`noFailedActions()` 依然通过，`calledTool(..., { status: "rejected" })` 可精确断言。
 
-## T3：tracing，解锁调用瀑布图
+## tracing：调用瀑布图
 
-声明 `capabilities: { tracing: true }` 后，niceeval 每次运行会起一个本机 OTLP 接收器，把端点经 `ctx.telemetry` 交给你——你只要让 agent 把 span 发过去：
+先分岔：**你的应用已经接了 OpenTelemetry 吗？**
 
-- **应用已接 OpenTelemetry**（比如 AI SDK 的 `experimental_telemetry`、OpenLLMetry / OpenInference 自动埋点、LangSmith 的 OTel 导出）：把 exporter 的 endpoint 指到 `ctx.telemetry.endpoint` 即可，一行配置的事；
-- **子进程 / CLI 型**：把 `ctx.telemetry.env`（标准 `OTEL_*` 环境变量，ready-to-spread）注入子进程环境；
-- **手搓**：按 OTLP/JSON 直接 POST span 也行（参考仓库 `examples/zh/ai-sdk-v7/agent/otlp.ts`，几十行）。
+- **已经接了**（AI SDK telemetry、LangGraph、OpenLLMetry / OpenInference、自己埋的 gen_ai）：走[接入 OTel 应用](/zh/guides/connect-otel)——`events: otelEvents()` 一行，事件流和瀑布图都从 span 来，连上面第二步的手工映射都省了。
+- **没接，但想要瀑布图**：让 agent 把 span 发到 NiceEval 给的端点。声明 `capabilities: { tracing: true }` 后，每次运行会起一个本机 OTLP 接收器，端点经 `ctx.telemetry` 交给你：子进程 / CLI 型把 `ctx.telemetry.env`（标准 `OTEL_*` 环境变量，ready-to-spread）注入子进程环境；手搓按 OTLP/JSON 直接 POST 也行（参考仓库 `examples/zh/ai-sdk-v7/agent/otlp.ts`，几十行）。
 
 ```ts
 export default defineAgent({
@@ -248,13 +270,15 @@ export default defineAgent({
 
 跑完后 `npx niceeval view` 直接出瀑布图：每轮多久、模型调用和工具调用各占多少、谁套着谁——还能跨 agent / 跨模型叠着比。
 
-## 全档做完是什么体验
+## 参考实现
 
-内建的 `aiSdkAgent` 就是一个把五档全部做满的参考实现——仓库 [`examples/zh/ai-sdk-v7`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/ai-sdk-v7) 用六条 eval 逐档演示（结构化输出、事件流断言、多轮隔离、HITL 批准 / 拒绝、多模态、trace）。写自己的 adapter 时可以对着它逐档核对行为。
+内建的 `aiSdkAgent` 把上面所有能力全部做满——仓库 [`examples/zh/ai-sdk-v7`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/ai-sdk-v7) 用六条 eval 逐个演示（结构化输出、事件流断言、多轮隔离、HITL 批准 / 拒绝、多模态、trace）。写自己的 adapter 时可以对着它逐项核对行为。
 
 ## 相关阅读
 
-- [内置 Agent 分档](/zh/reference/builtin-agents) — 内置 adapter 各自做到哪一档。
-- [远程 Agent](/zh/guides/remote-agent) — `defineAgent` 的完整形状与注册方式。
-- [Sandbox Agent](/zh/guides/sandbox-agent) — coding agent 的沙箱接入。
-- [编写 eval](/zh/guides/authoring) — eval 侧的完整写法。
+- [接入 OTel 应用](/zh/guides/connect-otel) —— 已埋点应用的免映射路线。
+- [事件流参考](/zh/reference/events) —— 九种事件的字段与消费它们的断言。
+- [能力位参考](/zh/reference/capabilities) —— 每一位干什么、为什么是声明。
+- [内置 Agent 能力](/zh/reference/builtin-agents) —— 内置 adapter 各自做到了哪些能力。
+- [远程 Agent](/zh/guides/remote-agent) —— `defineAgent` 的完整参数。
+- [编写 eval](/zh/guides/authoring) —— eval 侧的完整写法。

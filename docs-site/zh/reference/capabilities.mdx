@@ -1,0 +1,104 @@
+---
+title: "能力位参考"
+sidebarTitle: "能力位"
+description: "NiceEval 怎么知道你的 adapter 做到了什么：大多数能力由实现自动证明，少数证明不了的才需要声明。"
+---
+
+<Note>
+🧪 **设计预览**：本页按 capabilities-by-construction 提案的目标态书写，对应代码尚未发布。
+</Note>
+
+能力（capabilities）回答一个问题：**你的 adapter 做到了什么**——决定哪些断言可信、runner 要为你准备什么服务。
+
+原则是：**能用实现证明的，不用你声明；只有证明不了的才要你写一行。** 大多数 adapter 一个能力位都不用碰。
+
+## 能力从哪来：一张判决表
+
+| 能力 | 怎么获得 | 你要写什么 |
+|---|---|---|
+| `sandbox` / `workspace` | 用 `defineSandboxAgent` 构造 | 无 |
+| `tracing` | 写了 `tracing` 块（CLI 投递配置），或声明了 `events: otelEvents()` | 无（块本来就要写）|
+| `toolObservability` | 用官方转换器（`fromAiSdk`、内置 parsers）——返回值自带证明；**手工映射时自己声明** | 官方件：无；手工：一行 |
+| `compactionObservability` | 内置 parsers 自带 | 无 |
+| `conversation` | **只能声明**（默认没有） | 做到了写一行 |
+| HITL | 行为证明：`send` 返回 `waiting` + `input.requested` | 无 |
+
+没证明、也没声明的能力 = 没有。对应断言组不可信或不可用，但基础断言（文本、结构化、judge）永远可用。
+
+## 为什么大多数能力不用声明
+
+- **构造即证明**：用了 `defineSandboxAgent`，说明被测对象在沙箱里改文件——`sandbox` / `workspace` 不需要再说一遍。
+- **函数即证明**：写了 `tracing` 块（怎么把 OTLP 端点交给 CLI），tracing 能力就成立——不用再写 `capabilities: { tracing: true }` 说第二遍。
+- **来源即证明**：`fromAiSdk(result)` 消费的 `result.steps` 是 AI SDK 契约保证的**全量**工具循环记录，所以它的返回值自带"事件流完整"的证明；内置三个 CLI 的 parser 消费的 transcript 是 CLI 为自己 resume 写的全量侧写，同理。用了这些件，`notCalledTool` 这类负断言直接可信：
+
+```ts
+export default defineAgent({
+  name: "my-ai-sdk-agent",
+  async send(input, ctx) {
+    const result = await generateText({ model, tools, prompt: input.text });
+    return { ...fromAiSdk(result), data: result.text };
+    // ↑ 返回值自带 toolObservability 证明,不用写能力位
+  },
+});
+```
+
+- **行为即证明**：HITL 从来没有能力位——`send` 返回 `status: "waiting"` + `input.requested` 事件，行为本身可见。
+
+## 为什么剩下两个必须声明
+
+它们承诺的事,任何一层代码都验证不了:
+
+- **`conversation`**:对端服务是否**真的**续接了上下文,连 adapter 自己都不知道——`previousResponseId` 发过去了,对端理不理是对端的事。只有你(验证过)能承诺。
+- **手工映射的 `toolObservability`**:你自己写 `toStreamEvents` 时,事件是全量还是漏了一半,取决于你的 API 返回里有没有全部调用——只有你知道。
+
+```ts
+export default defineAgent({
+  name: "my-bot",
+  capabilities: {
+    conversation: true,        // 我验证过:isNew 开新会话、同 id 真续接
+    toolObservability: true,   // 我验证过:每次工具调用都进了 events
+  },
+  async send(input, ctx) { /* 手工映射 */ },
+});
+```
+
+## 声明错了会怎样
+
+声明是承诺。谎报的代价不对称：
+
+| 谎报方向 | 后果 | 暴露方式 |
+|---|---|---|
+| 声明了 `toolObservability` 但事件不完整 | `notCalledTool` / `maxToolCalls` / `usedNoTools` 等**负断言静默假通过** | **没有报错**——最危险的一类 |
+| 声明了 `conversation` 但忽略 `isNew` | `t.newSession()` 的"独立会话"实际共享上下文,隔离断言全部失真 | 没有报错 |
+| 做到了但没声明 | 对应断言组少一组可信 | 无害,只是保守 |
+
+规则:**拿不准就不声明**。宁可保守,不要静默假通过。显式声明永远优先于自动证明——比如用了 `fromAiSdk` 但明知外面还有一层没进 events 的工具调用,可以显式 `toolObservability: false` 关回去。
+
+## 逐位速查
+
+### `toolObservability` —— 事件流完整
+
+含义:这一轮的**每次**工具调用都以 `action.called` + `action.result` 出现在 events 里([事件流参考](/zh/reference/events))。有它,整套工具断言可信,包括负断言。来源:官方转换器自动带;手工映射自己声明;`otelEvents()` **不**自动带(埋点是否盖住全部工具层,NiceEval 无法替你验证,见 [OTel 接入](/zh/guides/connect-otel))。
+
+### `conversation` —— 会话续接
+
+含义:`ctx.session.isNew === true` 时开新会话并写回 id,`false` 时按 id 续接同一上下文。有它,跨轮记忆断言、`t.newSession()` 隔离断言可信。只能声明。两种实现写法见[教程](/zh/guides/connect-your-agent)。
+
+### `tracing` —— 发 OTLP trace(服务开关)
+
+runner 消费:每次运行起一个本机 OTLP 接收器,把端点经 `ctx.telemetry` 交给你;span 归一后在 `niceeval view` 画瀑布图。来源:CLI 型写 `tracing` 块(env / configure);已埋点应用用 `events: otelEvents()`;手搓投递的远程 agent 显式声明。
+
+### `sandbox` / `workspace` —— 沙箱与改文件(服务开关)
+
+runner 消费:为每次 attempt 准备沙箱(Docker / Vercel / E2B),经 `ctx.sandbox` 交给 adapter;`workspace` 是 diff 断言(`t.sandbox.fileChanged()`)的前提。来源:`defineSandboxAgent` 构造。
+
+### `compactionObservability` —— 压缩可见
+
+含义:被测 agent 发生上下文压缩时吐 `compaction` 事件,`t.event("compaction")` 有意义。来源:内置 parsers 自动带;自写 parser 做到了可声明。
+
+## 相关阅读
+
+- [事件流参考](/zh/reference/events) —— `toolObservability` 承诺的具体内容。
+- [接入你的 agent](/zh/guides/connect-your-agent) —— 每个能力怎么做。
+- [接入 OTel 应用](/zh/guides/connect-otel) —— `otelEvents()` 与负断言的边界。
+- [内置 Agent 能力](/zh/reference/builtin-agents) —— 内置 adapter 各自做到什么。

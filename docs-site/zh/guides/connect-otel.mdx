@@ -1,0 +1,140 @@
+---
+title: "通过 OTel 接入：已埋点应用免映射"
+sidebarTitle: "通过 OTel 接入"
+description: "你的应用已经在发 OTel trace？把 span 发给 NiceEval，工具断言和调用瀑布图直接可用，一行事件映射都不用写。"
+---
+
+<Note>
+🧪 **设计预览**：本页按 `otelEvents()` 提案的目标态书写，对应代码尚未发布。
+</Note>
+
+如果你的被测应用已经接了 OpenTelemetry——用 AI SDK 的 telemetry、LangGraph 的 LangSmith 导出、OpenLLMetry / OpenInference 自动埋点，或自己按 GenAI 语义埋的点——那么 niceeval 需要的数据你已经在生产了。不用写事件映射：让应用把 span 发给 niceeval，工具断言（`t.calledTool` 等）和调用瀑布图（`niceeval view`）都从 span 派生。
+
+## 原理（一段话）
+
+NiceEval 每次运行起一个本机 OTLP 接收器。你的 adapter 声明 `events: otelEvents()`，`send` 只管把输入交给应用、把最终结果拿回来；本轮收到的 span 自动派生成标准事件流喂给断言，同一批 span 顺手画成瀑布图。四种主流埋点方言（AI SDK `ai.*`、GenAI semconv、OpenInference、OpenLLMetry）自动识别，不用配。
+
+## 接法
+
+**1. adapter 侧**——`send` 退化成纯收发：
+
+```ts
+// agents/support-bot.ts
+import { defineAgent, otelEvents } from "niceeval/adapter";
+
+export default defineAgent({
+  name: "support-bot",
+  events: otelEvents(),        // 事件流 + trace 都从本轮收到的 span 来
+  async send(input, ctx) {
+    const r = await fetch(`${process.env.BOT_URL}/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: input.text,
+        otlpEndpoint: ctx.telemetry.endpoint,   // 告诉应用这一轮把 span 发到哪
+      }),
+      signal: ctx.signal,
+    });
+    return { data: await r.json(), status: r.ok ? "completed" : "failed" };
+    // 不写 events —— otelEvents 负责
+  },
+});
+```
+
+`ctx.telemetry.endpoint` 是本次运行的接收端点。怎么交给应用取决于部署形态：
+
+- **子进程 / CLI**：把 `ctx.telemetry.env`（标准 `OTEL_*` 环境变量，ready-to-spread）注入子进程环境，零代码；
+- **同进程 runtime**：初始化 exporter 时直接用 `ctx.telemetry.endpoint`；
+- **独立服务**：像上面一样每次请求带上 endpoint，由服务侧 exporter 按请求改道；或者服务启动时用固定的 `OTEL_EXPORTER_OTLP_ENDPOINT` 指向 NiceEval（本地联调时最简单）。
+
+**2. 应用侧**——按你的埋点生态各自一行配置：
+
+<Tabs>
+  <Tab title="AI SDK">
+    推荐官方 OTel 集成（`@ai-sdk/otel`，产标准 GenAI 语义）；老的 `experimental_telemetry` 也能被识别：
+
+    ```ts
+    import { generateText } from "ai";
+
+    const result = await generateText({
+      model, tools, messages,
+      experimental_telemetry: { isEnabled: true },
+    });
+    ```
+
+    exporter 走标准 OTel Node SDK，endpoint 用注入的 `OTEL_EXPORTER_OTLP_ENDPOINT`。
+  </Tab>
+  <Tab title="LangGraph / LangChain">
+    零依赖路线，三个环境变量：
+
+    ```bash
+    LANGSMITH_TRACING=true \
+    LANGSMITH_OTEL_ENABLED=true \
+    LANGSMITH_OTEL_ONLY=true \
+    OTEL_EXPORTER_OTLP_ENDPOINT=<niceeval 给的端点> \
+    node server.js
+    ```
+
+    `LANGSMITH_OTEL_ONLY` 表示只发 OTLP、不发 LangSmith 云端（要双发就去掉它）。
+  </Tab>
+  <Tab title="OpenLLMetry">
+    ```ts
+    import * as traceloop from "@traceloop/node-server-sdk";
+
+    traceloop.initialize({ disableBatch: true });
+    // endpoint 用标准 OTEL_EXPORTER_OTLP_ENDPOINT 环境变量
+    ```
+  </Tab>
+  <Tab title="OpenInference">
+    ```python
+    from openinference.instrumentation.langchain import LangChainInstrumentor
+    from phoenix.otel import register
+
+    register()  # 或标准 OTel SDK;endpoint 走 OTEL_EXPORTER_OTLP_ENDPOINT
+    LangChainInstrumentor().instrument()
+    ```
+  </Tab>
+  <Tab title="自己埋的 gen_ai">
+    按 [OTel GenAI 语义约定](https://opentelemetry.io/docs/specs/semconv/gen-ai/)埋：模型调用 span 名 `chat {model}`，工具 span 名 `execute_tool {tool}`，属性带 `gen_ai.operation.name`、`gen_ai.tool.name` / `gen_ai.tool.call.id` / `gen_ai.tool.call.arguments`。想让 `messageIncludes` 有数据，打开内容采集（`gen_ai.input/output.messages` 是 opt-in）。
+  </Tab>
+</Tabs>
+
+**3. 写 eval**——和手写映射的 adapter 完全一样：
+
+```ts
+export default defineEval({
+  description: "查订单要走 lookup_order 工具",
+  async test(t) {
+    await t.send("帮我查订单 42 到哪了");
+    t.calledTool("lookup_order", { input: { orderId: "42" } });
+    t.toolOrder(["lookup_order"]);
+    t.noFailedActions();
+    t.maxTokens(8000);           // usage 从模型 span 聚合,顺带就有
+  },
+});
+```
+
+跑完 `npx niceeval view`，瀑布图也在——数据源是同一批 span。
+
+## 一件必须你自己判断的事：负断言
+
+`otelEvents()` 会自动给你**正断言**（`calledTool`、`toolOrder`、`event`……span 里有就能断）。但 `notCalledTool` / `maxToolCalls` 这类**负断言**依赖"事件是全量的"——你的埋点是否覆盖了应用的全部工具层，NiceEval 无法替你验证（典型缺口：只埋了 LLM 调用、没埋工具执行）。确认覆盖完整后自己声明：
+
+```ts
+capabilities: { toolObservability: true },   // 我确认埋点盖住了全部工具
+events: otelEvents(),
+```
+
+不确定就不声明——正断言照用，负断言不可信的风险不背。详见[能力位参考](/zh/reference/capabilities)。
+
+## 边界
+
+- **多轮会话、HITL 不归 span 管**。span 没有"等人输入"语义，会话续接也是应用协议的事——这两样照常在 `send` 里做（[教程](/zh/guides/connect-your-agent)第三步与 HITL 节）。
+- **消息文本取决于生态**。AI SDK / LangSmith / OpenLLMetry / OpenInference 默认记录输入输出；OTel 官方 instrumentation 默认**不**采内容，要设 `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`。没内容时 `messageIncludes` 会正常失败（不会静默）。
+- **收不到 span 会有 warning**。整轮 0 span 通常是端点没接上（env 没注入、服务没重启），NiceEval 会提示而不是默默全过。
+
+## 相关阅读
+
+- [接入你的 agent](/zh/guides/connect-your-agent) —— 没接 OTel 的应用走这条路（手写事件映射）。
+- [能力位参考](/zh/reference/capabilities) —— 为什么负断言要你亲自声明。
+- [事件流参考](/zh/reference/events) —— span 派生出的事件长什么样。
