@@ -8,7 +8,7 @@ import { t } from "../i18n/index.ts";
 export interface EvalScore {
   score: number;
   detail?: string;
-  /** 这条分数是看着什么材料算出来的(judge 收到的输入);供 view 展开排查「为什么是这个分」。 */
+  /** 这条分数是看着什么材料算出来的(judge 收到的输入,或 t.check 失败时实际被检查的值);供 view 展开排查「为什么是这个分」。 */
   evidence?: string;
 }
 

@@ -87,6 +87,25 @@ describe("createEvalContext / TestContext live state", () => {
     });
     expect(result.passed).toBe(true);
     expect(result.score).toBe(1);
+    expect(result.evidence).toBeUndefined();
+  });
+
+  it("t.check(...) attaches the actually-checked value as evidence when it fails", async () => {
+    const { context, state } = makeContext(calculatorAgent());
+    await context.send("1+1=?");
+    context.check(context.reply, includes("banana"));
+
+    const [result] = await state.collector.finalize({
+      events: [],
+      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0 },
+      diff: state.late.diff,
+      scripts: state.late.scripts,
+      usage: { inputTokens: 0, outputTokens: 0 },
+      status: "completed",
+      readFile: async () => undefined,
+    });
+    expect(result.passed).toBe(false);
+    expect(result.evidence).toBe("1 + 1 = **2** 哦!😊");
   });
 
   it("t.events reflects the turn's events after send(), not an empty snapshot", async () => {

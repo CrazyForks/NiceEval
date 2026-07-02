@@ -4,7 +4,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { SessionManager, RunSession, lastAssistantText } from "./session.ts";
-import { AssertionCollector } from "../scoring/collector.ts";
+import { AssertionCollector, computePassed } from "../scoring/collector.ts";
 import type { Spec } from "../scoring/collector.ts";
 import * as Scoped from "../scoring/scoped.ts";
 import { buildJudge } from "../scoring/judge.ts";
@@ -12,6 +12,7 @@ import { EvalSkipped, EvalRequirementFailed, TurnFailed } from "./control-flow.t
 import { deriveRunFacts } from "../o11y/derive.ts";
 import { t } from "../i18n/index.ts";
 import { resolveLocalPath } from "../sandbox/paths.ts";
+import { brief } from "../util.ts";
 import type {
   Agent,
   DiffData,
@@ -86,6 +87,15 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
   async function resolveValue(value: unknown, sc: ScoringContext): Promise<unknown> {
     if (value instanceof FileRef) return (await sc.readFile(value.path)) ?? "";
     return value;
+  }
+
+  /** 断言失败时给 view 看的「实际被检查了什么」,而不是重复 matcher 自己的名字。 */
+  function previewCheckedValue(value: unknown): string {
+    if (value && typeof value === "object" && typeof (value as { path?: unknown }).path === "string") {
+      const content = (value as { content?: unknown }).content;
+      if (typeof content === "string") return brief(`// ${(value as { path: string }).path}\n${content}`, 4000);
+    }
+    return brief(value, 4000);
   }
 
   const diffView: DiffView = {
@@ -231,7 +241,12 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
         name: assertion.name,
         severity: assertion.severity,
         threshold: assertion.threshold,
-        evaluate: async (sc) => assertion.score(await resolveValue(value, sc)),
+        evaluate: async (sc) => {
+          const resolved = await resolveValue(value, sc);
+          const score = await assertion.score(resolved);
+          if (computePassed(assertion.severity, assertion.threshold, score)) return score;
+          return { score, evidence: previewCheckedValue(resolved) };
+        },
       }),
     group: <T,>(title: string, fn: () => Promise<T> | T) => collector.withGroup(title, fn),
     require: async (value: unknown, assertion: ValueAssertion) => {

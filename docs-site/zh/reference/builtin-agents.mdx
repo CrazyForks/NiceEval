@@ -1,0 +1,86 @@
+---
+title: "内置 Agent 适配器分档参考"
+sidebarTitle: "内置 Agent 分档"
+description: "niceeval 内置的 claude-code、codex、bub 适配器分别做到哪一档能力，解锁哪些断言，以及已知限制。"
+---
+
+内置的三个 sandbox agent（`claude-code`、`codex`、`bub`）不是同一档实现。niceeval 把 adapter 能力拆成几档递进：档位越高，能写的断言越多。这篇按档位盘点三个内置 agent 各自做到哪，以及一个能加速你自己写 adapter 的转换器 `fromAiSdk`。
+
+## 分档速览
+
+| 档位 | 解锁什么 |
+|---|---|
+| T0 · 收发消息 | `t.send()` 单发一轮、`turn.outputEquals` / `outputMatches`、按状态判断的 `t.succeeded()` |
+| T1 · 事件流（`toolObservability`） | `calledTool` / `toolOrder` / `usedNoTools` / `maxToolCalls` / `messageIncludes` / `noFailedActions` / `event` / `eventOrder` 等整套作用域断言；**负断言（`notCalledTool` 等）从此才可信** |
+| T2 · 多轮会话（`conversation`） | `t.send()` 可多次调用、`t.reply`、`t.newSession()` |
+| HITL（人工介入） | `t.parked()`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()` |
+| T3 · tracing | `EvalResult.trace`、`niceeval view` 的调用瀑布图 |
+
+## 三个内置 agent 分别做到哪
+
+| Agent | T0 | T1 事件流 | T2 会话 | HITL | T3 tracing | 备注 |
+|---|---|---|---|---|---|---|
+| `claude-code` | ✅ | ✅ | ✅（`claude --resume <id>`） | ❌ | ❌ | 额外声明 `compactionObservability`，`t.event("compaction")` 可用 |
+| `codex` | ✅ | ✅ | ✅（`codex exec resume <id>`） | ❌ | ✅（`http/json` → OTLP） | 额外声明 `compactionObservability` |
+| `bub` | ✅ | ✅ | ✅（`--session-id` + tape 续接） | ❌ | ✅（`http/protobuf` → OTLP） | 额外声明 `compactionObservability` |
+
+三者都声明了 `workspace` 和 `sandbox`（`defineSandboxAgent` 默认开启），所以 `t.sandbox.fileChanged()` / diff 断言、文件 IO、命令执行在三个 agent 上都能用，不受这张表限制。
+
+<Warning>
+三个内置 agent 目前都**不支持 HITL**：`send` 只返回 `"completed"` / `"failed"`，从不返回 `"waiting"`，也不吐 `input.requested` 事件。如果你的 eval 需要 `t.respond()` / `t.requireInputRequest()`，现阶段要自己写 adapter：照着 `defineSandboxAgent` 实现 `waiting` 状态 + `input.requested` 事件 + resume 交回。
+</Warning>
+
+## 逐 agent 细节
+
+### claude-code
+
+- 连接方式：沙箱里 spawn `claude --print --dangerously-skip-permissions`，读回 `~/.claude/projects/**/*.jsonl` 最新一份 transcript。
+- 会话续接：`ctx.session.isNew` 为 `false` 且有 `id` 时追加 `--resume <id>`。
+- 鉴权：`ANTHROPIC_API_KEY`（可用配置项 `apiKey` 覆盖），可选 `ANTHROPIC_BASE_URL`。
+- 支持 `mcpServers`、`skills`（GitHub `org/repo`）配置项。
+- 没有声明 `tracing`：不会起 OTLP 接收器，`EvalResult.trace` 为空。
+
+### codex
+
+- 连接方式：沙箱里跑 `codex exec --json`（续接时是 `codex exec resume <id> --json`），stdout JSONL 当 transcript。
+- 鉴权：`CODEX_API_KEY`（不是 `OPENAI_API_KEY`），可选 `CODEX_BASE_URL` 接 OpenAI 兼容代理。
+- `tracing` 通过 `~/.codex/config.toml` 的 `[otel.trace_exporter.otlp-http]` 段配置，协议 `http/json`。
+- 支持 `mcpServers`、`skills` 配置项。
+
+### bub
+
+- 连接方式：沙箱里跑 `bub run` + `--session-id`，从 `~/.bub/tapes/<hash>.jsonl` 读 tape 当 transcript。
+- 鉴权：`BUB_API_KEY` + `BUB_API_BASE`（OpenAI 兼容代理）。
+- `tracing` 通过环境变量注入（`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 等），协议 `http/protobuf`。
+- 支持 `pythonPlugins` 配置项。
+- 安装走 `uv tool install`（非 npm 包），首次安装带 checkpoint 缓存以加速后续沙箱。
+
+## `fromAiSdk`：不是内置 agent，是给你自己 agent 用的 T1 转换器
+
+`fromAiSdk`（`niceeval/adapter` 导出）不是一个可以直接在 experiment 里引用的、带名字的内置 agent——它是一个转换函数，把 Vercel AI SDK 的 `generateText` / `streamText` 结果直接映射成标准 `StreamEvent[]`：
+
+```ts
+import { defineAgent, fromAiSdk } from "niceeval/adapter";
+
+export default defineAgent({
+  name: "my-ai-sdk-agent",
+  async send(input) {
+    const result = await generateText({ model, tools, prompt: input.text });
+    return { ...fromAiSdk(result), data: result.text, status: "completed" };
+  },
+});
+```
+
+因为 AI SDK 的返回天生带显式 `toolCallId`、按 step 分好顺序、带 usage，`fromAiSdk` 让你几乎不用手写映射就直接跑满 T1（`toolCallId` 精确配对、时序保真、`tool-error` 映射成失败的 `action.result`）。要不要做到 T2（多轮）、HITL、T3（tracing）取决于你自己的 `send` 怎么写——`fromAiSdk` 只管单轮事件流转换这一件事。
+
+## 怎么选
+
+- 需要调用瀑布图（`niceeval view` 的 trace）：选 `codex` 或 `bub`，`claude-code` 目前拿不到 trace。
+- 需要人工审批 / 多步确认（HITL）：三个内置 agent 都不支持，需要自己写 adapter。
+- 只是想跑一个 coding agent 改代码、看 diff、判断工具调用：三个都能满足（T0 + T1 + T2 + workspace + sandbox）。
+
+## 相关阅读
+
+- [Sandbox Agent](/zh/guides/sandbox-agent) — 怎么运行内置 sandbox agent，以及怎么写自己的。
+- [defineAgent 参考](/zh/reference/define-agent) — `defineAgent` / `defineSandboxAgent` 完整参数。
+- [远程 Agent](/zh/guides/remote-agent) — 进程内 / HTTP adapter 怎么写。
