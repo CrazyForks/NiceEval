@@ -61,6 +61,8 @@ export const en = {
   "cli.view.exported": "Exported eval report page: {{out}}\n",
   "cli.view.incompatible": "{{dir}}: written by niceeval {{producer}} (schemaVersion {{schemaVersion}}); this CLI reads schemaVersion {{supported}}.\nRun `{{command}}` to view it.\n",
   "cli.view.url": "niceeval view: {{url}}\n",
+  "context.capabilityMissing":
+    "Agent \"{{agent}}\" does not declare the {{cap}} capability, so t.{{method}} is unavailable. Declare it in defineAgent/defineSandboxAgent capabilities (and actually implement it), or use an agent that supports it.",
   "context.skipEmpty": "skip() requires a non-empty reason.",
   "context.turnFailed": "This send returned failed (turn status = failed): {{message}}",
   "context.turnFailedDefault": "This send returned failed (turn status = failed)",

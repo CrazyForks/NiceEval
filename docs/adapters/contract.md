@@ -268,10 +268,12 @@ eval 用了 adapter 没实现的能力(`t.respond` / `t.newSession` / `t.calledT
 
 | eval 调用 | 需要的位 | 现状 |
 |---|---|---|
-| 第二次 `t.send()` / `session.send()`、`t.reply` 跨轮语义、`t.newSession()` | `conversation` | 无守卫(静默失真) |
-| `t.respond` / `t.respondAll` / `t.requireInputRequest` / `t.parked` | `hitl`(新) | 无守卫 |
-| `t.calledTool` / `t.eventOrder` / `t.notCalledTool` 等全部作用域断言 | `toolObservability` | 无守卫(正断言 fail、负断言假通过) |
-| `t.sandbox.*` | `sandbox` | ✅ 已有清晰报错(照此形状推广) |
+| 第二次 `t.send()` / `t.sendFile()`、`t.newSession()` | `conversation` | ✅ 已有调用守卫(第一次 send 不拦,第二轮起报清晰错误) |
+| `t.respond` / `t.respondAll` / `t.requireInputRequest` | `hitl`(新) | 暂 gate 在 `conversation` 下(`hitl` 位未落地) |
+| `t.calledTool` / `t.notCalledTool` / `t.toolOrder` / `t.usedNoTools` / `t.maxToolCalls` / `t.noFailedActions` / `t.calledSubagent` | `toolObservability` | ✅ 已有调用守卫(第一次调用即报) |
+| `t.sandbox.*`、`t.file` / `t.fileChanged` / `t.fileDeleted` / `t.notInDiff` / `t.noFailedShellCommands` | `sandbox` | ✅ 已有调用守卫 |
+
+守卫实现见 `src/context/context.ts`(`capabilityGuard`),报错文案在 i18n `context.capabilityMissing`。
 
 报错消息按 `t.sandbox` 的既有形状,**双向指路**——告诉 eval 作者换 agent,也告诉 adapter 作者实现什么:
 

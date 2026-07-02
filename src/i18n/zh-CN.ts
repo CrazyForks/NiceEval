@@ -59,6 +59,8 @@ export const zhCN = {
   "cli.view.exported": "已导出实验查看页:{{out}}\n",
   "cli.view.incompatible": "{{dir}}: 由 niceeval {{producer}} 写入(schemaVersion {{schemaVersion}}),当前 CLI 只读 schemaVersion {{supported}}。\n运行 `{{command}}` 查看这份报告。\n",
   "cli.view.url": "niceeval view: {{url}}\n",
+  "context.capabilityMissing":
+    "agent \"{{agent}}\" 未声明能力 {{cap}},t.{{method}} 不可用。在 defineAgent/defineSandboxAgent 的 capabilities 里声明(并真正实现),或换用支持该能力的 agent。",
   "context.skipEmpty": "skip() 需要一个非空理由。",
   "context.turnFailed": "本轮 send 返回 failed(turn status = failed):{{message}}",
   "context.turnFailedDefault": "本轮 send 返回 failed(turn status = failed)",

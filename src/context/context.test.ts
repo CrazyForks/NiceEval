@@ -8,7 +8,8 @@ import type { Agent, AgentContext, Sandbox, StreamEvent, Turn, TurnInput } from 
 function calculatorAgent(): Agent {
   return {
     name: "calculator",
-    capabilities: { conversation: true, toolObservability: true },
+    // 测试注入了真实的 fake sandbox,声明 sandbox 能力让 t.sandbox 过能力守卫。
+    capabilities: { conversation: true, toolObservability: true, sandbox: true },
     async send(_input: TurnInput, ctx: AgentContext): Promise<Turn> {
       ctx.session.id = "sess-1";
       const events: StreamEvent[] = [

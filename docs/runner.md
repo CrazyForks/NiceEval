@@ -47,7 +47,7 @@ fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.3
 
 ## 预算护栏(budget)
 
-实验可设 `budget`(整轮估算成本上限 $),`--budget` 覆盖。运行器在派发每个 attempt 前累加已花成本(用量 × 价格表,见 [Observability](observability.md#用量与成本token--计费)):一旦超过 budget,**停止派发新 attempt**(在飞的跑完),整轮提前收尾并发 `run:budgetExceeded`。借鉴 crabbox 的 spend cap,避免一次跑爆账单。
+实验可设 `budget`(整轮估算成本上限 $),`--budget` 覆盖。运行器在派发每个 attempt 前检查已花成本(用量 × 价格表,见 [Observability](observability.md#用量与成本token--计费)),并给**在飞的 attempt 做预扣**:还没有任何完成样本时,同一 budget 域只放一个 attempt 在飞(先探出单次成本);有样本后按平均实测成本给每个在飞 attempt 预扣,预计总额到顶就等在飞的结算。已花到顶则**停止派发新 attempt**(在飞的跑完),整轮提前收尾并发 `run:budgetExceeded`。没有预扣的话,`maxConcurrency` 个 attempt 会在任何成本回写前全部起飞,实际花费能冲到 budget 的好几倍。借鉴 crabbox 的 spend cap,避免一次跑爆账单。
 
 ## 缓存:指纹去重
 

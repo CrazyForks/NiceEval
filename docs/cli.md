@@ -118,6 +118,13 @@ VERCEL_TEAM_ID=...                  # Vercel team
 
 # 评判模型(LLM-as-judge)
 # 复用上面对应 vendor 的 key,或在 config 里单独指定
+NICEEVAL_JUDGE_MODEL=...            # config / eval 未指定 judge.model 时的兜底(没有内置默认模型)
+
+# 调度项(标志 > 环境变量 > config > 内置默认,见下节)
+NICEEVAL_RUNS=3                     # 对应 --runs
+NICEEVAL_MAX_CONCURRENCY=4          # 对应 --max-concurrency
+NICEEVAL_TIMEOUT=600000             # 对应 --timeout(毫秒)
+NICEEVAL_BUDGET=5                   # 对应 --budget(美元)
 
 # CLI 输出语言
 NICEEVAL_LANG=en                    # en / zh-CN;覆盖系统 locale

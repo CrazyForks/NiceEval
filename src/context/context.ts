@@ -68,6 +68,17 @@ export interface ContextDeps {
   evalBaseDir?: string;
 }
 
+/**
+ * 能力守卫:agent 没声明某能力位时,对应的 `t` 动作一被调用就报清晰错误。
+ * 没有这层,缺能力的动作会静默失真(如无 toolObservability 时 notCalledTool 恒通过)——
+ * 这是契约文档点名「最危险」的失败模式,声明必须被强制。
+ */
+function capabilityGuard(agentName: string, cap: string, method: string): () => never {
+  return () => {
+    throw new Error(t("context.capabilityMissing", { agent: agentName, cap, method }));
+  };
+}
+
 export function createEvalContext(deps: ContextDeps): { context: TestContext; state: ContextState } {
   const manager = new SessionManager({
     agent: deps.agent,
@@ -223,6 +234,41 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
   }
 
   const primary = makeSessionHandle(manager.primary);
+
+  // 能力守卫:按 agent 声明的能力位,把缺失能力对应的动作替换成「一调用就报清晰错误」。
+  const caps = deps.agent.capabilities;
+  const guards: Record<string, unknown> = {};
+  if (!caps.conversation) {
+    // 单轮收发不需要 conversation(T0 agent 也能 send 一次);gate 的是「第二轮起」
+    // 的多轮语义 —— 没实现 resume 的 agent 会把第二次 send 静默当成新对话。
+    let turns = 0;
+    const guardSecondTurn = <A extends unknown[], R>(method: string, fn: (...args: A) => R) =>
+      (...args: A): R => {
+        turns += 1;
+        if (turns > 1) capabilityGuard(deps.agent.name, "conversation", method)();
+        return fn(...args);
+      };
+    guards.send = guardSecondTurn("send", primary.send);
+    guards.sendFile = guardSecondTurn("sendFile", primary.sendFile);
+    for (const m of ["respond", "respondAll", "requireInputRequest", "newSession"]) {
+      guards[m] = capabilityGuard(deps.agent.name, "conversation", m);
+    }
+  }
+  if (!caps.toolObservability) {
+    for (const m of ["calledTool", "notCalledTool", "toolOrder", "usedNoTools", "maxToolCalls", "noFailedActions", "calledSubagent"]) {
+      guards[m] = capabilityGuard(deps.agent.name, "toolObservability", m);
+    }
+  }
+  if (!caps.sandbox) {
+    for (const m of ["file", "fileChanged", "fileDeleted", "notInDiff", "noFailedShellCommands"]) {
+      guards[m] = capabilityGuard(deps.agent.name, "sandbox", m);
+    }
+    Object.defineProperty(guards, "sandbox", {
+      get: capabilityGuard(deps.agent.name, "sandbox", "sandbox"),
+      enumerable: true,
+    });
+  }
+
   // primary.reply/sessionId/events/usage/judge 是 getter,读的是 manager.primary 的实时状态。
   // 不能 `{ ...primary, ... }` 展开——对象展开会在展开的那一刻把每个 getter 求值成静态值,
   // 之后 t.reply 就永远冻结在「还没 send 过」的初始状态(空字符串)。改用
@@ -283,6 +329,8 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     {
       ...Object.getOwnPropertyDescriptors(primary),
       ...Object.getOwnPropertyDescriptors(extra),
+      // 守卫最后盖上:缺能力的动作被替换成报错闭包。
+      ...Object.getOwnPropertyDescriptors(guards),
     },
   ) as TestContext;
 
