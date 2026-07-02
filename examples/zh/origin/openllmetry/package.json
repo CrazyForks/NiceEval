@@ -1,0 +1,20 @@
+{
+  "name": "openllmetry-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file .env --import tsx/esm --watch server.ts",
+    "start": "node --env-file .env --import tsx/esm server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@traceloop/node-server-sdk": "^0.27.0",
+    "openai": "^6.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

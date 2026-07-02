@@ -1,0 +1,17 @@
+---
+name: docs-otel-mixin-not-implemented
+description: docs-site/zh/guides/connect-otel.mdx 把未落地的 otelEvents() 设计提案写成已实现功能，且链接到不存在的 examples/zh/before/* 目录
+metadata:
+  type: project
+---
+
+**现象**：`docs-site/zh/guides/connect-otel.mdx`（用户文档，非设计提案）把 `otelEvents()` / `import { otelEvents } from "niceeval/adapter"` 写成已经能用的功能，配了完整的 before/after 代码示例、`otel.aiSdk`/`otel.genAi` 等格式模块、双发 exporter 写法，还链接 `examples/zh/before/langgraph`、`.../openllmetry`、`.../openinference`、`.../custom-genai` 作为"可跑示例"。
+
+**根因**：`grep -rl "otelEvents" src/` 零命中——这整套 API 在代码里根本不存在。对应的设计文档 `docs/adapters/otel-mixin.md` 本身开头就写着"**状态:设计提案,未实现。**"，两份文档互相矛盾：一份说是提案，另一份（用户看的那份）当成已发布功能来写。而且被链接的 `examples/zh/before/*` 目录当时都不存在（只有 `examples/zh/origin/*`，且命名和 [[examples-before-after-layout]] 约定的 `zh/before/<name>` 不一致）。
+
+**影响**：任何人（包括我）照 `connect-otel.mdx` 的指引给 langgraph / custom-genai / openllmetry / openinference 写"OTel 零映射接入"的 adapter 代码，都会因为 import 不存在的符号而在写完才发现整段路子是空中楼阁。真正能用的是 `docs/adapters/authoring.md` 里手写 `toStreamEvents` 的 remote-agent 套路（T0 送收，T1 靠手写 mapper），`aiSdkAgent` 内部走的也是这条路，不是 otel mixin。
+
+**修法 / 适用场景**：
+1. 给这四个 origin 示例写 niceeval eval 集成时，默认只做 T0（`t.send()`，返回最终文本），不要假设能白嫖 T1；要 T1 就得照 authoring.md 手写 mapper（claude-agent-sdk / codex-sdk 的 SDK message stream 结构化程度高，手写映射成本低；custom-genai/langgraph/openllmetry/openinference 的"结构化数据"目前只存在于 OTel span 里，手写映射等于要重新实现 otel-mixin 提案的核心逻辑，工作量超出"minimal non-invasive"的范围）。
+2. 下次 touch `docs-site/zh/guides/connect-otel.mdx` 时要么把它标成"设计提案，未实现"（对齐 `otel-mixin.md`），要么把 otel-mixin 真正实现出来再保留现状——不要让它继续以"用户文档"的身份存在但描述不存在的 API。
+3. 该文档里所有 `examples/zh/before/langgraph` 等链接在这些示例真正迁移到 `zh/before/<name>` 之前都是死链，见 [[examples-before-after-layout]]。

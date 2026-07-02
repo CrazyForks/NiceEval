@@ -1,0 +1,19 @@
+# 本地起一个 Arize Phoenix，作为这个例子的 trace 查看器——开源、就在 OpenInference
+# 自己的生态里，不用注册 SaaS 账号。配置抄自 Phoenix 官方 self-hosting 文档。
+#
+#   docker compose up -d
+#   open http://localhost:6006
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: niceeval-openinference-phoenix
+    ports:
+      - "6006:6006" # Phoenix UI + HTTP OTLP 接收端点 (/v1/traces)
+      - "4317:4317" # gRPC OTLP 接收端点
+    environment:
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - phoenix-data:/mnt/data
+
+volumes:
+  phoenix-data:

@@ -1,0 +1,19 @@
+{
+  "name": "codex-sdk-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file .env --import tsx/esm --watch server.ts",
+    "start": "node --env-file .env --import tsx/esm server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "^0.142.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
