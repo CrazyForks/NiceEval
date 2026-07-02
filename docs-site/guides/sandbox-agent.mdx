@@ -135,15 +135,16 @@ export default defineSandboxAgent({
 
 ## Shared helpers
 
-niceeval provides helpers that all sandbox adapters can reuse. Using them ensures that workspace preparation, diff collection, and validation are identical across every agent — results are always apples-to-apples.
+niceeval provides helpers that sandbox adapters can reuse for CLI setup, transcript capture, and transcript parsing. Workspace preparation and validation usually live in the eval's `test(t)` function; diff collection is handled by the runner.
 
 | Helper | What it does |
 |---|---|
-| `shared.prepareWorkspace(sandbox, fixture)` | Uploads workspace files (hiding `EVAL.ts`), runs `git init` and commits a baseline |
+| `shared.ensureInstalled(sandbox, command, install)` | Ensures an agent CLI exists in the sandbox |
+| `shared.writeFile(sandbox, path, content)` | Writes config or helper files into the sandbox |
 | `shared.captureLatestJsonl(sandbox, dir)` | Finds and reads the most recent JSONL transcript in the given directory |
-| `shared.runValidation(sandbox, scripts, mode)` | Uploads test files and runs `EVAL.ts` (Vitest) plus any npm scripts |
-| `shared.injectO11yContext(sandbox, events)` | Derives the o11y summary from the event stream and writes it to `__niceeval__/results.json` so `EVAL.ts` can assert on agent behavior |
-| `shared.captureGeneratedFiles(sandbox)` | Runs `git diff HEAD` and returns `{ generated, deleted }` — the file-level diff used for `t.fileChanged`, `t.fileDeleted`, and `t.sandbox.diff` |
+| `shared.parseClaudeCode(raw)` | Parses Claude Code JSONL into standard events and usage |
+| `shared.parseCodex(raw)` | Parses Codex JSONL into standard events and usage |
+| `shared.parseBub(raw)` | Parses bub JSONL into standard events and usage |
 
 ---
 

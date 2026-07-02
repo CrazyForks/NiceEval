@@ -17,7 +17,6 @@ The runner **does not** own: how to drive an agent (that belongs to the Agent/Ad
 The runner scans your `evals/` directory at startup:
 
 - **`*.eval.ts` files** — Each file is imported and its default export is inspected. A single `defineEval` export gets the file's path as its ID. An array export is fanned out into multiple evals with zero-padded indices appended (`sql/0000`, `sql/0001`, …).
-- **Directories containing `PROMPT.md`** — These are fixture evals. The runner derives the eval ID from the directory's relative path.
 - **Stable ordering** — All discovered evals are sorted by relative path so IDs are stable and output is diffable across runs.
 
 You can narrow which evals run using two types of filter:
@@ -34,8 +33,8 @@ npx niceeval exp local --tag regression
 ```
 
 ```bash Combined
-# Only evals under "fixtures/" tagged "smoke"
-npx niceeval exp local fixtures --tag smoke
+# Only evals under "api/" tagged "smoke"
+npx niceeval exp local api --tag smoke
 ```
 </CodeGroup>
 
@@ -78,11 +77,11 @@ You control the limit through three layers of precedence: `--max-concurrency` fl
 
 ## Result caching
 
-The runner computes a hash of each eval's fixture content and relevant configuration before dispatching it. If the previous run produced a `passed` result **and** the fingerprint is unchanged, the runner skips that eval and reuses the cached result.
+The runner computes a hash of each eval's source and relevant configuration before dispatching it. If the previous run produced a `passed` result **and** the fingerprint is unchanged, the runner skips that eval and reuses the cached result.
 
 The cache is intentionally conservative:
 
-- Change a fixture file → cache miss, re-run.
+- Change an eval file or related source → cache miss, re-run.
 - Change relevant config (e.g. `judge.model`) → cache miss, re-run.
 - A previously **failed** result is never cached — failures always re-run.
 - Pass `--force` to bypass the cache entirely and re-run everything.

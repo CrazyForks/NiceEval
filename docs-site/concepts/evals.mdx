@@ -53,7 +53,6 @@ The file path of an eval **is** its ID. niceeval strips the `evals/` prefix and 
 |---|---|
 | `evals/weather/brooklyn.eval.ts` | `weather/brooklyn` |
 | `evals/sql.eval.ts` | `sql` |
-| `evals/fixtures/button/` (fixture directory) | `fixtures/button` |
 
 This convention has an important consequence: **renaming the file changes the eval's ID**. There is no hidden registry to keep in sync. The path is always the truth, and cached results, CI history, and experiment records all use the same path-derived key.
 
@@ -68,7 +67,7 @@ npx niceeval exp local weather/brooklyn # runs exactly this one eval
 
 <Steps>
   <Step title="Discovery">
-    When you run `npx niceeval exp ...`, the runner recursively scans the `evals/` directory for files ending in `.eval.ts` and for fixture directories (those containing a `PROMPT.md`). Default exports of `defineEval(...)` or an array of `defineEval(...)` calls are registered as individual evals.
+    When you run `npx niceeval exp ...`, the runner recursively scans the `evals/` directory for files ending in `.eval.ts`. Default exports of `defineEval(...)` or an array of `defineEval(...)` calls are registered as individual evals.
   </Step>
   <Step title="Scheduling">
     The runner dispatches evals up to `maxConcurrency` at a time. Before dispatching an eval, it checks the fingerprint cache: if the eval's source, its inputs, and the active agent haven't changed since the last passing run, the cached result is replayed and the eval is skipped — saving both time and API cost.
@@ -83,7 +82,7 @@ npx niceeval exp local weather/brooklyn # runs exactly this one eval
     All assertion results are folded into a single outcome by `outcome.ts`. The rules are deterministic and described in full in the [Scoring](/concepts/scoring) page.
   </Step>
   <Step title="Report">
-    The outcome and all assertion details stream to the console in real time. When the full run finishes, reporters write structured output (JUnit, JSON, etc.) and the `.niceeval/<run>/` directory is populated with artifacts: `summary.json`, per-eval results, the event stream, transcript, generated-file diffs, and test output.
+    The outcome and all assertion details stream to the console in real time. When the full run finishes, reporters write structured output (JUnit, JSON, etc.) and the `.niceeval/<run>/` directory is populated with artifacts: `summary.json` plus per-attempt `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json` files.
   </Step>
 </Steps>
 
@@ -132,7 +131,6 @@ niceeval discovers evals by scanning for files that match the `*.eval.ts` glob. 
 - Files must end in `.eval.ts` to be discovered. Any other `.ts` file in `evals/` is ignored.
 - Use subdirectories to group related evals. `evals/billing/refund.eval.ts` produces ID `billing/refund`.
 - Dataset files and helper utilities live alongside eval files but do not match `*.eval.ts`, so they are never mistakenly treated as evals.
-- Fixture directories are discovered separately by the presence of `PROMPT.md`, not by filename pattern.
 
 ## Array exports and dataset fan-out
 

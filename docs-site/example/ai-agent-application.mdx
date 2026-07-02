@@ -14,15 +14,15 @@ The system under test is a general-purpose AI assistant HTTP service built with 
 
 ```text
 examples/zh/ai-sdk/
-  ai-sdk-agent/            # web agent under test (POST /api/turn, 3 tools + image understanding)
-  agents/web-agent.ts      # niceeval adapter: factory webAgent({ baseUrl })
+  src/                     # web agent under test (POST /api/turn, tools + image understanding)
+  adapter/adapter.ts       # niceeval adapter: factory webAgent({ baseUrl })
   evals/                   # conversational evals
     weather-tool.eval.ts        # ask about weather → calls get_weather
     image-understanding.eval.ts # image understanding
   experiments/
     compare-models/        # experiment group: one file per model
-      gpt-4o-mini.ts
-      gpt-4o.ts
+      gpt-5.4.ts
+      deepseek-v4-pro.ts
   niceeval.config.ts       # register adapter, judge, concurrency
 ```
 
@@ -31,11 +31,11 @@ examples/zh/ai-sdk/
 The adapter tells niceeval how to send requests to the AI agent and how to read responses as a standard event stream. It's a factory function: `baseUrl` (where the service runs) is passed in from the outside so the adapter never hardcodes it or reads from env.
 
 ```ts
-// agents/web-agent.ts
+// adapter/adapter.ts
 import { defineAgent } from "niceeval/adapter";
 import type { Agent } from "niceeval/adapter";
 import type { StreamEvent } from "niceeval";
-import type { AgentEvent, AgentResponse } from "../ai-sdk-agent/src/protocol.ts";
+import type { AgentEvent, AgentResponse } from "../src/protocol.ts";
 
 export function webAgent(opts: { baseUrl: string }): Agent {
   const baseUrl = opts.baseUrl.replace(/\/$/, "");
@@ -50,6 +50,7 @@ export function webAgent(opts: { baseUrl: string }): Agent {
           sessionId: ctx.session.id,
           message: input.text,
           model: ctx.model,
+          files: input.files,
           otelEndpoint: ctx.telemetry?.endpoint, // dual observability: let the app send this turn's spans back to niceeval
         }),
         signal: ctx.signal,
@@ -98,13 +99,12 @@ export default defineEval({
 });
 ```
 
-For image understanding, put the image URL in the message text (`send` carries text only), and the assistant uses its multimodal vision model to describe the image:
+For image understanding, use `t.sendFile()` to attach an image. The adapter forwards `input.files` to the web agent:
 
 ```ts
 // evals/image-understanding.eval.ts
-import { SAMPLE_IMAGE_URL } from "../ai-sdk-agent/src/assistant.ts";
-
-const turn = await t.send(`What's in this image? ${SAMPLE_IMAGE_URL}`);
+await t.sendFile(new URL("./fixtures/sample.png", import.meta.url).pathname);
+const turn = await t.send("What's in this image?");
 t.messageIncludes(/cat/i); // the sample image is a cat
 ```
 
@@ -113,15 +113,16 @@ t.messageIncludes(/cat/i); // the sample image is a cat
 **One experiment file = one configuration** (single model). For cross-model comparison, write multiple files in the same experiment group folder:
 
 ```ts
-// experiments/compare-models/gpt-4o.ts
+// experiments/compare-models/gpt-5.4.ts
 import { defineExperiment } from "niceeval";
-import { webAgent } from "../../agents/web-agent.ts";
+import { webAgent } from "../../adapter/adapter.ts";
 
 export default defineExperiment({
-  description: "AI assistant: gpt-4o",
+  description: "gpt-5.4: model comparison",
   agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
-  model: "gpt-4o", // single string; copy this file and change one line for each model
-  runs: 3,
+  model: "gpt-5.4", // single string; copy this file and change one line for each model
+  runs: 2,
+  earlyExit: true,
 });
 ```
 

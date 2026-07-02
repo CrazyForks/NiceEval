@@ -214,13 +214,12 @@ Scaffolds the minimum files needed to start writing evals in the current reposit
 ```
 your-project/
 ├─ niceeval.config.ts
-└─ evals/
-   ├─ hello.eval.ts            # example: conversational eval
-   └─ fixtures/
-      └─ button/               # example: sandbox coding-agent eval
-         ├─ PROMPT.md
-         ├─ EVAL.ts
-         └─ package.json
+├─ evals/
+│  ├─ hello.eval.ts            # example: conversational eval
+│  └─ button.eval.ts           # example: sandbox coding-agent eval
+└─ workspaces/
+   └─ button/                  # starter workspace uploaded by button.eval.ts
+      └─ package.json
 ```
 
 ```bash

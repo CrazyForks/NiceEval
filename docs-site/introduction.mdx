@@ -41,12 +41,12 @@ At a high level, your `evals/` directory is the input and `.niceeval/` artifacts
    ─────────────────────           ──────────────             ─────────────────
    weather.eval.ts   ──discover──>  Runner  ──send──>  Agent  ─── in-process
    sql.eval.ts                        │                        ─── remote HTTP
-   fixtures/button/  ──fixture──>     │                        ─── sandbox ──> Docker
-     PROMPT.md                        ▼
-     EVAL.ts                       Scorers ──> Reporters ──> .niceeval/<run>/
+   button.eval.ts   ──sandbox──>      │                        ─── sandbox ──> Docker
+     workspaces/button/               ▼
+                                  Scorers ──> Reporters ──> .niceeval/<run>/
                                    (expect / scoped /         (summary.json /
-                                    judge / tests)             event stream /
-                                                               transcript / diff)
+                                    judge / commands)          events / trace /
+                                                               sources / diff)
 ```
 
 - **niceeval core** owns everything that is the same regardless of what you're evaluating: eval discovery, assertion collection, scoring, concurrency scheduling, caching, reporting, and artifact persistence.

@@ -1,7 +1,7 @@
 ---
 title: "Authoring evals: single-turn and multi-turn patterns"
 sidebarTitle: "Authoring"
-description: "Learn how to write niceeval evals using defineEval. Cover single-turn assertions, multi-turn conversations, dataset fan-out, and sandbox fixtures."
+description: "Learn how to write niceeval evals using defineEval. Cover single-turn assertions, multi-turn conversations, dataset fan-out, and sandbox workspaces."
 ---
 
 Every niceeval eval is a TypeScript file that exports a `defineEval` call. The framework follows three core principles: **path-as-identity** (the file path is the eval's ID), **one file, one eval** (or one array for dataset fan-out), and **linear writing with inline assertions** (you write checks right where the conversation happens). This page walks you through the full surface area of `defineEval`, from the simplest single-turn check to multi-turn conversations and dataset-driven suites.
@@ -177,22 +177,26 @@ niceeval generates stable, zero-padded IDs for each element: `sql/0000`, `sql/00
   `loadYaml` and `loadJson` are both available from `niceeval/loaders`. Both return the parsed document as a plain JavaScript object.
 </Note>
 
-## Sandbox fixtures
+## Sandbox workspaces
 
-When evaluating a coding agent, the task lives on disk rather than in code. A **fixture** is a directory that niceeval discovers automatically — no `.eval.ts` wrapper needed.
+Coding-agent evals are still normal `.eval.ts` files. Their `test` function prepares a sandbox workspace, sends the task, and checks the resulting files:
 
+```ts
+import { defineEval } from "niceeval";
+
+const WORKSPACE = new URL("../workspaces/ts-starter/", import.meta.url).pathname;
+
+export default defineEval({
+  description: "Create a Button component",
+  async test(t) {
+    await t.sandbox.uploadDirectory(WORKSPACE, "/home/sandbox/workspace");
+    await t.send("Create src/components/Button.tsx with label and onClick props.").then((turn) => turn.expectOk());
+    t.fileChanged("src/components/Button.tsx");
+  },
+});
 ```
-evals/fixtures/create-button/
-├─ PROMPT.md          # Task prompt sent to the agent (required)
-├─ EVAL.ts            # Validation tests, Vitest-style (required)
-├─ package.json       # Must have "type": "module"
-├─ src/               # Starting workspace the agent can see (optional)
-└─ tsconfig.json
-```
 
-Any directory containing a `PROMPT.md` is treated as a fixture, including arbitrarily nested ones (`fixtures/api/auth/`). `EVAL.ts` is **hidden from the agent** during execution — it is only uploaded after the agent finishes, so the agent cannot read the answers.
-
-For programmatic control over fixtures, use `defineAgentEval` instead. See the [Fixtures guide](/guides/fixtures) for the full picture.
+See the [Fixtures guide](/guides/fixtures) for the full picture.
 
 ## Naming and organization conventions
 
@@ -206,8 +210,8 @@ For programmatic control over fixtures, use `defineAgentEval` instead. See the [
   <Card title="Datasets" icon="database">
     Store YAML and JSON datasets under `evals/data/`. This is a convention, not a requirement, but it keeps data files out of the eval index.
   </Card>
-  <Card title="Fixtures" icon="box">
-    Store sandbox fixtures under `evals/fixtures/`. Again, convention only — niceeval finds any directory with `PROMPT.md`.
+  <Card title="Sandbox workspaces" icon="box">
+    Store reusable starting projects under `workspaces/` and upload them from `.eval.ts` files.
   </Card>
 </CardGroup>
 

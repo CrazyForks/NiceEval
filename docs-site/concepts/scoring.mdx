@@ -19,7 +19,7 @@ Scoring is the process of taking everything an agent did during an eval — ever
     `t.judge.autoevals.factuality()`, `t.judge.autoevals.closedQA()`, `t.judge.autoevals.summarizes()`, and `t.judge.autoevals.closedQA()` ask a separate evaluator model to score open-ended output. The judge model is fully independent from the agent under test.
   </Card>
   <Card title="4. Test-as-scoring" icon="flask">
-    For sandbox evals, `EVAL.ts` is a Vitest test file that runs inside the sandbox after the agent finishes. Every `test()` in `EVAL.ts` becomes a gate assertion. Use this for coding tasks where file content and build results are the ground truth.
+    For sandbox evals, run project tests, build scripts, or focused probe commands from `test(t)`. Use this for coding tasks where file content and build results are the ground truth.
   </Card>
   <Card title="5. Efficiency assertions" icon="gauge">
     `t.maxTokens()` and `t.maxCost()` turn token usage and estimated cost into scoreable dimensions. An agent that answers correctly but burns ten times the expected tokens should not score the same as one that answers efficiently.
@@ -177,8 +177,8 @@ t.fileChanged("src/Button.tsx");
 t.fileDeleted("src/old.ts");
 t.sandbox.diff.isEmpty();                      // no repository files were modified this turn
 t.notInDiff(/sk-[A-Za-z0-9]/);         // diff contains no secrets / inline styles
-t.check(await t.sandbox.runCommand("npm", ["test"], { cwd: "/workspace" }), commandSucceeded());                       // EVAL.ts ran and all test() cases passed
-t.check(await t.sandbox.runCommand("npm", ["run", "build"], { cwd: "/workspace" }), commandSucceeded());              // npm run build exited 0
+t.check(await t.sandbox.runCommand("npm", ["test"], { cwd: "/home/sandbox/workspace" }), commandSucceeded());         // npm test exited 0
+t.check(await t.sandbox.runCommand("npm", ["run", "build"], { cwd: "/home/sandbox/workspace" }), commandSucceeded()); // npm run build exited 0
 t.noFailedShellCommands();
 ```
 
@@ -227,35 +227,19 @@ t.judge.autoevals.closedQA("rubric", { on: t.reply, model: "openai/gpt-4o" });
 
 ## 4. Test-as-scoring (sandbox evals)
 
-For sandbox coding evals, the `EVAL.ts` file is a Vitest test suite that runs **inside the sandbox** after the agent completes its task. Every `test()` block in `EVAL.ts` becomes a gate assertion — pass means gate passes, fail means gate fails.
+For sandbox coding evals, run validation commands inside `test(t)` and record their result as assertions.
 
 ```ts
-// evals/fixtures/button/EVAL.ts — not visible to the agent during its run
-import { test, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { commandSucceeded, includes } from "niceeval/expect";
 
-test("Button component exists", () => {
-  expect(existsSync("src/components/Button.tsx")).toBe(true);
-});
+const testResult = await t.sandbox.runCommand("npm", ["test"], { cwd: "/home/sandbox/workspace" });
+t.check(testResult, commandSucceeded());
 
-test("accepts label and onClick props", () => {
-  const src = readFileSync("src/components/Button.tsx", "utf-8");
-  expect(src).toContain("label");
-  expect(src).toContain("onClick");
-});
+const src = await t.sandbox.readSourceFiles({ extensions: ["ts"] });
+t.check(src.text(), includes(/z\.object\s*\(/));
 ```
 
-You can also assert **agent behavior** (not just output files) by reading the observability summary that niceeval injects into the sandbox:
-
-```ts
-test("initialized with scaffold, not hand-written", () => {
-  const o11y = JSON.parse(readFileSync("__niceeval__/results.json", "utf-8")).o11y;
-  const cmds = o11y.shellCommands.map((c: { command: string }) => c.command);
-  expect(cmds.some((c) => c.includes("create-next-app"))).toBe(true);
-});
-```
-
-The `validation` field in the eval controls what gets run: `"vitest"` runs `EVAL.ts` plus any configured npm scripts; `"none"` runs only npm scripts.
+You can also assert behavior through the standard event stream: `t.calledTool(...)`, `t.noFailedShellCommands()`, `t.eventsSatisfy(...)`, and diff assertions such as `t.fileChanged(...)`.
 
 ## 5. Efficiency / cost assertions
 

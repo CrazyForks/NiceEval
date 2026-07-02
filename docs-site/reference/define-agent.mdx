@@ -270,8 +270,7 @@ import { defineSandboxAgent, shared } from "niceeval/adapter";
 </ResponseField>
 
 <ResponseField name="uploadFiles(files)" type="(files: SandboxFile[]) => Promise<void>">
-  Uploads a batch of files (including binary) to the sandbox. Used internally
-  by `shared.prepareWorkspace` to upload workspace fixture files.
+  Uploads a batch of files (including binary) to the sandbox.
 </ResponseField>
 
 <ResponseField name="runCommand(..., { cwd })" type="() => string">
@@ -290,13 +289,7 @@ import { defineSandboxAgent, shared } from "niceeval/adapter";
 
 ### shared helpers
 
-The `shared` object from `niceeval/adapter` provides utilities that are common across all sandbox agent adapters, ensuring that workspace preparation, diff collection, validation, and observability injection work consistently regardless of which agent CLI you're wrapping.
-
-<ResponseField name="shared.prepareWorkspace(sandbox, fixture)" type="function">
-  Uploads workspace files to the sandbox (hiding `EVAL.ts` and other test files
-  to prevent the agent from seeing the answer), then runs `git init && git commit`
-  to establish a baseline for later diffing.
-</ResponseField>
+The `shared` object from `niceeval/adapter` provides utilities for sandbox agent adapters: installing CLI tools, writing config files, capturing native transcripts, and parsing those transcripts into standard `StreamEvent[]` data.
 
 <ResponseField name="shared.captureLatestJsonl(sandbox, dir)" type="function">
   Locates and reads the most recently modified `.jsonl` transcript file under
@@ -308,22 +301,24 @@ The `shared` object from `niceeval/adapter` provides utilities that are common a
   ```
 </ResponseField>
 
-<ResponseField name="shared.runValidation(sandbox, scripts, mode)" type="function">
-  Uploads the test files (e.g. `EVAL.ts`) that were hidden during workspace
-  preparation, then runs the Vitest suite and/or npm scripts to validate the
-  agent's output.
+<ResponseField name="shared.writeFile(sandbox, path, content)" type="function">
+  Writes a config or helper file into the sandbox, creating parent directories when needed.
 </ResponseField>
 
-<ResponseField name="shared.injectO11yContext(sandbox, events)" type="function">
-  Derives observability data from the standard event stream and writes it to
-  `__niceeval__/results.json` inside the sandbox. This makes agent behavior
-  visible to assertions in `EVAL.ts`.
+<ResponseField name="shared.ensureInstalled(sandbox, command, install)" type="function">
+  Ensures a CLI command exists in the sandbox, running the install command when needed.
+</ResponseField>
 
-  ```ts
-  // In EVAL.ts — read what the agent did:
-  const o11y = JSON.parse(readFileSync("__niceeval__/results.json", "utf-8")).o11y;
-  expect(o11y.shellCommands.map(c => c.command)).not.toContain("rm -rf /");
-  ```
+<ResponseField name="shared.parseClaudeCode(raw)" type="function">
+  Parses a Claude Code JSONL transcript into standard events, usage, and compaction metadata.
+</ResponseField>
+
+<ResponseField name="shared.parseCodex(raw)" type="function">
+  Parses Codex JSONL into standard events, usage, and compaction metadata.
+</ResponseField>
+
+<ResponseField name="shared.parseBub(raw)" type="function">
+  Parses bub transcript JSONL into standard events, usage, and compaction metadata.
 </ResponseField>
 
 ### Complete example: claude-code adapter

@@ -40,13 +40,13 @@ After `init` completes, your project contains the following new entries:
 ```
 your-project/
 ├─ niceeval.config.ts
-└─ evals/
-   ├─ hello.eval.ts            # example: conversational eval
-   └─ fixtures/
-      └─ button/               # example: sandbox coding-agent eval
-         ├─ PROMPT.md
-         ├─ EVAL.ts
-         └─ package.json
+├─ evals/
+│  ├─ hello.eval.ts            # example: conversational eval
+│  └─ button.eval.ts           # example: sandbox coding-agent eval
+└─ workspaces/
+   └─ button/                  # starter workspace uploaded by button.eval.ts
+      ├─ package.json
+      └─ src/
 ```
 
 `niceeval.config.ts` is your central configuration — it sets the judge model, reporters, concurrency, timeout, and sandbox backend. `evals/` is where all your eval files live; the file path automatically becomes the eval's ID.
@@ -183,64 +183,64 @@ The four assertions above illustrate the main scoring tools available in the `te
 
 ## Eval 3 — a coding agent in a sandbox
 
-For coding agents like Claude Code, Codex, or bub that need to write real files, niceeval uses a **fixture** — a small directory containing a prompt, hidden validation tests, and a minimal project to work in.
+For coding agents like Claude Code, Codex, or bub that need to write real files, use a sandbox eval. The eval uploads a starter workspace, sends the task, and verifies the resulting files and command output.
 
 <CodeGroup>
 
-```md PROMPT.md
-<!-- evals/fixtures/button/PROMPT.md -->
-Using the project's existing styling system, export a Button component
-from src/components/Button.tsx that accepts `label` and `onClick` props
-and implements a hover state.
+```ts evals/button.eval.ts
+import { defineEval } from "niceeval";
+import { commandSucceeded, includes } from "niceeval/expect";
+
+const WORKSPACE = new URL("../workspaces/button/", import.meta.url).pathname;
+
+export default defineEval({
+  description: "Create a Button component",
+  async test(t) {
+    await t.sandbox.uploadDirectory(WORKSPACE, "/home/sandbox/workspace");
+
+    await t
+      .send(
+        "Using the project's existing styling system, export a Button component " +
+          "from src/components/Button.tsx that accepts label and onClick props.",
+      )
+      .then((turn) => turn.expectOk());
+
+    t.fileChanged("src/components/Button.tsx");
+
+    const src = await t.sandbox.readSourceFiles({ extensions: ["ts", "tsx"] });
+    t.check(src.text(), includes(/label/));
+    t.check(src.text(), includes(/onClick/));
+
+    const build = await t.sandbox.runCommand("npm", ["run", "build"], { cwd: "/home/sandbox/workspace" });
+    t.check(build, commandSucceeded());
+  },
+});
 ```
 
-```ts EVAL.ts
-// evals/fixtures/button/EVAL.ts — validation tests, hidden from the agent
-import { test, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
-
-test("Button component exists", () => {
-  expect(existsSync("src/components/Button.tsx")).toBe(true);
-});
-
-test("accepts label and onClick props", () => {
-  const src = readFileSync("src/components/Button.tsx", "utf-8");
-  expect(src).toContain("label");
-  expect(src).toContain("onClick");
-});
-
-test("no destructive shell commands", () => {
-  const o11y = JSON.parse(
-    readFileSync("__niceeval__/results.json", "utf-8")
-  ).o11y;
-  expect(o11y.shellCommands.map((c) => c.command)).not.toContain("rm -rf");
-});
-```
-
-```json package.json
+```json workspaces/button/package.json
 {
-  "name": "button-fixture",
+  "name": "button-workspace",
   "type": "module",
   "scripts": { "build": "tsc --noEmit" },
-  "devDependencies": { "vitest": "^2.0.0" }
+  "devDependencies": { "typescript": "^5.8.0" }
 }
 ```
 
 </CodeGroup>
 
-The fixture works as follows: `PROMPT.md` is sent to the agent as its task. `EVAL.ts` is a Vitest test file that runs _after_ the agent finishes — the agent never sees it. `package.json` defines the minimal project environment.
+The eval controls the full flow: upload the starting files, send the work order, inspect changed files, and run build/test commands.
 
 Run the coding-agent eval with Docker as the sandbox:
 
 ```shell
 export ANTHROPIC_API_KEY=sk-ant-...
-npx niceeval exp local fixtures/button --sandbox docker
+npx niceeval exp local button --sandbox docker
 ```
 
 To measure pass rate over multiple attempts with early stopping on first success:
 
 ```shell
-npx niceeval exp local fixtures/button --runs 10 --early-exit
+npx niceeval exp local button --runs 10 --early-exit
 ```
 
 <Warning>
@@ -256,20 +256,18 @@ Discovered 3 evals
 
   ✓ classify (12ms)
   ✓ weather/brooklyn (456ms)
-  ✗ fixtures/button (38s)
-    - gate: EVAL.ts › accepts label / onClick [FAILED]
-      Expected src to contain "onClick"
+  ✗ button (38s)
+    - gate: expected generated source to include onClick [FAILED]
 
-Results:  2 passed, 1 failed, 0 passed, 0 skipped
+Results:  2 passed, 1 failed, 0 errored, 0 skipped
 ```
 
 Full artifacts are written to `.niceeval/<timestamp>/` after every run. The directory contains:
 
 - `summary.json` — machine-readable pass/fail summary
-- Per-eval result files with assertion details
-- Event stream and agent transcript
+- Event stream, source locations, traces, and usage summaries
 - File diffs of anything the agent changed
-- Test output from `EVAL.ts`
+- Command output from sandbox validation steps
 
 To open the interactive artifact viewer:
 

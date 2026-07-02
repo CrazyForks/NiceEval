@@ -15,11 +15,10 @@ Discovered 3 evals
 
   ✓ classify (12ms)
   ✓ weather/brooklyn (456ms)
-  ✗ fixtures/button (38s)
-    - gate: EVAL.ts › Button accepts label / onClick [FAILED]
-      Expected src to contain "onClick"
+  ✗ api-validation (38s)
+    - gate: expected src/routes/users.ts to include .safeParse() [FAILED]
 
-Results:  2 passed, 1 failed, 0 passed, 0 skipped
+Results:  2 passed, 1 failed, 0 errored, 0 skipped
 ```
 
 Each line tells you the eval ID, its outcome, and wall-clock duration. Failed evals show the specific assertion that didn't pass, including the assertion type (`gate` or `soft`) and the failure message.
@@ -27,8 +26,8 @@ Each line tells you the eval ID, its outcome, and wall-clock duration. Failed ev
 For experiment runs, the summary shows pass rates per `(agent, model, eval)` cell:
 
 ```
-fixtures/button   claude-code   pass@5 = 4/5 (80%)   mean 34s · 58k tok · $0.44
-fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.39
+api-validation   claude-code+zod-skill   pass@3 = 3/3 (100%)   mean 34s · 58k tok · $0.44
+api-validation   claude-code             pass@3 = 1/3 (33%)    mean 41s · 72k tok · $0.39
 ```
 
 ## The `.niceeval/<timestamp>/` directory
@@ -39,19 +38,13 @@ Every run produces a timestamped output directory containing:
 .niceeval/
 └─ 2025-01-15T14-23-00/
    ├─ summary.json           # top-level run summary
-   ├─ weather/
-   │  └─ brooklyn/
-   │     ├─ result.json      # per-eval outcome and assertions
-   │     ├─ events.jsonl     # raw StreamEvent[] stream
-   │     ├─ transcript.jsonl # agent conversation transcript
-   │     └─ diff.json        # generated file diff (sandbox evals)
-   └─ fixtures/
-      └─ button/
-         ├─ result.json
-         ├─ events.jsonl
-         ├─ transcript.jsonl
-         ├─ diff.json
-         └─ test-output.txt  # EVAL.ts Vitest output
+   └─ artifacts/
+      └─ compare__web-agent__gpt-5.4__weather-tool__0/
+         ├─ events.json      # normalized StreamEvent[] stream
+         ├─ sources.json     # eval source and assertion locations
+         ├─ trace.json       # OTLP trace/spans when available
+         ├─ o11y.json        # usage, commands, tools, cost summary
+         └─ diff.json        # generated file diff (sandbox evals)
 ```
 
 ## The `niceeval view` command
@@ -91,9 +84,9 @@ The top-level summary captures aggregate statistics for the entire run:
 
 For experiment runs, `summary.json` also contains the per-cell pass rate table.
 
-### Event stream (`events.jsonl`)
+### Event stream (`events.json`)
 
-Each line in `events.jsonl` is a `StreamEvent` — the normalized, agent-agnostic event representation that niceeval uses as the source of truth for all assertions:
+`events.json` is the normalized, agent-agnostic event representation that niceeval uses as the source of truth for all assertions:
 
 ```ts
 type StreamEvent =
@@ -109,17 +102,17 @@ type StreamEvent =
 
 The event stream is what `t.calledTool()`, `t.event()`, `t.noFailedActions()`, and all other scope assertions query. Reading it directly lets you understand exactly what sequence of actions the agent took.
 
-### Transcript (`transcript.jsonl`)
+### Transcript view
 
-For sandbox evals (coding agents), the transcript is the raw JSONL log produced by the agent CLI, captured before it is parsed into the standard event stream. This is the most detailed view of what the agent did — every tool invocation, every file read, every shell command, every model response.
+The viewer renders a human-readable transcript from the normalized events. For sandbox agents this includes messages, thinking, tool calls, shell commands, and errors when the adapter emits them.
 
 ### Generated file diff (`diff.json`)
 
 For sandbox evals, `diff.json` captures the git diff between the workspace's initial state and the state after the agent finished. It includes the list of changed, added, and deleted files along with their content. This is what `t.fileChanged()`, `t.sandbox.diff.get()`, and `t.notInDiff()` assertions query.
 
-### Test output (`test-output.txt`)
+### Source and trace artifacts
 
-For sandbox evals that include an `EVAL.ts`, `test-output.txt` contains the full Vitest output from running the validation tests inside the sandbox. This shows exactly which test cases passed and failed, with the same detail you'd see running Vitest locally.
+`sources.json` maps assertion results back to eval source locations. `trace.json` stores timing spans when tracing is available. `o11y.json` stores usage, tool, command, and cost summaries.
 
 ## Outcome meanings
 
@@ -143,8 +136,8 @@ For sandbox evals that include an `EVAL.ts`, `test-output.txt` contains the full
 When you run an experiment with `runs > 1`, the result viewer shows pass@k rates for each `(agent, model, eval)` cell:
 
 ```
-fixtures/button   claude-code   pass@5 = 4/5 (80%)   mean 34s · 58k tok · $0.44
-fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.39
+api-validation   claude-code+zod-skill   pass@3 = 3/3 (100%)   mean 34s · 58k tok · $0.44
+api-validation   claude-code             pass@3 = 1/3 (33%)    mean 41s · 72k tok · $0.39
 ```
 
 `pass@5 = 4/5` means 4 of the 5 attempts for that cell produced a `passed` outcome. The mean time, token usage, and cost are averages across those 5 attempts. Use these numbers to compare agent reliability and cost efficiency side by side.
@@ -153,7 +146,7 @@ fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.3
 
 ### Reading the transcript to understand agent behavior
 
-When an eval fails unexpectedly, the transcript is usually the best place to start. Open `transcript.jsonl` in the viewer or read it directly to see the full turn-by-turn conversation, the exact inputs to every tool call, and the outputs returned. This tells you whether the agent understood the task, attempted the right approach, or got stuck in a loop.
+When an eval fails unexpectedly, the transcript view is usually the best place to start. It shows the turn-by-turn conversation, the exact inputs to tool calls, and the outputs returned. This tells you whether the agent understood the task, attempted the right approach, or got stuck in a loop.
 
 ### Checking the diff for unexpected changes
 
@@ -161,22 +154,8 @@ For sandbox (coding agent) evals, `diff.json` shows every file the agent touched
 
 ### Checking the event stream for tool usage issues
 
-If a `t.calledTool()` assertion fails, read `events.jsonl` to see what tools the agent actually called. You'll see every `action.called` and `action.result` event in order, with the exact inputs and outputs. This makes it easy to spot cases where an agent called the right tool with the wrong arguments, or called a different tool than expected.
+If a `t.calledTool()` assertion fails, read `events.json` to see what tools the agent actually called. You'll see every `action.called` and `action.result` event in order, with the exact inputs and outputs. This makes it easy to spot cases where an agent called the right tool with the wrong arguments, or called a different tool than expected.
 
-### Using `__niceeval__/results.json` in EVAL.ts
+### Checking command output
 
-For sandbox evals, niceeval injects an observability summary into the sandbox at `__niceeval__/results.json` before running `EVAL.ts`. Your test code can read it to make assertions about agent behavior rather than just file outcomes:
-
-```ts
-// evals/fixtures/button/EVAL.ts
-import { test, expect } from "vitest";
-import { readFileSync } from "node:fs";
-
-test("did not run destructive commands", () => {
-  const o11y = JSON.parse(readFileSync("__niceeval__/results.json", "utf-8")).o11y;
-  const commands = o11y.shellCommands.map((c: { command: string }) => c.command);
-  expect(commands).not.toContain("rm -rf");
-});
-```
-
-This lets you combine file-level correctness checks with behavioral assertions — both gated on the same Vitest run, with the full output captured in `test-output.txt`.
+For sandbox evals, command output appears in the event stream and transcript view when you run commands with `t.sandbox.runCommand(...)`. Use this together with `diff.json` to distinguish "agent edited the wrong file" from "agent edited the right file but tests failed."

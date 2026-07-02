@@ -51,16 +51,15 @@ npx niceeval init
 ```
 your-project/
 ├─ niceeval.config.ts           ← central configuration
-└─ evals/
-   ├─ hello.eval.ts             ← example: conversational eval
-   └─ fixtures/
-      └─ button/                ← example: sandbox coding-agent eval
-         ├─ PROMPT.md
-         ├─ EVAL.ts
-         └─ package.json
+├─ evals/
+│  ├─ hello.eval.ts             ← example: conversational eval
+│  └─ button.eval.ts            ← example: sandbox coding-agent eval
+└─ workspaces/
+   └─ button/                   ← starter workspace uploaded by button.eval.ts
+      └─ package.json
 ```
 
-The generated `hello.eval.ts` and `fixtures/button/` are illustrative examples — read through them to understand the eval shape, then replace or delete them when you're ready to write your own.
+The generated `hello.eval.ts`, `button.eval.ts`, and `workspaces/button/` are illustrative examples — read through them to understand the eval shape, then replace or delete them when you're ready to write your own.
 
 <Tip>
   Eval IDs are derived automatically from file paths. The file `evals/weather/brooklyn.eval.ts` gets the ID `weather/brooklyn`. You never declare an ID by hand — renaming the file is all it takes to change it.

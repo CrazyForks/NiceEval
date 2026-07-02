@@ -1,7 +1,7 @@
 ---
 title: "defineEval: declare, configure, and run evals in niceeval"
 sidebarTitle: "defineEval"
-description: "Complete reference for defineEval and defineAgentEval. Covers all options, the test context t, Turn return value, and dataset array exports."
+description: "Complete reference for defineEval. Covers all options, the test context t, Turn return value, sandbox helpers, and dataset array exports."
 ---
 
 `defineEval` is the primary building block for writing evals in niceeval. You call it once per file, pass a configuration object describing what to test, and export the result as the default export. The runner discovers your file, derives its ID from the file path, and executes the `test` function under the selected experiment's agent.
@@ -490,52 +490,33 @@ Available on any eval that has a judge model configured (globally or per-eval).
 
 ---
 
-## defineAgentEval
+## Coding-agent evals
 
-`defineAgentEval` is a convenience wrapper for **coding-agent evals** that you want to define programmatically rather than via a fixture directory. It is equivalent to a fixture (`PROMPT.md` + `EVAL.ts`) but expressed entirely in TypeScript.
+Coding-agent evals use the same `defineEval(...)` API. Prepare the sandbox workspace inside `test(t)`, send the task with `t.send(...)`, then verify files, commands, diffs, and judge results.
 
 ```ts
-import { defineAgentEval } from "niceeval";
-import { includes } from "niceeval/expect";
+import { defineEval } from "niceeval";
+import { commandSucceeded, includes } from "niceeval/expect";
 
-export default defineAgentEval({
+const WORKSPACE = new URL("../workspaces/legacy-callbacks/", import.meta.url).pathname;
+
+export default defineEval({
   description: "Rewrite callbacks to async/await",
-  prompt: "Rewrite all callbacks in src/legacy.js to async/await, preserving behavior.",
-  files: "./fixtures/legacy-callbacks",  // workspace starter files
   async test(t) {
-    await t.run();                        // drives the sandbox agent
+    await t.sandbox.uploadDirectory(WORKSPACE, "/home/sandbox/workspace");
+    await t.send("Rewrite all callbacks in src/legacy.js to async/await, preserving behavior.").then((turn) => turn.expectOk());
     t.fileChanged("src/legacy.js");
-    t.check(t.sandbox.diff.get("src/legacy.js"), includes("await"));
-    t.check(await t.sandbox.runCommand("npm", ["test"], { cwd: "/workspace" }), commandSucceeded());
+
+    const src = await t.sandbox.readSourceFiles({ extensions: ["js"] });
+    t.check(src.text(), includes("await"));
+
+    const result = await t.sandbox.runCommand("npm", ["test"], { cwd: "/home/sandbox/workspace" });
+    t.check(result, commandSucceeded());
   },
 });
 ```
 
-<ParamField body="description" type="string">
-  Human-readable description. Appears in reports.
-</ParamField>
-
-<ParamField body="prompt" type="string" required>
-  The task prompt sent to the coding agent. Equivalent to the contents of
-  `PROMPT.md` in a fixture directory.
-</ParamField>
-
-<ParamField body="files" type="string">
-  Path to a local directory whose contents are uploaded to the sandbox as the
-  agent's starting workspace. Equivalent to the non-test files in a fixture
-  directory.
-</ParamField>
-
-<ParamField body="test" type="(t: TestContext) => Promise<void>" required>
-  The assertion function. Receives the full test context `t`. In addition to all
-  standard `t` methods, `t.run()` is available to trigger the agent run
-  explicitly.
-
-  <ParamField body="t.run()" type="() => Promise<void>">
-    Drives the sandbox agent with the configured `prompt` and `files`. You
-    must call this before asserting any workspace state (diff, files, tests).
-  </ParamField>
-</ParamField>
+See [Fixtures](/guides/fixtures) for the full sandbox workspace pattern.
 
 ---
 
