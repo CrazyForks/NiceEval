@@ -3,7 +3,7 @@
 
 import type { EvalResult, Usage } from "../types.ts";
 import type { LoadedSummary, ScanResult } from "./loader.ts";
-import { evalLevelStats } from "./shared/outcome.ts";
+import { evalLevelStats } from "../shared/outcome.ts";
 import type { ViewData, ViewRow } from "./shared/types.ts";
 
 const OUTCOME_ORDER: Record<EvalResult["outcome"], number> = {

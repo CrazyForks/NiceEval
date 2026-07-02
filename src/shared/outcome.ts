@@ -2,7 +2,7 @@
 // 必须保持环境无关且只依赖 type import,vite 前端会直接打包它。
 // 单独成模块的原因:折叠/计票口径两边必须逐字一致,否则折叠行状态会和 KPI / 成功率对不上。
 
-import type { ResultOutcome } from "../../types.ts";
+import type { ResultOutcome } from "../types.ts";
 
 /** 折叠/计票只需要 outcome 字段;server 传 EvalResult,前端传 ViewResult 都满足。 */
 export interface OutcomeLike {

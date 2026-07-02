@@ -2,8 +2,8 @@ import type { Assertion, Outcome, ViewResult, ViewRow } from "../types.ts";
 import type { T } from "../shared.ts";
 import { formatScore } from "./format.ts";
 
-// 折叠口径与 server 聚合共用一份实现,见 src/view/shared/outcome.ts。
-import { foldEvalOutcome } from "../../shared/outcome.ts";
+// 折叠口径与 server 聚合共用一份实现,见 src/shared/outcome.ts。
+import { foldEvalOutcome } from "../../../shared/outcome.ts";
 
 export { foldEvalOutcome };
 

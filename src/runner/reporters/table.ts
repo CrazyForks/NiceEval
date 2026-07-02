@@ -1,18 +1,13 @@
 import type { EvalResult, RunSummary, Usage } from "../../types.ts";
 import { t } from "../../i18n/index.ts";
+import { outcomeSymbol } from "./shared.ts";
+import { foldEvalOutcome, evalLevelStats as sharedEvalLevelStats } from "../../shared/outcome.ts";
 
 const OUTCOME_ORDER: Record<string, number> = {
   failed: 0,
   errored: 1,
   skipped: 2,
   passed: 3,
-};
-
-const OUTCOME_SYM: Record<string, string> = {
-  passed: "✓",
-  failed: "✗",
-  errored: "!",
-  skipped: "○",
 };
 
 interface ExperimentRow {
@@ -132,7 +127,7 @@ export function formatCost(n: number | undefined): string {
 }
 
 export function formatOutcome(outcome: string): string {
-  const sym = OUTCOME_SYM[outcome] ?? "?";
+  const sym = outcomeSymbol(outcome);
   switch (outcome) {
     case "passed": return `${sym} ${t("report.passed")}`;
     case "failed": return `${sym} ${t("report.failed")}`;
@@ -198,21 +193,9 @@ function aggregateEvalRows(results: EvalResult[]): EvalRow[] {
     .sort((a, b) => OUTCOME_ORDER[a.outcome] - OUTCOME_ORDER[b.outcome] || a.id.localeCompare(b.id));
 }
 
+// 折叠 / 计票口径与 view 同一份实现(src/shared/outcome.ts),CLI 表格和网页榜单永不打架。
 function evalLevelStats(results: EvalResult[]) {
-  const byEval = new Map<string, EvalResult[]>();
-  for (const r of results) byEval.set(r.id, [...(byEval.get(r.id) ?? []), r]);
-  const counts = { passed: 0, failed: 0, errored: 0, skipped: 0 };
-  for (const group of byEval.values()) counts[foldEvalOutcome(group)] += 1;
-  const ran = counts.passed + counts.failed + counts.errored;
-  return { evals: byEval.size, ...counts, passRate: ran ? counts.passed / ran : 0 };
-}
-
-function foldEvalOutcome(results: EvalResult[]): EvalResult["outcome"] {
-  const outcomes = results.map((r) => r.outcome);
-  if (outcomes.some((o) => o === "passed")) return "passed";
-  if (outcomes.some((o) => o === "failed")) return "failed";
-  if (outcomes.some((o) => o === "errored")) return "errored";
-  return "skipped";
+  return sharedEvalLevelStats(results, (r) => r.id);
 }
 
 function reasonFor(result: EvalResult): string {

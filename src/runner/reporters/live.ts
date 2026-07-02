@@ -5,15 +5,9 @@
 import type { Reporter, RunShape, RunSummary } from "../../types.ts";
 import { t } from "../../i18n/index.ts";
 import { renderRunReport } from "./table.ts";
+import { outcomeSymbol } from "./shared.ts";
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
-const OUTCOME_SYM: Record<string, string> = {
-  passed: "✓",
-  failed: "✗",
-  errored: "!",
-  skipped: "○",
-};
 
 // 进度日志里的基础设施噪声:OTLP 端口、remote-agent 启动提示、trace span 计数。
 // 这些在行尾显示毫无意义,直接丢弃。
@@ -76,7 +70,7 @@ export function Live(rows: LiveRow[], totalAttempts: number): LiveReporter {
   function renderRow(state: RowState, frame: number): string {
     const done = state.completed >= state.total;
     const sym = done
-      ? (OUTCOME_SYM[state.dominantOutcome ?? ""] ?? "?")
+      ? outcomeSymbol(state.dominantOutcome ?? "")
       : SPINNER[frame % SPINNER.length];
 
     const evalCol = state.evalId.slice(0, 24).padEnd(24);
