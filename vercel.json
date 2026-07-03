@@ -1,6 +1,5 @@
 {
   "buildCommand": "pnpm run site:build",
-  "outputDirectory": "site/dist",
   "installCommand": "pnpm install",
   "rewrites": [
     {

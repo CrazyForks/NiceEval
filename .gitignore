@@ -12,3 +12,4 @@ src/view/client-dist/
 _*.mjs
 _*.log
 _*.sh
+.vercel
