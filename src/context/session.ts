@@ -1,7 +1,9 @@
 // 会话驱动:把 t.send(text) 翻成 agent.send(input, ctx),在同一沙箱里多轮 resume /
 // newSession,并把每轮的标准事件流与用量累加进整次运行(供作用域断言 / o11y)。
 
-import type { Agent, AgentContext, AgentSession, InputFile, InputRequest, Sandbox, StreamEvent, Telemetry, Turn, Usage } from "../types.ts";
+import type { Agent, AgentContext, AgentSession, InputFile, InputRequest, Sandbox, StreamEvent, Telemetry, TraceSpan, Turn, Usage } from "../types.ts";
+import type { AgentOtelChannel } from "../o11y/otlp/turn-otel.ts";
+import { deriveEventsFromSpans, mergeDerivedEvents } from "../o11y/otlp/dialects.ts";
 import { captureLoc } from "../source-loc.ts";
 import { t } from "../i18n/index.ts";
 
@@ -27,6 +29,8 @@ export interface SessionDeps {
   log(msg: string): void;
   /** tracing agent 的 OTLP 端点(经 send ctx 透给 adapter,用于注入导出 env)。 */
   telemetry?: Telemetry;
+  /** 非沙箱 tracing/otelEvents agent 的共享 OTLP 通道(runner 从 run 级池取,经它做逐轮归属)。 */
+  otel?: AgentOtelChannel;
 }
 
 export class SessionManager {
@@ -34,6 +38,12 @@ export class SessionManager {
   readonly allEvents: StreamEvent[] = [];
   readonly usage: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, requests: 0 };
   lastStatus: "completed" | "failed" | "waiting" = "completed";
+
+  /** 归属到本 attempt 的 span(逐轮攒;attempt 末尾连同 sweep 的迟到 span 一起挂 trace)。 */
+  readonly otelSpans: TraceSpan[] = [];
+  /** 本 attempt 各轮的 traceId(attempt 末尾按它 sweep 迟到 span)。 */
+  readonly otelTraceIds = new Set<string>();
+  private warnedWindowAttribution = false;
 
   readonly primary: RunSession;
   private readonly sessions: RunSession[] = [];
@@ -78,7 +88,9 @@ export class SessionManager {
     this.allEvents.push(userEvent);
     session.events.push(userEvent);
     session.pendingInputRequests.length = 0;
-    const turn = await this.deps.agent.send({ text, files }, ctx);
+    const turn = this.deps.otel
+      ? await this.sendWithOtel(this.deps.otel, { text, files }, ctx)
+      : await this.deps.agent.send({ text, files }, ctx);
 
     this.allEvents.push(...turn.events);
     session.events.push(...turn.events);
@@ -103,6 +115,72 @@ export class SessionManager {
       `${turnLabel} ← ${turn.status} · ${t("session.tools", { count: tools })} · ${tok} tok · ${Math.round((Date.now() - t0) / 1000)}s`,
     );
     return turn;
+  }
+
+  /**
+   * 经共享 OTLP 通道跑一轮:本轮的 traceparent 经 ctx.telemetry.headers 交给 adapter,
+   * 返回后按 traceId / 时间窗口归属本轮 span;agent 声明了 events: otelEvents() 时把
+   * span 派生成标准事件并与 send 返回的 events 合并(adapter 自己的映射优先)。
+   */
+  private async sendWithOtel(
+    otel: AgentOtelChannel,
+    input: { text: string; files?: readonly InputFile[] },
+    ctx: AgentContext,
+  ): Promise<Turn> {
+    const source = this.deps.agent.events;
+    const r = await otel.runTurn((headers) => {
+      const turnCtx: AgentContext = ctx.telemetry
+        ? { ...ctx, telemetry: { ...ctx.telemetry, headers } }
+        : ctx;
+      return this.deps.agent.send(input, turnCtx);
+    });
+    this.otelSpans.push(...r.spans);
+    this.otelTraceIds.add(r.traceId);
+
+    if (r.attribution === "window" && r.spans.length > 0 && !this.warnedWindowAttribution) {
+      this.warnedWindowAttribution = true;
+      this.deps.log(t("otel.windowAttribution"));
+    }
+    if (!source) return r.result;
+
+    // 事件从 span 派生
+    if (r.spans.length === 0) {
+      this.deps.log(t("otel.noSpans"));
+      return r.result;
+    }
+    const derived = deriveEventsFromSpans(r.spans, source.dialects);
+    const recognizedTotal = Object.values(derived.recognized).reduce((s, n) => s + n, 0);
+    if (recognizedTotal === 0) {
+      const names = [...new Set(derived.unrecognized)].slice(0, 8).join(", ");
+      this.deps.log(
+        source.explicit
+          ? t("otel.noneMatchedExplicit", {
+              count: r.spans.length,
+              dialects: source.dialects.map((d) => d.name).join("/"),
+              names,
+            })
+          : t("otel.noneMatched", { count: r.spans.length, names }),
+      );
+      return r.result;
+    }
+    const summary = Object.entries(derived.recognized)
+      .map(([name, n]) => `${name}×${n}`)
+      .join(" ");
+    this.deps.log(t("otel.recognized", { summary, total: r.spans.length }));
+
+    const derivedEvents = source.messages
+      ? derived.events
+      : derived.events.filter((e) => e.type !== "message");
+    // 派生质量守卫:大面积 called 无配对 result = 埋点只盖了 LLM 层没盖工具层的典型症状。
+    const calls = derivedEvents.filter((e) => e.type === "action.called").length;
+    const results = derivedEvents.filter((e) => e.type === "action.result").length;
+    if (calls > 0 && results < calls / 2) this.deps.log(t("otel.unpairedCalls", { calls, results }));
+
+    return {
+      ...r.result,
+      events: mergeDerivedEvents(r.result.events, derivedEvents),
+      usage: r.result.usage ?? derived.usage,
+    };
   }
 }
 

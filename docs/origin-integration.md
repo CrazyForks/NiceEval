@@ -6,7 +6,7 @@
 
 1. **不改 origin 的任何文件。** 接入产物放 `examples/zh/eval/<同名>/`:从 origin 复制整个应用,被复制的文件保持逐字节不变,接入代码全部是**新增**文件。`pnpm run gen:diff-code` 会 diff origin 和 eval 两个目录生成 before/after 文档页,"应用侧零改动"是这些页面的核心卖点,改一个字节都会破坏它。
 2. **协议以实际输出为准。** 动手写映射之前,先把应用跑起来,`curl -N` 打一轮 `/api/chat` 把 SSE 帧看一遍。本文的帧格式描述来自当前代码,但代码会演化,别背文档。
-3. **不要用 `otelEvents()`。** `docs-site/zh/guides/connect-otel.mdx` 里描述的 `events: otelEvents()` 是设计提案([otel-mixin](adapters/otel-mixin.md)),**还没实现**,`niceeval/adapter` 里没有这个导出。工具断言一律走手写帧映射;trace 瀑布图走已实现的 `capabilities.tracing` + `tracing.env`(见下)。
+3. **有 span 的应用优先用 `otelEvents()`。** `events: otelEvents()`(从 `niceeval/adapter` 导入)已实现:工具断言和瀑布图直接从本轮收到的 span 派生,SSE 只需要 drain 到轮次结束——帧解析只剩协议语义点(session id、审批帧、结束哨兵)。哪些应用有 span 可用,见下面「OTel:四种状况」的决策表;没有 span 的(claude-sdk、pi-sdk)照旧全量手写帧映射。注意:`otelEvents()` **不会**自动打开 `toolObservability`——埋点是否盖住全部工具层要你验证后自己声明。
 
 ## Tier 是什么,这次做到哪一档
 
@@ -55,9 +55,11 @@ export default defineAgent({
   },
   tracing: {
     // 仅声明 tracing 的应用需要。endpoint 是 niceeval 接收器的完整路径(…/v1/traces),
-    // 各应用要的环境变量形态不同,见各应用小节。
+    // 各应用要的环境变量形态不同,见各应用小节。长驻服务不用 otelEvents 时要加 scope: "run"。
     env: (endpoint) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: endpoint.replace(/\/v1\/traces$/, "") }),
   },
+  // A 档应用(ai-sdk-v7 / langgraph)加这一行,事件断言从 span 派生、免写帧映射:
+  // events: otelEvents({ dialects: [otel.genAi] }),   // otelEvents/otel 从 "niceeval/adapter" 导入
   async send(input, ctx) {
     // 1. 确保应用子进程活着(首次调用时拉起;模型、OTel env 都在这里注入)
     const server = await ensureServer({ model: ctx.model, telemetryEnv: ctx.telemetry?.env });
@@ -118,21 +120,22 @@ SSE 读法是标准的:`res.body` 按行切,`data: ` 前缀后面是一帧 JSON,
 
 ### OTel:四种状况,四种解法
 
-应用的 OTel 埋点状况不一样,解法也不一样——**先对号入座,再写 adapter 的 tracing 部分**。共同前提再强调一次:今天 OTel 在 Tier 1 里只买到 **trace 瀑布图**(`niceeval view` 里看每轮耗时、模型/工具调用嵌套);**事件断言的数据源五个应用全部是 SSE 帧映射**,和 OTel 无关。
+应用的 OTel 埋点状况不一样,解法也不一样——**先对号入座,再写 adapter 的 tracing / events 部分**。
 
 | 状况 | 应用 | 解法 |
 |---|---|---|
-| **A. 标准方言 spans**(GenAI semconv / LangSmith 等已识别格式) | ai-sdk-v7、langgraph | 声明 `capabilities.tracing`,`tracing.env` 注入端点,瀑布图直接有。这是最顺的一档。 |
-| **B. 自家方言 spans** | codex-sdk | 同 A 的写法;niceeval 接收器已内置 codex 的 span mapper(`src/o11y/otlp/mappers/codex.ts`),瀑布图能画。但 codex span 里没有工具入参出参,别指望从 span 断言工具 I/O。 |
+| **A. 标准方言 spans**(GenAI semconv / LangSmith 等官方方言认识的格式) | ai-sdk-v7、langgraph | **`events: otelEvents()`**:工具断言、消息文本、usage、瀑布图全部从 span 派生,免写事件映射。`tracing.env` 注入端点;SSE 只 drain,帧解析只剩 session id / 审批帧 / 结束哨兵。 |
+| **B. 自家方言 spans** | codex-sdk | 官方方言认不出 codex 的原生 span(无标准 GenAI 属性、无工具 I/O),**事件断言仍走 SSE 帧映射**;瀑布图有:声明 `capabilities.tracing` + **`tracing: { scope: "run", env }`**(长驻服务必须 run 级共享接收器),内置 codex mapper(`spanMapper: mapCodexSpans` 思路)把 span 归一后画图。 |
 | **C. 只有 metrics + logs,没有 spans** | claude-sdk | OTel 帮不上——niceeval 只消费 trace spans。**不声明 `tracing`**,不注入 OTel env(注入了也只是白发 metrics),在 eval README 写明"此应用无瀑布图"。 |
-| **D. 完全没有 OTel** | pi-sdk | 同 C:不声明,全靠 SSE。想要瀑布图属于 Tier 2(进程内按 GenAI semconv 埋点,埋完升级到 A 档),本工单不做。 |
+| **D. 完全没有 OTel** | pi-sdk | 同 C:不声明,全靠 SSE。想上 OTel 属于 Tier 2(进程内按 GenAI semconv 埋点,埋完升级到 A 档),本工单不做。 |
 
-A/B 两档的 adapter 差异只剩端点形态和附加开关,汇总一处免得翻小节:
+A/B 两档的 adapter 差异汇总一处免得翻小节:
 
 - **ai-sdk-v7 / codex-sdk**:`OTEL_EXPORTER_OTLP_ENDPOINT` 传 **base**(把 `ctx.telemetry` 端点的 `/v1/traces` 尾巴去掉,应用自己拼);
-- **langgraph**:传**完整路径**(保留 `/v1/traces`),并同时注入 `LANGSMITH_TRACING=true`、`LANGSMITH_OTEL_ENABLED=true`、`LANGSMITH_OTEL_ONLY=true` 三个开关。
+- **langgraph**:传**完整路径**(保留 `/v1/traces`),并同时注入 `LANGSMITH_TRACING=true`、`LANGSMITH_OTEL_ENABLED=true`、`LANGSMITH_OTEL_ONLY=true` 三个开关;
+- 显式钉方言报错更准:`otelEvents({ dialects: [otel.genAi] })`(ai-sdk-v7)/ `otelEvents({ dialects: [otel.langsmith] })`(langgraph),`otel` 从 `niceeval/adapter` 导入。
 
-将来 `otelEvents()` 落地后,A 档(以及暴露了 mapper 的 B 档)的事件断言也能从 span 派生,SSE 退化成纯收发——但那是框架侧的工作,不在本工单里,也不要提前按那个 API 写。
+**并发须知**:五个 origin 的 HTTP 层都没接 OTel 服务端埋点,不会传播 `ctx.telemetry.headers` 里的 traceparent——所以 span 按时间窗口归属,该 agent 的轮次自动串行(runner 会打日志提示,宁可慢不混流)。这是正确行为,不是 bug;要解锁并发属于 Tier 2(应用侧接 W3C trace context 传播)。
 
 ## 各应用速查
 
@@ -150,7 +153,7 @@ A/B 两档的 adapter 差异只剩端点形态和附加开关,汇总一处免得
 
 - 启动:`node --env-file .env --import tsx/esm src/backend/server.ts`,健康检查 `/healthz`。
 - **session 是客户端全量重放**:adapter 用「客户端带全量历史」模式——模块级 `Map<sessionId, UIMessage[]>`,每轮把用户消息 push 进去、整份 `messages` 发过去、把流里拼出来的 assistant 消息 push 回来。`ctx.session.isNew` 时 `crypto.randomUUID()` 当 key。
-- 帧映射(UI Message Stream chunk):`text-delta` 累积成一条 `message`;`tool-input-available` → `action.called`;`tool-output-available` → `action.result`;审批请求 chunk → `input.requested` + `waiting`(注意:这个应用的审批回复走**下一次 `/api/chat` 请求的 messages 里**,不是 approve 端点——把审批响应 part 塞进重放的 messages,具体 part 形状先打帧确认)。
+- **事件来源:`events: otelEvents({ dialects: [otel.genAi] })`**——应用产标准 GenAI spans,工具断言 / 消息 / usage / 瀑布图全从 span 派生,不用逐 chunk 写映射。SSE 仍要读:drain 到流结束才知道一轮完成,途中只解析**审批请求 chunk**(→ `input.requested` + `waiting`;审批回复走**下一次 `/api/chat` 请求的 messages 里**,不是 approve 端点——把审批响应 part 塞进重放的 messages,具体 part 形状先打帧确认)。
 - 模型对比:请求体 `model` 字段,`ctx.model` 直接透传,server 不用重启。可选值看 `GET /api/models`。
 - tracing:`tracing.env` 给 `OTEL_EXPORTER_OTLP_ENDPOINT`(**去掉** `/v1/traces` 尾巴,应用自己拼)。坑:应用用 `BatchSpanProcessor`,span 可能晚到几秒——瀑布图偶发缺尾巴是这个原因,Tier 1 不改代码只能接受,记进 eval README 即可。
 - 备注:仓库里已有进程内直调的 `examples/zh/eval/ai-sdk-v7`(用内建 `aiSdkAgent`)。本工单做的是**对着 HTTP 接口的黑盒接入**,是另一个东西,不要覆盖已有目录——产出放 `eval/ai-sdk-v7-http/`(唯一一个不同名的,README 里写清原因)。
@@ -166,7 +169,7 @@ A/B 两档的 adapter 差异只剩端点形态和附加开关,汇总一处免得
 
 - 帧是原生 `ThreadEvent`:`thread.started` 带 `thread_id`(写回 session)→ `item.*` 系列(`agent_message` item → `message`;`command_execution` / `file_change` / `mcp_tool_call` item → `action.called` + `action.result`,状态从 item 的完成态取)→ `turn.completed`(带 usage)/ `turn.failed` / `error`(→ `failed`)。
 - 无 HITL,永不返回 `waiting`。它是编码 agent,eval 应该测「在工作目录里写文件、跑命令」这类真实任务(现有 `eval/codex-sdk` 的 eval 思路可参考,adapter 要按 SSE 重写)。
-- tracing:声明。`tracing.env` 给 `OTEL_EXPORTER_OTLP_ENDPOINT`(去掉 `/v1/traces` 尾巴,codex 配置里自己拼)。codex 的 span 是自家命名,niceeval 接收器已认识(`src/o11y/otlp/mappers/codex.ts`),瀑布图能画;但 span 里没有工具入参出参,**工具断言的数据来源仍是 SSE 帧,不是 span**。
+- tracing:声明,且必须 **`tracing: { scope: "run", env }`**——应用是长驻服务,接收器要 run 级共享(默认的 per-attempt 端口会在第一个 attempt 后失效)。`env` 给 `OTEL_EXPORTER_OTLP_ENDPOINT`(去掉 `/v1/traces` 尾巴,codex 配置里自己拼)。codex 的 span 是自家命名,官方方言认不出(无标准 GenAI 属性、无工具 I/O),**不要用 `otelEvents()`;工具断言的数据来源是 SSE 帧**。瀑布图经内置 codex mapper(`spanMapper`)归一后能画。
 - 模型:`AGENT_MODEL`(默认 `gpt-5.4`),自定义 provider 走 `CODEX_BASE_URL`。
 
 ### pi-sdk
@@ -180,7 +183,7 @@ A/B 两档的 adapter 差异只剩端点形态和附加开关,汇总一处免得
 ### langgraph
 
 - 唯一的 Python 应用:启动是 `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python src/backend/server.py`,生命周期代码里要处理 venv 不存在时先建(或在 README 里要求手工建好,报错时直说"先建 venv")。
-- 帧全是自定义 JSON,映射最直白:`session` → 写回;`text-delta` 累积 → `message`;`tool-input` → `action.called`;`tool-output` → `action.result`;`tool-approval-request` → `input.requested` + `waiting`;`tool-output-denied` → `action.result`(`status:"rejected"`);`error` → `failed`;`finish` → 一轮结束哨兵。
+- **事件来源:`events: otelEvents({ dialects: [otel.langsmith] })`**——LangSmith OTel 导出的 span 直接派生工具断言 / 消息 / usage / 瀑布图。SSE 帧只解析协议语义点:`session` → 写回 `ctx.session.id`;`tool-approval-request` → `input.requested` + `waiting`;`tool-output-denied` → `action.result`(`status:"rejected"`,adapter 补这一条,span 里没有"人拒绝"语义);`error` → `failed`;`finish` → 一轮结束哨兵。`text-delta` / `tool-input` / `tool-output` 不用翻——span 派生已覆盖(重复了也没关系,合并按 callId / 文本去重)。
 - HITL 标准配方,**approve 端点字段是 `toolCallId`**(别照抄 claude/pi 的 `toolUseId`)。
 - tracing:声明。注意 **langgraph 要的是完整路径**:`tracing.env` 给 `OTEL_EXPORTER_OTLP_ENDPOINT` 时**保留** `/v1/traces` 尾巴(和 ai-sdk/codex 相反)。另外三个 LangSmith 开关(`LANGSMITH_TRACING` / `LANGSMITH_OTEL_ENABLED` / `LANGSMITH_OTEL_ONLY`)一起注入。
 - session 是 `InMemorySaver`,同 pi:server 不要中途重启。
@@ -220,7 +223,7 @@ experiment 侧用 `flags` → `ctx.flags` 透传,写法见 [Experiments](experim
 
 ## 现状(2026-07,做之前核对)
 
-- `otelEvents()` 未实现(见铁律 3)。
+- `otelEvents()` **已实现**(方言表 / 逐轮归属 / 共享接收器,见铁律 3 与 [otel-mixin](adapters/otel-mixin.md) 文末「实现」),本手册已按其可用改写。
 - `eval/claude-sdk`、`eval/codex-sdk`、`eval/langgraph` 已存在但接的是 origin 的**旧接口快照**(origin 已改为 SSE 原生流透传),adapter 需按本手册重写,应用副本需从当前 origin 重新复制。
 - `eval/custom-genai` 是残留,pi-sdk 接完后删除。
 - `eval/pi-sdk` 不存在,从零建。

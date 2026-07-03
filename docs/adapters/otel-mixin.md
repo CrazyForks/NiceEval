@@ -1,6 +1,6 @@
-# OTel mixin(设计提案)—— 已埋点应用免写事件映射
+# OTel mixin —— 已埋点应用免写事件映射
 
-**状态:设计提案,未实现。** 依据两篇调研:[agent-loop-apis.md](reference/agent-loop-apis.md)(四个主流 loop 的原生 API 面)和 [otel-instrumentation.md](reference/otel-instrumentation.md)(应用侧埋点里有什么数据)。
+**状态:已实现(2026-07)。** 实现落点见文末「实现」一节;行为与源码的映射见 [source-map.md](../source-map.md)「标准事件流与可观测性」。设计依据两篇调研:[agent-loop-apis.md](reference/agent-loop-apis.md)(四个主流 loop 的原生 API 面)和 [otel-instrumentation.md](reference/otel-instrumentation.md)(应用侧埋点里有什么数据)。
 
 ## 问题:T1 是五档里最贵的一档,而且是乘法
 
@@ -165,12 +165,17 @@ spans 是异步推来的,必须知道「这批 span 属于哪一轮 send」:
 - **负断言完整性依旧靠纪律。** mixin 把「写转换器」的成本降为零,但「埋点完整」的责任转到了应用侧——文档必须把这条从 adapter 作者的义务改写成应用作者的义务。
 - **与 per-framework 转换器不互斥,且 mixin 是默认推荐。** 接入优先级已定为 OTel 兼容优先(理由与规则层设计见 [collection.md · 接入路线的优先级](collection.md#接入路线的优先级提案otel-兼容优先)):能接 OTel 的先走 mixin;`fromAiSdk` / `aiSdkAgent` 这种精品路线保留给最高频框架(进程内、有 HITL、要 v4→v7 兜底)。
 
-## 落地顺序
+## 实现(落地与设计的差异)
 
-1. `deriveEventsFromSpans` 纯函数 + 方言表(`src/o11y/otlp/derive-events.ts`),fixtures 用真实导出抓取,独立单测——不动 runner 就能验证四套方言。
-2. 共享 receiver(非 sandbox 全 run 一个)+ send 窗口标记 + 并发守卫(无 traceparent 时该 agent 串行);remote agent 声明 `tracing` / `events: otelEvents()` 即起 receiver。
-3. `events: otelEvents()` 接线:派生结果与 adapter 自己的 `events` 按时间戳合并,0-span / 无配对 warning。
-4. `ctx.telemetry.headers`(traceparent):并发解锁的关键——确认生效后解除串行守卫;+ 文档 + 一个 LangGraph 黑盒服务 example。
+按原「落地顺序」四步全部实现,几处与提案文本的差异:
+
+1. **派生层**:`src/o11y/otlp/dialects.ts`(文件名不是提案里的 derive-events.ts)。`OtelDialect` 是公开契约(name / matches / derive),五个官方方言(`genAi` / `aiSdk` / `openInference` / `openLLMetry` / `langsmith`)各自独立成模块对象,经 `otel.*` 命名空间从 `niceeval/adapter` 导出;私有埋点实现同一契约传进 `dialects` 数组混用。单测:`dialects.test.ts`。
+2. **接收粒度多了一档**:共享 receiver 不是无条件的——`tracing.scope: "attempt" | "run"`(`src/agents/types.ts`)。默认 `"attempt"` 保住进程内 adapter(如内建 `aiSdkAgent`,exporter 每轮可切端点)的 attempt 全并发;**长驻服务选 `"run"`**;声明 `events: otelEvents()` 自动按 `"run"` 处理。池:`OtelReceiverPool`(每 agent 一个 receiver,`runEvals` 创建/回收)。
+3. **归属与守卫**:`AgentOtelChannel.runTurn`(`src/o11y/otlp/turn-otel.ts`)——每轮生成 traceparent 经 `ctx.telemetry.headers` 交给 adapter;span 按 traceId 命中即确认、解除串行;未确认时该 agent 的**轮次**(不是调度器层的 attempt 并发位)串行,效果等价、实现更局部。attempt 末尾按本 attempt 的 traceId 集合 sweep 迟到批(Batch 导出)。
+4. **合并语义**:adapter 自己返回的 events 优先,派生只补缺(按 callId / (role,text) 去重,`mergeDerivedEvents`),不是纯时间戳交错——两边只有 span 带时间戳,交错没有可靠依据。
+5. **守卫日志**(0-span / 0-识别列 span 名 / called-result 大面积不配对 / 窗口归属提示)在每轮 log 里,i18n key `otel.*`。
+
+能力位语义未变:`otelEvents()` 不自动打开 `toolObservability`(完整性只有用户能承诺)。
 
 ## 相关阅读
 

@@ -23,12 +23,21 @@ export interface TraceReceiver {
  * 在 Effect.scoped / Effect.gen 里 yield* 即可。
  */
 export function createTraceReceiver() {
-  return Effect.acquireRelease(Effect.promise(makeReceiver), (r) =>
-    Effect.promise(() => r.close().catch(() => {})),
+  return Effect.acquireRelease(
+    Effect.promise(() => makeTraceReceiver()),
+    (r) => Effect.promise(() => r.close().catch(() => {})),
   );
 }
 
-async function makeReceiver(): Promise<TraceReceiver> {
+/**
+ * 直接创建接收器(非 Effect 场景:run 级共享池自己管生命周期)。
+ * port=0 挑临时端口;固定端口模式(config telemetry.port / NICEEVAL_OTLP_PORT)传定值。
+ */
+export async function makeTraceReceiver(port = 0): Promise<TraceReceiver> {
+  return makeReceiver(port);
+}
+
+async function makeReceiver(port = 0): Promise<TraceReceiver> {
   const spans: TraceSpan[] = [];
   let lastAt = 0;
 
@@ -70,17 +79,17 @@ async function makeReceiver(): Promise<TraceReceiver> {
     req.on("error", () => res.writeHead(400).end());
   });
 
-  const port = await new Promise<number>((resolve, reject) => {
+  const boundPort = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
     // 0.0.0.0:容器经 host-gateway / host.docker.internal 回连宿主,不能只听 127.0.0.1。
-    server.listen(0, "0.0.0.0", () => {
+    server.listen(port, "0.0.0.0", () => {
       const a = server.address();
       resolve(typeof a === "object" && a ? a.port : 0);
     });
   });
 
   return {
-    endpoint: (host) => `http://${host}:${port}/v1/traces`,
+    endpoint: (host) => `http://${host}:${boundPort}/v1/traces`,
     collect: () => spans.slice(),
     async settle(quietMs, maxMs) {
       // 等到「收到过 span 且静默 quietMs」或「整体超 maxMs」。还没收到任何 span 时

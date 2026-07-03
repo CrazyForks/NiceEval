@@ -4,6 +4,7 @@
 import type { Cleanup } from "../shared/types.ts";
 import type { StreamEvent, TraceSpan, Usage } from "../o11y/types.ts";
 import type { Sandbox } from "../sandbox/types.ts";
+import type { OtelEventsSource } from "./otel-events.ts";
 
 /**
  * MCP server 描述符 —— Claude Code 与 Codex 共用的扩展插件单元。
@@ -72,6 +73,12 @@ export interface Telemetry {
    * adapter 的 send 直接 `{ ...ctx.telemetry?.env }` 注入,不必手搓 OTEL_* 拼装。
    */
   readonly env?: Readonly<Record<string, string>>;
+  /**
+   * 本轮的 W3C trace context(traceparent),每轮一个新值。send 把它 spread 进 HTTP 请求头
+   * (或注入子进程 env)——应用埋点支持 context 传播时,本轮 span 挂到我们给的 trace 下,
+   * 并发跑 eval 的 span 归属才精确;不带则回退时间窗口归属(该 agent 自动降为串行)。
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -87,6 +94,16 @@ export interface AgentTracing {
    * 此字段仅作声明/日志用,也为将来按协议分流留口。
    */
   protocol?: "http/json" | "http/protobuf";
+  /**
+   * 接收器粒度(仅非沙箱 agent;沙箱型每沙箱一个,与此无关):
+   *   · "attempt"(默认)—— 每个 attempt 一个接收器。适合每轮能切换导出端点的被测对象
+   *     (进程内 adapter,如内置 aiSdkAgent 的可切换 exporter),attempt 间天然隔离、可全并发。
+   *   · "run" —— 整个 run 共享一个接收器(每 agent 一个)。**长驻服务必选**:应用的 OTEL_*
+   *     env 进程启动时读一次,per-attempt 端口会在第一个 attempt 结束时失效。span 逐轮归属
+   *     (traceparent / 时间窗口 + 串行守卫),见 ctx.telemetry.headers。
+   * 声明了 `events: otelEvents()` 的 agent 自动按 "run" 处理(黑盒服务场景)。
+   */
+  scope?: "attempt" | "run";
   /**
    * env-based 导出:给 endpoint → 返回要注入每轮 send 的 env(纯函数)。运行器把结果
    * 放进 ctx.telemetry.env,send 直接 spread。
@@ -149,6 +166,8 @@ export interface Agent {
   tracing?: AgentTracing;
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。 */
   spanMapper?: SpanMapper;
+  /** 事件来源声明:`otelEvents()` = 事件流从本轮收到的 span 派生,send 免写映射。 */
+  events?: OtelEventsSource;
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
   teardown?: AgentTeardown;
 }
@@ -172,6 +191,8 @@ export interface RemoteAgentDef {
   setup?: AgentSetup;
   tracing?: AgentTracing;
   spanMapper?: SpanMapper;
+  /** 事件来源声明:`otelEvents()` = 事件流从本轮收到的 span 派生,send 免写映射。 */
+  events?: OtelEventsSource;
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
   teardown?: AgentTeardown;
 }

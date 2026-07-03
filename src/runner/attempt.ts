@@ -9,6 +9,7 @@ import { Effect, Cause, Duration } from "effect";
 import { createSandbox, sandboxLabel } from "../sandbox/resolve.ts";
 import { createTraceReceiver, type TraceReceiver } from "../o11y/otlp/receiver.ts";
 import { createInSandboxTraceReceiver } from "../o11y/otlp/sandbox-receiver.ts";
+import type { AgentOtelChannel } from "../o11y/otlp/turn-otel.ts";
 import { selectTraceSpans, enrichTraceWithIO } from "../o11y/otlp/select.ts";
 import { mapGenericSpans } from "../o11y/otlp/mappers/index.ts";
 import { createEvalContext } from "../context/context.ts";
@@ -107,9 +108,24 @@ export function runAttemptEffect(
       //   string → docker 类沙箱,宿主开本地接收器,container 经 host.docker.internal 回连
       //   null   → 远程云端沙箱(e2b / vercel),宿主端口不可达 → 改在沙箱内起 collector
       // NICEEVAL_OTLP_HOST 可强制覆盖(如配好 tunnel 时)。
+      //
+      // 非沙箱 agent(远程 / 进程内)不走 per-attempt receiver:被测应用是长驻进程,只有一条
+      // 全局 OTel 管线(OTEL_* env 进程启动时读一次)—— per-attempt 端口会在第一个 attempt
+      // 结束时关掉,后续 span 全丢。改走 run 级共享池,span 逐轮归属(traceparent / 窗口)。
       let receiver: TraceReceiver | undefined;
       let telemetry: Telemetry | undefined;
-      if (run.agent.capabilities.tracing) {
+      let otelChannel: AgentOtelChannel | undefined;
+      // 共享池仅限:声明 events: otelEvents()(黑盒服务)或显式 tracing.scope === "run"。
+      // 只声明 tracing 的进程内 adapter(如 aiSdkAgent)保持 per-attempt receiver,attempt 全并发。
+      const wantsSharedOtel =
+        run.agent.events !== undefined || run.agent.tracing?.scope === "run";
+      if (run.agent.capabilities.sandbox !== true && wantsSharedOtel && opts.otelPool) {
+        otelChannel = yield* Effect.promise(() => opts.otelPool!.channel(run.agent.name));
+        const endpoint = otelChannel.receiver.endpoint(process.env.NICEEVAL_OTLP_HOST ?? "127.0.0.1");
+        const env = run.agent.tracing?.env?.(endpoint);
+        telemetry = env ? { endpoint, env } : { endpoint };
+        log(t("runner.otlpShared", { endpoint }));
+      } else if (run.agent.capabilities.tracing) {
         const forcedHost = process.env.NICEEVAL_OTLP_HOST;
         if (forcedHost) {
           // 显式覆盖:走本地接收器,把指定 host 交给 agent
@@ -145,6 +161,7 @@ export function runAttemptEffect(
           sandbox,
           receiver,
           telemetry,
+          otel: otelChannel,
           signal: AbortSignal.any([signal, interruptSignal]),
           log,
         }),
@@ -186,6 +203,8 @@ interface AttemptResources {
   sandbox: Sandbox;
   receiver?: TraceReceiver;
   telemetry?: Telemetry;
+  /** 非沙箱 tracing/otelEvents agent 的共享 OTLP 通道(run 级池持有,不随 attempt 关)。 */
+  otel?: AgentOtelChannel;
   signal: AbortSignal;
   log: (m: string) => void;
 }
@@ -200,7 +219,7 @@ async function runAttemptBody(
   res: AttemptResources,
 ): Promise<EvalResult> {
   const { evalDef, run, attempt } = a;
-  const { sandbox, receiver, telemetry, signal, log } = res;
+  const { sandbox, receiver, telemetry, otel, signal, log } = res;
   const usesSandbox = run.agent.capabilities.sandbox === true;
   // 整个 attempt 共用一份 agent ctx(sandbox 钩子 / agent setup / tracing configure / teardown 都用它)。
   const attemptCtx: AgentContext = {
@@ -252,6 +271,7 @@ async function runAttemptBody(
       log,
       judge,
       telemetry,
+      otel,
       evalBaseDir: evalDef.baseDir,
     });
 
@@ -324,6 +344,17 @@ async function runAttemptBody(
       if (spans.length) {
         // 归一 → 选语义 span → 按 call_id 把 transcript 的工具入参/出参 join 上去(span 自身不带命令文本)。
         // 对接口分发,不按名字分支:mapper 由 Agent 自己声明,缺省走通用 heuristic。
+        const canonical = (run.agent.spanMapper ?? mapGenericSpans)(spans);
+        trace = enrichTraceWithIO(selectTraceSpans(canonical), facts.toolCalls);
+        const note = spans.length > trace.length ? t("runner.traceSelected", { count: trace.length }) : "";
+        log(`trace:${spans.length} span${note}`);
+      }
+    } else if (otel) {
+      // 共享通道:receiver 不归本 attempt 关,trace 只取归属到本 attempt 的 span
+      //(逐轮攒的 + 按本 attempt traceId sweep 回的迟到批)。
+      const late = await otel.sweep(state.manager.otelTraceIds);
+      const spans = [...state.manager.otelSpans, ...late];
+      if (spans.length) {
         const canonical = (run.agent.spanMapper ?? mapGenericSpans)(spans);
         trace = enrichTraceWithIO(selectTraceSpans(canonical), facts.toolCalls);
         const note = spans.length > trace.length ? t("runner.traceSelected", { count: trace.length }) : "";

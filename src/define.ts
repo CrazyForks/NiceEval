@@ -51,6 +51,7 @@ export function defineAgent(def: RemoteAgentDef): Agent {
     setup: def.setup,
     tracing: def.tracing,
     spanMapper: def.spanMapper,
+    events: def.events,
     send: def.send,
     teardown: def.teardown,
   };

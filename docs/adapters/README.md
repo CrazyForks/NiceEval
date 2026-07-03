@@ -29,6 +29,7 @@
 | [agent loop 接入面](reference/agent-loop-apis.md) | 四个主流 agent loop(OpenAI Agents SDK / Claude Agent SDK / LangGraph / pi)的原生 API / 会话 / HITL / 遥测面调研 |
 | [OTel 埋点生态](reference/otel-instrumentation.md) | 应用侧现成埋点(AI SDK telemetry / OpenLLMetry / OpenInference / 官方 contrib)里到底有没有 eval 要的数据 |
 | [eve 协议机制](reference/eve-protocol.md) | 第三条路线:自有运行时原生吐协议(`HandleMessageStreamEvent` 26 种事件、三级坐标、requestId 回答)——`StreamEvent` 演进的上限参照 |
+| [Claude Code 自带 OTel 遥测](reference/claude-code-otel-telemetry.md) | Claude Code CLI 自己的 OTLP 导出(metrics/logs GA、traces beta)能不能让 claude-code adapter 提前拿到中间结果,而不是等 `--print` 进程退出才读整份 transcript |
 
 ## 为什么是 experiment 选 agent,不是 `--url`
 

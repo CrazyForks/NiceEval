@@ -178,6 +178,13 @@ export interface Config {
   reporters?: Reporter[];
   maxConcurrency?: number;
   timeoutMs?: number;
+  /**
+   * OTLP 接收配置。`port` 钉住接收端口(固定端口模式:长驻服务把 OTEL_EXPORTER_OTLP_ENDPOINT
+   * 一次性指到 http://localhost:<port>/v1/traces,跑多少次 eval 都不用改)。省略 = 每次运行
+   * 动态分配临时端口(经 ctx.telemetry 交给 adapter)。也可用 NICEEVAL_OTLP_PORT 环境变量。
+   * 代价:固定端口下同机同时只能跑一个 niceeval 进程。
+   */
+  telemetry?: { port?: number };
 }
 
 // ───────────────────────── 调度编排 ─────────────────────────
@@ -208,6 +215,11 @@ export interface RunOptions {
   onProgress?: (evalId: string, who: string, msg: string) => void;
   /** 上次运行的结果。outcome === "passed" 的 (experimentId, evalId) 组合跳过重跑,结果直接合入本次汇总。 */
   priorResults?: EvalResult[];
+  /**
+   * 非沙箱 tracing/otelEvents agent 的 run 级共享 OTLP 接收池(runEvals 创建并回收;
+   * 每个 agent 一个 receiver,attempt 之间共享 —— 被测应用是长驻进程,端点不能随 attempt 换)。
+   */
+  otelPool?: import("../o11y/otlp/turn-otel.ts").OtelReceiverPool;
 }
 
 /** 调度器内部的一次尝试:eval × run × 第几轮。 */

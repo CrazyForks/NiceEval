@@ -4,6 +4,9 @@ export { defineAgent, defineSandboxAgent } from "../define.ts";
 export { shared } from "./shared.ts";
 export type { Shared } from "./shared.ts";
 
+export { otelEvents, otel } from "./otel-events.ts";
+export type { OtelDialect, DialectDerivation, OtelEventsOptions, OtelEventsSource } from "./otel-events.ts";
+
 export { fromAiSdk, aiSdkAgent } from "./ai-sdk.ts";
 export type {
   AiSdkAgentOptions,

@@ -6,6 +6,7 @@ import { Effect, Cause, Duration, Exit } from "effect";
 import { probeJudge } from "../scoring/judge.ts";
 import { t } from "../i18n/index.ts";
 import { cacheKey, computeFingerprint } from "./fingerprint.ts";
+import { OtelReceiverPool, resolveFixedOtlpPort } from "../o11y/otlp/turn-otel.ts";
 import { runAttemptEffect } from "./attempt.ts";
 import { runReporter, emitReporterEvent, summarize } from "./report.ts";
 import type { Agent, EvalResult, JudgeConfig, RunShape, RunSummary } from "../types.ts";
@@ -159,6 +160,12 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   // 沙箱启动单独限流:与 agent 并发(maxConcurrency)解耦,防高并发下 daemon/API 过载。
   // 未显式指定时跟 maxConcurrency 走——各 backend 的推荐值已在 cli 层写进 maxConcurrency 默认值。
   const sandboxSem = Effect.runSync(Effect.makeSemaphore(opts.maxConcurrency));
+
+  // 非沙箱 tracing/otelEvents agent 的共享 OTLP 接收池:被测应用是长驻进程,端点不能随
+  // attempt 换 —— receiver 粒度跟被测进程走(每 agent 一个,整个 run 复用),run 结束回收。
+  if (!opts.otelPool) {
+    opts = { ...opts, otelPool: new OtelReceiverPool(resolveFixedOtlpPort(opts.config.telemetry?.port)) };
+  }
 
   // earlyExit:为每个 key 各建一个 AbortController。某 attempt 通过或 errored 时 abort 它,
   // 让并发进行中的同 key attempt 通过 signal 尽早退出,而不只是等排队的才能被跳过。
@@ -314,6 +321,7 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
     ),
     { signal: opts.signal },
   );
+  await opts.otelPool?.close();
   if (Exit.isFailure(exit)) {
     // signal abort 或 cause 含中断 → 当作用户中断,走部分汇总;否则是真·缺陷,照常抛出。
     if (opts.signal?.aborted || Cause.isInterrupted(exit.cause)) {
