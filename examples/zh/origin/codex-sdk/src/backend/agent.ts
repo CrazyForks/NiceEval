@@ -18,18 +18,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // src/backend,得往上两级才能回到项目根。
 export const WORKSPACE_DIR = path.join(__dirname, "..", "..", "workspace");
 
-// 走 s2a 这个 OpenAI 兼容代理(Responses API),而不是官方 OpenAI 端点。
-// apiKey 映射成 env.CODEX_API_KEY,详见 node_modules/@openai/codex-sdk/dist/index.js。
-//
-// Codex CLI 默认对支持的模型走 WebSocket 流式传输(model 元数据里的
-// prefer_websockets),但 s2a 代理不支持 WS upgrade,导致每轮都要
-// "Reconnecting... N/5" 重试几次才 fallback 回 HTTPS,页面上一堆刷屏错误。
-// 本想直接 `model_providers.openai.supports_websockets = false`,但内置
-// "openai" provider id 是保留字,CLI 会拒绝("Built-in providers cannot
-// be overridden")。所以照官方报错建议,自己定义一个同价的 provider
-// (换个 id),显式 supports_websockets: false,再用 model_provider 选中它。
-// 不能再用 CodexOptions.baseUrl(那只是给内置 openai provider 打补丁的
-// 语法糖),base_url 改到这个自定义 provider 里配。
 const CODEX_BASE_URL = process.env.CODEX_BASE_URL ?? "https://api.openai.com/v1";
 
 // 可选的 OTel 接入:Codex CLI 原生支持 `otel` 配置段(trace_exporter /
