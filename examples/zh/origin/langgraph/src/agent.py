@@ -6,6 +6,17 @@
 能看到 `model` -> `tools` -> `model` 的循环、`agent.stream()` 的用法和手写
 `StateGraph` 完全一样),`src/server.py` 直接拿它当图用,不关心它是怎么搭出来的。
 
+HITL:`langchain.agents.middleware.HumanInTheLoopMiddleware` 是官方对 LangGraph
+原生 `interrupt()` 的封装——`interrupt_on={"calculate": True}` 让它在 `model` 节点
+之后插一个 `HumanInTheLoopMiddleware.after_model` 图节点,那个节点对命中的工具调用
+调 `langgraph.types.interrupt(...)`,整张图在检查点处暂停;`src/server.py` 用
+`Command(resume={"decisions": [...]})` 在同一个 `thread_id` 上恢复。这是 LangGraph
+四家框架里"停轮-恢复"最原生的一种(参见 `docs/adapters/reference/agent-loop-apis.md`
+「LangGraph」一节),对比手写 `beforeToolCall`/`canUseTool` 回调(`pi-sdk`、
+`claude-agent-sdk` 两个示例的做法),这里不需要自己维护一个进程内的
+resolver Map——真正需要维护状态的是"暂停期间还开着的 SSE 连接怎么等审批结果"这件事,
+graph 本身的暂停/恢复完全由 checkpointer 管。
+
 可观测性:Python 版 langsmith SDK 是真·零代码——设好 LANGSMITH_TRACING /
 LANGSMITH_OTEL_ENABLED / LANGSMITH_OTEL_ONLY / OTEL_EXPORTER_OTLP_ENDPOINT 四个
 环境变量(见 .env.example),`langchain_core` 默认的 tracing callback 第一次调模型时
@@ -17,6 +28,7 @@ from __future__ import annotations
 import os
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
@@ -25,6 +37,11 @@ SYSTEM_PROMPT = """你是一个乐于助人的中文 AI 助手。
 需要天气信息时调用 get_weather,并用工具返回的数据作答,不要凭空编造天气。
 需要精确计算时调用 calculate,把表达式交给它算,不要心算。
 普通闲聊不要调用任何工具。回复保持中文、友好、简洁。"""
+
+# HITL 演示:只有 calculate 需要人工审批,与其它 origin/* 示例保持一致(只挂一个
+# gated 工具)。src/server.py 靠这个集合把"model 节点刚产出的哪个 tool_call"
+# 和"随后 interrupt() 弹出的 action_request"配对,两处必须一致。
+GATED_TOOLS = frozenset({"calculate"})
 
 # ---------------------------------------------------------------------------
 # 两个工具:get_weather(city) 和 calculate(expression)。
@@ -155,4 +172,12 @@ def build_agent():
         tools=[get_weather, calculate],
         system_prompt=SYSTEM_PROMPT,
         checkpointer=InMemorySaver(),
+        # allowed_decisions 只留 approve/reject——这个 demo 的前端只有"允许/拒绝"
+        # 两个按钮,不演示 edit(改参数重跑)、respond(代答跳过执行)这两种 LangChain
+        # 也支持的决策类型。
+        middleware=[
+            HumanInTheLoopMiddleware(
+                interrupt_on={name: {"allowed_decisions": ["approve", "reject"]} for name in GATED_TOOLS}
+            )
+        ],
     )

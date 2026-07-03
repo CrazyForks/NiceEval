@@ -5,7 +5,7 @@
 - `zh/origin/` —— **还没接 niceeval 的普通应用**。每个都是独立可跑的项目，不 import niceeval，且都是真调用各自 SDK 的最小 MVP（有基本的前后端，前后端接口按各 SDK 自己的最佳实践实现，没有 mock 模式）。它们是接入的 before 基线：接入后的版本放到 `zh/eval/<同名目录>`，用 `pnpm run gen:diff-code` 统一对比"接入前后代码动了多少"。
 - `zh/eval/<name>` —— **接入 niceeval 之后的完整评测项目**，定义了 evals / experiments，能 `niceeval exp` 跑起来（需要先 `npm install -D niceeval`；这里的示例以 link 方式指向仓库根）。
 
-每个目录都有独立的 `README.md` 说明如何配置环境变量并运行。
+`zh/eval/<name>` 每个目录有独立的 `README.md`；`zh/origin/` 不再逐目录写 README，模型、HITL、跑法汇总在 [`zh/origin/README.md`](zh/origin/README.md) 的表格里，环境变量看各目录的 `.env.example`。
 
 ## 接入后（`zh/eval/` 等）
 
@@ -19,14 +19,7 @@
 
 ## 接入前（`zh/origin/`）
 
-| 目录 | 应用形态 | 前后端接口 |
-|---|---|---|
-| [`zh/origin/ai-sdk-v7/`](zh/origin/ai-sdk-v7/) | AI SDK v7 聊天应用（HTTP 服务器 + React UI） | AI SDK UI message stream + `useChat` |
-| [`zh/origin/langgraph/`](zh/origin/langgraph/) | **纯 Python**：LangChain 1.x `create_agent`（官方当前推荐的建 agent 入口，内部编译成 LangGraph 图）+ **LangSmith** OTel 导出（Python 版真·零代码，纯 env 驱动） | 标准库 `http.server` 手写 SSE（`POST /api/chat`）+ 单文件 `public/index.html`（无前端构建、无跨语言） |
-| [`zh/origin/claude-agent-sdk/`](zh/origin/claude-agent-sdk/) | **Claude Agent SDK**（`@anthropic-ai/claude-agent-sdk`，MCP 工具 + resume 续会话） | SSE 透传 `SDKMessage` 流（官方 hosting 形态，`includePartialMessages` 逐 token 出字） |
-| [`zh/origin/codex-sdk/`](zh/origin/codex-sdk/) | **Codex SDK**（`@openai/codex-sdk`，coding-agent-in-a-directory 的任务形状） | SSE 透传 `runStreamed()` 的 `ThreadEvent` 流 |
-| [`zh/origin/vm0/`](zh/origin/vm0/) | **vm0**（托管 agent 运行时，`vm0.yaml` agent compose + 平台沙箱跑 claude-code） | 后端打 vm0 公开 REST 契约（创建 run + 轮询 events），SSE 转发 claude-code stream-JSON 事件 |
-| [`zh/origin/pi-sdk/`](zh/origin/pi-sdk/) | **pi SDK**（`@earendil-works/pi-agent-core` + `@earendil-works/pi-ai`，https://github.com/earendil-works/pi），工具调用 + `beforeToolCall` HITL 审批 | AI SDK UI message stream + `useChat`（同 `ai-sdk-v7`） |
+六个独立应用（ai-sdk-v7、langgraph、claude-agent-sdk、codex-sdk、vm0、pi-sdk），各自真调用一个 agent framework/SDK，没有 mock 模式。模型、HITL 支持、跑法见 [`zh/origin/README.md`](zh/origin/README.md) 的表格，不在这里重复。
 
 `openllmetry`、`openinference` 两个示例（OTel 自动埋点向，非 agent framework 向）暂时移除，等
 `langgraph` 那批做完后再回来重做。
