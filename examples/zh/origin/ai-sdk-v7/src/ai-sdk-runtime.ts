@@ -14,7 +14,7 @@ const SYSTEM_PROMPT = `
 5. 普通闲聊不要调用任何工具。回复保持中文、友好、简洁。
 `.trim();
 
-function buildTools(): ToolSet {
+export function buildTools(): ToolSet {
   return {
     get_weather: tool({
       description: "查询某个城市的当前天气。需要实时天气时调用。",
@@ -24,6 +24,9 @@ function buildTools(): ToolSet {
     calculate: tool({
       description: "计算一个四则运算表达式(支持 + - * / 和括号)。需要精确计算时调用。",
       inputSchema: z.object({ expression: z.string().min(1) }),
+      // HITL 演示:计算前先弹出审批。SDK 自己暂停 tool loop、发 tool-approval-request，
+      // 前端 addToolApprovalResponse 之后才会真正执行 execute。
+      needsApproval: true,
       execute: async (input: { expression: string }) => calculate(input),
     }),
     web_search: tool({
@@ -53,7 +56,7 @@ export async function streamChat(
 
   return streamText({
     model: resolvedModel,
-    system: SYSTEM_PROMPT,
+    instructions: SYSTEM_PROMPT,
     messages,
     tools: buildTools(),
     stopWhen: stepCountIs(5),

@@ -204,64 +204,8 @@ const PAIRS: DiffPair[] = [
     ],
     exclude: ["README.md", ".env.example"],
   },
-  {
-    source: "examples/zh/origin/openllmetry",
-    target: "examples/zh/eval/openllmetry",
-    out: "docs-site/zh/example/openllmetry-before-after.mdx",
-    frontmatter: {
-      title: "OpenLLMetry 埋点应用如何非侵入式接入 NiceEval",
-      sidebarTitle: "OpenLLMetry 如何接入",
-      description:
-        "一个用 `@traceloop/node-server-sdk` 自动埋点的工具调用聊天服务，接入 NiceEval 前后的完整代码 diff。",
-    },
-    intro: [
-      "对比对象：",
-      "",
-      "- **before**：[`examples/zh/origin/openllmetry/`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/origin/openllmetry) —— 手写工具调用循环 + OpenLLMetry 自动埋点，还没接任何 eval。",
-      "- **after**：[`examples/zh/eval/openllmetry/`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/eval/openllmetry) —— 同一个应用接入 NiceEval 之后的样子。",
-      "",
-      "`server.ts`/`agent.ts`/`tools.ts`/`instrumentation.ts` 逐字节未变。和 langgraph",
-      "示例一样，这个应用的 `chat(message, sessionId?)` 在没收到 `sessionId` 时会退回",
-      "共享的 `\"default\"` 历史 —— `agents/openllmetry.ts` 同样要在 `send` 里自己生成",
-      "一个 `sessionId`，否则并行跑的 eval 会互相看到对方的对话历史。",
-    ].join("\n"),
-    order: ["package.json", "tsconfig.json", "pnpm-workspace.yaml", "niceeval.config.ts", "agents/", "evals/", "experiments/"],
-    sections: [
-      { title: "应用侧的变更(只有依赖声明)", files: ["package.json", "tsconfig.json", "pnpm-workspace.yaml"] },
-      { title: "新增的 adapter、evals 与 experiments", files: ["niceeval.config.ts", "agents/", "evals/", "experiments/"] },
-    ],
-    exclude: ["README.md", ".env.example"],
-  },
-  {
-    source: "examples/zh/origin/openinference",
-    target: "examples/zh/eval/openinference",
-    out: "docs-site/zh/example/openinference-before-after.mdx",
-    frontmatter: {
-      title: "OpenInference / Phoenix 埋点应用如何非侵入式接入 NiceEval",
-      sidebarTitle: "OpenInference 如何接入",
-      description:
-        "一个 Python / FastAPI + LangChain agent，用 OpenInference/Phoenix 埋点，接入 NiceEval 前后的完整代码 diff。",
-    },
-    intro: [
-      "对比对象：",
-      "",
-      "- **before**：[`examples/zh/origin/openinference/`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/origin/openinference) —— 一个 Python FastAPI + LangChain agent，`openinference-instrumentation-langchain` + `arize-phoenix-otel` 埋点，还没接任何 eval。",
-      "- **after**：[`examples/zh/eval/openinference/`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/eval/openinference) —— 同一个应用接入 NiceEval 之后的样子。",
-      "",
-      "这一对最特殊：被测应用是 **Python**，NiceEval 是 TypeScript 工具，两者只通过",
-      "HTTP 打交道——`observability.py`/`tools.py`/`agent.py`/`server.py` 一行没改，",
-      "新增的全部是 `eval/` 目录里从零搭的 Node/TS 脚手架（`package.json`、",
-      "`tsconfig.json`、`pnpm-workspace.yaml`）。`agents/openinference.ts` 拉起的子",
-      "进程是 `.venv/bin/python server.py` 而不是 `node`/`tsx`，其余（健康检查轮询、",
-      "`POST /api/chat` 映射）和其它示例同构。",
-    ].join("\n"),
-    order: ["package.json", "tsconfig.json", "pnpm-workspace.yaml", "niceeval.config.ts", "agents/", "evals/", "experiments/"],
-    sections: [
-      { title: "应用侧(零改动,只是新加了 TS 脚手架)", files: ["package.json", "tsconfig.json", "pnpm-workspace.yaml"] },
-      { title: "新增的 adapter、evals 与 experiments", files: ["niceeval.config.ts", "agents/", "evals/", "experiments/"] },
-    ],
-    exclude: ["README.md", ".env.example", "requirements.txt", "static/", "docker-compose.yml"],
-  },
+  // openllmetry / openinference 的 before-after 配置连同两个示例目录一起移除了
+  // (2026-07,待 langgraph 那批做完后重做,见 examples/README.md)。
 ];
 
 // 与学习无关的目录/文件，不进 diff

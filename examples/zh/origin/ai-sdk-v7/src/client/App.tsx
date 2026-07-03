@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, getToolName, isFileUIPart, isToolUIPart, type FileUIPart, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  getToolName,
+  isFileUIPart,
+  isToolUIPart,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  type FileUIPart,
+  type UIMessage,
+} from "ai";
 import "./App.css";
 
 type ModelDef = { id: string; label: string; contextTokens: number };
@@ -31,7 +39,11 @@ function App() {
     [],
   );
 
-  const { messages, status, sendMessage, stop } = useChat({ transport });
+  const { messages, status, sendMessage, stop, addToolApprovalResponse } = useChat({
+    transport,
+    // HITL:审批完(允许或拒绝)之后自动把决定发回服务端，不用用户再点一次"发送"。
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+  });
 
   const running = status === "submitted" || status === "streaming";
   const currentLabel = models.find((m) => m.id === model)?.label ?? model;
@@ -130,7 +142,9 @@ function App() {
       </header>
 
       <section className="messages">
-        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} onToolApproval={addToolApprovalResponse} />
+        ))}
         {running && (messages.at(-1)?.role !== "assistant") && (
           <div className="msg assistant typing">思考中…</div>
         )}
@@ -190,7 +204,9 @@ function App() {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+type ToolApprovalHandler = (args: { id: string; approved: boolean }) => void;
+
+function MessageBubble({ message, onToolApproval }: { message: UIMessage; onToolApproval: ToolApprovalHandler }) {
   const isUser = message.role === "user";
 
   return (
@@ -213,7 +229,30 @@ function MessageBubble({ message }: { message: UIMessage }) {
         if (isToolUIPart(part)) {
           const state = part.state;
           const name = getToolName(part);
-          if (state === "input-streaming" || state === "input-available") {
+          if (state === "approval-requested") {
+            return (
+              <div key={part.toolCallId} className="tool-bubble approval-bubble">
+                <div>⚠ 是否允许调用 {name}({JSON.stringify(part.input)}) ？</div>
+                <div className="approval-actions">
+                  <button
+                    type="button"
+                    className="approve-btn"
+                    onClick={() => onToolApproval({ id: part.approval.id, approved: true })}
+                  >
+                    允许
+                  </button>
+                  <button
+                    type="button"
+                    className="deny-btn"
+                    onClick={() => onToolApproval({ id: part.approval.id, approved: false })}
+                  >
+                    拒绝
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          if (state === "input-streaming" || state === "input-available" || state === "approval-responded") {
             return (
               <div key={part.toolCallId} className="tool-bubble">
                 ⚙ {name}({state === "input-streaming" ? "…" : JSON.stringify(part.input)})
@@ -224,6 +263,13 @@ function MessageBubble({ message }: { message: UIMessage }) {
             return (
               <div key={part.toolCallId} className="tool-bubble">
                 ⚙ {name} → {JSON.stringify((part as { output?: unknown }).output)}
+              </div>
+            );
+          }
+          if (state === "output-denied") {
+            return (
+              <div key={part.toolCallId} className="tool-bubble">
+                ⛔ {name} 已被拒绝执行
               </div>
             );
           }

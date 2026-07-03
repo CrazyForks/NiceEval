@@ -1,4 +1,0 @@
-packages: []
-allowBuilds:
-  esbuild: true # tsx 依赖它拉平台原生二进制,不放行 dev/start 脚本跑不起来
-  protobufjs: true

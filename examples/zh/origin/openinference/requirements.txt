@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-langchain>=1.0
-langchain-openai
-openinference-instrumentation-langchain
-arize-phoenix-otel
-python-dotenv

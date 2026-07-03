@@ -1,5 +1,10 @@
-// 两个工具的真实实现:get_weather(city) 和 calculate(expression)，以及
-// 按名字分发调用的 executeTool。
+// 两个工具的真实实现：get_weather(city) 和 calculate(expression)，
+// 包成 pi(@earendil-works/pi-agent-core)的 AgentTool——参数 schema 用 typebox
+// (从 @earendil-works/pi-ai 重新导出的 Type/Static，不是 zod)，execute 签名是
+// (toolCallId, params, signal?, onUpdate?) => Promise<AgentToolResult<TDetails>>。
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Type, type Static } from "@earendil-works/pi-ai";
+
 export const WEATHER_TABLE: Record<string, { condition: string; tempC: number }> = {
   北京: { condition: "晴", tempC: 31 },
   上海: { condition: "多云", tempC: 29 },
@@ -29,19 +34,34 @@ export function calculate(expression: string): number {
   return value;
 }
 
-export function executeTool(name: string, args: Record<string, unknown>): unknown {
-  switch (name) {
-    case "get_weather": {
-      const city = String(args.city ?? "");
-      if (!city) throw new Error("get_weather 需要 city 参数");
-      return getWeather(city);
-    }
-    case "calculate": {
-      const expression = String(args.expression ?? "");
-      if (!expression) throw new Error("calculate 需要 expression 参数");
-      return { expression, result: calculate(expression) };
-    }
-    default:
-      throw new Error(`未知工具: ${name}`);
-  }
-}
+const weatherParams = Type.Object({
+  city: Type.String({ description: "城市名，例如 北京" }),
+});
+
+export const getWeatherTool: AgentTool<typeof weatherParams> = {
+  name: "get_weather",
+  label: "查询天气",
+  description: "查询城市当前天气(mock 数据，仅用于演示，不接真实天气 API)",
+  parameters: weatherParams,
+  execute: async (_toolCallId, params: Static<typeof weatherParams>) => {
+    const data = getWeather(params.city);
+    return { content: [{ type: "text", text: JSON.stringify(data) }], details: data };
+  },
+};
+
+const calculateParams = Type.Object({
+  expression: Type.String({ description: "算术表达式，例如 (3+4)*2" }),
+});
+
+// 这个工具会经 server.ts 的 beforeToolCall 挂 HITL 审批，见 agent.ts / server.ts。
+export const calculateTool: AgentTool<typeof calculateParams> = {
+  name: "calculate",
+  label: "算术计算",
+  description: "计算一个只含数字和 + - * / ( ) 的算术表达式",
+  parameters: calculateParams,
+  execute: async (_toolCallId, params: Static<typeof calculateParams>) => {
+    const result = calculate(params.expression);
+    const data = { expression: params.expression, result };
+    return { content: [{ type: "text", text: JSON.stringify(data) }], details: data };
+  },
+};

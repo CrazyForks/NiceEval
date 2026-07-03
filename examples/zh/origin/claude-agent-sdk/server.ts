@@ -1,22 +1,22 @@
 // 一个用 Claude Agent SDK(@anthropic-ai/claude-agent-sdk)搭的最小 agent 后端。
 // 独立示例项目,不 import niceeval,不是 niceeval adapter —— 详见 README.md。
 //
-// 前后端接口按 SDK 官方 hosting 指南/cookbook 的形状:POST 一条消息,响应是
-// SSE 流,每帧 data: 是一个序列化的 SDKMessage(system/stream_event/assistant/
-// user/result)——不把消息流折叠成自造的 {reply, toolCalls} JSON。
+// 前端复用 examples/zh/origin/ai-sdk-v7 那套 React + @ai-sdk/react useChat 界面
+// (DefaultChatTransport 发 {messages, sessionId},收 AI SDK 的 UI Message Stream
+// 协议)。真正干活的翻译在 ui-stream.ts:把 Claude Agent SDK 原生的 SDKMessage
+// 流转成 UIMessageChunk 流——这层协议是"谁都能手写"的,不需要真的经过 ai 包
+// 自己的模型抽象。
+//
+// 这个后端是"每轮一次 query() + resume 找回历史"的会话形态:请求体里只取
+// 最后一条用户消息的文本喂给 query(),不会把 messages[] 整个数组重放进去
+// (那是 stateless-replay 模型才需要的模式,这里不需要)。
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { runTurn } from "./agent.ts";
+import { pipeUIMessageStreamToResponse } from "ai";
+import { buildUiStream } from "./ui-stream.ts";
+import { pendingApprovals } from "./pending-approvals.ts";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 5189);
-
-// ---------------------------------------------------------------------------
-// HTTP 服务器 —— 无框架,原生 node:http。
-// ---------------------------------------------------------------------------
 
 const server = createServer(async (req, res) => {
   try {
@@ -37,84 +37,75 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders());
+    res.end();
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/healthz") {
     json(res, 200, { ok: true });
     return;
   }
 
-  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
-    const html = await readFile(path.join(__dirname, "public", "index.html"), "utf8");
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(html);
+  // 流式聊天端点 —— 复用共享前端的 useChat + DefaultChatTransport,收
+  // {messages: UIMessage[], sessionId?}、回 AI SDK 的 UI Message Stream 协议
+  // (data: {"type":"start",...} ... data: {"type":"finish",...})。
+  if (req.method === "POST" && req.url === "/api/chat") {
+    const body = (await readJson(req)) as { messages?: unknown[]; sessionId?: string };
+    const message = lastUserText(body.messages ?? []);
+    const signal = abortSignalFor(req);
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: buildUiStream(message, body.sessionId, signal),
+      headers: corsHeaders(),
+    });
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/chat") {
-    const body = await readJson(req);
-    const { message, sessionId } = parseChatRequest(body);
-    await streamTurn(req, res, message, sessionId);
+  // HITL 审批端点。SSE 连接在等审批期间全程不关(agent.ts 的 canUseTool 挂在
+  // pendingApprovals 的 Promise 上),这里只是把浏览器点按钮的结果转成
+  // resolve() 调用去唤醒它——不是另开一轮请求重放历史。
+  if (req.method === "POST" && req.url === "/api/chat/approve") {
+    const body = (await readJson(req)) as { toolUseId?: string; approved?: boolean };
+    if (typeof body.toolUseId !== "string" || typeof body.approved !== "boolean") {
+      json(res, 400, { error: "toolUseId (string) and approved (boolean) are required" });
+      return;
+    }
+    const resolve = pendingApprovals.get(body.toolUseId);
+    if (!resolve) {
+      json(res, 404, { error: `no pending approval for toolUseId ${body.toolUseId}` });
+      return;
+    }
+    pendingApprovals.delete(body.toolUseId);
+    resolve(body.approved);
+    json(res, 200, { ok: true });
     return;
   }
 
   json(res, 404, { error: `not found: ${req.method} ${req.url}` });
 }
 
-// SSE:把 query() 产出的每个 SDKMessage 原样序列化转发。session_id 就在消息
-// 里(system/init 与 result 都带),前端自己存、下一轮带回来 resume。
-async function streamTurn(
-  req: IncomingMessage,
-  res: ServerResponse,
-  message: string,
-  sessionId: string | undefined,
-): Promise<void> {
-  res.writeHead(200, {
-    "content-type": "text/event-stream; charset=utf-8",
-    "cache-control": "no-cache",
-    connection: "keep-alive",
-  });
-
-  let clientGone = false;
-  req.on("close", () => {
-    clientGone = true;
-  });
-
-  const send = (payload: unknown) => {
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-  };
-
-  const turn = runTurn(message, sessionId);
-  try {
-    for await (const sdkMessage of turn) {
-      if (clientGone) {
-        // 浏览器已断开:中断这轮 agent,别让子进程白跑。
-        await turn.interrupt().catch(() => {});
-        break;
-      }
-      send(sdkMessage);
-    }
-  } catch (error) {
-    if (!clientGone) {
-      send({ type: "error", message: error instanceof Error ? error.message : String(error) });
-    }
+function lastUserText(messages: unknown[]): string {
+  const last = messages[messages.length - 1] as { parts?: Array<{ type?: string; text?: string }> } | undefined;
+  const parts = last?.parts;
+  if (!Array.isArray(parts)) {
+    throw new Error("messages[] must contain at least one message with a parts array.");
   }
-  res.end();
+  const text = parts
+    .filter((p) => p?.type === "text" && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("");
+  if (!text.trim()) {
+    throw new Error("The last message has no text content.");
+  }
+  return text;
 }
 
-function parseChatRequest(value: unknown): { message: string; sessionId?: string } {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("JSON body is required.");
-  }
-  const record = value as Record<string, unknown>;
-  if (typeof record.message !== "string" || record.message.trim().length === 0) {
-    throw new Error("message must be a non-empty string.");
-  }
-  return {
-    message: record.message,
-    sessionId:
-      typeof record.sessionId === "string" && record.sessionId.trim().length > 0
-        ? record.sessionId
-        : undefined,
-  };
+function abortSignalFor(req: IncomingMessage): AbortSignal {
+  const controller = new AbortController();
+  req.on("close", () => controller.abort());
+  return controller.signal;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -125,6 +116,14 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.writeHead(status, { ...corsHeaders(), "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body));
+}
+
+function corsHeaders(): Record<string, string> {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
 }

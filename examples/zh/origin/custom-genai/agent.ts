@@ -1,89 +1,52 @@
-// 真实模型 + 手写 tool-calling 循环:直接用 openai npm SDK 打 OpenAI 兼容 API，
-// 每一轮模型调用和工具调用都经 tracing.ts 里的 traceChatCall / traceToolCall 埋点。
-import OpenAI from "openai";
-import { traceChatCall, traceToolCall, type ChatMessage } from "./tracing.ts";
-import { executeTool } from "./tools.ts";
+// 真实 agent：用 pi SDK(@earendil-works/pi-agent-core 的 Agent + @earendil-works/pi-ai
+// 的模型/provider)搭建，不再是手写的 tool-calling 循环。
+//
+// 默认走 DeepSeek(deepseekProvider() 的模型目录里已经有 deepseek-v4-flash /
+// deepseek-v4-pro，鉴权自动读 DEEPSEEK_API_KEY，见 .env.example)，可通过
+// AGENT_MODEL 切换到 deepseek-v4-pro 等同目录下的模型。
+//
+// 每次 /api/chat 请求都 new 一个 Agent(见 createAgent)——不维护跨请求的会话状态，
+// 这一点和被替换掉的旧 agent.ts 一致(旧版 runAgent(message) 也是每次从零拼
+// messages 数组，没有多轮历史)。
+import { Agent, type AgentOptions } from "@earendil-works/pi-agent-core";
+import { createModels } from "@earendil-works/pi-ai";
+import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
+import { calculateTool, getWeatherTool } from "./tools.ts";
 
-export interface ToolCallRecord {
-  name: string;
-  input: unknown;
-  output: unknown;
-}
+const models = createModels();
+models.setProvider(deepseekProvider());
 
-export interface ChatResult {
-  reply: string;
-  toolCalls: ToolCallRecord[];
-}
+const MODEL_ID = process.env.AGENT_MODEL ?? "deepseek-v4-flash";
 
-const TOOL_DEFS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "查询城市当前天气(mock 数据，仅用于演示，不接真实天气 API)",
-      parameters: {
-        type: "object",
-        properties: { city: { type: "string", description: "城市名，例如 北京" } },
-        required: ["city"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "calculate",
-      description: "计算一个只含数字和 + - * / ( ) 的算术表达式",
-      parameters: {
-        type: "object",
-        properties: { expression: { type: "string", description: "算术表达式，例如 (3+4)*2" } },
-        required: ["expression"],
-      },
-    },
-  },
-];
-
-function toChatMessage(
-  m: OpenAI.Chat.Completions.ChatCompletionMessageParam | OpenAI.Chat.Completions.ChatCompletionMessage,
-): ChatMessage {
-  const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? null);
-  return { role: m.role, content };
-}
-
-export async function runAgent(message: string): Promise<ChatResult> {
-  const model = process.env.AGENT_MODEL ?? "gpt-4o-mini";
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_BASE_URL });
-  const toolCalls: ToolCallRecord[] = [];
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: "你是一个能查天气、能做算术的助理。需要时调用工具，不要自己瞎编数字。" },
-    { role: "user", content: message },
-  ];
-
-  const maxRounds = 5;
-  for (let round = 0; round < maxRounds; round++) {
-    const inputMessages = messages.map(toChatMessage);
-    const assistantMessage = await traceChatCall(model, { messages: inputMessages }, async () => {
-      const response = await client.chat.completions.create({ model, messages, tools: TOOL_DEFS });
-      const choice = response.choices[0];
-      if (!choice?.message) throw new Error(`模型 ${model} 没有返回 message`);
-      return { result: choice.message, outputMessages: [toChatMessage(choice.message)] };
-    });
-
-    messages.push(assistantMessage);
-
-    if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-      return { reply: assistantMessage.content ?? "", toolCalls };
-    }
-
-    for (const call of assistantMessage.tool_calls) {
-      if (call.type !== "function") continue;
-      const args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
-      const output = await traceToolCall(call.function.name, call.id, args, async () =>
-        executeTool(call.function.name, args),
-      );
-      toolCalls.push({ name: call.function.name, input: args, output });
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
-    }
+function resolveModel() {
+  const model = models.getModel("deepseek", MODEL_ID);
+  if (!model) {
+    throw new Error(
+      `未知模型: deepseek/${MODEL_ID}。deepseekProvider() 的目录里目前有 deepseek-v4-flash / deepseek-v4-pro。`,
+    );
   }
+  return model;
+}
 
-  throw new Error(`工具调用循环超过 ${maxRounds} 轮还没收敛，可能陷入死循环`);
+const SYSTEM_PROMPT = "你是一个能查天气、能做算术的助理。需要时调用工具，不要自己瞎编数字。";
+
+export interface CreateAgentOptions {
+  /** 转发给 pi 的 beforeToolCall——server.ts 用它给 calculate 挂 HITL 审批。 */
+  beforeToolCall?: AgentOptions["beforeToolCall"];
+}
+
+/** 每次 /api/chat 调用都 new 一个全新 Agent：无状态，见文件头注释。 */
+export function createAgent(options: CreateAgentOptions = {}): Agent {
+  return new Agent({
+    initialState: {
+      systemPrompt: SYSTEM_PROMPT,
+      model: resolveModel(),
+      tools: [getWeatherTool, calculateTool],
+    },
+    // Agent 默认会用 @earendil-works/pi-ai/compat 里的全局 streamSimple，这里显式绑定
+    // 我们自己建的 models(只注册了 deepseek provider)，保证鉴权走的是上面 setProvider
+    // 的那个 provider 实例。
+    streamFn: models.streamSimple.bind(models),
+    beforeToolCall: options.beforeToolCall,
+  });
 }

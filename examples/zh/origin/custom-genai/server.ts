@@ -1,16 +1,21 @@
-// 手写工具循环 + 手写 OTel GenAI 埋点的最小聊天服务：不用 AI SDK / LangChain，直接用
-// `openai` npm SDK 打模型、用 tracing.ts 里的两个 helper 包 span。
+// node:http 服务器：负责 HTTP 层和"pi AgentEvent → AI SDK UIMessageChunk"的协议翻译。
+// 真实的 pi Agent 搭建在 agent.ts,两个工具的实现在 tools.ts。
 //
-// 这里只负责 HTTP 层；真实的工具调用循环在 agent.ts，两个工具的实现在 tools.ts。
+// /api/chat 用 createUIMessageStream 手写 execute(),边订阅 Agent 的事件边把它们翻译成
+// UIMessageChunk 写进 writer——不是套 AI SDK 的 streamText(这里的模型调用完全是 pi 在
+// 驱动),所以用不了 toUIMessageStream(那是从 streamText 的结果转换)。
+//
+// HITL:calculate 工具的审批走进程内的 pendingApprovals 这个 Map<toolCallId, resolve>。
+// beforeToolCall 命中 calculate 时,先把 tool-approval-request 写进当前这条(还开着的)
+// SSE 流,再 await 一个 Promise 卡住 pi 的 tool 执行;POST /api/chat/approve 用
+// toolUseId 查到对应的 resolve 函数并调用,原来那条 /api/chat 请求的流才会继续往下走。
+// 这里不模拟 AI SDK 官方"断流、客户端重发"的 resume 协议——连接全程保持打开,更简单。
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { shutdownTracing } from "./tracing.ts";
-import { runAgent } from "./agent.ts";
+import { createUIMessageStream, pipeUIMessageStreamToResponse } from "ai";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import { createAgent } from "./agent.ts";
 
 const port = Number(process.env.PORT ?? 5299);
-const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 
 const server = createServer(async (req, res) => {
   try {
@@ -24,12 +29,14 @@ server.listen(port, "127.0.0.1", () => {
   process.stdout.write(`custom-genai example listening on http://127.0.0.1:${port}\n`);
 });
 
-async function shutdown(): Promise<void> {
-  await shutdownTracing();
+function shutdown(): void {
   server.close(() => process.exit(0));
 }
-process.on("SIGTERM", () => void shutdown());
-process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
+// toolCallId -> resolve(approved)。POST /api/chat/approve 解析这个 Map。
+const pendingApprovals = new Map<string, (approved: boolean) => void>();
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url ?? "/";
@@ -40,23 +47,136 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (req.method === "POST" && url === "/api/chat") {
-    const body = (await readJson(req)) as { message?: unknown; sessionId?: unknown };
+    const body = (await readJson(req)) as { message?: unknown };
     if (typeof body.message !== "string" || body.message.trim().length === 0) {
       throw new Error("body.message must be a non-empty string.");
     }
-    const result = await runAgent(body.message);
-    json(res, 200, result);
+    await streamChat(req, res, body.message);
     return;
   }
 
-  if (req.method === "GET" && (url === "/" || url === "/index.html")) {
-    const html = await readFile(path.join(publicDir, "index.html"), "utf8");
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(html);
+  if (req.method === "POST" && url === "/api/chat/approve") {
+    const body = (await readJson(req)) as { toolUseId?: unknown; approved?: unknown };
+    if (typeof body.toolUseId !== "string" || typeof body.approved !== "boolean") {
+      throw new Error("body must be { toolUseId: string, approved: boolean }.");
+    }
+    const resolve = pendingApprovals.get(body.toolUseId);
+    if (!resolve) {
+      json(res, 404, { error: `no pending approval for toolUseId ${body.toolUseId}` });
+      return;
+    }
+    pendingApprovals.delete(body.toolUseId);
+    resolve(body.approved);
+    json(res, 200, { ok: true });
     return;
   }
 
   json(res, 404, { error: "not found" });
+}
+
+async function streamChat(req: IncomingMessage, res: ServerResponse, message: string): Promise<void> {
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      writer.write({ type: "start" });
+
+      // calculate 被用户拒绝的 toolCallId——tool_execution_end 到达时用它区分
+      // "被 HITL 拒绝"(tool-output-denied)和"真的执行出错"(tool-output-error)。
+      const deniedToolCalls = new Set<string>();
+      // AssistantMessageEvent 的 contentIndex 每个 turn 都从 0 重新数，拼上 turn 序号
+      // 才能保证同一次回复里多轮文本用到的 text-start/delta/end id 不撞车。
+      let turnIndex = -1;
+
+      const agent = createAgent({
+        beforeToolCall: async ({ toolCall }) => {
+          if (toolCall.name !== "calculate") return undefined;
+          writer.write({ type: "tool-approval-request", approvalId: toolCall.id, toolCallId: toolCall.id });
+          const approved = await new Promise<boolean>((resolve) => {
+            pendingApprovals.set(toolCall.id, resolve);
+          });
+          if (!approved) {
+            deniedToolCalls.add(toolCall.id);
+            return { block: true, reason: "用户拒绝了这次调用" };
+          }
+          return undefined;
+        },
+      });
+
+      req.on("close", () => agent.abort());
+
+      const unsubscribe = agent.subscribe((event: AgentEvent) => {
+        switch (event.type) {
+          case "turn_start": {
+            turnIndex += 1;
+            break;
+          }
+          case "message_update": {
+            const e = event.assistantMessageEvent;
+            const id = `t${turnIndex}-${"contentIndex" in e ? e.contentIndex : 0}`;
+            if (e.type === "text_start") writer.write({ type: "text-start", id });
+            else if (e.type === "text_delta") writer.write({ type: "text-delta", id, delta: e.delta });
+            else if (e.type === "text_end") writer.write({ type: "text-end", id });
+            break;
+          }
+          case "tool_execution_start": {
+            writer.write({
+              type: "tool-input-available",
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              input: event.args,
+            });
+            break;
+          }
+          case "tool_execution_end": {
+            if (deniedToolCalls.has(event.toolCallId)) {
+              deniedToolCalls.delete(event.toolCallId);
+              writer.write({ type: "tool-output-denied", toolCallId: event.toolCallId });
+            } else if (event.isError) {
+              writer.write({
+                type: "tool-output-error",
+                toolCallId: event.toolCallId,
+                errorText: extractErrorText(event.result),
+              });
+            } else {
+              writer.write({
+                type: "tool-output-available",
+                toolCallId: event.toolCallId,
+                output: event.result?.details ?? event.result?.content,
+              });
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      });
+
+      try {
+        await agent.prompt(message);
+        await agent.waitForIdle();
+        if (agent.state.errorMessage) {
+          writer.write({ type: "error", errorText: agent.state.errorMessage });
+        }
+      } catch (error) {
+        writer.write({ type: "error", errorText: error instanceof Error ? error.message : String(error) });
+      } finally {
+        unsubscribe();
+      }
+
+      writer.write({ type: "finish" });
+    },
+  });
+
+  pipeUIMessageStreamToResponse({ response: res, stream });
+}
+
+interface ToolResultLike {
+  content?: Array<{ type: string; text?: string }>;
+  details?: unknown;
+}
+
+function extractErrorText(result: ToolResultLike | undefined): string {
+  const textBlock = result?.content?.find((c) => c.type === "text" && typeof c.text === "string");
+  return textBlock?.text ?? "工具执行失败";
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

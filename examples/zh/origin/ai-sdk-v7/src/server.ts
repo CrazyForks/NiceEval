@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { streamChat } from "./ai-sdk-runtime.ts";
+import { pipeUIMessageStreamToResponse, toUIMessageStream } from "ai";
+import { buildTools, streamChat } from "./ai-sdk-runtime.ts";
 import { MODELS } from "./models.ts";
 
 const port = Number(process.env.PORT ?? 5188);
@@ -41,11 +42,17 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   // 流式聊天端点 — React useChat 用，AI SDK data stream 格式。
+  // `result.pipeUIMessageStreamToResponse` 是 deprecated 方法（下个大版本会删），改用
+  // standalone 的 toUIMessageStream + pipeUIMessageStreamToResponse，见 migration guide。
   if (req.method === "POST" && req.url === "/api/chat") {
     const body = await readJson(req) as { messages?: unknown[]; model?: string };
     const signal = abortSignalFor(req);
     const result = await streamChat(body.messages ?? [], body.model, signal);
-    result.pipeUIMessageStreamToResponse(res, { headers: corsHeaders() });
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: toUIMessageStream({ stream: result.stream, tools: buildTools() }),
+      headers: corsHeaders(),
+    });
     return;
   }
 

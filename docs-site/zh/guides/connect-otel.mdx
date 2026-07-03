@@ -122,7 +122,7 @@ NiceEval 的接收端点默认每次运行动态分配。但**不要求你的应
     // endpoint 用标准 OTEL_EXPORTER_OTLP_ENDPOINT 环境变量
     ```
 
-    可跑示例：[`examples/zh/origin/openllmetry`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/origin/openllmetry)。
+    可跑示例暂时下线,重做中。
   </Tab>
   <Tab title="OpenInference">
     ```python
@@ -133,10 +133,10 @@ NiceEval 的接收端点默认每次运行动态分配。但**不要求你的应
     LangChainInstrumentor().instrument()
     ```
 
-    可跑示例：[`examples/zh/origin/openinference`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/origin/openinference)（Python，贴合 OpenInference/Phoenix 生态惯例）。
+    可跑示例暂时下线,重做中。
   </Tab>
   <Tab title="自己埋的 gen_ai">
-    按 [OTel GenAI 语义约定](https://opentelemetry.io/docs/specs/semconv/gen-ai/)埋：模型调用 span 名 `chat {model}`，工具 span 名 `execute_tool {tool}`，属性带 `gen_ai.operation.name`、`gen_ai.tool.name` / `gen_ai.tool.call.id` / `gen_ai.tool.call.arguments`。想让 `messageIncludes` 有数据，打开内容采集（`gen_ai.input/output.messages` 是 opt-in）。可跑示例（无 vendor SDK 的手写参考实现）：[`examples/zh/origin/custom-genai`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/origin/custom-genai)。
+    按 [OTel GenAI 语义约定](https://opentelemetry.io/docs/specs/semconv/gen-ai/)埋：模型调用 span 名 `chat {model}`，工具 span 名 `execute_tool {tool}`，属性带 `gen_ai.operation.name`、`gen_ai.tool.name` / `gen_ai.tool.call.id` / `gen_ai.tool.call.arguments`。想让 `messageIncludes` 有数据，打开内容采集（`gen_ai.input/output.messages` 是 opt-in）。这个思路暂时没有可跑的参考实现——原 `examples/zh/origin/custom-genai` 已经改成一个真实的 pi agent 示例，不再演示手写埋点。
   </Tab>
 </Tabs>
 
