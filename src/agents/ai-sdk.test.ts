@@ -324,7 +324,7 @@ function fakeCtx(session: { isNew: boolean; id?: string }): AgentContext {
     model: undefined,
     flags: {},
     sandbox: undefined as unknown as AgentContext["sandbox"],
-    session: { ...session },
+    session: { state: {}, ...session },
     log: () => {},
   };
 }

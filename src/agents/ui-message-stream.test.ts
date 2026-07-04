@@ -74,7 +74,8 @@ function ctx(overrides: Partial<{ isNew: boolean; id: string; model: string }> =
     model: overrides.model,
     flags: {},
     sandbox: undefined as never,
-    session: { isNew: overrides.isNew ?? true, id: overrides.id },
+    // 会话件锚在 state 上:同一个 ctx 重复用 = 同一条会话线(续接),新造 = 新线。
+    session: { state: {}, isNew: overrides.isNew ?? true, id: overrides.id },
     log: () => {},
   } as AgentContext;
 }
@@ -101,7 +102,7 @@ describe("uiMessageStreamAgent", () => {
     expect(sentBody(0).messages).toHaveLength(1);
 
     fetchMock.mockResolvedValueOnce(sse([{ type: "text-delta", delta: "again" }]));
-    const turn2 = await agent.send({ text: "再说一次" }, ctx({ isNew: false, id: c.session.id }));
+    const turn2 = await agent.send({ text: "再说一次" }, c);
     // user, assistant, user —— 全量历史重放
     expect(sentBody(1).messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     // 回归:mock 的响应消息 id 每轮都是 "m1"(有的应用真的会这样)。全新轮的文本必须完整
@@ -147,7 +148,7 @@ describe("uiMessageStreamAgent", () => {
     fetchMock.mockResolvedValueOnce(
       sse([{ type: "tool-output-available", toolCallId: "c1", output: 2 }, { type: "text-delta", delta: "= 2" }]),
     );
-    const turn2 = await agent.send({ text: "approve" }, ctx({ isNew: false, id: c.session.id }));
+    const turn2 = await agent.send({ text: "approve" }, c);
     expect(turn2.status).toBe("completed");
     expect(turn2.events).toEqual([
       { type: "action.called", callId: "c1", name: "calculate", input: { expr: "1+1" } },
@@ -175,7 +176,7 @@ describe("uiMessageStreamAgent", () => {
     await agent.send({ text: "算" }, c);
 
     fetchMock.mockResolvedValueOnce(sse([{ type: "text-delta", delta: "好的,不算了" }]));
-    const turn2 = await agent.send({ text: "deny" }, ctx({ isNew: false, id: c.session.id }));
+    const turn2 = await agent.send({ text: "deny" }, c);
     expect(turn2.status).toBe("completed");
     expect(turn2.events).toEqual([
       { type: "action.called", callId: "c1", name: "calculate", input: { expr: "1+1" } },

@@ -7,8 +7,13 @@ import { deriveEventsFromSpans, mergeDerivedEvents } from "../o11y/otlp/dialects
 import { captureLoc } from "../source-loc.ts";
 import { t } from "../i18n/index.ts";
 
-/** 一条会话线的可变状态。adapter 读 isNew 决定是否 --resume,写 id 供下轮续接。 */
+/**
+ * 一条会话线的可变状态。`state` 是运行器对 adapter 的唯一会话承诺:同一条线的每次
+ * send 拿到同一份、新线拿到空的——会话件以它为锚。id/isNew 是旧契约兼容位
+ * (沙箱型 CLI agent 仍用它们做 --resume)。
+ */
 export class RunSession implements AgentSession {
+  readonly state: Record<string, unknown> = {};
   id: string | undefined = undefined;
   isNew = true;
   index = 1;

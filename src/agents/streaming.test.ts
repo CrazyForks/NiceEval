@@ -4,11 +4,12 @@ import { clientHistory, deltaStream, driveFrameStream, pausable, serverSession }
 import type { DeltaOp } from "./streaming.ts";
 import type { AgentContext } from "../types.ts";
 
-function ctxOf(session: { id?: string; isNew: boolean }): AgentContext {
+/** 一条会话线 = 一份 state。同一个 ctx 重复用 = 同一条线;新造一个 = 新线。 */
+function lineCtx(): AgentContext {
   return {
     signal: new AbortController().signal,
     flags: {},
-    session,
+    session: { state: {}, isNew: true },
     sandbox: undefined as never,
     log() {},
   };
@@ -95,75 +96,78 @@ describe("deltaStream", () => {
 describe("pausable", () => {
   it("take() 只消费一次;没有 hold 过就是 undefined", () => {
     const p = pausable<{ toolCallId: string }>();
-    const ctx = ctxOf({ id: "s1", isNew: false });
-    expect(p.take(ctx)).toBeUndefined();
-    p.hold(ctx, { toolCallId: "c1" });
-    expect(p.take(ctx)).toEqual({ toolCallId: "c1" });
-    expect(p.take(ctx)).toBeUndefined();
+    const line = lineCtx();
+    expect(p.take(line)).toBeUndefined();
+    p.hold(line, { toolCallId: "c1" });
+    expect(p.take(line)).toEqual({ toolCallId: "c1" });
+    expect(p.take(line)).toBeUndefined();
   });
 
-  it("hold() 要求 ctx.session.id 已经写回", () => {
+  it("不要求后端有会话 id:第一轮就能 hold(服务端无状态的接口也能停轮)", () => {
     const p = pausable<{ x: number }>();
-    expect(() => p.hold(ctxOf({ isNew: true }), { x: 1 })).toThrow(/ctx.session.id/);
+    const line = lineCtx();
+    p.hold(line, { x: 1 });
+    expect(line.session.id).toBeUndefined();
+    expect(p.take(line)).toEqual({ x: 1 });
   });
 
-  it("按 session id 隔离,不同会话互不干扰", () => {
+  it("按会话线隔离,不同线互不干扰", () => {
     const p = pausable<{ v: string }>();
-    p.hold(ctxOf({ id: "a", isNew: false }), { v: "A" });
-    p.hold(ctxOf({ id: "b", isNew: false }), { v: "B" });
-    expect(p.take(ctxOf({ id: "b", isNew: false }))).toEqual({ v: "B" });
-    expect(p.take(ctxOf({ id: "a", isNew: false }))).toEqual({ v: "A" });
+    const a = lineCtx();
+    const b = lineCtx();
+    p.hold(a, { v: "A" });
+    p.hold(b, { v: "B" });
+    expect(p.take(b)).toEqual({ v: "B" });
+    expect(p.take(a)).toEqual({ v: "A" });
   });
 });
 
 describe("serverSession", () => {
-  it("isNew 时不带 resume id,续接轮带上已有 id", () => {
+  it("新会话线不带 resume id;capture 之后同一条线的下一轮带上", () => {
     const session = serverSession();
-    expect(session.id(ctxOf({ isNew: true }))).toBeUndefined();
-    expect(session.id(ctxOf({ id: "sess-1", isNew: false }))).toBe("sess-1");
+    const line = lineCtx();
+    expect(session.id(line)).toBeUndefined(); // 第一轮:空 state 的自然结果
+    session.capture(line, "sess-1");
+    expect(session.id(line)).toBe("sess-1"); // 续接轮:同一份 state
   });
 
-  it("capture 只在新会话第一轮落地;resume 轮不会被后端回传的 id 覆盖", () => {
+  it("capture 是 first-writer-wins:续接轮不会被后端回传的(fork 后的)id 覆盖", () => {
     const session = serverSession();
-    const fresh = ctxOf({ isNew: true });
-    session.capture(fresh, "sess-new");
-    expect(fresh.session.id).toBe("sess-new");
+    const line = lineCtx();
+    session.capture(line, "sess-new");
+    session.capture(line, "sess-forked"); // 后端可能因 fork 换了新 id,不覆盖正在续接的线
+    expect(session.id(line)).toBe("sess-new");
+  });
 
-    const resuming = ctxOf({ id: "sess-old", isNew: false });
-    session.capture(resuming, "sess-forked"); // 后端可能因 fork 换了新 id,续接轮不该被它覆盖
-    expect(resuming.session.id).toBe("sess-old");
-
-    session.capture(fresh, "sess-other"); // 同一轮内第二次回传,不覆盖已写的 id
-    expect(fresh.session.id).toBe("sess-new");
+  it("capture 把真实后端 id 镜像到 ctx.session.id(t.sessionId / 报告可见);新线互相隔离", () => {
+    const session = serverSession();
+    const a = lineCtx();
+    const b = lineCtx();
+    session.capture(a, "sess-a");
+    expect(a.session.id).toBe("sess-a");
+    expect(session.id(b)).toBeUndefined(); // b 是新线,看不到 a 的 id
   });
 });
 
 describe("clientHistory", () => {
-  it("isNew 时历史为空并分配新 id;非 isNew 时取回上次 commit 的历史", () => {
+  it("新会话线历史为空;commit 之后同一条线取回", () => {
     const history = clientHistory<{ role: string; text: string }>();
-    const fresh = ctxOf({ isNew: true });
-    expect(history.get(fresh)).toEqual([]);
-    expect(fresh.session.id).toBeTruthy();
+    const line = lineCtx();
+    expect(history.get(line)).toEqual([]);
+    expect(line.session.id).toBeUndefined(); // 不伪造会话 id
 
-    history.commit(fresh, [{ role: "user", text: "hi" }, { role: "assistant", text: "hello" }]);
-
-    const resuming = ctxOf({ id: fresh.session.id, isNew: false });
-    expect(history.get(resuming)).toEqual([{ role: "user", text: "hi" }, { role: "assistant", text: "hello" }]);
+    history.commit(line, [{ role: "user", text: "hi" }, { role: "assistant", text: "hello" }]);
+    expect(history.get(line)).toEqual([{ role: "user", text: "hi" }, { role: "assistant", text: "hello" }]);
   });
 
   it("不同会话线的历史互相隔离", () => {
     const history = clientHistory<{ n: number }>();
-    const a = ctxOf({ isNew: true });
+    const a = lineCtx();
     history.get(a);
     history.commit(a, [{ n: 1 }]);
 
-    const b = ctxOf({ isNew: true });
+    const b = lineCtx();
     expect(history.get(b)).toEqual([]); // 全新会话线,看不到 a 的历史
-  });
-
-  it("commit() 前没调过 get() 就报错(id 还没落地)", () => {
-    const history = clientHistory<{ n: number }>();
-    expect(() => history.commit(ctxOf({ isNew: true }), [])).toThrow(/get\(\)/);
   });
 });
 
@@ -179,7 +183,7 @@ describe("driveFrameStream", () => {
       usage: { inputTokens: 1, outputTokens: 2 },
       add: (f: { text: string }) => [{ type: "message" as const, role: "assistant" as const, text: f.text }],
     };
-    const turn = await driveFrameStream(cursorOf(frames), reducer, ctxOf({ isNew: true }));
+    const turn = await driveFrameStream(cursorOf(frames), reducer, lineCtx());
     expect(turn.status).toBe("completed");
     expect(turn.events).toHaveLength(2);
     expect(turn.usage).toEqual({ inputTokens: 1, outputTokens: 2 });
@@ -194,7 +198,7 @@ describe("driveFrameStream", () => {
       },
     };
     const reducer = { add: () => [] };
-    const turn = await driveFrameStream(cursor, reducer, ctxOf({ id: "s1", isNew: false }), (frame) =>
+    const turn = await driveFrameStream(cursor, reducer, lineCtx(), (frame) =>
       frame.gate ? { pause: { id: "req1", action: "deploy" } } : undefined,
     );
     expect(turn.status).toBe("waiting");
@@ -205,7 +209,7 @@ describe("driveFrameStream", () => {
   it("onFrame 返回 fail:记一条 error,继续读完,status 置 failed", async () => {
     const frames = [{ err: false }, { err: true }, { err: false }];
     const reducer = { add: () => [] };
-    const turn = await driveFrameStream(cursorOf(frames), reducer, ctxOf({ isNew: true }), (f) =>
+    const turn = await driveFrameStream(cursorOf(frames), reducer, lineCtx(), (f) =>
       f.err ? { fail: "网关超时" } : undefined,
     );
     expect(turn.status).toBe("failed");
@@ -214,7 +218,7 @@ describe("driveFrameStream", () => {
 
   it("reducer.failed 为真时即便没有 onFrame 也判 failed", async () => {
     const reducer = { failed: true, add: () => [] };
-    const turn = await driveFrameStream(cursorOf([{}]), reducer, ctxOf({ isNew: true }));
+    const turn = await driveFrameStream(cursorOf([{}]), reducer, lineCtx());
     expect(turn.status).toBe("failed");
   });
 });

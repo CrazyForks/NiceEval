@@ -57,6 +57,7 @@ export type {
   AgentContext,
   AgentCapabilities,
   AgentSession,
+  SessionPiece,
   AgentTracing,
   Telemetry,
   SandboxAgentDef,

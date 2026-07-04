@@ -227,7 +227,7 @@ async function runAttemptBody(
     model: run.model,
     flags: run.flags,
     sandbox,
-    session: { id: undefined, isNew: true },
+    session: { state: {}, id: undefined, isNew: true },
     telemetry,
     log,
   };

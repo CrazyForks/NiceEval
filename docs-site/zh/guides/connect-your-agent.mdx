@@ -138,51 +138,53 @@ export default defineEval({
 
 每轮能拿到 token 用量就顺手带上 `usage`（`{ inputTokens, outputTokens }`），`t.maxTokens()` / `t.maxCost()` 与成本报表就都有了。
 
-## 第三步：`conversation`——让第二轮接得上第一轮
+## 第三步：会话件——让第二轮接得上第一轮
 
-`t.send()` 本来就能连调多次，问题是第二轮接不接得上第一轮的上下文。`conversation` 这个能力位管的就是这件事。实现的落点是 `ctx.session`，它只有两个字段：
+`t.send()` 本来就能连调多次，问题是第二轮接不接得上第一轮的上下文。答案取决于你的应用接口把对话历史存在哪一边——两种模式各有一个官方**会话件**（从 `niceeval/adapter` 导入），把用的件递给 `defineAgent` 的 `session` 字段，多轮能力即被声明，不用写任何布尔。
 
-```ts
-interface AgentSession {
-  id?: string;             // 可写:adapter 回传,供下一轮续接
-  readonly isNew: boolean; // 这条会话线的第一轮为 true,之后为 false
-}
-```
-
-约定很短：`isNew === true` 时开新会话，把新 id 写回 `ctx.session.id`；`isNew === false` 时按 `ctx.session.id` 续接。具体怎么写，取决于你的 agent 接口把对话历史存在哪一边——分两种情况。
-
-**服务端存历史**（OpenAI Responses API 这类：请求只带新消息和上一轮的 id）。id 直接透传就行：
+**服务端存历史**（OpenAI Responses API 这类：请求只带新消息和上一轮的 id）→ `serverSession()`：
 
 ```ts
-async send(input, ctx) {
-  const r = await callMyBot({
-    message: input.text,
-    previousResponseId: ctx.session.isNew ? undefined : ctx.session.id,
-  }, ctx.signal);
-  ctx.session.id = r.responseId;   // 写回,下一轮续接
-  return { status: "completed", events: toStreamEvents(r) };
-}
+import { defineAgent, serverSession } from "niceeval/adapter";
+
+const session = serverSession();
+
+export default defineAgent({
+  name: "my-bot",
+  session,                                     // ← 件即能力:递了它,多轮与 t.newSession() 可用
+  async send(input, ctx) {
+    const r = await callMyBot({
+      message: input.text,
+      previousResponseId: session.id(ctx),     // 新会话线自动不带,之后自动带
+    }, ctx.signal);
+    session.capture(ctx, r.responseId);        // 回传的 id 记下,下一轮续接
+    return { status: "completed", events: toStreamEvents(r) };
+  },
+});
 ```
 
 你的 agent 有原生会话 id（`--resume <id>`、`session_id` 参数）的，也是这个写法。
 
-**客户端带全量历史**（OpenAI Chat Completions 这类：服务端无状态，每次请求要发完整 messages）。历史由 adapter 自己存，拿 `ctx.session.id` 当 key：
+**客户端带全量历史**（OpenAI Chat Completions 这类：服务端无状态，每次请求要发完整 messages）→ `clientHistory()`：
 
 ```ts
-const sessions = new Map<string, MyMessage[]>();
+import { defineAgent, clientHistory } from "niceeval/adapter";
 
-async send(input, ctx) {
-  if (ctx.session.isNew) ctx.session.id = crypto.randomUUID();
-  const history = sessions.get(ctx.session.id!) ?? [];
-  history.push({ role: "user", content: input.text });
-  const body = await callMyBot(history, ctx.signal);
-  history.push(...body.newMessages);
-  sessions.set(ctx.session.id!, history);
-  return { status: "completed", events: toStreamEvents(body) };
-}
+const history = clientHistory<MyMessage>();
+
+export default defineAgent({
+  name: "my-bot",
+  session: history,
+  async send(input, ctx) {
+    const messages = [...history.get(ctx), { role: "user" as const, content: input.text }];
+    const body = await callMyBot(messages, ctx.signal);
+    history.commit(ctx, [...messages, ...body.newMessages]);   // 写回,下一轮 get 自动带上
+    return { status: "completed", events: toStreamEvents(body) };
+  },
+});
 ```
 
-两种写法对 eval 侧完全一样。声明 `conversation: true` 后，跨轮记忆与会话隔离断言可用：
+两种写法对 eval 侧完全一样，而且都没有"第一轮"分支——新会话线（包括 `t.newSession()` 之后）`session.id(ctx)` 自然是 `undefined`、`history.get(ctx)` 自然是空数组，"第一次发"是空状态的自然结果。跨轮记忆与会话隔离断言从此可用：
 
 ```ts
 export default defineEval({
@@ -200,7 +202,7 @@ export default defineEval({
 ```
 
 <Warning>
-常见错误是忽略 `isNew` 一律续接：`t.newSession()` 造出的"新会话"实际共享上下文，隔离断言全部失真，而且不会报错。写完先用上面这条 eval 验一下隔离。
+常见错误是 adapter 无视自己的会话状态、一律续接同一个底层上下文：`t.newSession()` 造出的"新会话"实际共享状态，隔离断言全部失真，而且不会报错。用官方会话件就不会踩这个坑；写完先用上面这条 eval 验一下隔离。
 </Warning>
 
 ## HITL 是什么，哪些 agent 不需要
@@ -268,7 +270,8 @@ export default defineEval({
 ```ts
 export default defineAgent({
   name: "my-bot",
-  capabilities: { conversation: true, toolObservability: true, tracing: true },
+  session,   // 多轮:第三步的会话件
+  capabilities: { toolObservability: true, tracing: true },
   async send(input, ctx) {
     const body = await callMyBot(history, ctx.signal, {
       otlpEndpoint: ctx.telemetry?.endpoint,   // 应用把这一轮的 span 发到这里

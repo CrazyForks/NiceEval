@@ -118,10 +118,29 @@ export interface AgentTracing {
   configure?(sandbox: Sandbox, ctx: AgentContext): Promise<void> | void;
 }
 
-/** 多轮 resume / newSession 用。id 可写(adapter 回传供下轮续接)。 */
+/**
+ * 一条会话线。核心承诺只有一句:**同一条会话线的每次 send 拿到同一份 `state`,
+ * 新会话线(eval 第一轮 / t.newSession() 之后)拿到一份空的。**
+ */
 export interface AgentSession {
+  /**
+   * 本条会话线的自有状态槽:从 `{}` 起步,框架从不写入。官方会话件
+   * (serverSession / clientHistory / pausable)以这个对象为锚存取自己的数据,
+   * 手写 adapter 也可以直接往里放东西——没有任何要检查的标志位。
+   */
+  readonly state: Record<string, unknown>;
+  /** 旧契约兼容:沙箱型 CLI agent 仍用它做 --resume;会话件已不依赖。id 可写(adapter 回传供观测/续接)。 */
   id?: string;
+  /** 旧契约兼容:用会话件后不需要检查它(空 state 的自然结果就是"第一轮")。 */
   readonly isNew: boolean;
+}
+
+/**
+ * 会话件标记:`defineAgent` 的 `session` 字段收它。递了件 = 多轮能力的构造证据
+ * (件即能力,见 docs/capabilities-by-construction.md)——不递则第二次 t.send 报能力错误。
+ */
+export interface SessionPiece {
+  readonly kind: "serverSession" | "clientHistory";
 }
 
 export interface AgentContext {
@@ -161,6 +180,8 @@ export type SpanMapper = (spans: TraceSpan[]) => TraceSpan[];
 export interface Agent {
   readonly name: string;
   readonly capabilities: AgentCapabilities;
+  /** 会话件(serverSession / clientHistory)。递了件 = conversation 能力由构造派生。 */
+  readonly session?: SessionPiece;
   setup?: AgentSetup;
   /** OTLP 导出配置(仅 capabilities.tracing 时有意义);与 setup 分开,见 AgentTracing。 */
   tracing?: AgentTracing;
@@ -187,6 +208,11 @@ export interface SandboxAgentDef {
 
 export interface RemoteAgentDef {
   name: string;
+  /**
+   * 会话件:把 send 里用的 `serverSession()` / `clientHistory()` 递给定义。
+   * 递了件即声明多轮能力(conversation 由构造派生,不用写布尔)。
+   */
+  session?: SessionPiece;
   capabilities?: AgentCapabilities;
   setup?: AgentSetup;
   tracing?: AgentTracing;
