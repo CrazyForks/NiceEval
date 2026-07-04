@@ -61,7 +61,7 @@ await t.send("好,发出去。");
 t.calledTool("send_email");
 ```
 
-多轮 `t.send()` 要求 Agent 定义里递了会话件(`session: clientHistory()` 或 `serverSession()`)——没递时,adapter 没有续接上一轮的手段,第二次 `t.send()` 会直接报错而不是静默接进一个无关上下文。能力如何从构造中来,见 [Adapter](/zh/concepts/adapter)。
+多轮 `t.send()` 能不能真的续上上文，取决于 Adapter 的 `send` 是否接了 `ctx.session` 的会话续接存取器（`history()` 或 `id` + `capture()`）——没接时每轮各是一场新对话。怎么接见 [Adapter](/zh/concepts/adapter) 与[写 send](/zh/guides/write-send)。
 
 ## 独立会话 —— `t.newSession()`
 

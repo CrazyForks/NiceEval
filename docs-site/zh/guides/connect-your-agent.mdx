@@ -169,8 +169,8 @@ export default defineExperiment({
 | `signal` | 运行器（超时与取消） | 挂到发出的每个请求上 |
 | `model` | experiment 的 `model` | 应用接口收模型选择就随请求转发；不收就忽略 |
 | `flags` | experiment 的 `flags` | 原样转发（请求体、header 都行），应用按 flag 切换变体 |
-| `telemetry` | 配置了 OTel 接入时出现 | `endpoint` / `headers` / `env` 交给应用或注入子进程，见 [OTel 接入](/zh/guides/connect-otel) |
-| `session` | 运行器（每条会话线一份状态槽） | 一般不直接碰——官方会话件替你存取，见[写 send](/zh/guides/write-send) |
+| `telemetry` | 配置了 OTel 接入时出现 | 只碰 `headers`：每轮新的 W3C `traceparent`，spread 进请求头。接收端点每次运行都一样，在 `defineConfig` 里固定、应用启动时指向它，不从 send 传——见 [OTel 接入](/zh/guides/connect-otel) |
+| `session` | 运行器（每条会话线一份） | 会话续接与 HITL 停轮现场的存取器都在它上面：`history()`、`id` / `capture()`、`hold()` / `take()`，见[写 send](/zh/guides/write-send) |
 | `log(msg)` | 运行器 | 写进本轮日志，`niceeval view` 里可见 |
 
 同一个 agent 对着本地和生产分别跑，就是两个 experiment 文件、两份工厂参数：
@@ -201,7 +201,7 @@ npx niceeval exp prod
 | 想解锁什么 | 给 adapter 加什么 | 去哪看 |
 |---|---|---|
 | 工具断言（`calledTool` / `toolOrder` / 负断言） | 把应用返回映射成标准事件流 | [写 send](/zh/guides/write-send)、[事件流参考](/zh/reference/events) |
-| 多轮对话、`t.newSession()` 隔离 | 一行会话件：`serverSession()` / `clientHistory()` | [写 send](/zh/guides/write-send) |
+| 多轮对话、`t.newSession()` 隔离 | 接上 `ctx.session`：`history()` 或 `id` + `capture()` | [写 send](/zh/guides/write-send) |
 | 审批流（HITL，人工介入） | 停轮返回 `waiting` + `input.requested`，回答轮续跑 | [HITL](/zh/concepts/hitl) |
 | 免映射事件、负断言完整性、trace 瀑布图 | 应用把 OTel span 发给 NiceEval | [OTel 接入](/zh/guides/connect-otel) |
 | feature A/B 对比 | 应用把变体暴露成 `flags` 可切换的配置 | [Tier](/zh/concepts/tier)、[写实验](/zh/guides/write-experiment) |
@@ -210,7 +210,7 @@ npx niceeval exp prod
 
 ## 参考实现
 
-完整的可跑参考：五个[无侵入接入示例](/zh/example/tier1-ai-sdk-v7)，覆盖事件流断言、多轮隔离、HITL 批准 / 拒绝、OTel 派生、trace。手写 `send` 时真正要写的只有 transport 和映射表——会话续接、HITL 暂停恢复、逐帧驱动都是官方件，见[内置 Agent 能力](/zh/reference/builtin-agents)。
+完整的可跑参考：五个[无侵入接入示例](/zh/example/tier1-ai-sdk-v7)，覆盖事件流断言、多轮隔离、HITL 批准 / 拒绝、OTel 派生、trace。手写 `send` 时真正要写的只有 transport 和映射表——会话续接、HITL 暂停恢复的状态槽都在 `ctx.session` 上，逐帧驱动是官方件，见[内置 Agent 能力](/zh/reference/builtin-agents)。
 
 ## 相关阅读
 
