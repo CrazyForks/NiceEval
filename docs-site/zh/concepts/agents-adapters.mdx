@@ -11,6 +11,18 @@ description: "Agent 是 NiceEval 调用的抽象，Adapter 是你写的实现。
 - **Agent**：NiceEval 眼里的被测对象。一个有名字、一个 `send` 方法、外加几个所用零件的对象。运行器只跟这个接口打交道，从不写 `if (agent === "claude-code")` 这样的分支。
 - **Adapter**：实现这个接口的代码，由你写（或用内置的）。它知道怎么鉴权、怎么调你的应用、怎么把返回翻译成标准事件流。
 
+一次 `t.send()` 的完整往返，穿过这条边界两次：
+
+```text
+evals/*.eval.ts           NiceEval 运行器             Adapter（你写）             你的应用（一行不改）
+
+await t.send("...")  ──▶  组装 TurnInput + ctx  ──▶  send(input, ctx)  ─────▶   前端在用的那个接口
+t.reply              ◀──  折叠 events 成事实    ◀──  原始返回翻译成 events ◀──  响应 / SSE 流
+t.calledTool()...         更新 t.reply 与用量        return Turn
+```
+
+去程：eval 里的驱动动词（`t.send` / `t.sendFile` / `t.respond`）到运行器都变成同一件事——组装 `TurnInput` 和本会话线的 `ctx`，调一次 Adapter 的 `send`。回程：Adapter 把应用的原始返回翻译成 `Turn`——其中 `events` 是一个按发生顺序排列的事件对象数组（下文有实际值）——运行器折叠这个数组，断言和评分读的全是折叠后的事实。边界两侧互不知晓对方细节：运行器不知道 HTTP 长什么样，Adapter 不知道 eval 里写了哪些断言。
+
 被测系统的 URL、鉴权、协议细节都是 Adapter 的私有配置（读环境变量或闭包），NiceEval 永远看不到。experiment 按名字引用 Agent；experiment 名之后的位置参数只选择"跑哪些 eval"。
 
 ```bash
@@ -80,13 +92,23 @@ interface AgentSession {
 ```ts
 interface Turn {
   readonly events: StreamEvent[];          // ★ 标准事件流——每个 Adapter 的核心产物
-  readonly data?: unknown;                 // 结构化输出（喂 outputEquals / outputMatches）
+  readonly data?: unknown;                 // 仅当回答本身是结构化对象时填（喂 outputEquals / outputMatches）
   readonly status: "completed" | "failed" | "waiting";  // waiting = 停轮等人（HITL）
   readonly usage?: Usage;
 }
 ```
 
-`events` 是核心产物：把接口的原始返回归一成标准事件流，整套断言词汇就对这个 AI 免费可用。事件类型的完整清单、每种事件解锁哪族断言，见[写 send](/zh/concepts/write-send)的"标准事件流"一节——多数情况下你不手写事件，官方转换器的返回值就是一个完整的 `Turn`。
+`events` 就是一个**普通的 JS 数组**：这一轮里发生的每件事一个对象，按真实发生顺序排列。比如"北京今天多少度?"这一轮，agent 先查天气再回答，`events` 长这样：
+
+```ts
+[
+  { type: "action.called", callId: "c1", name: "get_weather", input: { city: "北京" } },
+  { type: "action.result", callId: "c1", output: { temp: 21 }, status: "completed" },
+  { type: "message", role: "assistant", text: "北京今天 21°C。" },
+]
+```
+
+对象统共九种类型（`message`、`action.*`、`input.requested`……完整清单见[事件流参考](/zh/reference/events)）。断言读的就是这个数组：`t.calledTool("get_weather")` 数 `action.called`，`t.reply` 取最后一条 assistant `message`。注意 `send` 每次只返回**本轮**的数组——跨轮拼成整条会话线是运行器的事，见下一节。多数情况下你也不手写这些对象：官方转换器的返回值就是一个填好 `events`、`usage`、`status` 的完整 `Turn`，怎么选转换器见[写 send](/zh/concepts/write-send)。
 
 ### send 返回之后：Turn 的四个字段各去哪
 
