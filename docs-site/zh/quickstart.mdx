@@ -24,7 +24,7 @@ import { defineAgent } from "niceeval/adapter";
 export default defineAgent({
   name: "my-bot",
   async send(input, ctx) {
-    const r = await fetch(`${process.env.MY_BOT_URL}/chat`, {
+    const r = await fetch("http://localhost:3000/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ message: input.text }),
@@ -77,11 +77,7 @@ npx niceeval view         # 本地查看器里看结果
 
 到这里第一条 eval 已经跑通。
 
-<Warning>
-这个最小 adapter 是**单轮**的：`t.send()` 可以连调多次，但每一轮都是独立的——第二轮不会记得第一轮说了什么，因为 adapter 还没告诉应用"历史怎么接上"。这不是 bug，是最短路径故意留白的第一个增量：给 adapter 加一个**会话件**（应用接口收会话 id 的用 `serverSession()`，服务端无状态的用 `clientHistory()`），并把件递给 `defineAgent` 的 `session` 字段——两种写法各三行，见[接入你的 Agent](/zh/guides/connect-your-agent)第三步。
-</Warning>
-
-接下来的每一步都是给 adapter 加可选增量：工具调用事件（解锁 `t.calledTool()`）、多轮会话（解锁跨轮记忆与 `t.newSession()` 隔离断言）、HITL、tracing——顺着[接入你的 Agent](/zh/guides/connect-your-agent) 逐层往下走即可，已写的 eval 不用改。
+这个最小 adapter 是**单轮**的——第二轮不会记得第一轮说了什么，因为还没告诉应用怎么接上历史。多轮会话和工具调用事件（解锁 `t.calledTool()`）、HITL、tracing 一样，都是之后给 adapter 加的可选增量：顺着[接入你的 Agent](/zh/guides/connect-your-agent)逐层往下走即可，已写的 eval 不用改。
 
 ## 按场景走
 

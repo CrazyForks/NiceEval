@@ -1,10 +1,10 @@
 ---
 title: "如何写好 Send"
 sidebarTitle: "如何写好 Send"
-description: "手写 Adapter 的 send 函数，一条主线七步走：发消息拿回复、接上之前的消息、记录消费、把工具解析成事件、HITL 停轮续跑、接上 OTel trace、透传 experiment 的 flags。每一步只在上一步的代码上多几行，每一步解锁一组断言。"
+description: "手写 Adapter 的 send 函数，一条主线七步走：发消息拿回复、接上之前的消息、记录消费、把工具解析成事件、人工介入（HITL）、接上 OTel trace、透传 experiment 的 flags。每一步只在上一步的代码上多几行，每一步解锁一组断言。"
 ---
 
-[Adapter](/zh/concepts/adapter) 讲了契约：`send` 传入 `TurnInput` 和 `AgentContext`，返回 `Turn`。这一页讲怎么写它——从"发一条消息拿到回复"的最小形态起步，一步一步加到完整接入。每一步只在上一步的代码上多几行，前面已有的部分在代码里用 `// ……省略` 标出；每一步末尾说明这几行解锁了哪些断言。
+[Adapter](/zh/concepts/adapter) 讲了契约：`send` 传入 `TurnInput` 和 `AgentContext`，返回 `Turn`。这一页讲怎么写它——从"发一条消息拿到回复"的最小形态起步，一步一步加到完整接入。每一步只在上一步的代码上多几行，前面已有的部分在代码里用 `// ……省略` 标出；每一步末尾说明这几行解锁了哪些断言。改完任何一步都能立刻验证：把新解锁的断言写进一条 eval 重跑 `npx niceeval exp`，`niceeval view` 里能看到这一步新增的数据——多轮轨迹、用量、工具事件、待回答请求。
 
 两个贯穿全文的原则：
 
@@ -204,7 +204,7 @@ type StreamEvent =
 
 **这一步解锁**：`t.calledTool()`、`t.toolOrder()`、`t.maxToolCalls()`、`t.noFailedActions()` 等整族工具断言。
 
-## 第五步：HITL 停轮与续跑
+## 第五步：HITL
 
 应用中途停下来等人（工具审批、等补充信息）时，`send` 两侧各有义务：
 
@@ -261,7 +261,7 @@ async function send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
     }),
     signal: ctx.signal,
   });
-  return readStream(sseJsonFrames<Frame>(res.body!), ctx, fromPiAgentEvents());  // ← 第三步：官方转换器零映射
+  return readStream(sseJsonFrames<Frame>(res.body!), ctx, fromPiAgentEvents());  // ← 第四步：官方转换器零映射
 }
 
 export default defineAgent({
@@ -275,13 +275,13 @@ export default defineAgent({
 
 **这一步解锁**：`t.parked()`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()`，以及 `calledTool(..., { status: "rejected" })` 的精确断言。
 
-## 第五步：接上 OTel trace
+## 第六步：接上 OTel trace
 
 应用已经埋了点（标准 OTel HTTP 服务端埋点即可）的话，把 `ctx.telemetry` 的 W3C trace context 头 spread 进请求，应用的 span 就自动挂到本轮的 trace 下。回到主线的 chat-app，只多一行：
 
 ```ts
     const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
-      // ……其余同第三步，省略
+      // ……其余同第四步，省略
       headers: { "content-type": "application/json", ...ctx.telemetry?.headers },  // ← 只多这一行
     }).then((r) => r.json());
 ```
@@ -290,7 +290,7 @@ export default defineAgent({
 
 **这一步解锁**：免映射的事件补全、负断言的完整性证明、`niceeval view` 里的 trace 瀑布图。接收器怎么起、span 怎么归属到轮、内容采集怎么开，见 [OTel 接入](/zh/guides/connect-otel)。
 
-## 第六步：透传 experiment 的 flags（A/B 对比）
+## 第七步：透传 experiment 的 flags（A/B 对比）
 
 应用把变体暴露成可切换的配置后，experiment 声明 `flags`，运行器每轮经 `ctx.flags` 原样递给 `send`；Adapter 不解释它们的含义，只随请求转发——应用按 flag 切换变体：
 
@@ -319,7 +319,7 @@ export default defineExperiment({
 
 ## 对照：五个 t API 到 send 的形态
 
-六步写完，回头看 eval 侧的五个驱动 API——它们到 `send` 只是同一个函数收到不同字段，没有第二个要实现的方法：
+七步写完，回头看 eval 侧的五个驱动 API——它们到 `send` 只是同一个函数收到不同字段，没有第二个要实现的方法：
 
 | eval 侧 | 到 Adapter 时 | `send` 收到什么 |
 |---|---|---|

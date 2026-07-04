@@ -45,6 +45,18 @@
       "destination": "/zh/guides/write-send"
     },
     {
+      "source": "/reference/configuration",
+      "destination": "/reference/define-config"
+    },
+    {
+      "source": "/zh/reference/configuration",
+      "destination": "/zh/reference/define-config"
+    },
+    {
+      "source": "/zh/example/eval-multil-turn-for-your-agent",
+      "destination": "/zh/concepts/drive"
+    },
+    {
       "source": "/zh/example/ai-sdk-v7-before-after",
       "destination": "/zh/example/tier1-ai-sdk-v7"
     },
@@ -144,8 +156,7 @@
               {
                 "group": "CLI",
                 "pages": [
-                  "reference/cli",
-                  "reference/configuration"
+                  "reference/cli"
                 ]
               }
             ]
@@ -246,8 +257,7 @@
               {
                 "group": "CLI",
                 "pages": [
-                  "zh/reference/cli",
-                  "zh/reference/configuration"
+                  "zh/reference/cli"
                 ]
               }
             ]
