@@ -30,6 +30,9 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      - name: Check example tiers are in sync
+        run: pnpm run tiers:check
+
       - name: Build product site
         run: pnpm run site:build
 

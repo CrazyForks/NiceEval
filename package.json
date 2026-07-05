@@ -52,6 +52,8 @@
     "test:watch": "vitest",
     "niceeval": "node bin/niceeval.js",
     "gen:diff-code": "tsx scripts/gen-diff-code.ts",
+    "tiers:sync": "node scripts/sync-tiers.mjs sync",
+    "tiers:check": "node scripts/sync-tiers.mjs check",
     "view:build": "vite build --config src/view/app/vite.config.ts",
     "prepare": "pnpm run view:build",
     "site:dev": "cd site && node scripts/dev.mjs",
