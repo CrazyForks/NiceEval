@@ -1,251 +1,138 @@
 ---
 title: "Sandbox agents: evaluate Claude Code, Codex, and bub"
-sidebarTitle: "Sandbox Agent"
-description: "Use niceeval's built-in agents (claude-code, codex, bub) or write a custom adapter to run a coding-agent CLI in an isolated Docker or cloud sandbox."
+sidebarTitle: "Sandbox Agents"
+description: "Use NiceEval built-in agents or a custom adapter to run coding-agent CLIs inside Docker or cloud sandboxes."
 ---
 
-A sandbox agent spawns a coding-agent CLI inside an isolated environment — a Docker container or cloud micro-VM — gives it a workspace, lets it run freely, then reads back the transcript and validates the result. This is how you evaluate tools like Claude Code, Codex, and bub: they need a real filesystem to write code, execute builds, and call tools, so niceeval provides that filesystem in a throwaway container your host machine never sees.
+Sandbox agents start a coding-agent CLI inside an isolated environment, give it a workspace and a task, let it edit files and run commands, then collect transcript, diff, and test results.
 
 ## Built-in sandbox agents
 
-niceeval ships three sandbox adapters out of the box. Import one into an experiment file and run that experiment.
-
 <CardGroup cols={3}>
   <Card title="claude-code" icon="code">
-    Runs Anthropic's Claude Code CLI. Requires `ANTHROPIC_API_KEY`.
+    Runs the Anthropic Claude Code CLI. Requires `ANTHROPIC_API_KEY`.
   </Card>
   <Card title="codex" icon="terminal">
-    Runs OpenAI's Codex CLI. Requires `OPENAI_API_KEY`.
+    Runs the OpenAI Codex CLI. Requires `CODEX_API_KEY`.
   </Card>
   <Card title="bub" icon="robot">
-    Runs the bub coding agent. Authentication follows the bub CLI conventions.
+    Runs the bub coding agent. Authentication follows the bub CLI's own rules.
   </Card>
 </CardGroup>
 
-## Running a sandbox agent
+## Run a built-in agent
 
-Select the agent in an experiment file, and set `sandbox` on that same experiment (or as a project-wide fallback in `niceeval.config.ts`) to pick where niceeval spins up the isolated environment (see [Sandbox Backends](/guides/sandbox-backends) for the full list of options).
+Set `sandbox` in the experiment, or as a project-level fallback in `niceeval.config.ts`, to choose where NiceEval creates the isolated environment:
 
 ```ts
-// experiments/local.ts
 import { defineExperiment } from "niceeval";
+import { claudeCodeAgent } from "niceeval/adapter";
 import { dockerSandbox } from "niceeval/sandbox";
-import claudeCode from "niceeval/agents/claude-code";
 
 export default defineExperiment({
-  agent: claudeCode,
+  agent: claudeCodeAgent(),
+  model: "claude-sonnet-4-6",
   sandbox: dockerSandbox(),
 });
 ```
 
-```shell
-# Evaluate the button fixture with Claude Code in a local Docker container
+```sh
 export ANTHROPIC_API_KEY=sk-ant-...
 npx niceeval exp local fixtures/button
 
-# Run 10 times and stop as soon as one pass is recorded
 npx niceeval exp local fixtures/button --runs 10 --early-exit
 ```
 
 <Note>
-  There is no CLI flag for choosing a sandbox backend — sandbox backend selection lives entirely in code. If neither the experiment nor `niceeval.config.ts` sets `sandbox`, niceeval throws as soon as it tries to create one.
+  There is no CLI flag for choosing the backend. Backend selection lives entirely in code. If neither the experiment nor `niceeval.config.ts` sets `sandbox`, NiceEval fails when it tries to create the sandbox.
 </Note>
 
-### Environment variables by agent
+The built-in agents exported from `niceeval/adapter` are factory functions. Put auth, proxy, MCP, or GitHub Skill setup in the factory arguments. Keep the model in the experiment's `model` field, and the sandbox backend in `sandbox`:
 
-| Agent | Required variable |
+```ts
+import { defineExperiment } from "niceeval";
+import { claudeCodeAgent } from "niceeval/adapter";
+import { dockerSandbox } from "niceeval/sandbox";
+
+export default defineExperiment({
+  agent: claudeCodeAgent({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseUrl: process.env.ANTHROPIC_BASE_URL,
+    maxTurns: 8,
+    mcpServers: [
+      {
+        name: "browser",
+        command: "npx",
+        args: ["-y", "@anthropic/mcp-browser"],
+      },
+    ],
+    skills: ["Effect-TS/skills"],
+  }),
+  model: "claude-sonnet-4-6",
+  sandbox: dockerSandbox(),
+});
+```
+
+## Agent environment variables
+
+| Agent | Required variables |
 |---|---|
 | `claude-code` | `ANTHROPIC_API_KEY` |
-| `codex` | `OPENAI_API_KEY` |
-| `bub` | *(follows bub CLI auth conventions)* |
+| `codex` | `CODEX_API_KEY` |
+| `bub` | whatever the bub CLI requires |
 
----
+## Workflow
 
-## How a sandbox agent works
-
-The runner creates the sandbox and commits a baseline, then your eval and adapter decide what to do. Starter files are uploaded explicitly from `test(t)`; validation commands are ordinary `t.sandbox.runCommand(...)` calls.
-
-```
-createSandbox(backend, timeout)
-  → git init && git commit             # baseline for later diff
-  → test(t): uploadDirectory/writeFiles and run setup commands
-  → adapter.send(input, ctx)           # ← the adapter's only segment
-  → test(t): run validation commands and record assertions
-  → collectGeneratedFiles()            # git diff HEAD
-  → sandbox.stop()                     # destroy the environment
+```text
+createSandbox
+  -> git init && git commit
+  -> adapter.setup?
+  -> test(t): uploadDirectory(...)
+  -> adapter.send(input, ctx)
+  -> test(t): runCommand(...)
+  -> collectGeneratedFiles()
+  -> sandbox.stop()
 ```
 
----
+The starting files and verification commands both live in `test(t)`. During agent execution, it can only see the files you already wrote into the sandbox.
 
-## The `defineSandboxAgent` shape
-
-A sandbox adapter receives a `ctx` whose `ctx.sandbox` is the live `Sandbox` handle for the current isolated environment. Your `send` function uses that handle to install the CLI, authenticate, run the agent, and read back the transcript.
+## Custom sandbox agent
 
 ```ts
 import { defineSandboxAgent } from "niceeval/adapter";
 
-defineSandboxAgent({
-  name: string;
-  async send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
-  //                                 ↑ ctx.sandbox is the Sandbox handle
-});
-```
-
-The five things that differ between coding-agent adapters are:
-
-1. **Install the CLI** — e.g. `npm install -g @anthropic-ai/claude-code`
-2. **Authenticate** — read the API key from the environment and pass it to the command
-3. **Build the command** — construct the argument list, including the prompt
-4. **Pass the model flag** — forward `ctx.model` to the CLI if the experiment specifies one
-5. **Read and parse the transcript** — locate the native JSONL output and convert it to `StreamEvent[]`
-
----
-
-## The built-in `claude-code` adapter (full example)
-
-The source for the built-in Claude Code adapter illustrates all five steps and how the shared helpers fit in:
-
-```ts
-// agents/claude-code.ts  (built-in; custom agents follow the same shape)
-import { defineSandboxAgent, shared } from "niceeval/adapter";
-import { requireEnv } from "niceeval";
-
-// Authentication is the adapter's private business — never passed through ctx
-const auth = () => ({ ANTHROPIC_API_KEY: requireEnv("ANTHROPIC_API_KEY") });
-
 export default defineSandboxAgent({
-  name: "claude-code",
+  name: "my-agent",
   async send(input, ctx) {
-    const sb = ctx.sandbox!;
-
-    // Step 1: install the CLI
-    await sb.runCommand("npm", ["install", "-g", "@anthropic-ai/claude-code"]);
-
-    // Step 3 & 4: build the command, forwarding model and feature flags
-    const args = ["--print", "--dangerously-skip-permissions"];
-    if (ctx.model) args.push("--model", ctx.model);   // only when experiment sets it
-    if (ctx.flags.webResearch) args.push("--allowedTools", "WebSearch,WebFetch");
-    if (ctx.session.id) args.push("--resume", ctx.session.id);   // undefined on a fresh session line
-    args.push(input.text);
-
-    // Step 2: authenticate via env, run the agent
-    const res = await sb.runCommand("claude", args, { env: auth() });
-
-    // Step 5: read the transcript, parse it into StreamEvent[]
-    const raw = await shared.captureLatestJsonl(sb, "~/.claude/projects");
-    ctx.session.capture(shared.sessionIdFromClaudeTranscript(raw));  // enables multi-turn resume
-
+    await ctx.sandbox.runCommand("my-agent", ["run", input.text, "--json-out", "agent-events.json"]);
+    const transcript = await ctx.sandbox.readFile("agent-events.json");
     return {
-      events: parseClaudeCode(raw),   // native JSONL → standard StreamEvent[]
-      status: res.exitCode === 0 ? "completed" : "failed",
+      status: "completed",
+      events: parseTranscript(transcript),
     };
   },
 });
 ```
 
----
-
-## Shared helpers
-
-niceeval provides helpers that sandbox adapters can reuse for CLI setup, transcript capture, and transcript parsing. Workspace preparation and validation usually live in the eval's `test(t)` function; diff collection is handled by the runner.
-
-| Helper | What it does |
-|---|---|
-| `shared.ensureInstalled(sandbox, command, install)` | Ensures an agent CLI exists in the sandbox |
-| `shared.writeFile(sandbox, path, content)` | Writes config or helper files into the sandbox |
-| `shared.captureLatestJsonl(sandbox, dir)` | Finds and reads the most recent JSONL transcript in the given directory |
-| `shared.parseClaudeCode(raw)` | Parses Claude Code JSONL into standard events and usage |
-| `shared.parseCodex(raw)` | Parses Codex JSONL into standard events and usage |
-| `shared.parseBub(raw)` | Parses bub JSONL into standard events and usage |
-
----
-
-## Transcript parsing: JSONL → `StreamEvent[]`
-
-Each coding agent writes its own native transcript format. Your adapter's fifth step is converting that format into the standard `StreamEvent[]` vocabulary that all niceeval assertions understand.
-
-```ts
-// Minimal transcript parser skeleton
-import type { StreamEvent } from "niceeval";
-
-function parseClaudeCode(rawJsonl: string): StreamEvent[] {
-  const events: StreamEvent[] = [];
-
-  for (const line of rawJsonl.trim().split("\n")) {
-    const entry = JSON.parse(line);
-
-    if (entry.type === "assistant" && entry.message?.content) {
-      for (const block of entry.message.content) {
-        if (block.type === "text") {
-          events.push({ type: "message", role: "assistant", text: block.text });
-        }
-        if (block.type === "tool_use") {
-          events.push({ type: "action.called", callId: block.id, name: block.name, input: block.input });
-        }
-      }
-    }
-
-    if (entry.type === "tool_result") {
-      events.push({
-        type: "action.result",
-        callId: entry.tool_use_id,
-        output: entry.content,
-        status: "completed",
-      });
-    }
-  }
-
-  return events;
-}
-```
-
-<Tip>
-  Once you normalize the transcript into `StreamEvent[]`, the entire suite of niceeval assertions becomes available: `t.calledTool`, `t.toolOrder`, `t.noFailedActions`, `t.messageIncludes`, and more — no extra work required.
-</Tip>
-
----
-
 ## `ctx.model` and `ctx.flags`
 
-Experiments pass a model tier and feature flags through `ctx`. Your adapter should forward them rather than hardcoding values — this allows the same adapter to serve multiple experiments without modification.
+The model and custom flags passed by the experiment appear in the adapter context. The adapter decides how to map them to CLI arguments or HTTP payloads.
+
+## Use a custom agent in an experiment
 
 ```ts
-// Forward the experiment's model tier to the CLI (omit if not set → CLI uses its default)
-if (ctx.model) args.push("--model", ctx.model);
-
-// Read a feature flag to conditionally enable a tool
-if (ctx.flags.webResearch) args.push("--allowedTools", "WebSearch,WebFetch");
-```
-
-<Note>
-  `ctx.model` is set by the experiment configuration, not by the adapter. If an experiment doesn't specify a model, `ctx.model` is `undefined` and the agent CLI uses its built-in default.
-</Note>
-
----
-
-## Registering a custom sandbox agent
-
-Built-in agents (`claude-code`, `codex`, `bub`) can be imported into experiment files. Custom adapters follow the same pattern:
-
-```ts
-// experiments/local.ts
 import { defineExperiment } from "niceeval";
 import { dockerSandbox } from "niceeval/sandbox";
-import myCustomAgent from "./agents/my-custom-agent.js";
+import myAgent from "./agents/my-agent";
 
 export default defineExperiment({
-  agent: myCustomAgent,
+  agent: myAgent,
+  model: "claude-sonnet-4-6",
   sandbox: dockerSandbox(),
-  runs: 1,
+  runs: 3,
 });
 ```
 
-Then run that experiment:
-
-```shell
-npx niceeval exp local fixtures/my-task
-```
-
 <Warning>
-  Never read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or other secrets through `ctx`. Authentication is the adapter's private responsibility. Read secrets directly from `process.env` inside your adapter definition — they should never be visible to the experiment or the eval author.
+  Do not add agent-specific branches inside the runner. Put differing behavior in the adapter.
 </Warning>

@@ -19,19 +19,22 @@
 
 ## 方案一句话
 
-把每个 tier 目录当成上游目录的**下游 vendored 副本**,用 git 本身做三方合并机器:每对目录记录一个"上次同步时上游的 tree hash"作为 base,同步 = 对每个共享文件做 base / 上游现状 / tier 现状 的三方判定,CI 用 tree hash 比对做秒级防漂移检查。**不存 patch 文件,不维护 overlay 清单**——"哪些文件是 tier 私有的"由三方比较自动推导。
+把每个 tier 目录当成上游目录的**下游 vendored 副本**,用 git 本身做三方合并机器:每对目录记录一个"上次同步时上游的 tree hash"作为 base,同步 = 一条 `git merge-tree --write-tree <base> <tier> <上游>`(git ≥ 2.38)完成整个目录树的三方合并,CI 用 tree hash 比对做秒级防漂移检查。**patch 只作为同步后自动导出的阅读产物,不作为事实源;不维护 overlay 清单**——"哪些文件是 tier 私有的"由三方合并自动推导。
 
-这就是 Google copybara / `git subtree` 解决的"目录级 vendoring + 上游追踪"问题的仓库内轻量版,先例成熟。
+这就是 Google copybara / `git subtree` 解决的"目录级 vendoring + 上游追踪"问题的仓库内轻量版:合并机制 100% 是 git 自己的,脚本只做粘合。
 
 ## 为什么这样做(以及否决了什么)
 
-### 否决:tier 存成 patch 队列,apply 出目录
+### 否决:patch 作为事实源(tier 只存 diff patch,apply 出目录)
 
-即"tier1 只存对 origin 的 diff patch,tier2 存对 tier1 的 patch"(Debian quilt / 内核补丁队列模式)。否决理由:
+即"tier1 只存对 origin 的 diff patch,tier2 存对 tier1 的 patch"(Debian quilt / 内核补丁队列模式)。patch 的"方便阅读"很诱人,但作为**存储格式**有四个硬伤:
 
-- **示例必须是可运行、可浏览的真实目录。** 仓库规则要求文档链接指向真实目录,用户会 clone 后直接 `cd examples/zh/tier1/codex-sdk` 跑起来、在 GitHub 上直接读代码。patch 既跑不了也读不了,必须加"物化"步骤——物化产物要么提交(回到原点),要么 gitignore(文档链接与 GitHub 浏览全断)。
+- **双事实源,DX 崩坏。** 改接入代码(evals、agents、脚手架几行)时,要么手写 patch 文件——没人受得了;要么改物化目录再重新导出——目录和 patch 变成两份事实源,永远在打架。git history 也不可读了:改一行 eval,commit diff 是"diff 的 diff"。
+- **示例必须是可运行、可浏览的真实目录。** 仓库规则要求文档链接指向真实目录,用户会 clone 后直接 `cd examples/zh/tier1/codex-sdk` 跑起来、在 GitHub 上直接读代码(有语法高亮和跳转,patch 文件没有)。物化产物要么提交(回到原点),要么 gitignore(文档链接与 GitHub 浏览全断)。
 - **lockfile 无法用 patch 维护。** `pnpm-lock.yaml` 的内容随依赖版本剧烈漂移,patch 很快 apply 失败;它只能由 `pnpm install` 重新生成。
 - **堆叠 patch 是出了名的维护地狱。** origin 改一行,可能要连修 tier1、tier2 两层 patch 的 fuzz/reject。现在的痛是"复制一遍",换成堆叠 patch 后痛变成"手工解 reject",更糟。
+
+**"方便阅读"这个需求单独满足,不必绑架存储格式**:`gen:diff-code` 已经从两个物化目录生成 before/after 阅读页;本方案再让 `tiers:sync` 顺手导出一份 `<name>.patch` 纯阅读件(见下文)。patch 当**输出**,不当**输入**。
 
 ### 否决:纯复制 + allowDiff 清单
 
@@ -70,9 +73,18 @@
 
 ### 同步算法(`pnpm tiers:sync [name]`)
 
-前置条件:**上游目录必须无未提交改动**(`git status --porcelain <from>` 为空)。base 永远指向提交过的 tree,同步才可复现、可回溯。工作流固定为:改 origin → 提交 → sync → review → 提交 tier。
+前置条件:**上游与 tier 两侧目录都必须无未提交改动**(`git status --porcelain <from> <to>` 为空)——合并的三个输入都取自提交过的 tree,同步才可复现、可回溯。工作流固定为:改 origin → 提交 → sync → review → 提交 tier。
 
-对每一对 (from, to),文件全集取 base tree 与上游当前跟踪文件的并集,逐文件三方判定:
+对每一对 (from, to),核心是一条 git 命令:
+
+```sh
+git merge-tree --write-tree -z \
+  <baseTree> \
+  $(git rev-parse HEAD:examples/zh/tier1/codex-sdk) \
+  $(git rev-parse HEAD:examples/zh/origin/codex-sdk)
+```
+
+它返回合并后的 tree hash 与冲突文件清单,脚本把结果 tree 检出(`git read-tree` + checkout)到 tier 目录即完成同步。逐文件语义与 git merge 完全一致,等价于下表:
 
 | 上游侧(base → 现在) | tier 侧(base → 现在) | 动作 |
 | --- | --- | --- |
@@ -88,9 +100,10 @@
 
 排除项与特例:
 
-- `pnpm-lock.yaml`、`node_modules/`、`.venv/` 不参与合并;合并后若 `package.json` / `pnpm-workspace.yaml` 有变动,在 tier 目录执行 `pnpm install` 重新生成 lockfile;
-- 二进制文件(`git merge-file` 拒绝处理的)只允许快进,tier 侧改过则报冲突;
-- 全部干净(或冲突已解)后,把该 pair 的 `baseTree` 更新为上游当前 tree hash,写回状态文件。
+- `pnpm-lock.yaml` 从合并结果中剔除(检出时跳过),`node_modules/`、`.venv/` 本就未被 git 跟踪;合并后若 `package.json` / `pnpm-workspace.yaml` 有变动,在 tier 目录执行 `pnpm install` 重新生成 lockfile;
+- 二进制文件 git 无法文本合并,两侧都改过时会作为冲突报出,人工裁决;
+- 全部干净(或冲突已解)后,把该 pair 的 `baseTree` 更新为上游当前 tree hash,写回状态文件;
+- 收尾时导出阅读件:`git diff <上游tree> <tier tree> > examples/zh/diffs/<name>.patch`(排除 lockfile),这份 patch 是自动再生的**展示产物**,供快速阅读"接入改了什么",与 `gen:diff-code` 的文档页同源同性质,永远不作为同步输入。
 
 链式同步按拓扑顺序:先 origin → tier1,再 tier1 → tier2。
 
@@ -105,7 +118,7 @@
 
 ### 实现载体
 
-- `scripts/sync-tiers.mjs`(约 200 行,Node + git plumbing:`rev-parse` / `ls-tree -r` / `ls-files` / `cat-file` / `merge-file -p`),不引第三方依赖;
+- `scripts/sync-tiers.mjs`(几十行粘合代码:读状态文件、调 `git merge-tree --write-tree`、检出结果、跑 `pnpm install`、导出 patch 阅读件),合并机制本身 100% 由 git 提供,不引第三方依赖;要求 git ≥ 2.38(`merge-tree --write-tree` 的最低版本);
 - `package.json` 增加 `"tiers:sync": "node scripts/sync-tiers.mjs sync"`、`"tiers:check": "node scripts/sync-tiers.mjs check"`;
 - CI(现有 lint/typecheck 步骤旁)加一步 `pnpm tiers:check`。
 

@@ -1,49 +1,51 @@
 ---
 title: "Standard event stream reference"
 sidebarTitle: "Events"
-description: "The StreamEvent union: what each event means, when adapters emit it, and which assertions consume it."
+description: "The nine StreamEvent variants: what each one means, when adapters emit it, and which assertions consume it. Producing this stream is the adapter's core job."
 ---
 
-An adapter `send` returns a `Turn`. Its `events: StreamEvent[]` is the primary data source for assertions: `t.calledTool()`, `t.reply`, `toolOrder`, `noFailedActions`, and low-level event checks all read from this stream.
+An adapter `send` returns a `Turn`, and its `events: StreamEvent[]` is the **only data source for assertions**: `t.calledTool()`, `t.reply`, `toolOrder`, `noFailedActions`, and more all read from this stream. Once your adapter translates "what the agent did this turn" into this stream, the whole assertion surface becomes available.
 
-## Turn
+## Turn: the return value of `send`
 
 ```ts
 interface Turn {
-  events: StreamEvent[];
-  data?: unknown;
-  status: "completed" | "failed" | "waiting";
-  usage?: { inputTokens: number; outputTokens: number };
+  events: StreamEvent[];                           // events for this turn, in real order
+  data?: unknown;                                 // structured output -> outputEquals / outputMatches
+  status: "completed" | "failed" | "waiting";     // waiting = paused for human input
+  usage?: { inputTokens: number; outputTokens: number }; // -> maxTokens / maxCost / cost reports
 }
 ```
 
-`data` is the structured product of the current turn. Use it only when the app answer is actually structured and the eval declared output. `usage` should be copied when available and omitted when unavailable.
+`data` means "the structured product of this turn". Only fill it when the application answer itself is structured, such as extraction, classification, or form filling. `outputEquals` / `outputMatches` read from it. If the app only returns text, leave it unset. Do not copy raw response bodies or message text into `data`, and do not serialize structured output back into `events`. Include `usage` only when you have it. Do not invent numbers.
 
 ## Event table
 
 | Event | Meaning | Consumed by |
 |---|---|---|
-| `message` | Agent or user text | `t.reply`, `messageIncludes`, judge inputs |
-| `action.called` | Tool/action invocation started | `calledTool`, `toolOrder`, `maxToolCalls`, `notCalledTool` |
-| `action.result` | Invocation result | `calledTool` status matching, `noFailedActions` |
-| `subagent.called` | Delegated to a subagent | `calledSubagent` |
-| `subagent.completed` | Subagent returned | `calledSubagent` status, `noFailedActions` |
-| `input.requested` | Stopped for human input | `t.parked()`, `t.requireInputRequest()` |
-| `thinking` | Reasoning or thinking text | `event("thinking")`, viewer display |
-| `compaction` | Context was compacted | `event("compaction")` |
-| `error` | Turn error | `event("error")`, viewer display |
+| `message` | the agent (or user) said something | `t.reply`, `messageIncludes`, judge inputs |
+| `action.called` | a tool call started | `calledTool`, `toolOrder`, `maxToolCalls`, `notCalledTool` |
+| `action.result` | the result of that call | `calledTool` status matching, `noFailedActions` |
+| `subagent.called` | delegated to a subagent | `calledSubagent` |
+| `subagent.completed` | the subagent returned | `calledSubagent` status, `noFailedActions` |
+| `input.requested` | paused and waiting for human input | `t.parked()`, `t.requireInputRequest()` |
+| `thinking` | reasoning text | `event("thinking")`, viewer display |
+| `compaction` | context got compacted | `event("compaction")` |
+| `error` | the turn hit an error | `event("error")`, viewer display |
 
-Any event can be checked with `event(type)`, `notEvent(type)`, `eventOrder(types)`, or `eventsSatisfy(label, predicate)`.
+Any event can also be checked with `event(type)`, `notEvent(type)`, `eventOrder(types)`, or `eventsSatisfy(label, predicate)`.
 
-## `message`
+## Event details
+
+### `message` - what was said
 
 ```ts
 { type: "message", role: "assistant" | "user", text: string }
 ```
 
-Emit assistant text as `role: "assistant"`. Do not wrap tool output as a `message`; otherwise `t.reply` will read the wrong content. User input is recorded by NiceEval, so adapters usually do not emit user messages.
+Emit one `message` with `role: "assistant"` for each chunk of assistant text. **Tool results are not assistant messages.** Do not wrap tool output as `message`, or `t.reply` will read the wrong thing. User `message` events are usually recorded by NiceEval automatically.
 
-## `action.called` / `action.result`
+### `action.called` / `action.result` - which tool was used, and what happened
 
 ```ts
 { type: "action.called", callId: string, name: string, input: JsonValue }
@@ -51,9 +53,11 @@ Emit assistant text as `role: "assistant"`. Do not wrap tool output as a `messag
   status: "completed" | "failed" | "rejected" }
 ```
 
-Pair every call with a result using the same `callId`. Use the original tool name. Mark tool failures as `"failed"` and human denials as `"rejected"`.
+- Pair each `action.called` with an `action.result` that has the same `callId`, so concurrent calls do not get mixed up. Use the explicit ID from your source when it exists.
+- Fill `status` truthfully: actual tool execution failure is `"failed"`. Human denial is `"rejected"`.
+- Keep `name` as the tool's original name.
 
-## `subagent.called` / `subagent.completed`
+### `subagent.called` / `subagent.completed` - which subagent was delegated to
 
 ```ts
 { type: "subagent.called", callId: string, name: string, remoteUrl?: string }
@@ -61,9 +65,9 @@ Pair every call with a result using the same `callId`. Use the original tool nam
   status: "completed" | "failed" }
 ```
 
-Emit this pair when the subject under test delegates work to another agent and waits for it.
+Emit this pair when the subject under test delegates work to a subagent and waits for it to return.
 
-## `input.requested`
+### `input.requested` - paused for human input
 
 ```ts
 { type: "input.requested", request: {
@@ -75,9 +79,9 @@ Emit this pair when the subject under test delegates work to another agent and w
 } }
 ```
 
-When the agent waits for human input, emit one event per pending request and return turn `status: "waiting"`. Fill as many request fields as possible so evals can match precisely.
+When the agent pauses for a person, emit one event per pending question and return overall turn `status: "waiting"`. `t.requireInputRequest(filter)` matches this `request` structure field by field, so populate as many fields as you can. See the HITL part of [Connect Your Agent](/guides/connect-your-agent).
 
-## `thinking` / `compaction` / `error`
+### `thinking` / `compaction` / `error`
 
 ```ts
 { type: "thinking", text: string }
@@ -85,15 +89,17 @@ When the agent waits for human input, emit one event per pending request and ret
 { type: "error", message: string }
 ```
 
-Emit these when your source provides them. Do not fabricate them.
+Emit them when your source gives them to you. Do not fabricate them. `compaction` mostly appears in coding-agent CLIs when context is compressed automatically.
 
-## Mapping rules
+## Three mapping rules
 
-1. Preserve real order.
-2. Pair calls and results by `callId`.
-3. Only promise completeness when the stream is complete. If you declare `toolObservability: true` while omitting some tool calls, negative assertions can silently pass.
+1. **Order is fact.** Keep events in real execution order. `toolOrder` and `eventOrder` depend on that sequence.
+2. **Match `callId`s.** Every `called` event should have the corresponding `result` with the same ID.
+3. **Be honest about completeness.** If you declare `toolObservability: true`, all tool calls must be in the stream. If you omit some of them, negative assertions can silently pass. If your manual mapping cannot be complete, [do not claim that capability](/reference/capabilities).
 
-## Example
+## A complete mapping example
+
+When the agent response contains step records, the mapping is usually a small loop:
 
 ```ts
 import type { StreamEvent } from "niceeval";
@@ -118,8 +124,8 @@ function toStreamEvents(body: MyBotResponse): StreamEvent[] {
 }
 ```
 
-## Related
+## Related reading
 
-- [Connect Your Agent](/guides/connect-your-agent)
-- [Capabilities](/reference/capabilities)
-- [Writing Evals](/guides/authoring)
+- [Connect Your Agent](/guides/connect-your-agent) - The from-scratch integration tutorial.
+- [Capabilities](/reference/capabilities) - What it means to claim "the event stream is complete".
+- [Authoring Evals](/guides/authoring) - The assertions that consume this stream.

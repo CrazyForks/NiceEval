@@ -1,44 +1,35 @@
 ---
-title: "Authoring evals: single-turn and multi-turn patterns"
-sidebarTitle: "Authoring"
-description: "Learn how to write niceeval evals using defineEval. Cover single-turn assertions, multi-turn conversations, dataset fan-out, and sandbox workspaces."
+title: "Authoring evals: single-turn, multi-turn, and dataset patterns"
+sidebarTitle: "Authoring Evals"
+description: "Learn how to write NiceEval evals with defineEval, including single-turn assertions, multi-turn conversations, dataset fan-out, and sandbox workspaces."
 ---
 
-Every niceeval eval is a TypeScript file that exports a `defineEval` call. The framework follows three core principles: **path-as-identity** (the file path is the eval's ID), **one file, one eval** (or one array for dataset fan-out), and **linear writing with inline assertions** (you write checks right where the conversation happens). This page walks you through the full surface area of `defineEval`, from the simplest single-turn check to multi-turn conversations and dataset-driven suites.
+Every NiceEval eval is a TypeScript file that default-exports `defineEval(...)`. The core rules are simple: **path is identity**, **one file is one eval**, and **write linearly with assertions next to the interaction they check**.
 
 ## The `defineEval` shape
-
-`defineEval` accepts a configuration object with the following fields:
 
 ```ts
 import { defineEval } from "niceeval";
 
 export default defineEval({
-  description?: string;            // Human-readable label shown in reports
-  agent?: string;                  // Optional eval-local default; normal runs select agent via experiment
-  tags?: string[];                 // Used with --tag to filter runs
-  judge?: JudgeConfig;             // Override the default judge model for this eval
-  reporters?: Reporter[];          // Reporters scoped to this eval only
-  timeoutMs?: number;              // Override the global timeout
+  description?: string;
+  agent?: string;
+  tags?: string[];
+  judge?: JudgeConfig;
+  reporters?: Reporter[];
+  timeoutMs?: number;
   metadata?: Record<string, unknown>;
   async test(t) { /* interactions + assertions */ },
 });
 ```
 
 <Warning>
-  You cannot set `id` or `name` on a `defineEval` call. Both fields are derived from the file path automatically: `evals/weather/brooklyn.eval.ts` becomes the ID `weather/brooklyn`. Renaming the file is how you rename the eval — IDs never go stale.
+  Do not set `id` or `name`. `evals/weather/brooklyn.eval.ts` automatically becomes the ID `weather/brooklyn`.
 </Warning>
-
-<Note>
-  Only files ending in `.eval.ts` are discovered by the runner. Use directory structure to express grouping: `evals/billing/refund.eval.ts` produces the ID `billing/refund`.
-</Note>
 
 ## Single-turn evals
 
-A single-turn eval sends one message and asserts the agent's response. Use `t.send()` to drive the conversation, then write scoped assertions (`t.succeeded()`, `t.calledTool()`) and value assertions (`t.check()`) immediately after.
-
 ```ts
-// evals/weather/brooklyn.eval.ts
 import { defineEval } from "niceeval";
 import { includes } from "niceeval/expect";
 
@@ -46,140 +37,65 @@ export default defineEval({
   description: "Brooklyn weather query",
   async test(t) {
     await t.send("What's the weather like in Brooklyn today?");
-
-    // Scoped assertions — evaluated after test() finishes
     t.succeeded();
     t.calledTool("get_weather", { input: { city: "Brooklyn" }, count: 1 });
-
-    // Value assertion — evaluated immediately, in place
     t.check(t.reply, includes("sunny"));
   },
 });
 ```
 
+`t.send()` drives one interaction. `t.succeeded()` and `t.calledTool()` are scoped assertions. `t.check()` records an immediate value assertion.
+
 ### The `Turn` object
 
-`t.send(message)` returns a `Turn` — an immutable snapshot of that exchange:
-
-| Property | Type | Description |
-|---|---|---|
-| `turn.events` | `StreamEvent[]` | The normalized event stream — the primary source of truth |
-| `turn.data` | `unknown` | Structured output, if the agent returned one |
-| `turn.status` | `"completed" \| "failed" \| "waiting"` | Completion status of the turn |
-| `turn.usage` | `Usage \| undefined` | Optional token usage for this turn |
-| `turn.message` | `string` | Convenience: the assistant's text reply (derived from `events`) |
-| `turn.toolCalls` | `ToolCall[]` | Convenience: tool calls made this turn (derived from `events`) |
-
-`t.reply` is a shorthand for the **last** assistant message across the whole session.
-
-### Key `t` properties
-
-| Member | Description |
+| Property | Meaning |
 |---|---|
-| `t.reply` | Last assistant message text |
-| `t.flags` | Runtime flags passed via CLI |
-| `t.log(msg)` | Emit a structured log line into the eval's trace |
-| `t.skip(reason)` | Mark this eval as skipped and halt execution |
+| `turn.events` | Standard event stream, the main fact source |
+| `turn.data` | Structured output |
+| `turn.status` | `"completed"`, `"failed"`, or `"waiting"` |
+| `turn.usage` | usage such as tokens and cost |
+| `turn.message` | assistant text reply |
+| `turn.toolCalls` | tool calls in this turn |
 
 ## Multi-turn evals
 
-For multi-turn conversations, assign each `t.send()` call to a variable and assert on it right away. This keeps assertions co-located with the turn they describe, making failures easy to trace.
-
 ```ts
-// evals/draft-then-send.eval.ts
-import { defineEval } from "niceeval";
-import { includes } from "niceeval/expect";
-
 export default defineEval({
   description: "Draft an email, then send it on confirmation",
   async test(t) {
-    const draft = await t.send("Draft a follow-up email for me.");
-    draft.expectOk();                          // Throws here if the turn failed
-    t.check(draft.message, includes("regards"));
-    t.judge.autoevals.closedQA("Is the tone professional?", { on: draft.message }).atLeast(0.6);
+    const draft = await t.send("Draft a follow-up email.");
+    draft.expectOk();
+    t.check(draft.message, includes("Best"));
 
-    await t.send("Good, send it.");
+    await t.send("Looks good, send it.");
     t.calledTool("send_email");
   },
 });
 ```
 
-<Tip>
-  Call `turn.expectOk()` at the start of each turn's assertion block. If the agent failed or timed out, `expectOk()` throws immediately and surfaces a clear failure message instead of a confusing assertion error on the next check.
-</Tip>
-
-### Parallel sessions
-
-When you need independent conversation threads running concurrently within one eval, call `t.newSession()` to open a fresh session that doesn't share history with the current one.
-
-## The eval context `t`
-
-The `t` argument passed to `test()` is the **eval context**. Its available methods depend on what capabilities the connected agent declares, but the core interface is always present:
-
-<Accordion title="Core t methods and properties">
-
-| Member | Description |
-|---|---|
-| `t.send(message)` | Send a message to the agent; returns a `Turn` |
-| `t.reply` | Shorthand for the last assistant message |
-| `t.check(value, assertion)` | Record a value-level assertion immediately |
-| `t.require(value, assertion)` | Like `t.check`, but throws on failure — use for preconditions |
-| `t.succeeded()` | Scoped: assert the run completed without failure |
-| `t.calledTool(name, opts?)` | Scoped: assert a tool was called (with optional matching) |
-| `t.judge` | LLM-as-judge sub-interface |
-| `t.flags` | CLI flags for this run |
-| `t.log(msg)` | Emit a structured log line |
-| `t.skip(reason)` | Skip this eval |
-| `t.newSession()` | Open a new independent conversation session |
-| `t.usage` | `{ inputTokens, outputTokens, cacheReadTokens? … }` |
-
-</Accordion>
+Use `t.newSession()` when you need multiple independent conversations in parallel.
 
 ## Dataset fan-out
 
-When a `.eval.ts` file's default export is an **array**, niceeval fans it out into one eval per element. This is the idiomatic way to run many test cases from a single file.
+One file can export an eval array:
 
 ```ts
-// evals/sql.eval.ts
-import { defineEval } from "niceeval";
-import { loadYaml } from "niceeval/loaders";
-import { equals } from "niceeval/expect";
-
-const doc = await loadYaml("evals/data/sql-cases.yaml");
-const rows = doc.cases as { task: string; prompt: string; sql: string }[];
-
 export default rows.map((row) =>
   defineEval({
     description: row.task,
     async test(t) {
       await t.send(row.prompt);
-      t.succeeded();
-      t.check(t.reply, equals(row.sql));
+      t.check(t.reply, equals(row.expected));
     },
   }),
 );
 ```
 
-```yaml
-# evals/data/sql-cases.yaml
-cases:
-  - task: Count users
-    prompt: Query the total number of rows in the users table
-    sql: SELECT COUNT(*) FROM users;
-  - task: Recent orders
-    prompt: Query the 10 most recent orders
-    sql: SELECT * FROM orders ORDER BY created_at DESC LIMIT 10;
-```
+That generates IDs such as `sql/0000`, `sql/0001`, and so on. See [Dataset fan-out](/guides/dataset-fanout).
 
-niceeval generates stable, zero-padded IDs for each element: `sql/0000`, `sql/0001`, and so on. You can filter to a single case by passing its full ID after the experiment selector, or run the whole file by passing the file-level prefix (`npx niceeval exp local sql`).
+## Sandbox workspace
 
-<Note>
-  `loadYaml` and `loadJson` are both available from `niceeval/loaders`. Both return the parsed document as a plain JavaScript object.
-</Note>
-
-## Sandbox workspaces
-
-Coding-agent evals are still normal `.eval.ts` files. Their `test` function prepares a sandbox workspace, sends the task, and checks the resulting files:
+Coding-agent evals are still normal `.eval.ts` files. They just prepare a sandbox workspace, send a task, and inspect files or tests:
 
 ```ts
 import { defineEval } from "niceeval";
@@ -194,25 +110,21 @@ export default defineEval({
 });
 ```
 
-See the [Fixtures guide](/guides/fixtures) for the full picture.
+See [Fixtures](/guides/fixtures) for the full pattern.
 
-## Naming and organization conventions
+## Naming conventions
 
 <CardGroup cols={2}>
-  <Card title="File naming" icon="file">
-    Only files ending in `.eval.ts` are discovered. Use descriptive names that match the scenario: `refund-request.eval.ts`, not `test1.eval.ts`.
+  <Card title="Filename" icon="file">
+    Only `.eval.ts` files are discovered by the runner.
   </Card>
   <Card title="Directory grouping" icon="folder">
-    Use directories to express feature areas. `evals/billing/refund.eval.ts` → ID `billing/refund`. Directories become ID prefixes you can filter on.
+    `evals/billing/refund.eval.ts` becomes the ID `billing/refund`.
   </Card>
-  <Card title="Datasets" icon="database">
-    Store YAML and JSON datasets under `evals/data/`. This is a convention, not a requirement, but it keeps data files out of the eval index.
+  <Card title="Dataset" icon="database">
+    Good for many cases with the same structure and different inputs.
   </Card>
-  <Card title="Sandbox workspaces" icon="box">
-    Store reusable starting projects under `workspaces/` and upload them from `.eval.ts` files.
+  <Card title="Sandbox workspace" icon="box">
+    Good for coding agents that need a real file system, commands, and diffs.
   </Card>
 </CardGroup>
-
-<Tip>
-  Write `description` for humans and use the path-derived ID for machine references (CI filters, `--id` flags, test reports). A good description reads like a sentence: "Brooklyn weather query" not "brooklyn_weather_v2".
-</Tip>

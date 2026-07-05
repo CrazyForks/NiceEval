@@ -1,218 +1,64 @@
 ---
-title: "Sandbox backends: Docker, Vercel, and third-party"
+title: "Sandbox backends: Docker, Vercel, and third-party providers"
 sidebarTitle: "Sandbox Backends"
-description: "niceeval runs coding agents in Docker or Vercel sandboxes. Learn how to select a backend, configure root access, and improve performance with warm pools."
+description: "NiceEval runs coding agents inside Docker or Vercel sandboxes. Learn how to choose a backend, configure permissions, and improve performance with warm pools."
 ---
 
-A sandbox backend is the infrastructure that creates and manages the isolated environment where a coding agent runs. niceeval wraps every backend behind a single `Sandbox` interface, so your adapter code works identically regardless of whether the environment is a local Docker container, a Vercel micro-VM, or a third-party cloud service. You choose a backend by setting `sandbox` in the experiment (or as a project-wide fallback in `niceeval.config.ts`); the adapter never needs to know which one is active.
+The sandbox backend is the infrastructure that creates and manages isolated runtime environments. NiceEval wraps all backends behind the same `Sandbox` interface, so adapters do not need to know whether the current backend is local Docker, a Vercel micro-VM, or a third-party provider.
 
 ## The `Sandbox` interface
 
-Every backend implements the same interface. These are the only operations an adapter ever calls:
+Common adapter operations include:
+
+| Method | Use |
+|---|---|
+| `runCommand(cmd, args)` | run a command |
+| `runShell(script)` | run a shell script |
+| `readFile(path)` | read a file |
+| `writeFiles(files)` | write a batch of files |
+| `uploadFiles(files)` | upload a workspace or test files |
+| `workdir` | the backend's real working directory; omitted `cwd` / `targetDir` resolve here |
+| `runCommand(..., { cwd })` | temporarily switch directory for one command; relative paths resolve from `workdir` |
+| `stop()` | destroy the environment |
+
+## Choose a backend
+
+Backend selection only lives in code. There is no CLI flag, and NiceEval does not auto-detect a backend. Set the `sandbox` field in the experiment, or set it in `niceeval.config.ts` as a project-level fallback:
 
 ```ts
-interface Sandbox {
-  readonly workdir: string;
+import { defineExperiment } from "niceeval";
+import { dockerSandbox } from "niceeval/sandbox";
 
-  runCommand(cmd: string, args?: string[], opts?: {
-    env?: Record<string, string>;
-    cwd?: string;     // omitted -> workdir; relative -> under workdir
-    root?: boolean;  // run as root (default: false → non-root)
-  }): Promise<{ stdout: string; stderr: string; exitCode: number }>;
-
-  runShell(script: string, opts?): Promise<CommandResult>;  // run a full shell script
-
-  readFile(path: string): Promise<string>;                  // relative -> under workdir
-  writeFiles(files: Record<string, string>, targetDir?: string): Promise<void>;
-  uploadFiles(files: SandboxFile[], targetDir?: string): Promise<void>;
-  uploadDirectory(localDir: string, targetDir?: string): Promise<void>;
-
-  stop(): Promise<void>;
-}
+export default defineExperiment({
+  agent: myCodingAgent,
+  model: "claude-sonnet-4-6",
+  sandbox: dockerSandbox(), // or vercelSandbox() / e2bSandbox()
+});
 ```
 
----
+If neither the experiment nor `niceeval.config.ts` sets `sandbox`, NiceEval fails when it tries to create the environment instead of guessing one.
 
-## Root vs non-root: why non-root is the default
+## Docker
 
-Commands run as a non-root user by default. This matches the agent's natural operating environment and, critically, it is required for Claude Code: the CLI refuses to run with `--dangerously-skip-permissions` when it detects it is executing as root.
+Docker is good for local development and standard CI. It is simple, controllable, and has no cloud dependency. The tradeoff is limited machine resources, plus slower cold starts and dependency installs.
 
-When you need elevated privileges — for example, to install a system package during eval setup — pass `{ root: true }` to `runCommand`. Use it only for setup commands; the agent itself and all validation should run without it.
+## Vercel Sandbox
 
-```ts
-// In a sandbox.setup hook: install a system dependency as root, then work normally
-await sandbox.runCommand("apt-get", ["install", "-y", "openjdk-17-jdk"], { root: true });
+Vercel Sandbox is good when you want cloud isolation, more resources, or a more stable environment. It requires the right token or OIDC setup.
 
-// The agent and all subsequent steps use the default non-root user
-await sandbox.runCommand("npm", ["install"]);
-```
+## Third-party backends
 
-The `root: true` semantics are consistent across every backend:
+Any provider that implements the `Sandbox` interface can be plugged in. Adapters still depend only on the interface, not on provider-specific APIs.
 
-| Backend | Default user | `{ root: true }` mapping |
-|---|---|---|
-| Docker | `node` (UID 1000) | `docker exec --user root` |
-| E2B | `user` (non-root) | `commands.run(cmd, { user: "root" })` |
-| Vercel Sandbox | `vercel-sandbox` (non-root) | `runCommand(cmd, { sudo: true })` |
-| Daytona | configured at create time | per-command `user` override |
-| Modal | root by default | no-op (already root) |
+## Permissions and root
 
-<Warning>
-  Backends that are always root (such as Modal) treat `{ root: true }` as a no-op. Backends that cannot elevate at all will throw. Either way, the semantic contract is the same — your eval code never needs to branch on which backend is active.
-</Warning>
+Different backends impose different constraints on root access, networking, the file system, and process lifecycle. When writing fixtures, keep host assumptions to a minimum. Put dependencies in `package.json` or fixture setup instead of depending on the machine outside the sandbox.
 
----
+## Performance advice
 
-## Available backends
+- Keep fixture dependencies small.
+- Use caching or warm-up mechanisms.
+- Tune `sandboxConcurrency` so local Docker does not run out of resources.
+- Split slow checks into required gates and optional soft checks.
 
-<Tabs>
-  <Tab title="Docker">
-    Docker requires no cloud credentials — only a local Docker installation. It is the right choice for local development and most CI pipelines.
-
-    **How it works:**
-    - Starts a long-lived `node:24-slim` container that tails the sandbox log file
-    - Runs all commands via `docker exec` (with `AutoRemove` on stop)
-    - Default user is `node` (UID 1000); global npm packages install to the user directory and are added to `PATH`
-    - The slim base image is bootstrapped with `ca-certificates` and `git`
-    - Files are uploaded using tar + `putArchive`, with a `chown` pass to fix ownership
-    - Docker's multiplexed exec stream (8-byte frame header) is parsed correctly
-
-    ```ts
-    // experiments/local.ts (or niceeval.config.ts as a project-wide fallback)
-    import { defineExperiment } from "niceeval";
-    import { dockerSandbox } from "niceeval/sandbox";
-
-    export default defineExperiment({
-      agent: myCodingAgent,
-      sandbox: dockerSandbox(),
-    });
-    ```
-
-    ```shell
-    npx niceeval exp local fixtures/button
-    ```
-  </Tab>
-  <Tab title="Vercel">
-    The Vercel backend spins up a cloud micro-VM. It is well-suited for high-concurrency CI runs where you don't want to manage Docker infrastructure.
-
-    **Requirements:** set `VERCEL_API_TOKEN`, `VERCEL_TEAM_ID`, and optionally `VERCEL_PROJECT_ID` in your environment.
-
-    ```ts
-    // experiments/local.ts (or niceeval.config.ts as a project-wide fallback)
-    import { defineExperiment } from "niceeval";
-    import { vercelSandbox } from "niceeval/sandbox";
-
-    export default defineExperiment({
-      agent: myCodingAgent,
-      sandbox: vercelSandbox(),
-    });
-    ```
-
-    ```shell
-    VERCEL_API_TOKEN=... VERCEL_TEAM_ID=... npx niceeval exp local fixtures/button
-    ```
-
-    The Vercel backend handles cloud session lifetime by snapshotting and rotating long-lived sessions when needed.
-  </Tab>
-  <Tab title="E2B">
-    The E2B backend runs the sandbox on E2B's cloud infrastructure. It is a good fit for teams already using E2B for other agent workloads.
-
-    **Requirements:** set `E2B_API_KEY` in your environment.
-
-    ```ts
-    // experiments/local.ts (or niceeval.config.ts as a project-wide fallback)
-    import { defineExperiment } from "niceeval";
-    import { e2bSandbox } from "niceeval/sandbox";
-
-    export default defineExperiment({
-      agent: myCodingAgent,
-      sandbox: e2bSandbox(),
-    });
-    ```
-
-    ```shell
-    E2B_API_KEY=... npx niceeval exp local fixtures/button
-    ```
-  </Tab>
-</Tabs>
-
----
-
-## Selecting a backend
-
-Sandbox selection is a written-in-code concern only — there is no CLI flag and no auto-detection. You must set `sandbox` explicitly, either on the experiment or as a project-wide fallback in config, using one of the three factories above:
-
-<Steps>
-  <Step title="Experiment file (recommended, highest priority)">
-    ```ts
-    // experiments/local.ts
-    import { defineExperiment } from "niceeval";
-    import { dockerSandbox } from "niceeval/sandbox";
-
-    export default defineExperiment({
-      agent: myCodingAgent,
-      sandbox: dockerSandbox(),   // or vercelSandbox() / e2bSandbox()
-    });
-    ```
-  </Step>
-  <Step title="Config file (project-wide fallback)">
-    ```ts
-    // niceeval.config.ts
-    import { defineConfig } from "niceeval";
-    import { dockerSandbox } from "niceeval/sandbox";
-
-    export default defineConfig({
-      sandbox: dockerSandbox(),   // used when an experiment doesn't set its own `sandbox`
-    });
-    ```
-  </Step>
-</Steps>
-
-If a sandbox-capable agent's experiment has no `sandbox` field and `niceeval.config.ts` has no `sandbox` field either, niceeval throws as soon as it tries to create a sandbox — it no longer guesses a backend from environment variables.
-
----
-
-## Docker backend details
-
-The Docker backend is zero-config and handles all the quirks of running a coding agent as a non-root user:
-
-- **Base image:** `node:24-slim`
-- **Default user:** `node` (UID 1000) — matches the user Claude Code expects when `--dangerously-skip-permissions` is used
-- **Global npm installs:** because the non-root user cannot write to `/usr/local/lib`, niceeval configures npm to install globals into the user's home directory and prepends that directory to `PATH`
-- **Slim image bootstrap:** `apt-get install ca-certificates git` runs automatically on first use
-- **File uploads:** uses Docker's `putArchive` API (tar format) followed by a `chown` to restore correct ownership after the root-owned write
-- **Stream parsing:** Docker's exec API multiplexes stdout and stderr on a single stream with an 8-byte frame header; niceeval parses this correctly so you always get clean stdout and stderr separately
-
----
-
-## Vercel backend details
-
-The Vercel backend requires:
-- `VERCEL_API_TOKEN` — a personal access token from your Vercel account settings
-- `VERCEL_TEAM_ID` — the team that owns the sandbox project
-- `VERCEL_PROJECT_ID` — optional; defaults to `vercel-sandbox-default-project`
-
-```shell
-export VERCEL_API_TOKEN=vercel_...
-export VERCEL_TEAM_ID=team_...
-npx niceeval exp local fixtures/button
-```
-
-The interface exposed to adapters is identical to Docker. You can switch an entire eval suite from Docker to Vercel by changing one line — `sandbox: dockerSandbox()` to `sandbox: vercelSandbox()` — no adapter code changes required.
-
----
-
-## Performance: warm pools and sandbox reuse
-
-Sandbox cold-start time is the dominant latency factor in large eval runs. niceeval offers two mechanisms to address it:
-
-<CardGroup cols={2}>
-  <Card title="Warm pool" icon="fire">
-    niceeval pre-creates a pool of sandboxes before any eval runs. When a case starts, it claims an already-running sandbox instead of waiting for a cold boot. Cold-start cost moves off the critical path entirely.
-  </Card>
-  <Card title="Sandbox reuse" icon="recycle">
-    After a case finishes, the sandbox can be reset with `git clean` back to the baseline state and handed to the next case instead of being destroyed. This trades a small contamination risk for significantly faster throughput. Reuse is **off by default**; enable it in your runner config when speed matters more than absolute isolation.
-  </Card>
-</CardGroup>
-
-Warm pools and reuse are scheduler-level features managed by the [Runner](/guides/runner). Individual sandbox backends only need to support fast `create` and `reset` operations — the scheduling logic lives in niceeval core.
+Warm pools and reuse belong to the runner / scheduler layer. See [Runner](/guides/runner).

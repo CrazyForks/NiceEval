@@ -6,7 +6,7 @@ description: "An eval is a test case: description, optional agent reference, and
 
 An eval is a runnable test case. It usually lives in a `*.eval.ts` file and is declared with `defineEval`.
 
-## Anatomy
+## What an eval contains
 
 ```ts
 import { defineEval } from "niceeval";
@@ -53,7 +53,7 @@ npx niceeval exp local weather/brooklyn
   <Step title="Report">Reporters write console output and `.niceeval/` artifacts.</Step>
 </Steps>
 
-## Outcomes
+## Outcome types
 
 <CardGroup cols={2}>
   <Card title="passed" icon="circle-check" color="#22c55e">
@@ -62,7 +62,7 @@ npx niceeval exp local weather/brooklyn
   <Card title="failed" icon="circle-xmark" color="#ef4444">
     A gate assertion failed or the run itself failed.
   </Card>
-  <Card title="scored" icon="chart-bar" color="#f59e0b">
+  <Card title="passed" icon="chart-bar" color="#f59e0b">
     No gate failed, but soft scores are preserved as scores.
   </Card>
   <Card title="skipped" icon="forward" color="#6b7280">
@@ -86,4 +86,23 @@ evals/
 
 ## Dataset fan-out
 
-A file can default-export an array of `defineEval(...)` calls to generate many cases from the same logic. See [Dataset Fan-Out](/guides/dataset-fanout).
+A file can also default-export an array of `defineEval(...)` calls to generate multiple cases from the same logic:
+
+```ts
+export default rows.map((row) =>
+  defineEval({
+    description: row.task,
+    async test(t) {
+      await t.send(row.prompt);
+      t.check(t.reply, equals(row.expected));
+    },
+  }),
+);
+```
+
+This generates IDs such as `sql/0000` and `sql/0001`. See [Dataset Fan-out](/guides/dataset-fanout).
+
+## Related reading
+
+- [Experiment](/concepts/experiment) - The other half: who to evaluate, how to run it, and why evals are separate from experiments.
+- [Assert](/concepts/assert) - The full outcome rules for gate and soft assertions.

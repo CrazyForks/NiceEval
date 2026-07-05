@@ -1,72 +1,73 @@
 ---
-title: "NiceEval: evals for agents"
+title: "NiceEval: an eval tool for agents"
 sidebarTitle: "Introduction"
-description: "NiceEval is an agent-native eval tool. Use one API to evaluate coding agents and your own AI agent applications."
+description: "NiceEval is an agent-native eval tool. Use one unified API to evaluate coding agents and your own AI agent application."
 ---
 
-NiceEval is an agent-native eval tool inspired by [eve](https://eve.dev). It is built for low-friction DX: most projects can install it, write the first eval, and start checking agent behavior in about 10 minutes.
+NiceEval is an agent-native eval tool inspired by [eve](https://eve.dev). It aims for low-friction DX: most projects can integrate in about 10 minutes, write the first eval, and start checking agent behavior reliably.
 
-It can evaluate Claude Code / Codex plugins, hooks, and Skills, and it can evaluate your own AI agent application directly. Whether your agent is built with AI SDK, LangGraph, Pi, or a custom loop, you connect it through an adapter and keep the same eval surface.
+It can evaluate coding-agent plugins, hooks, and Skills for Claude Code / Codex, and it can also evaluate your own AI agent application directly. Whether your agent is built on AI SDK, LangGraph, Pi, or a custom loop, you can connect it through an adapter into the same eval surface.
 
 ## What problem it solves
 
-Tools such as Langfuse and Braintrust are stronger as tracing and monitoring systems. NiceEval focuses on the tighter loop: **write evals, run evals, inspect results**.
+Tools like Langfuse and Braintrust lean more toward tracing and observability. For the path of "write evals, run evals, inspect results", that is often heavier than necessary. NiceEval is designed around that path from the start, with a simpler developer experience.
 
 ## What you can evaluate
 
 <CardGroup cols={2}>
-  <Card title="Coding Agent" icon="code">
-    Put Claude Code, Codex, or bub in a sandbox, give it a real task, then verify the result with tests and file assertions.
+  <Card title="Coding agents" icon="code">
+    Put Claude Code, Codex, or bub into a sandbox, give them a task, then verify the result with real tests and file assertions.
   </Card>
-  <Card title="Your AI Agent Application" icon="globe">
-    Connect directly to your app interface and assert replies, tool calls, structured output, and HITL paths.
+  <Card title="Your own AI agent application" icon="globe">
+    Connect to your app directly and assert on replies, tool calls, and structured outputs.
   </Card>
 </CardGroup>
 
-## Architecture
+## Overall architecture
 
 ```text
    evals/*.eval.ts
         |
         v
-   +---------------------+
-   |     niceeval        |
-   +---------------------+
+   ┌─────────────────────┐
+   │      niceeval       │
+   └─────────────────────┘
         |
         | Agent adapter (official)
         v
-   +------------------------------+
-   |        Docker Sandbox         |
-   |   +------------------------+  |
-   |   | Codex / Claude Code /  |  |
-   |   | apps needing isolation |  |
-   |   +------------------------+  |
-   +------------------------------+
+   ┌──────────────────────────────┐
+   │        Docker Sandbox        │
+   │   ┌────────────────────────┐ │
+   │   │ Codex / Claude Code /  │ │
+   │   │ apps that need an      │ │
+   │   │ isolated workspace     │ │
+   │   └────────────────────────┘ │
+   └──────────────────────────────┘
 ```
 
 ```text
    evals/*.eval.ts
         |
         v
-   +---------------------+
-   |     niceeval        |
-   +---------------------+
+   ┌─────────────────────┐
+   │      niceeval       │
+   └─────────────────────┘
         |
         | Agent adapter (official or custom)
         v
-   +------------------------------+
-   |      Your AI Agent            |
-   |  AI SDK · LangGraph · Pi ·    |
-   |  custom agent loop            |
-   +------------------------------+
+   ┌──────────────────────────────┐
+   │   Your own AI agent app      │
+   │ (AI SDK · LangGraph · Pi ·   │
+   │    custom agent loop, etc.)  │
+   └──────────────────────────────┘
 ```
 
 ## Two integration modes
 
-**Sandbox mode** fits coding agents such as Codex and Claude Code that must edit files and run commands in a real workspace.
+**Sandbox mode** fits coding agents such as Codex and Claude Code that need a real file system and command execution.
 
-**Direct mode** fits your own AI agent application and does not require Docker.
+**Direct mode** fits your own AI agent app and does not require Docker.
 
-## Next
+## What to read next
 
-[Quickstart](/quickstart) walks through installing NiceEval, writing the first eval, and opening the result viewer.
+[Quickstart](/quickstart) walks through installation, writing the first eval, and getting a report.

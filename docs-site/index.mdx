@@ -1,103 +1,155 @@
 ---
 title: "NiceEval"
 sidebarTitle: "Home"
-description: "NiceEval is a progressive, full-featured, DX-friendly, agent-native eval tool for AI agents."
+description: "NiceEval is a progressive, full-featured, developer-friendly, agent-native eval tool for AI agents."
 ---
 
-NiceEval helps you turn agent behavior into repeatable evals. It is designed for two common surfaces: coding agents that need a real workspace, and AI agent applications that already expose an HTTP, SDK, or framework interface.
+<div align="center">
+
+# NiceEval
+
+**A progressive, full-featured, developer-friendly, agent-native eval tool for AI agents**
+
+</div>
+
+NiceEval is an agent-native eval tool inspired by [eve](https://eve.dev). It aims for strong developer experience first: most projects can integrate in about 10 minutes, eval files stay readable, and results are easy to inspect.
+
+It is also broad enough to evaluate coding-agent plugins, hooks, and Skills built for Claude Code / Codex, as well as your own AI agent application. Whether your app uses AI SDK, LangGraph, Pi, or a custom agent loop, you can connect it through an adapter.
+
+After each run, NiceEval generates readable reports and structured artifacts so you can inspect agent behavior, debug failures, and keep improving pass rate, cost, and latency.
 
 <CardGroup cols={3}>
-  <Card title="Claude Code / Codex Plugins" icon="plug" href="/example/claude-code-codex-plugin">
-    Compare a plugin against a baseline in a real sandbox workspace.
+  <Card title="Claude Code / Codex plugin" icon="plug" href="/example/claude-code-codex-plugin">
+    Use sandbox workspaces to give a coding agent real tasks, then verify plugin behavior through tests, diffs, and tool-call records.
   </Card>
-  <Card title="Claude Code / Codex Skills" icon="wand-magic-sparkles" href="/example/claude-code-codex-skill">
-    Check whether a Skill is triggered, follows the expected process, and improves outcomes.
+  <Card title="Claude Code / Codex Skill" icon="wand-magic-sparkles" href="/example/claude-code-codex-skill">
+    Inject the Skill through experiment setup, then compare pass rate, cost, and behavior against a no-Skill baseline.
   </Card>
-  <Card title="AI Agent Applications" icon="globe" href="/example/ai-agent-application">
-    Connect AI SDK, LangGraph, Pi, or your own loop through an adapter.
+  <Card title="AI agent application" icon="globe" href="/example/ai-agent-application">
+    Wrap your AI agent with `defineAgent` and bring replies, tool calls, and structured output into the same eval surface.
   </Card>
 </CardGroup>
 
 ## Architecture
 
+NiceEval supports two integration modes, depending on whether the subject under test needs an isolated workspace.
+
 ### Mode 1: Sandbox
+
+Run coding agents such as Codex and Claude Code that need a sandbox:
 
 ```text
    evals/*.eval.ts
         |
         v
-   +---------------------+
-   |     niceeval        |
-   +---------------------+
+   ┌─────────────────────┐
+   │      niceeval       │
+   └─────────────────────┘
         |
-        | official sandbox agent
+        | Agent adapter (official)
         v
-   +------------------------------+
-   |        Sandbox backend        |
-   |   +------------------------+  |
-   |   | Codex / Claude Code /  |  |
-   |   | workspace apps         |  |
-   |   +------------------------+  |
-   +------------------------------+
+   ┌──────────────────────────────┐
+   │        Docker Sandbox        │
+   │   ┌────────────────────────┐ │
+   │   │ Codex / Claude Code /  │ │
+   │   │ apps that need an      │ │
+   │   │ isolated workspace     │ │
+   │   └────────────────────────┘ │
+   └──────────────────────────────┘
 ```
-
-Use this when the subject under test edits files, runs shell commands, or needs isolation. Evals prepare a workspace with `t.sandbox.uploadDirectory()`, then assert file changes, command output, diffs, and judge scores.
 
 ### Mode 2: Direct
 
+Connect directly to your own AI agent:
+
 ```text
    evals/*.eval.ts
         |
         v
-   +---------------------+
-   |     niceeval        |
-   +---------------------+
+   ┌─────────────────────┐
+   │      niceeval       │
+   └─────────────────────┘
         |
-        | adapter: defineAgent({ send })
+        | Agent adapter (official / custom)
         v
-   +------------------------------+
-   |      Your AI Agent            |
-   |  AI SDK · LangGraph · Pi ·    |
-   |  custom agent loop            |
-   +------------------------------+
+   ┌──────────────────────────────┐
+   │     Your own AI agent app    │
+   │ (AI SDK · LangGraph · Pi ·   │
+   │   custom agent loop, etc.)   │
+   └──────────────────────────────┘
 ```
 
-Use this when your app already has an interface. The adapter sends one turn to that interface and returns a standard `Turn`: status, events, usage, and optional structured data.
+- **NiceEval core** handles eval discovery, scheduling, scoring, reporting, and artifacts.
+- **Agent adapters** are the open boundary: you decide how to call the subject under test and how to map its output into the standard event stream.
+- **Sandbox** handles file-system isolation: coding agents that need a real workspace use Docker or a cloud sandbox; direct web agents do not.
 
-## Example
+## Examples
 
-Running an eval takes two files: the eval itself, which says what to check, and an experiment, which says which agent and runtime configuration to use. The CLI does not accept a bare eval id as the thing to run. In `niceeval exp <experiment> <eval-prefix>`, the experiment decides which subject under test is connected.
+To run one eval you need two files: the eval itself (what to test) and an experiment (which agent to run). The CLI does not accept a bare eval ID. In `niceeval exp <experiment> <eval-prefix>`, the experiment decides which subject gets connected. Here is a direct web-agent example based on a real scenario:
 
 ```ts
+// evals/weather-tool.eval.ts
 import { defineEval } from "niceeval";
-import { includes } from "niceeval/expect";
 
 export default defineEval({
-  description: "Weather questions should use the weather tool",
+  description: "Verify that the agent calls the weather tool and answers from the tool result",
+
   async test(t) {
-    await t.send("What's the weather like in Brooklyn today?");
-    t.succeeded();
-    t.calledTool("get_weather", { input: { city: "Brooklyn" }, count: 1 });
-    t.check(t.reply, includes("sunny"));
+    const turn = await t.send("What's the weather like in Beijing today?");
+    turn.expectOk();
+
+    await t.group("Calls get_weather with the right city", () => {
+      t.calledTool("get_weather", { input: { city: "Beijing" } });
+      t.messageIncludes(/°C|temperature|weather|sunny|cloudy|rain/i);
+    });
+
+    t.judge.autoevals
+      .closedQA("Does the assistant answer from the returned weather data instead of inventing a temperature?")
+      .atLeast(0.7);
   },
 });
 ```
 
-```bash
-npx niceeval exp assistant weather
+```ts
+// experiments/local.ts
+import { defineExperiment } from "niceeval";
+import { webAgent } from "./adapter";
+
+export default defineExperiment({
+  agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
+  model: "gpt-5.4",
+});
+```
+
+```sh
+npx niceeval exp local weather-tool
 npx niceeval view
 ```
 
-For a runnable direct-agent example, see `examples/zh/ai-sdk/`. For coding agents that need an isolated workspace, see `examples/zh/coding-agent-skill/`.
+If the subject under test is a coding agent that needs an isolated workspace, use `t.sandbox.uploadDirectory()` to lay down the workspace, then verify changed files with `t.fileChanged()` / `t.file()` and run tests with `t.sandbox.runCommand()`.
 
 ## Quickstart
 
-Give this to your coding agent:
+If you want a coding agent to integrate NiceEval into the project for you, hand it the matching scenario page:
 
 ```text
-READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/example/claude-code-codex-plugin.mdx and install niceeval for this repo.
-READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/example/claude-code-codex-skill.mdx and install niceeval for this repo.
-READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/example/ai-agent-application.mdx and install niceeval for this repo.
+READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/zh/example/claude-code-codex-plugin.mdx and install niceeval for this repo.
+READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/zh/example/claude-code-codex-skill.mdx and install niceeval for this repo.
+READ https://raw.githubusercontent.com/CorrectRoadH/niceeval/refs/heads/main/docs-site/zh/example/ai-agent-application.mdx and install niceeval for this repo.
 ```
 
-If you want the shortest manual path, read [Quickstart](/quickstart). If you want the mental model first, read [Architecture Overview](/concepts/overview).
+<CardGroup cols={3}>
+  <Card title="Eval your Claude Code / Codex plugin" icon="plug" href="/example/claude-code-codex-plugin">
+    Start from a real plugin task, upload a workspace, inject the plugin, and use pass rate to see whether it works reliably.
+  </Card>
+  <Card title="Eval your Claude Code / Codex Skill" icon="wand-magic-sparkles" href="/example/claude-code-codex-skill">
+    Verify that the Skill is loaded, uses tools as intended, and produces testable outcomes.
+  </Card>
+  <Card title="Eval your AI agent application" icon="globe" href="/example/ai-agent-application">
+    Wrap your app interface and write assertions over conversations, tool calls, structured outputs, and cost.
+  </Card>
+</CardGroup>
+
+<Tip>
+  For the shortest path, read [Quickstart](/quickstart). To understand the boundaries first, read [Architecture Overview](/concepts/overview).
+</Tip>

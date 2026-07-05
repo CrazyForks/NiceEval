@@ -1,190 +1,71 @@
 ---
-title: "Experiments: compare agents and models with run matrices"
+title: "Experiment matrix: compare agents and models with run matrices"
 sidebarTitle: "Experiments"
-description: "Use niceeval experiments to run the same evals across multiple agents, models, and feature flags. Measure pass rates, cost, and latency side by side."
+description: "Use NiceEval experiments to run the same evals across multiple agents, models, and feature flags, then compare pass rate, cost, and latency."
 ---
 
-A single eval run tells you whether an agent passed today. An experiment tells you which agent passes most reliably, at what cost, and how performance changes when you swap models, inject a Skill, or toggle feature flags. Each experiment file is one run configuration; experiment folders group comparable configs side by side.
+Experiments compare multiple run configurations. Typical questions include: which coding agent has the higher pass rate on the same task set, whether a prompt change lowers cost, and how latency trades off against quality across models.
 
-## What an experiment is
+## Basic shape
 
-An experiment is a `defineExperiment` configuration that describes one agent, one model, how many times to run each eval, and which evals to include. When you run `npx niceeval exp <group>`, the runner executes each config in that group under the same bounded-concurrency scheduler and produces a comparative report.
+**One experiment file = one configuration** (`one agent x one model`). `model` is a single string, not an array. To compare across models or agents, put multiple files in the same **experiment group directory** and keep everything else fixed:
+
+```text
+experiments/
+  compare-models/
+    gpt-5.4.ts
+    deepseek-v4-pro.ts
+```
 
 ```ts
 import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
+import { webAgent } from "../../adapter/adapter.ts";
 
 export default defineExperiment({
-  agent: codexAgent(),                  // one agent per experiment file
-  model: "gpt-5.4",                    // one model per experiment file
-  runs: 5,                              // 5 attempts per eval
-  earlyExit: false,                     // run all 5 to get the full distribution
-  evals: "memory/",                     // only evals whose ID starts with "memory/"
-  budget: 20.00,                        // stop dispatching after ~$20
-  flags: {
-    webResearch: false,                 // feature flags injected via ctx.flags / t.flags
-  },
+  description: "gpt-5.4 comparison model",
+  agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
+  model: "gpt-5.4",
+  runs: 2,
+  earlyExit: true,
 });
 ```
-
-<Note>
-  You don't supply an `id` or `name` in `defineExperiment`. The experiment's ID is derived from its file path, exactly like evals.
-</Note>
-
-## The `defineExperiment` shape
-
-<Accordion title="agent">
-  The agent adapter instance to run, such as `codexAgent()` or your own `defineAgent(...)` result.
-</Accordion>
-
-<Accordion title="model">
-  A single model identifier (e.g. `"gpt-5.4"` or `"anthropic/claude-opus-4-8"`). The model is passed to the agent as `ctx.model`. To compare models, create multiple experiment files in the same group.
-</Accordion>
-
-<Accordion title="runs">
-  How many times to run each `(agent, model, eval)` cell. With `runs: 5`, each cell produces 5 attempts. Results are aggregated into a pass rate rather than a single outcome.
-</Accordion>
-
-<Accordion title="earlyExit">
-  Whether to stop remaining retries for an eval as soon as one attempt passes. Defaults to `true`. Set to `false` to collect the full pass-rate distribution — useful for nightly stability runs.
-</Accordion>
-
-<Accordion title="evals">
-  A string prefix (or array of prefixes) filtering which evals are included in this experiment. Works the same as the positional argument to `npx niceeval`. Omit to include all discovered evals.
-</Accordion>
-
-<Accordion title="flags">
-  A record of feature flags injected into every attempt as `ctx.flags` (agent side) and `t.flags` (eval side). Use flags to toggle features — memory backends, tool allowlists, effort settings — without creating separate agent definitions.
-</Accordion>
-
-<Accordion title="budget">
-  An estimated cost ceiling in USD. The runner stops dispatching new attempts once accumulated cost exceeds this value. Can be overridden at runtime with `--budget`.
-</Accordion>
-
-Keep environment preparation in ordinary code. Upload starter files and run setup commands inside `test(t)`, or put adapter-specific preparation in the agent adapter's `setup`.
-
-## Running experiments
 
 ```bash
-# Run all experiments in experiments/compare/
-npx niceeval exp compare
-
-# Run a single experiment file
-npx niceeval exp compare/codex-gpt-5.4
-
-# Override budget at runtime
-npx niceeval exp compare --budget 5.00
-
-# Collect full distribution (disable early-exit)
-npx niceeval exp compare --no-early-exit
+npx niceeval exp compare-models
 ```
 
-## Organizing experiments: directory as group
+Each configuration stays in its own file, which makes naming, diffing, and review straightforward. The directory structure itself explains which files belong to the same comparison.
 
-The directory an experiment file lives in determines its **comparison group**. Files in the same directory are treated as peer configurations — running `niceeval exp compare` runs all of them and places their results side by side in the report.
+See [Write Experiments](/guides/write-experiment) for the full `defineExperiment` field list and how `flags` flow into adapters.
 
-The `coding-agent-memory-evals` project uses exactly this pattern:
+## What this is good for
 
-```
-experiments/
-└─ compare/
-   ├─ bub-gpt-5.4.ts       # bub agent, gpt-5.4
-   └─ codex-gpt-5.4.ts     # codex agent, gpt-5.4
-```
+- Comparing different agent adapters
+- Comparing different models. Tier 1 is enough as long as the application exposes model choice and the value is forwarded through `ctx.model`
+- Comparing prompts or feature flags. This usually needs Tier 3, because the application has to expose the variant as an experiment-selectable config and forward it through `flags` -> `ctx.flags`
+- Comparing different sandbox backends
+- Measuring pass@N for the same task
 
-Each file is an independent `defineExperiment` configuration. Running `niceeval exp compare` executes both and renders a side-by-side comparison report.
+See [Tier](/concepts/tier) for what Tier 1, Tier 2, and Tier 3 mean.
 
-<CodeGroup>
-```ts experiments/compare/bub-gpt-5.4.ts
-import { defineExperiment } from "niceeval";
-import { bubAgent } from "niceeval/adapter";
+## Reading the results
 
-export default defineExperiment({
-  agent: bubAgent(),
-  model: "gpt-5.4",
-  runs: 5,
-  evals: "memory/",
-});
+Experiment output is typically shown per `(agent, model, eval)` cell:
+
+```text
+api-validation   claude-code+zod-skill   pass@3 = 3/3 (100%)   mean 34s
+api-validation   claude-code             pass@3 = 1/3 (33%)    mean 41s
 ```
 
-```ts experiments/compare/codex-gpt-5.4.ts
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
+Beyond pass rate, you should also compare mean time, tokens, cost, and failure types.
 
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  runs: 5,
-  evals: "memory/",
-});
-```
-</CodeGroup>
+## Design advice
 
-## Matrix expansion
+- Keep the eval set stable so the comparison does not mix in extra variables.
+- Run multiple attempts per cell, especially for non-deterministic coding agents.
+- Make the budget and concurrency explicit.
+- Group failure modes instead of looking only at the total score.
 
-The runner expands selected experiment files × evals × runs. For example: 2 experiment files × `runs: 5` × 3 evals = **30 attempts**. All 30 run through the same bounded-concurrency pool.
+## Relation to ordinary runs
 
-## Pass rate reporting
-
-Results are aggregated per `(agent, model, eval)` cell into a pass rate rather than a single pass/fail outcome:
-
-```
-fixtures/button   claude-code   pass@5 = 4/5 (80%)   mean 34s · 58k tok · $0.44
-fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.39
-```
-
-Each row shows:
-- **pass@k** — how many of the k attempts passed (e.g. `pass@5 = 4/5`)
-- **mean time** — average wall-clock duration per attempt
-- **token usage** — average tokens consumed
-- **estimated cost** — average USD cost per attempt
-
-## Why pass rate matters
-
-A single passing run does not mean an agent is reliable. An agent that passes 1 out of 5 attempts at the same task is fundamentally different from one that passes 5 out of 5 — even though both have at least one passing run. Pass rate measures **stability**, not luck. This is particularly important for:
-
-- Coding agents that interact with real file systems and have inherent non-determinism
-- Evaluating whether a new model tier or feature flag genuinely improves reliability, or just got lucky once
-
-## Model and feature flag injection
-
-The experiment runner injects `ctx.model` and `ctx.flags` into every attempt. Your agent reads these to configure itself:
-
-```ts
-// Inside your sandbox agent's send()
-const args = ["--print", "--dangerously-skip-permissions"];
-if (ctx.model) args.push("--model", ctx.model);
-if (ctx.flags.webResearch) args.push("--allowedTools", "WebSearch,WebFetch");
-args.push(input.text);
-```
-
-Your evals can also read flags through `t.flags`:
-
-```ts
-export default defineEval({
-  async test(t) {
-    // t.flags contains the experiment's flags object
-    await t.send("Complete the task.");
-    t.succeeded();
-  },
-});
-```
-
-This means the same agent definition and the same eval definition can be reused across every cell of the matrix. You change the experiment configuration, not the agent or eval code.
-
-## Budget and full-distribution runs
-
-For production stability measurements you typically want two things together: a meaningful budget ceiling to prevent runaway costs, and `earlyExit: false` to collect the full distribution rather than stopping after the first pass:
-
-```ts
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  runs: 10,
-  earlyExit: false,    // collect all 10 results per cell
-  budget: 50.00,       // but stop if accumulated cost hits $50
-  evals: "memory/",
-});
-```
-
-This gives you true pass@10 distributions while bounding your maximum spend.
+`npx niceeval exp <experiment>` answers "did this eval suite pass under this configuration?" An experiment group answers "which configuration is better?" Both use the same evals, adapters, scoring, and artifacts.

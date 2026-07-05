@@ -83,6 +83,33 @@ defineEval({
 t.judge.autoevals.closedQA("rubric", { on: t.reply, model: "openai/gpt-4o" });
 ```
 
+If all three levels are unset, NiceEval falls back to the environment variable `NICEEVAL_JUDGE_MODEL`. If that is also unset, the judge call fails as a configuration error. There is no built-in default judge model.
+
+## Judge endpoint and key: OpenAI-compatible protocol
+
+Judge calls use an **OpenAI-compatible `/chat/completions`** endpoint. OpenAI, DeepSeek, and any compatible gateway can act as the judge backend:
+
+```ts
+defineConfig({
+  judge: {
+    model: "deepseek-chat",
+    baseUrl: "https://api.deepseek.com/v1",
+    apiKeyEnv: "DEEPSEEK_API_KEY",
+  },
+});
+```
+
+`baseUrl` and the API key are both resolved from most-specific to most-generic:
+
+| Item | Resolution order |
+|---|---|
+| Endpoint | `judge.baseUrl` -> `NICEEVAL_JUDGE_BASE` -> `CODEX_BASE_URL` -> `OPENAI_BASE_URL` -> `https://api.openai.com/v1` |
+| Key | env var named by `judge.apiKeyEnv` -> `NICEEVAL_JUDGE_KEY` -> `CODEX_API_KEY` -> `OPENAI_API_KEY` |
+
+<Warning>
+  When no API key resolves, judge assertions are skipped silently: no error, no score, and the eval keeps running. After configuring keys, run one eval with `t.judge` and confirm the score appears in `niceeval view`.
+</Warning>
+
 ## Severity: judge defaults to soft
 
 Judge calls are scoring functions like any other assertion, so they follow the same gate/soft mechanics described in [Assert · Gate vs soft severity](/concepts/assert#gate-vs-soft-severity) — but their **default** is different from most value matchers:

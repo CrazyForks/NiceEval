@@ -1,167 +1,79 @@
 ---
-title: "How the niceeval runner schedules and executes evals"
+title: "How the NiceEval runner schedules and executes evals"
 sidebarTitle: "Runner"
-description: "The niceeval runner discovers evals, schedules them with bounded concurrency, caches results, retries flaky infrastructure, and enforces budget guardrails."
+description: "The NiceEval runner discovers evals, schedules them with bounded concurrency, caches results, retries flaky infrastructure, and enforces budget guards."
 ---
 
-The niceeval runner is the scheduling engine that turns a batch of evals into a finished result set. It handles everything that is the same across every eval — discovery, bounded concurrency, retry, early-exit, caching, reporting, and exit codes — while remaining completely indifferent to how any individual agent or scorer works. The runner drives every agent through the unified `send` verb and never branches on agent names or sandbox backends.
+The runner is the execution engine that turns eval files into an actual run. It handles discovery, filtering, scheduling, caching, attempts, reporters, and artifact output.
 
-## What the runner does and doesn't own
+## Discovery
 
-The runner **does** own: discovering evals, computing fingerprints to decide what to skip, building the attempt list, bounded-concurrency scheduling, retrying suspicious fast failures, early-exit after a first pass, handing results to reporters, writing artifacts to disk, and setting the process exit code.
+The runner reads from `evals/`:
 
-The runner **does not** own: how to drive an agent (that belongs to the Agent/Adapter), how to score a response (that belongs to Scorers), or the fine-grained format of stored artifacts (that belongs to Reporters). The runner is a coordinator, not an executor.
+- `*.eval.ts` files
+- dataset files that export eval arrays
 
-## Eval discovery
+```bash
+npx niceeval list
+```
 
-The runner scans your `evals/` directory at startup:
+`list` only discovers and prints IDs. It does not execute evals.
 
-- **`*.eval.ts` files** — Each file is imported and its default export is inspected. A single `defineEval` export gets the file's path as its ID. An array export is fanned out into multiple evals with zero-padded indices appended (`sql/0000`, `sql/0001`, …).
-- **Stable ordering** — All discovered evals are sorted by relative path so IDs are stable and output is diffable across runs.
+## Filtering
 
-You can narrow which evals run using two types of filter:
+In the `exp` command, positional arguments after the experiment name are eval ID prefixes:
 
-<CodeGroup>
-```bash ID prefix filter
-# Only runs evals whose ID starts with "weather"
+```bash
+npx niceeval exp local
 npx niceeval exp local weather
+npx niceeval exp local fixtures/button
 ```
 
-```bash Tag filter
-# Only runs evals tagged "regression"
-npx niceeval exp local --tag regression
+Do not put the agent name into positional arguments. Agent, model, and flags belong in the experiment.
+
+## Concurrency
+
+```bash
+npx niceeval exp local --max-concurrency 8
 ```
 
-```bash Combined
-# Only evals under "api/" tagged "smoke"
-npx niceeval exp local api --tag smoke
-```
-</CodeGroup>
+Remote HTTP agents can usually handle higher concurrency. Local Docker sandbox runs usually need lower concurrency to avoid CPU, memory, and disk contention.
 
-<Tip>
-  The positional eval filter appears after the experiment selector. Passing `weather` in `npx niceeval exp local weather` matches `weather/brooklyn`, `weather/tokyo`, and any other eval whose ID starts with `weather`.
-</Tip>
+## `runs` and `early-exit`
 
-## Bounded concurrency
-
-The runner's core loop keeps at most `maxConcurrency` attempts in flight at once. When the pool is full it waits for any one attempt to complete before dispatching the next (`Promise.race`). Reporting callbacks run on a separate serial queue so they never consume execution slots:
-
-```ts
-const pending = [...attempts];
-const inFlight = new Set<Promise<void>>();
-let reportQueue = Promise.resolve();
-
-while (pending.length || inFlight.size) {
-  while (pending.length && inFlight.size < maxConcurrency) {
-    const attempt = pending.shift()!;
-    const p = runOne(attempt).then((result) => {
-      results.push(result);
-      // Reporting runs on the serial queue — it never blocks the execution pool
-      reportQueue = reportQueue.then(() => emitEvalComplete(result));
-    });
-    inFlight.add(p);
-    p.finally(() => inFlight.delete(p));
-  }
-  if (inFlight.size) await Promise.race(inFlight);
-}
-await reportQueue;
+```bash
+npx niceeval exp local fixtures/button --runs 5 --early-exit
 ```
 
-Results are sorted back into **discovery order** before being reported, so output is stable and diffable regardless of completion order.
+`runs` is for pass-rate measurement. `early-exit` stops the remaining attempts for the same eval after one attempt passes.
 
-You control the limit through three layers of precedence: `--max-concurrency` flag → config `maxConcurrency` → built-in default.
+## Cache
 
-<Warning>
-  For sandbox evals (Docker), keep `maxConcurrency` low — local Docker has real resource limits. Cloud sandbox backends can handle much higher values safely.
-</Warning>
+NiceEval can skip already-passing results based on a fingerprint of inputs, configuration, and relevant files. Cache is useful for iteration speed, but turn it off or clear it explicitly when you are debugging non-deterministic behavior.
 
-## Result caching
+## Timeout and budget
 
-The runner computes a hash of each eval's source and relevant configuration before dispatching it. If the previous run produced a `passed` result **and** the fingerprint is unchanged, the runner skips that eval and reuses the cached result.
-
-The cache is intentionally conservative:
-
-- Change an eval file or related source → cache miss, re-run.
-- Change relevant config (e.g. `judge.model`) → cache miss, re-run.
-- A previously **failed** result is never cached — failures always re-run.
-- Pass `--force` to bypass the cache entirely and re-run everything.
-
-This means a single changed case costs only that case's execution time, not a full suite re-run.
-
-## Early-exit
-
-When you run an eval multiple times (e.g. `--runs 5` for pass-rate measurement), `earlyExit` stops the remaining retries for an individual eval as soon as one attempt passes:
-
-- Each eval gets its own `AbortController`.
-- When an attempt passes and `earlyExit` is enabled, the runner calls `abort()` on that eval's controller, cancelling its remaining queued attempts.
-- Aborted attempts are **not** counted in the denominator — they are treated as if they never ran.
-- `earlyExit` is **on by default**. Use `--no-early-exit` when you want the full pass-rate distribution (e.g. for nightly stability runs).
-
-## Budget guardrails
-
-You can set a `budget` (an estimated cost ceiling in USD) either in your experiment config or via `--budget`. Before dispatching each new attempt, the runner accumulates the cost of completed attempts using token usage × price table. Once the accumulated cost exceeds the budget:
-
-- The runner **stops dispatching new attempts**.
-- Any in-flight attempts are allowed to finish.
-- The run concludes early and emits a `run:budgetExceeded` event.
-
-This prevents a single expensive run from generating an unexpectedly large bill.
-
-```ts
-// niceeval.config.ts
-import { defineConfig } from "niceeval";
-
-export default defineConfig({
-  budget: 10.00,   // stop dispatching after ~$10 of accumulated cost
-  maxConcurrency: 4,
-});
+```bash
+npx niceeval exp local --timeout-ms 300000 --budget 5
 ```
 
-## Retry for infrastructure flaps
+Timeout protects a single eval. Budget protects the cost of the entire run.
 
-Infrastructure flaps — a sandbox that fails to start, a momentary network error, a rate-limit spike — produce failures that have nothing to do with model quality. The runner distinguishes these from genuine model failures using a simple heuristic:
+## Reporter
 
-**Automatically retried:** a failure where the attempt ran for **less than 5 seconds** and the error is **not a timeout**.
+After each eval finishes, the runner hands the result to reporters:
 
-These "instant crashes" are almost always infrastructure noise. The runner retries them with exponential backoff and jitter, up to 5 times.
+- the console reporter provides live feedback
+- JSON artifacts support later analysis
+- the JUnit reporter fits CI
 
-**Not retried:** failures where the attempt ran for a meaningful amount of time, or where tests simply didn't pass. Those are valid signal — retrying them would mask real regressions.
+## Output directory
 
-<Note>
-  This rule cleanly separates infrastructure noise from model capability signal. A coding agent that runs for 40 seconds and produces broken tests has genuinely failed; a sandbox that exits in 300 ms has not.
-</Note>
+Each run writes to `.niceeval/<timestamp>/`, including `summary.json` and per-attempt artifacts such as `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json`.
 
-## Timeout: double-layer protection
+## Recommended debugging flow
 
-Timeouts are enforced at two levels to ensure a stuck eval can never hang the entire run:
-
-1. **Adapter inner timeout** — the agent CLI's own timeout, managed inside the adapter.
-2. **Runner outer timeout** — a `Promise.race` against `AbortSignal.timeout`. Even if the agent process freezes completely, the runner forcibly terminates the attempt, marks it `failed` with `error: timeout`, and triggers abort cleanup.
-
-The outer timeout is the safety net. You can override the default with `--timeout <ms>` or `timeoutMs` in config.
-
-## Lifecycle events
-
-The runner emits a structured event stream as it executes, consumed by the CLI dashboard, reporters, and any external integrations:
-
-```
-run:start           { total, agent, model }
-eval:start          { id, attempt }
-eval:complete       { id, attempt, outcome, durationMs, usage, costUSD }
-run:earlyExit       { id }
-run:budgetExceeded  { spentUSD, budgetUSD }
-run:saved           { outputDir }
-run:summary         { passed, failed, skipped, errored, durationMs, usage, estimatedCostUSD }
-```
-
-Environment setup is ordinary eval or adapter code: upload starter files and run setup commands inside `test(t)`, and keep agent-specific installation or authentication in the adapter's `setup`.
-
-## Exit codes
-
-| Condition | Exit code |
-|-----------|-----------|
-| All evals `passed` or `passed` (without `--strict`) | `0` |
-| Any eval `failed` | Non-zero |
-| Any eval `passed` with `--strict` enabled | Non-zero |
-
-Use this directly in CI: a non-zero exit turns the step red without any extra scripting.
+1. Run `npx niceeval list` to confirm discovery.
+2. Narrow to one eval with `npx niceeval exp <experiment> <id-prefix>`.
+3. After a failure, run `npx niceeval view` to inspect transcript and diff.
+4. Then widen back out to the full suite or experiment.

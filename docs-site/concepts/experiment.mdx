@@ -1,14 +1,10 @@
 ---
 title: "Experiment: who to evaluate and how to run"
 sidebarTitle: "Experiment"
-description: "An experiment is a checked-in run configuration: which agent, model, flags, runs, budget, and sandbox should be used."
+description: "An experiment is a commit-ready run configuration: which agent to evaluate, which model to use, which flags to enable, and how many times to run the same eval suite."
 ---
 
-NiceEval separates **what to test** from **who to run it against**. An eval answers the first question: what input to send and what counts as passing. An experiment answers the second: which agent, which model, which flags, how many runs, and what budget.
-
-## Why separate them: late binding
-
-Eval logic changes slowly. Runtime configuration changes often. Late binding lets the same eval run against local, staging, production, multiple models, or baseline and treatment variants without copying test logic.
+An **experiment** chooses which agent to evaluate, which model to use, which flags to enable, and how many times to run. Use it for A/B tests, model comparisons, and feature comparisons.
 
 ## What an experiment contains
 
@@ -17,27 +13,25 @@ import { defineExperiment } from "niceeval";
 import { webAgent } from "../agents/web-agent.ts";
 
 export default defineExperiment({
-  description: "staging concise prompt",
-  agent: webAgent({ baseUrl: "https://staging.example.com" }),
-  model: "gpt-5.4",
-  flags: { promptVariant: "concise" },
-  runs: 3,
-  earlyExit: true,
-  budget: 5,
+  description: "Concise prompt variant",
+  agent: webAgent({ baseUrl: "https://staging.example.com" }), // configured agent instance
+  model: "gpt-5.4",                    // forwarded to the adapter through ctx.model
+  flags: { promptVariant: "concise" }, // forwarded through ctx.flags; visible in evals as t.flags
+  runs: 3,                             // how many times to run each eval
 });
 ```
 
-- `agent`: an already configured adapter instance. Static details such as URL and auth usually go into the adapter factory.
-- `model` / `flags`: pass-through values. NiceEval does not interpret them. It forwards them through `ctx` to the adapter, and the adapter forwards them to your app.
-- `runs`, `budget`, concurrency, and `sandbox`: how to run the evals.
+- `agent`: who to evaluate. Put a configured instance here. The subject under test URL and credentials belong in the adapter factory, not as ad hoc experiment fields.
+- `model` / `flags`: transparent pass-through values. NiceEval does not interpret them. They are forwarded through `ctx`, and the adapter decides how to use them. This is the path that [Tier](/concepts/tier) uses for model comparisons (Tier 1) and feature A/B tests (Tier 3).
+- `runs`, `budget`, concurrency, `sandbox`, and related settings: how to run, and how much to run. See [Write Experiments](/guides/write-experiment) for the full field list.
 
 ## Matrix comparisons
 
-Write one experiment file for each variant. Two models are two files that differ only by `model`. A prompt A/B test is two files that differ only by `flags`. The same evals then produce comparable pass rate, cost, and latency.
+Write one experiment file per variant you want to compare. Two models means two files that differ by one `model` line. Prompt A/B means two files that differ by one flag. The same eval suite runs under each experiment, and `niceeval view` shows pass rate, cost, and latency side by side. See [Experiments](/guides/experiments) for which comparisons fit this pattern and how to read the output.
 
-## Related
+## Related reading
 
-- [Write Experiments](/guides/write-experiment) - all `defineExperiment` fields.
-- [Experiment Matrix](/guides/experiments) - how to organize cross-agent, cross-model, and flag comparisons.
-- [Evals](/concepts/evals) - the other half of the split.
-- [Tier](/concepts/tier) - where `model` and `flags` matter.
+- [Write Experiments](/guides/write-experiment) - The full `defineExperiment` field set: runs, budget, concurrency, and sandbox.
+- [Experiments](/guides/experiments) - How to organize and read cross-agent, cross-model, and cross-flag comparisons.
+- [Evals](/concepts/evals) - The other half: what an eval is, plus its lifecycle and outcomes.
+- [Tier](/concepts/tier) - Where `model` and `flags` become effective.

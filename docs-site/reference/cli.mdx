@@ -1,54 +1,43 @@
 ---
-title: "niceeval CLI: commands, flags, and exit codes reference"
+title: "NiceEval CLI: commands, flags, and exit codes reference"
 sidebarTitle: "CLI"
-description: "Complete niceeval CLI reference: exp, init, list, clean, and view commands. Covers experiment selection, eval filtering, sandbox, concurrency, budget, and JUnit CI output."
+description: "NiceEval CLI reference for exp, init, list, clean, and view, plus experiment selection, eval filtering, sandbox, concurrency, budget, and JUnit CI output."
 ---
 
-The niceeval CLI is your single entry point for discovering, running, and inspecting evals. Actual eval execution is experiment-first: **`exp` selects the signed-in run configuration**, and any positional arguments after the experiment select evals by ID prefix. Agent, model, and feature flags live in `experiments/`, not in ad-hoc CLI arguments.
+The NiceEval CLI is the entry point for discovery, execution, and result viewing. Actual eval execution follows an experiment-first model: **`exp` selects a commit-ready run configuration**, and only the positional arguments after the experiment filter eval IDs by prefix. Agent, model, and feature flags live in `experiments/`, not in temporary CLI flags.
 
 ## Commands
 
 <CardGroup cols={2}>
   <Card title="npx niceeval exp &lt;group&gt; [id-prefix]" icon="flask">
-    Run a named experiment group or config. Optional trailing positionals filter eval IDs.
+    Run a named experiment group or config. Optional trailing positional args filter by eval ID prefix.
   </Card>
   <Card title="npx niceeval init" icon="wand-magic-sparkles">
-    Scaffold `evals/`, `niceeval.config.ts`, and example eval files.
+    Generate `evals/`, `niceeval.config.ts`, and sample files.
   </Card>
   <Card title="npx niceeval list" icon="list">
     Discover and print all evals without running them.
   </Card>
   <Card title="npx niceeval clean" icon="trash">
-    Delete `.niceeval/` historical run artifacts.
+    Remove historical `.niceeval/` artifacts.
   </Card>
   <Card title="npx niceeval view" icon="eye">
-    Open the result viewer to inspect artifacts from the last run.
+    Open the result viewer for the most recent run.
   </Card>
 </CardGroup>
 
----
-
 ## Output language
 
-niceeval localizes CLI and runtime messages without adding a config key. Set an
-environment variable when you want deterministic output:
+NiceEval supports localized CLI and runtime copy without configuration in `niceeval.config.ts`. When you need fixed output language, use environment variables:
 
 ```bash
 NICEEVAL_LANG=en npx niceeval list
 NICEEVAL_LANG=zh-CN npx niceeval list
 ```
 
-Locale detection order is `NICEEVAL_LANG`, `NICEEVAL_LOCALE`, `LC_ALL`,
-`LC_MESSAGES`, then `LANG`. Values starting with `zh` use `zh-CN`; other
-languages use `en`. If none are set, niceeval defaults to `zh-CN`. This affects
-terminal/runtime text only; machine result fields and LLM judge prompts are not
-translated.
-
----
+Detection order is `NICEEVAL_LANG`, `NICEEVAL_LOCALE`, `LC_ALL`, `LC_MESSAGES`, then `LANG`. Values starting with `zh` use `zh-CN`; everything else uses `en`. If nothing is set, the default is `zh-CN`. This affects terminal/runtime copy only. It does not change machine fields in result JSON or translate judge prompts.
 
 ## `npx niceeval exp [group|config] [id-prefix...]`
-
-The `exp` command runs configs from `experiments/`. The first positional argument selects an experiment group or a single config; any remaining positionals narrow the run to evals whose IDs match those prefixes.
 
 ```bash
 # Run every experiment under experiments/
@@ -57,266 +46,75 @@ npx niceeval exp
 # Run one experiment group
 npx niceeval exp compare-models
 
-# Run only evals whose ID starts with "weather" inside that group
+# Inside that group, only run evals whose ID starts with weather
 npx niceeval exp compare-models weather
 ```
 
 <Note>
-  Eval filters only appear after the experiment selector. Bare `npx niceeval weather` does not run; use `npx niceeval exp local weather` or `npx niceeval exp compare weather`.
+  Eval filters only appear after the experiment selector. Bare `npx niceeval weather` does not run. Use `npx niceeval exp local weather` or `npx niceeval exp compare weather`.
 </Note>
 
-### Flags
-
-#### Experiment & sandbox
+## Common flags
 
 <ParamField query="--agent" type="string">
-  Not supported for experiment runs. Add or copy an experiment file and set the
-  agent there so the run configuration is reviewable and reproducible.
+  Experiment runs do not support this flag. To switch agents, add or duplicate a config file in `experiments/`.
 </ParamField>
 
-> There is no CLI flag for choosing a sandbox backend. Sandbox backend selection is a written-in-code concern only — set `sandbox` in the experiment (`defineExperiment`) or as a project-wide fallback in `niceeval.config.ts` (`defineConfig`) to `dockerSandbox()` / `vercelSandbox()` / `e2bSandbox()` from `niceeval/sandbox`. Attempting to pass a sandbox flag on the CLI prints an error and exits 1.
+> There is no CLI flag for selecting a sandbox backend. Backend choice only lives in code: set `sandbox` on the experiment (`defineExperiment`) or in `niceeval.config.ts` (`defineConfig`) as a project-level fallback, using `dockerSandbox()` / `vercelSandbox()` / `e2bSandbox()` from `niceeval/sandbox`.
 
-#### Run control
-
-<ParamField query="--watch" type="boolean">
-  Re-run matching evals whenever a source file changes. Useful during authoring
-  to get instant feedback as you edit.
-
-  ```bash
-  npx niceeval exp local weather --watch
-  ```
+<ParamField query="--model" type="string">
+  Experiment runs do not support this flag. To switch models, add or duplicate an experiment file and change `model`.
 </ParamField>
 
-<ParamField query="--dry" type="boolean">
-  Discover and print the evals that would be run, but do not execute them.
-  Good for verifying your ID prefix and tag filters before a long run.
-
-  ```bash
-  npx niceeval exp compare --dry
-  npx niceeval exp compare fixtures --dry
-  ```
-</ParamField>
-
-<ParamField query="--force" type="boolean">
-  Bypass the result cache. Normally, evals whose fixture content and config
-  have not changed since their last passing run are skipped automatically.
-  Use `--force` to always re-run everything regardless of cached results.
-
-  ```bash
-  npx niceeval exp compare --force
-  ```
+<ParamField query="--max-concurrency" type="number">
+  Set how many evals may run at the same time.
 </ParamField>
 
 <ParamField query="--runs" type="number">
-  Number of times to run each matched eval. Use this when you care about
-  pass rate rather than a single pass/fail outcome. Results are grouped and
-  reported as `pass@N`.
-
-  ```bash
-  # Run each eval 5 times and report pass@5
-  npx niceeval exp compare fixtures/button --runs 5
-  ```
+  Set how many times each eval runs, commonly for pass@N.
 </ParamField>
 
-<ParamField query="--no-early-exit" type="boolean">
-  Disable early-exit. By default, once one attempt for a given eval passes,
-  niceeval cancels the remaining attempts for that eval. Pass this flag to run
-  all `--runs` attempts regardless, which gives you the full pass rate
-  distribution.
-
-  ```bash
-  npx niceeval exp compare fixtures/button --runs 10 --no-early-exit
-  ```
+<ParamField query="--early-exit" type="boolean">
+  Stop the remaining attempts for an eval after one attempt passes.
 </ParamField>
 
-<ParamField query="--tag" type="string">
-  Filter evals by tag. Only evals that declare the given tag in their definition
-  will be included in the run.
-
-  ```bash
-  npx niceeval exp compare --tag smoke
-  ```
-</ParamField>
-
-#### Performance & limits
-
-<ParamField query="--max-concurrency" type="number">
-  Override the `maxConcurrency` value set in `niceeval.config.ts`. Controls
-  how many eval attempts run in parallel.
-
-  ```bash
-  npx niceeval exp compare --max-concurrency 4
-  ```
-</ParamField>
-
-<ParamField query="--timeout" type="number">
-  Per-eval timeout in milliseconds. If an eval takes longer than this value,
-  it is force-cancelled and marked as `failed` with `error: timeout`.
-  Overrides `timeoutMs` from config.
-
-  ```bash
-  # 10-minute timeout per eval
-  npx niceeval exp compare --timeout 600000
-  ```
+<ParamField query="--timeout-ms" type="number">
+  Timeout for one eval.
 </ParamField>
 
 <ParamField query="--budget" type="number">
-  Cost limit in USD for the entire run. niceeval tracks cumulative estimated
-  spend across all attempts. Once the budget is exceeded, no new attempts are
-  dispatched; in-flight attempts complete normally. Overrides `budget` from
-  config.
-
-  ```bash
-  npx niceeval exp compare --budget 2.50
-  ```
+  Budget limit for the whole run.
 </ParamField>
-
-#### CI & reporting
 
 <ParamField query="--strict" type="boolean">
-  Treat `passed` outcomes (where the LLM-as-judge score falls below the
-  configured threshold) as failures. Without `--strict`, passed-but-below-
-  threshold evals produce a non-zero exit code only when their outcome is
-  explicitly `failed`. With `--strict`, they also cause a non-zero exit. Use
-  this flag in CI to enforce quality thresholds.
-
-  ```bash
-  npx niceeval exp ci --strict --junit .niceeval/junit.xml
-  ```
+  Recommended in CI. Make failures show up more explicitly in the exit code.
 </ParamField>
 
-<ParamField query="--junit" type="string">
-  Write a JUnit XML report to the specified path. Compatible with GitHub
-  Actions, CircleCI, and any CI system that ingests JUnit reports.
-
-  ```bash
-  npx niceeval exp ci --junit .niceeval/junit.xml
-  ```
-</ParamField>
-
----
-
-## `npx niceeval init`
-
-Scaffolds the minimum files needed to start writing evals in the current repository. Running `init` creates:
-
-```
-your-project/
-├─ niceeval.config.ts
-├─ evals/
-│  ├─ hello.eval.ts            # example: conversational eval
-│  └─ button.eval.ts           # example: sandbox coding-agent eval
-└─ workspaces/
-   └─ button/                  # starter workspace uploaded by button.eval.ts
-      └─ package.json
-```
-
-```bash
-npm install -D niceeval
-npx niceeval init
-```
-
-<Tip>
-  After running `init`, add an experiment under `experiments/` that selects the
-  agent, model, runs, and sandbox for your first run.
-</Tip>
-
----
-
-## `npx niceeval list`
-
-Discovers all evals (and, if an `experiments/` directory exists, all experiment files) and prints their IDs. Does not run anything. Use this to verify discovery before a run.
+## `list`
 
 ```bash
 npx niceeval list
-
-# Output:
-# classify
-# weather/brooklyn
-# weather/manhattan
-# fixtures/button
 ```
 
-Use `npx niceeval exp <group> --dry` to preview how a specific experiment will filter and expand evals.
+Use this to confirm eval discovery, IDs, and config loading.
 
----
-
-## `npx niceeval exp <group>`
-
-Runs an experiment group. niceeval scans the `experiments/` directory for TypeScript files whose default export is a `defineExperiment` call. The `<group>` argument is the folder name — all experiment files inside that folder are treated as one comparable group.
+## `exp`
 
 ```bash
-# Run all experiments in experiments/compare/
-npx niceeval exp compare
+npx niceeval exp compare-models
+npx niceeval exp compare-models weather-tool
 ```
 
-<Note>
-  Experiments expand into a matrix of `agent × model × eval × runs` attempts.
-  Results are reported as pass rates grouped by `(agent, model, eval)`, rather
-  than single pass/fail outcomes.
-</Note>
+Run a named experiment and compare agents, models, or flags. Positional args after the experiment filter eval IDs by prefix.
 
----
-
-## `npx niceeval view`
-
-Opens the result viewer in your browser. The viewer reads artifacts from the most recent `.niceeval/<timestamp>/` output directory and lets you inspect per-eval results, transcripts, file diffs, and event streams.
+## `view`
 
 ```bash
 npx niceeval view
 ```
 
----
+Open the local result viewer. By default it shows the latest run under `.niceeval/`.
 
 ## Exit codes
 
-niceeval's exit code lets CI systems gate on eval results without parsing output.
-
-| Condition | Exit code |
-|---|---|
-| All evals passed or passed (without `--strict`) | `0` |
-| Any eval failed | non-zero |
-| Any eval passed below threshold with `--strict` | non-zero |
-
----
-
-## Common patterns
-
-<Tabs>
-  <Tab title="Local development">
-    ```bash
-    # Watch a specific eval while you develop
-    npx niceeval exp local fixtures/button --watch
-
-    # Dry-run to check which evals will run
-    npx niceeval exp local --dry
-
-    # Force a re-run ignoring the cache
-    npx niceeval exp local fixtures/button --force
-    ```
-  </Tab>
-  <Tab title="CI pipeline">
-    ```yaml
-    # .github/workflows/evals.yml
-    - name: Run evals
-      run: npx niceeval exp ci --strict --junit .niceeval/junit.xml
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-    ```
-  </Tab>
-  <Tab title="Pass rate measurement">
-    ```bash
-    # Run each eval 10 times; stop early once one attempt passes
-    npx niceeval exp local fixtures/button --runs 10
-
-    # Run all 10 attempts regardless (full distribution)
-    npx niceeval exp local fixtures/button --runs 10 --no-early-exit
-    ```
-  </Tab>
-  <Tab title="Cost-guarded experiment">
-    ```bash
-    # Run the comparison experiment but cap spend at $5
-    npx niceeval exp compare --budget 5.00
-    ```
-  </Tab>
-</Tabs>
+The CI rule is simple: when a gate fails or the run itself fails, the command should exit non-zero. When everything passes, it should exit 0. Use `--strict` when you want the stricter CI behavior explicitly.

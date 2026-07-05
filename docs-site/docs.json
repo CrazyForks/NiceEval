@@ -128,7 +128,6 @@
                 "group": "Running & Observing",
                 "pages": [
                   "guides/runner",
-                  "guides/experiments",
                   "guides/ci-integration",
                   "guides/viewing-results"
                 ]
