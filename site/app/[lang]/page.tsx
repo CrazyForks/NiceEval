@@ -9,6 +9,14 @@ export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));
 }
 
+export async function generateMetadata({ params }: { params: LangParams }) {
+  const { lang } = await params;
+  if (!hasLocale(lang)) return {};
+  return {
+    alternates: { canonical: `/${lang}` },
+  };
+}
+
 export default async function HomePage({ params }: { params: LangParams }) {
   const { lang } = await params;
   if (!hasLocale(lang)) notFound();

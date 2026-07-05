@@ -14,6 +14,7 @@ export async function generateMetadata({ params }: { params: LangParams }) {
   if (!hasLocale(lang)) return {};
   const t = getDictionary(lang);
   return {
+    metadataBase: new URL("https://niceeval.com"),
     title: {
       default: "NiceEval",
       template: "%s | NiceEval",

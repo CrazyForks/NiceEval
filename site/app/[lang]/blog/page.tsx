@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: { params: LangParams }) {
   return {
     title: "Blog",
     description: t.blogPage.meta,
+    alternates: { canonical: `/${lang}/blog` },
   };
 }
 
