@@ -313,11 +313,13 @@ export function uiMessageStreamAgent(options: UiMessageStreamAgentOptions): Agen
       } catch (err) {
         if (ctx.signal.aborted) throw err;
         const cause = err instanceof Error ? (err.cause instanceof Error ? err.cause.message : err.message) : String(err);
-        throw new Error(`连不上 ${url}(${cause})。被测应用在跑吗?先按它自己的方式启动,或用配置把 url 指向已部署实例。`);
+        throw new Error(
+          `Could not connect to ${url} (${cause}). Is the app under test running? Start it yourself first, or point url at a deployed instance via config.`,
+        );
       }
       if (!res.ok || !res.body) {
         throw new Error(
-          `POST ${url} 失败:${res.status} ${await res.text().catch(() => "")}。确认应用在跑、端点是 UI Message Stream 协议(useChat 的后端)。`,
+          `POST ${url} failed: ${res.status} ${await res.text().catch(() => "")}. Confirm the app is running and the endpoint speaks the UI Message Stream protocol (the backend useChat expects).`,
         );
       }
 
