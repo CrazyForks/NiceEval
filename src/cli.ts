@@ -314,6 +314,7 @@ async function main(): Promise<void> {
       agentRuns.push({
         agent: exp.agent,
         model: exp.model,
+        reasoningEffort: exp.reasoningEffort,
         flags: exp.flags ?? {},
         runs: flags.runs ?? envNumber("NICEEVAL_RUNS") ?? exp.runs ?? 1,
         earlyExit: flags.earlyExit ?? exp.earlyExit ?? true,

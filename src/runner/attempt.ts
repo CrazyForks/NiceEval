@@ -226,6 +226,7 @@ async function runAttemptBody(
   const attemptCtx: AgentContext = {
     signal,
     model: run.model,
+    reasoningEffort: run.reasoningEffort,
     flags: run.flags,
     sandbox,
     session: createAgentSession(),
@@ -267,6 +268,7 @@ async function runAttemptBody(
       agent: run.agent,
       sandbox,
       model: run.model,
+      reasoningEffort: run.reasoningEffort,
       flags: run.flags,
       signal,
       log,

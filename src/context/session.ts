@@ -87,6 +87,7 @@ export interface SessionDeps {
   agent: Agent;
   sandbox: Sandbox;
   model?: string;
+  reasoningEffort?: string;
   flags: Record<string, unknown>;
   signal: AbortSignal;
   log(msg: string): void;
@@ -136,6 +137,7 @@ export class SessionManager {
     const ctx: AgentContext = {
       signal: this.deps.signal,
       model: this.deps.model,
+      reasoningEffort: this.deps.reasoningEffort,
       flags: this.deps.flags,
       sandbox: this.deps.sandbox,
       session,

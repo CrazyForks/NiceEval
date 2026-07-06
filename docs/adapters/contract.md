@@ -230,10 +230,11 @@ t.succeeded()                        ✓
 | 鉴权(API key / token / base url) | **agent 本地** —— 它怎么连自己,是私事 | 在定义里读 env / 闭包,不经 ctx |
 | CLI 细节(装什么包、参数形状、transcript 在哪) | **agent 本地** | 写死在 `send` / `setup` 里 |
 | **model** | **实验决定(留空)** | `ctx.model`(省略 → agent 原生默认) |
-| **feature flags**(webResearch、注入哪个 skill、effort…) | **实验决定** | `ctx.flags.*` —— agent 的 `send` 与 eval 的 `t.flags` 都能读 |
+| **reasoningEffort** | **实验决定(留空)** | `ctx.reasoningEffort`(省略 → agent 原生默认) |
+| **feature flags**(webResearch、注入哪个 skill…) | **实验决定** | `ctx.flags.*` —— agent 的 `send` 与 eval 的 `t.flags` 都能读 |
 | runs / earlyExit / evals / sandbox / budget | **实验决定** | 运行器据此调度 |
 
-一句话:**agent 只配「怎么连我自己」,不配「跑哪个模型、开哪些开关」**;后者全留给 [experiment](../experiments.md),经 `ctx`(eval 里是 `t`)透传。这样同一个 agent 能被不同实验以不同 model / flags 复用,不必改 agent。
+一句话:**agent 只配「怎么连我自己」,不配「跑哪个模型、开哪些开关」**;后者全留给 [experiment](../experiments.md),经 `ctx`(eval 里是 `t`)透传。这样同一个 agent 能被不同实验以不同 model / reasoningEffort / flags 复用,不必改 agent。
 
 ## `ctx`(agent 侧)与 `t`(eval 侧):同一份东西,两个名字
 

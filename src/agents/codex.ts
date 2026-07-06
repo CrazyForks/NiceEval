@@ -8,7 +8,8 @@ import type { Agent, McpServer } from "../types.ts";
 // OpenAI Codex CLI 的 agent adapter(沙箱型)。
 //
 // 连接方式:在沙箱里 spawn `codex exec --json`,stdout JSONL → parseCodex → 标准事件流。
-// 配置:鉴权本地(config / env),模型交给实验(ctx.model),feature flags 经 ctx.flags。
+// 配置:鉴权本地(config / env),模型交给实验(ctx.model),推理努力程度经 ctx.reasoningEffort
+// (兼容旧的 ctx.flags.effort),其余 feature flags 经 ctx.flags。
 // ───────────────────────────────────────────────────────────────────────────
 
 export interface CodexConfig {
@@ -45,7 +46,7 @@ export function codexAgent(config?: CodexConfig): Agent {
       // model 归属:实验决定(ctx.model);省略时不写 model 行,交给 codex CLI 原生默认,
       // 不在 adapter 里硬编码一个会过期的模型名。
       const modelLine = ctx.model ? `model = "${ctx.model}"\n` : "";
-      const effort = (ctx.flags.effort as string | undefined) ?? "medium";
+      const effort = ctx.reasoningEffort ?? (ctx.flags.effort as string | undefined) ?? "medium";
       const base = getBaseUrl();
 
       if (base) {

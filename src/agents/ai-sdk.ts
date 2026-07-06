@@ -364,6 +364,8 @@ export interface AiSdkGenerateContext<M = unknown> {
   readonly messages: M[];
   /** 实验钉的 model(ctx.model);省略 → 用应用自己的默认。 */
   readonly model?: string;
+  /** 实验钉的推理努力程度(ctx.reasoningEffort);省略 → 用应用自己的默认。应用自己决定怎么塞进 providerOptions(如 OpenAI 的 reasoningEffort)。 */
+  readonly reasoningEffort?: string;
   readonly signal: AbortSignal;
   readonly flags: Readonly<Record<string, unknown>>;
   /**
@@ -501,6 +503,7 @@ export function aiSdkAgent<M = unknown>(options: AiSdkAgentOptions<M>): Agent {
         result = await options.generate({
           messages: state.messages,
           model: ctx.model,
+          reasoningEffort: ctx.reasoningEffort,
           signal: ctx.signal,
           flags: ctx.flags,
           telemetry: otel?.settings,

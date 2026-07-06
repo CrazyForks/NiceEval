@@ -60,6 +60,7 @@ export interface ContextDeps {
   agent: Agent;
   sandbox: Sandbox;
   model?: string;
+  reasoningEffort?: string;
   flags: Record<string, unknown>;
   signal: AbortSignal;
   log(msg: string): void;
@@ -90,6 +91,7 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     agent: deps.agent,
     sandbox: deps.sandbox,
     model: deps.model,
+    reasoningEffort: deps.reasoningEffort,
     flags: deps.flags,
     signal: deps.signal,
     log: deps.log,
@@ -281,6 +283,7 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     newSession: () => makeSessionHandle(manager.newSession()),
     signal: deps.signal,
     model: deps.model,
+    reasoningEffort: deps.reasoningEffort,
     flags: deps.flags,
     log: deps.log,
     skip: (reason: string) => {

@@ -88,6 +88,7 @@ npx niceeval exp prompt-variants
 |---|---|
 | `agent` | 选择并配置 adapter；必填 |
 | `model` | 单个模型名，经 `ctx.model` 透传 |
+| `reasoningEffort` | 单个推理努力程度（如 `"high"`），经 `ctx.reasoningEffort` / `t.reasoningEffort` 透传，归属与 `model` 一致 |
 | `flags` | 任意 JSON 对象，经 `ctx.flags` / `t.flags` 透传 |
 | `runs` | 每个 eval × 配置最多跑几次 |
 | `earlyExit` | 多次运行里通过一次就提前停止 |

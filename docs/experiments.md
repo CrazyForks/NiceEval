@@ -25,6 +25,7 @@ export default defineExperiment({
   description?: string;                       // 人读
   agent: Agent;                              // 跑哪个 agent(adapter 实例)
   model?: string;                            // 单个模型(agent 留空);省略=原生默认。跨模型对比写多个实验文件
+  reasoningEffort?: string;                  // 推理努力程度(agent 留空);省略=原生默认。经 ctx.reasoningEffort / t.reasoningEffort 透传
   flags?: Record<string, unknown>;           // feature flags,透传到 ctx.flags / t.flags(见下)
   runs?: number;                             // 每个 (agent × model × eval) 跑几次(默认 1)
   earlyExit?: boolean;                        // 先过一次即停其余(默认 true)
@@ -39,18 +40,20 @@ export default defineExperiment({
 
 id 从**路径**推导:`experiments/compare/bub-gpt-5.4.ts` → `compare/bub-gpt-5.4`(路径即身份,和 eval 一致,禁止手写 id);其中目录段 `compare/` 就是"可对比组",见 [下节](#实验怎么组织文件夹--一组可对比的实验)。
 
-### model 与 flags:agent 留空,实验决定
+### model / reasoningEffort 与 flags:agent 留空,实验决定
 
-agent 定义里**不写死模型、不写死开关**(那样就锁死了复用)。这两样由实验给,经 `ctx` 透传:
+agent 定义里**不写死模型、不写死开关**(那样就锁死了复用)。这几样由实验给,经 `ctx` 透传:
 
 - **`model`** —— 单个模型字符串,agent 的 `send` 从 `ctx.model` 拿;省略则不传 `--model`,用 agent CLI 的原生默认。**跨模型对比写多个实验文件**(各钉一个 model),别在一个实验里塞数组。
-- **`flags`** —— 任意 KV 的 feature flags,**两处可见**:agent 的 `send`(`ctx.flags`)、eval 的 `test`(`t.flags`)。用来开关联网、注入某个 skill、调 effort、或让某条 eval 只在某 flag 下断言。
+- **`reasoningEffort`** —— 单个推理努力程度字符串(取值由具体模型定义,如 `"low"`/`"medium"`/`"high"`),归属与 `model` 完全一致:agent 的 `send` 从 `ctx.reasoningEffort` 拿,eval 的 `test` 从 `t.reasoningEffort` 拿;省略则用 agent 原生默认。跨档位对比同样写多个实验文件。
+- **`flags`** —— 任意 KV 的 feature flags,**两处可见**:agent 的 `send`(`ctx.flags`)、eval 的 `test`(`t.flags`)。用来开关联网、注入某个 skill、或让某条 eval 只在某 flag 下断言。
 
 ```typescript
 // experiments/research-mode.experiment.ts
 export default defineExperiment({
   agent: codexAgent(),
   model: "opus",                                    // 模型在实验给,agent 留空
+  reasoningEffort: "high",                          // → ctx.reasoningEffort / t.reasoningEffort
   flags: { webResearch: true, skill: "memory-v2" }, // → ctx.flags / t.flags
   runs: 3,
 });

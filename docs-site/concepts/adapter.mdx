@@ -186,6 +186,7 @@ interface AgentContext {
 
   // The three that appear per integration tier (see "Integration tiers")
   readonly model?: string;         // Tier 1 model comparison: experiment.model passed through; forward it if the application interface accepts model selection
+  readonly reasoningEffort?: string;  // Reasoning effort: experiment.reasoningEffort passed through, same ownership as model
   readonly telemetry?: Telemetry;  // Tier 2: this turn's W3C trace context (headers, a fresh traceparent per turn)
   readonly flags: Readonly<Record<string, unknown>>;  // Tier 3 feature A/B: experiment.flags passed through; {} when unset
 

@@ -145,6 +145,8 @@ export interface AgentSession {
 export interface AgentContext {
   readonly signal: AbortSignal;
   readonly model?: string;
+  /** 模型推理努力程度;归属同 model——实验决定,省略时不覆盖 agent 原生默认。 */
+  readonly reasoningEffort?: string;
   readonly flags: Readonly<Record<string, unknown>>;
   /** 仅沙箱型 agent 有(运行器按 --sandbox 备好)。 */
   readonly sandbox: Sandbox;

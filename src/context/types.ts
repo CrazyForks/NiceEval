@@ -167,6 +167,7 @@ export interface TestContext {
   // 运行上下文
   readonly signal: AbortSignal;
   readonly model?: string;
+  readonly reasoningEffort?: string;
   readonly flags: Readonly<Record<string, unknown>>;
   log(msg: string): void;
   skip(reason: string): never;

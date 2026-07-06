@@ -153,6 +153,8 @@ export interface ExperimentDef {
   agent: Agent;
   /** 单个模型(agent 留空时实验决定);省略=用 agent 原生默认。跨模型对比写多个实验文件,别用数组。 */
   model?: string;
+  /** 模型推理努力程度(如 "low"/"medium"/"high",取值由具体模型/adapter 决定);省略=用 agent 原生默认。经 ctx.reasoningEffort 透给 adapter 与 eval。 */
+  reasoningEffort?: string;
   flags?: Record<string, unknown>;
   runs?: number;
   earlyExit?: boolean;
@@ -213,6 +215,7 @@ export interface PriceOverride {
 export interface AgentRun {
   agent: Agent;
   model?: string;
+  reasoningEffort?: string;
   flags: Record<string, unknown>;
   runs: number;
   earlyExit: boolean;
