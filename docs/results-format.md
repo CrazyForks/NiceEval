@@ -10,7 +10,7 @@
 .niceeval/
   2026-07-02T03-10-24-123Z/
     summary.json
-    <evalId>/<agent>/<model>/a<attempt>/
+    <evalId>/<agent>/<model>[/<experiment>]/a<attempt>/
       events.json
       sources.json
       trace.json
@@ -18,7 +18,7 @@
       diff.json
 ```
 
-`<evalId>/<agent>/<model>/a<attempt>/` 是单个 eval attempt 的工件目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。
+`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的工件目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 flags,少了这一段工件会互相覆盖。
 
 这些文件是按需写入的:某类数据为空就不生成对应 JSON 文件。`summary.json` 在 run 结束时写入;attempt 级重数据在每个 eval 完成时增量写入,所以长 run 中途失败时通常仍能留下已经完成的 attempt 工件。
 

@@ -192,4 +192,4 @@ experiment 侧用 `flags` → `ctx.flags` 透传,写法见 [Experiments](experim
 - **`fromCodexThreadEvents` 补全**:ThreadEvent 的工具项(`command_execution` / `mcp_tool_call` / `file_change` → 配对的 `action.*`)与 `turn.completed` 的 usage 聚合,现在是 `tier1/codex-sdk` 事件断言的唯一数据来源(不再依赖任何 span 派生)。
 - **`mapCodexSpans`**(`src/o11y/otlp/mappers/codex.ts`,从 `niceeval/adapter` 导出):把 codex 自家 span 命名归一成 canonical GenAI 语义,只用来让瀑布图和内置 `codexAgent` 保持一致。
 
-五个 `niceeval exp` 基线在 Tier 1 阶段全绿实测过(`ai-sdk-v7` 的多模型对比也验证过),五个 before/after 文档页已生成并挂进 `docs-site/docs.json` 导航。tier2(OTel 剥离)与 tier3(feature A/B,见上面「Tier 3 侵入点」)是后续按分档定义重排的产物:改动经 typecheck 与目录 diff 核对,compare-* 实验组尚未对着真实 key 跑过整轮——首次实跑前按各层 README「跑起来」冒烟。
+五个 `niceeval exp` 基线在 Tier 1 阶段全绿实测过(`ai-sdk-v7` 的多模型对比也验证过),五个 before/after 文档页已生成并挂进 `docs-site/docs.json` 导航。tier3 的五组 compare-* 实验也已对着真实 key 整轮实测:四个 prompt A/B 全绿(pi-sdk 的极简变体曾让模型心算跳过工具,见 `tier3/pi-sdk/experiments/compare-prompts/concise.ts` 注释),codex-sdk 的 compare-sandbox 按预期呈现 read-only 变体下 create-file 断言失败。这轮实测还顺带揪出并修掉了 runner 的一个丢结果 bug(`memory/runner-earlyexit-key-misses-experiment.md`)。
