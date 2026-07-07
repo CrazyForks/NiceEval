@@ -28,7 +28,7 @@
       "from": "examples/zh/origin/langgraph",
       "to": "examples/zh/tier1/langgraph",
       "contract": "verbatim",
-      "baseTree": "25f55d7f9cc040f39201604a09c3cc9e9ea707ce"
+      "baseTree": "7c70256d1e4133d7c5510a338f0259ddb9e6c3c4"
     },
     {
       "from": "examples/zh/tier1/ai-sdk-v7",
@@ -46,7 +46,7 @@
       "from": "examples/zh/tier1/langgraph",
       "to": "examples/zh/tier2/langgraph",
       "contract": "overlay",
-      "baseTree": "3d1202ab61ae403810124c306b1248fdb8733ec7"
+      "baseTree": "d0eee6f37b3088d5f95123b52e82339abdb85a19"
     },
     {
       "from": "examples/zh/tier2/ai-sdk-v7",
@@ -64,7 +64,7 @@
       "from": "examples/zh/tier2/langgraph",
       "to": "examples/zh/tier3/langgraph",
       "contract": "overlay",
-      "baseTree": "bf1fa50e222f39f0e4786d8c59a508d7a07fe882"
+      "baseTree": "0a8e8376e121cb955f2e66102fc7dc7d7131053b"
     },
     {
       "from": "examples/zh/tier1/claude-sdk",
