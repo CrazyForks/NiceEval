@@ -37,7 +37,8 @@ export function CostScoreChart({ rows, t }: { rows: ViewRow[]; t: T }) {
   const yMax = Math.min(1, yTicksRaw[yTicksRaw.length - 1] ?? 1);
   const yTicks = yTicksRaw.filter((v) => v >= yMin - 1e-9 && v <= yMax + 1e-9);
 
-  const xScale = (cost: number) => MARGIN.left + (cost / xMax) * plotW;
+  // X 轴反向:贵在左、便宜在右,「又好又便宜」落在右上角,离原点越远越好。
+  const xScale = (cost: number) => MARGIN.left + (1 - cost / xMax) * plotW;
   const yScale = (rate: number) => MARGIN.top + (1 - (rate - yMin) / (yMax - yMin)) * plotH;
 
   const hovered = points.find((p) => p.key === hoverKey);
