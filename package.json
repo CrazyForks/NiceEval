@@ -47,6 +47,10 @@
     "./results": {
       "types": "./src/results/index.ts",
       "import": "./src/results/index.ts"
+    },
+    "./report": {
+      "types": "./src/report/index.ts",
+      "import": "./src/report/index.ts"
     }
   },
   "files": [
