@@ -6,6 +6,8 @@ export interface AgentProfile {
   weatherToolName: string | null;
   /** 经审批门控的计算器工具名;不支持 HITL(codex-sdk)则为 null。 */
   calcToolName: string | null;
+  /** 网络搜索工具名;只有 ai-sdk-v7 的被测应用注册了它,其余为 null。 */
+  searchToolName: string | null;
   /** 协议是否携带 usage(决定是否断言 maxTokens;UI Message Stream / langgraph 自定义帧没有)。 */
   usage: boolean;
   /** 是否是"目录里的编码 agent"(决定 create-file / run-command 是否生效、问答是否强断言零工具)。 */

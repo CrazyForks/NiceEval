@@ -4,6 +4,7 @@ import type { AgentProfile } from "../../shared/profile.ts";
 export default {
   weatherToolName: "mcp__demo-tools__get_weather",
   calcToolName: "mcp__demo-tools__calculate",
+  searchToolName: null,
   usage: true,
   sandboxTools: false,
 } satisfies AgentProfile;

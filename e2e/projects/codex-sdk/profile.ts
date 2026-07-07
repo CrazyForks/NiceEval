@@ -6,6 +6,7 @@ import type { AgentProfile } from "../../shared/profile.ts";
 export default {
   weatherToolName: null,
   calcToolName: null,
+  searchToolName: null,
   usage: true,
   sandboxTools: true,
   workspaceDir: fileURLToPath(new URL("../../apps/codex-sdk/workspace", import.meta.url)),

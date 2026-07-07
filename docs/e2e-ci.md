@@ -73,12 +73,14 @@ e2e/
 eval 定义本来就不 import agent(agent 由 experiment 绑定),所以共享 eval 在框架模型上是顺的;挡路的只有两件事:discover 只认 `<root>/evals` 下的实体文件(symlink 条目不被发现,见第 2 节),以及各 SDK 的协议差异(工具名、usage、HITL 支持)。两个问题一个解法——共享层导出**参数化的 factory**,每个项目用一个 `profile.ts` 声明自己的协议现实,`evals/` 下只放 stub 文件喂给 discover:
 
 ```typescript
-// e2e/shared/profile.ts
+// e2e/shared/profile.ts(与源码同步)
 export interface AgentProfile {
-  weatherToolName: string;       // "get_weather" 或 "mcp__demo-tools__get_weather"
-  usage: boolean;                // 协议是否携带 usage(决定 basic-qa 是否断言 maxTokens)
-  hitl: boolean;                 // 是否支持 approve/deny(codex-sdk 为 false)
-  sandboxTools: boolean;         // 是否是 coding agent(决定 create-file/run-command 是否生效)
+  weatherToolName: string | null;  // "get_weather" 或 MCP 命名空间名;coding agent 为 null
+  calcToolName: string | null;     // 经审批门控的计算器;不支持 HITL(codex-sdk)为 null
+  searchToolName: string | null;   // 网络搜索工具;只有 ai-sdk-v7 的被测应用注册了
+  usage: boolean;                  // 协议是否携带 usage(决定 basic-qa 是否断言 maxTokens)
+  sandboxTools: boolean;           // 是否是 coding agent(决定 create-file/run-command 等是否生效)
+  workspaceDir?: string;           // coding agent 的工作目录(eval 直接读磁盘核实)
 }
 ```
 

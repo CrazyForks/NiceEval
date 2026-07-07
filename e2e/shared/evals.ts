@@ -4,7 +4,7 @@
 // 对 coding agent 显式说明"不用跑命令"(否则纯问答也可能顺手探索工作目录)。
 import { defineEval } from "niceeval";
 import { equals, includes, excludes } from "niceeval/expect";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentProfile } from "./profile.ts";
 
@@ -55,6 +55,47 @@ export function weatherTool(p: AgentProfile) {
       t.judge.autoevals
         .closedQA("助手是否给出了具体的天气数据(温度或天气状况),而不是拒绝回答或含糊其辞?")
         .atLeast(0.7);
+    },
+  });
+}
+
+/** 正调:查资料提问触发搜索工具且 query 沾题;顺带反调天气。只有注册了搜索工具的应用才排。 */
+export function webSearch(p: AgentProfile) {
+  if (!p.searchToolName) throw new Error("webSearch eval requires profile.searchToolName");
+  const search = p.searchToolName;
+  return defineEval({
+    description: "查资料提问触发搜索工具并基于结果作答(正调)",
+    async test(t) {
+      const turn = await t.send("帮我搜一下「niceeval」这个词,用一两句话告诉我搜到了什么。");
+      turn.expectOk();
+
+      await t.group("调用搜索工具且 query 沾题", () => {
+        t.calledTool(search, { input: { query: /niceeval/i } });
+        t.messageIncludes(/niceeval/i);
+      });
+      if (p.weatherToolName) t.notCalledTool(p.weatherToolName);
+    },
+  });
+}
+
+/** 多步工具链:比较两个城市要两次天气调用,凭一次调用答不出。断言只锚定"确实各查了一次",
+ *  哪个城市更热由各应用的 mock 数据决定,不在共享层写死。 */
+export function weatherCompare(p: AgentProfile) {
+  if (!p.weatherToolName) throw new Error("weatherCompare eval requires profile.weatherToolName");
+  const weather = p.weatherToolName;
+  return defineEval({
+    description: "两城市天气比较:同一轮里发起两次天气调用再作答(多步工具链)",
+    async test(t) {
+      const turn = await t.send("北京和上海今天哪个更热?分别查一下再回答。");
+      turn.expectOk();
+
+      await t.group("两个城市各查了一次", () => {
+        t.calledTool(weather, { input: { city: /北京/ } });
+        t.calledTool(weather, { input: { city: /上海/ } });
+      });
+      t.messageIncludes(/北京/);
+      t.messageIncludes(/上海/);
+      if (p.calcToolName) t.notCalledTool(p.calcToolName);
     },
   });
 }
@@ -186,6 +227,36 @@ export function createFile(p: AgentProfile) {
       // 文件不存在按空内容断言:"没写出文件"是这条 eval 要测的 failed,不是框架 errored。
       const content = existsSync(target) ? readFileSync(target, "utf8") : "";
       t.check(content, includes(marker));
+    },
+  });
+}
+
+/** coding agent 修改既有文件:精确替换一行、不动其余内容,跑完读磁盘双重核实。
+ *  和 createFile 的"从无到有"互补,盖住 apply_patch / 编辑类动作的协议路径。 */
+export function modifyFile(p: AgentProfile) {
+  if (!p.sandboxTools || !p.workspaceDir) throw new Error("modifyFile eval requires profile.workspaceDir");
+  const target = join(p.workspaceDir, "niceeval-e2e-modify-file.txt");
+  const oldMarker = "niceeval-e2e-old-926";
+  const newMarker = "niceeval-e2e-new-926";
+  return defineEval({
+    description: "修改工作目录里的既有文件:替换目标行且不动其余内容",
+    async test(t) {
+      writeFileSync(target, `alpha\n${oldMarker}\nomega\n`);
+
+      const turn = await t.send(
+        `把当前工作目录里 niceeval-e2e-modify-file.txt 中的 ${oldMarker} 改成 ${newMarker},其它内容保持不变。`,
+      );
+      turn.expectOk();
+      t.succeeded();
+      t.noFailedActions();
+
+      const content = existsSync(target) ? readFileSync(target, "utf8") : "";
+      await t.group("目标行换了,其余行原样", () => {
+        t.check(content, includes(newMarker));
+        t.check(content, excludes(oldMarker));
+        t.check(content, includes("alpha"));
+        t.check(content, includes("omega"));
+      });
     },
   });
 }

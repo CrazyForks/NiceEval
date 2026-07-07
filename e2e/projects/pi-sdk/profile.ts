@@ -4,6 +4,7 @@ import type { AgentProfile } from "../../shared/profile.ts";
 export default {
   weatherToolName: "get_weather",
   calcToolName: "calculate",
+  searchToolName: null,
   usage: true,
   sandboxTools: false,
 } satisfies AgentProfile;
