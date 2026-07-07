@@ -323,7 +323,8 @@ tbody tr:last-child td { border-bottom: 0; }
   background: var(--panel);
 }
 .csc-head { font-size: 13px; font-weight: 680; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-.csc-svg-wrap { position: relative; width: 100%; }
+/* viewBox 640×300 等比缩放,不设上限会在宽屏被拉成巨图;tooltip 用百分比定位,上限必须设在 wrap 上。 */
+.csc-svg-wrap { position: relative; width: 100%; max-width: 760px; }
 .csc-svg { width: 100%; height: auto; display: block; overflow: visible; }
 .csc-grid line { stroke: var(--line); stroke-width: 1; }
 .csc-axis text { fill: var(--muted); font-size: 10px; }
