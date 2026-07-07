@@ -10,4 +10,5 @@
 
 export { mapCodexSpans } from "./codex.ts";
 export { mapBubSpans } from "./bub.ts";
+export { mapClaudeCodeSpans } from "./claude-code.ts";
 export { mapGenericSpans } from "../canonical.ts";
