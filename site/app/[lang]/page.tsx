@@ -14,9 +14,13 @@ export async function generateMetadata({ params }: { params: LangParams }) {
   if (!hasLocale(lang)) return {};
   const t = getDictionary(lang);
   return {
-    alternates: { canonical: `/${lang}` },
+    title: { absolute: t.titleHome },
+    alternates: {
+      canonical: `/${lang}`,
+      languages: { en: "/en", zh: "/zh", "x-default": "/en" },
+    },
     openGraph: {
-      title: "NiceEval",
+      title: t.titleHome,
       description: t.meta,
       type: "website",
       url: `/${lang}`,

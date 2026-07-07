@@ -63,6 +63,9 @@ export const compareCard = {
 
 export const copy = {
   en: {
+    // 页面级 <title>:每页独特、带功能描述,避免整站共用 "NiceEval" 被判重复内容。
+    titleHome: "NiceEval — Eval Tool for AI Agents & Coding Agents",
+    titleBlog: "Agent Eval Blog",
     meta: "NiceEval is an agent-native eval tool for AI agents and coding-agent workflows.",
     navStart: "Start",
     blog: "Blog",
@@ -116,6 +119,8 @@ export const copy = {
     },
   },
   zh: {
+    titleHome: "NiceEval —— AI Agent 与 Coding Agent 的评测（Eval）工具",
+    titleBlog: "Agent 评测博客",
     meta: "NiceEval 是 Agent-Native、DX 体验好的 agent eval 工具,适合评 AI agents 和 coding-agent workflows。",
     navStart: "开始",
     blog: "博客",

@@ -23,7 +23,14 @@ export async function generateMetadata({ params }: { params: BlogPostParams }) {
   return {
     title: postCopy.title,
     description: postCopy.description,
-    alternates: { canonical: `/${lang}/blog/${slug}` },
+    alternates: {
+      canonical: `/${lang}/blog/${slug}`,
+      languages: {
+        en: `/en/blog/${slug}`,
+        zh: `/zh/blog/${slug}`,
+        "x-default": `/en/blog/${slug}`,
+      },
+    },
     openGraph: {
       title: `${postCopy.title} | NiceEval`,
       description: postCopy.description,

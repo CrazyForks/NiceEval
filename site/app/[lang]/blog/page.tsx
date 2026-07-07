@@ -15,11 +15,14 @@ export async function generateMetadata({ params }: { params: LangParams }) {
   if (!hasLocale(lang)) return {};
   const t = getDictionary(lang);
   return {
-    title: "Blog",
+    title: t.titleBlog,
     description: t.blogPage.meta,
-    alternates: { canonical: `/${lang}/blog` },
+    alternates: {
+      canonical: `/${lang}/blog`,
+      languages: { en: "/en/blog", zh: "/zh/blog", "x-default": "/en/blog" },
+    },
     openGraph: {
-      title: `${t.blogPage.title} | NiceEval`,
+      title: `${t.titleBlog} | NiceEval`,
       description: t.blogPage.meta,
       type: "website",
       url: `/${lang}/blog`,
