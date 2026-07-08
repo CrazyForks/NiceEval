@@ -187,6 +187,7 @@
                 "group": "连接 Agent",
                 "pages": [
                   "zh/guides/connect-your-agent",
+                  "zh/guides/official-adapters",
                   "zh/guides/write-send",
                   "zh/guides/connect-otel",
                   "zh/guides/sandbox-agent",
