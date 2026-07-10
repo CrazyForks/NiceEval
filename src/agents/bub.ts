@@ -89,7 +89,8 @@ async function ensureBub(sb: Sandbox, home: string): Promise<void> {
 
   const inflight = installsInProgress.get(home);
   if (inflight) {
-    await inflight;
+    // leader 失败(多为沙箱瞬态网络错)不级联杀 waiter:兜掉后走下面自己的安装路径重试。
+    await inflight.catch(() => {});
     const after = memCheckpoints.get(home);
     if (after) { await restoreCheckpoint(sb, after); return; }
   }
@@ -97,6 +98,9 @@ async function ensureBub(sb: Sandbox, home: string): Promise<void> {
   let resolveInstall!: () => void;
   let rejectInstall!: (e: unknown) => void;
   const installPromise = new Promise<void>((res, rej) => { resolveInstall = res; rejectInstall = rej; });
+  // 失败经由下方 throw e 传播给本 attempt;这把锁可能自始至终没有 waiter,
+  // 不兜住 rejection 会变 unhandledRejection,把整个 runner 进程连同全矩阵杀掉。
+  installPromise.catch(() => {});
   installsInProgress.set(home, installPromise);
 
   try {

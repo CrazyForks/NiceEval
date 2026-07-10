@@ -105,5 +105,5 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 ## 设计决定
 
 - [sandbox-field-no-bare-string](sandbox-field-no-bare-string.md) — `sandbox` 字段只接受工厂产出的 SandboxSpec:不接受裸字符串、没有默认值、没有自动探测(用户 review 明确定案)
-- [registermcp-post-hoc-primitive](registermcp-post-hoc-primitive.md) — `shared.registerMcp(agent, servers)` 落地:给已构造的 claude-code/codex agent 后置追加 MCP,按 agent.name 分发、fail-fast 前移到调用时、claude-code 侧读回合并写入避免覆盖构造期配置
+- [registermcp-post-hoc-primitive](registermcp-post-hoc-primitive.md) — 翻案裁决:不提供后置追加 MCP 原语,`shared.registerMcp` 当日落地当日撤销;MCP 只走 factory 构造期,条件包装器应接收 factory 而不是已构造 Agent
 - [experiment-flags-naming-reversal](experiment-flags-naming-reversal.md) — 条件键定名 flags(A/B feature flag 语义,2026-07-10 params 同日翻案);字段改名=递增 schemaVersion,不做读取别名

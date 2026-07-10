@@ -6,7 +6,95 @@
 - 你在写文档 / 代码,想跟现有用法保持一致;
 - 你需要一页纸把整套词汇过一遍。
 
-这是一份术语表。两个同义词并存时,**首选写法**用粗体。
+这是一份术语表,分两层:先用「术语总表」对齐每个词的中文写法、英文写法和一句话含义;总表之后的分区展开每个词的完整契约。两个同义词并存时,**首选写法**用粗体。
+
+## 术语总表
+
+「中文」列是中文正文里的写法——很多词的首选写法就是英文原词,此时两列相同;有中文同义词的一并列出。「含义」只压到一句话,完整契约看本页下文各分区或所链文档。
+
+### 评测核心
+
+| 中文 | English | 含义 |
+|---|---|---|
+| NiceEval | NiceEval | 产品名。正文写 `NiceEval`;命令、包名、配置文件、代码标识写 `niceeval` |
+| Eval(评估用例) | Eval | 评测的最小单元:一个 Task 跑在一个 Agent 上,由若干 Scorer 判分;id 从文件路径推导 |
+| 任务 | Task | 要让被测对象完成的"那件事",写成一串 `t.send(...)`;只描述意图,不描述判分 |
+| Agent | Agent | 「一条连到 AI 的连接」的抽象,由 experiment 引用;`kind` 只有 `"remote"` 和 `"sandbox"` 两类 |
+| `send` | `send` | 运行器唯一认得的统一动词;协议、事件映射、会话续接都在 Adapter 的 `send` 里实现 |
+| 评分器 | Scorer | 把"结果"映射成分数的东西,三类:值级断言、作用域断言、LLM-as-judge |
+| 断言 | Assertion | Scorer 的一次具体应用,带名字、严重级、可选阈值,产出 0–1 分数和过/挂 |
+| 判决 | Outcome | 一个 Eval 的评分结论,四态:`passed` / `failed` / `errored` / `skipped`,没有中间态 |
+| 严重级 | Severity | 断言的两档:gate 不过即 `failed`;soft 只记分,`--strict` 下低于阈值才降级 `failed` |
+| 评判模型 | Judge(LLM-as-judge) | 用一个评判模型给开放式回答打分的 Scorer,默认 soft、无阈值,详见 [Scoring](scoring.md#3-llm-as-judge) |
+
+### 被测对象与适配器
+
+| 中文 | English | 含义 |
+|---|---|---|
+| 适配器 | Adapter | 某个 Agent 的具体实现,由用户编写;拥有协议、认证、CLI 参数、transcript 位置等全部特殊性 |
+| 沙箱 | Sandbox | 封装「在哪里、如何隔离地跑命令」的对象;实现有 Docker、Vercel Sandbox 等 |
+| 后端 | Backend | 某个 Sandbox 的具体实现选择(`docker` / `vercel` / …);`auto` 按环境探测 |
+| 工作目录 | workdir | 沙箱内 agent 的默认工作目录,git 基线与 diff 采集的锚点;沙箱侧相对路径都解析到它 |
+| 沙箱作者 API | Sandbox author API | 沙箱型 eval 里 `test(t)` 拿到的 `t.sandbox`:文件 IO、命令执行、断言 / diff 三类 |
+| 能力 | Capability | `t` 上暴露哪些动作,由 `send` 的构造证据决定,不是声明式的能力位 |
+| 接入 Tier | Integration tier | 按「Adapter 接到哪里、额外拿到什么观测数据」分的三档:Tier 1 只接 `send`,Tier 2 `send` + OTel,Tier 3 侵入改造 + flags |
+| 无侵入 | Non-intrusive | Tier 1 / Tier 2 的共同性质:应用按自己的方式启动,eval 侧不 spawn 应用进程、不另开端口。不写「黑盒」 |
+| 模型档 | Model tier | 给 agent 指定模型的标识(如 `opus`),由 experiment 的 `model` 字段指定 |
+| 人工介入 | HITL(human-in-the-loop) | agent 中途等待人工输入的交互;`send` 返回过 `waiting` + `input.requested` 即具备该能力 |
+
+### 数据集与发现
+
+| 中文 | English | 含义 |
+|---|---|---|
+| 数据集 | Dataset | 共享同一 `test` 逻辑、只有输入不同的一组 case,`.map` 扇出,id 零填充编号 |
+| 发现 | Discovery | 运行器扫 `evals/` 找 `*.eval.ts`、按路径推导 id;没有目录层面的隐式发现 |
+
+### 运行与结果
+
+| 中文 | English | 含义 |
+|---|---|---|
+| 运行器 | Runner | 调度引擎:发现、有界并发、重试、早停、缓存,把结果交给报告器 |
+| 实验 | Experiment | 可签入的运行配置:用哪个 agent / model / flags、跑几次、预算多少;不碰评分 |
+| 可对比组 | Comparison group | `experiments/` 下的一个文件夹,装一组要并排比较的单一配置 |
+| 实验 flags | Flags | experiment 的 A/B 条件键(一组 feature flag 取值),经 `ctx.flags` 给 adapter、`t.flags` 给 eval;裸词 flags 专指它 |
+| Run | Run | 一次 `niceeval` 调用对一批 eval 的完整执行,产出一份 summary |
+| 尝试 | Attempt | 同一个 eval 的第 i 次重复运行,也是作用域断言的聚合范围 |
+| Session | Session | 一条会话线;`t.newSession()` 开独立 session |
+| 轮 | Turn | `t.send()` 的一次返回值,带本轮事件流片段和收窄到本轮的作用域断言 |
+| 早停 | EarlyExit | 取通过率时先过一次即中止其余 attempt 的策略(可关) |
+| 指纹 | Fingerprint | `(eval 代码 + 配置)` 的哈希,用于缓存去重:未变且已通过的默认跳过 |
+| Transcript | Transcript | agent 一次运行的逐事件原始记录(各 agent 自己的 JSONL),归一化后供消费 |
+| 标准事件流 | StreamEvent / events | transcript 或 `send` 返回归一化成的统一事件模型(message / tool_call / tool_result / thinking / error),断言和报告的事实来源,详见 [Observability](observability.md#transcript--标准事件流) |
+| o11y 摘要 | o11y summary | 从标准事件流派生的统计(工具调用、文件、耗时、token、成本),注入沙箱供行为断言 |
+| trace 瀑布图 | Trace waterfall | OTLP span 画出的统一时间轨;只管可视化,不产出事件、不参与断言,详见 [Observability](observability.md#otlp-traces--统一瀑布图) |
+| 用量 | Usage | 一次运行的 token 计数(`inputTokens` / `outputTokens` / 可选 cache 读写) |
+| 成本 | Cost | 用量经价格表换算的估算金额(`estimatedCostUSD`);`--budget <usd>` 给整轮设上限 |
+| 报告器 | Reporter | 运行中流式消费结果的插件(控制台、JUnit、JSON…);与运行后的「报告」(Report)是两个词 |
+| 工件 | Artifact | 落盘的结构化产物,位于 `.niceeval/<时间戳>/`:run 级 summary + attempt 级各 JSON |
+
+### 结果数据与报告
+
+本组词的完整契约在 [Results Lib](results-lib.md)、[Reports](reports.md) 与 [View](view.md)。
+
+| 中文 | English | 含义 |
+|---|---|---|
+| 快照 | Snapshot | 结果读取面的单位:一个 experiment 在一次 run 里的结果(experiment × run,不是 run) |
+| 选集 | Selection | `results.latest()` 的返回物:挑好的快照 + 结构化挑选警告;唯一方法 `filter`(只删不换) |
+| 指标 | Metric | 「一个 attempt 算出一个值」的计算单元,经「attempt → 题,题 → 组」两级聚合;缺数据算 `null` 不算 0 |
+| 维度 | Dimension | 决定 attempt 分到哪一组的分组键(agent / experiment / evalGroup / snapshot …) |
+| 报告 | Report | `defineReport` 定义的 `.tsx` 报告文件,返回一棵组件树,经 `--report` 交给宿主渲染 |
+| 双面组件 | Dual-face component | `defineComponent({ web, text })` 的产物:一个定义、两个纯函数渲染面,同一棵树两个宿主共用 |
+| 宿主 | Host | 打开结果、挑选集、渲染报告的那一侧:`show` 是终端宿主,`view` 是网页宿主 |
+| 默认报告 | DefaultReport | 不传 `--report` 时宿主渲染的内置报告(运行总览 + 逐实验指标表 + 失败清单);「榜单」只是其中逐实验指标表的口语叫法 |
+| 报告槽 / 证据室 | —(内部代号) | 宿主结构的两半:报告槽整个归 `--report`,证据室(transcript / trace / diff 下钻)是宿主本体;这两个词不出现在公开站 |
+
+### 配置与 CLI
+
+| 中文 | English | 含义 |
+|---|---|---|
+| 严格模式 | Strict mode | `--strict` 下 soft 断言低于阈值改判 `failed`,用于 CI 把质量回归当红灯 |
+| 环境预置 | —(用普通代码表达) | 跑 agent 前的准备逻辑,三个家:eval 内 `t.sandbox.*`、`SandboxAgent.setup`、外部编排 |
+| CLI flag | CLI flag | 命令行开关(`--strict`、`--report`…);写作时一律带「CLI」限定或写字面 `--xxx`,不与实验 flags 混用 |
 
 ## 评测核心词汇
 
