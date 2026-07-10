@@ -64,6 +64,7 @@ interface Flags {
   out?: string;
   port?: number;
   help: boolean;
+  version: boolean;
   // ── show 专属(位置参数仍是 eval id 前缀;这些 flag 选「怎么看」)──
   transcript: boolean;
   trace: boolean;
@@ -116,6 +117,7 @@ const FLAG_OPTIONS = {
   open: { type: "boolean" },
   "no-open": { type: "boolean" },
   help: { type: "boolean", short: "h" },
+  version: { type: "boolean", short: "v" },
 } as const;
 
 function numberFlag(name: string, raw: string | undefined): number | undefined {
@@ -185,6 +187,7 @@ function parseArgs(argv: string[]): { command: string; positionals: string[]; fl
     earlyExit: values["no-early-exit"] === true ? false : values["early-exit"] === true ? true : undefined,
     open: values["no-open"] === true ? false : values.open === true ? true : undefined,
     help: values.help === true,
+    version: values.version === true,
     transcript: values.transcript === true,
     trace: values.trace === true,
     diff: values.diff === true && diffPath === undefined,
@@ -324,14 +327,25 @@ function evalsFilterFromExperiment(
   return (id) => expFilter(id) && patternFilter(id);
 }
 
+/** package.json 的 version 字段;-v/--version 直接回显这个号。 */
+async function packageVersion(): Promise<string> {
+  const raw = await readFile(new URL("../package.json", import.meta.url), "utf-8");
+  return (JSON.parse(raw) as { version: string }).version;
+}
+
 async function main(): Promise<void> {
   const cwd = process.cwd();
   await loadDotenv(cwd);
   const { command, positionals, flags } = parseArgs(process.argv.slice(2));
 
-  // --help 不需要 config,先于一切命令处理。
+  // --help / --version 不需要 config,先于一切命令处理。
   if (flags.help) {
     process.stdout.write(t("cli.help"));
+    process.exit(0);
+  }
+
+  if (flags.version) {
+    process.stdout.write(`${await packageVersion()}\n`);
     process.exit(0);
   }
 

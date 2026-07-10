@@ -318,6 +318,7 @@ const FLAG_DESCRIPTIONS: Record<string, string> = {
   run: "`show` 命令专用:钉死看某一个结果目录(历史 run 或 `copySnapshots` 产物)。",
   report: "`show` 命令专用:把默认榜单整槽换成你的报告文件(默认导出 `defineReport(...)`)。",
   help: "打印用法说明并退出。",
+  version: "打印 niceeval 的版本号并退出。",
 };
 
 interface CliFlagRow {

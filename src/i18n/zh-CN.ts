@@ -55,7 +55,7 @@ export const zhCN = {
     "标志:\n" +
     "  --runs n  --max-concurrency n  --timeout ms  --budget usd  --tag t\n" +
     "  --early-exit / --no-early-exit  --strict  --force  --dry  --quiet\n" +
-    "  --junit path  --out dir  --port n  --open / --no-open  -h, --help\n\n" +
+    "  --junit path  --out dir  --port n  --open / --no-open  -h, --help  -v, --version\n\n" +
     "位置参数只选「跑哪些 eval」(id 前缀);对着哪个 agent、怎么跑来自 experiments/ 与\n" +
     "标志。环境变量覆盖(标志 > 环境变量 > config):\n" +
     "  NICEEVAL_RUNS  NICEEVAL_MAX_CONCURRENCY  NICEEVAL_TIMEOUT  NICEEVAL_BUDGET\n",

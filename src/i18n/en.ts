@@ -59,7 +59,7 @@ export const en = {
     "Flags:\n" +
     "  --runs n  --max-concurrency n  --timeout ms  --budget usd  --tag t\n" +
     "  --early-exit / --no-early-exit  --strict  --force  --dry  --quiet\n" +
-    "  --junit path  --out dir  --port n  --open / --no-open  -h, --help\n\n" +
+    "  --junit path  --out dir  --port n  --open / --no-open  -h, --help  -v, --version\n\n" +
     "Positional args only select which evals to run (id prefixes); which agent and\n" +
     "how to run come from experiments/ + flags. Env overrides (flag > env > config):\n" +
     "  NICEEVAL_RUNS  NICEEVAL_MAX_CONCURRENCY  NICEEVAL_TIMEOUT  NICEEVAL_BUDGET\n",
