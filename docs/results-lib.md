@@ -1,11 +1,11 @@
-# Results Lib —— 实验结果数据的读写库(设计提案,未实现)
+# Results Lib —— 实验结果数据的读写库
 
-> 状态:设计已定稿,与 `docs-site/zh/guides/results-data.mdx` 对齐;`src/results/` 里已有一版读取面实现(源码入口见 [Source Map](source-map.md#results-lib-与-reports)),与本文有差距(层次、选择器、`copySnapshots` 等),按本文一次性收敛、不留兼容层。写入面 `createRunWriter` 与 view / `Artifacts()` reporter 的收编仍是提案。[Results Format](results-format.md) 是磁盘上的格式规范(已实现);本文提议把这份格式的**读与写**抽成一个专门的库 `niceeval/results`,做 runner、view、[Reports](reports.md) 和用户脚本的共同数据层。
+> 状态:已按本文实现(`src/results/`,源码入口见 [Source Map](source-map.md#results-lib-与-reports)),与 `docs-site/zh/guides/results-data.mdx` 对齐:读取面(`openResults` 分层、`latest()` 选集、`dedupeAttempts`)、写入面(`createRunWriter`)、发布(`copySnapshots`)与 `Artifacts()` reporter 薄壳全部落地。两步未实现:view 的读取层收编(见 [View](view.md));「类型的家」迁移(`RunSummary` / `EvalResult` 等仍住 core 的域文件,库经 `../types.ts` 引用,见「库的边界」)。[Results Format](results-format.md) 是磁盘上的格式规范;本库是这份格式的**读与写**的唯一实现 `niceeval/results`,做 runner、view、[Reports](reports.md) 和用户脚本的共同数据层。
 
-同一份磁盘格式,今天的写和读长在两个器官里。写在 `src/runner/reporters/artifacts.ts`:时间戳目录、attempt 路径清洗(evalId 保留 `/` 层级、agent/model 非 `[\w.@-]` 全换 `_`)、大字段拆工件、`artifactsDir` / `has*` 回填、空数据不落文件——全是它的私有知识。读长在 `src/view/index.ts`:`readSummary` 的版本判定、`loadSummaries` 的目录扫描、工件路径反拼。两边靠 `src/types.ts` 共享类型,但**布局知识各自实现了一遍**:格式演进要同步改两处,谁漏改谁坏。而用户侧根本没有读取 API,想编程消费只能第三次重写这些知识:
+抽库前,同一份磁盘格式的写和读长在两个器官里。写在 `src/runner/reporters/artifacts.ts`:时间戳目录、attempt 路径清洗(evalId 保留 `/` 层级、agent/model 非 `[\w.@-]` 全换 `_`)、大字段拆工件、`artifactsDir` / `has*` 回填、空数据不落文件——全是它的私有知识。读长在 `src/view/index.ts`:`readSummary` 的版本判定、`loadSummaries` 的目录扫描、工件路径反拼。两边靠 `src/types.ts` 共享类型,但**布局知识各自实现了一遍**:格式演进要同步改两处,谁漏改谁坏。用户侧则根本没有读取 API,想编程消费只能第三次重写这些知识:
 
 ```typescript
-// 今天:想比「谁的代码短」,只能手工爬目录
+// 抽库前:想比「谁的代码短」,只能手工爬目录
 const summary = JSON.parse(readFileSync(".niceeval/2026-07-02T.../summary.json", "utf-8"));
 for (const r of summary.results) {
   const diffPath = join(runDir, r.artifactsDir ?? "", "diff.json"); // 布局知识泄漏

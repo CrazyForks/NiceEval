@@ -7,9 +7,9 @@
 // usage 和终局错误;逐帧驱动是官方件 `driveFrameStream`(没有 HITL,onFrame 只用来处理
 // 传输帧 + 抓 threadId)。
 //
-// 这是 Tier 3(侵入改造 + experiment flags):比 ../../tier2/codex-sdk 多一层——应用侧把
+// 这是 Tier 3(侵入改造 + experiment params):比 ../../tier2/codex-sdk 多一层——应用侧把
 // threadOptions 的 sandbox mode 提升为请求体可选字段(src/backend/{agent,server}.ts),
-// 本文件把 experiment 的 `flags.sandboxMode` 经 ctx.flags 随请求体透传过去,
+// 本文件把 experiment 的 `params.sandboxMode` 经 ctx.params 随请求体透传过去,
 // feature A/B 见 experiments/compare-sandbox/。OTel 部分(spanMapper + telemetry)与 Tier 2 相同。
 import { defineAgent, mapCodexSpans, sseJsonFrames, fromCodexThreadEvents, driveFrameStream } from "niceeval/adapter";
 import type { AgentContext } from "niceeval/adapter";
@@ -31,8 +31,8 @@ async function send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
       body: JSON.stringify({
         message: input.text,
         threadId: ctx.session.id,
-        // Tier 3:experiment 的 flags 经 ctx.flags 透传给应用(见 experiments/compare-sandbox/)。
-        sandboxMode: ctx.flags.sandboxMode,
+        // Tier 3:experiment 的 params 经 ctx.params 透传给应用(见 experiments/compare-sandbox/)。
+        sandboxMode: ctx.params.sandboxMode,
       }),
       signal: ctx.signal,
     });

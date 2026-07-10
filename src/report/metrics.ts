@@ -16,8 +16,9 @@ import type { Metric } from "./types.ts";
 /**
  * 定义一个指标。内置指标与自定义指标是同一个类型,没有特权;
  * 校验只管「能进计算」的最低要求,聚合语义见 docs/reports.md。
+ * name 是 const 泛型:产物的 name 保持字面量,`row.cells[metric.name]` 才有编译期列键。
  */
-export function defineMetric(def: Metric): Metric {
+export function defineMetric<const Name extends string>(def: Metric<Name>): Metric<Name> {
   if (typeof def.name !== "string" || def.name.length === 0) {
     throw new Error("defineMetric: metric name must be a non-empty string.");
   }

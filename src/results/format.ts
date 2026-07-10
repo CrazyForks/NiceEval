@@ -1,12 +1,12 @@
-// Results Format 的布局与版本知识(读取面),规则见 docs/results-format.md。
+// Results Format 的布局与版本知识,规则见 docs/results-format.md。
 //
-// 版本判定与 src/view/loader.ts 的 normalizeSummary 同一口径(view 抛错驱动 CLI 提示,
-// 这里返回分类值驱动 skipped 列表);attempt 目录规则与 src/runner/reporters/artifacts.ts
-// 的 attemptDir 同一规则。按 results-lib 设计,这份知识最终应只住在本库,
-// view / reporter 改吃这里是后续收编步骤 —— 本实验不动它们的代码。
+// 按 docs/results-lib.md,这份知识最终只住在本库:写入面(writer.ts / copy.ts)与
+// 读取面(open.ts)共用这里的目录规则与版本判定;src/runner/reporters/artifacts.ts
+// 已是 writer 的薄壳。view 改吃这里是下一波收编,在那之前 src/view/loader.ts 的
+// normalizeSummary 与这里保持同一口径。
 
-import type { EvalResult, RunSummary } from "../runner/types.ts";
-import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../runner/types.ts";
+import type { EvalResult, RunSummary } from "../types.ts";
+import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
 import type { ArtifactKind } from "./types.ts";
 
 /** attempt 工件子目录(相对 run 根):<evalId>/<agent>/<model>[/<experimentId>]/a<attempt>。 */
@@ -14,8 +14,8 @@ export function attemptDirOf(r: Pick<EvalResult, "id" | "agent" | "model" | "att
   const safe = (s: string) => s.replace(/[^\w.@-]/g, "_");
   // evalId 里的 / 保留作目录层级,其余危险字符替换。
   const id = r.id.replace(/[^\w./@-]/g, "_");
-  // experiment 段与 writer(artifacts.ts 的 attemptDir)同一规则:两个实验可以同 agent 同 model、
-  // 只差 flags,少这一段它们的工件会互相覆盖;experimentId 里的 / 不作层级(整段压成 _)。
+  // experiment 段:两个实验可以同 agent 同 model、只差实验参数,少这一段它们的工件会互相
+  // 覆盖;experimentId 里的 / 不作层级(整段压成 _),整个实验一格。
   const exp = r.experimentId ? `/${safe(r.experimentId)}` : "";
   return `${id}/${safe(r.agent)}/${safe(r.model ?? "default")}${exp}/a${r.attempt}`;
 }
@@ -28,7 +28,7 @@ export function artifactFileOf(kind: ArtifactKind): string {
 /** summary.json 的版本判定结果;openResults 按它分流 ok / skipped / 静默忽略。 */
 export type SummaryClassification =
   | { kind: "ok"; summary: RunSummary }
-  | { kind: "incompatible"; schemaVersion: number; producerVersion?: string }
+  | { kind: "incompatible"; schemaVersion: number; producer?: RunSummary["producer"] }
   | { kind: "malformed"; detail: string }
   | { kind: "not-a-report" };
 
@@ -49,7 +49,9 @@ export function classifySummary(raw: unknown): SummaryClassification {
     const version = data.schemaVersion ?? 1;
     if (typeof version !== "number") return { kind: "malformed", detail: "schemaVersion is not a number" };
     if (version !== RESULTS_SCHEMA_VERSION) {
-      return { kind: "incompatible", schemaVersion: version, producerVersion: data.producer?.version };
+      // skipped 必须带完整 producer(name + version):npx 提示只对 name === "niceeval" 成立,
+      // 第三方 harness 的落盘只给裸版本号的话,消费方连做对这个分支的信息都没有。
+      return { kind: "incompatible", schemaVersion: version, producer: data.producer };
     }
     if (!Array.isArray(data.results) || typeof data.startedAt !== "string") {
       return { kind: "malformed", detail: "missing results[] or startedAt" };

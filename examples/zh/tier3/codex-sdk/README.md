@@ -1,4 +1,4 @@
-# codex-sdk 示例：niceeval Tier 3 接入（侵入改造 + experiment flags）
+# codex-sdk 示例：niceeval Tier 3 接入（侵入改造 + experiment params）
 
 这是 [`examples/zh/tier2/codex-sdk`](../../tier2/codex-sdk/) 的**副本 + 一层侵入 delta**
 （分档定义见 [docs-site · Tier](../../../../docs-site/zh/concepts/tier.mdx)）。前两档应用代码
@@ -12,18 +12,18 @@
   `threadOptions`;**不传时行为与改造前逐字节等价**——侵入改造的铁律是默认行为不变。
 - `src/backend/server.ts`:`/api/chat` 请求体多一个可选字段 `sandboxMode`(取值校验,
   非法值 400)。
-- `agents/codex-sdk.ts`:experiment 的 `flags.sandboxMode` 经 `ctx.flags` 随请求体透传。
+- `agents/codex-sdk.ts`:experiment 的 `params.sandboxMode` 经 `ctx.params` 随请求体透传。
 - `experiments/compare-sandbox/`:workspace-write vs read-only 两个变体。
 - 本 README。
 
 注意侵入的是**应用**(把变体暴露成配置),不是接入面——adapter 依然只对着 HTTP 端点收发,
 eval 侧照旧不 spawn 进程、不开新端口。
 
-## flags 怎么流动
+## params 怎么流动
 
 ```
-experiments/compare-sandbox/read-only.ts   →  flags: { sandboxMode: "read-only" }
-agents/codex-sdk.ts                        →  ctx.flags.sandboxMode 塞进请求体
+experiments/compare-sandbox/read-only.ts   →  params: { sandboxMode: "read-only" }
+agents/codex-sdk.ts                        →  ctx.params.sandboxMode 塞进请求体
 src/backend/server.ts                      →  校验后交给 runTurnStreamed
 src/backend/agent.ts                       →  threadOptions.sandboxMode
 ```
@@ -47,4 +47,4 @@ pnpm exec niceeval exp compare-sandbox
 pnpm exec niceeval view
 ```
 
-单配置基线 `pnpm exec niceeval exp codex-sdk` 仍然可用(不带 flags,应用走默认行为)。
+单配置基线 `pnpm exec niceeval exp codex-sdk` 仍然可用(不带 params,应用走默认行为)。

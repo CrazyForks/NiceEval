@@ -5,7 +5,7 @@
 // 一组全 null 渲染成「缺数据」,绝不画 0(逻辑在 MetricCellView)。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, TableData } from "./data.ts";
+import type { AttemptRef, TableData } from "../types.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";

@@ -1,6 +1,6 @@
-# Reports —— 自己搭报告页的积木(设计提案,未实现)
+# Reports —— 自己搭报告页的积木
 
-> 状态:设计已定稿;`src/report/` 里已有一版实现(独立计算函数 + 纯 react 组件,源码入口见 [Source Map](source-map.md#results-lib-与-reports)),与本文有差距,按本文一次性收敛、不留兼容层,命名决策见[「命名与形状决策一览」](#命名与形状决策一览)。公开叙事的准绳是 `docs-site/zh/guides/` 的自定义报告 / 报告组件两页;脚下的数据层——结果的读与写——拆在 [Results Lib](results-lib.md)。文末迭代问题已全部裁决(2026-07-10)。
+> 状态:积木层已按本文实现(`src/report/`,源码入口见 [Source Map](source-map.md#results-lib-与-reports)):指标、两级聚合、九个计算函数(挂组件)、双面组件与排版原语、`defineReport` 基座与两个渲染入口。**宿主接线未实现**——`show` / `view` 的 `--report` 装载、内置默认报告文件化、view 读取层收编,见[「报告页交给官方命令渲染」](#报告页交给官方命令渲染definereport-与双面组件)一节与 [View](view.md)。命名决策见[「命名与形状决策一览」](#命名与形状决策一览);公开叙事的准绳是 `docs-site/zh/guides/` 的自定义报告 / 报告组件两页;数据层拆在 [Results Lib](results-lib.md)。文末迭代问题已全部裁决(2026-07-10)。
 
 跑完一轮实验之后,「怎么看结果」不该只有 `niceeval view` 那三个固定 tab。你想把同一批结果摆成一张**考试成绩单**(每个 eval 是一道题,gate 判对错、soft 给分、按科目算总分),摆成一张 **benchmark 榜**(谁写出来的代码能用、谁写得更短、谁更便宜),或者摆成一张**质量 × 成本 frontier**(每个配置一个点,同 agent 不同档位连成线,右上角 = 又好又便宜)——这三种「看法」用的是同一份落盘工件,差别只在组合方式。
 
@@ -22,7 +22,7 @@
 
 两档之间是一条**可序列化边界**:算与画分离,数据是普通 JSON——可以在 RSC 里当场 `await`,也可以在 CI 里落成 `public/report.json` 喂给任何 SPA。**import 边界即运行时边界**:`niceeval/results` 与 `niceeval/report` 的计算函数碰文件系统,只能进服务端/脚本;`niceeval/report/react` 纯渲染。可达百 MB 的 diff 永远不该在渲染路径上被读,这条边界就是为它划的。
 
-> 与早先草案的差异:第一版有 `defineReport` + `reports/` 目录 + `ReportDoc` 文件格式 + `niceeval report` CLI,现已全部砍掉。报告页的宿主永远是用户自己的应用,为它发明「配置文件 → 文档格式 → 渲染 CLI」三层中转,每层都是学习成本,表达力反而不如 JSX(说明文字曾需要一个 `markdown()` 块——在 JSX 里那就是一行 `<p>`)。零代码看结果的需求归 `niceeval view`;本提案只服务「要自己的页面」的用户。(2026-07 补:报告页可以经 `--report` 直接递给官方宿主 `show` / `view` 渲染——无发现、无格式、无新命令,与被砍的三层中转不是一个东西,见[报告页交给官方命令渲染](#报告页交给官方命令渲染definereport-与双面组件设计提案未实现)。新方案还把报告基座命名回 `defineReport`:被砍的是「目录发现 / 文档格式 / 专门 CLI」三层中转**形态**,不是这个名字;flag 叫 `--report`,文件默认导出就该同词,不再另造「page」一词。)
+> 与早先草案的差异:第一版有 `defineReport` + `reports/` 目录 + `ReportDoc` 文件格式 + `niceeval report` CLI,现已全部砍掉。报告页的宿主永远是用户自己的应用,为它发明「配置文件 → 文档格式 → 渲染 CLI」三层中转,每层都是学习成本,表达力反而不如 JSX(说明文字曾需要一个 `markdown()` 块——在 JSX 里那就是一行 `<p>`)。零代码看结果的需求归 `niceeval view`;本提案只服务「要自己的页面」的用户。(2026-07 补:报告页可以经 `--report` 直接递给官方宿主 `show` / `view` 渲染——无发现、无格式、无新命令,与被砍的三层中转不是一个东西,见[报告页交给官方命令渲染](#报告页交给官方命令渲染definereport-与双面组件)。新方案还把报告基座命名回 `defineReport`:被砍的是「目录发现 / 文档格式 / 专门 CLI」三层中转**形态**,不是这个名字;flag 叫 `--report`,文件默认导出就该同词,不再另造「page」一词。)
 
 ## 与现有件的关系
 
@@ -274,7 +274,10 @@ await MetricTable.data(selection, {
   evals: "algebra/",                  // 可选:eval id 前缀过滤,同 CLI 语义
 });                                   // → TableData
 
-await MetricMatrix.data(selection, { rows: "eval", columns: "agent", cell: examScore });  // → MatrixData
+await MetricMatrix.data(selection, {
+  rows: "eval", columns: "agent", cell: examScore,
+  evals: "algebra/",                  // 可选:eval id 前缀过滤,同 CLI 语义(与 MetricTable.data 一致)
+});                                   // → MatrixData
 
 await Scoreboard.data(selection, {
   rows: "agent",                      // 给谁打分;维度槽与 MetricTable.data 统一叫 rows
@@ -337,7 +340,7 @@ interface MatrixData {
 }
 
 interface ScoreboardData {
-  rows: string;                       // 被打分的维度名,如 "agent";维度槽统一叫 rows
+  dimension: string;                  // 被打分的维度名,如 "agent"(与 TableData.dimension 同例;计算函数的选项槽叫 rows)
   fullMarks: number;
   weights: { prefix: string; weight: number }[];   // 实际生效的权重表 —— 成绩单可审计
   rows: {
@@ -526,9 +529,9 @@ writeFileSync("site/index.html", `<!doctype html><link rel="stylesheet" href="st
 
 分布类的看法(直方图)不是折叠,计算函数给不了;直接下到结果库的读取面,示例见 [Results Lib · 直接吃读取面](results-lib.md#直接吃读取面一个真实脚本)。
 
-## 报告页交给官方命令渲染:defineReport 与双面组件(设计提案,未实现)
+## 报告页交给官方命令渲染:defineReport 与双面组件
 
-> 2026-07 迭代,取代本节此前的「数据块 + kind 分发」草案。砍第一版 `defineReport` 时的结论「报告页永远住在用户自己的应用里」修正为:**报告页直接交给官方命令 `show` / `view` 渲染**——打开结果、挑快照、渲染页面的那一侧下文称「宿主」,`show` 是终端宿主,`view` 是网页宿主;用户应用只是零件复用的去处。中间经历过一版「报告 = 返回 kind 判别联合的函数」:类型最安全(判别联合天然编译期穷尽),但它把 `--report` 的表达力封死在官方积木的组合上——要自己的展示形态就得整页搬回自己的应用,排版也没有着落。定稿选组件树:换摆法、换口径、换形态三个层次都留在同一个文件、同一对宿主里;类型上的差距用字面量键泛型和渲染前树校验补齐(见「类型义务」)。公开叙事的准绳是 `docs-site/zh/guides/custom-reports.mdx` 与 `report-components.mdx`,本节记内部决策与实现要点。
+> 2026-07 迭代,取代本节此前的「数据块 + kind 分发」草案。`defineReport` 基座、双面组件、树校验与两个渲染入口(`renderReportToText` / `renderReportToStaticHtml`)已实现;`show` / `view` 宿主的 `--report` 装载接线未实现。砍第一版 `defineReport` 时的结论「报告页永远住在用户自己的应用里」修正为:**报告页直接交给官方命令 `show` / `view` 渲染**——打开结果、挑快照、渲染页面的那一侧下文称「宿主」,`show` 是终端宿主,`view` 是网页宿主;用户应用只是零件复用的去处。中间经历过一版「报告 = 返回 kind 判别联合的函数」:类型最安全(判别联合天然编译期穷尽),但它把 `--report` 的表达力封死在官方积木的组合上——要自己的展示形态就得整页搬回自己的应用,排版也没有着落。定稿选组件树:换摆法、换口径、换形态三个层次都留在同一个文件、同一对宿主里;类型上的差距用字面量键泛型和渲染前树校验补齐(见「类型义务」)。公开叙事的准绳是 `docs-site/zh/guides/custom-reports.mdx` 与 `report-components.mdx`,本节记内部决策与实现要点。
 
 ### 命名与形状决策一览
 

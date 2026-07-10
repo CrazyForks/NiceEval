@@ -3,7 +3,7 @@
 // truncated 如实报「还有 n 条没列」。长文本收进 <details>,零 JS 也能展开。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, CaseListData } from "./data.ts";
+import type { AttemptRef, CaseListData } from "../types.ts";
 import { colorClassForKey } from "./colors.ts";
 import { cx, formatDurationMs, formatUSD } from "./format.ts";
 
@@ -32,7 +32,7 @@ export function CaseList({
               {row.costUSD !== undefined && <span className="nre-case-cost">{formatUSD(row.costUSD)}</span>}
               {attemptHref && (
                 <a className="nre-case-link" href={attemptHref(row.ref)}>
-                  查看 attempt
+                  view attempt
                 </a>
               )}
             </div>

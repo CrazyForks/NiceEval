@@ -3,7 +3,7 @@
 // 诚实不靠使用者记得渲染(docs/reports.md「第一档」行为清单)。
 
 import type { ReactElement } from "react";
-import type { OverviewData } from "./data.ts";
+import type { OverviewData } from "../types.ts";
 import { MISSING_TEXT, cx, formatDurationMs, formatPercent, formatUSD } from "./format.ts";
 
 export function RunOverview({
@@ -72,12 +72,12 @@ export function RunOverview({
         ))}
       </p>
 
-      {/* 选择器的警告(残缺快照等)直接渲染在条内,不静默 */}
+      {/* 选集的警告(残缺快照等)直接渲染在条内,不静默;结构化字段供程序判断,这里打 message */}
       {data.warnings.length > 0 && (
         <ul className="nre-warnings">
           {data.warnings.map((w, i) => (
-            <li key={i} className="nre-warning">
-              {w}
+            <li key={i} className="nre-warning" data-kind={w.kind}>
+              {w.message}
             </li>
           ))}
         </ul>

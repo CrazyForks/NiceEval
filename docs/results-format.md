@@ -18,18 +18,18 @@
       diff.json
 ```
 
-`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的工件目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 flags,少了这一段工件会互相覆盖。
+`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的工件目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 params,少了这一段工件会互相覆盖。
 
 这些文件是按需写入的:某类数据为空就不生成对应 JSON 文件。`summary.json` 在 run 结束时写入;attempt 级重数据在每个 eval 完成时增量写入,所以长 run 中途失败时通常仍能留下已经完成的 attempt 工件。
 
 ## 版本与升级设计
 
-`summary.json` 顶层带最小的版本元数据(writer 在 `src/runner/reporters/artifacts.ts`,常量在 `src/types.ts` 的 `RESULTS_FORMAT` / `RESULTS_SCHEMA_VERSION`):
+`summary.json` 顶层带最小的版本元数据(writer 在 `src/results/writer.ts`,`Artifacts()` reporter(`src/runner/reporters/artifacts.ts`)是它的薄壳;常量在 `src/runner/types.ts` 的 `RESULTS_FORMAT` / `RESULTS_SCHEMA_VERSION`):
 
 ```json
 {
   "format": "niceeval.results",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "producer": {
     "name": "niceeval",
     "version": "0.12.0"
@@ -38,6 +38,8 @@
   "results": []
 }
 ```
+
+版本历史:`1` 初版;`2`(2026-07)= `ExperimentRunInfo.flags` 改名 `params`——持久化字段改名是破坏性变更,按下述规则递增,不做旧名读取别名。
 
 设计原则是**不做兼容机制**。没有迁移函数,没有多版本 normalize loader,没有 per-artifact 版本号:整个 run(summary + 全部 attempt 工件)共用顶层这一个 `schemaVersion`。读取器只认与自己相同的版本;版本不同就是不兼容,唯一的处理是提示用写这份报告的 niceeval 版本查看:
 
@@ -63,9 +65,9 @@ npx niceeval@0.3.0 view .niceeval/2026-09-10T08-00-00-000Z
 - **`format === "niceeval.results"` 但 `schemaVersion` 不同**(不论新旧):整个 run 视为不兼容。目录扫描时在列表里留一个占位条目,标出 run 目录和 `producer.version`,并提示:
 
   ```text
-  ⚠ .niceeval/2026-09-10T08-00-00-000Z: written by niceeval 0.3.0 (schemaVersion 2);
-    this CLI reads schemaVersion 1.
-    Run `npx niceeval@0.3.0 view .niceeval/2026-09-10T08-00-00-000Z` to view it.
+  ⚠ .niceeval/2026-09-10T08-00-00-000Z: written by niceeval 0.4.6 (schemaVersion 1);
+    this CLI reads schemaVersion 2.
+    Run `npx niceeval@0.4.6 view .niceeval/2026-09-10T08-00-00-000Z` to view it.
   ```
 
   单文件模式 `niceeval view <run>/summary.json` 输出同样的提示后退出,而不是报「不是 niceeval summary」。
@@ -97,12 +99,13 @@ interface ResultFormatMeta {
 interface RunSummary {
   format?: "niceeval.results";
   schemaVersion?: number;
-  producer?: { name: "niceeval"; version?: string; commit?: string };
+  producer?: { name: string; version?: string; commit?: string };
   name?: LocalizedText;
   agent: string;
   model?: string;
   startedAt: string;
   completedAt: string;
+  snapshots?: Record<string, { startedAt?: string; knownEvalIds?: string[] }>;
   passed: number;
   failed: number;
   skipped: number;
@@ -114,6 +117,8 @@ interface RunSummary {
   outputDir?: string;
 }
 ```
+
+两处顶层字段的语义:`producer.name` 是任意字符串——第三方 harness 经 `createRunWriter` 写结果时如实署名,`"niceeval"` 只是官方 writer 的取值;`snapshots` 是可选的快照级元数据(键 = experimentId):`startedAt` 让同一 run 里的多份快照各自保真开始时刻,`knownEvalIds` 是该实验已知的 eval 并集——残缺检测的分母随数据走(`copySnapshots` 发布时自动补记,writer 侧可声明),可选新增字段,不递增 schemaVersion。
 
 `results[]` 里的每条 `EvalResult` 仍包含判决、断言、用量、成本、错误、fingerprint 和 experiment 元数据,但不会内联大字段:
 

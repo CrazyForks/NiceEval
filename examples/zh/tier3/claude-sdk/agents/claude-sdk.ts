@@ -8,9 +8,9 @@
 // 只剩传输粘合:端点在哪、审批打哪个端点、HITL 停轮怎么判。
 // 无 OTel(CLI 原生遥测只有 metrics+logs,niceeval 不消费),事件全部来自转换器。
 //
-// 这是 Tier 3(侵入改造 + experiment flags):比 ../../tier1/claude-sdk 多一层——应用侧把
+// 这是 Tier 3(侵入改造 + experiment params):比 ../../tier1/claude-sdk 多一层——应用侧把
 // system prompt 提升为请求体可选字段(src/backend/{agent,server}.ts),本文件把 experiment
-// 的 `flags.systemPrompt` 经 ctx.flags 随请求体透传,feature A/B 见 experiments/compare-prompts/。
+// 的 `params.systemPrompt` 经 ctx.params 随请求体透传,feature A/B 见 experiments/compare-prompts/。
 //
 // HITL 没有显式的"等审批"帧——`canUseTool` 把流卡在一个 Promise 上,客户端只能从
 // "gated 工具的 tool_use 到了、之后没动静"推断。Tier 1 的确定性做法:被门控的工具就
@@ -104,8 +104,8 @@ async function send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
     {
       message: input.text,
       sessionId: ctx.session.id,
-      // Tier 3:experiment 的 flags 经 ctx.flags 透传给应用(见 experiments/compare-prompts/)。
-      systemPrompt: ctx.flags.systemPrompt,
+      // Tier 3:experiment 的 params 经 ctx.params 透传给应用(见 experiments/compare-prompts/)。
+      systemPrompt: ctx.params.systemPrompt,
     },
     ctx.signal,
   );

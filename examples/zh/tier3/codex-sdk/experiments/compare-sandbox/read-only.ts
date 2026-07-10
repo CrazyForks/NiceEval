@@ -7,6 +7,6 @@ import agent from "../../agents/codex-sdk.ts";
 export default defineExperiment({
   description: "read-only: 只读沙箱(写盘类 eval 预期失败)",
   agent,
-  flags: { sandboxMode: "read-only" },
+  params: { sandboxMode: "read-only" },
   runs: 1,
 });

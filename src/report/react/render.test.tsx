@@ -54,7 +54,7 @@ describe("RunOverview", () => {
     expect(html).toContain("2 snapshots");
     expect(html).toContain("compare/bub");
     expect(html).toContain("2026-07-01T10:00:00Z");
-    expect(html).toContain("compare/bub 快照缺 3 个 eval 的结果");
+    expect(html).toContain("snapshot covers 9 of 12 evals seen in history");
     expect(html).toContain("nre-warnings");
   });
 });
@@ -69,9 +69,9 @@ describe("MetricTable", () => {
   });
 
   it("列头带 label、unit 与 better 方向", () => {
-    expect(html).toContain("通过率");
+    expect(html).toContain("pass rate");
     expect(html).toContain("(%)");
-    expect(html).toContain("代码行数");
+    expect(html).toContain("code lines");
     expect(html).toContain("↑");
     expect(html).toContain("↓");
   });
@@ -96,7 +96,7 @@ describe("MetricMatrix", () => {
   const html = renderToStaticMarkup(<MetricMatrix data={matrixData} attemptHref={attemptHref} />);
 
   it("caption 标出指标与行列维度", () => {
-    expect(html).toContain("通过率");
+    expect(html).toContain("pass rate");
     expect(html).toContain("eval × agent");
   });
 
@@ -158,8 +158,8 @@ describe("MetricScatter", () => {
 
   it("内联 SVG + 轴标签", () => {
     expect(html).toContain("<svg");
-    expect(html).toContain("成本($)");
-    expect(html).toContain("通过率(%)");
+    expect(html).toContain("cost($)");
+    expect(html).toContain("pass rate(%)");
   });
 
   it("better:lower 的 x 轴反向:便宜($5)在贵($10)右边,好的角落恒在右上", () => {
@@ -239,8 +239,8 @@ describe("CaseList", () => {
   it("逐条失败断言:name、score、detail、evidence", () => {
     expect(html).toContain("roots-correct");
     expect(html).toContain("score 0");
-    expect(html).toContain("期望 x=2,得到 x=3");
-    expect(html).toContain("judge: 求根公式代入时符号写反");
+    expect(html).toContain("expected x=2, got x=3");
+    expect(html).toContain("judge: sign flipped when substituting into the quadratic formula");
   });
 
   it("errored 的 error 摘要", () => {

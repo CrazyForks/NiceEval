@@ -1,20 +1,25 @@
-// 计算函数:快照 → 一份组件数据。跑在 Node 侧,产物是算好的、可序列化的普通 JSON
-// (终值 + 渲染提示,不含公式);前端只做渲染。
+// 计算函数:选集 → 一份组件数据。跑在 Node 侧,产物是算好的、可序列化的普通 JSON
+// (终值 + 渲染提示,不含公式);渲染面(web/text)只做展示。
+//
+// 这些函数不做顶层导出,而是挂在对应组件上(MetricTable.data / Scoreboard.data …,
+// 见 components.tsx):配对打点即发现,泛化名不占顶层导出。
 //
 // 共同约定(docs/reports.md「边界与不变量」):
-// - 聚合前按身份键去重(dedupeAttempts);
+// - 第一参收 Selection | Snapshot[];收 Selection 时 warnings 随行进 OverviewData;
+// - 聚合前按身份键去重(dedupeAttempts;missing-startedAt 不去重、如实保留、不透出警告);
 // - null ≠ 0:缺数据不编数,覆盖率经 samples/total 如实暴露;
 // - core 中立:只认 Metric / Dimension 接口,不出现具体 agent 名的分支。
 
-import type { SnapshotHandle } from "../results/types.ts";
 import type {
   CaseListData,
   DeltaData,
-  Dimension,
+  DimensionInput,
+  LineData,
   MatrixData,
   Metric,
   MetricCell,
   OverviewData,
+  ParamRef,
   ScatterData,
   ScoreboardData,
   TableData,
@@ -22,41 +27,50 @@ import type {
 import {
   applyAggregator,
   assertUniqueMetricNames,
+  collectItems,
   computeCell,
-  dedupeAttempts,
   dimensionKey,
   dimensionName,
   displayValue,
   evalGroupOf,
+  evalIdOf,
   evalPrefixPredicate,
   evaluateMetric,
   experimentIdOf,
   filterItems,
   groupItems,
+  paramAxisValue,
+  resolveInput,
+  snapshotKeyOf,
   toColumn,
   type Item,
+  type SnapshotsInput,
 } from "./aggregate.ts";
 import { attemptCostUSD, examScore } from "./metrics.ts";
-import { formatPlainNumber } from "./format.ts";
+import { formatMetricValue, formatPlainNumber } from "./format.ts";
 
-// ───────────────────────── table ─────────────────────────
+// ───────────────────────── MetricTable.data ─────────────────────────
 
-export interface TableOptions {
-  /** 行维度。 */
-  rows: Dimension;
-  /** 每列一个指标。 */
-  columns: Metric[];
-  /** 构建时排序,方向随 better(higher 降序,「好」的一头在上);缺数据行沉底。 */
+export interface TableDataOptions<M extends readonly Metric[]> {
+  /** 行维度(内置 / 自定义 / param())。 */
+  rows: DimensionInput;
+  /** 每列一个指标;列键 = metric.name 的字面量,拼错编译不过。 */
+  columns: M;
+  /** 构建时排序,方向随 better(higher 降序,「好」的一头在上);缺数据行沉底。两面同口径,预排即终排。 */
   sort?: Metric;
   /** eval id 前缀过滤,同 CLI 位置参数语义。 */
   evals?: string | string[];
 }
 
-export async function table(snapshots: SnapshotHandle[], opts: TableOptions): Promise<TableData> {
-  assertUniqueMetricNames(opts.columns, "table columns");
-  const items = filterItems(dedupeAttempts(snapshots), opts.evals);
+export async function tableData<const M extends readonly Metric[]>(
+  input: SnapshotsInput,
+  opts: TableDataOptions<M>,
+): Promise<TableData<M[number]["name"]>> {
+  assertUniqueMetricNames(opts.columns, "MetricTable.data columns");
+  const { snapshots } = resolveInput(input);
+  const items = filterItems(collectItems(snapshots), opts.evals);
   const groups = groupItems(items, opts.rows);
-  const rows: TableData["rows"] = [];
+  const rows: { key: string; cells: Record<string, MetricCell> }[] = [];
   const sortCells = new Map<string, MetricCell>();
   for (const [key, group] of groups) {
     const cells: Record<string, MetricCell> = {};
@@ -78,19 +92,26 @@ export async function table(snapshots: SnapshotHandle[], opts: TableOptions): Pr
       return better === "lower" ? va - vb : vb - va;
     });
   }
-  return { dimension: dimensionName(opts.rows), columns: opts.columns.map(toColumn), rows };
+  return {
+    dimension: dimensionName(opts.rows),
+    columns: opts.columns.map(toColumn),
+    rows,
+  } as TableData<M[number]["name"]>;
 }
 
-// ───────────────────────── matrix ─────────────────────────
+// ───────────────────────── MetricMatrix.data(= MetricBars.data)─────────────────────────
 
-export interface MatrixOptions {
-  rows: Dimension;
-  columns: Dimension;
+export interface MatrixDataOptions {
+  rows: DimensionInput;
+  columns: DimensionInput;
   cell: Metric;
+  /** eval id 前缀过滤,同 CLI 位置参数语义。 */
+  evals?: string | string[];
 }
 
-export async function matrix(snapshots: SnapshotHandle[], opts: MatrixOptions): Promise<MatrixData> {
-  const items = dedupeAttempts(snapshots);
+export async function matrixData(input: SnapshotsInput, opts: MatrixDataOptions): Promise<MatrixData> {
+  const { snapshots } = resolveInput(input);
+  const items = filterItems(collectItems(snapshots), opts.evals);
   // 稀疏分组:只有真有 attempt 的 (row, column) 组合成格;没有样本的格子不出现
   const groups = new Map<string, { row: string; column: string; items: Item[] }>();
   for (const item of items) {
@@ -113,13 +134,13 @@ export async function matrix(snapshots: SnapshotHandle[], opts: MatrixOptions): 
   };
 }
 
-// ───────────────────────── scoreboard ─────────────────────────
+// ───────────────────────── Scoreboard.data ─────────────────────────
 
-export interface ScoreboardOptions {
-  /** 给谁打分(被打分的维度)。 */
-  of: Dimension;
+export interface ScoreboardDataOptions {
+  /** 给谁打分(被打分的维度);维度槽与 MetricTable.data 统一叫 rows。 */
+  rows: DimensionInput;
   /** 按什么分科;默认 "evalGroup"(考试里的「科目」)。 */
-  subjects?: Dimension;
+  subjects?: DimensionInput;
   /** eval id 前缀 → 每题分值;未列默认 1;前缀重叠时最长的生效。 */
   weights?: Record<string, number>;
   /** 折算满分;默认 100。 */
@@ -136,29 +157,31 @@ export interface ScoreboardOptions {
  *   总分   = fullMarks × Σ(题得分 × 题分值) / Σ(题分值)   Σ 遍历选中范围内全部题
  * 没跑到的题挣 0 分但留在分母里,missing 如实报 —— 这是显式的考试契约,不是「null ≠ 0」的例外。
  */
-export async function scoreboard(
-  snapshots: SnapshotHandle[],
-  opts: ScoreboardOptions,
+export async function scoreboardData(
+  input: SnapshotsInput,
+  opts: ScoreboardDataOptions,
 ): Promise<ScoreboardData> {
+  const { snapshots } = resolveInput(input);
   const fullMarks = opts.fullMarks ?? 100;
   const scoreMetric = opts.score ?? examScore;
-  const subjectsDim: Dimension = opts.subjects ?? "evalGroup";
+  const subjectsDim: DimensionInput = opts.subjects ?? "evalGroup";
   const match = evalPrefixPredicate(opts.evals);
-  const items = filterItems(dedupeAttempts(snapshots), opts.evals);
+  const items = filterItems(collectItems(snapshots), opts.evals);
 
   // 题集(固定分母):选中范围内、任一快照声明覆盖或实际出现过的全部题
   const universe = new Set<string>();
   for (const snapshot of snapshots) {
-    for (const id of snapshot.evalIds) if (match(id)) universe.add(id);
+    for (const e of snapshot.evals) if (match(e.id)) universe.add(e.id);
+    for (const id of snapshot.knownEvalIds ?? []) if (match(id)) universe.add(id);
   }
-  for (const item of items) universe.add(item.attempt.result.id);
+  for (const item of items) universe.add(evalIdOf(item));
   const sortedUniverse = [...universe].sort();
 
   // 每题的科目:先从任一 attempt 解析(自定义 subjects 维度也能算);
   // 全程无 attempt 的题按内置规则兜底,自定义维度无从计算时如实标 "(unknown)"
   const subjectByEval = new Map<string, string>();
   for (const item of items) {
-    const id = item.attempt.result.id;
+    const id = evalIdOf(item);
     if (!subjectByEval.has(id)) subjectByEval.set(id, dimensionKey(subjectsDim, item));
   }
   const subjectOf = (id: string): string => {
@@ -173,20 +196,18 @@ export async function scoreboard(
   const weights = Object.entries(opts.weights ?? {})
     .map(([prefix, weight]) => ({ prefix, weight }))
     .sort((a, b) => b.prefix.length - a.prefix.length);
-  const weightOf = (id: string): number =>
-    weights.find((w) => id.startsWith(w.prefix))?.weight ?? 1;
+  const weightOf = (id: string): number => weights.find((w) => id.startsWith(w.prefix))?.weight ?? 1;
 
-  const groups = groupItems(items, opts.of);
+  const groups = groupItems(items, opts.rows);
   const rows: ScoreboardData["rows"] = [];
   for (const [key, group] of groups) {
-    // 题得分:perEval 折叠(同 eval × 快照 内);同题出现在多个快照时取快照级值的均值。
-    // TODO(results-lib):多快照同题的口径待与选择器对齐;常规姿势(latestPerExperiment)每题只有一个快照。
-    const perSnapshot = new Map<string, Map<string, number[]>>(); // evalId → snapshot 身份 → 原始值
+    // 题得分:perEval 折叠(同 eval × 快照 内);同题出现在多个快照时取快照级值的均值
+    const perSnapshot = new Map<string, Map<string, number[]>>(); // evalId → 快照键 → 原始值
     for (const item of group) {
       const value = await evaluateMetric(scoreMetric, item.attempt);
       if (value === null) continue; // 测不了的 attempt 不进题得分;整题无样本 → missing
-      const id = item.attempt.result.id;
-      const snapKey = `${item.snapshot.experimentId} @ ${item.snapshot.startedAt}`;
+      const id = evalIdOf(item);
+      const snapKey = snapshotKeyOf(item.snapshot);
       let bySnap = perSnapshot.get(id);
       if (!bySnap) perSnapshot.set(id, (bySnap = new Map()));
       const bucket = bySnap.get(snapKey);
@@ -208,7 +229,9 @@ export async function scoreboard(
     for (const id of sortedUniverse) {
       const subjectKey = subjectOf(id);
       let subject = subjects.get(subjectKey);
-      if (!subject) subjects.set(subjectKey, (subject = { key: subjectKey, earned: 0, possible: 0, evals: 0, missing: 0 }));
+      if (!subject) {
+        subjects.set(subjectKey, (subject = { key: subjectKey, earned: 0, possible: 0, evals: 0, missing: 0 }));
+      }
       const weight = weightOf(id);
       const got = scoreByEval.get(id);
       subject.earned += (got ?? 0) * weight;
@@ -226,22 +249,23 @@ export async function scoreboard(
     rows.push({ key, total: { value, display: formatPlainNumber(value) }, subjects: [...subjects.values()] });
   }
 
-  return { of: dimensionName(opts.of), fullMarks, weights, rows };
+  return { dimension: dimensionName(opts.rows), fullMarks, weights, rows };
 }
 
-// ───────────────────────── scatter ─────────────────────────
+// ───────────────────────── MetricScatter.data ─────────────────────────
 
-export interface ScatterOptions {
+export interface ScatterDataOptions {
   /** 点维度:每个点 = 该组 attempt 的聚合。 */
-  points: Dimension;
+  points: DimensionInput;
   /** 可选:同系列的点连成线;省略 = 纯散点。 */
-  series?: Dimension;
+  series?: DimensionInput;
   x: Metric;
   y: Metric;
 }
 
-export async function scatter(snapshots: SnapshotHandle[], opts: ScatterOptions): Promise<ScatterData> {
-  const items = dedupeAttempts(snapshots);
+export async function scatterData(input: SnapshotsInput, opts: ScatterDataOptions): Promise<ScatterData> {
+  const { snapshots } = resolveInput(input);
+  const items = collectItems(snapshots);
   const groups = groupItems(items, opts.points);
   const rows: ScatterData["rows"] = [];
   for (const [key, group] of groups) {
@@ -262,18 +286,50 @@ export async function scatter(snapshots: SnapshotHandle[], opts: ScatterOptions)
   };
 }
 
-// ───────────────────────── overview ─────────────────────────
+// ───────────────────────── MetricLine.data ─────────────────────────
 
-export interface OverviewOptions {
-  /** 选择器(latestPerExperiment 等)的警告,原样透传给 RunOverview 渲染。 */
-  warnings?: string[];
+export interface LineDataOptions {
+  /** x 轴:experiment 声明的 param(数值),不解析 experiment 命名。 */
+  x: ParamRef;
+  y: Metric;
+  /** 可选:每个系列一条线(param 或普通维度);省略 = 单系列。 */
+  series?: DimensionInput;
 }
 
-export async function overview(
-  snapshots: SnapshotHandle[],
-  opts?: OverviewOptions,
-): Promise<OverviewData> {
-  const items = dedupeAttempts(snapshots);
+/** 每个点 = 一个 experiment 的聚合;同系列的点按 x 排序连线(排序在组件面,数据保持分组序)。 */
+export async function lineData(input: SnapshotsInput, opts: LineDataOptions): Promise<LineData> {
+  const { snapshots } = resolveInput(input);
+  const items = collectItems(snapshots);
+  const groups = groupItems(items, "experiment");
+  const rows: LineData["rows"] = [];
+  for (const [key, group] of groups) {
+    const x = paramAxisValue(opts.x, group[0]); // param 是 experiment 级声明,组内一致
+    rows.push({
+      key,
+      series: opts.series ? dimensionKey(opts.series, group[0]) : undefined,
+      x,
+      xDisplay: x === null ? "" : formatMetricValue(x, opts.x.unit),
+      y: await computeCell(opts.y, group),
+    });
+  }
+  return {
+    x: {
+      key: opts.x.name,
+      label: typeof opts.x.label === "string" ? opts.x.label : opts.x.name,
+      unit: opts.x.unit,
+    },
+    series: opts.series ? dimensionName(opts.series) : undefined,
+    y: toColumn(opts.y),
+    rows,
+  };
+}
+
+// ───────────────────────── RunOverview.data ─────────────────────────
+
+/** 选集的 warnings 随行进 OverviewData,RunOverview 直接渲染 —— 诚实不靠使用者记得接线。 */
+export async function overviewData(input: SnapshotsInput): Promise<OverviewData> {
+  const { snapshots, warnings } = resolveInput(input);
+  const items = collectItems(snapshots);
   const evalIds = new Set<string>();
   let passed = 0;
   let failed = 0;
@@ -281,9 +337,9 @@ export async function overview(
   let skipped = 0;
   let durationMs = 0;
   let costUSD: number | null = null; // 任一 attempt 报了成本才有;全缺 = null,不编 0
-  for (const { attempt } of items) {
-    const result = attempt.result;
-    evalIds.add(result.id);
+  for (const item of items) {
+    const result = item.attempt.result;
+    evalIds.add(evalIdOf(item));
     switch (result.outcome) {
       case "passed":
         passed += 1;
@@ -310,34 +366,41 @@ export async function overview(
       startedAt: s.startedAt,
     })),
     totals: { evals: evalIds.size, attempts: items.length, passed, failed, errored, skipped, costUSD, durationMs },
-    warnings: [...(opts?.warnings ?? [])],
+    warnings: [...warnings],
   };
 }
 
-// ───────────────────────── delta ─────────────────────────
+// ───────────────────────── DeltaTable.data ─────────────────────────
 
 export interface DeltaPair {
-  /** 基线侧 experimentId。 */
+  /** 基线侧:experiment id,或快照键 "<experimentId> @ <startedAt>"(时间轴对比用手挑的快照数组)。 */
   a: string;
-  /** 对比侧 experimentId。 */
+  /** 对比侧,同上。 */
   b: string;
   label?: string;
 }
 
-export interface DeltaOptions {
+export interface DeltaDataOptions<M extends readonly Metric[]> {
   /** 每行一对:B 相对 A。 */
   pairs: DeltaPair[];
-  metrics: Metric[];
+  metrics: M;
 }
 
-export async function delta(snapshots: SnapshotHandle[], opts: DeltaOptions): Promise<DeltaData> {
-  assertUniqueMetricNames(opts.metrics, "delta metrics");
-  const items = dedupeAttempts(snapshots);
+export async function deltaData<const M extends readonly Metric[]>(
+  input: SnapshotsInput,
+  opts: DeltaDataOptions<M>,
+): Promise<DeltaData<M[number]["name"]>> {
+  assertUniqueMetricNames(opts.metrics, "DeltaTable.data metrics");
+  const { snapshots } = resolveInput(input);
+  const items = collectItems(snapshots);
+  // 一侧的键既匹配 experiment id 也匹配快照键 —— 与 "snapshot" 维度同一格式,不另造对比语义
+  const sideItems = (key: string) =>
+    items.filter((item) => experimentIdOf(item) === key || snapshotKeyOf(item.snapshot) === key);
   const rows: DeltaData["rows"] = [];
   for (const pair of opts.pairs) {
-    const aItems = items.filter((item) => experimentIdOf(item) === pair.a);
-    const bItems = items.filter((item) => experimentIdOf(item) === pair.b);
-    const cells: DeltaData["rows"][number]["cells"] = {};
+    const aItems = sideItems(pair.a);
+    const bItems = sideItems(pair.b);
+    const cells: Record<string, DeltaData["rows"][number]["cells"][string]> = {};
     for (const metric of opts.metrics) {
       const a = await computeCell(metric, aItems);
       const b = await computeCell(metric, bItems);
@@ -351,18 +414,19 @@ export async function delta(snapshots: SnapshotHandle[], opts: DeltaOptions): Pr
       cells,
     });
   }
-  return { columns: opts.metrics.map(toColumn), rows };
+  return { columns: opts.metrics.map(toColumn), rows } as DeltaData<M[number]["name"]>;
 }
 
 function deltaDisplay(metric: Metric, delta: number | null): string {
   if (delta === null) return "—"; // 任一侧缺数据:Δ 显示为缺,不硬算
+  if (delta === 0) return "±0";
   const text = displayValue(metric, delta); // 负号由格式化自带
   return delta > 0 ? `+${text}` : text;
 }
 
-// ───────────────────────── cases ─────────────────────────
+// ───────────────────────── CaseList.data ─────────────────────────
 
-export interface CasesOptions {
+export interface CaseListDataOptions {
   /** 要列出的判决;默认 failed + errored。 */
   outcomes?: ("failed" | "errored")[];
   /** 超出如实报 truncated,不静默截断。 */
@@ -371,10 +435,11 @@ export interface CasesOptions {
   redact?: (text: string) => string;
 }
 
-export async function cases(snapshots: SnapshotHandle[], opts?: CasesOptions): Promise<CaseListData> {
+export async function caseListData(input: SnapshotsInput, opts?: CaseListDataOptions): Promise<CaseListData> {
+  const { snapshots } = resolveInput(input);
   const wanted = new Set<"failed" | "errored">(opts?.outcomes ?? ["failed", "errored"]);
   const redact = opts?.redact ?? ((text: string) => text);
-  const selected = dedupeAttempts(snapshots).filter((item) => {
+  const selected = collectItems(snapshots).filter((item) => {
     const outcome = item.attempt.result.outcome;
     return (outcome === "failed" || outcome === "errored") && wanted.has(outcome);
   });
@@ -383,7 +448,7 @@ export async function cases(snapshots: SnapshotHandle[], opts?: CasesOptions): P
     const result = item.attempt.result;
     const cost = attemptCostUSD(result);
     return {
-      eval: result.id,
+      eval: evalIdOf(item),
       experimentId: experimentIdOf(item),
       agent: result.agent,
       outcome: result.outcome as "failed" | "errored",

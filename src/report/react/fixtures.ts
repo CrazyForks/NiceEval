@@ -1,22 +1,23 @@
-// 手工 fixture:模拟计算层(niceeval/report 的 table()/matrix()/… )的产物。
-// 仅供 render.test.tsx 与 scripts/report-react-demo.tsx 使用,不从入口导出。
+// 手工 fixture:模拟计算函数(MetricTable.data / MetricMatrix.data / …)的产物。
+// 仅供渲染测试与 scripts/report-react-demo.tsx 使用,不从入口导出。
 // 数字刻意覆盖诚实细节:coverage 角标(samples<total)、全 null 格子、
 // 稀疏矩阵、缺数据的散点、delta 的 null 不硬算、truncated 计数。
 
 import type {
   CaseListData,
   DeltaData,
+  LineData,
   MatrixData,
   MetricColumn,
   OverviewData,
   ScatterData,
   ScoreboardData,
   TableData,
-} from "./data.ts";
+} from "../types.ts";
 
-export const passRateColumn: MetricColumn = { key: "pass-rate", label: "通过率", unit: "%", better: "higher" };
-export const codeLinesColumn: MetricColumn = { key: "code-lines", label: "代码行数", unit: "lines", better: "lower" };
-export const costColumn: MetricColumn = { key: "cost", label: "成本", unit: "$", better: "lower" };
+export const passRateColumn: MetricColumn = { key: "pass-rate", label: "pass rate", unit: "%", better: "higher" };
+export const codeLinesColumn: MetricColumn = { key: "code-lines", label: "code lines", unit: "lines", better: "lower" };
+export const costColumn: MetricColumn = { key: "cost", label: "cost", unit: "$", better: "lower" };
 
 export const overviewData: OverviewData = {
   snapshots: [
@@ -33,7 +34,15 @@ export const overviewData: OverviewData = {
     costUSD: null, // 全部 attempt 都没报成本:null,组件必须显示缺数据而不是 $0
     durationMs: 261_000,
   },
-  warnings: ["compare/bub 快照缺 3 个 eval 的结果"],
+  warnings: [
+    {
+      kind: "partial-coverage",
+      experimentId: "compare/bub",
+      covered: 9,
+      total: 12,
+      message: "snapshot covers 9 of 12 evals seen in history; re-run `niceeval exp compare/bub` for a full snapshot",
+    },
+  ],
 };
 
 export const overviewWithCost: OverviewData = {
@@ -42,7 +51,7 @@ export const overviewWithCost: OverviewData = {
   warnings: [],
 };
 
-export const tableData: TableData = {
+export const tableData: TableData<"pass-rate" | "code-lines"> = {
   dimension: "agent",
   // 行顺序故意不按 passRate 排:组件必须按传入顺序渲染,不重排
   columns: [passRateColumn, codeLinesColumn],
@@ -50,9 +59,9 @@ export const tableData: TableData = {
     {
       key: "codex",
       cells: {
-        "pass-rate": { value: 0.5, display: "50%", samples: 6, total: 6 },
+        "pass-rate": { value: 0.5, display: "50%", samples: 6, total: 6, refs: [] },
         // 全 null:一个有效样本都没有 → 缺数据文案,绝不画 0
-        "code-lines": { value: null, display: "", samples: 0, total: 6 },
+        "code-lines": { value: null, display: "—", samples: 0, total: 6, refs: [] },
       },
     },
     {
@@ -66,7 +75,7 @@ export const tableData: TableData = {
           refs: [{ run: "run-a", result: 0 }],
         },
         // samples < total:有 attempt 测不了 → 覆盖率角标 5/6
-        "code-lines": { value: 120, display: "120 lines", samples: 5, total: 6 },
+        "code-lines": { value: 120, display: "120 lines", samples: 5, total: 6, refs: [] },
       },
     },
   ],
@@ -81,23 +90,32 @@ export const matrixData: MatrixData = {
     {
       row: "algebra/quadratic",
       column: "bub",
-      cell: { value: 1, display: "100%", samples: 2, total: 2, refs: [{ run: "run-b", result: 3 }, { run: "run-b", result: 7 }] },
+      cell: {
+        value: 1,
+        display: "100%",
+        samples: 2,
+        total: 2,
+        refs: [
+          { run: "run-b", result: 3 },
+          { run: "run-b", result: 7 },
+        ],
+      },
     },
     {
       row: "algebra/quadratic",
       column: "codex",
-      cell: { value: 0, display: "0%", samples: 3, total: 3 },
+      cell: { value: 0, display: "0%", samples: 3, total: 3, refs: [] },
     },
     {
       row: "geometry/angles",
       column: "bub",
-      cell: { value: 0.5, display: "50%", samples: 2, total: 2 },
+      cell: { value: 0.5, display: "50%", samples: 2, total: 2, refs: [] },
     },
   ],
 };
 
 export const scoreboardData: ScoreboardData = {
-  of: "agent",
+  dimension: "agent",
   fullMarks: 100,
   weights: [{ prefix: "algebra/", weight: 2 }],
   rows: [
@@ -130,32 +148,76 @@ export const scatterData: ScatterData = {
     {
       key: "compare/bub-low",
       series: "bub",
-      x: { value: 5, display: "$5.00", samples: 6, total: 6 },
-      y: { value: 0.5, display: "50%", samples: 6, total: 6 },
+      x: { value: 5, display: "$5.00", samples: 6, total: 6, refs: [] },
+      y: { value: 0.5, display: "50%", samples: 6, total: 6, refs: [] },
     },
     {
       key: "compare/bub-high",
       series: "bub",
-      x: { value: 10, display: "$10.00", samples: 6, total: 6 },
-      y: { value: 0.9, display: "90%", samples: 6, total: 6 },
+      x: { value: 10, display: "$10.00", samples: 6, total: 6, refs: [] },
+      y: { value: 0.9, display: "90%", samples: 6, total: 6, refs: [] },
     },
     {
       key: "compare/codex-mid",
       series: "codex",
-      x: { value: 7, display: "$7.00", samples: 6, total: 6 },
-      y: { value: 0.6, display: "60%", samples: 6, total: 6 },
+      x: { value: 7, display: "$7.00", samples: 6, total: 6, refs: [] },
+      y: { value: 0.6, display: "60%", samples: 6, total: 6, refs: [] },
     },
     {
       // x 缺数据:这个点不画,注脚报 1 个点缺数据
       key: "compare/codex-broken",
       series: "codex",
-      x: { value: null, display: "", samples: 0, total: 6 },
-      y: { value: 0.7, display: "70%", samples: 6, total: 6 },
+      x: { value: null, display: "—", samples: 0, total: 6, refs: [] },
+      y: { value: 0.7, display: "70%", samples: 6, total: 6, refs: [] },
     },
   ],
 };
 
-export const deltaData: DeltaData = {
+export const lineData: LineData = {
+  x: { key: "latencyMs", label: "Simulated latency", unit: "ms" },
+  series: "agents",
+  y: passRateColumn,
+  rows: [
+    {
+      key: "ultra/agents-1-lat-100",
+      series: "1 agents",
+      x: 100,
+      xDisplay: "100ms",
+      y: { value: 0.4, display: "40%", samples: 6, total: 6, refs: [] },
+    },
+    {
+      key: "ultra/agents-1-lat-300",
+      series: "1 agents",
+      x: 300,
+      xDisplay: "300ms",
+      y: { value: 0.3, display: "30%", samples: 6, total: 6, refs: [] },
+    },
+    {
+      key: "ultra/agents-16-lat-100",
+      series: "16 agents",
+      x: 100,
+      xDisplay: "100ms",
+      y: { value: 0.8, display: "80%", samples: 6, total: 6, refs: [] },
+    },
+    {
+      key: "ultra/agents-16-lat-300",
+      series: "16 agents",
+      x: 300,
+      xDisplay: "300ms",
+      y: { value: 0.7, display: "70%", samples: 6, total: 6, refs: [] },
+    },
+    {
+      // 未声明 param 的 experiment:作轴不画点,注脚报数
+      key: "ultra/legacy",
+      series: "1 agents",
+      x: null,
+      xDisplay: "",
+      y: { value: 0.5, display: "50%", samples: 6, total: 6, refs: [] },
+    },
+  ],
+};
+
+export const deltaData: DeltaData<"pass-rate" | "cost"> = {
   columns: [passRateColumn, costColumn],
   rows: [
     {
@@ -165,15 +227,15 @@ export const deltaData: DeltaData = {
       cells: {
         // 通过率 +12pp:better higher → 好(绿)
         "pass-rate": {
-          a: { value: 0.5, display: "50%", samples: 6, total: 6 },
-          b: { value: 0.62, display: "62%", samples: 6, total: 6 },
+          a: { value: 0.5, display: "50%", samples: 6, total: 6, refs: [] },
+          b: { value: 0.62, display: "62%", samples: 6, total: 6, refs: [] },
           delta: 0.12,
           display: "+12pp",
         },
         // 成本 +$0.15:better lower → 坏(红)
         cost: {
-          a: { value: 0.2, display: "$0.20", samples: 6, total: 6 },
-          b: { value: 0.35, display: "$0.35", samples: 6, total: 6 },
+          a: { value: 0.2, display: "$0.20", samples: 6, total: 6, refs: [] },
+          b: { value: 0.35, display: "$0.35", samples: 6, total: 6, refs: [] },
           delta: 0.15,
           display: "+$0.15",
         },
@@ -185,17 +247,17 @@ export const deltaData: DeltaData = {
       b: { experimentId: "compare/codex--agents-md" },
       cells: {
         "pass-rate": {
-          a: { value: 0.4, display: "40%", samples: 6, total: 6 },
-          b: { value: 0.4, display: "40%", samples: 6, total: 6 },
+          a: { value: 0.4, display: "40%", samples: 6, total: 6, refs: [] },
+          b: { value: 0.4, display: "40%", samples: 6, total: 6, refs: [] },
           delta: 0,
-          display: "±0pp",
+          display: "±0",
         },
         // A 侧缺数据 → delta null:显示缺,不硬算
         cost: {
-          a: { value: null, display: "", samples: 0, total: 6 },
-          b: { value: 0.3, display: "$0.30", samples: 6, total: 6 },
+          a: { value: null, display: "—", samples: 0, total: 6, refs: [] },
+          b: { value: 0.3, display: "$0.30", samples: 6, total: 6, refs: [] },
           delta: null,
-          display: "",
+          display: "—",
         },
       },
     },
@@ -213,8 +275,8 @@ export const caseListData: CaseListData = {
         {
           name: "roots-correct",
           score: 0,
-          detail: "期望 x=2,得到 x=3",
-          evidence: "judge: 求根公式代入时符号写反",
+          detail: "expected x=2, got x=3",
+          evidence: "judge: sign flipped when substituting into the quadratic formula",
         },
       ],
       durationMs: 32_000,

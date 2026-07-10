@@ -4,7 +4,7 @@
 // 底部注脚如实报「n 个点缺数据」;hover 信息退化为 SVG <title>,不 hydrate 也在。
 
 import type { ReactElement } from "react";
-import type { MetricColumn, ScatterData } from "./data.ts";
+import type { MetricColumn, ScatterData } from "../types.ts";
 import { colorHexForKey } from "./colors.ts";
 import { MISSING_TEXT, cx } from "./format.ts";
 

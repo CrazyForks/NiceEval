@@ -138,8 +138,6 @@ codex   80%         355 lines    $0.51
 
 ## 变量来自配置，不来自命名
 
-一句话路标：本页的 `params` 与运行侧指南（接入 agent、写 experiment、写 send）里的 `flags` 是**同一能力**——`flags` 正在改名收敛为 `params`，以本页为准绳；运行侧几篇如实描述当前已发布的 API，将随实现同批更新。
-
 画「并行 agent 数 × 模拟延迟 × 得分」这类 scaling 趋势时，图上的变量不该编码进 experiment id（`ultra-16agents-300ms`），再在报告里解析字符串抠出来——那是约定不是配置，改个命名整张图就散。变量的家是 experiment 文件的 `params`：一文件一个档位，把变量声明成数据：
 
 ```ts

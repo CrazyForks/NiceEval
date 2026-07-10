@@ -333,7 +333,7 @@ async function main(): Promise<void> {
         agent: exp.agent,
         model: exp.model,
         reasoningEffort: exp.reasoningEffort,
-        flags: exp.flags ?? {},
+        params: exp.params ?? {},
         runs: flags.runs ?? envNumber("NICEEVAL_RUNS") ?? exp.runs ?? 1,
         earlyExit: flags.earlyExit ?? exp.earlyExit ?? true,
         sandbox: exp.sandbox ?? config.sandbox,
@@ -349,7 +349,7 @@ async function main(): Promise<void> {
     }
   } else {
     // 裸 run / `niceeval <eval>` 不再执行。运行配置必须来自 experiments/,
-    // 这样 agent/model/flags/runs/budget 与结果聚合都有可签入的身份。
+    // 这样 agent/model/params/runs/budget 与结果聚合都有可签入的身份。
     const experiments = await discoverExperiments(cwd);
     const asExp = experiments.filter((e) =>
       positionals.some((p) => e.group === p || e.id === p || e.id.startsWith(p + "/")),

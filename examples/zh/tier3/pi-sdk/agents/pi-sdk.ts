@@ -8,9 +8,9 @@
 // 粘合:端点在哪、三种传输帧怎么处理、审批打哪个端点——不再手写循环和模块级 Map。
 // 无 OTel(pi-agent-core 没有官方集成),事件全部来自转换器。
 //
-// 这是 Tier 3(侵入改造 + experiment flags):比 ../../tier1/pi-sdk 多一层——应用侧把
+// 这是 Tier 3(侵入改造 + experiment params):比 ../../tier1/pi-sdk 多一层——应用侧把
 // system prompt 提升为请求体可选字段(src/backend/{agent,server}.ts),本文件把 experiment
-// 的 `flags.systemPrompt` 经 ctx.flags 随请求体透传,feature A/B 见 experiments/compare-prompts/。
+// 的 `params.systemPrompt` 经 ctx.params 随请求体透传,feature A/B 见 experiments/compare-prompts/。
 //
 // HITL:calculate 工具经服务端 beforeToolCall 挂审批。approval_request 帧到达时,流并不关闭——
 // 服务端把执行卡在一个 Promise 上等 POST /api/chat/approve。所以 `driveFrameStream` 在这一帧
@@ -91,8 +91,8 @@ async function send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
     {
       message: input.text,
       sessionId: ctx.session.id,
-      // Tier 3:experiment 的 flags 经 ctx.flags 透传给应用(见 experiments/compare-prompts/)。
-      systemPrompt: ctx.flags.systemPrompt,
+      // Tier 3:experiment 的 params 经 ctx.params 透传给应用(见 experiments/compare-prompts/)。
+      systemPrompt: ctx.params.systemPrompt,
     },
     ctx.signal,
   );

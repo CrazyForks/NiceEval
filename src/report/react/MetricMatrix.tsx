@@ -5,7 +5,7 @@
 // 是格子里的普通 <a>,不 hydrate 也能点。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, MatrixData } from "./data.ts";
+import type { AttemptRef, MatrixData } from "../types.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";

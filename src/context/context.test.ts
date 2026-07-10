@@ -57,7 +57,7 @@ function makeContext(agent: Agent, sandbox = fakeSandbox(), evalBaseDir?: string
   return createEvalContext({
     agent,
     sandbox,
-    flags: {},
+    params: {},
     signal: new AbortController().signal,
     log: () => {},
     judge: undefined,

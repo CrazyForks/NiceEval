@@ -3,7 +3,7 @@
 // weights 是「实际生效的权重表」,渲染出来让成绩单可审计(docs/reports.md scoreboard 公式一节)。
 
 import type { ReactElement } from "react";
-import type { ScoreboardData } from "./data.ts";
+import type { ScoreboardData } from "../types.ts";
 import { colorClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";
 
@@ -28,7 +28,7 @@ export function Scoreboard({
         <thead>
           <tr>
             <th scope="col" className="nre-dimension">
-              {data.of}
+              {data.dimension}
             </th>
             <th scope="col" className="nre-total-col">
               Total<span className="nre-full-marks">/ {data.fullMarks}</span>
@@ -72,7 +72,7 @@ export function Scoreboard({
       </table>
       {/* 实际生效的权重表:成绩单可审计 */}
       <p className="nre-weights">
-        权重:
+        weights:{" "}
         {data.weights.length === 0
           ? "all evals ×1"
           : data.weights.map((w) => (

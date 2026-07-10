@@ -1,6 +1,6 @@
 // docs/reports.md 场景三(零框架静态导出)的最小演示:
 // 读 → 算 → renderToStaticMarkup,一次成型,零前端框架、零 hydration。
-// 计算层未实现,先用 src/report/react/fixtures.ts 顶替 table()/matrix()/… 的产物。
+// 用 src/report/react/fixtures.ts 顶替各组件 .data 计算函数的产物,专看渲染面。
 //
 //   pnpm exec tsx scripts/report-react-demo.tsx [输出路径.html]
 //
@@ -18,6 +18,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   CaseList,
   DeltaTable,
+  MetricBars,
+  MetricLine,
   MetricMatrix,
   MetricScatter,
   MetricTable,
@@ -27,6 +29,7 @@ import {
 import {
   caseListData,
   deltaData,
+  lineData,
   matrixData,
   overviewData,
   scatterData,
@@ -39,12 +42,16 @@ const attemptHref = (ref: { run: string; result: number }) => `view/#/attempt/${
 
 const page = renderToStaticMarkup(
   <main style={{ maxWidth: "960px", margin: "0 auto", padding: "0 1rem" }}>
-    <h1>niceeval/report/react 七组件静态演示</h1>
+    <h1>niceeval/report/react 官方组件静态演示</h1>
     <RunOverview data={overviewData} />
     <h2>MetricTable</h2>
     <MetricTable data={tableData} attemptHref={attemptHref} />
     <h2>MetricMatrix</h2>
     <MetricMatrix data={matrixData} attemptHref={attemptHref} />
+    <h2>MetricBars</h2>
+    <MetricBars data={matrixData} />
+    <h2>MetricLine</h2>
+    <MetricLine data={lineData} />
     <h2>Scoreboard</h2>
     <Scoreboard data={scoreboardData} />
     <h2>MetricScatter</h2>

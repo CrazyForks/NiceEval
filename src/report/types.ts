@@ -1,9 +1,10 @@
-// niceeval/report 的公开类型:指标(Metric)、维度(Dimension)与计算函数产物
-// (即 niceeval/report/react 组件的 props)。数据契约照抄 docs/reports.md
-// 「计算函数与数据契约」——这些不是持久化格式,没有 format / schemaVersion 信封;
-// 兼容性跟随 npm 版本。
+// niceeval/report 的公开类型:指标(Metric)、维度(Dimension / param())与计算函数
+// 产物(即组件的 data props)。数据契约照 docs/reports.md「计算函数与数据契约」;
+// 这些不是持久化格式,没有 format / schemaVersion 信封,兼容性跟随 npm 版本。
 
-import type { AttemptHandle } from "../results/types.ts";
+import type { AttemptHandle, AttemptRef, SelectionWarning } from "../results/index.ts";
+
+export type { AttemptRef, SelectionWarning };
 
 // ───────────────────────── 指标与聚合 ─────────────────────────
 
@@ -24,11 +25,12 @@ export interface MetricAggregate {
 /**
  * 指标:纯函数,吃一个 AttemptHandle 吐一个值(null = 此 attempt 测不了这个指标,
  * 不进聚合;0 = 测了结果是零,照常进),外加名字、两级聚合方式和渲染提示。
- * 内置指标与自定义指标是同一个类型,没有特权。
+ * 内置指标与自定义指标是同一个类型,没有特权。name 走字面量泛型:列键锚在指标
+ * 对象上(`row.cells[passRate.name]`),拼错列名编译不过。
  */
-export interface Metric {
+export interface Metric<Name extends string = string> {
   /** MetricColumn.key 与列头的来源;同一次计算里重名是错误。 */
-  name: string;
+  name: Name;
   /** 列头;省略时用 name。 */
   label?: string;
   description?: string;
@@ -47,8 +49,10 @@ export interface Metric {
   display?: (value: number) => string;
 }
 
+// ───────────────────────── 维度 ─────────────────────────
+
 /**
- * 维度:attempt 分到哪一组。内置维度就是 EvalResult 已有的身份字段;自定义维度是一个函数。
+ * 维度:attempt 分到哪一组。内置维度就是结果已有的身份字段;自定义维度是一个函数。
  * - "evalGroup" = eval id 的第一段:"algebra/quadratic" → "algebra"(考试里的「科目」)
  * - "snapshot"  = "<experimentId> @ <startedAt>",把两次快照并排成行,与 view 的 Compare 同口径
  */
@@ -61,7 +65,23 @@ export type Dimension =
   | "snapshot"
   | { name: string; of: (attempt: AttemptHandle) => string };
 
-// ───────────────────────── 计算产物(组件 props)─────────────────────────
+/**
+ * param() 的产物:把 experiment 声明的 params 当维度(series / rows / columns / points
+ * 槽,按声明值分组)或轴(MetricLine 的 x 槽,要求数值并驱动刻度)。
+ * 未声明该 param 的 experiment 不猜:分组如实归「(unset)」,作轴不画点、注脚报数。
+ */
+export interface ParamRef {
+  readonly kind: "param";
+  readonly name: string;
+  /** 组标签 / 轴标签;函数形态把声明值折成组名(如 `(v) => \`${v} agents\``)。 */
+  readonly label?: string | ((value: string | number | boolean) => string);
+  readonly unit?: string;
+}
+
+/** 维度槽的输入:内置/自定义维度,或 experiment 声明的 param。 */
+export type DimensionInput = Dimension | ParamRef;
+
+// ───────────────────────── 计算产物(组件 data props)─────────────────────────
 
 export interface MetricColumn {
   /** = metric.name,与 cells 的键对应。 */
@@ -81,20 +101,19 @@ export interface MetricCell {
   samples: number;
   /** 组内 attempt 总数;samples < total = 有 attempt 测不了这个指标。 */
   total: number;
-  /** 这个格子由哪些 attempt 算出 —— 回到证据的引用。 */
-  refs?: AttemptRef[];
+  /**
+   * 这个格子由哪些 attempt 算出 —— 回到证据的引用。必填(可空数组):
+   * 「每个数字点进去就是证据」是页面的核心承诺,可选字段会让深链静默缺失。
+   */
+  refs: AttemptRef[];
 }
 
-// AttemptRef 的家在 niceeval/results:Reports 的 refs、view 深链、copyRun 用同一个证据身份。
-// 这里 import + re-export,公共 API 入口不变。
-import type { AttemptRef } from "../results/types.ts";
-export type { AttemptRef };
-
-export interface TableData {
+/** 列键 K 来自 columns 元组的字面量 name:拼错列名编译不过,不是运行时 undefined。 */
+export interface TableData<K extends string = string> {
   /** 行维度名,如 "agent"。 */
   dimension: string;
   columns: MetricColumn[];
-  rows: { key: string; cells: Record<string, MetricCell> }[];
+  rows: { key: string; cells: Record<K, MetricCell> }[];
 }
 
 export interface MatrixData {
@@ -108,8 +127,12 @@ export interface MatrixData {
 }
 
 export interface ScoreboardData {
-  /** 被打分的维度名,如 "agent"。 */
-  of: string;
+  /**
+   * 被打分的维度名,如 "agent"。
+   * (计算函数的维度槽叫 rows,与 MetricTable.data 统一;数据形状上行数组已占用
+   * rows 一词,维度名沿用 TableData 的 dimension。)
+   */
+  dimension: string;
   fullMarks: number;
   /** 实际生效的权重表(按匹配顺序:最长前缀在前)—— 成绩单可审计。 */
   weights: { prefix: string; weight: number }[];
@@ -151,6 +174,31 @@ export interface ScatterData {
   }[];
 }
 
+/** MetricLine 的 x 轴:experiment 声明的 param,数值驱动刻度。 */
+export interface LineAxis {
+  /** param 名。 */
+  key: string;
+  label: string;
+  unit?: string;
+}
+
+export interface LineData {
+  x: LineAxis;
+  /** 系列维度名(param 或普通维度)。 */
+  series?: string;
+  y: MetricColumn;
+  rows: {
+    /** 点的键(experiment id):每个点 = 一个 experiment 的聚合。 */
+    key: string;
+    series?: string;
+    /** param 声明值;未声明或非数值 → null,点不画、注脚报数。 */
+    x: number | null;
+    /** 已格式化的 x("300 ms");x 为 null 时为空串。 */
+    xDisplay: string;
+    y: MetricCell;
+  }[];
+}
+
 export interface OverviewData {
   snapshots: { experimentId: string; agent: string; model?: string; startedAt: string }[];
   totals: {
@@ -164,27 +212,27 @@ export interface OverviewData {
     costUSD: number | null;
     durationMs: number;
   };
-  /** 选择器的警告透传进来,RunOverview 直接渲染 —— 诚实不靠使用者记得渲染。 */
-  warnings: string[];
+  /** 选集的警告随行(结构化,含渲染好的 message),RunOverview 直接渲染。 */
+  warnings: SelectionWarning[];
 }
 
-export interface DeltaData {
+export interface DeltaData<K extends string = string> {
   columns: MetricColumn[];
   rows: {
     /** pair 的 label,如 "bub"。 */
     key: string;
-    /** 基线侧。 */
+    /** 基线侧:experiment id 或快照键 "<experimentId> @ <startedAt>"。 */
     a: { experimentId: string };
     /** 对比侧。 */
     b: { experimentId: string };
     cells: Record<
-      string,
+      K,
       {
         a: MetricCell;
         b: MetricCell;
         /** b.value - a.value;任一侧 null → null,不硬算。 */
         delta: number | null;
-        /** 已带符号("+12%" / "-$0.80"),涨跌好坏由 better 判定。 */
+        /** 已带符号("+12%" / "-$0.80" / "±0"),涨跌好坏由 better 判定。 */
         display: string;
       }
     >;

@@ -4,7 +4,7 @@ sidebarTitle: "命令行"
 description: "NiceEval CLI 参考：exp、init、list、clean 和 view 命令，以及 experiment、eval 过滤、sandbox、并发、预算和 JUnit CI 输出。"
 ---
 
-[NiceEval](https://niceeval.com/) CLI 是发现、运行和查看 eval 的入口。实际执行 eval 时采用 experiment-first 模型：**`exp` 选择可签入的运行配置**，experiment 后的位置参数才按 eval ID 前缀过滤。agent、model 和 feature flags 写在 `experiments/`，不靠临时 CLI 参数。
+[NiceEval](https://niceeval.com/) CLI 是发现、运行和查看 eval 的入口。实际执行 eval 时采用 experiment-first 模型：**`exp` 选择可签入的运行配置**，experiment 后的位置参数才按 eval ID 前缀过滤。agent、model 和 params 写在 `experiments/`，不靠临时 CLI 参数。
 
 ## 命令
 
@@ -97,7 +97,7 @@ npx niceeval exp compare-models
 npx niceeval exp compare-models weather-tool
 ```
 
-运行命名 experiment，用矩阵比较 agents、models 或 flags。第二个参数开始是 eval ID 前缀过滤。
+运行命名 experiment，用矩阵比较 agents、models 或 params。第二个参数开始是 eval ID 前缀过滤。
 
 ## `view`
 

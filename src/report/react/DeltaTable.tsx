@@ -3,7 +3,7 @@
 // 任一侧缺数据时 Δ 显示为缺,不硬算(数据侧已给 delta: null,这里只如实渲染)。
 
 import type { ReactElement } from "react";
-import type { DeltaData, MetricColumn } from "./data.ts";
+import type { DeltaData, MetricColumn } from "../types.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
 import { MISSING_TEXT, cx } from "./format.ts";
@@ -29,7 +29,7 @@ export function DeltaTable({
       <thead>
         <tr>
           <th scope="col" className="nre-dimension">
-            对比(A → B)
+            pair (A → B)
           </th>
           {data.columns.map((col) => (
             <th scope="col" key={col.key} className="nre-metric-col">

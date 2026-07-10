@@ -1,34 +1,51 @@
-// niceeval/report/react —— 纯渲染的报告积木(docs/reports.md 第一档,原型实现)。
+// niceeval/report/react —— 零件复用的导出点:把某一块指标表嵌进已有内部面板时从这里
+// import。导出的组件与 niceeval/report 是同一批双面组件(web 面即 React 渲染,零 IO、
+// 可进 "use client",不 hydrate 也完整),都带自己的 data 计算函数;那是零件的复用,
+// 不是另一套报告系统 —— 报告的家在官方宿主(--report)。
 //
 // 契约:
-//   - 组件只认「算好的可序列化数据」:零 IO、零 hooks、零数据操作,可进 "use client";
-//   - 不 hydrate 也完整:renderToStaticMarkup 的产物即成品——排序在数据侧预排,
-//     hover 退化为 title,下钻是普通 <a>,展开折叠是 <details>;
+//   - 组件只认「算好的可序列化数据」:零 hooks、零数据操作;
 //   - 样式随包发布:配套 ./styles.css(nre-* 稳定类名),使用者在其后加载覆盖即可;
 //   - 跨块配色一致:维度键 → 稳定散列 → 固定调色板下标(colors.ts)。
-//
-// 数据从哪来:niceeval/report 的计算函数(table()/matrix()/scoreboard()/scatter()/
-// overview()/delta()/cases())。计算层在并行实验中实现;类型暂由 ./data.ts 声明,
-// 合并时切换为从计算层 re-export。
 
-export { RunOverview } from "./RunOverview.tsx";
-export { MetricTable } from "./MetricTable.tsx";
-export { MetricMatrix } from "./MetricMatrix.tsx";
-export { Scoreboard } from "./Scoreboard.tsx";
-export { MetricScatter } from "./MetricScatter.tsx";
-export { DeltaTable } from "./DeltaTable.tsx";
-export { CaseList } from "./CaseList.tsx";
+export {
+  CaseList,
+  DeltaTable,
+  MetricBars,
+  MetricLine,
+  MetricMatrix,
+  MetricScatter,
+  MetricTable,
+  RunOverview,
+  Scoreboard,
+} from "../components.tsx";
+export type {
+  CaseListProps,
+  DeltaTableProps,
+  MetricLineProps,
+  MetricMatrixProps,
+  MetricScatterProps,
+  MetricTableProps,
+  RunOverviewProps,
+  ScoreboardProps,
+} from "../components.tsx";
 
-// 数据契约类型(临时家在 ./data.ts,见该文件头部说明)
+// 数据契约类型(家在 ../types.ts,「算」与「画」两侧共用同一份)
 export type {
   AttemptRef,
-  MetricColumn,
-  MetricCell,
-  TableData,
-  MatrixData,
-  ScoreboardData,
-  ScatterData,
-  OverviewData,
-  DeltaData,
   CaseListData,
-} from "./data.ts";
+  DeltaData,
+  LineAxis,
+  LineData,
+  MatrixData,
+  MetricCell,
+  MetricColumn,
+  OverviewData,
+  ScatterData,
+  ScoreboardData,
+  SelectionWarning,
+  TableData,
+} from "../types.ts";
+
+// 稳定配色(自定义组件想与官方组件同键同色时用)
+export { NRE_PALETTE, colorClassForKey, colorHexForKey, colorIndexForKey } from "./colors.ts";

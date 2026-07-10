@@ -228,7 +228,7 @@ async function runAttemptBody(
     signal,
     model: run.model,
     reasoningEffort: run.reasoningEffort,
-    flags: run.flags,
+    params: run.params,
     sandbox,
     session: createAgentSession(),
     telemetry,
@@ -270,7 +270,7 @@ async function runAttemptBody(
       sandbox,
       model: run.model,
       reasoningEffort: run.reasoningEffort,
-      flags: run.flags,
+      params: run.params,
       signal,
       log,
       judge,
@@ -442,7 +442,7 @@ async function collectSources(
 function experimentRunInfo(run: AgentRun): EvalResult["experiment"] {
   return {
     id: run.experimentId,
-    flags: run.flags,
+    params: run.params,
     runs: run.runs,
     earlyExit: run.earlyExit,
     sandbox: run.sandbox === undefined ? undefined : sandboxLabel(run.sandbox),

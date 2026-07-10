@@ -3,7 +3,7 @@
 // 纯渲染、零 hooks;交互只有普通 <a>(下钻由使用者的 attemptHref 决定去处)。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, MetricCell } from "./data.ts";
+import type { AttemptRef, MetricCell } from "../types.ts";
 import { MISSING_TEXT } from "./format.ts";
 
 export function MetricCellView({

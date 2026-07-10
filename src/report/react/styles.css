@@ -300,3 +300,80 @@ table.nre,
 .nre-case-list .nre-case-empty {
   color: #737373;
 }
+
+/* ---- MetricBars ---- */
+.nre-metric-bars {
+  margin: 1rem 0;
+}
+.nre-metric-bars .nre-bars-svg {
+  max-width: 640px;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.nre-metric-bars .nre-bars-legend {
+  color: #737373;
+  font-size: 0.85em;
+  margin-top: 0.25rem;
+}
+.nre-metric-bars .nre-bars-metric {
+  margin-right: 1em;
+  font-weight: 600;
+  color: #171717;
+}
+.nre-metric-bars .nre-legend-key {
+  margin-right: 0.75em;
+}
+
+/* ---- MetricLine ---- */
+.nre-metric-line {
+  margin: 1rem 0;
+}
+.nre-metric-line .nre-line-svg {
+  max-width: 640px;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.nre-metric-line .nre-line-missing {
+  color: #b45309;
+  font-size: 0.85em;
+  margin: 0.25rem 0 0;
+}
+.nre-metric-line .nre-line-point-link circle:hover {
+  stroke: #171717;
+  stroke-width: 1.5;
+}
+
+/* ---- 排版原语 Row / Col / Section / Text ---- */
+.nre-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.nre-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+.nre-row > * {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.nre-section .nre-section-title {
+  font-size: 1.1em;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+.nre-text {
+  color: #525252;
+  margin: 0.25rem 0;
+}
+
+/* ---- DefaultReport(官方水位整块)---- */
+.nre-default-report {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

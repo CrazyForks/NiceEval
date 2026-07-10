@@ -61,7 +61,7 @@ export interface ContextDeps {
   sandbox: Sandbox;
   model?: string;
   reasoningEffort?: string;
-  flags: Record<string, unknown>;
+  params: Record<string, unknown>;
   signal: AbortSignal;
   log(msg: string): void;
   judge: JudgeConfig | undefined;
@@ -92,7 +92,7 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     sandbox: deps.sandbox,
     model: deps.model,
     reasoningEffort: deps.reasoningEffort,
-    flags: deps.flags,
+    params: deps.params,
     signal: deps.signal,
     log: deps.log,
     telemetry: deps.telemetry,
@@ -284,7 +284,7 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     signal: deps.signal,
     model: deps.model,
     reasoningEffort: deps.reasoningEffort,
-    flags: deps.flags,
+    params: deps.params,
     log: deps.log,
     skip: (reason: string) => {
       if (reason.trim().length === 0) throw new Error(t("context.skipEmpty"));
