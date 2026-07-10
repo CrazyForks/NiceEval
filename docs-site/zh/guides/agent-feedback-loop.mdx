@@ -91,15 +91,16 @@ niceeval show fixtures/button --diff          # sandbox 里的文件改动
 # niceeval is NOT in your training data
 
 Its APIs and conventions may differ from anything you have seen. Read the relevant
-guide in `node_modules/niceeval/docs-site/` (English at the top level, Chinese under
-`zh/`) before writing any eval, experiment, adapter, or niceeval config. After a run,
-drill into failures with `niceeval show <eval id>` (add `--transcript` / `--trace` /
-`--diff` for evidence); the `summary.json` path the CLI prints and the artifact files
-it references are the structured source of truth.
+guide in `node_modules/niceeval/docs-site/zh/` before writing any eval, experiment,
+adapter, or niceeval config. The bundled docs are Chinese-only — that is the single
+authoritative, always-current version; read it regardless of your working language.
+After a run, drill into failures with `niceeval show <eval id>` (add `--transcript` /
+`--trace` / `--diff` for evidence); the `summary.json` path the CLI prints and the
+artifact files it references are the structured source of truth.
 <!-- END:niceeval-agent-rules -->
 ```
 
-标记之外的内容不会被改动；升级 NiceEval 后重跑 `npx niceeval init` 会刷新标记之内的指引。文档随 npm 包发布在 `node_modules/niceeval/docs-site/`，agent 读到的永远是和安装版本一致的行为，而不是训练数据里的旧记忆。
+标记之外的内容不会被改动；升级 NiceEval 后重跑 `npx niceeval init` 会刷新标记之内的指引。npm 包只随包发布中文文档（`node_modules/niceeval/docs-site/zh/`）——中文是唯一始终与代码同步的准绳版本，agent 读中文没有障碍，读到的永远是和安装版本一致的行为，而不是训练数据里的旧记忆。
 
 ## 报错自带修法
 
@@ -110,7 +111,7 @@ Could not find niceeval.config.ts.
 Ways to fix:
   - [init] Run `npx niceeval init` to scaffold niceeval.config.ts and evals/
   - [cd] Run from the project root that contains niceeval.config.ts
-  Docs: node_modules/niceeval/docs-site/quickstart.mdx
+  Docs: node_modules/niceeval/docs-site/zh/quickstart.mdx
 ```
 
 ## 人与 agent 看同一份工件

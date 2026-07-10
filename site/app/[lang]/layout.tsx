@@ -38,6 +38,15 @@ export default async function LangLayout({ children, params }: { children: React
           data-endpoint="https://api.goshipfast.com"
           strategy="lazyOnload"
         />
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-Q30H5WX93X" strategy="afterInteractive" />
+        <Script id="ga4" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-Q30H5WX93X');
+          `}
+        </Script>
       </body>
     </html>
   );

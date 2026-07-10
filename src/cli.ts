@@ -240,16 +240,20 @@ async function loadConfig(cwd: string): Promise<Config> {
 }
 
 // AGENTS.md 托管区块:告诉在这个项目里干活的 coding agent「niceeval 不在你的训练数据里,
-// 先读随包文档,跑完读结构化结果」。init 时写入/刷新;标记之外的用户内容永不触碰。
+// 先读随包文档,跑完读结构化结果」。随包只发中文准绳版文档(英文站是手工同步、可能滞后,
+// 不进包,见 package.json 的 files);init 时写入/刷新;标记之外的用户内容永不触碰。
 const AGENT_RULES_BEGIN = "<!-- BEGIN:niceeval-agent-rules -->";
 const AGENT_RULES_END = "<!-- END:niceeval-agent-rules -->";
 const AGENT_RULES_CONTENT = [
   "# niceeval is NOT in your training data",
   "",
   "Its APIs and conventions may differ from anything you have seen. Read the relevant",
-  "guide in `node_modules/niceeval/docs-site/` (English at the top level, Chinese under",
-  "`zh/`) before writing any eval, experiment, adapter, or niceeval config. After a run,",
-  "read the `summary.json` path the CLI prints for structured results.",
+  "guide in `node_modules/niceeval/docs-site/zh/` before writing any eval, experiment,",
+  "adapter, or niceeval config. The bundled docs are Chinese-only — that is the single",
+  "authoritative, always-current version; read it regardless of your working language.",
+  "After a run, drill into failures with `niceeval show <eval id>` (add `--transcript` /",
+  "`--trace` / `--diff` for evidence); the `summary.json` path the CLI prints and the",
+  "artifact files it references are the structured source of truth.",
 ].join("\n");
 
 async function initProject(cwd: string): Promise<void> {

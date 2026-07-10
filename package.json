@@ -61,7 +61,8 @@
   "files": [
     "src",
     "bin",
-    "docs-site"
+    "docs-site/zh",
+    "docs-site/images"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -18,6 +18,11 @@
       "href": "https://github.com/CorrectRoadH/niceeval"
     }
   },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-Q30H5WX93X"
+    }
+  },
   "redirects": [
     {
       "source": "/concepts/scoring",

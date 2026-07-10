@@ -20,7 +20,7 @@ export const en = {
     "Ways to fix:\n" +
     "  - [init] Run `npx niceeval init` to scaffold niceeval.config.ts and evals/\n" +
     "  - [cd] Run from the project root that contains niceeval.config.ts\n" +
-    "  Docs: node_modules/niceeval/docs-site/quickstart.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/quickstart.mdx",
   "cli.config.noDefault": "niceeval.config.ts must default export defineConfig(...).",
   "cli.dry.header": "\n[dry] {{evals}} evals × {{configs}} run configs:\n",
   "cli.dry.noMatches": "(no matches)",
@@ -31,7 +31,7 @@ export const en = {
     "budget for {{budgetKey}}: several attempts completed without any cost data (agent reports no usage and the model is not in the price table) — the budget cannot be enforced for this agent; continuing without the guard.\n",
   "judge.modelMissing":
     "No judge model configured. Set it in defineConfig({ judge: { model: \"...\" } }), the eval's judge config, or the NICEEVAL_JUDGE_MODEL environment variable (there is no built-in default model).\n" +
-    "  Docs: node_modules/niceeval/docs-site/guides/scoring-guide.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/guides/scoring-guide.mdx",
   "loaders.yamlMissing":
     "loadYaml(\"{{path}}\") needs a YAML parser: run `pnpm add yaml` first (or switch to loadJson with a JSON dataset).",
   "cli.flag.parseError": "{{message}}\nRun `niceeval --help` for usage.\n",
@@ -82,7 +82,7 @@ export const en = {
   "cli.experimentGroup": " group",
   "cli.fallbackCleanupTimeout": "\ngraceful cleanup timed out; force-cleaning sandboxes...\n",
   "cli.forceCleanupExit": "\nForce-cleaning sandboxes and exiting...\n",
-  "cli.init.done": "Ready: evals/, niceeval.config.ts, and the niceeval agent-rules block in AGENTS.md (points coding agents at node_modules/niceeval/docs-site).\n",
+  "cli.init.done": "Ready: evals/, niceeval.config.ts, and the niceeval agent-rules block in AGENTS.md (points coding agents at node_modules/niceeval/docs-site/zh).\n",
   "cli.interruptCleanup": "\nInterrupted; cleaning up sandbox containers... (press again to force cleanup and exit)\n",
   "cli.list.header": "Discovered {{count}} evals:\n",
   "cli.noAgent": "No agent specified (use --agent <name>).\n",
@@ -91,7 +91,7 @@ export const en = {
   "cli.resultsPath": "Structured results: {{path}} (each result's artifactsDir holds that attempt's events.json / trace.json / diff.json)\n",
   "cli.run.experimentRequired":
     "Run evals through an experiment: use `niceeval exp [group|config] [eval id prefix]`.\n" +
-    "  Docs: node_modules/niceeval/docs-site/guides/write-experiment.mdx\n",
+    "  Docs: node_modules/niceeval/docs-site/zh/guides/write-experiment.mdx\n",
   "cli.run.experimentRequiredHint": "Hint: \"{{pattern}}\" is an experiment{{kind}}; you probably meant: niceeval exp {{pattern}}\n",
   "cli.run.experimentRequiredKnown": "Discovered experiments: {{experiments}}\n",
   "cli.sandboxFlagRemoved": "`--sandbox` is not a CLI flag. Set `sandbox` in the experiment (or `niceeval.config.ts` as a project-wide fallback) to dockerSandbox() / vercelSandbox() / e2bSandbox() (import from \"niceeval/sandbox\").\n",
@@ -102,7 +102,7 @@ export const en = {
   "cli.view.url": "niceeval view: {{url}}\n",
   "context.capabilityMissing":
     "Agent \"{{agent}}\" is not sandbox-backed (built with defineSandboxAgent), so t.{{method}} is unavailable. Use an agent built with defineSandboxAgent, or drop this assertion.\n" +
-    "  Docs: node_modules/niceeval/docs-site/guides/sandbox-agent.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/guides/sandbox-agent.mdx",
   "context.skipEmpty": "skip() requires a non-empty reason.",
   "context.turnFailed": "This send returned failed (turn status = failed): {{message}}",
   "context.turnFailedDefault": "This send returned failed (turn status = failed)",
@@ -194,7 +194,7 @@ export const en = {
   "sandbox.backendNotImplemented": "{{backend}} sandbox backend is not implemented; use docker, vercel, or e2b",
   "sandbox.missingSpec":
     "sandbox agent needs a sandbox, but none was given. niceeval no longer picks a default — set `sandbox` in defineExperiment()/defineConfig() to dockerSandbox() / vercelSandbox() / e2bSandbox() (import from \"niceeval/sandbox\").\n" +
-    "  Docs: node_modules/niceeval/docs-site/guides/sandbox-backends.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/guides/sandbox-backends.mdx",
   "sandbox.dependencyMissing.docker": "Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode",
   "sandbox.dependencyMissing.e2b": "E2B sandbox requires 'e2b'. Install it with: pnpm add e2b",
   "sandbox.dependencyMissing.vercel": "Vercel sandbox requires '@vercel/sandbox'. Install it with: pnpm add @vercel/sandbox",
