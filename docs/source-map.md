@@ -102,7 +102,7 @@
 
 ## Results Lib 与 Reports
 
-设计文档:[results-lib.md](results-lib.md) / [reports.md](reports.md) / [view.md](view.md) 合流一节。实现落点(view 的读取层/统计层已收编,show 宿主与其 `--report` 装载已接线(`src/show/`),view 渲染层与 `view --report` 未实现):
+设计文档:[results-lib.md](results-lib.md) / [reports.md](reports.md) / [view.md](view.md) 合流一节。实现落点(view 的读取层/统计层已收编,show 与 view 两个宿主的 `--report` 装载都已接线;view 默认榜单的渲染层仍是自绘,未换官方组件):
 
 | 行为 | 文件 |
 |---|---|
@@ -121,14 +121,16 @@
 | 排版原语 Row / Col / Section / Text / Style(五个内置双面组件) | `src/report/primitives.tsx` |
 | 官方组件 text 面(终端形态、字符坐标图、分栏排版) | `src/report/text/{faces,layout,plot}.ts` |
 | `defineReport` / `ReportContext` / text 宿主装载入口 `renderReportToText` | `src/report/report.ts` |
-| show 宿主接线(`--report` 装载 `loadReportFile`、组合语义矩阵、attemptCommand 下钻、内置默认报告即出厂报告槽) | `src/show/index.ts`(选集合成与时间轴口径在 `src/show/compose.ts`,详情/证据切面渲染在 `src/show/render.ts`,测试 `src/show/show.test.ts`) |
+| `--report` 装载(两宿主共用:存在性/默认导出判别、dev server 的 mtime cache-busting) | `src/report/load.ts` |
+| show 宿主接线(组合语义矩阵、attemptCommand 下钻、内置默认报告即出厂报告槽) | `src/show/index.ts`(选集合成与时间轴口径在 `src/show/compose.ts`,详情/证据切面渲染在 `src/show/render.ts`,测试 `src/show/show.test.ts`) |
 | web 宿主装载入口 `renderReportToStaticHtml`(唯一 import react-dom 的一侧) | `src/report/web.ts` |
 | `DefaultReport`(官方水位整块,宿主注入选集) | `src/report/default-report.tsx` |
 | 九个组件的 web 面 + 稳定散列配色 + styles.css | `src/report/react/`(零件复用入口 `index.tsx`;演示 `scripts/report-react-demo.tsx`) |
 | 双面验收(renderToStaticMarkup + text 快照,两面同口径) | `src/report/dual-face.test.tsx` |
 | view attempt 深链(`#/attempt/<run>/<result>`,路由参数即 AttemptRef) | `src/view/app/lib/attempt-route.ts`、`src/view/app/App.tsx`、`src/view/data.ts`(`annotateResult` 注入,ref 直接用 `niceeval/results` 的 `attempt.ref`) |
 | view 数据层(openResults + `results.latest()` 选集 + 官方计算函数烘 `__NICEEVAL_VIEW_DATA__`;skipped 三种原因、warnings 透传) | `src/view/data.ts`(数据契约在 `src/view/shared/types.ts`,前端拼接在 `src/view/app/lib/rows.ts`) |
-| **未落地** | view 渲染层换官方组件 + `--report` 报告槽、memory-evals 静态导出流水线(reports.md 场景三) |
+| `view --report` 报告槽(组合语义经 show 的选集合成、`renderReportSlot` 静态渲染、`<template id="niceeval-report">` 静态块 + 官方样式注入、位置参数判定 `resolveViewInput`) | `src/view/data.ts`、`src/view/server.ts`、`src/view/index.ts`、前端摆放 `src/view/app/{main.tsx,App.tsx}`(测试 `src/view/view-report.test.ts`) |
+| **未落地** | view 默认榜单的渲染层换官方组件、memory-evals 静态导出流水线(reports.md 场景三) |
 
 ## 与设计文档的已知差异(实现取舍)
 

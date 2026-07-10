@@ -2,8 +2,16 @@
 // HTML 烘进查看器的报告槽。只有这一侧真正 import react-dom(import 边界即运行时边界),
 // 所以本文件不从 niceeval/report 的入口 re-export —— 宿主与测试按源路径 import。
 
+import * as React from "react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+
+// tsx 按「tsconfig 所在目录」为界应用 jsx 配置:CLI 在用户项目 cwd 下跑时,包内
+// .tsx(primitives / react 组件的 web 面)落在用户 tsconfig 覆盖范围之外,esbuild
+// 退化成 classic JSX(编译产物引用全局 React)。这里补上全局 React,web 面在两种
+// 编译模式下都可渲染;只定义一次,不覆盖宿主已有的全局。
+const g = globalThis as { React?: unknown };
+if (g.React === undefined) g.React = React;
 import type { AttemptRef } from "../results/index.ts";
 import { runWithWebContext, validateReportTree, type WebContext } from "./tree.ts";
 import { prepareDefaultReportData, runWithDefaultReportData } from "./default-report.tsx";

@@ -146,6 +146,11 @@ h1 {
   font-size: 14px;
 }
 .meta b { color: var(--text); font-weight: 570; }
+/* --report 报告槽:server 侧渲染好的静态报告 HTML(nre-* 类的样式随包 styles.css 注入),
+   这里只给槽位留呼吸空间,不覆盖报告自己的样式。 */
+.report-slot {
+  margin: 0 auto 36px;
+}
 .summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

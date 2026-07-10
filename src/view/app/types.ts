@@ -26,7 +26,7 @@ export type {
   ViewSnapshot,
 } from "../shared/types.ts";
 
-export type Tab = "experiments" | "runs" | "traces";
+export type Tab = "report" | "experiments" | "runs" | "traces";
 export type SortKey = "experiment" | "model" | "agent" | "duration" | "passRate" | "tokens" | "cost";
 export type SortDir = 1 | -1;
 

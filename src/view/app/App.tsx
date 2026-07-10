@@ -15,8 +15,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs.t
 import { RunsView } from "./pages/RunsPage.tsx";
 import { TracesView } from "./pages/TracesPage.tsx";
 
+// 报告槽只有一个:默认装官方榜单(Experiments tab);--report 整槽替换成用户报告。
+// 证据室(Runs / Traces / AttemptModal)是 view 本体,两种模式下原样保留。
 export const navItems: { id: Tab; label: MessageKey }[] = [
   { id: "experiments", label: "nav.experiments" },
+  { id: "runs", label: "nav.runs" },
+  { id: "traces", label: "nav.traces" },
+];
+
+export const reportNavItems: { id: Tab; label: MessageKey }[] = [
+  { id: "report", label: "nav.report" },
   { id: "runs", label: "nav.runs" },
   { id: "traces", label: "nav.traces" },
 ];
@@ -41,13 +49,14 @@ function modalResultFromLocation(snapshots: ViewData["snapshots"]): ViewResult |
   return resultFromUrl(snapshots);
 }
 
-export function App({ data }: { data: ViewData }) {
+export function App({ data, reportHtml }: { data: ViewData; reportHtml?: string }) {
   const snapshots = data.snapshots ?? [];
+  const hasReport = reportHtml !== undefined;
   const rows = useMemo(() => buildRows(data), [data]);
   const attempts = useMemo(() => flattenAttempts(snapshots), [snapshots]);
   const [locale, setLocale] = useState<Locale>(() => detectLocale());
   const t = useMemo(() => makeTranslator(locale), [locale]);
-  const [tab, setTab] = useState<Tab>("experiments");
+  const [tab, setTab] = useState<Tab>(hasReport ? "report" : "experiments");
   const [sort, setSort] = useState<SortState>({ key: "passRate", dir: -1 });
   const [query, setQuery] = useState("");
   const [openRows, setOpenRows] = useState<Set<string>>(() => new Set());
@@ -173,7 +182,7 @@ export function App({ data }: { data: ViewData }) {
           <span>NiceEval</span>
         </a>
         <TabsList aria-label={t("nav.label")}>
-          {navItems.map((item) => (
+          {(hasReport ? reportNavItems : navItems).map((item) => (
             <TabsTrigger key={item.id} value={item.id}>
               {t(item.label)}
             </TabsTrigger>
@@ -208,14 +217,18 @@ export function App({ data }: { data: ViewData }) {
           </div>
         </section>
 
-        <section className="summary" aria-label="Run summary">
-          <Metric label={t("metric.passRate")} value={overallPassRate?.display ?? "—"} />
-          <Metric label={t("metric.evalResults")} value={String(totals?.evals ?? 0)} />
-          <Metric label={t("metric.duration")} value={formatDuration(totals?.durationMs ?? 0)} />
-          <Metric label={t("metric.cost")} value={formatCost(totals?.costUSD ?? undefined)} />
-        </section>
+        {/* 官方水位 KPI 与挑选警告属于报告槽:--report 整槽替换后由用户报告自己决定
+            摆不摆(<DefaultReport /> / <RunOverview /> 都能把它们摆回来)。 */}
+        {!hasReport && (
+          <section className="summary" aria-label="Run summary">
+            <Metric label={t("metric.passRate")} value={overallPassRate?.display ?? "—"} />
+            <Metric label={t("metric.evalResults")} value={String(totals?.evals ?? 0)} />
+            <Metric label={t("metric.duration")} value={formatDuration(totals?.durationMs ?? 0)} />
+            <Metric label={t("metric.cost")} value={formatCost(totals?.costUSD ?? undefined)} />
+          </section>
+        )}
 
-        {warnings.length > 0 && (
+        {!hasReport && warnings.length > 0 && (
           // 选集警告(partial-coverage / stale-snapshot / synthetic-experiment-id):
           // message 是挑选器渲染好的英文句子,原样打;data-kind 供样式与测试定位。
           <section className="incompatible-banner selection-warnings" role="alert">
@@ -261,6 +274,15 @@ export function App({ data }: { data: ViewData }) {
           </section>
         )}
 
+        {hasReport && (
+          <TabsContent value="report" id="tab-report">
+            {/* 报告槽:server 侧渲染好的静态 HTML(含 <Style> 产物),这里只摆放。
+                attempt 深链是普通 <a href="#/attempt/…">,经 hashchange 打开证据室弹窗。 */}
+            <div className="report-slot" dangerouslySetInnerHTML={{ __html: reportHtml }} />
+          </TabsContent>
+        )}
+
+        {!hasReport && (
         <TabsContent value="experiments" id="tab-experiments">
           <div className="section-head">
             <h2>{t("section.experiments")}</h2>
@@ -299,6 +321,7 @@ export function App({ data }: { data: ViewData }) {
             </div>
           )}
         </TabsContent>
+        )}
 
         <TabsContent value="runs">
           <RunsView attempts={attempts} t={t} />

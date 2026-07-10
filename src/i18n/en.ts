@@ -48,7 +48,10 @@ export const en = {
     "      --run <dir>   pin a results dir    --experiment <id>   one experiment\n" +
     "      --attempt <n>   pick an attempt    --report <file>   custom report\n" +
     "  niceeval list                                       list discovered evals\n" +
-    "  niceeval view [summary.json|dir] [--out dir] [--port n] [--no-open]\n" +
+    "  niceeval view [eval-id-prefix…|summary.json] [--out dir] [--port n] [--no-open]\n" +
+    "      report slot + evidence rooms; --report <file> swaps in your report\n" +
+    "      (same file as show); --run <dir> pins a results dir;\n" +
+    "      --experiment <id> one experiment\n" +
     "      --out <dir> exports a static site: index.html plus the viewer\n" +
     "      artifacts, ready for any static host\n" +
     "  niceeval clean                                      delete .niceeval/ artifacts\n" +

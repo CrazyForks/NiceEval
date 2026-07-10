@@ -20,16 +20,27 @@ import { Console as ConsoleReporter } from "./runner/reporters/console.ts";
 import { JUnit } from "./runner/reporters/json.ts";
 import { Live as LiveReporter, type LiveRow } from "./runner/reporters/live.ts";
 import { Artifacts as ArtifactsReporter } from "./runner/reporters/artifacts.ts";
-import { buildView, startViewServer, loadLatestResultsPerEval, IncompatibleResultsError } from "./view/index.ts";
+import {
+  buildView,
+  startViewServer,
+  loadLatestResultsPerEval,
+  resolveViewInput,
+  IncompatibleResultsError,
+  ViewInputError,
+} from "./view/index.ts";
+import { ReportLoadError } from "./report/load.ts";
 import { runShow } from "./show/index.ts";
 import { t } from "./i18n/index.ts";
 import { formatThrown, upsertManagedBlock } from "./util.ts";
 import type { Config, DiscoveredExperiment, Reporter } from "./types.ts";
 
-/** `niceeval view <summary.json>` 指向版本不同的报告时:打印 npx 提示后退出,不抛堆栈。 */
-function exitOnIncompatibleResults(e: unknown): never {
-  if (e instanceof IncompatibleResultsError) {
-    process.stderr.write(e.message);
+/**
+ * view 的可预期用户错误:版本不同的报告(npx 提示)、位置参数/组合语义错误、
+ * --report 装载失败。打一句直说问题与下一步后退出,不抛堆栈。
+ */
+function exitOnViewUserError(e: unknown): never {
+  if (e instanceof IncompatibleResultsError || e instanceof ViewInputError || e instanceof ReportLoadError) {
+    process.stderr.write(e.message.endsWith("\n") ? e.message : `${e.message}\n`);
     process.exit(1);
   }
   throw e;
@@ -309,12 +320,27 @@ async function main(): Promise<void> {
   }
 
   if (command === "view") {
+    // 位置参数 = eval id 前缀(收窄报告槽选集);存在的文件路径 = 单文件模式;
+    // 结果目录经 --run 递入;--report 整槽替换报告槽(与 show --report 吃同一个文件)。
+    let viewInput: { input?: string; patterns: string[] };
+    try {
+      viewInput = resolveViewInput(cwd, positionals, flags.run);
+    } catch (e) {
+      exitOnViewUserError(e);
+    }
+    const scan = {
+      patterns: viewInput.patterns,
+      ...(flags.experiment !== undefined ? { experiment: flags.experiment } : {}),
+      ...(flags.report !== undefined ? { report: { path: flags.report, cwd } } : {}),
+    };
     if (flags.out) {
-      const out = await buildView({ input: positionals[0], out: flags.out }).catch(exitOnIncompatibleResults);
+      const out = await buildView({ input: viewInput.input, out: flags.out, scan }).catch(exitOnViewUserError);
       process.stdout.write(t("cli.view.exportedDir", { out }));
       process.exit(0);
     }
-    const server = await startViewServer({ input: positionals[0], port: flags.port }).catch(exitOnIncompatibleResults);
+    const server = await startViewServer({ input: viewInput.input, port: flags.port, scan }).catch(
+      exitOnViewUserError,
+    );
     process.stdout.write(t("cli.view.url", { url: server.url }));
     if (flags.open !== false) {
       const opened = await openBrowser(server.url);

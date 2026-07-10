@@ -46,7 +46,9 @@ export const zhCN = {
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --attempt <n> 指定 attempt   --report <文件> 自定义报告\n" +
     "  niceeval list                            列出发现到的 eval\n" +
-    "  niceeval view [summary.json|目录] [--out 目录] [--port n] [--no-open]\n" +
+    "  niceeval view [eval-id 前缀…|summary.json] [--out 目录] [--port n] [--no-open]\n" +
+    "      报告槽 + 证据室;--report <文件> 整槽换成自定义报告(与 show 同一文件)\n" +
+    "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --out <目录> 静态导出:index.html 连同查看器工件,可直接静态托管\n" +
     "  niceeval clean                           删除 .niceeval/ 历史工件\n" +
     "  niceeval init                            脚手架 config + evals/\n\n" +

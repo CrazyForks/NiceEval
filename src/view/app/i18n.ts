@@ -6,6 +6,7 @@ import { interpolate, normalizeLocale, type Locale, type Vars } from "../../i18n
 export type MessageKey =
   | "app.title"
   | "nav.label"
+  | "nav.report"
   | "nav.experiments"
   | "nav.runs"
   | "nav.traces"
@@ -124,6 +125,7 @@ const dictionaries: Record<Locale, Dictionary> = {
   en: {
     "app.title": "niceeval experiment view",
     "nav.label": "Report",
+    "nav.report": "Report",
     "nav.experiments": "Experiments",
     "nav.runs": "Runs",
     "nav.traces": "Traces",
@@ -239,6 +241,7 @@ const dictionaries: Record<Locale, Dictionary> = {
   "zh-CN": {
     "app.title": "niceeval 实验查看器",
     "nav.label": "报告",
+    "nav.report": "报告",
     "nav.experiments": "实验",
     "nav.runs": "运行",
     "nav.traces": "追踪",

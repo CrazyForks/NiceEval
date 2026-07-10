@@ -4,10 +4,15 @@
 
 ```sh
 niceeval view                         # 起本地 web,自动打开浏览器,读 .niceeval/ 下所有历史运行
-niceeval view .niceeval/<run>/summary.json
+niceeval view .niceeval/<run>/summary.json    # 单文件模式:只看这一份报告
+niceeval view weather                 # 位置参数 = eval id 前缀,收窄报告槽选集(与 show 同语义)
+niceeval view --run site-data/run     # 结果目录经 --run 递入;--experiment <id> 只看该实验
+niceeval view --report reports/exam.tsx       # 报告槽整槽换成自定义报告(与 show 同一文件)
 niceeval view --no-open               # 只打印 URL,不打开浏览器
 niceeval view --out site              # 目录式静态导出:index.html + artifact/
 ```
+
+位置参数的判定:指向存在的文件 → 单文件模式(不与 `--run` 或其它位置参数混用);指向存在的目录 → 报错直说走 `--run`;其余按 eval id 前缀。收窄只作用于报告槽(榜单 / overview / 注入报告的选集),证据室数据恒为全量,attempt 深链在任何收窄下都可达。
 
 架构上是**一次性烘焙进单个 HTML+JSON 的静态产物**(`src/view/index.ts` 的 `renderHtml`),不是常驻的多页面 server——`niceeval view` 起的 web 服务每次请求现读现渲染,`--out` 则直接导出。这是刻意的取舍,详见 [References](references.md#调研过判断不值得抄的及理由)。
 
@@ -157,7 +162,7 @@ npx niceeval@<producer.version> view .niceeval/<run>/summary.json
 
 ## 用 Reports 积木重建 view(设计提案)
 
-> 状态:迁移中。依赖的两个提案已落地(results 读取面、report 计算与组件,见 [Source Map](source-map.md#results-lib-与-reports));三步迁移中**读取层与统计层已完成(2026-07)**——view 的 loader 收编进 `openResults`,`aggregateRows` 删掉,`__NICEEVAL_VIEW_DATA__` 换成官方数据契约(OverviewData / TableData + 快照元信息 + skipped / warnings,声明在 `src/view/shared/types.ts`)。渲染层(榜单换 `MetricTable` 组件、scatter、Compare)与 `--report` 报告槽未动。
+> 状态:迁移中。依赖的两个提案已落地(results 读取面、report 计算与组件,见 [Source Map](source-map.md#results-lib-与-reports));三步迁移中**读取层与统计层已完成(2026-07)**——view 的 loader 收编进 `openResults`,`aggregateRows` 删掉,`__NICEEVAL_VIEW_DATA__` 换成官方数据契约(OverviewData / TableData + 快照元信息 + skipped / warnings,声明在 `src/view/shared/types.ts`);**`--report` 报告槽已接线(2026-07)**——报告树在计算侧 `renderReportToStaticHtml` 成静态 HTML,以 `<template id="niceeval-report">` 静态块烘在 `__NICEEVAL_VIEW_DATA__` 旁,前端只摆放不解析;dev server 每次请求现读现渲染,报告文件变更下次请求整页重算(装载走 mtime cache-busting,`src/report/load.ts`);`--out` 时报告页即首页报告槽、证据室同站。渲染层其余部分(默认榜单换 `MetricTable` 组件、scatter、Compare)未动。
 
 [Reports](reports.md) 把「自己搭报告页」拆成组件 + 计算函数 + 结果库三种零件之后,view 的正确定位随之改变:**view 不再是一套并行实现,而是用同一批零件搭出来的「默认报告页 + 证据室」**——用户搭页面用什么零件,view 自己就用什么。view 因此成为这套积木的第一个常驻消费者,组件与计算函数的正确性被它天天验证;反过来,上面「计划中的小功能」里的三件事(跳过列表、Compare、散点图)也全部退化成「拼现成积木」,不再是专项开发。
 

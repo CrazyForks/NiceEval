@@ -1,16 +1,20 @@
 // view 的数据层:读取经 niceeval/results 的 openResults(布局/版本知识只住在那),
 // 统计经 niceeval/report 的官方计算函数(RunOverview.data / MetricTable.data 的实现,
 // 从 compute.ts 直接引用 —— 调用侧适配,不经 components.tsx,避免把 react 拉进 CLI 路径)。
-// 这里只做编排:挑选(results.latest())、快照明细注入(attemptRef / artifactBase)、
-// skipped / warnings 透传。旧 loader(readSummary / loadSummaries / 目录扫描 / 版本判定)
-// 与旧聚合(aggregateRows)已删,见 docs/view.md「用 Reports 积木重建 view」迁移顺序 1–2。
+// 这里只做编排:挑选(results.latest();位置前缀 / --experiment / --report 在场时经
+// composeShowSelection 与 show 同口径合成)、快照明细注入(attemptRef / artifactBase)、
+// skipped / warnings 透传、--report 的报告槽渲染(renderReportSlot)。旧 loader
+// (readSummary / loadSummaries / 目录扫描 / 版本判定)与旧聚合(aggregateRows)已删,
+// 见 docs/view.md「用 Reports 积木重建 view」迁移顺序 1–2。
 
 import { statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { dedupeAttempts, openResults } from "../results/index.ts";
-import type { AttemptHandle, Results, RunDir, SkippedRun } from "../results/index.ts";
+import type { AttemptHandle, Results, RunDir, Selection, SkippedRun } from "../results/index.ts";
 import { overviewData, tableData } from "../report/compute.ts";
 import { costUSD, durationMs, passRate, tokens } from "../report/metrics.ts";
+import { loadReportFile } from "../report/load.ts";
+import { composeShowSelection, filterExperiments } from "../show/compose.ts";
 import type { EvalResult, RunSummary } from "../types.ts";
 import type { SkippedRunNotice, ViewData, ViewEvalResult, ViewSnapshot } from "./shared/types.ts";
 import { t } from "../i18n/index.ts";
@@ -29,7 +33,26 @@ export interface ViewScan {
    * 绝对路径不进 viewData,避免序列化进可分享的静态 HTML(信息泄漏且浏览器端用不到)。
    */
   artifactDirs: Map<string, string>;
+  /**
+   * --report:报告树经 renderReportToStaticHtml 渲染出的静态 HTML,整槽替换查看器的
+   * 报告槽。作为独立静态块烘进页面(与 __NICEEVAL_VIEW_DATA__ 相邻),不进 viewData ——
+   * 证据室沿用官方数据契约不动,前端只负责把这块 HTML 摆进报告槽位置,不解析。
+   */
+  reportHtml?: string;
 }
+
+/** view 宿主输入的组合语义(与 show 对齐,docs/reports.md「宿主输入的组合语义」)。 */
+export interface ViewScanOptions {
+  /** eval id 前缀(位置参数):收窄报告槽选集;证据室(快照明细)不收窄,深链恒可达。 */
+  patterns?: string[];
+  /** experiment id 前缀(--experiment):选集只留该实验。 */
+  experiment?: string;
+  /** --report 报告文件:相对 cwd 的路径。装载失败抛 ReportLoadError(CLI 打印后退出)。 */
+  report?: { path: string; cwd: string };
+}
+
+/** 可预期的用户输入错误:CLI 打一句英文直说问题与下一步,退出码 1,不抛堆栈。 */
+export class ViewInputError extends Error {}
 
 /** 版本不同、按设计直接不兼容的 run;只占位提示,不解析内容。 */
 export interface IncompatibleRun {
@@ -112,24 +135,69 @@ export async function loadLatestResultsPerEval(root = ".niceeval"): Promise<Eval
   return out;
 }
 
-/** `niceeval view` 的数据装载入口:server 每次请求现读现算,`--out` 导出用同一份。 */
-export async function loadViewScan(input?: string): Promise<ViewScan> {
+/**
+ * `niceeval view` 的数据装载入口:server 每次请求现读现算,`--out` 导出用同一份。
+ * 位置前缀 / --experiment / --report 在场时,报告槽选集经 composeShowSelection 合成
+ * (与 `niceeval show` 同一口径,两扇门判决不分叉);全部缺省时维持 results.latest(),
+ * 默认行为不变。证据室数据(快照明细 / skipped)恒为全量,深链在任何收窄下都可达。
+ */
+export async function loadViewScan(input?: string, opts: ViewScanOptions = {}): Promise<ViewScan> {
   const target = resolve(input ?? ".niceeval");
   const root = viewRoot(input);
   const results = await openResults(target);
   assertSingleFileReadable(results, target);
 
-  const selection = results.latest();
+  const patterns = opts.patterns ?? [];
+  const narrowed = patterns.length > 0 || opts.experiment !== undefined || opts.report !== undefined;
+
+  // 组合语义的输入校验,与 show 同文案:匹配不到直说,不渲染一张空页面。
+  if (opts.report && results.experiments.length === 0) {
+    throw new ViewInputError(t("cli.show.noResults", { root: target }).trimEnd());
+  }
+  if (
+    opts.experiment !== undefined &&
+    results.experiments.length > 0 &&
+    filterExperiments(results.experiments, opts.experiment).length === 0
+  ) {
+    throw new ViewInputError(
+      t("cli.show.noExperimentMatch", {
+        arg: opts.experiment,
+        experiments: results.experiments.map((e) => e.id).join(", "),
+      }).trimEnd(),
+    );
+  }
+
+  const baseSelection = results.latest();
+  const selection = narrowed
+    ? composeShowSelection(results, { experiment: opts.experiment, patterns })
+    : baseSelection;
+
+  if (patterns.length > 0 && selection.snapshots.every((s) => s.evals.length === 0)) {
+    const known = [
+      ...new Set(filterExperiments(results.experiments, opts.experiment).flatMap((e) => e.evalIds)),
+    ].sort();
+    throw new ViewInputError(
+      t("cli.show.noEvalMatch", { patterns: patterns.join(", "), evals: known.join(", ") || "(none)" }).trimEnd(),
+    );
+  }
+
   const [overview, table, overall] = [
     await overviewData(selection),
     await tableData(selection, { rows: "experiment", columns: BOARD_COLUMNS, sort: passRate }),
     await tableData(selection, { rows: OVERALL_DIMENSION, columns: [passRate] }),
   ];
 
+  // --report:整槽替换。报告吃同一份注入选集,web 面在计算侧静态渲染成 HTML。
+  const reportHtml = opts.report
+    ? await renderReportSlot(opts.report, results, selection)
+    : undefined;
+
   // 跨快照按身份键去重:--resume 携带的条目在多份落盘里重复,只保留最新 run 里的那份
   // (与官方计算函数的聚合口径一致,Runs / Traces 的计数因此不被复印件灌票)。
   const artifactDirs = new Map<string, string>();
-  const latestSet = new Set(selection.snapshots);
+  // latest 标记恒按 results.latest() 口径打(ViewSnapshot.latest 的声明语义),
+  // 不随收窄后的合成选集漂移 —— 榜单行与快照的关联靠它成立。
+  const latestSet = new Set(baseSelection.snapshots);
   const allAttempts: AttemptHandle[] = [];
   for (const exp of results.experiments) {
     for (const snap of exp.snapshots) allAttempts.push(...snap.attempts);
@@ -164,14 +232,34 @@ export async function loadViewScan(input?: string): Promise<ViewScan> {
   const viewData: ViewData = {
     ...(latestRun?.summary.name !== undefined ? { name: latestRun.summary.name } : {}),
     ...(latestRun ? { lastRunAt: latestRun.summary.startedAt } : {}),
-    composedRuns: new Set(selection.snapshots.map((s) => s.runDir.dir)).size,
+    // 合成选集的快照是跨 run 拼出来的,来源 run 数从 attempt 的 runDir 数;
+    // 默认选集(latest 口径)保持原表达式,行为不变。
+    composedRuns: narrowed
+      ? new Set(selection.snapshots.flatMap((s) => s.attempts.map((a) => a.runDir.dir))).size
+      : new Set(selection.snapshots.map((s) => s.runDir.dir)).size,
     overview,
     table,
     overall,
     snapshots,
     skippedRuns: results.skipped.map(toSkippedNotice),
   };
-  return { viewData, artifactDirs };
+  return { viewData, artifactDirs, ...(reportHtml !== undefined ? { reportHtml } : {}) };
+}
+
+/**
+ * 报告槽渲染:装载报告文件(dev server 语义 —— 文件变更下次请求整页重算,经 mtime
+ * cache-busting)→ 注入与官方榜单同口径的选集 → web 面 renderToStaticMarkup 成静态 HTML。
+ * react-dom 只在 --report 在场时动态加载,默认 CLI 路径不背 react。
+ * attemptHref 缺省即 `#/attempt/<run>/<result>`(view 的 attempt 深链路由)。
+ */
+async function renderReportSlot(
+  report: { path: string; cwd: string },
+  results: Results,
+  selection: Selection,
+): Promise<string> {
+  const definition = await loadReportFile(report.cwd, report.path, { freshImport: true });
+  const { renderReportToStaticHtml } = await import("../report/web.ts");
+  return renderReportToStaticHtml(definition, { selection, results });
 }
 
 /**

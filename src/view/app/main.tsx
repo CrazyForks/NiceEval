@@ -18,6 +18,10 @@ const emptyViewData: ViewData = {
 
 const initialData: ViewData = window.__NICEEVAL_VIEW_DATA__ ?? emptyViewData;
 
+// --report:server 把报告树的静态 HTML 烘成 <template id="niceeval-report"> 块
+// (__NICEEVAL_VIEW_DATA__ 旁的静态块)。前端只负责把它摆进报告槽位置,不解析、不 hydrate。
+const reportHtml = document.getElementById("niceeval-report")?.innerHTML;
+
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("Missing #root element");
-createRoot(rootEl).render(<App data={initialData} />);
+createRoot(rootEl).render(<App data={initialData} reportHtml={reportHtml} />);

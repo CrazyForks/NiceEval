@@ -4,13 +4,15 @@
 import { createServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { loadViewScan, viewRoot, type ViewScan } from "./data.ts";
+import { loadViewScan, viewRoot, type ViewScan, type ViewScanOptions } from "./data.ts";
 import { formatThrown } from "../util.ts";
 
 export interface ViewOptions {
   input?: string;
   out?: string;
   port?: number;
+  /** 报告槽的组合语义(位置前缀 / --experiment / --report),透传给 loadViewScan。 */
+  scan?: ViewScanOptions;
 }
 
 export interface ViewServer {
@@ -22,13 +24,15 @@ const TEMPLATE_PLACEHOLDERS = {
   styles: "<!-- __NICEEVAL_STYLES__ -->",
   appCode: "__NICEEVAL_APP_CODE__",
   viewData: "__NICEEVAL_VIEW_DATA_JSON__",
+  reportSlot: "<!-- __NICEEVAL_REPORT_SLOT__ -->",
 } as const;
 
 export async function startViewServer(opts: ViewOptions = {}): Promise<ViewServer> {
   const input = opts.input;
   const root = viewRoot(input);
-  // 数据装载先跑一遍:单文件模式指向读不了的报告时,要在起 server 前就失败并给出提示。
-  await loadViewScan(input);
+  // 数据装载先跑一遍:单文件模式指向读不了的报告、--report 装载失败、
+  // 前缀匹配不到,都要在起 server 前就失败并给出提示。
+  await loadViewScan(input, opts.scan);
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -58,8 +62,9 @@ export async function startViewServer(opts: ViewOptions = {}): Promise<ViewServe
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
       });
-      // 每次请求现读现算,永远是盘上最新数据。
-      res.end(await renderHtml(await loadViewScan(input)));
+      // 每次请求现读现算,永远是盘上最新数据;--report 的报告文件变更同样在
+      // 下次请求整页重算(装载走 mtime cache-busting,见 report/load.ts)。
+      res.end(await renderHtml(await loadViewScan(input, opts.scan)));
     } catch (e) {
       res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end(formatThrown(e));
@@ -76,14 +81,30 @@ export async function startViewServer(opts: ViewOptions = {}): Promise<ViewServe
   };
 }
 
-/** 把 viewData(只含原始值与相对路径,不含宿主机绝对路径)和前端产物烘焙进单个 HTML。 */
+/**
+ * 把 viewData(只含原始值与相对路径,不含宿主机绝对路径)和前端产物烘焙进单个 HTML。
+ * --report 在场时,报告 HTML 作为 <template id="niceeval-report"> 静态块烘在
+ * __NICEEVAL_VIEW_DATA__ 旁(零客户端 JS、不 hydrate,自定义组件的 <Style> 产物
+ * 已内联其中),并附官方组件样式(report/react/styles.css);前端只把这块摆进
+ * 报告槽位置,不解析。
+ */
 export async function renderHtml(scan: ViewScan): Promise<string> {
   const template = await readViewAsset("template.html");
   const styles = await readViewAsset("client-dist/app.css");
   const app = await readViewAsset("client-dist/app.js");
+  const reportStyles =
+    scan.reportHtml !== undefined
+      ? await readFile(new URL("../report/react/styles.css", import.meta.url), "utf-8")
+      : undefined;
 
   return template
-    .replace(TEMPLATE_PLACEHOLDERS.styles, () => `<style>\n${styles}\n</style>`)
+    .replace(
+      TEMPLATE_PLACEHOLDERS.styles,
+      () => `<style>\n${styles}\n</style>${reportStyles !== undefined ? `\n<style>\n${reportStyles}\n</style>` : ""}`,
+    )
+    .replace(TEMPLATE_PLACEHOLDERS.reportSlot, () =>
+      scan.reportHtml !== undefined ? `<template id="niceeval-report">${scan.reportHtml}</template>` : "",
+    )
     .replace(TEMPLATE_PLACEHOLDERS.viewData, () => JSON.stringify(scan.viewData).replace(/</g, "\\u003c"))
     .replace(TEMPLATE_PLACEHOLDERS.appCode, () => JSON.stringify(app).replace(/</g, "\\u003c"));
 }

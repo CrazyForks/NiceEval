@@ -13,14 +13,9 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { openResults, type AttemptRef, type Results } from "../results/index.ts";
-import {
-  defineReport,
-  isReportDefinition,
-  renderReportToText,
-  type ReportDefinition,
-} from "../report/report.ts";
+import { defineReport, renderReportToText, type ReportDefinition } from "../report/report.ts";
+import { ReportLoadError, loadReportFile } from "../report/load.ts";
 import { DefaultReport } from "../report/default-report.tsx";
 import { t } from "../i18n/index.ts";
 import {
@@ -79,29 +74,8 @@ function clampWidth(columns: number | undefined): number {
   return Math.max(40, Math.min(columns as number, 160));
 }
 
-/** --report 的装载:复用跑用户 .ts 配置的同一 tsx 加载机制(bin 里已 register)。 */
-export async function loadReportFile(cwd: string, path: string): Promise<ReportDefinition> {
-  const abs = resolve(cwd, path);
-  if (!existsSync(abs)) {
-    throw new ShowError(
-      `Report file not found: ${abs}. Pass --report an explicit path to a module whose default export is defineReport(...).`,
-    );
-  }
-  let mod: { default?: unknown };
-  try {
-    mod = (await import(pathToFileURL(abs).href)) as { default?: unknown };
-  } catch (e) {
-    throw new ShowError(
-      `Cannot load report file ${abs}: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-  if (!isReportDefinition(mod.default)) {
-    throw new ShowError(
-      `${path} does not default-export a report. Export default defineReport(async ({ selection, results }) => ...) from "niceeval/report".`,
-    );
-  }
-  return mod.default;
-}
+// --report 的装载移到中性模块(两个宿主共用),show 的导出面与错误行为不变。
+export { loadReportFile } from "../report/load.ts";
 
 /** 报告里的下钻命令:AttemptRef → `niceeval show <eval id>`(查不到时退 view 深链)。 */
 function makeAttemptCommand(results: Results): (ref: AttemptRef) => string {
@@ -134,7 +108,7 @@ export async function runShow(
     });
     return 0;
   } catch (e) {
-    if (e instanceof ShowError) {
+    if (e instanceof ShowError || e instanceof ReportLoadError) {
       err(e.message.endsWith("\n") ? e.message : `${e.message}\n`);
       return 1;
     }
