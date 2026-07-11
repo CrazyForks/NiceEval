@@ -21,7 +21,7 @@ export interface AttemptRef {
   result: number;
 }
 
-/** view 侧的 attempt 结果 = 瘦身后的 EvalResult + loader 注入的深链身份与工件基址。 */
+/** view 侧的 attempt 结果 = 瘦身后的 EvalResult + loader 注入的深链身份与 artifact 基址。 */
 export type ViewEvalResult = EvalResult & { attemptRef?: AttemptRef };
 
 /**

@@ -12,6 +12,7 @@
 | 模型档 \| Model tier | **删掉专名**,就叫「模型(`model` 字段)」 | 无 |
 | 尝试 \| Attempt | **Attempt(中文直用)** | 无 |
 | 轮 \| Turn | **Turn(中文直用)**;「多轮对话」等形容词性用法不受限 | 无 |
+| 工件 \| Artifact | **artifact(中文直用)**,解释语「落盘产物」 | 无(标识符本就是 artifact) |
 | 早停 \| EarlyExit | **首过即停**(只改中文) | `earlyExit` / `--early-exit` 保持不动(用户明确选了破坏面最小项) |
 
 **曾选方案与否决理由**:

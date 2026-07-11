@@ -8,18 +8,18 @@ import type { EvalResult, RunSummary } from "../types.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
 import type { ArtifactKind } from "./types.ts";
 
-/** attempt 工件子目录(相对 run 根):<evalId>/<agent>/<model>[/<experimentId>]/a<attempt>。 */
+/** attempt artifact 子目录(相对 run 根):<evalId>/<agent>/<model>[/<experimentId>]/a<attempt>。 */
 export function attemptDirOf(r: Pick<EvalResult, "id" | "agent" | "model" | "attempt" | "experimentId">): string {
   const safe = (s: string) => s.replace(/[^\w.@-]/g, "_");
   // evalId 里的 / 保留作目录层级,其余危险字符替换。
   const id = r.id.replace(/[^\w./@-]/g, "_");
-  // experiment 段:两个实验可以同 agent 同 model、只差实验参数,少这一段它们的工件会互相
+  // experiment 段:两个实验可以同 agent 同 model、只差实验参数,少这一段它们的 artifact 会互相
   // 覆盖;experimentId 里的 / 不作层级(整段压成 _),整个实验一格。
   const exp = r.experimentId ? `/${safe(r.experimentId)}` : "";
   return `${id}/${safe(r.agent)}/${safe(r.model ?? "default")}${exp}/a${r.attempt}`;
 }
 
-/** 工件文件名:种类即文件名。 */
+/** artifact 文件名:种类即文件名。 */
 export function artifactFileOf(kind: ArtifactKind): string {
   return `${kind}.json`;
 }
@@ -65,7 +65,7 @@ export function classifySummary(raw: unknown): SummaryClassification {
 
 /**
  * 快照/去重共用的 experiment 身份键:experimentId 缺失时以 "<agent>/<model>" 合成
- * (无 model 用 "default",与工件目录命名同一口径),synthesized 供调用方决定要不要出 warning。
+ * (无 model 用 "default",与 artifact 目录命名同一口径),synthesized 供调用方决定要不要出 warning。
  */
 export function experimentKeyOf(r: Pick<EvalResult, "experimentId" | "agent" | "model">): {
   id: string;

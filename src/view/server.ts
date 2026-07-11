@@ -1,4 +1,4 @@
-// HTTP server 与静态资源:起本地 web、按需吐工件、把 viewData 烘焙进单个 HTML。
+// HTTP server 与静态资源:起本地 web、按需吐 artifact、把 viewData 烘焙进单个 HTML。
 // 数据读取与统计在 data.ts(openResults + 官方计算函数);这里只管「怎么送到浏览器」。
 
 import { createServer, type Server } from "node:http";
@@ -41,7 +41,7 @@ export async function startViewServer(opts: ViewOptions = {}): Promise<ViewServe
         res.end("ok");
         return;
       }
-      // 按需提供拆分工件(trace.json / events.json / …),前端展开时 fetch。
+      // 按需提供拆分 artifact(trace.json / events.json / …),前端展开时 fetch。
       // 路径式 /artifact/<rel> 与目录式静态导出的文件布局一致(见 view/index.ts 的 buildView),
       // 同一份前端产物在本地 server 和静态托管上用同一个相对 URL。
       if (url.pathname.startsWith("/artifact/")) {
@@ -109,7 +109,7 @@ export async function renderHtml(scan: ViewScan): Promise<string> {
     .replace(TEMPLATE_PLACEHOLDERS.appCode, () => JSON.stringify(app).replace(/</g, "\\u003c"));
 }
 
-/** 安全地把 root 下的工件文件吐回去(限定 .json,且解析后必须仍在 root 内)。 */
+/** 安全地把 root 下的 artifact 文件吐回去(限定 .json,且解析后必须仍在 root 内)。 */
 async function serveArtifact(
   root: string,
   rel: string,

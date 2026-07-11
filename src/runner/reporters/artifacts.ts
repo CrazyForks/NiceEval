@@ -1,4 +1,4 @@
-// 默认本地工件报告器:给 `niceeval view` 提供稳定的离线输入。
+// 默认本地 artifact 报告器:给 `niceeval view` 提供稳定的离线输入。
 //
 // 本文件是 niceeval/results 写入面(createRunWriter)的薄壳:订阅 reporter 事件转手调 writer,
 // 自己不持有任何布局知识(时间戳目录、attempt 路径、大字段拆分、瘦身、版本元数据都在库内)。

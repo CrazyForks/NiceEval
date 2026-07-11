@@ -3,7 +3,7 @@
 // 与 report-components.mdx。
 //
 // import 边界即运行时边界:计算函数(挂在组件上的 .data)会经句柄触碰文件系统
-// (懒加载工件),只能进服务端 / 脚本;组件的渲染面纯同步零 IO。text 宿主遍历渲染
+// (懒加载 artifact),只能进服务端 / 脚本;组件的渲染面纯同步零 IO。text 宿主遍历渲染
 // 不需要 react-dom(renderReportToText);web 宿主的 renderReportToStaticHtml 在
 // ./web.ts,只有那一侧 import react-dom。写报告文件的项目要装 react(.tsx 编译产物
 // import react/jsx-runtime)。

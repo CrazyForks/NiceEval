@@ -1,6 +1,6 @@
-# Observability —— transcript、工件与报告
+# Observability —— transcript、 artifact 与报告
 
-评测的价值不止"过/挂",更在"为什么"。这一篇讲三件事:agent 的 **transcript** 如何被归一化成统一 trace、跑完落盘的**工件**长什么样、**报告器**如何把结果回传。
+评测的价值不止"过/挂",更在"为什么"。这一篇讲三件事:agent 的 **transcript** 如何被归一化成统一 trace、跑完落盘的**artifact**长什么样、**报告器**如何把结果回传。
 
 这是 niceeval "看得快"承诺的落点,见 [Vision](vision.md#看得快)。
 
@@ -151,9 +151,9 @@ spans 是异步推来的,必须知道「这批 span 属于哪一轮 `send`」。
 - **窗口法(兜底,仅串行可靠)**:runner 在 `send` 前记时间戳,`send` 返回后取窗口内的 span。并发 attempts 的窗口互相重叠,窗口法归属必然混流。
 - **并发守卫**:共享接收器 + 未确认 traceparent 生效(收到的 span 不带我们发的 traceId)+ 该 agent 并发 > 1 → runner 把该 agent 的 attempts 降为串行并提示。宁可慢,不可静默混流;确认 traceparent 生效后解除。
 
-## 工件落盘
+## Artifact 落盘
 
-每次运行落一份结构化工件到 `.niceeval/<时间戳>/`。默认 `Artifacts()` reporter 的当前目录结构是:
+每次运行落一份结构化 artifact 到 `.niceeval/<时间戳>/`。默认 `Artifacts()` reporter 的当前目录结构是:
 
 ```text
 .niceeval/<run>/
@@ -166,7 +166,7 @@ spans 是异步推来的,必须知道「这批 span 属于哪一轮 `send`」。
     diff.json
 ```
 
-`summary.json` 是瘦身后的 `RunSummary`:保留榜单、判定、断言、usage/cost 和 attempt 工件引用,不内联 `events` / `sources` / `trace` / `o11y` / `diff` / `rawTranscript` 这些重数据。每个 attempt 的重数据按需写入自己的目录,文件内容都是 JSON array/object,不是 JSONL / NDJSON。完整 schema、版本号设计、路径转义规则和 view 读取规则见 [Results Format](results-format.md)。
+`summary.json` 是瘦身后的 `RunSummary`:保留榜单、判定、断言、usage/cost 和 attempt artifact 引用,不内联 `events` / `sources` / `trace` / `o11y` / `diff` / `rawTranscript` 这些重数据。每个 attempt 的重数据按需写入自己的目录,文件内容都是 JSON array/object,不是 JSONL / NDJSON。完整 schema、版本号设计、路径转义规则和 view 读取规则见 [Results Format](results-format.md)。
 
 `summary.json` 形如:
 
@@ -193,7 +193,7 @@ spans 是异步推来的,必须知道「这批 span 属于哪一轮 `send`」。
 
 `verdict` 只有 `passed` / `failed` / `errored` / `skipped` 四态,没有 `scored` 中间态(soft 断言的分数就在 `assertions[].score` 里如实记录,不影响这四态)。`summary.failed` 与 `summary.errored` 是互斥计数:前者表示断言/评分不通过,后者表示环境、超时、adapter 或 agent runtime 这类执行错误。JUnit reporter 也按这个口径输出 `<failure>` 与 `<error>`。
 
-工件是机器可读的,可回放、可二次分析、可喂给下游 dashboard。
+artifact 是机器可读的,可回放、可二次分析、可喂给下游 dashboard。
 
 ## 用量与成本(token / 计费)
 
@@ -278,9 +278,9 @@ Run totals:  3 evals · 142k tok · $1.12   (agent: claude-code)
 
 ## 结果可视化:`niceeval view`
 
-控制台和 `summary.json` 是「当下」的;但你常常想**事后看图**:这次比上次贵了多少?哪个 agent 性价比高?所以 niceeval 提供一个本地查看器(对标 agent-eval 的 playground:一个读结果目录的 web UI),只读 `.niceeval/<时间戳>/` 这些**结构化工件**,不连任何外部服务。结果落盘格式见 [Results Format](results-format.md);查看器现状、已知的文档差异和计划中的功能(比如挑两次运行对比)见 [View](view.md)。
+控制台和 `summary.json` 是「当下」的;但你常常想**事后看图**:这次比上次贵了多少?哪个 agent 性价比高?所以 niceeval 提供一个本地查看器(对标 agent-eval 的 playground:一个读结果目录的 web UI),只读 `.niceeval/<时间戳>/` 这些**结构化 artifact**,不连任何外部服务。结果落盘格式见 [Results Format](results-format.md);查看器现状、已知的文档差异和计划中的功能(比如挑两次运行对比)见 [View](view.md)。
 
-可视化能力完全建立在「工件结构化 + 带 usage/cost」之上 —— 换句话说,**只要数据采全了,图是免费的**;不想用内置查看器,同一份工件也能喂给下游 dashboard。
+可视化能力完全建立在「 artifact 结构化 + 带 usage/cost」之上 —— 换句话说,**只要数据采全了,图是免费的**;不想用内置查看器,同一份 artifact 也能喂给下游 dashboard。
 
 托管看板走 reporter 通道(见下),把每次运行作为一个实验上报到 Braintrust 这类平台,跨提交比较与团队共享。
 
@@ -299,7 +299,7 @@ interface Reporter {
 报告器在**独立串行队列**上被回调,不阻塞执行池(见 [Runner](runner.md#调度有界并发))。内置:
 
 - **`Console()`** —— 默认,流式逐行输出,失败断言内联展开。
-- **`Artifacts()`** —— 默认写 `.niceeval/<timestamp>/summary.json` 与 attempt 级 JSON 工件(`events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`),供 `niceeval view` 读取。具体格式见 [Results Format](results-format.md)。
+- **`Artifacts()`** —— 默认写 `.niceeval/<timestamp>/summary.json` 与 attempt 级 JSON artifact(`events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`),供 `niceeval view` 读取。具体格式见 [Results Format](results-format.md)。
 - **`JUnit(path)`** —— JUnit XML,接 CI 测试报告 UI。
 - **`Json(path)`** —— 机器可读全量。
 - **`Braintrust(config?)`** —— 把一次运行作为一个 Braintrust experiment 上报,每个 attempt 一行:soft 断言按名字记分,gate 断言记在 `gate:` 前缀下(实验 diff 里 gate 回归和 soft 分数回归用同一套机制看);metrics 带 start/end、token 用量与估算成本,metadata 带 agent / model / experiment / flags 身份维度与失败断言明细。`braintrust` 包是可选 peer 依赖(动态 import,没装时 onRunStart 报错并提示安装);鉴权走 `BRAINTRUST_API_KEY` 或工厂参数 `apiKey`。源码 `src/runner/reporters/braintrust.ts`。
@@ -331,7 +331,7 @@ eval 级 reporter 经作用域包装接入(`scopeReporter`,见 `src/runner/repor
 ## 相关阅读
 
 - [Scoring](scoring.md) —— 作用域断言如何消费 o11y。
-- [Runner](runner.md) —— 报告队列与工件落盘的调度。
+- [Runner](runner.md) —— 报告队列与 artifact 落盘的调度。
 - [Results Format](results-format.md) —— `.niceeval/<run>/` 的目录结构与 JSON 文件契约。
 - [Adapter 写法](adapters/authoring.md) —— 接新 agent 需要的解析器、采集层怎么弄到原始数据。
 - [agent-eval 参考:采集 / 转换 / 落地三层](adapters/reference/agent-eval.md) —— Vercel agent-eval 怎么写 adapter 的学习记录。

@@ -74,11 +74,11 @@ export function resolveViewInput(
 }
 
 /**
- * 导出静态报告(--out):只有目录式一种形态。写 <dir>/index.html,并把前端会 fetch 的工件
+ * 导出静态报告(--out):只有目录式一种形态。写 <dir>/index.html,并把前端会 fetch 的 artifact
  * (sources.json / events.json / trace.json)复制到 <dir>/artifact/<base>/——与本地
  * server 的 /artifact/<rel> 路由同一布局,整个目录扔给任何静态托管即是完整体验。
  * 带 --report(opts.scan.report)时,报告页即首页的报告槽,证据室同站。
- * 单文件(*.html)导出已移除:代码/transcript/trace 视图依赖工件文件,单文件注定残缺,
+ * 单文件(*.html)导出已移除:代码/transcript/trace 视图依赖 artifact 文件,单文件注定残缺,
  * 存在本身就在诱导用户导出一份看不了证据的报告(docs/view.md「静态导出」)。
  */
 export async function buildView(opts: ViewOptions = {}): Promise<string> {
@@ -95,13 +95,13 @@ export async function buildView(opts: ViewOptions = {}): Promise<string> {
   return out;
 }
 
-// 只复制前端会 fetch 的三类工件。diff.json / o11y.json 是运行侧产物,查看器从不读取,
+// 只复制前端会 fetch 的三类 artifact。diff.json / o11y.json 是运行侧产物,查看器从不读取,
 // 且 diff 可达上百 MB,带进静态导出只会拖垮部署体积。
 const FETCHED_ARTIFACTS = ["sources.json", "events.json", "trace.json"];
 
 async function copyFetchedArtifacts(scan: ViewScan, artifactRoot: string): Promise<void> {
   for (const [base, srcDir] of scan.artifactDirs) {
-    const destDir = join(artifactRoot, base);
+    const destDir = join( artifactRoot, base);
     // 输入本身已经是导出布局(比如对着上次导出的目录重新生成 index.html)时不自拷。
     if (resolve(srcDir) === resolve(destDir)) continue;
     const files = FETCHED_ARTIFACTS.filter((name) => existsSync(join(srcDir, name)));

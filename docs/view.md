@@ -1,6 +1,6 @@
 # View —— 本地结果查看器(`niceeval view`)
 
-控制台和 `summary.json` 是「当下」的;`niceeval view` 是「事后看图」——不连任何外部服务,只读 `.niceeval/<时间戳>/` 这些结构化工件。结果保存格式见 [Results Format](results-format.md),数据来源见 [Observability](observability.md#结果可视化niceeval-view)。
+控制台和 `summary.json` 是「当下」的;`niceeval view` 是「事后看图」——不连任何外部服务,只读 `.niceeval/<时间戳>/` 这些结构化 artifact。结果保存格式见 [Results Format](results-format.md),数据来源见 [Observability](observability.md#结果可视化niceeval-view)。
 
 ```sh
 niceeval view                         # 起本地 web,自动打开浏览器,读 .niceeval/ 下所有历史运行
@@ -16,13 +16,13 @@ niceeval view --out site              # 目录式静态导出:index.html + artif
 
 架构上是**一次性烘焙进单个 HTML+JSON 的静态产物**(`src/view/index.ts` 的 `renderHtml`),不是常驻的多页面 server——`niceeval view` 起的 web 服务每次请求现读现渲染,`--out` 则直接导出。这是刻意的取舍,详见 [References](references.md#调研过判断不值得抄的及理由)。
 
-`--out` 只有目录式一种形态:写 `<out>/index.html`,并把前端会 fetch 的三类工件(`sources.json` / `events.json` / `trace.json`)复制到 `<out>/artifact/<base>/`,与本地 server 的 `/artifact/<rel>` 路径路由同一布局,同一份前端产物在两种托管下用同一个相对 URL(`src/view/app/lib/artifact-url.ts`)。`diff.json` / `o11y.json` 刻意不复制:查看器从不读取,且 diff 可达上百 MB,带上只会拖垮静态部署体积。
+`--out` 只有目录式一种形态:写 `<out>/index.html`,并把前端会 fetch 的三类 artifact(`sources.json` / `events.json` / `trace.json`)复制到 `<out>/artifact/<base>/`,与本地 server 的 `/artifact/<rel>` 路径路由同一布局,同一份前端产物在两种托管下用同一个相对 URL(`src/view/app/lib/artifact-url.ts`)。`diff.json` / `o11y.json` 刻意不复制:查看器从不读取,且 diff 可达上百 MB,带上只会拖垮静态部署体积。
 
 零可读结果(目录真空,或全部落盘被 skipped)时 `loadViewScan` 抛 `ViewInputError`:本地 server 起不来,`--out` 非零退出、不导出空页面——与 show 的「匹配不到直说」同一原则,同时是 CI 静态发布的守卫(构建失败让托管平台保留上一次部署,空报告不顶上线)。错误逐条列 skipped 目录与原因,niceeval 落盘的 schemaVersion 场景拼出可跑的 `npx niceeval@<版本> view` 命令(`src/view/data.ts` 的 `noReadableResults`)。
 
 > 发布口径裁决(2026-07-10):发布的站与本地 view 完全一致(所见即所发),不设 `--latest` 之类的发布收窄 flag——结果既已提交进仓库,历史体积成本已被接受,导出再收窄只会让线上站 ≠ 本地站、平添第二种导出语义;发布策划过的选集属于 `copySnapshots` 积木(宿主语言挑选,`view --run` 对着产物看)。公开文档的 CI 发布页(`docs-site/zh/guides/publish-report.mdx`)因此只有一种姿势:`.niceeval/` 提交进仓库(gitignore 排除 `diff.json`)+ `view --out` 一行构建命令,可叠 `--report` 发布自定义报告。曾评估过「本地 copySnapshots 固化快照提交、CI 只导出」的第二姿势,已否:平添第二个真相源,发布依赖人记得跑本地脚本,站点会静默过期。
 
-> 单文件导出(`--out report.html`)曾经存在,已移除:代码/transcript/trace 视图依赖工件文件,单文件注定是残缺体验,而 coding eval 恰恰最依赖这些视图——这个形态的存在本身就在诱导用户导出一份看不了证据的报告。「传一个文件给同事」的需求,答案是把整站导出托管起来发链接,或用 [Reports](reports.md) 积木在 CI 里落判定数据。`--out` 目标以 `.html` 结尾时 CLI 直接报错并给出改法。
+> 单文件导出(`--out report.html`)曾经存在,已移除:代码/transcript/trace 视图依赖 artifact 文件,单文件注定是残缺体验,而 coding eval 恰恰最依赖这些视图——这个形态的存在本身就在诱导用户导出一份看不了证据的报告。「传一个文件给同事」的需求,答案是把整站导出托管起来发链接,或用 [Reports](reports.md) 积木在 CI 里落判定数据。`--out` 目标以 `.html` 结尾时 CLI 直接报错并给出改法。
 
 ## 结果版本机制
 
@@ -54,7 +54,7 @@ niceeval view --out site              # 目录式静态导出:index.html + artif
 | `schemaVersion` 小于最低支持版本 | 跳过或失败 | 建议用写出该报告的 `producer.version` 打开,或先导出/归档后 `niceeval clean` |
 | `schemaVersion` 大于当前支持版本 | 跳过或失败 | 建议升级 niceeval,或用报告里的 `producer.version` 对应版本打开 |
 | 必需字段坏了,例如 `results` 不是数组 | 跳过或失败 | 说明报告可能损坏,给出文件路径 |
-| attempt 工件缺失,例如 `events.json` 不存在 | 页面仍可打开 | 只在展开该 attempt 时显示「artifact missing」 |
+| attempt artifact 缺失,例如 `events.json` 不存在 | 页面仍可打开 | 只在展开该 attempt 时显示「 artifact missing」 |
 
 命令行错误要给到具体命令,例如:
 
@@ -101,7 +101,7 @@ npx niceeval@<producer.version> view .niceeval/<run>/summary.json
 - **运行总览指标** —— pass / fail / error / skip 计数、总 token、总 $。
 - **eval attempt 钻取** —— `AttemptModal` 点开单个 attempt 看断言、错误、耗时、用量、transcript、trace。
 - **trace 瀑布图** —— 把 `trace.json` 画成时间轴瀑布,只读 canonical(`gen_ai.operation.name` → `kind`、`gen_ai.*`),不认任何原生 span 名,所以不同 agent 的图天然对齐、可叠加对比。
-- **Copy fix prompt(学 Next.js 16.3 的 Copy prompt)** —— 榜单右上角把全部失败(含工件路径与修复步骤)打包成可直接粘给 coding agent 的英文修复 prompt;`AttemptModal` 头部有单条版。实现在 `src/view/app/components/CopyControls.tsx` 的 `buildFixPrompt`。
+- **Copy fix prompt(学 Next.js 16.3 的 Copy prompt)** —— 榜单右上角把全部失败(含 artifact 路径与修复步骤)打包成可直接粘给 coding agent 的英文修复 prompt;`AttemptModal` 头部有单条版。实现在 `src/view/app/components/CopyControls.tsx` 的 `buildFixPrompt`。
 
 ## 已知的文档 vs 实现差异
 
@@ -183,7 +183,7 @@ npx niceeval@<producer.version> view .niceeval/<run>/summary.json
 
 导出机制同样合流:
 
-- `view --out <目录>` 的工件复制换成 [`copySnapshots`](results-lib.md#复制与瘦身copysnapshots)(sources/events/trace,diff/o11y 照旧不带);单文件导出已整个移除(见上文「静态导出」的移除记录),合流时不必再背这个形态。
+- `view --out <目录>` 的 artifact 复制换成 [`copySnapshots`](results-lib.md#复制与瘦身copysnapshots)(sources/events/trace,diff/o11y 照旧不带);单文件导出已整个移除(见上文「静态导出」的移除记录),合流时不必再背这个形态。
 - 烘进 HTML 的 `__NICEEVAL_VIEW_DATA__` 从私有 rows 换成**官方数据契约**(OverviewData / TableData / ScatterData + 快照元信息)。外部脚本从此没有理由扒 HTML——coding-agent-memory-evals 曾用字符串标记从 index.html 里抠内嵌 JSON、再正则消毒构建机路径,那类 hack 的存在本身就是数据契约缺位的证据;但内嵌数据仍不是承诺的持久化格式,要数据走 [Reports 场景三](reports.md#dx-模拟)自己算。
 - 补 `#/attempt/<run>/<result>` 路由,路由参数就是 `AttemptRef`——报告页(前门)与 view(证据室)靠同一个身份契约打通,`attemptHref` 从此有确定的去处(对应 [Reports 迭代问题裁决记录](reports.md#迭代问题裁决记录)第 5 条)。**已实现**:`src/view/app/lib/attempt-route.ts` + `App.tsx` 接线,loader 的 `withViewRefs` 给每条 result 注入 `attemptRef`;旧 `?modal=` 参数保留为只读回退。
 
@@ -198,6 +198,6 @@ npx niceeval@<producer.version> view .niceeval/<run>/summary.json
 ## 相关阅读
 
 - [Observability](observability.md#结果可视化niceeval-view) —— 事件流、trace、usage/cost 这些 view 渲染的数据从哪来。
-- [Results Format](results-format.md) —— view 读取的 `.niceeval/<run>/summary.json` 与 attempt 级 JSON 工件。
+- [Results Format](results-format.md) —— view 读取的 `.niceeval/<run>/summary.json` 与 attempt 级 JSON artifact。
 - [References](references.md#vercel-agent-eval--packagesplayground) —— 这次调研 agent-eval playground 的完整记录。
 - [Experiments](experiments.md) —— `experimentId`、可对比组、`niceeval exp` 怎么产生这些历史快照。

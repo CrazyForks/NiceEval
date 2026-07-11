@@ -1,6 +1,6 @@
 // show 的文本渲染:单 eval 详情、--history 时间轴、三个证据切面(transcript / trace / diff)。
 // 输出形态照 docs-site/zh/guides/viewing-results.mdx 的示例块;长内容一律截断,
-// 但截断永远如实标注剩余数量和原始工件路径 —— 输出对上下文窗口友好,事实源留在盘上。
+// 但截断永远如实标注剩余数量和原始 artifact 路径 —— 输出对上下文窗口友好,事实源留在盘上。
 // 全部纯函数(时间经 now 显式传入),证据数据由调用方 await 好了递进来。
 
 import { join, relative } from "node:path";
@@ -46,12 +46,12 @@ function attemptsLabel(n: number): string {
   return `${n} ${n === 1 ? "attempt" : "attempts"}`;
 }
 
-/** attempt 的展示序号:落盘 attempt 从 0 计,人看 1 计(工件目录后缀 __2 = attempt 3)。 */
+/** attempt 的展示序号:落盘 attempt 从 0 计,人看 1 计( artifact 目录后缀 __2 = attempt 3)。 */
 export function displayAttemptNumber(attempt: AttemptHandle): number {
   return attempt.result.attempt + 1;
 }
 
-/** attempt 工件目录的展示路径:尽量给相对 cwd 的短路径,出了 cwd 给绝对路径。 */
+/** attempt artifact 目录的展示路径:尽量给相对 cwd 的短路径,出了 cwd 给绝对路径。 */
 export function attemptArtifactsPath(attempt: AttemptHandle, cwd: string): string | undefined {
   const r = attempt.result;
   let abs: string | undefined;
@@ -186,7 +186,7 @@ export function evalDetailText(opts: EvalDetailOptions): string {
 
     const tail: string[] = [];
     const artifacts = attemptArtifactsPath(detail, cwd);
-    if (artifacts) tail.push(`artifacts: ${artifacts}/`);
+    if ( artifacts) tail.push(`artifacts: ${artifacts}/`);
     tail.push(`next: niceeval show ${evalId} --transcript | --trace | --diff`);
     blocks.push(tail.join("\n"));
   }
@@ -294,7 +294,7 @@ export function transcriptText(opts: {
   width: number;
 }): string {
   const { header, events, artifactPath, width } = opts;
-  const source = artifactPath ? join(artifactPath, "events.json") : undefined;
+  const source = artifactPath ? join( artifactPath, "events.json") : undefined;
   if (!events || events.length === 0) {
     return `${header}\n\n(no events recorded for this attempt${source ? ` · expected: ${source}` : ""})`;
   }
@@ -347,7 +347,7 @@ export function traceText(opts: {
   width: number;
 }): string {
   const { header, spans, artifactPath } = opts;
-  const source = artifactPath ? join(artifactPath, "trace.json") : undefined;
+  const source = artifactPath ? join( artifactPath, "trace.json") : undefined;
   if (!spans || spans.length === 0) {
     return `${header}\n\n(no trace recorded for this attempt${source ? ` · expected: ${source}` : ""})`;
   }
@@ -412,7 +412,7 @@ export function diffText(opts: {
   file?: string;
 }): string {
   const { header, diff, artifactPath, file } = opts;
-  const source = artifactPath ? join(artifactPath, "diff.json") : undefined;
+  const source = artifactPath ? join( artifactPath, "diff.json") : undefined;
   if (!diff) {
     return `${header}\n\n(no diff recorded for this attempt${source ? ` · expected: ${source}` : ""})`;
   }

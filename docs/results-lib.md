@@ -2,7 +2,7 @@
 
 > 状态:已按本文实现(`src/results/`,源码入口见 [Source Map](source-map.md#results-lib-与-reports)),与 `docs-site/zh/guides/results-data.mdx` 对齐:读取面(`openResults` 分层、`latest()` 选集、`dedupeAttempts`)、写入面(`createRunWriter`)、发布(`copySnapshots`)与 `Artifacts()` reporter 薄壳全部落地;view 的读取层收编也已完成(2026-07,`src/view/data.ts` 改吃 `openResults`,见 [View](view.md))。一步未实现:「类型的家」迁移(`RunSummary` / `EvalResult` 等仍住 core 的域文件,库经 `../types.ts` 引用,见「库的边界」)。[Results Format](results-format.md) 是磁盘上的格式规范;本库是这份格式的**读与写**的唯一实现 `niceeval/results`,做 runner、view、[Reports](reports.md) 和用户脚本的共同数据层。
 
-抽库前,同一份磁盘格式的写和读长在两个器官里。写在 `src/runner/reporters/artifacts.ts`:时间戳目录、attempt 路径清洗(evalId 保留 `/` 层级、agent/model 非 `[\w.@-]` 全换 `_`)、大字段拆工件、`artifactsDir` / `has*` 回填、空数据不落文件——全是它的私有知识。读长在 `src/view/index.ts`:`readSummary` 的版本判定、`loadSummaries` 的目录扫描、工件路径反拼。两边靠 `src/types.ts` 共享类型,但**布局知识各自实现了一遍**:格式演进要同步改两处,谁漏改谁坏。用户侧则根本没有读取 API,想编程消费只能第三次重写这些知识:
+抽库前,同一份磁盘格式的写和读长在两个器官里。写在 `src/runner/reporters/artifacts.ts`:时间戳目录、attempt 路径清洗(evalId 保留 `/` 层级、agent/model 非 `[\w.@-]` 全换 `_`)、大字段拆 artifact、`artifactsDir` / `has*` 回填、空数据不落文件——全是它的私有知识。读长在 `src/view/index.ts`:`readSummary` 的版本判定、`loadSummaries` 的目录扫描、 artifact 路径反拼。两边靠 `src/types.ts` 共享类型,但**布局知识各自实现了一遍**:格式演进要同步改两处,谁漏改谁坏。用户侧则根本没有读取 API,想编程消费只能第三次重写这些知识:
 
 ```typescript
 // 抽库前:想比「谁的代码短」,只能手工爬目录
@@ -21,7 +21,7 @@ for (const r of summary.results) {
 `niceeval/results` 拥有:
 
 - **类型的家。** `RunSummary` / `EvalResult` / `StreamEvent` / `TraceSpan` / `O11ySummary` / `DiffData` 等结果类型和 `RESULTS_FORMAT` / `RESULTS_SCHEMA_VERSION` 常量搬进库;core 的 `src/types.ts` facade 反向 re-export,模块代码 `import type { … } from "../types.ts"` 的老习惯不破。
-- **writer。** 目录创建、快照级元数据、attempt 工件增量落盘、summary 推导收尾(见下)。
+- **writer。** 目录创建、快照级元数据、attempt artifact 增量落盘、summary 推导收尾(见下)。
 - **reader。** `openResults`:目录扫描、版本过滤、懒加载、实验/快照/eval 分层、选择器(见下)。
 - **身份。** attempt 身份键与去重规则——读写两侧对「同一个 attempt」的理解必须一致,所以住在这。
 
@@ -38,7 +38,7 @@ for (const r of summary.results) {
 
 ## 写:`createRunWriter`
 
-writer 与 reader 是同一组类型的两半,而且是**字面的**两半:reader 的 `attempt.result`(瘦身 `EvalResult`)由两部分拼成——快照级字段(agent / model / startedAt / producer)来自 `writer.snapshot()` 的一次声明,是快照层注入的装饰;其余全部字段就是 `writeAttempt` 第一参数的类型。第二参数是 reader 懒加载能拿到的那几样工件的类型。**「writeAttempt 参数 + snapshot() 声明 = reader 读回的全部,由类型拼合背书」**:快照级字段不在 attempt 参数类型里,不存在「谁的值为准」的运行时问题。两版落选形状的记录:「大字段内联的完整 EvalResult」是另一个类型,编译器背书当场不成立;「第一参 = 完整的 attempt.result」含 experiment 元数据,与「快照级只声明一次」互相矛盾(2026-07-10 修正)。「大字段拆文件、引用填回来」的布局知识全部在库内。这与 [Reports 类型义务](reports.md#类型义务本提案的落地前置)第 3 条的 EvalResult 两拆是同一件事。
+writer 与 reader 是同一组类型的两半,而且是**字面的**两半:reader 的 `attempt.result`(瘦身 `EvalResult`)由两部分拼成——快照级字段(agent / model / startedAt / producer)来自 `writer.snapshot()` 的一次声明,是快照层注入的装饰;其余全部字段就是 `writeAttempt` 第一参数的类型。第二参数是 reader 懒加载能拿到的那几样 artifact 的类型。**「writeAttempt 参数 + snapshot() 声明 = reader 读回的全部,由类型拼合背书」**:快照级字段不在 attempt 参数类型里,不存在「谁的值为准」的运行时问题。两版落选形状的记录:「大字段内联的完整 EvalResult」是另一个类型,编译器背书当场不成立;「第一参 = 完整的 attempt.result」含 experiment 元数据,与「快照级只声明一次」互相矛盾(2026-07-10 修正)。「大字段拆文件、引用填回来」的布局知识全部在库内。这与 [Reports 类型义务](reports.md#类型义务本提案的落地前置)第 3 条的 EvalResult 两拆是同一件事。
 
 ```typescript
 import { createRunWriter } from "niceeval/results";
@@ -57,7 +57,7 @@ const snap = writer.snapshot({     // 快照级元数据的家:一个 experiment
 
 await snap.writeAttempt(result, {  // result = attempt 级条目;快照级字段在 snapshot() 声明
   events, trace, o11y, diff, sources,   // 全部可选;缺哪样读取面就懒加载出 null
-});                                // 拆工件文件、算 artifactsDir(含路径清洗)、
+});                                // 拆 artifact 文件、算 artifactsDir(含路径清洗)、
                                    // 回填 has* 引用;空数据不落文件
 
 await writer.finish();             // summary 从已写入的 attempt 推导(计数永远和条目一致),
@@ -65,11 +65,11 @@ await writer.finish();             // summary 从已写入的 attempt 推导(计
                                    // 字段走可选参数覆盖,不让调用方手拼整份 summary
 ```
 
-`writer.snapshot()` 是读取面「一个 run 装多份快照」的镜像:`niceeval exp compare` 整组对照就是一个 run 目录里开多个快照,agent / model / startedAt 这些快照级身份在这里声明一次,不塞进每条 attempt——否则第三方转换器要么漏写要么各条不一致,reader 侧还得猜以谁为准(类型上由 `writeAttempt` 参数的 `Omit` 保证,见上)。快照级可选项还包括 `knownEvalIds`(该实验已知的 eval 并集,残缺检测的分母,见 `copySnapshots` 节)。attempt 工件按完成增量写入(与今天的行为一致):长 run 中途失败,已完成的 attempt 工件仍留在盘上供手工排查——但 summary 是 `finish()` 写的收尾事实,没收尾的目录读取面归入 `skipped("incomplete")`,不认半份落盘(决策记录见「读」一节要点)。
+`writer.snapshot()` 是读取面「一个 run 装多份快照」的镜像:`niceeval exp compare` 整组对照就是一个 run 目录里开多个快照,agent / model / startedAt 这些快照级身份在这里声明一次,不塞进每条 attempt——否则第三方转换器要么漏写要么各条不一致,reader 侧还得猜以谁为准(类型上由 `writeAttempt` 参数的 `Omit` 保证,见上)。快照级可选项还包括 `knownEvalIds`(该实验已知的 eval 并集,残缺检测的分母,见 `copySnapshots` 节)。attempt artifact 按完成增量写入(与今天的行为一致):长 run 中途失败,已完成的 attempt artifact 仍留在盘上供手工排查——但 summary 是 `finish()` 写的收尾事实,没收尾的目录读取面归入 `skipped("incomplete")`,不认半份落盘(决策记录见「读」一节要点)。
 
 ## 复制与瘦身:`copySnapshots`
 
-发布场景的第三个原语:把选中的快照按格式感知地复制到另一个目录——只带指定工件、只带选中的 attempt,布局知识不外泄。名字不叫 `copyRun`:本文用一整节教「快照不是 run」,而这个 API 恰恰收快照、产出「装着选中快照的一个 run 目录」——名字再叫 run,刚建立的心智当场自相矛盾。输入收 `Selection` 或手工挑的 `Snapshot[]`,与 Reports 组件的 `data` 函数同一输入约定:
+发布场景的第三个原语:把选中的快照按格式感知地复制到另一个目录——只带指定 artifact、只带选中的 attempt,布局知识不外泄。名字不叫 `copyRun`:本文用一整节教「快照不是 run」,而这个 API 恰恰收快照、产出「装着选中快照的一个 run 目录」——名字再叫 run,刚建立的心智当场自相矛盾。输入收 `Selection` 或手工挑的 `Snapshot[]`,与 Reports 组件的 `data` 函数同一输入约定:
 
 ```typescript
 import { openResults, copySnapshots } from "niceeval/results";
@@ -80,9 +80,9 @@ await copySnapshots(results.latest(), "site/data/run", {
 });
 ```
 
-动机来自真实消费者:coding-agent-memory-evals 把最新 run 快照进仓库供静态托管,今天是 40 行手写脚本——按 `summary.json` 的 mtime 挑「最新」(口径还错了:该挑快照,不该挑 run),再按白名单拷贝工件文件(布局知识第三次泄漏)。`copySnapshots` 之后这段只剩上面几行,挑选交给 `results.latest()`(见[静态导出场景](reports.md#dx-模拟))。复制不改工件内容、不消毒——发布消毒是自由文本的事,归 [Reports 的 `CaseList.data({ redact })`](reports.md#计算函数与数据契约)。三条契约细节(2026-07-10 拍板):
+动机来自真实消费者:coding-agent-memory-evals 把最新 run 快照进仓库供静态托管,今天是 40 行手写脚本——按 `summary.json` 的 mtime 挑「最新」(口径还错了:该挑快照,不该挑 run),再按白名单拷贝 artifact 文件(布局知识第三次泄漏)。`copySnapshots` 之后这段只剩上面几行,挑选交给 `results.latest()`(见[静态导出场景](reports.md#dx-模拟))。复制不改 artifact 内容、不消毒——发布消毒是自由文本的事,归 [Reports 的 `CaseList.data({ redact })`](reports.md#计算函数与数据契约)。三条契约细节(2026-07-10 拍板):
 
-- **覆盖事实随数据走(`knownEvalIds`)。** `partial-coverage` 的分母是实验的历史并集,而发布目录没有历史——只复制选中快照,发布目录上重新 `openResults().latest()`,警告会静默消失,「缺口永远被算出来」在官方教的发布路径上断掉。修法不是持久化警告(那违反「reader 派生物删了可重算」),而是让警告的**依据**随数据走:`copySnapshots` 给每个复制出的快照补记 `knownEvalIds`(复制时刻该实验的 `exp.evalIds`);reader 端 `exp.evalIds` 的定义改为 **并集(本地历史, 各快照携带的 knownEvalIds)**——不是「优先字段」:把快照复制进已有历史的目录时,本地并集可能更大,优先字段会让分母缩水。字段是格式的一部分,`writer.snapshot()` 同样可声明(第三方转换器交代已知覆盖);可选新增字段不破坏兼容,按 [Results Format 版本规则](results-format.md#版本与升级设计)不递增 schemaVersion,落地时同步该规范。「复制忠实于源」的承诺相应精确化:不改工件内容,但随行补记挑选时的覆盖事实。
+- **覆盖事实随数据走(`knownEvalIds`)。** `partial-coverage` 的分母是实验的历史并集,而发布目录没有历史——只复制选中快照,发布目录上重新 `openResults().latest()`,警告会静默消失,「缺口永远被算出来」在官方教的发布路径上断掉。修法不是持久化警告(那违反「reader 派生物删了可重算」),而是让警告的**依据**随数据走:`copySnapshots` 给每个复制出的快照补记 `knownEvalIds`(复制时刻该实验的 `exp.evalIds`);reader 端 `exp.evalIds` 的定义改为 **并集(本地历史, 各快照携带的 knownEvalIds)**——不是「优先字段」:把快照复制进已有历史的目录时,本地并集可能更大,优先字段会让分母缩水。字段是格式的一部分,`writer.snapshot()` 同样可声明(第三方转换器交代已知覆盖);可选新增字段不破坏兼容,按 [Results Format 版本规则](results-format.md#版本与升级设计)不递增 schemaVersion,落地时同步该规范。「复制忠实于源」的承诺相应精确化:不改 artifact 内容,但随行补记挑选时的覆盖事实。
 - **目标目录非空即报错**,不静默覆盖、不合并——发布脚本要幂等就自己先清目录;盘上不该出现「我没写的东西被动过」的惊讶。
 - **`artifacts` 合法值全集** `"events" | "trace" | "o11y" | "diff" | "sources"`,缺省全带。
 
@@ -118,7 +118,7 @@ attempt.experimentId;          // 属于哪个实验
 attempt.result;                // EvalResult 瘦身条目:判定、断言、用量、成本、experiment 元数据
 attempt.ref;                   // { run, result }:证据引用(run 目录名 + results 下标),
                                // Reports 的 MetricCell.refs 与 view 深链 #/attempt/... 同一身份
-await attempt.events();        // StreamEvent[] | null —— 重工件全部懒加载
+await attempt.events();        // StreamEvent[] | null —— 重 artifact 全部懒加载
 await attempt.trace();         // TraceSpan[] | null
 await attempt.o11y();          // O11ySummary | null
 await attempt.diff();          // DiffData | null(可达百 MB,所以必须懒)
@@ -129,9 +129,9 @@ await attempt.sources();       // SourceArtifact[] | null
 
 要点:
 
-- **懒加载即存在性判断。** 工件缺失返回 `null`,不抛错。今天 summary 里只有 `hasEvents` / `hasTrace` / `hasSources`,连 `hasO11y` / `hasDiff` 标记都没有——这类不对称全被方法语义吸收,消费方不再碰路径。
+- **懒加载即存在性判断。** artifact 缺失返回 `null`,不抛错。今天 summary 里只有 `hasEvents` / `hasTrace` / `hasSources`,连 `hasO11y` / `hasDiff` 标记都没有——这类不对称全被方法语义吸收,消费方不再碰路径。
 - **版本过滤沿用格式规范。** 按 [Results Format 的版本规则](results-format.md#版本与升级设计)判定,不兼容的落盘进 `skipped` 并带 `schemaVersion` 与**完整的** `producer`(name + version),与 [View 的报错与降级](view.md#报错与降级)同一姿势。带完整 producer 是硬要求:`npx niceeval@<version> view` 的提示只对 `producer.name === "niceeval"` 成立,第三方 harness 写的落盘拿它的版本号拼 npx 命令是一句错误提示——只给 `producerVersion` 一个裸版本号,消费方连做对这个分支的信息都没有。能读进来的每个快照带自己的 `producer` / `schemaVersion`,「这份结果是谁、用什么版本写的」不用下钻 summary。
-- **`skipped` 的第三种原因:`"incomplete"`(2026-07-10 拍板)。** 有 attempt 工件、没有 summary 的目录 = run 中途 crash、writer 没走到 `finish()`。与 `"malformed"` 区分开——诊断动作完全不同(一个是没收尾,一个是坏数据)。reader **不读**无 summary 的目录:summary 是收尾事实,给半份落盘造第二条读取路径会破坏它的地位。「重开 writer 补 finish」的恢复路径也被否:判定只活在 summary 里,恢复成立的前提是 writer 增量落一份判定 journal——那是 Results Format 级的新落盘物,代价大于收益,不做。已完成的工件留在盘上,供手工排查。
+- **`skipped` 的第三种原因:`"incomplete"`(2026-07-10 拍板)。** 有 attempt artifact、没有 summary 的目录 = run 中途 crash、writer 没走到 `finish()`。与 `"malformed"` 区分开——诊断动作完全不同(一个是没收尾,一个是坏数据)。reader **不读**无 summary 的目录:summary 是收尾事实,给半份落盘造第二条读取路径会破坏它的地位。「重开 writer 补 finish」的恢复路径也被否:判定只活在 summary 里,恢复成立的前提是 writer 增量落一份判定 journal——那是 Results Format 级的新落盘物,代价大于收益,不做。已完成的 artifact 留在盘上,供手工排查。
 - **分组是切片,不是看法。** 实验归组、eval 分组都是确定性切片(不合并、不聚合、不去重),与「忠实磁盘」不冲突;有看法的合并聚合仍然全部在消费方。
 - **同一进程内按 handle 记忆化。** 两个都要读 diff 的消费方不会把「可达百 MB」的 `diff.json` 读两遍;扫全部历史仍然可能慢,但要慢得线性、可预期。
 - **只读不写事实。** reader 的一切派生物删了随时可重算;唯一事实来源仍是磁盘上的 Results Format。
@@ -212,10 +212,10 @@ latest.warnings[0];
 
 `--resume` 会把上一轮已通过的结果**原样合入**新 run 的 summary(`RunOptions.priorResults`):这让续跑出来的最新快照天然完整(正好配合 `results.latest()`),代价是同一个 attempt 存在于多份落盘。
 
-**合入条目的读取面行为(2026-07-10 拍板,机制已在盘上)**:合入时条目的 `artifactsDir` 置空、`artifactBase`(相对结果根)指向原 run 的工件目录,`has*` 真值原样携带(`src/runner/run.ts` 的 carriedResults、`src/runner/reporters/artifacts.ts` 的 slimResult)——`artifactBase` 就是事实上的「合入」标记,不需要再发明一个。reader 据此定三条:
+**合入条目的读取面行为(2026-07-10 拍板,机制已在盘上)**:合入时条目的 `artifactsDir` 置空、`artifactBase`(相对结果根)指向原 run 的 artifact 目录,`has*` 真值原样携带(`src/runner/run.ts` 的 carriedResults、`src/runner/reporters/artifacts.ts` 的 slimResult)——`artifactBase` 就是事实上的「合入」标记,不需要再发明一个。reader 据此定三条:
 
 - **懒加载按候选顺序回退**:先本 run 的 `artifactsDir`,再 `artifactBase` 指向的原 run 目录;原 run 被清理后如实返回 `null`(「懒加载即存在性判断」不破:盘上确实没有了)。
-- **`ref` 指条目所在的落盘**(合入后的新 run):证据身份跟着条目走,工件经回退仍可达;view 深链与 `copySnapshots` 的源工件定位用同一套候选顺序。
+- **`ref` 指条目所在的落盘**(合入后的新 run):证据身份跟着条目走, artifact 经回退仍可达;view 深链与 `copySnapshots` 的源 artifact 定位用同一套候选顺序。
 - **身份键四字段都在数据上**:`experimentId` / `evalId` 是 AttemptHandle 直达字段,`attempt` 序号与 `startedAt` 在 `attempt.result` 上——消费方自己实现去重不缺任何一块。
 
 reader 忠实反映这份重复,不擅自去重;**跨快照聚合前按身份键去重是消费方的义务**:

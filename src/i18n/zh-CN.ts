@@ -14,7 +14,7 @@ export const zhCN = {
   "checkpoint.emptyTar": "checkpoint: tar 为空(paths: {{paths}})",
   "cli.all": "(全部)",
   "cli.browserOpenFailed": "无法自动打开浏览器,请手动访问:{{url}}\n",
-  "cli.clean.done": "已删除 .niceeval/ 历史运行工件。\n",
+  "cli.clean.done": "已删除 .niceeval/ 历史运行 artifact。\n",
   "cli.config.missing":
     "找不到 niceeval.config.ts。\n" +
     "修法:\n" +
@@ -30,7 +30,7 @@ export const zhCN = {
   "runner.budgetUnenforceable":
     "{{budgetKey}} 的 budget:连续多个 attempt 完成后都拿不到成本数据(agent 不上报用量且模型不在价格表)——该 agent 的 budget 无法执行,取消护栏继续跑。\n",
   "judge.modelMissing":
-    "judge 未配置模型:在 defineConfig({ judge: { model: \"...\" } })、eval 的 judge 配置或环境变量 NICEEVAL_JUDGE_MODEL 里指定评判模型(没有内置默认模型)。\n" +
+    "judge 未配置模型:在 defineConfig({ judge: { model: \"...\" } })、eval 的 judge 配置或环境变量 NICEEVAL_JUDGE_MODEL 里指定裁判模型(没有内置默认模型)。\n" +
     "  文档:node_modules/niceeval/docs-site/zh/guides/scoring-guide.mdx",
   "loaders.yamlMissing":
     "loadYaml(\"{{path}}\") 需要 YAML 解析器:请先 `pnpm add yaml`(或改用 loadJson + JSON 数据集)。",
@@ -51,8 +51,8 @@ export const zhCN = {
     "  niceeval view [eval-id 前缀…|summary.json] [--out 目录] [--port n] [--no-open]\n" +
     "      报告槽 + 证据室;--report <文件> 整槽换成自定义报告(与 show 同一文件)\n" +
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
-    "      --out <目录> 静态导出:index.html 连同查看器工件,可直接静态托管\n" +
-    "  niceeval clean                           删除 .niceeval/ 历史工件\n" +
+    "      --out <目录> 静态导出:index.html 连同查看器 artifact,可直接静态托管\n" +
+    "  niceeval clean                           删除 .niceeval/ 历史 artifact\n" +
     "  niceeval init                            脚手架 config + evals/\n\n" +
     "标志:\n" +
     "  --runs n  --max-concurrency n  --timeout ms  --budget usd  --tag t\n" +
@@ -94,7 +94,7 @@ export const zhCN = {
   "cli.run.experimentRequiredHint": "提示:\"{{pattern}}\" 是实验{{kind}},你大概想跑:niceeval exp {{pattern}}\n",
   "cli.run.experimentRequiredKnown": "已发现实验:{{experiments}}\n",
   "cli.unimplemented": "命令 \"{{command}}\" 暂未实现(MVP)。\n",
-  "cli.view.exportedDir": "已导出静态查看站:{{out}}(整个目录可直接静态托管;本地打开 {{out}}/index.html 需经 http 服务,file:// 下工件 fetch 不可用)\n",
+  "cli.view.exportedDir": "已导出静态查看站:{{out}}(整个目录可直接静态托管;本地打开 {{out}}/index.html 需经 http 服务,file:// 下 artifact fetch 不可用)\n",
   "cli.view.incompatible": "{{dir}}: 由 niceeval {{producer}} 写入(schemaVersion {{schemaVersion}}),当前 CLI 只读 schemaVersion {{supported}}。\n运行 `{{command}}` 查看这份报告。\n",
   "cli.view.noResults": "{{root}} 下没有结果。先 `niceeval exp` 跑一轮,再 `niceeval view`。\n",
   "cli.view.incompatibleForeign": "{{dir}}: 由 {{name}} {{version}} 写入(schemaVersion {{schemaVersion}}),当前 CLI 只读 schemaVersion {{supported}}。\n请用写出它的那个工具查看这份报告。\n",

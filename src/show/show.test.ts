@@ -300,7 +300,7 @@ describe("--history 时间轴", () => {
       "2026-07-07T09-00-00-000Z",
       summaryOf([original], { startedAt: "2026-07-07T09:00:00.000Z" }),
     );
-    // 复印件:同 id / attempt / startedAt,artifactBase 指回原 run(resume 合入的形状)
+    // 复印件:同 id / attempt / startedAt, artifactBase 指回原 run(resume 合入的形状)
     const { artifactsDir: _dropped, ...carriedBase } = original;
     const carried: EvalResult = {
       ...carriedBase,
@@ -454,14 +454,14 @@ describe("--report 装载", () => {
     const { out, code } = await show(root, ["fixtures/button"], { report, diff: true });
     expect(code).toBe(0);
     expect(out).not.toContain("CUSTOM");
-    expect(out).toContain("no diff recorded"); // fixture 没有 diff 工件:如实说缺
+    expect(out).toContain("no diff recorded"); // fixture 没有 diff artifact:如实说缺
   });
 });
 
 // ───────────────────────── 证据切面:--transcript ─────────────────────────
 
 describe("--transcript", () => {
-  it("逐轮对话 + 截断标注(事件数 · 工具调用数 · 原始工件路径)", async () => {
+  it("逐轮对话 + 截断标注(事件数 · 工具调用数 · 原始 artifact 路径)", async () => {
     const root = await makeRoot();
     const writer = await createRunWriter(root, { producer: { name: "niceeval", version: "0.0.0" } });
     const snap = writer.snapshot({

@@ -15,13 +15,13 @@ export function AttemptModal({ result, onClose, t }: { result: ViewResult; onClo
   const base = result.artifactBase;
   const [data, setData] = useState<ArtifactLoadState>({ sources: null, events: null, status: "loading" });
 
-  // Esc / 焦点陷阱 / 背景滚动锁 / 点遮罩关闭 都交给 Radix Dialog;这里只保留工件拉取。
+  // Esc / 焦点陷阱 / 背景滚动锁 / 点遮罩关闭 都交给 Radix Dialog;这里只保留 artifact 拉取。
   useEffect(() => {
     if (!base) { setData({ sources: null, events: null, status: "none" }); return; }
     let alive = true;
     const grab = (name: string, has?: boolean): Promise<unknown> =>
       has
-        ? fetch(artifactUrl(`${base}/${name}`))
+        ? fetch( artifactUrl(`${base}/${name}`))
             .then((r) => (r.ok ? r.json() : null))
             .catch(() => null)
         : Promise.resolve(null);
@@ -59,7 +59,7 @@ export function AttemptModal({ result, onClose, t }: { result: ViewResult; onClo
           {hasCode ? (
             <CodeView sources={data.sources ?? []} events={data.events || []} assertions={allAssertions} t={t} />
           ) : data.status !== "loading" ? (
-            // hasSources 为真却取不到 → 源码捕获过,是工件文件在当前托管里缺失;和「从未捕获」分开提示。
+            // hasSources 为真却取不到 → 源码捕获过,是 artifact 文件在当前托管里缺失;和「从未捕获」分开提示。
             <NoSourceBody
               assertions={allAssertions}
               events={data.events || []}

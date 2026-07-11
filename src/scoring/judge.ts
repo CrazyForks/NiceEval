@@ -1,6 +1,6 @@
-// LLM-as-judge:用一个与被测 agent 完全分离的评判模型做结构化 autoevals 评分。
+// LLM-as-judge:用一个与被测 agent 完全分离的裁判模型做结构化 autoevals 评分。
 //
-// 评判模型走 OpenAI 兼容的 /chat/completions。base_url + key 解析优先级:
+// 裁判模型走 OpenAI 兼容的 /chat/completions。base_url + key 解析优先级:
 //   judge.baseUrl / judge.apiKeyEnv  →  NICEEVAL_JUDGE_BASE / CODEX_BASE_URL  →  OpenAI 官方
 //
 // closedQA / factuality / summarizes 直接用 autoevals 库(braintrust)。

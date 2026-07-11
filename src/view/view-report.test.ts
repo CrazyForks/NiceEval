@@ -273,12 +273,12 @@ describe("loadViewScan · 报告文件变更整页重算", () => {
 // ───────────────────────── --out 静态导出 ─────────────────────────
 
 describe("buildView · --out 与 --report", () => {
-  it("报告页为首页报告槽,证据室同站:index.html 含报告块与官方样式,工件照常复制", async () => {
+  it("报告页为首页报告槽,证据室同站:index.html 含报告块与官方样式, artifact 照常复制", async () => {
     const root = await seedRoot();
-    // 给 weather attempt 一份 events 工件,验证证据室工件照常进导出。
+    // 给 weather attempt 一份 events artifact,验证证据室 artifact 照常进导出。
     const artifactDir = join(root, "2026-07-09T10-00-00-000Z", "artifacts", "weather");
-    await mkdir(artifactDir, { recursive: true });
-    await writeFile(join(artifactDir, "events.json"), "[]", "utf-8");
+    await mkdir( artifactDir, { recursive: true });
+    await writeFile(join( artifactDir, "events.json"), "[]", "utf-8");
     const summaryPath = join(root, "2026-07-09T10-00-00-000Z", "summary.json");
     const summary = JSON.parse(await readFile(summaryPath, "utf-8")) as RunSummary;
     summary.results[0]!.artifactsDir = "artifacts/weather";
@@ -294,7 +294,7 @@ describe("buildView · --out 与 --report", () => {
     // 报告块本体零 <script>:静态块起于 <template>,内部只有标记与 <style>。
     const block = html.split('<template id="niceeval-report">')[1]!.split("</template>")[0]!;
     expect(block).not.toContain("<script");
-    // 证据室同站:工件按 /artifact/<base>/ 布局复制。
+    // 证据室同站: artifact 按 /artifact/<base>/ 布局复制。
     expect(existsSync(join(out, "artifact", "2026-07-09T10-00-00-000Z/artifacts/weather", "events.json"))).toBe(true);
   });
 

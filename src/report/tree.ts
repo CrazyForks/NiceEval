@@ -4,7 +4,7 @@
 // jsx-runtime 产的元素恰好就是这个形状。本文件是基础实现:零 react 运行时依赖
 // (只有类型层的 `import type`,编译后擦除);text 宿主遍历渲染不需要 react-dom,
 // web 宿主(web.ts)才真正 import react。渲染面是纯同步函数:零 IO、零 await ——
-// 计算全部发生在报告函数体里,可达百 MB 的工件永远不进渲染路径。
+// 计算全部发生在报告函数体里,可达百 MB 的 artifact 永远不进渲染路径。
 
 import type { ReactNode } from "react";
 import type { AttemptRef } from "../results/index.ts";

@@ -3,7 +3,7 @@
 // writer 与 reader 是同一组类型的两半,而且是字面的两半:reader 的 attempt.result 由
 // 「snapshot() 声明的快照级字段(experiment / agent / model / startedAt)+ writeAttempt 第一参」
 // 拼成,快照级字段不在 attempt 参数类型里(AttemptEntry 的 Omit),不存在「谁的值为准」。
-// 布局知识(时间戳目录、attempt 路径清洗、大字段拆工件、has* 回填、空数据不落文件)全在这里;
+// 布局知识(时间戳目录、attempt 路径清洗、大字段拆 artifact、has* 回填、空数据不落文件)全在这里;
 // src/runner/reporters/artifacts.ts 是本文件的薄壳。
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -32,7 +32,7 @@ export interface SnapshotDeclaration {
 
 /**
  * writeAttempt 的第一参 = attempt 级条目:reader 的 attempt.result 中,快照级字段
- * (agent / model / startedAt / experimentId)以外的全部;工件引用字段由 writer 回填。
+ * (agent / model / startedAt / experimentId)以外的全部; artifact 引用字段由 writer 回填。
  */
 export type AttemptEntry = Omit<
   EvalResult,
@@ -54,7 +54,7 @@ export type AttemptEntry = Omit<
   | "hasSources"
 >;
 
-/** writeAttempt 的第二参:reader 懒加载能拿到的那几样工件,全部可选;缺哪样读取面就懒加载出 null。 */
+/** writeAttempt 的第二参:reader 懒加载能拿到的那几样 artifact,全部可选;缺哪样读取面就懒加载出 null。 */
 export interface AttemptArtifacts {
   events?: StreamEvent[];
   trace?: TraceSpan[];
@@ -64,7 +64,7 @@ export interface AttemptArtifacts {
 }
 
 export interface SnapshotWriter {
-  /** 增量落盘一条 attempt:拆工件文件、算 artifactsDir(含路径清洗)、回填 has* 引用;空数据不落文件。 */
+  /** 增量落盘一条 attempt:拆 artifact 文件、算 artifactsDir(含路径清洗)、回填 has* 引用;空数据不落文件。 */
   writeAttempt(entry: AttemptEntry, artifacts?: AttemptArtifacts): Promise<void>;
 }
 
@@ -92,7 +92,7 @@ export interface RunWriter {
   /** 写出 summary.json 收尾;没走到这里的目录读取面归入 skipped("incomplete")。 */
   finish(overrides?: FinishOverrides): Promise<RunSummary>;
   /**
-   * @internal runner Artifacts 薄壳的增量工件落盘入口:runner 的条目自带 agent / model /
+   * @internal runner Artifacts 薄壳的增量 artifact 落盘入口:runner 的条目自带 agent / model /
    * experimentId / startedAt(且存在无 experiment 的普通 run),不经 snapshot() 声明。
    */
   writeAttemptArtifacts(result: EvalResult): Promise<void>;
@@ -136,7 +136,7 @@ export async function createRunWriter(root: string, opts: RunWriterOptions): Pro
           full.agent ??= decl.agent;
           if (full.model === undefined && decl.model !== undefined) full.model = decl.model;
           full.startedAt ??= decl.startedAt;
-          await writeArtifacts(artifacts ?? {}, full);
+          await writeArtifacts( artifacts ?? {}, full);
           entries.push(
             slimEntry({
               ...full,
@@ -212,7 +212,7 @@ export async function createRunWriter(root: string, opts: RunWriterOptions): Pro
 
 /**
  * 瘦身条目:去掉内联大字段,回填 artifactsDir 与 has* 引用。
- * 携带条目(--resume 合入,rest 上带着 artifactBase 指向原 run 的工件目录)原样保留:
+ * 携带条目(--resume 合入,rest 上带着 artifactBase 指向原 run 的 artifact 目录)原样保留:
  * 本轮没有任何新数据,不能重新推导出 false 的 has*,更不能编出一个本轮没写过文件的 artifactsDir。
  */
 export function slimEntry(r: EvalResult): EvalResult {

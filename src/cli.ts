@@ -2,7 +2,7 @@
 //   niceeval exp [组|配置] [pattern]  跑实验
 //   niceeval show [pattern]          终端读结果:榜单 / 单 eval / 证据切面 / 时间轴 / --report
 //   niceeval list                    只列出发现到的 eval
-//   niceeval clean                   删除 .niceeval/ 历史运行工件
+//   niceeval clean                   删除 .niceeval/ 历史运行 artifact
 
 import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -547,7 +547,7 @@ async function main(): Promise<void> {
     }
   }
   const artifacts = ArtifactsReporter();
-  reporters.push(artifacts);
+  reporters.push( artifacts);
   if (flags.junit) reporters.push(JUnit(flags.junit));
   if (flags.json) reporters.push(Json(flags.json));
   reporters.push(...(config.reporters ?? []));
@@ -617,9 +617,9 @@ async function main(): Promise<void> {
   await stopAllSandboxes();
 
   // agent 反馈闭环的入口:跑完直接给出结构化结果路径,agent 读 summary.json 与各
-  // attempt 的工件(events/trace/diff),不必解析人类向的流式输出。--quiet 下也输出。
-  if (artifacts.outputDir()) {
-    process.stdout.write(t("cli.resultsPath", { path: join(artifacts.outputDir(), "summary.json") }));
+  // attempt 的 artifact(events/trace/diff),不必解析人类向的流式输出。--quiet 下也输出。
+  if ( artifacts.outputDir()) {
+    process.stdout.write(t("cli.resultsPath", { path: join( artifacts.outputDir(), "summary.json") }));
   }
 
   // 退出码按 eval 级判定,不按 attempt:summary.failed/errored 统计的是每次 attempt,

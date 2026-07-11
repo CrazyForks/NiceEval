@@ -10,7 +10,7 @@ import type { EvalResult, RunSummary } from "../types.ts";
 import type { O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
 import type { DiffData, SourceArtifact } from "../types.ts";
 
-/** attempt 级工件的种类;文件名恒为 `<kind>.json`,布局见 docs/results-format.md。 */
+/** attempt 级 artifact 的种类;文件名恒为 `<kind>.json`,布局见 docs/results-format.md。 */
 export const ARTIFACT_KINDS = ["events", "trace", "o11y", "diff", "sources"] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
@@ -35,10 +35,10 @@ export interface RunDir {
 }
 
 /**
- * 单个 eval attempt:瘦身条目 + 重工件的懒加载方法。
- * 懒加载即存在性判断:工件缺失返回 null,不抛错;同一 handle 内读过一次即记忆化。
- * 工件定位按候选顺序回退:先本 run 的 artifactsDir,再 artifactBase 指向的原 run 目录
- * (--resume 合入条目的工件留在原 run 里);原 run 被清理后如实返回 null。
+ * 单个 eval attempt:瘦身条目 + 重 artifact 的懒加载方法。
+ * 懒加载即存在性判断: artifact 缺失返回 null,不抛错;同一 handle 内读过一次即记忆化。
+ * artifact 定位按候选顺序回退:先本 run 的 artifactsDir,再 artifactBase 指向的原 run 目录
+ * (--resume 合入条目的 artifact 留在原 run 里);原 run 被清理后如实返回 null。
  */
 export interface AttemptHandle {
   /** 属于哪道题 —— 直达字段,不绕 result。 */
@@ -47,7 +47,7 @@ export interface AttemptHandle {
   experimentId: string;
   /** EvalResult 瘦身条目:判定、断言、用量、成本、experiment 元数据。 */
   result: EvalResult;
-  /** 证据引用,指条目所在的落盘(合入后的新 run);工件经候选回退仍可达。 */
+  /** 证据引用,指条目所在的落盘(合入后的新 run); artifact 经候选回退仍可达。 */
   ref: AttemptRef;
   /** 条目所在的物理落盘;去重「保留最新 run 目录里的那份」靠它比较新旧。 */
   runDir: RunDir;
@@ -109,8 +109,8 @@ export interface SkippedRun {
   /**
    * incompatible-version:schemaVersion 与读取器不同(不解析、不迁移、不降级);
    * malformed:summary.json 是坏数据;
-   * incomplete:有 attempt 工件、没有 summary.json —— run 中途 crash、writer 没走到 finish()。
-   * summary 是收尾事实,reader 不读无 summary 的目录;已完成的工件留在盘上供手工排查。
+   * incomplete:有 attempt artifact、没有 summary.json —— run 中途 crash、writer 没走到 finish()。
+   * summary 是收尾事实,reader 不读无 summary 的目录;已完成的 artifact 留在盘上供手工排查。
    */
   reason: "incompatible-version" | "malformed" | "incomplete";
   /** 那份结果声明的 schemaVersion(incomplete 没有 summary,自然缺失)。 */

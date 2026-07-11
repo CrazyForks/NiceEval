@@ -84,7 +84,7 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-日常循环从此只有两步:本地跑 eval,提交 `.niceeval/` 并 push。发布出去的站带完整历史——同事打开链接,看到的和你本地 `niceeval view` 一模一样;仓库、本地查看器、线上报告三处同一个真相源。仓库体积随落盘增长(`diff.json` 已排除,增长主要来自 transcript 和 trace 工件),不想保留的旧 run 直接删对应目录即可,查看器和报告跟着仓库走。
+日常循环从此只有两步:本地跑 eval,提交 `.niceeval/` 并 push。发布出去的站带完整历史——同事打开链接,看到的和你本地 `niceeval view` 一模一样;仓库、本地查看器、线上报告三处同一个真相源。仓库体积随落盘增长(`diff.json` 已排除,增长主要来自 transcript 和 trace artifact),不想保留的旧 run 直接删对应目录即可,查看器和报告跟着仓库走。
 
 ## 发布的是完整证据
 

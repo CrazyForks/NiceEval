@@ -1,10 +1,10 @@
 ---
 title: "查看 NiceEval 结果并调试 agent 行为"
 sidebarTitle: "查看结果"
-description: "每次运行写入 .niceeval/ 的结构化工件有两扇门：niceeval show 在终端逐级下钻榜单、断言、transcript、trace 与 diff；niceeval view 在网页看同一份证据。"
+description: "每次运行写入 .niceeval/ 的结构化 artifact 有两扇门：niceeval show 在终端逐级下钻榜单、断言、transcript、trace 与 diff；niceeval view 在网页看同一份证据。"
 ---
 
-每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入 `.niceeval/<timestamp>/`。看结果有两扇门，读的是同一批工件：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。show 就是 view 的终端版，两处读到的判定口径不分叉。
+每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入 `.niceeval/<timestamp>/`。看结果有两扇门，读的是同一批 artifact：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。show 就是 view 的终端版，两处读到的判定口径不分叉。
 
 ## 控制台输出
 
@@ -146,7 +146,7 @@ A src/components/Button.css   +18
 $ niceeval show fixtures/button --diff=src/components/Button.tsx
 ```
 
-三个切面对长内容都会截断，但截断永远如实标注剩余数量和原始工件路径——输出对上下文窗口友好，事实源一字不少地留在盘上。
+三个切面对长内容都会截断，但截断永远如实标注剩余数量和原始 artifact 路径——输出对上下文窗口友好，事实源一字不少地留在盘上。
 
 ### 历史与抖动：`--history`
 
@@ -191,16 +191,16 @@ view 的首页是一份报告：不传 `--report` 时是默认报告，传了就
 npx niceeval view --out site
 ```
 
-NiceEval 写入 `<dir>/index.html`，并把查看器要读取的工件（`sources.json`、`events.json`、`trace.json`）复制到 `<dir>/artifact/` 下。把整个目录交给任何静态托管（Vercel、GitHub Pages 或 `python3 -m http.server`），代码视图、transcript 和 trace 瀑布图都和本地 `niceeval view` 一致。
+NiceEval 写入 `<dir>/index.html`，并把查看器要读取的 artifact（`sources.json`、`events.json`、`trace.json`）复制到 `<dir>/artifact/` 下。把整个目录交给任何静态托管（Vercel、GitHub Pages 或 `python3 -m http.server`），代码视图、transcript 和 trace 瀑布图都和本地 `niceeval view` 一致。
 
-`--out` 只接受目录。没有单文件导出：代码视图、transcript 和 trace 依赖工件文件，单个 HTML 装不下完整证据。要把结果发给别人，托管整站发链接即可。
+`--out` 只接受目录。没有单文件导出：代码视图、transcript 和 trace 依赖 artifact 文件，单个 HTML 装不下完整证据。要把结果发给别人，托管整站发链接即可。
 
 零可读结果时 `view` 直接报错、非零退出——本地服务起不来，`--out` 不导出空页面。错误逐条列出被跳过的 run 目录与原因；落盘 schemaVersion 与当前版本不兼容时，还给出能直接查看旧落盘的 `npx niceeval@<版本> view` 命令。
 
 两点限制：
 
 - `diff.json` 和 `o11y.json` 不会被复制。查看器不读取它们，且 diff 可能达到上百 MB。
-- 用 `file://` 直接打开 `index.html` 时浏览器不允许 fetch 工件，代码视图会提示源码不可用。本地预览用 http 服务打开。
+- 用 `file://` 直接打开 `index.html` 时浏览器不允许 fetch artifact，代码视图会提示源码不可用。本地预览用 http 服务打开。
 
 最简单的流程是在跑过 eval 的机器上导出，把产物目录直接部署，不需要额外步骤。要让站点随 push 自动更新，把 `.niceeval/` 提交进仓库、CI 上一行 `view --out` 导出——workflow 与平台接线见[通过 CI 发布报告](/zh/guides/publish-report)。
 

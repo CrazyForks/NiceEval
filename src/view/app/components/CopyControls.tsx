@@ -46,7 +46,7 @@ export function toFixPromptEntry(r: ViewResult, experimentLabel: string): FixPro
 
 /**
  * 学 Next.js 16.3 的「Copy prompt」:把失败打包成一段可直接粘给 coding agent 的修复
- * prompt——失败清单 + 工件路径 + 先读随包文档 / 判断缺陷在哪一侧 / 重跑验证的步骤。
+ * prompt——失败清单 + artifact 路径 + 先读随包文档 / 判断缺陷在哪一侧 / 重跑验证的步骤。
  * prompt 面向 agent,固定英文;按钮文案走界面 i18n。
  */
 export function buildFixPrompt(entries: FixPromptEntry[]): string {

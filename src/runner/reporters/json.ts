@@ -1,4 +1,4 @@
-// JSON / JUnit 报告器:把运行结果落成机器可读工件,接 CI 或下游 dashboard。
+// JSON / JUnit 报告器:把运行结果落成机器可读 artifact,接 CI 或下游 dashboard。
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";

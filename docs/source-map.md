@@ -97,7 +97,7 @@
 | 报告器(Console / Json / JUnit / Live / 符号表) | `src/runner/reporters/{console,json,live,table,shared,index}.ts` |
 | Braintrust 上报(运行 → experiment,attempt → 一行) | `src/runner/reporters/braintrust.ts` |
 | eval 级折叠 / 计票口径(CLI 表格与 view 共用) | `src/shared/verdict.ts` |
-| 本地结果保存格式(`.niceeval/<run>/summary.json` + attempt 级 JSON 工件) | `src/runner/reporters/artifacts.ts`、`src/runner/types.ts`(`RunSummary` / `EvalResult`) |
+| 本地结果保存格式(`.niceeval/<run>/summary.json` + attempt 级 JSON artifact) | `src/runner/reporters/artifacts.ts`、`src/runner/types.ts`(`RunSummary` / `EvalResult`) |
 | CLI(exp / show / list / view / clean / init,--help,parseArgs 表驱动,.env 加载,NICEEVAL_* 环境变量层) | `src/cli.ts` |
 | `niceeval show` 终端宿主(选集合成「现刻水位」、--history 复印件不占行、--report 装载 + 组合语义矩阵、证据切面 transcript/trace/diff) | `src/show/{index,compose,render}.ts` |
 | 数据集加载器(loadJson / loadYaml) | `src/loaders/index.ts` |
@@ -108,7 +108,7 @@
 
 | 行为 | 文件 |
 |---|---|
-| `openResults`:实验/快照/eval 分层、版本分流(skipped 三种原因)、懒加载(artifactsDir→artifactBase 回退) | `src/results/open.ts` |
+| `openResults`:实验/快照/eval 分层、版本分流(skipped 三种原因)、懒加载( artifactsDir→artifactBase 回退) | `src/results/open.ts` |
 | 布局与版本知识(attempt 目录规则、summary 分类、完整 producer) | `src/results/format.ts` |
 | `results.latest()`(Selection + 三种警告)/ `Selection.filter` / `dedupeAttempts`(身份键去重) | `src/results/select.ts` |
 | `createRunWriter`(快照级元数据、增量落盘、finish 推导 summary) | `src/results/writer.ts` |

@@ -25,6 +25,7 @@
 - **Attempt**：同一个 eval 的第 i 次重复运行。中文直接写 `Attempt`，不写“尝试”。
 - **EarlyExit（`earlyExit`）**：取通过率时先过一次即中止其余 attempt 的策略。中文写“首过即停”，不写“早停”。
 - **接入等级（Integration tier）**：接入方式的三级（Tier 1 / 2 / 3）。中文写“接入等级”，档位照写 Tier 1 / Tier 2 / Tier 3。
+- **Artifact**：`.niceeval/<时间戳>/` 下落盘的结构化产物。中文直接写 `artifact`，不写“工件”。
 - **Turn**：一次 `t.send()` / `t.respond()` 的结果。中文直接写 `Turn`；“多轮对话”这类形容词性用法不受限。
 - **StreamEvent / events**：标准事件流，是断言和报告读取的事实来源。
 - **HITL**：human-in-the-loop，人工介入。第一次出现时写全称或中文解释。

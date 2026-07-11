@@ -1,8 +1,8 @@
-// niceeval/results 的单测:临时目录里构造最小 summary.json / 工件 fixture,覆盖定稿契约
+// niceeval/results 的单测:临时目录里构造最小 summary.json / artifact fixture,覆盖定稿契约
 // (docs/results-lib.md):分层读取、懒加载回退、skipped 三种原因、latest() 三种警告、
 // Selection.filter 修剪、dedupeAttempts 身份键、writer roundtrip、copySnapshots 补记,
 // 以及 Artifacts 报告器(writer 薄壳)与直写时代逐字节等价的守护。
-// 读取面 fixture 的目录名/工件路径手写(不 import 库的路径函数),让测试独立于实现充当格式基准。
+// 读取面 fixture 的目录名/artifact 路径手写(不 import 库的路径函数),让测试独立于实现充当格式基准。
 
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -149,9 +149,9 @@ describe("openResults · 实验 → 快照 → eval → attempt 分层", () => {
 // ───────────────────────── 懒加载与回退 ─────────────────────────
 
 describe("AttemptHandle · 懒加载", () => {
-  it("缺文件返回 null 不抛错;读过一次即记忆化;artifactsDir 优先、artifactBase 回退;原 run 清理后如实 null", async () => {
+  it("缺文件返回 null 不抛错;读过一次即记忆化; artifactsDir 优先、 artifactBase 回退;原 run 清理后如实 null", async () => {
     const root = await makeRoot();
-    // 原 run:携带条目的工件真身。
+    // 原 run:携带条目的 artifact 真身。
     const oldRun = await writeRun(root, "2026-06-30T08-00-00-000Z", summaryOf([
       res({ id: "q3", agent: "bub", model: "gpt-5", experimentId: "e", artifactsDir: "q3/bub/gpt-5/e/a1", hasEvents: true }),
     ], { startedAt: "2026-06-30T08:00:00.000Z" }));
@@ -160,7 +160,7 @@ describe("AttemptHandle · 懒加载", () => {
     const runDir = await writeRun(root, "2026-07-01T08-00-00-000Z", summaryOf([
       res({ id: "q1", agent: "bub", model: "gpt-5", experimentId: "e", artifactsDir: "q1/bub/gpt-5/e/a1", hasEvents: true }),
       res({ id: "q2", agent: "bub", model: "gpt-5", experimentId: "e" }),
-      // --resume 携带条目:本 run 没有工件,artifactBase(相对结果根)指向原 run。
+      // --resume 携带条目:本 run 没有 artifact, artifactBase(相对结果根)指向原 run。
       res({ id: "q3", agent: "bub", model: "gpt-5", experimentId: "e", artifactBase: "2026-06-30T08-00-00-000Z/q3/bub/gpt-5/e/a1", hasEvents: true }),
     ], { startedAt: "2026-07-01T08:00:00.000Z" }));
     const eventsPath = await writeArtifact(runDir, "q1/bub/gpt-5/e/a1", "events.json", [{ type: "message", text: "hi" }]);
@@ -184,7 +184,7 @@ describe("AttemptHandle · 懒加载", () => {
     // 条目没有 artifactsDir 也没有 artifactBase:不猜路径,全部 null。
     expect(await q2.events()).toBeNull();
 
-    // 携带条目经 artifactBase 回退读到原 run 的工件;ref 指条目所在的落盘(新 run)。
+    // 携带条目经 artifactBase 回退读到原 run 的 artifact;ref 指条目所在的落盘(新 run)。
     expect(await q3.events()).toEqual([{ type: "message", text: "old" }]);
     expect(q3.ref.run).toBe("2026-07-01T08-00-00-000Z");
 
@@ -199,7 +199,7 @@ describe("AttemptHandle · 懒加载", () => {
 // ───────────────────────── skipped 三种原因 ─────────────────────────
 
 describe("openResults · skipped", () => {
-  it("版本不匹配带 schemaVersion 与完整 producer;坏 JSON 记 malformed;无 summary 有工件记 incomplete;无关 JSON 静默;legacy 无信封按 1 读", async () => {
+  it("版本不匹配带 schemaVersion 与完整 producer;坏 JSON 记 malformed;无 summary 有 artifact 记 incomplete;无关 JSON 静默;legacy 无信封按 1 读", async () => {
     const root = await makeRoot();
     const incompatible = await writeRun(root, "2026-07-03T08-00-00-000Z", {
       format: RESULTS_FORMAT,
@@ -211,10 +211,10 @@ describe("openResults · skipped", () => {
     await writeRun(root, "2026-07-04T08-00-00-000Z", "not json {");
     await writeRun(root, "unrelated", { hello: 1 });
     await writeRun(root, "alien-results", { results: [] }); // 只沾一个键:无关 JSON,不进 skipped
-    // crash 没收尾:有 attempt 工件、没有 summary.json。
+    // crash 没收尾:有 attempt artifact、没有 summary.json。
     const crashed = join(root, "2026-07-05T08-00-00-000Z");
     await writeArtifact(crashed, "q1/bub/default/a1", "events.json", [{ type: "message" }]);
-    // 空目录:既无 summary 也无工件,静默忽略。
+    // 空目录:既无 summary 也无 artifact,静默忽略。
     await mkdir(join(root, "2026-07-06T08-00-00-000Z"), { recursive: true });
     await writeRun(root, "2026-07-01T08-00-00-000Z", summaryOf([res({ id: "q1", agent: "bub", experimentId: "e" })]));
     // legacy:引入版本号之前的存量报告,没有 format 信封,按 schemaVersion 1 读。
@@ -389,7 +389,7 @@ describe("dedupeAttempts", () => {
 // ───────────────────────── writer roundtrip ─────────────────────────
 
 describe("createRunWriter", () => {
-  it("writeAttempt + snapshot 声明写出 → openResults 读回逐字段相等;工件懒加载;knownEvalIds 进分母", async () => {
+  it("writeAttempt + snapshot 声明写出 → openResults 读回逐字段相等; artifact 懒加载;knownEvalIds 进分母", async () => {
     const root = await makeRoot();
     const writer = await createRunWriter(root, { producer: { name: "my-harness", version: "1.0.0" } });
     expect(writer.dir.startsWith(root)).toBe(true);
@@ -469,7 +469,7 @@ describe("createRunWriter", () => {
     expect(await q1.trace()).toBeNull();
     expect(await q1.diff()).toBeNull();
 
-    // 第二个快照:自己的 startedAt(≠ 顶层)经快照元数据读回;diff 工件可达。
+    // 第二个快照:自己的 startedAt(≠ 顶层)经快照元数据读回;diff artifact 可达。
     const b = results.experiments[1].latest;
     expect(b.agent).toBe("codex");
     expect(b.model).toBeUndefined();
@@ -481,7 +481,7 @@ describe("createRunWriter", () => {
     expect(partial).toMatchObject({ experimentId: "compare/a", covered: 2, total: 3 });
   });
 
-  it("没走到 finish() 的目录 = skipped(\"incomplete\"):有工件、无 summary,reader 不读半份落盘", async () => {
+  it("没走到 finish() 的目录 = skipped(\"incomplete\"):有 artifact、无 summary,reader 不读半份落盘", async () => {
     const root = await makeRoot();
     const writer = await createRunWriter(root, { producer: { name: "my-harness" } });
     const snap = writer.snapshot({ experiment: "e", agent: "bub", startedAt: "2026-07-01T08:00:00.000Z" });
@@ -505,7 +505,7 @@ describe("createRunWriter", () => {
 // ───────────────────────── copySnapshots ─────────────────────────
 
 describe("copySnapshots", () => {
-  it("按指定工件复制;summary 重建保留版本元数据;补记 knownEvalIds 让发布目录重算出同样的残缺警告", async () => {
+  it("按指定 artifact 复制;summary 重建保留版本元数据;补记 knownEvalIds 让发布目录重算出同样的残缺警告", async () => {
     const root = await makeRoot();
     const monday = await writeRun(root, "2026-07-01T08-00-00-000Z", summaryOf([
       res({ id: "q1", agent: "bub", model: "gpt-5", experimentId: "compare/bub", artifactsDir: "q1/bub/gpt-5/compare_bub/a1", hasEvents: true, hasTrace: true, startedAt: "2026-07-01T08:01:00.000Z" }),
@@ -535,7 +535,7 @@ describe("copySnapshots", () => {
     expect(copied.summary.snapshots?.["compare/bub"].knownEvalIds).toEqual(["q1", "q2"]);
     expect(copied.summary.snapshots?.["compare/codex"].knownEvalIds).toEqual(["q1"]);
 
-    // 磁盘:只有选中的工件种类被复制;存在标记按目标目录重算。
+    // 磁盘:只有选中的 artifact 种类被复制;存在标记按目标目录重算。
     expect(await exists(join(dest, "q1/bub/gpt-5/compare_bub/a1/events.json"))).toBe(true);
     expect(await exists(join(dest, "q1/bub/gpt-5/compare_bub/a1/trace.json"))).toBe(false);
     expect(await exists(join(dest, "q1/bub/gpt-5/compare_bub/a1/diff.json"))).toBe(false);
@@ -552,13 +552,13 @@ describe("copySnapshots", () => {
     // 快照各自的 startedAt 也随行(compare/bub 周五、compare/codex 周一)。
     expect(republished.experiments.find((e) => e.id === "compare/bub")!.latest.startedAt).toBe("2026-07-05T08:00:00.000Z");
     expect(republished.experiments.find((e) => e.id === "compare/codex")!.latest.startedAt).toBe("2026-07-01T08:00:00.000Z");
-    // 工件懒加载在发布目录同样成立。
+    // artifact 懒加载在发布目录同样成立。
     const bubAttempt = republished.experiments.find((e) => e.id === "compare/bub")!.latest.attempts[0];
     expect(await bubAttempt.events()).toHaveLength(2);
     expect(await bubAttempt.trace()).toBeNull();
   });
 
-  it("目标目录非空即报错(不静默覆盖、不合并);artifacts 非法值报错;同实验重复快照落同一目录出 warning", async () => {
+  it("目标目录非空即报错(不静默覆盖、不合并); artifacts 非法值报错;同实验重复快照落同一目录出 warning", async () => {
     const root = await makeRoot();
     await writeRun(root, "2026-07-01T08-00-00-000Z", summaryOf([
       res({ id: "q1", agent: "bub", model: "gpt-5", experimentId: "e", artifactsDir: "q1/bub/gpt-5/e/a1", startedAt: "2026-07-01T08:01:00.000Z" }),
@@ -592,7 +592,7 @@ describe("copySnapshots", () => {
 // ───────────────────────── Artifacts 报告器 = writer 薄壳 ─────────────────────────
 
 describe("Artifacts reporter(writer 薄壳)", () => {
-  it("落盘行为与 runner 直写时代逐字节等价:summary.json 键序/瘦身/携带条目原样,工件文件按需紧凑写", async () => {
+  it("落盘行为与 runner 直写时代逐字节等价:summary.json 键序/瘦身/携带条目原样, artifact 文件按需紧凑写", async () => {
     const root = await makeRoot();
     const rep = Artifacts(root);
     await rep.onRunStart?.([], {} as never);
@@ -627,7 +627,7 @@ describe("Artifacts reporter(writer 薄壳)", () => {
       assertions: [],
       events: [],
     };
-    // --resume 携带条目:artifactBase 指向原 run,has* 真值原样携带,不得重算或编造 artifactsDir。
+    // --resume 携带条目: artifactBase 指向原 run,has* 真值原样携带,不得重算或编造 artifactsDir。
     const carried: EvalResult = {
       id: "algebra/q3",
       experimentId: "compare/bub",
@@ -751,7 +751,7 @@ describe("Artifacts reporter(writer 薄壳)", () => {
 }`;
     expect(await readFile(join(dir, "summary.json"), "utf-8")).toBe(expected);
 
-    // 工件:紧凑 JSON,按需生成(q2 全空不落文件;q1 五类都在)。
+    // artifact:紧凑 JSON,按需生成(q2 全空不落文件;q1 五类都在)。
     const q1Dir = join(dir, "algebra/q1/bub/gpt-5.4/compare_bub/a1");
     expect(await readFile(join(q1Dir, "events.json"), "utf-8")).toBe('[{"type":"message","role":"assistant","text":"hi"}]');
     expect(await readFile(join(q1Dir, "sources.json"), "utf-8")).toBe('[{"path":"evals/a.ts","content":"x"}]');

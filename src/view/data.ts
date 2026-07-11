@@ -98,7 +98,7 @@ export class IncompatibleResultsError extends Error {
   }
 }
 
-/** 服务/解析工件的根目录:输入是目录就用它,是文件就用其所在目录。 */
+/** 服务/解析 artifact 的根目录:输入是目录就用它,是文件就用其所在目录。 */
 export function viewRoot(input?: string): string {
   const target = resolve(input ?? ".niceeval");
   try {
@@ -113,7 +113,7 @@ export function viewRoot(input?: string): string {
  * 只看最近一个 run 不行:部分补跑(位置参数只跑几道题)会把携带基线换成那个部分 run,
  * 之后重跑任何实验都携带不到东西,`exp <组>` 的「补齐缺失」语义随之失效。
  * 同一 (experimentId, evalId) 的多个 attempt 整批取自含它的最新 run,不跨 run 混装。
- * 携带条目要能被 view 找回工件,这里同时把 artifactBase(相对结果根)拼好(runner 依赖它)。
+ * 携带条目要能被 view 找回 artifact,这里同时把 artifactBase(相对结果根)拼好(runner 依赖它)。
  */
 export async function loadLatestResultsPerEval(root = ".niceeval"): Promise<EvalResult[]> {
   const results = await openResults(root);
@@ -297,8 +297,8 @@ function assertSingleFileReadable(results: Results, target: string): void {
 /**
  * 给单条 attempt 注入 view 侧标注:
  * - attemptRef:直接用 niceeval/results 的证据引用(与 Reports 的 MetricCell.refs 同一身份)。
- * - artifactBase:相对 view 根的工件目录(前端据此 fetch trace.json 等)。--resume 携带的
- *   条目 artifactsDir 为空、artifactBase 指向原 run,原样沿用(同一套候选顺序)。
+ * - artifactBase:相对 view 根的 artifact 目录(前端据此 fetch trace.json 等)。--resume 携带的
+ *   条目 artifactsDir 为空、 artifactBase 指向原 run,原样沿用(同一套候选顺序)。
  * 返回新对象,不 mutate 读入的 summary;宿主机绝对路径只回给调用方写进 artifactDirs
  * (server 端内存),不挂到 result 上,避免随 viewData 进静态 HTML。
  */
@@ -315,7 +315,7 @@ function annotateResult(
     return { annotated: { ...annotated, artifactBase: base }, base, abs };
   }
   if (r.artifactBase) {
-    // 已是相对结果根的路径(携带条目),工件留在原 run 目录里。
+    // 已是相对结果根的路径(携带条目), artifact 留在原 run 目录里。
     return { annotated, base: r.artifactBase, abs: join(root, r.artifactBase) };
   }
   return { annotated };

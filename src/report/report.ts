@@ -1,7 +1,7 @@
 // defineReport:一份报告 = 一个报告文件(默认导出),两扇门(show / view)共用。
 // 宿主打开结果目录、按官方口径挑好选集、注入上下文;报告函数折数据、摆积木,
 // 返回一棵组件树。计算全部发生在报告函数体里(读句柄、await 折数据只在这里合法);
-// 渲染面是纯同步函数 —— 可达百 MB 的工件永远不进渲染路径。
+// 渲染面是纯同步函数 —— 可达百 MB 的 artifact 永远不进渲染路径。
 //
 // renderReportToText 是 text 宿主(show)的装载入口;web 宿主(view)的
 // renderReportToStaticHtml 在 ./web.ts(那一侧才 import react-dom)。宿主接线是下一波,

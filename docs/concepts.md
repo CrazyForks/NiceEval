@@ -70,7 +70,7 @@
 | 用量 | Usage | 一次运行的 token 计数(`inputTokens` / `outputTokens` / 可选 cache 读写) |
 | 成本 | Cost | 用量经价格表换算的估算金额(`estimatedCostUSD`);`--budget <usd>` 给整个 run 设上限 |
 | 报告器 | Reporter | 运行中流式消费结果的插件(控制台、JUnit、JSON…);与运行后的「报告」(Report)是两个词 |
-| 工件 | Artifact | 落盘的结构化产物,位于 `.niceeval/<时间戳>/`:run 级 summary + attempt 级各 JSON |
+| Artifact | Artifact | 落盘的结构化产物,位于 `.niceeval/<时间戳>/`:run 级 summary + attempt 级各 JSON |
 
 ### 结果数据与报告
 
@@ -166,7 +166,7 @@
 
 **Reporter** / **报告器** —— 消费运行结果的插件,可实现分阶段 `onEvent`(`run:start` / `eval:start` / `eval:complete` / `run:summary` 等),也兼容 `onRunStart` / `onEvalComplete` / `onRunComplete`。内置控制台、JUnit、JSON;可接第三方实验跟踪平台。报告器在独立的串行队列上回调,不阻塞执行池。详见 [Reporters](observability.md#reporters)。
 
-**Artifact** / **工件** —— 落盘的结构化产物,位于 `.niceeval/<时间戳>/`:run 级 `summary.json`,以及 attempt 级 `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`。每个文件都是 JSON,不是 JSONL / NDJSON。详见 [Results Format](results-format.md)。
+**Artifact** / **artifact** —— 落盘的结构化产物,位于 `.niceeval/<时间戳>/`:run 级 `summary.json`,以及 attempt 级 `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`。每个文件都是 JSON,不是 JSONL / NDJSON。详见 [Results Format](results-format.md)。
 
 ## 配置词汇
 

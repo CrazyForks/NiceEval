@@ -4,7 +4,7 @@
 // 三条铁律:
 // - 忠实磁盘:快照与实验归组只切片,不合并、不聚合、不去重;合并/聚合永远发生在消费方。
 // - 读不了的落盘进 skipped(三种原因),不静默丢,也不抛错(单个坏 run 不拖垮整次扫描)。
-// - 重工件全部懒加载:缺失返回 null(存在性判断被方法语义吸收),同一 handle 内记忆化。
+// - 重 artifact 全部懒加载:缺失返回 null(存在性判断被方法语义吸收),同一 handle 内记忆化。
 
 import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -57,11 +57,11 @@ export async function openResults(dir: string): Promise<Results> {
   } else {
     const direct = join(target, "summary.json");
     if (await fileExists(direct)) {
-      // target 本身是 run 目录:它的子目录是 attempt 工件目录,不做 incomplete 探测。
+      // target 本身是 run 目录:它的子目录是 attempt artifact 目录,不做 incomplete 探测。
       summaryPaths.push(direct, ...(await findSummaryFiles(target, direct)));
     } else {
       // target 是结果根:逐个 immediate child 判定 —— 有 summary 的收 run;
-      // 没有 summary 但有 attempt 工件的 = crash 没收尾,进 skipped("incomplete")。
+      // 没有 summary 但有 attempt artifact 的 = crash 没收尾,进 skipped("incomplete")。
       const entries = await readdir(target, { withFileTypes: true });
       for (const entry of entries.filter((e) => e.isDirectory())) {
         const childDir = join(target, entry.name);
@@ -230,7 +230,7 @@ function buildExperiments(snapshots: Snapshot[]): Experiment[] {
 // ───────────────────────── attempt 懒加载 ─────────────────────────
 
 function makeAttempt(run: RunDir, experimentId: string, result: EvalResult, index: number): AttemptHandle {
-  // 候选工件目录:本 run 下的 artifactsDir 为主;--resume / 跨实验携带合入的条目,其工件
+  // 候选 artifact 目录:本 run 下的 artifactsDir 为主;--resume / 跨实验携带合入的条目,其 artifact
   // 留在原 run 目录里,summary 里的 artifactBase(相对结果根目录)指向那里,作为回退。
   const candidates: string[] = [];
   if (result.artifactsDir) candidates.push(join(run.dir, result.artifactsDir));
@@ -251,7 +251,7 @@ function makeAttempt(run: RunDir, experimentId: string, result: EvalResult, inde
 }
 
 /**
- * 单个工件的懒加载器:缺失返回 null(不抛错);同一 handle 内记忆化,diff 这类可达百 MB 的
+ * 单个 artifact 的懒加载器:缺失返回 null(不抛错);同一 handle 内记忆化,diff 这类可达百 MB 的
  * 文件绝不读两遍。summary 里内联了该字段时直接用(Json reporter 全量输出/外部工具转换的场景)。
  * 文件存在但 JSON 损坏是真错误,抛英文错误而不是伪装成缺失;失败不缓存,允许重试。
  */
@@ -305,7 +305,7 @@ async function findSummaryFiles(dir: string, skip?: string): Promise<string[]> {
   return [...direct, ...nested.flat()];
 }
 
-/** 目录下(递归)是否存在任何 attempt 工件文件 —— incomplete 判定的依据。 */
+/** 目录下(递归)是否存在任何 attempt artifact 文件 —— incomplete 判定的依据。 */
 async function hasArtifactFiles(dir: string): Promise<boolean> {
   const artifactNames = new Set<string>(ARTIFACT_KINDS.map((kind) => artifactFileOf(kind)));
   const entries = await readdir(dir, { withFileTypes: true });

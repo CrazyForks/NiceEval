@@ -248,7 +248,7 @@ export default defineExperiment({
 
 ## 安装 Manifest
 
-adapter 在 setup 结束后应写一份标准 manifest 到沙箱和结果工件,例如:
+adapter 在 setup 结束后应写一份标准 manifest 到沙箱和结果 artifact,例如:
 
 ```json
 {

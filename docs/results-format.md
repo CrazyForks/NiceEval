@@ -18,9 +18,9 @@
       diff.json
 ```
 
-`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的工件目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 flags,少了这一段工件会互相覆盖。
+`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的 artifact 目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 flags,少了这一段 artifact 会互相覆盖。
 
-这些文件是按需写入的:某类数据为空就不生成对应 JSON 文件。`summary.json` 在 run 结束时写入;attempt 级重数据在每个 eval 完成时增量写入,所以长 run 中途失败时通常仍能留下已经完成的 attempt 工件。
+这些文件是按需写入的:某类数据为空就不生成对应 JSON 文件。`summary.json` 在 run 结束时写入;attempt 级重数据在每个 eval 完成时增量写入,所以长 run 中途失败时通常仍能留下已经完成的 attempt artifact。
 
 ## 版本与升级设计
 
@@ -41,7 +41,7 @@
 
 版本历史:`1` 初版;`2`(2026-07)= `ExperimentRunInfo.flags` 改名 `params`;`3`(2026-07-10)= 改回 `flags`(A/B feature flag 语义定稿,见 docs/reports.md 裁决记录)。持久化字段改名是破坏性变更,按下述规则递增,不做旧名读取别名。
 
-设计原则是**不做兼容机制**。没有迁移函数,没有多版本 normalize loader,没有 per-artifact 版本号:整个 run(summary + 全部 attempt 工件)共用顶层这一个 `schemaVersion`。读取器只认与自己相同的版本;版本不同就是不兼容,唯一的处理是提示用写这份报告的 niceeval 版本查看:
+设计原则是**不做兼容机制**。没有迁移函数,没有多版本 normalize loader,没有 per-artifact 版本号:整个 run(summary + 全部 attempt artifact)共用顶层这一个 `schemaVersion`。读取器只认与自己相同的版本;版本不同就是不兼容,唯一的处理是提示用写这份报告的 niceeval 版本查看:
 
 ```bash
 npx niceeval@0.3.0 view .niceeval/2026-09-10T08-00-00-000Z
@@ -129,7 +129,7 @@ interface RunSummary {
 - `diff`
 - `rawTranscript`
 
-这些字段被替换成 attempt 工件引用:
+这些字段被替换成 attempt artifact 引用:
 
 ```typescript
 {
@@ -220,7 +220,7 @@ interface DiffData {
 3. 按 `hasEvents` / `hasTrace` / `hasSources` 拉取 `events.json`、`trace.json`、`sources.json`。
 4. 需要行为摘要或 workspace diff 时,尝试读取同目录的 `o11y.json` / `diff.json`。
 
-`niceeval view` 的本地 server 只暴露 `.json` 工件,并把请求路径限制在 view 输入根目录内。`--out` 导出时 summary 聚合数据烘焙进 `index.html`,查看器要 fetch 的工件复制到 `artifact/` 下同布局路径。
+`niceeval view` 的本地 server 只暴露 `.json` artifact,并把请求路径限制在 view 输入根目录内。`--out` 导出时 summary 聚合数据烘焙进 `index.html`,查看器要 fetch 的 artifact 复制到 `artifact/` 下同布局路径。
 
 ## 与其它 reporter 的边界
 

@@ -1,7 +1,7 @@
 // copySnapshots:把选中快照按格式感知地复制到另一个目录(定稿见 docs/results-lib.md「复制与瘦身」)。
 //
-// 发布场景的原语:只带指定工件、只带选中的 attempt,布局知识不外泄。
-// 工件复制忠实于源(copyFile 原字节,不重新序列化、不消毒);summary.json 按选中条目重建,
+// 发布场景的原语:只带指定 artifact、只带选中的 attempt,布局知识不外泄。
+// artifact 复制忠实于源(copyFile 原字节,不重新序列化、不消毒);summary.json 按选中条目重建,
 // 版本元数据保留,榜单计数按选中条目重算 —— 产物是一个标准 run 目录,openResults /
 // `niceeval view` 直接能读。唯一随行补记的是挑选时的覆盖事实:每个复制出的快照带上
 // knownEvalIds(复制时刻该实验已知的 eval 并集),发布目录上重新 openResults().latest(),
@@ -18,7 +18,7 @@ import type { ArtifactKind, AttemptHandle, RunDir, Selection, Snapshot } from ".
 import { ARTIFACT_KINDS } from "./types.ts";
 
 export interface CopySnapshotsOptions {
-  /** 要带上的工件种类;省略 = 全部五类。diff 可达百 MB、o11y 查看器不读,发布时常见地不带。 */
+  /** 要带上的 artifact 种类;省略 = 全部五类。diff 可达百 MB、o11y 查看器不读,发布时常见地不带。 */
   artifacts?: ArtifactKind[];
 }
 
@@ -58,7 +58,7 @@ export async function copySnapshots(
   const dest = resolve(destDir);
   await assertEmptyDestination(dest);
 
-  // 第一趟:按目标工件目录选出胜者(最新 run 的那份),顺序取首次出现处 —— 两趟避免
+  // 第一趟:按目标 artifact 目录选出胜者(最新 run 的那份),顺序取首次出现处 —— 两趟避免
   // 「旧的先落盘、新的再去清理覆盖」的中间态。
   const winners = new Map<string, AttemptHandle>();
   const order: string[] = [];
@@ -79,7 +79,7 @@ export async function copySnapshots(
     }
   }
 
-  // 第二趟:复制工件 + 生成瘦身条目(has* 按目标目录里真的有什么重算)。
+  // 第二趟:复制 artifact + 生成瘦身条目(has* 按目标目录里真的有什么重算)。
   await mkdir(dest, { recursive: true });
   const results: EvalResult[] = [];
   for (const relDir of order) {
@@ -117,7 +117,7 @@ async function assertEmptyDestination(dest: string): Promise<void> {
   }
 }
 
-/** 源工件定位:与读取面同一候选顺序(本 run 的 artifactsDir 优先,artifactBase 回退)。 */
+/** 源 artifact 定位:与读取面同一候选顺序(本 run 的 artifactsDir 优先, artifactBase 回退)。 */
 async function findArtifactFiles(
   attempt: AttemptHandle,
   kinds: ArtifactKind[],
@@ -143,7 +143,7 @@ async function findArtifactFiles(
   return found;
 }
 
-/** 瘦身条目:去掉内联大字段与 view 注入的路径字段,artifactsDir / has* 按目标目录重算。 */
+/** 瘦身条目:去掉内联大字段与 view 注入的路径字段, artifactsDir / has* 按目标目录重算。 */
 function slimForCopy(r: EvalResult, relDir: string, copied: Set<ArtifactKind>): EvalResult {
   const { events, sources, o11y, trace, diff, rawTranscript, artifactBase, artifactAbsBase, ...rest } = r;
   void events;
@@ -198,7 +198,7 @@ function rebuildSummary(selected: Snapshot[], results: EvalResult[], dest: strin
  * 手工构造的快照退回「同 id 输入快照的覆盖 ∪ 携带值」)—— 残缺检测的分母随数据走。
  */
 function snapshotsMeta(selected: Snapshot[], summaryStartedAt: string): NonNullable<RunSummary["snapshots"]> {
-  // 同一 experiment 被选了多个快照(未 dedupe)时取最新的那个,与工件胜者规则一致。
+  // 同一 experiment 被选了多个快照(未 dedupe)时取最新的那个,与 artifact 胜者规则一致。
   const bySnapshotId = new Map<string, Snapshot>();
   for (const snapshot of selected) {
     const existing = bySnapshotId.get(snapshot.experimentId);

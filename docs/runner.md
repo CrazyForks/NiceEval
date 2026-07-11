@@ -6,7 +6,7 @@
 
 ## 职责边界
 
-运行器**做**:发现 eval、算指纹决定跳过、建 attempt 列表、有界并发调度、首过即停、把结果交给报告器、落盘工件、定退出码。
+运行器**做**:发现 eval、算指纹决定跳过、建 attempt 列表、有界并发调度、首过即停、把结果交给报告器、落盘 artifact、定退出码。
 
 运行器**不做**:不知道怎么驱动 agent(那是 Agent/Adapter)、不知道怎么打分(那是 Scorer)、不知道结果存哪种格式细节(那是 Reporter)。它是协调者,不是执行者。
 
@@ -100,5 +100,5 @@ run:summary        { passed, failed, skipped, errored, durationMs, usage, estima
 
 - [Architecture](architecture.md) —— 运行器在四段数据流里的位置与端到端时序。
 - [Sandbox](sandbox.md) —— 预热与复用的 provider 支持,以及环境预置放哪。
-- [Observability](observability.md) —— 运行器产出的工件与报告。
+- [Observability](observability.md) —— 运行器产出的 artifact 与报告。
 - [CLI](cli.md) —— 暴露这些调度行为的标志。

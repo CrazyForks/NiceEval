@@ -92,7 +92,7 @@ setup?: (sandbox: Sandbox) => Promise<void | Cleanup> | void | Cleanup;
 
 eval 级预置:拿到沙箱(已上传 workspace + git 基线 + 装好依赖前)。
 默认命令以非 root 跑(agent 的自然环境);装系统依赖时给 `runCommand` 传 `{ root: true }`
-(如 `runCommand("apt-get", ["install", …], { root: true })`),跨后端语义一致。
+(如 `runCommand("apt-get", ["install", …], { root: true })`),跨 provider 语义一致。
 
 #### `test`
 

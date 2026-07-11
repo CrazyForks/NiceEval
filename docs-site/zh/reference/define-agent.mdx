@@ -338,7 +338,7 @@ readFile(path: string): Promise<string>;
 fileExists(path: string): Promise<boolean>;
 ```
 
-检查沙箱内路径是否存在。跨后端语义不完全一致:仅保证对普通文件可靠,对目录路径的行为不同后端不保证一致。
+检查沙箱内路径是否存在。跨 provider 语义不完全一致:仅保证对普通文件可靠,对目录路径的行为不同 provider 不保证一致。
 
 #### `readSourceFiles`
 
@@ -379,7 +379,7 @@ uploadDirectory(localDir: string, targetDir?: string, opts?: { ignore?: string[]
 stop(): Promise<void>;
 ```
 
-销毁沙箱占用的计算资源(容器/microVM)。调用后沙箱不可再用;是否可安全重复调用因后端而异,不要依赖这一点。
+销毁沙箱占用的计算资源(容器/microVM)。调用后沙箱不可再用;是否可安全重复调用因 provider 而异,不要依赖这一点。
 
 #### `sandboxId`
 
@@ -387,7 +387,7 @@ stop(): Promise<void>;
 readonly sandboxId: string;
 ```
 
-本沙箱的稳定标识(各后端原生 ID,如 Docker 容器 ID 前缀);用于跨调用关联同一沙箱的会话状态,也用于日志展示。
+本沙箱的稳定标识(各 provider 原生 ID,如 Docker 容器 ID 前缀);用于跨调用关联同一沙箱的会话状态,也用于日志展示。
 
 #### `otlpHost`
 
@@ -407,7 +407,7 @@ appendLog?(line: string): Promise<void>;
 ```
 
 可选:把一行写进容器的「主日志」(PID1 在 tail 它)——于是 `docker logs` /
-Docker UI 的 Logs 标签页能实时看到 agent 逐轮活动。docker 后端实现,其它可省略。
+Docker UI 的 Logs 标签页能实时看到 agent 逐轮活动。docker provider 实现,其它可省略。
 
 #### `downloadFile`
 
@@ -416,7 +416,7 @@ downloadFile(path: string): Promise<Buffer>;
 ```
 
 从沙箱内任意路径读取文件,返回二进制 Buffer。
-对应各 backend:Docker getArchive / Vercel readFileToBuffer / e2b files.read(bytes) / …
+对应各 provider:Docker getArchive / Vercel readFileToBuffer / e2b files.read(bytes) / …
 
 #### `uploadFile`
 
@@ -425,7 +425,7 @@ uploadFile(path: string, content: Buffer): Promise<void>;
 ```
 
 向沙箱内任意路径写入文件(二进制)。
-对应各 backend:Docker putArchive / Vercel fs.writeFile(Buffer) / e2b files.write / …
+对应各 provider:Docker putArchive / Vercel fs.writeFile(Buffer) / e2b files.write / …
 
 ### `CommandOptions`
 
@@ -435,7 +435,7 @@ uploadFile(path: string, content: Buffer): Promise<void>;
 env?: Record<string, string>;
 ```
 
-追加/覆盖本命令的环境变量(与沙箱默认环境叠加,不清空默认值;各后端会保留自己固定的 `PATH` 等变量,不保证能被这里覆盖)。
+追加/覆盖本命令的环境变量(与沙箱默认环境叠加,不清空默认值;各 provider 会保留自己固定的 `PATH` 等变量,不保证能被这里覆盖)。
 
 #### `cwd`
 
@@ -453,8 +453,8 @@ stream?: boolean;
 
 把本命令的输出也送进沙箱的「原生日志流」(于是 `docker logs` / Docker UI 的 Logs
 标签页能实时看到它)。给 agent 命令(codex exec / bub run / claude)开它,就能在容器
-日志里看到 agent 的【原始输出】。后端各自实现(docker:tee 到 PID1 tail 的文件;
-不支持的后端忽略)—— 日志怎么浮现是 backend 的事,adapter 只声明意图。
+日志里看到 agent 的【原始输出】。provider 各自实现(docker:tee 到 PID1 tail 的文件;
+不支持的 provider 忽略)—— 日志怎么浮现是 provider 的事,adapter 只声明意图。
 
 #### `root`
 
@@ -465,10 +465,10 @@ root?: boolean;
 以 root 跑本命令。默认 `false` —— 命令以沙箱的标准**非 root** 用户跑(agent 的自然环境)。
 给 setup 阶段装系统依赖用(`apt-get install …`、`pip install --break-system-packages …`)。
 
-语义跨后端一致:"本命令以 root 跑,否则以标准非 root 用户跑"。各后端映射到自己的原生机制
+语义跨 provider 一致:"本命令以 root 跑,否则以标准非 root 用户跑"。各 provider 映射到自己的原生机制
 (docker:`exec --user root`;E2B:`{ user: "root" }`;Vercel:`{ sudo: true }`;Daytona:`{ user }`)。
-本就全程 root 的后端(如 Modal)视作 no-op;完全无法提权的后端可不支持(抛错)—— 但**默认值与
-语义保持一致**,不因后端而变。
+本就全程 root 的 provider(如 Modal)视作 no-op;完全无法提权的 provider 可不支持(抛错)—— 但**默认值与
+语义保持一致**,不因 provider 而变。
 
 {/* GENERATED:END sandbox-methods */}
 
