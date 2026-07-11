@@ -20,6 +20,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - 已修 [bub-template-preinstall-defeats-pinned-override](bub-template-preinstall-defeats-pinned-override.md) — 模板烘焙的 bub 让 `command -v` 捷径跳过 git-pinned override 安装,修复分支从未落地;pinned 时绕捷径 + 钉 $HOME/.local/bin/bub(修在 `src/agents/bub.ts`)
 - 已修 [bub-tapestore-otel-tapeentry-drift](bub-tapestore-otel-tapeentry-drift.md) — bub trace 静默消失:bub ≥0.3.10 vendor 了 `bub.tape`,插件按 `republic.TapeEntry` 做 pydantic 校验全被拒、异常吞成 warning → 0 span;先修在 bub-contrib fork `7c84cc7`,上游 #50 合并后 `OTEL_PLUGIN` 已切回 bubbuild main(bub 本体 fork 未退役)
 - 已修 [bub-checkpoint-oversized-transfer-kills-attempt](bub-checkpoint-oversized-transfer-kills-attempt.md) — bub checkpoint 曾打包 `~/.cache/uv` 撑到 100MB+,e2b 文件 API 单次传输超时/重置;且缓存回填失败曾杀掉已装好 bub 的 attempt;修为只打 `~/.local` + 回填/还原失败降级警告(修在 `src/agents/bub.ts`)
+- 已修 [bub-ensurebub-warning-no-attribution-prefix](bub-ensurebub-warning-no-attribution-prefix.md) — ensureBub 的 checkpoint 回填/还原警告曾用裸 console.error,并发多配置下无法归属;修为穿入触发 attempt 的 ctx.log(`src/agents/bub.ts`)
 - 已修 [npx-skills-add-headless-hang](npx-skills-add-headless-hang.md) — `npx skills add` 默认交互式选 agent,headless 沙箱里卡死;修为 `-y -a <agent>`(claude-code.ts / codex.ts)
 - [claude-code-skill-tool-name-not-load-skill](claude-code-skill-tool-name-not-load-skill.md) — claude-code 原生 Skill 工具叫 `Skill`(入参 `{skill,args}`),`t.loadedSkill()` 是给 eve 协议的糖,断不中,要用 `calledTool("Skill", …)`
 - [codex-no-native-skill-tool](codex-no-native-skill-tool.md) — codex 没有原生 skill 工具,不显式提示"检查有没有 skill 文件"就几乎不会主动去读装好的 skill
@@ -68,6 +69,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - 已修 [live-overflow-redraw-appends-frames](live-overflow-redraw-appends-frames.md) — live 状态表行数超终端高度时 `\x1B[nA` 回跳被屏顶截断,每帧追加整表刷屏;修为按 `stderr.rows` 截断 + 隐藏行折叠成摘要(修在 `src/runner/reporters/live.ts`)
 - 已修 [live-rows-fold-experiment-variants](live-rows-fold-experiment-variants.md) — live 进度行 who 曾取 agent/model,同 agent 同 model 的实验变体被折叠成一行,"0/2" 误读成跑两次;修为 runWho() 有 experimentId 用 basename(`src/runner/types.ts` + attempt.ts + cli.ts 同源);同时 resume 复用改为按 experiment 列清单
 - 已修 [live-who-key-mismatch-freezes-rows](live-who-key-mismatch-freezes-rows.md) — 上一条修复漏改 live.ts 自己两处(eval:start / onEvalComplete)手写的 who,导致有 experimentId 时逐行永远卡"waiting for a slot"、`0/N` 不动,但表头总数正常涨,极像 sandbox/budget 卡死实则纯展示 bug;修为两处都改调 runWho()(`src/runner/reporters/live.ts`)
+- 已修 [quiet-progress-result-stream-asymmetry](quiet-progress-result-stream-asymmetry.md) — `--quiet` 下进度流直写 stderr 但结果流被摘空,errored 全程无声极像"还在跑",下游还把串行交接误读成并发失控;修为新增 Quiet reporter,errored/failed 各补一行 stderr(`src/runner/reporters/quiet.ts` + cli.ts)
 
 ## examples 与 tier-sync
 
