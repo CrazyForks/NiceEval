@@ -69,15 +69,18 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
     await Promise.all(jobs);
   }
 
-  // 跨实验结果复用:只有上次 passed 且 fingerprint 匹配的 (experimentId, evalId) 组合直接携入。
-  // 失败/错误/跳过/fingerprint 不匹配都会重跑。--force 跳过此逻辑。
+  // 跨实验结果复用:上次 passed 或 failed 且 fingerprint 匹配的 (experimentId, evalId) 组合
+  // 直接携入 —— 两者都是"跑完了、判定确定"的终态,没有理由重花一次 agent/sandbox 成本去
+  // 复现同一个已知结果。errored 是框架/环境层面的不确定失败(超时、沙箱挂了、judge 探测失败
+  // 等),判定本身不可信,必须重跑。跳过/fingerprint 不匹配同样重跑。--force 跳过此逻辑。
   const priorRunKeys = new Set<string>();
   const carriedResults: EvalResult[] = [];
   if (opts.priorResults?.length) {
     for (const r of opts.priorResults) {
       if (!r.experimentId) continue;
       const key = `${r.experimentId}|${r.id}`;
-      if (r.verdict === "passed" && r.fingerprint !== undefined && r.fingerprint === plannedFingerprints.get(key)) {
+      const isTerminalVerdict = r.verdict === "passed" || r.verdict === "failed";
+      if (isTerminalVerdict && r.fingerprint !== undefined && r.fingerprint === plannedFingerprints.get(key)) {
         priorRunKeys.add(key);
       }
     }

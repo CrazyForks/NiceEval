@@ -122,3 +122,4 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [report-locale-rendering](report-locale-rendering.md) — 裁决:report 渲染面引入 locale(en/zh-CN)与内部字典 src/report/locale.ts,不复用 CLI 专用的 src/i18n;label 扩 LocalizedText 而 display 不本地化(display 是口径的一部分)
 - [results-per-snapshot](results-per-snapshot.md) — 裁决(2026-07-11):落盘单位 run→快照,实验目录在外层、判决落 attempt 级 result.json,run 级 summary.json 废除;翻案 2026-07-10「判定 journal 不做」;schemaVersion 4
 - [bench-direct-invocation-not-niceeval-project](bench-direct-invocation-not-niceeval-project.md) — 裁决(2026-07-11):phase-timings.md 的 bench/ 是直接调 runAttemptBody 的脚本,不是 niceeval 项目+Reports 报告页;曾选 show 对比/compare.mjs 均否决
+- [carry-includes-failed-verdict](carry-includes-failed-verdict.md) — 裁决(2026-07-11):resume/carry 携入条件从「只 passed」改为「passed 或 failed」,只有 errored 重跑;曾选「只 passed 携入」否决(failed 也是判定确定的终态,没理由白花成本重复验证)

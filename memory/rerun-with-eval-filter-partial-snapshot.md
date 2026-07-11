@@ -8,11 +8,11 @@
 
 ## 根因
 
-carry(resume)机制的作用域是「本次计划内的 eval」:`src/runner/run.ts` 只把上次 passed 且 fingerprint 命中 `plannedFingerprints` 的结果携入,而位置参数在 CLI 层就把 `opts.evals` 裁成了补跑那几道——计划外的 passed 结果根本不进 fingerprint 表,携带被整体绕过。这与 CLI Model 一致(位置参数=「跑哪些」),但和用户对「补跑」的期待(合并出完整结果)相反。
+carry(resume)机制的作用域是「本次计划内的 eval」:`src/runner/run.ts` 只把上次 passed/failed 且 fingerprint 命中 `plannedFingerprints` 的结果携入(2026-07-11 起 failed 也算终态,见 [[carry-includes-failed-verdict]]),而位置参数在 CLI 层就把 `opts.evals` 裁成了补跑那几道——计划外的结果根本不进 fingerprint 表,携带被整体绕过。这与 CLI Model 一致(位置参数=「跑哪些」),但和用户对「补跑」的期待(合并出完整结果)相反。
 
 ## 修法
 
-- **正确补跑姿势:不带位置参数重跑整个实验或整个组**:`niceeval exp <实验|组>`(不加 `--force`)。上次 passed 且 fingerprint 匹配的 eval 零成本携入,只有 failed/errored/缺失真跑,产出完整快照,线上口径自动恢复。
+- **正确补跑姿势:不带位置参数重跑整个实验或整个组**:`niceeval exp <实验|组>`(不加 `--force`)。上次 passed/failed 且 fingerprint 匹配的 eval 零成本携入,只有 errored/缺失真跑,产出完整快照,线上口径自动恢复。
 - 带位置参数补跑只适合「本地快速验证某道题」,其结果不该被当作实验的最新快照发布。
 - **已修(第二层根因)**:carry 基线原来只取「最近一个 run」(`loadMostRecentResults` 的 `loaded[0]`),部分补跑 run 一旦成为最新,任何后续续跑都携带不到东西,`exp <组>` 补齐随之失效。已改为跨历史每 `(experimentId, evalId)` 取最新一份(`src/view/loader.ts` 的 `loadLatestResultsPerEval`,配套 `loader.test.ts`)。
 - 设计层面待议:carry 是否应无视位置参数、把计划外的 prior passed 也携入 summary(「跑哪些」与「报什么」分离)。若做,需在 docs/cli.md 与 view/reports 口径一并声明。

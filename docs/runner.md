@@ -53,9 +53,9 @@ fixtures/button   codex         pass@5 = 3/5 (60%)   mean 41s · 72k tok · $0.3
 
 `runner/fingerprint.ts` 对每个 eval 算 `(eval 代码 + 相关配置)` 的哈希:
 
-- 上次已 `passed` 且指纹未变 → 默认**跳过**,直接复用结果。
+- 上次判定是 `passed` 或 `failed`、且指纹未变 → 默认**跳过**,直接复用结果。两者都是"跑完了、判定确定"的终态,没理由重花一次 agent/sandbox 成本去复现同一个已知结果。
 - 改了 fixture、改了配置、或 `--force` → 重跑。
-- 失败的结果不缓存(总会重试失败项)。
+- `errored`(框架/环境层面的不确定失败,如超时、沙箱挂了)和 `skipped` 不缓存,总会重试——它们的判定本身不可信,不是可复用的终态。
 
 让"改一个 case 重跑"只花那一个 case 的时间,而不是全量。
 

@@ -189,7 +189,7 @@ export const zhCN = {
   "runner.startSandboxTeardown": "sandbox teardown(环境预置钩子)…",
   "runner.timeout": "attempt 超时({{timeoutMs}}ms)\n最近进度:\n{{recentLogs}}",
   "runner.traceSelected": " → 留 {{count}}(按语义)",
-  "runner.resumeCarry": "  · 复用上次 {{carried}} 个通过的结果,重跑 {{retry}} 个 eval\n",
+  "runner.resumeCarry": "  · 复用上次 {{carried}} 个已判定的结果,重跑 {{retry}} 个 eval\n",
   "runner.resumeCarryDetail": "      复用 [{{experiment}}] {{evals}}\n",
   "runner.useRemoteAgent": "使用 remote agent(不创建沙箱)…",
   "sandbox.providerNotImplemented": "{{provider}} sandbox provider not implemented; use docker, vercel, or e2b",

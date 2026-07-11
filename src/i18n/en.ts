@@ -192,7 +192,7 @@ export const en = {
   "runner.startSandboxTeardown": "sandbox teardown (environment provisioning hooks)...",
   "runner.timeout": "attempt timed out ({{timeoutMs}}ms)\nRecent progress:\n{{recentLogs}}",
   "runner.traceSelected": " -> kept {{count}} semantic spans",
-  "runner.resumeCarry": "  · reusing {{carried}} passing results from last run, re-running {{retry}} evals\n",
+  "runner.resumeCarry": "  · reusing {{carried}} settled results from last run, re-running {{retry}} evals\n",
   "runner.resumeCarryDetail": "      carried [{{experiment}}] {{evals}}\n",
   "runner.useRemoteAgent": "using remote agent (no sandbox created)...",
   "sandbox.providerNotImplemented": "{{provider}} sandbox provider is not implemented; use docker, vercel, or e2b",

@@ -49,7 +49,7 @@ npx niceeval exp local fixtures/button --runs 5 --early-exit
 
 ## Cache
 
-[NiceEval](https://niceeval.com/) can skip already-passing results based on a fingerprint of inputs, configuration, and relevant files. Cache is useful for iteration speed, but turn it off or clear it explicitly when you are debugging non-deterministic behavior.
+[NiceEval](https://niceeval.com/) can skip results already judged `passed` or `failed`, based on a fingerprint of inputs, configuration, and relevant files — both are settled verdicts. `errored` attempts (timeouts, sandbox crashes, and other framework/environment-level failures) always retry. Cache is useful for iteration speed, but turn it off (`--force`) or clear it explicitly when you are debugging non-deterministic behavior.
 
 ## Timeout and budget
 
