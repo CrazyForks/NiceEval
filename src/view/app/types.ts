@@ -1,6 +1,5 @@
 import type {
   AssertionResult,
-  ExperimentRunInfo,
   JsonValue,
   LocalizedText,
   SourceArtifact,
@@ -9,64 +8,20 @@ import type {
   TraceSpan,
   Usage,
 } from "../../types.ts";
-import type { MetricCell, ViewData, ViewEvalResult } from "../shared/types.ts";
+import type { ViewData, ViewEvalResult } from "../shared/types.ts";
 
 export type { LocalizedText };
 // Locale 只在 i18n 内核声明一次;页面数据形状与 server 共用 shared/types.ts 的声明。
 export type { Locale } from "../../i18n/core.ts";
 export type {
   AttemptRef,
-  MetricCell,
-  MetricColumn,
-  OverviewData,
-  SelectionWarning,
+  ReportSlotHtml,
   SkippedRunNotice,
-  TableData,
   ViewData,
   ViewSnapshot,
 } from "../shared/types.ts";
 
-export type Tab = "report" | "experiments" | "runs" | "traces";
-export type SortKey = "experiment" | "model" | "agent" | "duration" | "passRate" | "tokens" | "cost";
-export type SortDir = 1 | -1;
-
-/**
- * Experiments 榜单一行 = 一个实验的最新快照(latest 口径)。
- * 统计数字(cells)是官方 MetricTable.data 的产物,前端只渲染;
- * 明细(results / 判定计数)是该快照的证据室数据,由 buildRows 从 viewData 拼接。
- */
-export interface ViewRow {
-  /** = experimentId(官方 TableData 行键)。 */
-  key: string;
-  experimentId: string;
-  /** experimentId 是 "<agent>/<model>" 合成键时为 true(落盘缺 experimentId)。 */
-  synthetic?: boolean;
-  experiment?: ExperimentRunInfo;
-  group?: string;
-  label: string;
-  agent: string;
-  model?: string;
-  /** 该快照的 startedAt(ISO)—— 榜单「每行带判定产生的时间」。 */
-  lastRunAt: string;
-  /** 默认报告格子(pass-rate / duration / tokens / cost),display 已格式化。 */
-  cells: Partial<Record<string, MetricCell>>;
-  /** 快照内 attempt 总数。 */
-  runs: number;
-  /** 折叠后的 eval 判定计数(钻取明细的展示口径,与 CLI 共用同一份折叠实现)。 */
-  evals: number;
-  passed: number;
-  failed: number;
-  errored: number;
-  skipped: number;
-  /** 快照内成本合计(证据室口径的总花费;榜单列是官方的「平均每 eval 成本」格子)。 */
-  totalCostUSD?: number;
-  results: ViewEvalResult[];
-}
-
-export interface SortState {
-  key: SortKey;
-  dir: SortDir;
-}
+export type Tab = "report" | "runs" | "traces";
 
 /** 前端拿到的单条 attempt 结果就是瘦身后的 EvalResult(attemptRef / artifactBase 由 loader 注入)。 */
 export type ViewResult = ViewEvalResult;

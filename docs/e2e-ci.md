@@ -8,7 +8,7 @@
 
 一次 e2e CI 要同时证明五件事:
 
-1. **完整路径**:从 `evals/` 发现、experiment 展开运行矩阵、`t.*` 断言收集、gate/soft 判定、`.niceeval/<run>/` artifact 落盘,到进程退出码,每一环都被真实执行并被机器校验——包括"该红的时候红"(deliberate-fail 必须 exit 1),不是只测 happy path。
+1. **完整路径**:从 `evals/` 发现、experiment 展开运行矩阵、`t.*` 断言收集、gate/soft 判定、`.niceeval/<experiment>/<snapshot>/` artifact 落盘,到进程退出码,每一环都被真实执行并被机器校验——包括"该红的时候红"(deliberate-fail 必须 exit 1),不是只测 happy path。
 2. **一套 suite,全矩阵可靠通过**:所有 SDK 适配项目共用**同一份** eval/experiment 定义(单一事实来源,见第 3 节),CI 把每个项目都跑一遍。真实模型跑真实调用,单次尝试允许抖动,但有限重试(见 4.1)吸收不了的失败一定是真回归——任何一个 SDK 的适配层回归都会把矩阵打红,不会被"模型这次没答好"这种噪音长期掩盖,也不会被 retry 永久掩盖。
 3. **正反验证所有功能**:套件对每个功能都配正反两条用例——该调工具时 `t.calledTool`、不该调时 `t.notCalledTool`/`t.usedNoTools`、HITL 有 approve 也有 deny、会话有记忆也有 `newSession` 隔离;再加 deliberate-fail/error 验证"断言真的会挂"。防止"断言永真"这类静默失效。
 4. **重复运行统计**:一个 experiment 配 `runs: N, earlyExit: false` 跑重复调度、并发、pass 率计数(niceeval 的字段就叫 `runs`,不叫 pass/trials;`earlyExit` 不关掉的话第一次通过就会 abort 其余 attempt,拿不到完整分布)。真实模型调用要花钱,PR 门禁上 `N` 取小值(如 10),完整的大样本统计(如 100)挪到 nightly 跑,见第 4 节。
@@ -34,7 +34,7 @@ e2e 从 tier1 拷的是**被测应用和 adapter**(各 SDK 真正不同的部分
 
 ### 框架侧对 CI 重要的事实(源码已确认)
 
-- **退出码**:按 eval 级折叠判定(任一 attempt 通过 → 该 eval 通过,`foldEvalVerdict`;被 runs+earlyExit 重试吸收的失败不计红)——折叠后全过/跳过 → 0;任一 eval failed 或 errored → 1;框架崩溃 → 2(`src/cli.ts` 末尾 + `src/shared/verdict.ts`)。CI 判成败首选退出码,细分读 `summary.json`(注意其顶层 passed/failed 是 attempt 级原始计数,见 `memory/cli-exit-code-attempt-level-not-eval-level.md`)。
+- **退出码**:按 eval 级折叠判定(任一 attempt 通过 → 该 eval 通过,`foldEvalVerdict`;被 runs+earlyExit 重试吸收的失败不计红)——折叠后全过/跳过 → 0;任一 eval failed 或 errored → 1;框架崩溃 → 2(`src/cli.ts` 末尾 + `src/shared/verdict.ts`)。CI 判成败首选退出码,细分读落盘的每个 attempt `result.json`(注意判决只逐条记在 attempt 级,没有 run 级的 passed/failed 聚合字段,见 `memory/cli-exit-code-attempt-level-not-eval-level.md`)。
 - **指纹缓存会静默跳过上次 passed 的 eval**(`src/runner/run.ts` 的 `run()`,匹配逻辑在文件开头 ~60 行附近,以 `cacheKey`/`computeFingerprint` 为核心)。CI 必须加 `--force`,或保证 `.niceeval/` 不跨 run 复用,否则回归会被缓存掩盖。
 - **judge 无 key 时 no-op**(`src/scoring/judge.ts` 的 `resolveJudge()`/`buildJudge()`,`if (!resolved.apiKey) return noOpJudge()`):不配 judge key,`t.judge.autoevals.*` 断言静默跳过、不判红。e2e 里"judge 真的在判"必须显式配 judge key 验证,不能靠这条 no-op 蒙混过关——这一点和是否用真实模型无关,是两个独立的开关。
 - **可用 flags**:`--runs`、`--no-early-exit`、`--force`、`--junit <path>`、`--json <path>`(RunSummary 落成 JSON)、`--strict`、`--max-concurrency`。**不要用** `--reporter`(不存在)、`--agent`/`--model`(exp 下报错)、`--sandbox`/`--watch`(不存在,按未知 flag 报错)。
@@ -65,7 +65,7 @@ e2e/
     aisdk-transformer/           # 纯框架项目:defineAgent + 官方 fromAiSdk,进程内直调真实 DeepSeek
     http-mapping/                # 纯框架项目:defineAgent + 手写映射,进程内直调真实 DeepSeek REST
   scripts/
-    verify.mjs                   # 元校验:跑 CLI 子进程,对照期望表检查退出码 + summary.json
+    verify.mjs                   # 元校验:跑 CLI 子进程,对照期望表检查退出码 + 落盘的快照/result.json
 ```
 
 ### 3.1 为什么是 factory + profile,不是软链
@@ -138,7 +138,7 @@ export function noToolChitchat(p: AgentProfile) {
 
 断言逻辑改一处、全矩阵生效;某个 SDK 的协议差异只体现在它自己的 profile 里,diff 一眼可见。experiment 同理:`ciExperiment(agent, profile)` 按 profile 过滤 eval 集(`hitl: false` 的项目不排 hitl 用例),每个项目的 `experiments/ci.ts` 也是 3 行 stub。
 
-**防静默失配**:profile 关掉一个能力,对应 eval stub 就不该存在于该项目——verify.mjs 按 profile 算出每个项目的期望 eval 数,和 `summary.json` 的 results 数对账,防止"少排了用例还全绿"。
+**防静默失配**:profile 关掉一个能力,对应 eval stub 就不该存在于该项目——verify.mjs 按 profile 算出每个项目的期望 eval 数,和落盘的 attempt `result.json` 数对账,防止"少排了用例还全绿"。
 
 ### 3.2 apps:拷贝自 tier1,真实 key 从 secrets 注入
 
@@ -242,10 +242,10 @@ L1 每个 experiment 都设 `budget`(建议单 job ≤ $2)和 `timeoutMs`,workfl
 
 ## 5. 元校验脚本(e2e 的"真正的测试")
 
-L0 的本体不是那些 eval——eval 是 fixture;本体是 `e2e/scripts/verify.mjs`:它把 CLI 当黑盒子进程跑,对照期望表校验退出码和 `summary.json`(完整示意见 4.1)。verify.mjs 还负责两个专项:
+L0 的本体不是那些 eval——eval 是 fixture;本体是 `e2e/scripts/verify.mjs`:它把 CLI 当黑盒子进程跑,对照期望表校验退出码和落盘的快照(完整示意见 4.1)。verify.mjs 还负责两个专项:
 
-- **缓存行为**:同一 experiment 连跑两次,第二次**不带** `--force` → 断言 summary 里携入的 cached 结果仍计为 passed 且没有真跑(比较 `durationMs` 或 attempt artifact 时间戳,顺带省一次真实调用的钱);第二次**带** `--force` → 断言全部真跑。这把"CI 忘了 --force 会静默跳过"的坑变成被测行为。
-- **artifact 形状**:抽查一个 attempt 目录,断言 `events.json` 是 JSON array、`summary.json` 顶层有 `format/schemaVersion/producer/passed/failed/errored/results[]`、`results[].artifactsDir` 指向存在的目录。防止 results-format 无声漂移。
+- **缓存行为**:同一 experiment 连跑两次,第二次**不带** `--force` → 断言携入新快照的 cached 结果(`result.json` 带 `artifactBase`)仍计为 passed 且没有真跑(比较 `durationMs` 或 attempt artifact 时间戳,顺带省一次真实调用的钱);第二次**带** `--force` → 断言全部真跑。这把"CI 忘了 --force 会静默跳过"的坑变成被测行为。
+- **artifact 形状**:抽查一个快照,断言 `snapshot.json` 顶层有 `format/schemaVersion/producer/experimentId`、每个 attempt 目录下 `result.json` 顶层有 `id/verdict/attempt/assertions`,`events.json` 是 JSON array。防止 results-format 无声漂移。
 
 ## 6. L0 里的示例冒烟 job
 

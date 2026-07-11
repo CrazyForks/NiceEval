@@ -2,6 +2,8 @@
 // 输出形态照 docs-site/zh/guides/report-components.mdx 的示例块;与 web 面共守
 // 诚实契约:排序随 better、samples < total 角标、缺数据 — 不补 0、截断报剩余。
 // 零 react、零 IO、纯同步 —— 这是 text 宿主不需要 react-dom 的那一半。
+// chrome 文案(注脚、verdict 词、截断提示)经 ctx.locale 查 locale 字典,
+// 默认 en 与历史输出逐字一致;数据(display、键、warnings message)不本地化。
 
 import type {
   CaseListData,
@@ -15,11 +17,17 @@ import type {
   TableData,
 } from "../types.ts";
 import type { TextContext } from "../tree.ts";
-import { MISSING_TEXT, formatDurationMs, formatMetricValue, formatPlainNumber, formatUSD } from "../format.ts";
+import { formatDurationMs, formatMetricValue, formatPlainNumber, formatUSD } from "../format.ts";
+import { countText, localeText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { indentBlock, padDisplay, renderAlignedRows, textBar, wrapDisplay } from "./layout.ts";
 import { renderCharPlot, renderCoordinateTable, type PlotPoint } from "./plot.ts";
 
 const MISSING_MARK = "—";
+
+/** 缺数据文案随 locale(en = "no data",与 MISSING_TEXT 一致)。 */
+function missingText(locale: ReportLocale): string {
+  return localeText(locale, "cell.missing");
+}
 
 /** 格子的文本形态:缺数据 —,覆盖不全带 samples/total 角标。 */
 export function cellText(cell: { value: number | null; display: string; samples: number; total: number }): string {
@@ -29,23 +37,24 @@ export function cellText(cell: { value: number | null; display: string; samples:
 
 // ───────────────────────── RunOverview ─────────────────────────
 
-export function overviewText(data: OverviewData): string {
+export function overviewText(data: OverviewData, ctx: TextContext): string {
   const { totals, snapshots } = data;
+  const locale = ctx.locale;
   const runs = new Set(snapshots.map((s) => s.startedAt)).size;
   const latest = snapshots.map((s) => s.startedAt).sort().at(-1);
   const head = [
-    `${snapshots.length} ${snapshots.length === 1 ? "experiment" : "experiments"}`,
-    `${totals.evals} evals`,
-    `${totals.attempts} attempts`,
-    `composed from ${runs} ${runs === 1 ? "run" : "runs"}`,
-    ...(latest ? [`latest ${latest}`] : []),
+    countText(locale, "overview.experiments", snapshots.length),
+    localeText(locale, "overview.evalsCount", { n: totals.evals }),
+    localeText(locale, "overview.attemptsCount", { n: totals.attempts }),
+    countText(locale, "composedFrom", runs),
+    ...(latest ? [localeText(locale, "latestRun", { run: latest })] : []),
   ].join(" · ");
   const tallies = [
-    `passed ${totals.passed}`,
-    `failed ${totals.failed}`,
-    `errored ${totals.errored}`,
-    `skipped ${totals.skipped}`,
-    totals.costUSD === null ? MISSING_TEXT : formatUSD(totals.costUSD),
+    `${localeText(locale, "verdict.passed")} ${totals.passed}`,
+    `${localeText(locale, "verdict.failed")} ${totals.failed}`,
+    `${localeText(locale, "verdict.errored")} ${totals.errored}`,
+    `${localeText(locale, "verdict.skipped")} ${totals.skipped}`,
+    totals.costUSD === null ? missingText(locale) : formatUSD(totals.costUSD),
     formatDurationMs(totals.durationMs),
   ].join(" · ");
   const lines = [head, tallies];
@@ -55,14 +64,41 @@ export function overviewText(data: OverviewData): string {
 
 // ───────────────────────── MetricTable ─────────────────────────
 
-export function tableText(data: TableData): string {
-  const header = [data.dimension, ...data.columns.map((c) => c.label)];
+/** verdict 计票的紧凑文案("3 passed / 1 failed"):非零判定逐个列,全部为零如实 —。 */
+export function verdictTallyText(
+  verdicts: NonNullable<NonNullable<TableData["rows"][number]["meta"]>["verdicts"]>,
+  locale: ReportLocale,
+): string {
+  const parts: string[] = [];
+  for (const kind of ["passed", "failed", "errored", "skipped"] as const) {
+    if (verdicts[kind] > 0) parts.push(`${verdicts[kind]} ${localeText(locale, `verdict.${kind}`)}`);
+  }
+  return parts.length > 0 ? parts.join(" / ") : MISSING_MARK;
+}
+
+export function tableText(data: TableData, ctx: TextContext): string {
+  const locale = ctx.locale;
+  // meta 在场时补 Model / Agent / Verdicts 列(rows: "experiment" 的榜单 parity);
+  // 列序对齐 view 原生榜单:experiment、model、agent、指标列…、verdicts
+  const hasMeta = data.rows.some((row) => row.meta !== undefined);
+  const hasModel = data.rows.some((row) => row.meta?.model !== undefined);
+  const hasVerdicts = data.rows.some((row) => row.meta?.verdicts !== undefined);
+  const header = [
+    data.dimension,
+    ...(hasMeta && hasModel ? [localeText(locale, "table.model")] : []),
+    ...(hasMeta ? [localeText(locale, "table.agent")] : []),
+    ...data.columns.map((c) => resolveMetricLabel(c.label, locale, c.key)),
+    ...(hasVerdicts ? [localeText(locale, "table.verdicts")] : []),
+  ];
   const rows = data.rows.map((row) => [
     row.key,
+    ...(hasMeta && hasModel ? [row.meta?.model ?? MISSING_MARK] : []),
+    ...(hasMeta ? [row.meta?.agent ?? MISSING_MARK] : []),
     ...data.columns.map((col) => {
       const cell = (row.cells as Record<string, TableData["rows"][number]["cells"][string]>)[col.key];
       return cell ? cellText(cell) : MISSING_MARK;
     }),
+    ...(hasVerdicts ? [row.meta?.verdicts ? verdictTallyText(row.meta.verdicts, locale) : MISSING_MARK] : []),
   ]);
   return renderAlignedRows([header, ...rows]);
 }
@@ -70,6 +106,7 @@ export function tableText(data: TableData): string {
 // ───────────────────────── MetricMatrix ─────────────────────────
 
 export function matrixText(data: MatrixData): string {
+  // 表体全是维度键与 display,没有 chrome 文案;"next:" 是命令提示,不本地化。
   const rowKeys: string[] = [];
   const columnKeys: string[] = [];
   const byPosition = new Map<string, MatrixData["cells"][number]["cell"]>();
@@ -166,14 +203,15 @@ export function barsText(data: MatrixData): string {
 
 // ───────────────────────── Scoreboard ─────────────────────────
 
-export function scoreboardText(data: ScoreboardData): string {
+export function scoreboardText(data: ScoreboardData, ctx: TextContext): string {
+  const locale = ctx.locale;
   const subjectKeys: string[] = [];
   for (const row of data.rows) {
     for (const subject of row.subjects) {
       if (!subjectKeys.includes(subject.key)) subjectKeys.push(subject.key);
     }
   }
-  const header = [data.dimension, "total", ...subjectKeys];
+  const header = [data.dimension, localeText(locale, "scoreboard.totalText"), ...subjectKeys];
   const rows = data.rows.map((row) => [
     row.key,
     `${row.total.display}/${data.fullMarks}`,
@@ -181,39 +219,42 @@ export function scoreboardText(data: ScoreboardData): string {
       const subject = row.subjects.find((s) => s.key === key);
       if (!subject) return MISSING_MARK;
       const score = `${formatPlainNumber(subject.earned)}/${formatPlainNumber(subject.possible)}`;
-      return subject.missing > 0 ? `${score} (${subject.missing} missing)` : score;
+      return subject.missing > 0
+        ? `${score} ${localeText(locale, "scoreboard.missingText", { n: subject.missing })}`
+        : score;
     }),
   ]);
   const table = renderAlignedRows([header, ...rows]);
   if (data.weights.length === 0) return table;
   // 实际生效的权重表 —— 成绩单可审计
   const weights = data.weights.map((w) => `${w.prefix} ×${w.weight}`).join(" · ");
-  return `${table}\nweights: ${weights} · others ×1`;
+  return `${table}\n${localeText(locale, "scoreboard.weights")} ${weights} · ${localeText(locale, "scoreboard.othersWeight")}`;
 }
 
 // ───────────────────────── MetricScatter ─────────────────────────
 
 const POINT_MARKS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-function axisLabel(col: MetricColumn): string {
-  return col.label;
+function axisLabel(col: MetricColumn, locale: ReportLocale): string {
+  return resolveMetricLabel(col.label, locale, col.key);
 }
 
 export function scatterText(data: ScatterData, ctx: TextContext): string {
+  const locale = ctx.locale;
   const drawable = data.rows.filter((r) => r.x.value !== null && r.y.value !== null);
   const missing = data.rows.length - drawable.length;
   const footnotes: string[] = [];
-  if (missing > 0) footnotes.push(`${missing} ${missing === 1 ? "point" : "points"} missing data`);
+  if (missing > 0) footnotes.push(countText(locale, "pointsMissing", missing));
 
   if (drawable.length === 0) {
-    return [MISSING_TEXT, ...footnotes].join("\n");
+    return [missingText(locale), ...footnotes].join("\n");
   }
 
   // 点太密排不下时降级为坐标表,不硬挤
   if (drawable.length > POINT_MARKS.length || ctx.width < 44) {
     const table = renderCoordinateTable(
       drawable.map((r) => ({ key: r.key, x: r.x.display, y: r.y.display })),
-      { key: data.points, x: axisLabel(data.x), y: axisLabel(data.y) },
+      { key: data.points, x: axisLabel(data.x, locale), y: axisLabel(data.y, locale) },
     );
     return [table, ...footnotes].join("\n");
   }
@@ -238,26 +279,27 @@ export function scatterText(data: ScatterData, ctx: TextContext): string {
     width: ctx.width,
     points,
     lines: [...bySeries.values()].filter((l) => l.length > 1),
-    xLabel: `${axisLabel(data.x)}${invertX ? " (axis reversed: right = better)" : ""}`,
-    yLabel: axisLabel(data.y),
+    xLabel: `${axisLabel(data.x, locale)}${invertX ? ` ${localeText(locale, "scatter.axisReversed")}` : ""}`,
+    yLabel: axisLabel(data.y, locale),
     formatX: (v) => formatMetricValue(v, data.x.unit),
     formatY: (v) => formatMetricValue(v, data.y.unit),
     invertX,
     invertY: data.y.better === "lower",
   });
   const legend = drawable.map((r, i) => `${POINT_MARKS[i]} ${r.key}`).join("   ");
-  return [plot, "", `better → upper right`, legend, ...footnotes].join("\n");
+  return [plot, "", localeText(locale, "scatter.betterUpperRight"), legend, ...footnotes].join("\n");
 }
 
 // ───────────────────────── MetricLine ─────────────────────────
 
 export function lineText(data: LineData, ctx: TextContext): string {
+  const locale = ctx.locale;
   const drawable = data.rows.filter((r) => r.x !== null && r.y.value !== null);
   const missing = data.rows.length - drawable.length;
   const footnotes: string[] = [];
-  if (missing > 0) footnotes.push(`${missing} ${missing === 1 ? "point" : "points"} missing data`);
+  if (missing > 0) footnotes.push(countText(locale, "pointsMissing", missing));
 
-  if (drawable.length === 0) return [MISSING_TEXT, ...footnotes].join("\n");
+  if (drawable.length === 0) return [missingText(locale), ...footnotes].join("\n");
 
   // 系列 → 字母;无系列 = 单系列
   const seriesKeys: string[] = [];
@@ -269,7 +311,7 @@ export function lineText(data: LineData, ctx: TextContext): string {
   if (seriesKeys.length > POINT_MARKS.length || ctx.width < 44) {
     const table = renderCoordinateTable(
       drawable.map((r) => ({ key: r.series ? `${r.key} (${r.series})` : r.key, x: r.xDisplay, y: r.y.display })),
-      { key: "experiment", x: data.x.label, y: axisLabel(data.y) },
+      { key: "experiment", x: data.x.label, y: axisLabel(data.y, locale) },
     );
     return [table, ...footnotes].join("\n");
   }
@@ -292,21 +334,21 @@ export function lineText(data: LineData, ctx: TextContext): string {
     points,
     lines: lines.filter((l) => l.length > 1),
     xLabel: data.x.label,
-    yLabel: axisLabel(data.y),
+    yLabel: axisLabel(data.y, locale),
     formatX: (v) => formatMetricValue(v, data.x.unit),
     formatY: (v) => formatMetricValue(v, data.y.unit),
     invertY: data.y.better === "lower",
   });
   const legend = seriesKeys
-    .map((key, i) => `${POINT_MARKS[i]} ${key === "" ? data.y.label : key}`)
+    .map((key, i) => `${POINT_MARKS[i]} ${key === "" ? axisLabel(data.y, locale) : key}`)
     .join("   ");
   return [plot, "", legend, ...footnotes].join("\n");
 }
 
 // ───────────────────────── DeltaTable ─────────────────────────
 
-export function deltaText(data: DeltaData): string {
-  const header = ["pair", ...data.columns.map((c) => c.label)];
+export function deltaText(data: DeltaData, ctx: TextContext): string {
+  const header = ["pair", ...data.columns.map((c) => resolveMetricLabel(c.label, ctx.locale, c.key))];
   const rows = data.rows.map((row) => [
     row.key,
     ...data.columns.map((col) => {
@@ -323,13 +365,14 @@ export function deltaText(data: DeltaData): string {
 // ───────────────────────── CaseList ─────────────────────────
 
 export function caseListText(data: CaseListData, ctx: TextContext): string {
-  if (data.rows.length === 0) return "No failed or errored attempts";
+  const locale = ctx.locale;
+  if (data.rows.length === 0) return localeText(locale, "caseList.empty");
   const lines: string[] = [];
   for (const row of data.rows) {
     const head = [
       `✗ ${row.eval}`,
       row.experimentId,
-      row.verdict,
+      localeText(locale, `verdict.${row.verdict}`),
       formatDurationMs(row.durationMs),
       ...(row.costUSD !== undefined ? [formatUSD(row.costUSD)] : []),
     ].join(" · ");
@@ -340,7 +383,7 @@ export function caseListText(data: CaseListData, ctx: TextContext): string {
     for (const assertion of row.failedAssertions) {
       const summary = assertion.detail
         ? `${assertion.name} — ${assertion.detail}`
-        : `${assertion.name} — score ${assertion.score}`;
+        : `${assertion.name} — ${localeText(locale, "caseList.score", { score: assertion.score })}`;
       lines.push(indentBlock(wrapDisplay(summary, ctx.width - 4).join("\n"), "    "));
       if (assertion.evidence) {
         lines.push(indentBlock(wrapDisplay(assertion.evidence, ctx.width - 6).join("\n"), "      "));
@@ -350,7 +393,7 @@ export function caseListText(data: CaseListData, ctx: TextContext): string {
   }
   if (data.truncated > 0) {
     lines.push("");
-    lines.push(`(${data.truncated} more not shown)`);
+    lines.push(localeText(locale, "caseList.truncatedText", { n: data.truncated }));
   }
   return lines.join("\n");
 }

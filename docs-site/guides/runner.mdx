@@ -72,7 +72,7 @@ See [Reporter integrations](./reporters) for how to wire reporters in and config
 
 ## Output directory
 
-Each run writes to `.niceeval/<timestamp>/`, including `summary.json` and per-attempt artifacts such as `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json`.
+Each run writes to that experiment's results snapshot directory, `.niceeval/<experiment>/<snapshot>/`, including snapshot-level `snapshot.json` and, per attempt, `result.json` (verdict and assertions) plus artifacts generated as needed such as `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json`.
 
 ## Recommended debugging flow
 

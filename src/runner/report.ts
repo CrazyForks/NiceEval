@@ -22,7 +22,7 @@ export async function emitReporterEvent(reporters: readonly Reporter[], event: R
 export function filterSummary(summary: RunSummary, ids: ReadonlySet<string>): RunSummary {
   const results = summary.results.filter((r) => ids.has(r.id));
   const sub = summarize(results, summary.agent, summary.startedAt, summary.durationMs, summary.name);
-  // completedAt 用原值(summarize 会重新取 now);format / producer / outputDir 等元数据原样保留。
+  // completedAt 用原值(summarize 会重新取 now);name 等其余字段原样保留。
   return { ...summary, ...sub, completedAt: summary.completedAt };
 }
 

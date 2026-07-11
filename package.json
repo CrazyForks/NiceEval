@@ -56,7 +56,8 @@
       "types": "./src/report/react/index.tsx",
       "import": "./src/report/react/index.tsx"
     },
-    "./report/react/styles.css": "./src/report/react/styles.css"
+    "./report/react/styles.css": "./src/report/react/styles.css",
+    "./report/react/enhance.js": "./src/report/react/enhance.js"
   },
   "files": [
     "src",

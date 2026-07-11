@@ -34,14 +34,15 @@ The value of an eval is in the loop: not just a person looking at a report, but 
           → niceeval show weather/brooklyn
 
     Results: 14 passed, 1 failed, 0 errored, 0 skipped · $0.31 · 6m 02s
-    Structured results: .niceeval/2026-07-09T10-00-00-000Z/summary.json
+    Structured results: .niceeval/local/2026-07-09T10-00-00-000Z-x1f2/
+      (snapshot.json + per-attempt result.json / events.json / trace.json / diff.json)
     ```
 
     The streamed lines are for a person watching the terminal, and a long run scrolls them off screen; the closing block is designed for "only look at the last screen" — failures are replayed all together, each with its own `niceeval show <eval id>`, so the agent can start drilling down without scrolling back through the earlier output. When running a group of experiments (like `exp compare`), the closing block also adds a per-experiment summary table, rendered the same way as `niceeval show`'s leaderboard.
 
     The exit code is the verdict for the loop to consume, with no text to parse: all-green exits `0`; any failure or error exits `1` (folded at the eval level — a single flaky run absorbed by `runs` retries does not count as red); a framework crash itself exits `2`. Whether an agent or script decides "should there be another round" is a matter of checking the exit code alone.
 
-    `summary.json` and attempt-level artifacts are the structured source of truth, with field descriptions in [Viewing Results](/guides/viewing-results); `niceeval show` is the terminal reading of the same artifacts, with drill-down levels in the next section.
+    The snapshot directory the CLI prints is the structured source of truth: `snapshot.json` is the snapshot's metadata, and each attempt's `result.json` holds its verdict and assertions, with artifacts sitting alongside it — field descriptions in [Viewing Results](/guides/viewing-results); `niceeval show` is the terminal reading of the same artifacts, with drill-down levels in the next section.
   </Step>
   <Step title="Fix">
     First determine which side the defect is on: the system under test, or the eval itself (an overly strict assertion, a broken fixture, missing setup). Fix the appropriate side — don't loosen an assertion just to turn it green.
@@ -97,8 +98,10 @@ guide in `node_modules/niceeval/docs-site/zh/` before writing any eval, experime
 adapter, or niceeval config. The bundled docs are Chinese-only — that is the single
 authoritative, always-current version; read it regardless of your working language.
 After a run, drill into failures with `niceeval show <eval id>` (add `--transcript` /
-`--trace` / `--diff` for evidence); the `summary.json` path the CLI prints and the
-artifact files it references are the structured source of truth.
+`--trace` / `--diff` for evidence); the snapshot directories the CLI prints are the
+structured source of truth: `snapshot.json` holds the run's metadata and each
+`<evalId>/a<attempt>/result.json` holds that attempt's verdict and assertions, next to
+its artifact files (`events.json` / `trace.json` / `diff.json`).
 <!-- END:niceeval-agent-rules -->
 ```
 
@@ -120,5 +123,5 @@ Ways to fix:
 
 `niceeval show` and `niceeval view` read the same batch of stored artifacts, so a person and an agent can hand off to each other at any time:
 
-- When a person sees a failure in `npx niceeval view`, the **Copy fix prompt** button in the top-right corner of the leaderboard packages every failure into a prompt ready to paste straight to an agent — the failure list, artifact paths, and the judge-and-rerun steps are all in it, teaching the same reading as this page: drill down with `niceeval show`, decide which side the defect is on, rerun by prefix, finish with `--force`. Opening a single attempt's popup has the same button, packaging just that one failure — suited to handing off one at a time.
+- When a person sees a failure in `npx niceeval view`, the **Copy fix prompt** button above the report packages every failure into a prompt ready to paste straight to an agent — the failure list, artifact paths, and the judge-and-rerun steps are all in it, teaching the same reading as this page: drill down with `niceeval show`, decide which side the defect is on, rerun by prefix, finish with `--force`. Opening a single attempt's popup has the same button, packaging just that one failure — suited to handing off one at a time.
 - Conversely, once the agent finishes fixing, when a person wants to verify on the spot, `npx niceeval view` opens exactly the result the agent just read in the terminal.

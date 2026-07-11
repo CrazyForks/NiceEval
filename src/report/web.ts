@@ -15,11 +15,14 @@ if (g.React === undefined) g.React = React;
 import type { AttemptRef } from "../results/index.ts";
 import { runWithWebContext, validateReportTree, type WebContext } from "./tree.ts";
 import { prepareDefaultReportData, runWithDefaultReportData } from "./default-report.tsx";
+import { DEFAULT_REPORT_LOCALE, type ReportLocale } from "./locale.ts";
 import type { ReportContext, ReportDefinition } from "./report.ts";
 
 export interface StaticHtmlOptions {
-  /** 证据室深链;缺省用 view 的 attempt 路由 `#/attempt/<run>/<result>`。 */
+  /** 证据室深链;缺省用 view 的 attempt 路由 `#/attempt/<snapshot>/<attempt>`。 */
   attemptHref?: (ref: AttemptRef) => string;
+  /** 官方组件 chrome 文案的 locale;默认 "en"。 */
+  locale?: ReportLocale;
 }
 
 /** build → 渲染前树校验(与 text 宿主同一遍)→ 备好官方水位 → 静态渲染 web 面。 */
@@ -32,7 +35,8 @@ export async function renderReportToStaticHtml(
   validateReportTree(node);
   const defaultData = await prepareDefaultReportData(ctx.selection);
   const webCtx: WebContext = {
-    attemptHref: options?.attemptHref ?? ((ref) => `#/attempt/${ref.run}/${ref.result}`),
+    attemptHref: options?.attemptHref ?? ((ref) => `#/attempt/${ref.snapshot}/${ref.attempt}`),
+    locale: options?.locale ?? DEFAULT_REPORT_LOCALE,
   };
   return runWithDefaultReportData(defaultData, () =>
     runWithWebContext(webCtx, () => renderToStaticMarkup(node as ReactNode)),

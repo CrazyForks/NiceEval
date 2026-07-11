@@ -1,11 +1,12 @@
 // MetricBars:分组条形——同一份矩阵数据的另一种摆法(MetricBars.data = MetricMatrix.data)。
 // 组维度一组条、系列维度一根条、条长是指标值;竖向分组柱,柱顶标数值,系列颜色与
-// 其它组件的稳定配色一致,图例自动生成。组内按值排序,方向随 better;
-// 缺数据的系列不画柱、不编 0(与 text 面的 — 同口径)。
+// 其它组件的稳定配色一致(类名 nre-series-cN 由 CSS 上色,深色主题跟随),图例自动生成。
+// 组内按值排序,方向随 better;缺数据的系列不画柱、不编 0(与 text 面的 — 同口径)。
 
 import type { ReactElement } from "react";
 import type { AttemptRef, MatrixData, MetricCell } from "../types.ts";
-import { colorHexForKey, colorClassForKey } from "./colors.ts";
+import { DEFAULT_REPORT_LOCALE, resolveMetricLabel, type ReportLocale } from "../locale.ts";
+import { colorClassForKey, seriesClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";
 
 const WIDTH = 640;
@@ -16,10 +17,12 @@ export function MetricBars({
   data,
   attemptHref,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: MatrixData;
   attemptHref?: (ref: AttemptRef) => string;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   // 稀疏 cells → 首次出现顺序的组/系列键 + 查找表
   const groupKeys: string[] = [];
@@ -31,6 +34,7 @@ export function MetricBars({
     byPosition.set(JSON.stringify([entry.row, entry.column]), entry.cell);
   }
 
+  const metricLabel = resolveMetricLabel(data.metric.label, locale, data.metric.key);
   const better = data.metric.better ?? "higher";
   const values = data.cells.map((c) => c.cell.value).filter((v): v is number => v !== null);
   const maxValue = values.length > 0 ? Math.max(...values) : 0;
@@ -47,7 +51,7 @@ export function MetricBars({
         className="nre-bars-svg"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${data.metric.label} by ${data.rows} × ${data.columns}`}
+        aria-label={`${metricLabel} by ${data.rows} × ${data.columns}`}
       >
         {groupKeys.map((group, gi) => {
           const x0 = PLOT.left + gi * groupWidth;
@@ -68,7 +72,13 @@ export function MetricBars({
                 const y = PLOT.bottom - h;
                 const title = `${group} · ${series}: ${cell.display}(${cell.samples}/${cell.total})`;
                 const rect = (
-                  <rect className="nre-bar" x={x + 2} y={y} width={barWidth - 4} height={h} fill={colorHexForKey(series)}>
+                  <rect
+                    className={cx("nre-bar", seriesClassForKey(series))}
+                    x={x + 2}
+                    y={y}
+                    width={barWidth - 4}
+                    height={h}
+                  >
                     <title>{title}</title>
                   </rect>
                 );
@@ -77,25 +87,25 @@ export function MetricBars({
                   <g key={series}>
                     {attemptHref && ref ? <a href={attemptHref(ref)}>{rect}</a> : rect}
                     {/* 柱顶标数值;覆盖不全时把 samples/total 一并标出,不藏 */}
-                    <text className="nre-bar-value" x={x + barWidth / 2} y={y - 4} textAnchor="middle" fontSize={10} fill="#525252">
+                    <text className="nre-bar-value" x={x + barWidth / 2} y={y - 4} textAnchor="middle">
                       {cell.samples < cell.total ? `${cell.display} ${cell.samples}/${cell.total}` : cell.display}
                     </text>
                   </g>
                 );
               })}
-              <text className="nre-bars-group-label" x={x0 + groupWidth / 2} y={HEIGHT - 20} textAnchor="middle" fontSize={12} fill="#525252">
+              <text className="nre-bars-group-label" x={x0 + groupWidth / 2} y={HEIGHT - 20} textAnchor="middle">
                 {group}
               </text>
             </g>
           );
         })}
         {/* 基线 */}
-        <line x1={PLOT.left} y1={PLOT.bottom} x2={PLOT.right} y2={PLOT.bottom} stroke="#d4d4d4" />
+        <line className="nre-bars-baseline" x1={PLOT.left} y1={PLOT.bottom} x2={PLOT.right} y2={PLOT.bottom} />
       </svg>
       {/* 图例:系列 → 稳定配色,跨块同键同色 */}
       <figcaption className="nre-bars-legend">
         <span className="nre-bars-metric">
-          {data.metric.label}
+          {metricLabel}
           {data.metric.unit && <span className="nre-unit">({data.metric.unit})</span>}
         </span>
         {seriesKeys.map((series) => (

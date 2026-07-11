@@ -51,13 +51,17 @@ export function displayAttemptNumber(attempt: AttemptHandle): number {
   return attempt.result.attempt + 1;
 }
 
-/** attempt artifact 目录的展示路径:尽量给相对 cwd 的短路径,出了 cwd 给绝对路径。 */
-export function attemptArtifactsPath(attempt: AttemptHandle, cwd: string): string | undefined {
+/**
+ * attempt artifact 目录的展示路径:尽量给相对 cwd 的短路径,出了 cwd 给绝对路径。
+ * 本快照跑出的条目:artifact 与 result.json 同目录,= `<snapshot.dir>/<ref.attempt>`。
+ * 携带条目(--resume 合入):落盘的 artifactBase 相对结果根(= snapshot.dir 的上两级,
+ * 即 `<experiment-dir>/<snapshot-dir>` 的上一层),指向原快照的 attempt 目录。
+ */
+export function attemptArtifactsPath(attempt: AttemptHandle, cwd: string): string {
   const r = attempt.result;
-  let abs: string | undefined;
-  if (r.artifactsDir) abs = join(attempt.runDir.dir, r.artifactsDir);
-  else if (r.artifactBase) abs = join(attempt.runDir.dir, "..", r.artifactBase);
-  if (!abs) return undefined;
+  const abs = r.artifactBase
+    ? join(attempt.snapshot.dir, "..", "..", r.artifactBase)
+    : join(attempt.snapshot.dir, attempt.ref.attempt);
   const rel = relative(cwd, abs);
   return rel.startsWith("..") ? abs : rel;
 }

@@ -1,7 +1,7 @@
 ---
 title: "Build your own scoring with report building blocks"
 sidebarTitle: "Custom Reports"
-description: "A report is a report file: the official host opens the results and injects the data, Row / Col handle layout, and dual-faced components render both web and terminal at once — the default report that niceeval show and niceeval view render by default is itself just the bundled report file."
+description: "A report is a report file: the official host opens the results and injects the data, Row / Col handle layout, and dual-faced components render both web and terminal at once — the default report that niceeval show and niceeval view render by default is itself just the bundled report definition."
 ---
 
 [Viewing Results](/guides/viewing-results) covers *using*: the two official doors, `niceeval show` (terminal) and `niceeval view` (web), and how to look at them. This page covers *writing*: when the official layout is not enough, how to write your own report — an exam scorecard, a lines-of-code leaderboard, a quality × cost frontier.
@@ -10,7 +10,13 @@ A report is a report file. You never open a results directory, never write rende
 
 ## The official default report is also a report file
 
-The default report that `niceeval view` and `niceeval show` render without `--report` is not a private implementation — it is a bundled report file: `niceeval view` is exactly `niceeval view --report <bundled default report>`, and `show` works the same way. The parts we use ourselves are exactly the same as the ones you get, with no private data channel — every number on the default report can be recomputed by you, verbatim, with the same few lines of code.
+The default report that `niceeval view` and `niceeval show` render without `--report` is not a private implementation — it is a value exported from `niceeval/report`:
+
+```ts
+import { defaultReport } from "niceeval/report";
+```
+
+`niceeval view` is exactly `niceeval view --report <defaultReport>`, and `show` works the same way. Top to bottom it is: a run overview, one section per experiment group (quality × cost scatter plot + leaderboard), and a failure list. The parts we use ourselves are exactly the same as the ones you get, with no private data channel — every number on the default report can be recomputed by you, verbatim, with the same few lines of code.
 
 |  | Web (for people) | Terminal (for agents and you) |
 | --- | --- | --- |
@@ -60,7 +66,7 @@ Command-line scope acts on the picking step first, so the report only ever gets 
 
 Every component on the page is **dual-faced**: the web face is React rendering, the terminal face is character rendering, and both faces consume the same already-computed data. In the report file you only ever see the component itself, never one face in particular — which door you go through is the host's decision. Official components cover the common layouts — leaderboard `MetricTable`, per-question grid `MetricMatrix`, grouped bars `MetricBars`, scorecard `Scoreboard`, quality × cost frontier `MetricScatter`, trend line `MetricLine`, paired comparison `DeltaTable`, failure list `CaseList` — what question each answers, how to call it, and what its terminal character output looks like are covered one by one in [Report Components](/guides/report-components). They wire automatically into the host's evidence room: the web face's cells deep-link to the attempt popup, and the terminal face prints a `niceeval show <eval id>` drill-down command under each entry.
 
-The default report has no special privilege: `<DefaultReport />` is just the bundled report rendered when `--report` is not passed, and it is an ordinary component itself. Lay it into your own tree, "official layout + your own scoring", as shown above; skip laying it in if you don't want the official layout — composition happens in your tsx, with no tabs, no registry, no config.
+The default report has no special privilege: it is the exported value `defaultReport`, a sibling of your own report; `<DefaultReport />` is the component that lays the same official block into your tree. Lay it into your own tree, "official layout + your own scoring", as shown above; skip laying it in if you don't want the official layout — composition happens in your tsx, with no tabs, no registry, no config.
 
 ## Layout: `Row` and `Col` hold on both faces
 
@@ -234,7 +240,7 @@ Publishing a custom report and publishing the official viewer are the same actio
 niceeval view --report reports/exam.tsx --out site
 ```
 
-The output is plain static files: your report page is the homepage, the evidence room (transcript, trace, code view) is in the same site, and every number in the report drills straight into the evidence. Components never hydrate, so the output needs no client-side JS and can go to any static host. When `.niceeval/` is not present in CI, first slim the snapshots into the repo with `copySnapshots` before exporting — the flow is in [Viewing Results](/guides/viewing-results#exporting-and-static-hosting).
+The output is plain static files: your report page is the homepage, the evidence room (transcript, trace, code view) is in the same site, and every number in the report drills straight into the evidence. Components never hydrate; the page inlines a small official script for table sorting, row filtering, and chart hover, and stays fully readable with JS disabled. It can go to any static host. When `.niceeval/` is not present in CI, first slim the snapshots into the repo with `copySnapshots` before exporting — the flow is in [Viewing Results](/guides/viewing-results#exporting-and-static-hosting).
 
 A dual-faced component's web face is just an ordinary React component, and its `data` function is just an ordinary TS function — to embed a metric table into an existing internal panel, import the component and feed it data. That is reusing the parts, not a second reporting system — a report's home is the official host. When computing data and rendering are deployed separately (CI writes JSON, another app fetches it), pinning both sides to the same niceeval version is a hard requirement — component data carries no version stamp, and compatibility follows the package version.
 

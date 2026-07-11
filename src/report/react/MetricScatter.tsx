@@ -1,54 +1,68 @@
-// MetricScatter:质量 × 成本 frontier 的积木,内联 SVG、零图表库。
+// MetricScatter:质量 × 成本 frontier 的积木,内联 SVG、零图表库、零 hooks。
 // 轴向随 better:"lower" 的轴反向画,「好」的角落恒在右上(成本轴 $20 → $0 就是这么来的);
-// 同系列的点按 x 值排序连线,系列名标在线旁;x 或 y 为 null 的点不画,
-// 底部注脚如实报「n 个点缺数据」;hover 信息退化为 SVG <title>,不 hydrate 也在。
+// niceTicks 刻度 + 网格线;每个点直接标注(防撞布局,被挤开时补 leader line);
+// 同系列的点按 x 值排序连线,系列图例列在图下。x 或 y 为 null 的点不画,
+// 底部注脚如实报「n 个点缺数据」;hover 信息退化为 SVG <title>,不 hydrate 也在
+// (enhance.js 在场时升级为样式化 tooltip)。配色走类名(nre-series-cN)由 CSS 上色,
+// 深色主题下图表随令牌切换,不留内联 hex。
 
 import type { ReactElement } from "react";
 import type { MetricColumn, ScatterData } from "../types.ts";
-import { colorHexForKey } from "./colors.ts";
-import { MISSING_TEXT, cx } from "./format.ts";
+import { formatMetricValue } from "../format.ts";
+import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
+import { layoutLabelOffsets, niceTicks } from "./chart-math.ts";
+import { colorClassForKey, seriesClassForKey } from "./colors.ts";
+import { cx } from "./format.ts";
 
-// 画布与边距:右侧留白给系列名,底部给 x 轴标签
 const WIDTH = 640;
-const HEIGHT = 400;
-const PLOT = { left: 64, right: WIDTH - 140, top: 24, bottom: HEIGHT - 56 };
+const HEIGHT = 360;
+const MARGIN = { top: 26, right: 24, bottom: 46, left: 62 };
+const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
+const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
 /** 可画的点:x/y 都有值。组件内部的整理结果,不改数据。 */
 interface DrawablePoint {
   key: string;
   series?: string;
+  label: string;
   xValue: number;
   yValue: number;
-  xDisplay: string;
-  yDisplay: string;
   title: string;
   px: number;
   py: number;
 }
 
-/** 一根轴的线性映射:值 → 像素;better:"lower" 时反向,好的一端固定在右/上。 */
+/** 点的直接标签:experiment id 的末段(完整 id 在 <title> 里)。 */
+function pointLabel(key: string): string {
+  return key.split("/").filter(Boolean).at(-1) ?? key;
+}
+
+/**
+ * 一根轴:niceTicks 撑出整齐的值域,值 → 像素做线性映射;
+ * better: "lower" 时反向,好的一端固定在右 / 上。
+ */
 function axisScale(values: number[], better: MetricColumn["better"], pixelLo: number, pixelHi: number) {
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  // 单值域:铺 ±1 让唯一的点落在正中,而不是除零
-  const span = hi - lo || 2;
-  const padded = { lo: lo - (hi - lo ? span * 0.08 : 1), hi: hi + (hi - lo ? span * 0.08 : 1) };
+  const ticks = niceTicks(Math.min(...values), Math.max(...values), 5);
+  const lo = ticks[0];
+  const hi = ticks[ticks.length - 1];
   const scale = (v: number) => {
-    let t = (v - padded.lo) / (padded.hi - padded.lo);
+    let t = (v - lo) / (hi - lo || 1);
     if (better === "lower") t = 1 - t; // 反向:值越低越靠「好」的一端
     return pixelLo + t * (pixelHi - pixelLo);
   };
-  return { lo, hi, scale };
+  return { ticks, scale };
 }
 
 export function MetricScatter({
   data,
   pointHref,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: ScatterData;
   pointHref?: (row: ScatterData["rows"][number]) => string;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   const missing = data.rows.filter((r) => r.x.value === null || r.y.value === null);
   const drawableRows = data.rows.filter((r) => r.x.value !== null && r.y.value !== null);
@@ -56,7 +70,7 @@ export function MetricScatter({
   const missingNote =
     missing.length > 0 ? (
       <p className="nre-scatter-missing" title={missing.map((r) => r.key).join(", ")}>
-        {missing.length} {missing.length === 1 ? "point" : "points"} missing data
+        {countText(locale, "pointsMissing", missing.length)}
       </p>
     ) : null;
 
@@ -64,15 +78,19 @@ export function MetricScatter({
   if (drawableRows.length === 0) {
     return (
       <figure className={cx("nre", "nre-metric-scatter", className)}>
-        <p className="nre-missing">{MISSING_TEXT}</p>
+        <p className="nre-missing">{localeText(locale, "cell.missing")}</p>
         {missingNote}
       </figure>
     );
   }
 
-  const xScale = axisScale(drawableRows.map((r) => r.x.value as number), data.x.better, PLOT.left, PLOT.right);
+  const xLabel = resolveMetricLabel(data.x.label, locale, data.x.key);
+  const yLabel = resolveMetricLabel(data.y.label, locale, data.y.key);
+  const axisLabel = (label: string, col: MetricColumn) => `${label}${col.unit ? `(${col.unit})` : ""}`;
+
+  const xScale = axisScale(drawableRows.map((r) => r.x.value as number), data.x.better, MARGIN.left, MARGIN.left + PLOT_W);
   // y 像素轴向下增长:better:"higher" 高值在上 → 映射到 [bottom, top];"lower" 由 axisScale 反向后同样落到上方
-  const yScale = axisScale(drawableRows.map((r) => r.y.value as number), data.y.better, PLOT.bottom, PLOT.top);
+  const yScale = axisScale(drawableRows.map((r) => r.y.value as number), data.y.better, MARGIN.top + PLOT_H, MARGIN.top);
 
   const points: DrawablePoint[] = drawableRows.map((r) => {
     const xValue = r.x.value as number;
@@ -80,12 +98,11 @@ export function MetricScatter({
     return {
       key: r.key,
       series: r.series,
+      label: pointLabel(r.key),
       xValue,
       yValue,
-      xDisplay: r.x.display,
-      yDisplay: r.y.display,
       // hover 内容:display 与 samples/total(docs/reports.md 行为清单)
-      title: `${r.key}\n${data.x.label}: ${r.x.display}(${r.x.samples}/${r.x.total})\n${data.y.label}: ${r.y.display}(${r.y.samples}/${r.y.total})`,
+      title: `${r.key}\n${xLabel}: ${r.x.display}(${r.x.samples}/${r.x.total})\n${yLabel}: ${r.y.display}(${r.y.samples}/${r.y.total})`,
       px: xScale.scale(xValue),
       py: yScale.scale(yValue),
     };
@@ -104,14 +121,12 @@ export function MetricScatter({
   }
   for (const list of bySeries.values()) list.sort((a, b) => a.xValue - b.xValue);
 
-  // 轴端刻度打在真实极值点的位置上(值域有 padding,角落不等于极值)
-  const xTicks = xScale.lo === xScale.hi ? [xScale.lo] : [xScale.lo, xScale.hi];
-  const yTicks = yScale.lo === yScale.hi ? [yScale.lo] : [yScale.lo, yScale.hi];
-  const displayFor = (axis: "x" | "y", value: number) =>
-    points.find((p) => (axis === "x" ? p.xValue : p.yValue) === value)?.[axis === "x" ? "xDisplay" : "yDisplay"] ??
-    String(value);
-
-  const axisLabel = (col: MetricColumn) => `${col.label}${col.unit ? `(${col.unit})` : ""}`;
+  // 直接标签的防撞布局:靠右的点把标签锚到左侧,重叠的往下推、补 leader line
+  const positions = points.map((p) => {
+    const anchorLeft = p.px >= MARGIN.left + PLOT_W * 0.72;
+    return { cx: p.px, cy: p.py, anchorLeft, width: p.label.length * 6.4 + 10 };
+  });
+  const labelOffsets = layoutLabelOffsets(positions);
 
   return (
     <figure className={cx("nre", "nre-metric-scatter", className)}>
@@ -119,98 +134,110 @@ export function MetricScatter({
         className="nre-scatter-svg"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${axisLabel(data.x)} × ${axisLabel(data.y)}`}
+        aria-label={`${axisLabel(xLabel, data.x)} × ${axisLabel(yLabel, data.y)}`}
       >
-        {/* 坐标框 */}
-        <rect
-          className="nre-scatter-plot"
-          x={PLOT.left}
-          y={PLOT.top}
-          width={PLOT.right - PLOT.left}
-          height={PLOT.bottom - PLOT.top}
-          fill="none"
-          stroke="#d4d4d4"
-        />
+        {/* 网格:niceTicks 的整齐刻度线,颜色走 CSS(var(--line)) */}
+        <g className="nre-scatter-grid">
+          {yScale.ticks.map((tick) => (
+            <line key={`gy${tick}`} x1={MARGIN.left} x2={MARGIN.left + PLOT_W} y1={yScale.scale(tick)} y2={yScale.scale(tick)} />
+          ))}
+          {xScale.ticks.map((tick) => (
+            <line key={`gx${tick}`} y1={MARGIN.top} y2={MARGIN.top + PLOT_H} x1={xScale.scale(tick)} x2={xScale.scale(tick)} />
+          ))}
+        </g>
+
         {/* 「好」的角落恒在右上:轴向已按 better 反转,这里只是把这句契约写在图上 */}
-        <text className="nre-scatter-better-hint" x={PLOT.right - 6} y={PLOT.top + 14} textAnchor="end" fontSize={11} fill="#9ca3af">
-          better ↗
+        <text className="nre-scatter-better-hint" x={MARGIN.left + PLOT_W - 6} y={MARGIN.top + 14} textAnchor="end">
+          {localeText(locale, "scatter.betterHint")}
         </text>
 
+        {/* 刻度:已格式化的整齐值(formatMetricValue 与计算侧同一套) */}
+        <g className="nre-scatter-axis nre-scatter-axis-y">
+          {yScale.ticks.map((tick) => (
+            <text key={`ay${tick}`} className="nre-scatter-tick" x={MARGIN.left - 8} y={yScale.scale(tick) + 3} textAnchor="end">
+              {formatMetricValue(tick, data.y.unit)}
+            </text>
+          ))}
+        </g>
+        <g className="nre-scatter-axis nre-scatter-axis-x">
+          {xScale.ticks.map((tick) => (
+            <text key={`ax${tick}`} className="nre-scatter-tick" x={xScale.scale(tick)} y={MARGIN.top + PLOT_H + 16} textAnchor="middle">
+              {formatMetricValue(tick, data.x.unit)}
+            </text>
+          ))}
+        </g>
+
         {/* 轴标签 */}
-        <text className="nre-scatter-xlabel" x={(PLOT.left + PLOT.right) / 2} y={HEIGHT - 8} textAnchor="middle" fontSize={12} fill="#525252">
-          {axisLabel(data.x)}
+        <text className="nre-scatter-xlabel" x={MARGIN.left + PLOT_W / 2} y={HEIGHT - 8} textAnchor="middle">
+          {axisLabel(xLabel, data.x)}
         </text>
         <text
           className="nre-scatter-ylabel"
-          x={16}
-          y={(PLOT.top + PLOT.bottom) / 2}
+          x={14}
+          y={MARGIN.top + PLOT_H / 2}
           textAnchor="middle"
-          fontSize={12}
-          fill="#525252"
-          transform={`rotate(-90 16 ${(PLOT.top + PLOT.bottom) / 2})`}
+          transform={`rotate(-90 14 ${MARGIN.top + PLOT_H / 2})`}
         >
-          {axisLabel(data.y)}
+          {axisLabel(yLabel, data.y)}
         </text>
 
-        {/* 轴端刻度:标在真实极值的位置上,文案用该点已格式化的 display */}
-        {xTicks.map((v) => (
-          <text key={`x${v}`} className="nre-scatter-tick" x={xScale.scale(v)} y={PLOT.bottom + 16} textAnchor="middle" fontSize={11} fill="#737373">
-            {displayFor("x", v)}
-          </text>
-        ))}
-        {yTicks.map((v) => (
-          <text key={`y${v}`} className="nre-scatter-tick" x={PLOT.left - 6} y={yScale.scale(v) + 4} textAnchor="end" fontSize={11} fill="#737373">
-            {displayFor("y", v)}
-          </text>
-        ))}
-
-        {/* 系列连线 + 线旁的系列名(标在视觉上最靠右的点旁) */}
+        {/* 系列连线:类名上色(nre-series-cN),深色主题跟随 */}
         {seriesOrder.map((series) => {
           const list = bySeries.get(series)!;
-          const color = colorHexForKey(series);
-          const labelAt = list.reduce((a, b) => (b.px > a.px ? b : a));
+          if (list.length < 2) return null;
           return (
-            <g key={series} className="nre-scatter-series" data-series={series}>
-              {list.length > 1 && (
-                <polyline
-                  className="nre-scatter-line"
-                  points={list.map((p) => `${p.px},${p.py}`).join(" ")}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={1.5}
-                />
-              )}
-              <text className="nre-scatter-series-label" x={labelAt.px + 8} y={labelAt.py + 4} fontSize={12} fill={color}>
-                {series}
-              </text>
-            </g>
+            <polyline
+              key={series}
+              className={cx("nre-scatter-line", seriesClassForKey(series))}
+              data-series={series}
+              points={list.map((p) => `${p.px},${p.py}`).join(" ")}
+              fill="none"
+            />
           );
         })}
 
-        {/* 点(带 <title> 的 hover;pointHref 时包普通 <a>,静态导出也能下钻) */}
+        {/* 点:g 内带 <title>(无 JS 的原生 hover)、直接标签与 leader line;
+            pointHref 时包普通 <a>,静态导出也能下钻 */}
         {points.map((p, i) => {
-          const circle = (
-            <circle
-              className="nre-scatter-point"
+          const { anchorLeft } = positions[i];
+          const labelX = p.px + (anchorLeft ? -10 : 10);
+          const labelY = p.py + 4 + labelOffsets[i];
+          const group = (
+            <g
+              className={cx("nre-scatter-point", p.series !== undefined ? seriesClassForKey(p.series) : "nre-series-none")}
               data-key={p.key}
-              cx={p.px}
-              cy={p.py}
-              r={4.5}
-              fill={p.series !== undefined ? colorHexForKey(p.series) : "#525252"}
             >
               <title>{p.title}</title>
-            </circle>
+              {/* 标签被挤开时补一条 leader line,避免脱离原点看不出对应关系 */}
+              {labelOffsets[i] !== 0 && <line className="nre-leader" x1={p.px} y1={p.py} x2={labelX} y2={labelY - 4} />}
+              <circle className="nre-scatter-hit" cx={p.px} cy={p.py} r={12} />
+              <circle className="nre-scatter-dot" cx={p.px} cy={p.py} r={4.5} />
+              <text className="nre-scatter-point-label" x={labelX} y={labelY} textAnchor={anchorLeft ? "end" : "start"}>
+                {p.label}
+              </text>
+            </g>
           );
           const row = drawableRows[i];
           return pointHref ? (
             <a key={p.key} className="nre-scatter-point-link" href={pointHref(row)}>
-              {circle}
+              {group}
             </a>
           ) : (
-            <g key={p.key}>{circle}</g>
+            <g key={p.key}>{group}</g>
           );
         })}
       </svg>
+
+      {/* 系列图例:同键同色(与其它块的稳定散列一致) */}
+      {seriesOrder.length > 0 && (
+        <figcaption className="nre-scatter-legend">
+          {seriesOrder.map((series) => (
+            <span key={series} className={cx("nre-legend-key", "nre-key", colorClassForKey(series))}>
+              {series}
+            </span>
+          ))}
+        </figcaption>
+      )}
       {missingNote}
     </figure>
   );

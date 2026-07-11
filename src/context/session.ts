@@ -226,7 +226,7 @@ export class SessionManager {
  * 失败轮的进度行原因摘要:取本轮事件流里最后一个 `type: "error"` 事件的 message
  * (与 TurnHandle.expectOk() / src/agents/shared.ts 的 diagnoseFailure 同一口径——
  * 都认「最后一条 error 事件」为本轮失败的权威原因),压成单行并截断,避免 402/超时
- * 这类关键信息只能事后翻 summary.json 才看得到。提不到时返回 undefined,调用方不补空后缀。
+ * 这类关键信息只能事后翻落盘的 result.json 才看得到。提不到时返回 undefined,调用方不补空后缀。
  */
 function failureReason(events: readonly StreamEvent[]): string | undefined {
   for (let i = events.length - 1; i >= 0; i--) {

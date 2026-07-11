@@ -4,33 +4,41 @@
 
 import type { ReactElement } from "react";
 import type { AttemptRef, MetricCell } from "../types.ts";
-import { MISSING_TEXT } from "./format.ts";
+import { DEFAULT_REPORT_LOCALE, localeText, type ReportLocale } from "../locale.ts";
 
 export function MetricCellView({
   cell,
   attemptHref,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   cell: MetricCell;
   attemptHref?: (ref: AttemptRef) => string;
+  locale?: ReportLocale;
 }): ReactElement {
   // 全 null(没有任何有效样本)→ 缺数据文案,绝不画 0;total 仍如实入 title
   if (cell.value === null) {
     return (
       <span className="nre-cell nre-cell-missing">
-        <span className="nre-missing" title={`0/${cell.total} attempts measurable`}>
-          {MISSING_TEXT}
+        <span className="nre-missing" title={localeText(locale, "cell.noneMeasurableTitle", { total: cell.total })}>
+          {localeText(locale, "cell.missing")}
         </span>
       </span>
     );
   }
   return (
     <span className="nre-cell">
-      <span className="nre-value" title={`${cell.samples}/${cell.total} attempts measured`}>
+      <span
+        className="nre-value"
+        title={localeText(locale, "cell.measuredTitle", { samples: cell.samples, total: cell.total })}
+      >
         {cell.display}
       </span>
       {/* samples < total:有 attempt 测不了这个指标,覆盖率角标如实标出 */}
       {cell.samples < cell.total && (
-        <sup className="nre-coverage" title={`coverage ${cell.samples}/${cell.total}: this metric is null for the remaining attempts`}>
+        <sup
+          className="nre-coverage"
+          title={localeText(locale, "cell.coverageTitle", { samples: cell.samples, total: cell.total })}
+        >
           {cell.samples}/{cell.total}
         </sup>
       )}
@@ -38,7 +46,7 @@ export function MetricCellView({
       {attemptHref && cell.refs && cell.refs.length > 0 && (
         <span className="nre-refs">
           {cell.refs.map((ref, i) => (
-            <a key={`${ref.run}:${ref.result}`} className="nre-ref" href={attemptHref(ref)}>
+            <a key={`${ref.snapshot}:${ref.attempt}`} className="nre-ref" href={attemptHref(ref)}>
               #{i + 1}
             </a>
           ))}

@@ -3,8 +3,10 @@
 // 这些不是持久化格式,没有 format / schemaVersion 信封,兼容性跟随 npm 版本。
 
 import type { AttemptHandle, AttemptRef, SelectionWarning } from "../results/index.ts";
+import type { LocalizedLabel, ReportLocale } from "./locale.ts";
 
 export type { AttemptRef, SelectionWarning };
+export type { LocalizedLabel, ReportLocale };
 
 // ───────────────────────── 指标与聚合 ─────────────────────────
 
@@ -31,8 +33,11 @@ export interface MetricAggregate {
 export interface Metric<Name extends string = string> {
   /** MetricColumn.key 与列头的来源;同一次计算里重名是错误。 */
   name: Name;
-  /** 列头;省略时用 name。 */
-  label?: string;
+  /**
+   * 列头;省略时用 name。可以给按 locale 的字典({ en, "zh-CN" }),
+   * 渲染面按宿主 locale 解析,缺项回退 en(display 是 format 产物,不本地化)。
+   */
+  label?: LocalizedLabel;
   description?: string;
   /** 渲染提示:越高越好还是越低越好(排序方向、轴向、涨跌配色用)。 */
   better?: "higher" | "lower";
@@ -86,7 +91,8 @@ export type DimensionInput = Dimension | FlagRef;
 export interface MetricColumn {
   /** = metric.name,与 cells 的键对应。 */
   key: string;
-  label: string;
+  /** 数据层原样携带 metric.label(可本地化);渲染面用 resolveMetricLabel 按 locale 解析。 */
+  label: LocalizedLabel;
   unit?: string;
   /** 渲染提示:排序方向、轴向、涨跌配色。 */
   better?: "higher" | "lower";
@@ -108,12 +114,24 @@ export interface MetricCell {
   refs: AttemptRef[];
 }
 
+/**
+ * 榜单行的元信息:rows: "experiment" 时随行(experiment 行天然有唯一的 agent/model 身份
+ * 与 eval 级折叠计票);其它维度不携带。web / text 面在 meta 在场时补 Model / Agent /
+ * Verdicts 列,与 view 原生榜单同列面。
+ */
+export interface TableRowMeta {
+  agent?: string;
+  model?: string;
+  /** eval 级折叠计票(foldEvalVerdict 口径,与 view 榜单同一套):每题折成单一判定后计数。 */
+  verdicts?: { passed: number; failed: number; errored: number; skipped: number };
+}
+
 /** 列键 K 来自 columns 元组的字面量 name:拼错列名编译不过,不是运行时 undefined。 */
 export interface TableData<K extends string = string> {
   /** 行维度名,如 "agent"。 */
   dimension: string;
   columns: MetricColumn[];
-  rows: { key: string; cells: Record<K, MetricCell> }[];
+  rows: { key: string; cells: Record<K, MetricCell>; meta?: TableRowMeta }[];
 }
 
 export interface MatrixData {

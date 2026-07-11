@@ -1,151 +1,153 @@
 # Results Format —— 结果保存格式
 
-这篇记录 `Artifacts()` 报告器写到本地磁盘的格式,也是 `niceeval view` 的离线输入契约。实现入口是 `src/runner/reporters/artifacts.ts`;核心类型在 `src/types.ts` 的 `RunSummary`、`EvalResult`、`StreamEvent`、`TraceSpan`、`O11ySummary` 和 `DiffData`。
+这篇记录 `Artifacts()` 报告器写到本地磁盘的格式,也是 `niceeval view` 的离线输入契约。实现入口是 `src/results/writer.ts`(`Artifacts()` reporter 是它的薄壳);核心持久化类型在 `src/results/`,运行时类型在 `src/types.ts` 的 `EvalResult`、`StreamEvent`、`TraceSpan`、`O11ySummary` 和 `DiffData`。
 
 ## 目录结构
 
-默认输出根目录是 `.niceeval/`。每次 run 一个时间戳目录,时间戳来自 `Date#toISOString()`,并把 `:` 与 `.` 替换成 `-`:
+默认输出根目录是 `.niceeval/`。**落盘单位是快照**(snapshot = 一个 experiment 的一次运行):实验目录在外层,快照目录在实验目录下:
 
 ```text
 .niceeval/
-  2026-07-02T03-10-24-123Z/
-    summary.json
-    <evalId>/<agent>/<model>[/<experiment>]/a<attempt>/
-      events.json
-      sources.json
-      trace.json
-      o11y.json
-      diff.json
+  <experiment>/                      # 实验目录:experimentId 清洗后的名字
+    <timestamp>-<suffix>/            # 快照目录:时间戳 + 随机后缀,独占创建
+      snapshot.json                  # 快照元数据(快照开始时写入,收尾补 completedAt)
+      <evalId>/a<attempt>/           # 单个 eval attempt 的目录
+        result.json                  # 判决、断言、用量 —— attempt 完成时一次写成
+        events.json
+        sources.json
+        trace.json
+        o11y.json
+        diff.json
 ```
 
-`<evalId>/<agent>/<model>[/<experiment>]/a<attempt>/` 是单个 eval attempt 的 artifact 目录。`evalId` 里的 `/` 会保留为目录层级,其它不适合路径的字符会替换成 `_`;`agent` 和 `model` 里的非 `[\w.@-]` 字符也会替换成 `_`。没有 model 时目录名是 `default`。带 experimentId 的结果多一段实验目录(`/` 压成 `_`,如 `compare-prompts_concise`)——两个实验可以同 agent 同 model、只差 flags,少了这一段 artifact 会互相覆盖。
+命名与清洗规则:
 
-这些文件是按需写入的:某类数据为空就不生成对应 JSON 文件。`summary.json` 在 run 结束时写入;attempt 级重数据在每个 eval 完成时增量写入,所以长 run 中途失败时通常仍能留下已经完成的 attempt artifact。
+- **实验目录名**:`experimentId` 里的 `/` 与其它非 `[\w.@-]` 字符替换成 `_`(如 `dev-e2b/codex-e2b` → `dev-e2b_codex-e2b`)。目录名只表达身份与定位;权威的 experimentId 在 `snapshot.json` 的 `experimentId` 字段里,两个不同 id 清洗后撞同一目录名也不影响解析(reader 按字段归组)。
+- **快照目录名**:`Date#toISOString()` 把 `:` 与 `.` 换成 `-`,再接 `-<4 位随机后缀>`(如 `2026-07-11T07-29-54-873Z-x1f2`)。
+- **attempt 目录**:`evalId` 里的 `/` 保留为目录层级,其它不适合路径的字符替换成 `_`;`a<attempt>` 是第几轮重试。agent、model、实验参数都由所属快照钉死,attempt 路径里不出现。
+
+**唯一性由创建方式保证**:快照目录用独占 `mkdir` 创建(目录已存在即失败),撞名时换随机后缀重试。多个 niceeval 进程同时开跑——哪怕同一毫秒、同一个实验——各自拿到各自的快照目录,任何文件都不会被另一个进程触碰。
+
+**每个文件恰好写入一次**:`snapshot.json` 在快照开始时写入(收尾时补写 `completedAt` 是唯一的重写,且只有创建它的进程会做);`result.json` 与各 artifact 文件在对应 attempt 完成时写入。格式里不存在"跑完才聚合重写"的文件,所以进程 crash / 被 kill 只丢正在飞的 attempt——已完成 attempt 的判决和 artifact 都在盘上。某类数据为空就不生成对应 JSON 文件。
 
 ## 版本与升级设计
 
-`summary.json` 顶层带最小的版本元数据(writer 在 `src/results/writer.ts`,`Artifacts()` reporter(`src/runner/reporters/artifacts.ts`)是它的薄壳;常量在 `src/runner/types.ts` 的 `RESULTS_FORMAT` / `RESULTS_SCHEMA_VERSION`):
+`snapshot.json` 顶层带最小的版本元数据(常量在 `src/runner/types.ts` 的 `RESULTS_FORMAT` / `RESULTS_SCHEMA_VERSION`):
 
 ```json
 {
   "format": "niceeval.results",
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "producer": {
     "name": "niceeval",
     "version": "0.12.0"
   },
-  "startedAt": "2026-07-02T03:10:24.123Z",
-  "results": []
+  "experimentId": "dev-e2b/codex-e2b",
+  "agent": "codex",
+  "startedAt": "2026-07-11T07:29:54.871Z"
 }
 ```
 
-版本历史:`1` 初版;`2`(2026-07)= `ExperimentRunInfo.flags` 改名 `params`;`3`(2026-07-10)= 改回 `flags`(A/B feature flag 语义定稿,见 docs/reports.md 裁决记录)。持久化字段改名是破坏性变更,按下述规则递增,不做旧名读取别名。
+版本历史:`1` 初版;`2`(2026-07)= `ExperimentRunInfo.flags` 改名 `params`;`3`(2026-07-10)= 改回 `flags`(A/B feature flag 语义定稿,见 docs/reports.md 裁决记录);`4`(2026-07-11)= 落盘单位从 run 改为快照——实验目录在外层,快照元数据住 `snapshot.json`,判决住 attempt 级 `result.json`(裁决背景见 memory 的 results-per-snapshot 条目)。
 
-设计原则是**不做兼容机制**。没有迁移函数,没有多版本 normalize loader,没有 per-artifact 版本号:整个 run(summary + 全部 attempt artifact)共用顶层这一个 `schemaVersion`。读取器只认与自己相同的版本;版本不同就是不兼容,唯一的处理是提示用写这份报告的 niceeval 版本查看:
+设计原则是**不做兼容机制**。没有迁移函数,没有多版本 normalize loader,没有 per-artifact 版本号:整个快照(snapshot.json + 全部 attempt 文件)共用顶层这一个 `schemaVersion`。读取器只认与自己相同的版本;版本不同就是不兼容,唯一的处理是提示用写这份结果的 niceeval 版本查看:
 
 ```bash
-npx niceeval@0.3.0 view .niceeval/2026-09-10T08-00-00-000Z
+npx niceeval@0.5.4 view .niceeval/2026-07-10T08-00-00-000Z
 ```
 
 字段规则:
 
-- `format` 必须等于 `"niceeval.results"`。它既避免把其它工具的 `summary.json` 误读成 niceeval,也是版本不匹配时识别「这是一份 niceeval 报告」的依据。
+- `format` 必须等于 `"niceeval.results"`。它既避免把其它工具的 JSON 误读成 niceeval,也是版本不匹配时识别「这是一份 niceeval 结果」的依据。
 - `schemaVersion` 用整数,只在**破坏兼容读取**时递增。新增可选字段、新增 artifact 文件、新增 `StreamEvent` variant 不递增;读取器必须忽略未知字段和未知 artifact 文件。
-- `producer.version` 是写这份报告的 npm package 版本,唯一用途是拼 npx 提示;它不是 schema 判断依据。
-- `format` / `schemaVersion` / `producer` 三个字段永久稳定:任何未来版本都不能移动、重命名或改变类型,否则版本不匹配时连 npx 提示都给不出来。
-- 缺版本字段的存量文件等价于 `schemaVersion: 1`(引入版本号不改变其余格式)。这批文件没有 `producer.version`,将来不兼容时提示只能是模糊的「用 0.1.x 旧版查看」——所以 writer 越早开始写版本元数据越好。
-- attempt 文件保持裸 JSON array/object。`events.json` 继续是 `StreamEvent[]`,不为塞版本号改成 `{ schemaVersion, data }` envelope;`jq`/`node` 直接读数组的体验不被打破。
-- 不要用目录名表达 schema。`.niceeval/<timestamp>/` 和 attempt 目录只表达身份与定位;版本全部在 `summary.json` 里,复制、重命名、归档目录不影响解析。
+- `producer.version` 是写这份结果的 npm package 版本,唯一用途是拼 npx 提示;它不是 schema 判断依据。
+- `format` / `schemaVersion` / `producer` 三个字段永久稳定:任何未来版本都不能移动、重命名或改变类型,否则版本不匹配时连 npx 提示都给不出来。历史版本(≤3)把这三个字段放在 run 级 `summary.json` 顶层,读取器据此识别旧落盘并按下节给出提示——这是版本识别,不是迁移。
+- attempt 文件保持裸 JSON object/array。`result.json` 是裸对象,`events.json` 是 `StreamEvent[]`,不为塞版本号改成 `{ schemaVersion, data }` envelope;`jq`/`node` 直接读的体验不被打破。
+- 不要用目录名表达 schema。实验目录、快照目录和 attempt 目录只表达身份与定位;版本全部在 `snapshot.json` 里,复制、重命名、归档目录不影响解析。
 
 ### 版本不匹配时的读取行为
 
-读取器不解析、不迁移、不降级渲染任何版本不同的 run,行为只分三档:
+读取器不解析、不迁移、不降级渲染任何版本不同的快照,行为只分三档:
 
-- **`schemaVersion` 相同**(或缺失,按 1 处理):正常读取渲染。
-- **`format === "niceeval.results"` 但 `schemaVersion` 不同**(不论新旧):整个 run 视为不兼容。目录扫描时在列表里留一个占位条目,标出 run 目录和 `producer.version`,并提示:
+- **`schemaVersion` 相同**:正常读取渲染。
+- **`format === "niceeval.results"` 但 `schemaVersion` 不同**(不论新旧,含历史版本的 `summary.json`):整份落盘视为不兼容。目录扫描时在列表里留一个占位条目,标出目录和 `producer.version`,并提示:
 
   ```text
-  ⚠ .niceeval/2026-09-10T08-00-00-000Z: written by niceeval 0.4.6 (schemaVersion 1);
-    this CLI reads schemaVersion 2.
-    Run `npx niceeval@0.4.6 view .niceeval/2026-09-10T08-00-00-000Z` to view it.
+  ⚠ .niceeval/2026-07-10T08-00-00-000Z: written by niceeval 0.4.6 (schemaVersion 3);
+    this CLI reads schemaVersion 4.
+    Run `npx niceeval@0.4.6 view .niceeval/2026-07-10T08-00-00-000Z` to view it.
   ```
 
-  单文件模式 `niceeval view <run>/summary.json` 输出同样的提示后退出,而不是报「不是 niceeval summary」。
+  单文件模式 `niceeval view <path>` 指向版本不同的元数据文件时输出同样的提示后退出,而不是报「不是 niceeval 结果」。
 - **不能识别**(没有 `format`,也不满足 legacy 的 `results[]` + `startedAt` 启发式):当作无关 JSON 忽略。
 
 实现入口:版本判定只有一份,在 `src/results/format.ts` 的 `classifySummary`(view 经 `openResults` 消费);目录扫描的占位数据经 `viewData.skippedRuns` 进前端,由 `src/view/app/App.tsx` 的 incompatible-banner 渲染(三种原因:incompatible-version / malformed / incomplete);单文件模式在 `src/view/data.ts` 抛 `IncompatibleResultsError`,`src/cli.ts` 的 `exitOnIncompatibleResults` 打印提示退出;提示文案是 i18n key `cli.view.incompatible`(niceeval 落盘)与 `cli.view.incompatibleForeign`(第三方 harness,不拼 npx)。
 
-报告里最小应新增的字段是:
+## `snapshot.json`
+
+快照元数据的家:身份、快照级字段与版本元数据,**不含任何逐 attempt 数据**。快照开始时写入;收尾时补写 `completedAt`。
 
 ```typescript
-interface ResultFormatMeta {
+interface SnapshotMeta {
   format: "niceeval.results";
   schemaVersion: number;
-  producer?: {
-    name: "niceeval";
-    version?: string;
-    commit?: string;
-  };
-}
-```
-
-这组字段应该放进 `RunSummary`,但 eval 作者的运行时 API 不需要看见它们;它们属于 reporter / view 的持久化契约。
-
-## `summary.json`
-
-`summary.json` 是瘦身后的 `RunSummary`,负责让控制台、`--resume` 和 `niceeval view` 先拿到榜单级信息。前三个字段(`format` / `schemaVersion` / `producer`)是上文的版本元数据:
-
-```typescript
-interface RunSummary {
-  format?: "niceeval.results";
-  schemaVersion?: number;
-  producer?: { name: string; version?: string; commit?: string };
-  name?: LocalizedText;
+  producer: { name: string; version?: string; commit?: string };
+  /** 权威的实验身份;实验目录名是它的清洗投影。 */
+  experimentId: string;
+  /** 实验运行配置(flags / runs / earlyExit / sandbox / timeoutMs / budget),快照内全部 attempt 共享。 */
+  experiment?: ExperimentRunInfo;
   agent: string;
   model?: string;
   startedAt: string;
-  completedAt: string;
-  snapshots?: Record<string, { startedAt?: string; knownEvalIds?: string[] }>;
-  passed: number;
-  failed: number;
-  skipped: number;
-  errored: number;
-  durationMs: number;
-  usage?: Usage;
-  estimatedCostUSD?: number;
-  results: EvalResult[];
-  outputDir?: string;
+  /** 收尾时补写;缺失 = 快照未收尾(进程中断),已落盘的 attempt 照常可读。 */
+  completedAt?: string;
+  /** 写入时刻该实验已知的 eval 并集 —— 残缺检测的分母随数据走(copySnapshots 自动补记,writer 可声明)。 */
+  knownEvalIds?: string[];
+  /** 项目名(来自 config.name),透传给 `niceeval view` 顶部 hero 显示。 */
+  name?: LocalizedText;
 }
 ```
 
-两处顶层字段的语义:`producer.name` 是任意字符串——第三方 harness 经 `createRunWriter` 写结果时如实署名,`"niceeval"` 只是官方 writer 的取值;`snapshots` 是可选的结果快照级元数据(键 = experimentId):`startedAt` 让同一 run 里的多份快照各自保真开始时刻,`knownEvalIds` 是该实验已知的 eval 并集——残缺检测的分母随数据走(`copySnapshots` 发布时自动补记,writer 侧可声明),可选新增字段,不递增 schemaVersion。
+`producer.name` 是任意字符串——第三方 harness 经 `niceeval/results` 写入面转换结果时如实署名,`"niceeval"` 只是官方 writer 的取值。
 
-`results[]` 里的每条 `EvalResult` 仍包含判定、断言、用量、成本、错误、fingerprint 和 experiment 元数据,但不会内联大字段:
+通过数、失败数、总用量、总成本这类聚合**不落盘**:它们由 `result.json` 逐条推导,聚合永远发生在消费方(`openResults` 分层之上的计算函数或你的脚本)——这与读取面「忠实磁盘,不合并不聚合」是同一条铁律。
 
-- `events`
-- `sources`
-- `trace`
-- `o11y`
-- `diff`
-- `rawTranscript`
+## `result.json`
 
-这些字段被替换成 attempt artifact 引用:
+单个 attempt 的**权威记录**:判决与断言只住在这里。attempt 完成时一次写成,之后没有任何环节会改写它。
 
 ```typescript
-{
-  "artifactsDir": "weather/brooklyn/codex/gpt-5/a1",
-  "hasEvents": true,
-  "hasTrace": true,
-  "hasSources": true
+interface AttemptRecord {
+  /** eval id(attempt 目录路径是它的清洗投影;权威在字段)。 */
+  id: string;
+  description?: string;
+  verdict: "passed" | "failed" | "skipped" | "errored";
+  attempt: number;
+  fingerprint?: string;
+  durationMs: number;
+  assertions: AssertionResult[];
+  usage?: Usage;
+  estimatedCostUSD?: number;
+  error?: string;
+  skipReason?: string;
+  /** 本 attempt 开始的墙钟时刻;缺失时读取面回退快照的 startedAt。携带条目保留原条目的值,身份键与去重以它为锚。 */
+  startedAt?: string;
+  /** 携带条目专用: artifact 目录(相对结果根目录),指向原快照里的落盘。 */
+  artifactBase?: string;
+  hasEvents?: boolean;
+  hasTrace?: boolean;
+  hasSources?: boolean;
 }
 ```
 
-`artifactsDir` 是相对当前 run 目录的路径。`niceeval view` 读取 `summary.json` 后,会把它补成:
+快照级字段(`experimentId` / `agent` / `model` / 实验运行配置)不在这里重复——reader 把 `snapshot.json` 的声明拼进每条读回的结果(`attempt.result`),拼合规则是「缺才补」:条目自带的值优先,`startedAt` 只在记录缺失时回退快照的值。
 
-- `artifactBase`: 相对 view 输入根目录的路径,供前端请求 `/artifact?p=...`;
-- `artifactAbsBase`: 本机绝对路径,供 UI 复制或展示。
+两类条目:
 
-注意:当前 summary 只有 `hasEvents`、`hasTrace`、`hasSources` 三个存在标记。`o11y.json` 和 `diff.json` 会写盘,但 summary 里还没有对应 `hasO11y` / `hasDiff` 标记;读取方需要按路径尝试读取或先检查文件存在。
+- **本快照跑出的条目**:artifact 与 `result.json` 同目录,不需要任何路径引用字段。
+- **携带条目**(`--resume` 把上一轮已通过、fingerprint 匹配的结果合入本快照,让最新快照保持完整):`startedAt` 保留原条目的时刻,另带 `artifactBase`(相对结果根,指向原快照的 attempt 目录),`has*` 真值原样携带。`artifactBase` 就是事实上的「携带」标记。
+
+`o11y.json` 和 `diff.json` 没有对应的 `has*` 标记;读取面的懒加载语义(缺失返回 `null`)吸收了存在性判断,见 [Results Lib](results-lib.md)。
 
 ## Attempt 级文件
 
@@ -196,7 +198,7 @@ interface SourceArtifact {
 
 类型是 `O11ySummary`。这是从标准事件流派生的行为摘要,包括工具调用计数、读写文件、shell 命令、web fetch、错误、思考块、压缩次数、耗时、usage 和估算成本。
 
-这个文件面向人和调试脚本:当一个 attempt 失败时,先看 `summary.json` 的 `verdict` / `error`,再看 `events.json` 与 `o11y.json`,通常能分清是断言没过、agent runtime 错误,还是 adapter / provider / timeout 问题。
+这个文件面向人和调试脚本:当一个 attempt 失败时,先看 `result.json` 的 `verdict` / `error`,再看 `events.json` 与 `o11y.json`,通常能分清是断言没过、agent runtime 错误,还是 adapter / provider / timeout 问题。
 
 ### `diff.json`
 
@@ -213,21 +215,25 @@ interface DiffData {
 
 ## 读取规则
 
-读取结果时优先从 `summary.json` 开始:
+编程消费用 [`openResults`](results-lib.md)——布局知识全部被库消化。手工(`jq` / 脚本)读的路线:
 
-1. 读 `.niceeval/<run>/summary.json`,先用 `results[]` 判断 pass / fail / error / skip、耗时、成本和断言失败。
-2. 对需要下钻的 result,用 `artifactsDir` 拼出 attempt 目录。
-3. 按 `hasEvents` / `hasTrace` / `hasSources` 拉取 `events.json`、`trace.json`、`sources.json`。
-4. 需要行为摘要或 workspace diff 时,尝试读取同目录的 `o11y.json` / `diff.json`。
+1. 定位快照:`.niceeval/<experiment>/` 下最新的时间戳目录,读 `snapshot.json` 确认身份与版本。
+2. 逐 attempt 读 `<evalId>/a<attempt>/result.json` 拿判决、断言、用量、成本。
+3. 需要证据时读同目录的 `events.json`、`trace.json`、`sources.json`、`o11y.json`、`diff.json`;携带条目按 `artifactBase`(相对结果根)回原快照取。
 
-`niceeval view` 的本地 server 只暴露 `.json` artifact,并把请求路径限制在 view 输入根目录内。`--out` 导出时 summary 聚合数据烘焙进 `index.html`,查看器要 fetch 的 artifact 复制到 `artifact/` 下同布局路径。
+两种非正常落盘的判定:
+
+- **未收尾快照**:`snapshot.json` 缺 `completedAt`——进程中断,已落盘的 attempt 全部可读,只是集合可能不完整;读取面如实读出并给出结构化警告。
+- **incomplete 目录**:有 attempt 落盘、没有 `snapshot.json`——只可能出现在「目录建好、元数据还没写完」的极小窗口里进程死亡,或人为删文件;读取面归入 `skipped("incomplete")`。
+
+`niceeval view` 的本地 server 只暴露 `.json` artifact,并把请求路径限制在 view 输入根目录内。`--out` 导出时快照聚合数据烘焙进 `index.html`,查看器要 fetch 的 artifact 复制到 `artifact/` 下同布局路径。
 
 ## 与其它 reporter 的边界
 
-这篇只描述默认 `Artifacts()` reporter 的本地目录格式。`Json(path)` reporter 写的是机器可读全量 JSON,用途不同;第三方实验平台 reporter 可以把同一批 `EvalResult` / `RunSummary` 转成自己的格式。
+这篇只描述默认 `Artifacts()` reporter 的本地目录格式。`Json(path)` reporter 写的是机器可读的全量运行汇总(`RunSummary`,含跨实验聚合),用途不同;第三方实验平台 reporter 可以把同一批 `EvalResult` 转成自己的格式。
 
 因此,不要在文档或工具里假设本地结果有 `results.jsonl`、transcript NDJSON 或固定测试输出文件。当前稳定契约是:
 
-- run 级: `summary.json`;
-- attempt 级: `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`;
+- 快照级: `snapshot.json`;
+- attempt 级: `result.json`、`events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`;
 - 每个文件都是 JSON,不是 JSONL。

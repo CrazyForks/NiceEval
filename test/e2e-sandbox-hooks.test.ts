@@ -58,15 +58,48 @@ async function readLog(): Promise<LogLine[]> {
     .map((line) => JSON.parse(line) as LogLine);
 }
 
+// 落盘布局(Results Format schemaVersion 4,见 docs/results-format.md)是
+// .niceeval/<experiment>/<timestamp-rand>/snapshot.json + <evalId>/a<n>/result.json,
+// 每个实验一个快照目录。这条 fixture 一次跑两个实验(order + error),所以要
+// **每个实验取最新快照**再合并 result.json,逐条补回 experimentId(快照级字段,
+// 不落在 attempt 记录里)。
+async function findFiles(dir: string, filename: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const found: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...(await findFiles(full, filename)));
+    else if (entry.name === filename) found.push(full);
+  }
+  return found;
+}
+
 async function readLatestSummary(): Promise<{
   results: Array<{ id: string; verdict: string; experimentId?: string; error?: string }>;
 }> {
   const runDirRoot = join(fixtureDir, ".niceeval");
-  const runs = (await readdir(runDirRoot)).sort();
-  const latest = runs.at(-1);
-  if (!latest) throw new Error(`no .niceeval run under ${runDirRoot}`);
-  const raw = await readFile(join(runDirRoot, latest, "summary.json"), "utf-8");
-  return JSON.parse(raw);
+  const snapshotMetaPaths = await findFiles(runDirRoot, "snapshot.json");
+  if (snapshotMetaPaths.length === 0) throw new Error(`no snapshot found under ${runDirRoot}`);
+  const snapshots = await Promise.all(
+    snapshotMetaPaths.map(async (metaPath) => {
+      const meta = JSON.parse(await readFile(metaPath, "utf-8")) as { experimentId: string; startedAt: string };
+      return { dir: dirname(metaPath), ...meta };
+    }),
+  );
+  const latestByExperiment = new Map<string, (typeof snapshots)[number]>();
+  for (const snap of snapshots) {
+    const existing = latestByExperiment.get(snap.experimentId);
+    if (!existing || snap.startedAt > existing.startedAt) latestByExperiment.set(snap.experimentId, snap);
+  }
+  const results: Array<{ id: string; verdict: string; experimentId?: string; error?: string }> = [];
+  for (const snap of latestByExperiment.values()) {
+    const resultPaths = await findFiles(snap.dir, "result.json");
+    for (const p of resultPaths) {
+      const record = JSON.parse(await readFile(p, "utf-8")) as { id: string; verdict: string; error?: string };
+      results.push({ ...record, experimentId: snap.experimentId });
+    }
+  }
+  return { results };
 }
 
 test("sandbox 钩子:全序 + ctx.experimentId + 失败语义", async () => {

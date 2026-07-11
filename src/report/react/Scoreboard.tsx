@@ -4,15 +4,18 @@
 
 import type { ReactElement } from "react";
 import type { ScoreboardData } from "../types.ts";
+import { DEFAULT_REPORT_LOCALE, countText, localeText, type ReportLocale } from "../locale.ts";
 import { colorClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";
 
 export function Scoreboard({
   data,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: ScoreboardData;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   // 科目列 = 各行 subjects 的并集,按首次出现顺序;固定分母下各行本应一致,这里防御性合并
   const subjectKeys: string[] = [];
@@ -31,7 +34,8 @@ export function Scoreboard({
               {data.dimension}
             </th>
             <th scope="col" className="nre-total-col">
-              Total<span className="nre-full-marks">/ {data.fullMarks}</span>
+              {localeText(locale, "scoreboard.total")}
+              <span className="nre-full-marks">/ {data.fullMarks}</span>
             </th>
             {subjectKeys.map((key) => (
               <th scope="col" key={key} className="nre-subject-col">
@@ -55,13 +59,17 @@ export function Scoreboard({
                   <td key={key} className="nre-subject">
                     <span
                       className="nre-subject-score"
-                      title={`${subject.evals} evals, weighted ${subject.earned} of ${subject.possible}`}
+                      title={localeText(locale, "scoreboard.subjectTitle", {
+                        evals: subject.evals,
+                        earned: subject.earned,
+                        possible: subject.possible,
+                      })}
                     >
                       {subject.earned}/{subject.possible}
                     </span>
                     {/* 固定分母的如实注脚:没跑、按 0 计的题数 */}
                     {subject.missing > 0 && (
-                      <span className="nre-subject-missing">{subject.missing} {subject.missing === 1 ? "eval" : "evals"} missing, scored 0</span>
+                      <span className="nre-subject-missing">{countText(locale, "scoreboard.missing", subject.missing)}</span>
                     )}
                   </td>
                 );
@@ -72,15 +80,15 @@ export function Scoreboard({
       </table>
       {/* 实际生效的权重表:成绩单可审计 */}
       <p className="nre-weights">
-        weights:{" "}
+        {localeText(locale, "scoreboard.weights")}{" "}
         {data.weights.length === 0
-          ? "all evals ×1"
+          ? localeText(locale, "scoreboard.allWeights")
           : data.weights.map((w) => (
               <span key={w.prefix} className="nre-weight">
                 {w.prefix} ×{w.weight}
               </span>
             ))}
-        {data.weights.length > 0 && <span className="nre-weight-rest">others ×1</span>}
+        {data.weights.length > 0 && <span className="nre-weight-rest">{localeText(locale, "scoreboard.othersWeight")}</span>}
       </p>
     </section>
   );

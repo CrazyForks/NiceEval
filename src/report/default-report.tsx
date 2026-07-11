@@ -5,14 +5,17 @@
 // 它渲染的口径钉死为宿主注入的那份 Selection —— 零 props 意味着没有跟随的通道,这是锚点语义:
 // 官方口径与自定义口径并排对照。默认无特权:数据全部来自公开计算函数。
 //
-// text 面即 `niceeval show` 的榜单(docs-site/zh/guides/viewing-results.mdx 的示例块是
-// 行为规范):`Current verdicts` 头标注合成自几个 run、experiment 表带 eval 级折叠的
-// evals 列、Failing 清单每条带判定时间与下钻命令。
+// text 面是官方水位榜单(docs-site/zh/guides/report-components.mdx DefaultReport 节的
+// 示例块是行为规范):`Current verdicts` 头标注合成自几个 run、experiment 表带 eval 级
+// 折叠的 evals 列、Failing 清单每条带判定时间与下钻命令。裸跑 `show` 渲染的默认报告是
+// defaultReport 值(default-report-definition.tsx),不是本组件;那侧的行为规范在
+// docs-site/zh/guides/viewing-results.mdx 的示例块。
 
 import { basename } from "node:path";
 import type { Selection } from "../results/index.ts";
 import { foldEvalVerdict } from "../shared/verdict.ts";
-import { defineComponent } from "./tree.ts";
+import { countText, localeText, type ReportLocale } from "./locale.ts";
+import { defineComponent, type TextContext } from "./tree.ts";
 import type { CaseListData, OverviewData, TableData } from "./types.ts";
 import { caseListData, overviewData, tableData } from "./compute.ts";
 import { attemptCostUSD, costUSD, durationMs, passRate } from "./metrics.ts";
@@ -51,7 +54,7 @@ export interface DefaultReportData {
 }
 
 /** 失败清单的出厂截断;完整清单自己摆 <CaseList>(截断如实报剩余)。 */
-const DEFAULT_CASE_LIMIT = 10;
+export const DEFAULT_CASE_LIMIT = 10;
 
 function buildBoard(selection: Selection): VerdictBoardData {
   const tallies: VerdictBoardData["tallies"] = {};
@@ -63,8 +66,8 @@ function buildBoard(selection: Selection): VerdictBoardData {
     let passedEvals = 0;
     for (const ev of snapshot.evals) {
       for (const attempt of ev.attempts) {
-        runs.add(attempt.runDir.dir);
-        if (attempt.runDir.dir > latestRunDir) latestRunDir = attempt.runDir.dir;
+        runs.add(attempt.snapshot.dir);
+        if (attempt.snapshot.dir > latestRunDir) latestRunDir = attempt.snapshot.dir;
       }
       const verdict = foldEvalVerdict(ev.attempts.map((a) => a.result));
       if (verdict === "passed") {
@@ -156,14 +159,14 @@ function agoText(iso: string | undefined, now: number): string {
 }
 
 /** show 榜单(viewing-results.mdx「榜单」块):头 + experiment 表 + Failing 清单。 */
-function boardText(data: DefaultReportData): string {
+function boardText(data: DefaultReportData, locale: ReportLocale): string {
   const { verdicts, board, overview } = data;
   const experiments = verdicts.rows.length;
   const head = [
-    "Current verdicts",
-    `${experiments} ${experiments === 1 ? "experiment" : "experiments"}`,
-    `composed from ${board.composedFromRuns} ${board.composedFromRuns === 1 ? "run" : "runs"}`,
-    ...(board.latestRun ? [`latest ${board.latestRun}`] : []),
+    localeText(locale, "board.currentVerdicts"),
+    countText(locale, "overview.experiments", experiments),
+    countText(locale, "composedFrom", board.composedFromRuns),
+    ...(board.latestRun ? [localeText(locale, "latestRun", { run: board.latestRun })] : []),
   ].join(" · ");
   const headBlock = [head, ...overview.warnings.map((w) => `! ${w.message}`)].join("\n");
 
@@ -193,12 +196,14 @@ function boardText(data: DefaultReportData): string {
         agoText(f.verdictAt, now),
       ]),
     ).split("\n");
-    const lines: string[] = ["Failing:"];
+    const lines: string[] = [localeText(locale, "board.failing")];
     board.failing.forEach((f, i) => {
       lines.push(`  ${aligned[i]}`);
       lines.push(`      → niceeval show ${f.evalId}`);
     });
-    if (board.failingTruncated > 0) lines.push(`  (${board.failingTruncated} more not shown)`);
+    if (board.failingTruncated > 0) {
+      lines.push(`  ${localeText(locale, "caseList.truncatedText", { n: board.failingTruncated })}`);
+    }
     blocks.push(lines.join("\n"));
   }
   return blocks.join("\n\n");
@@ -215,8 +220,8 @@ export const DefaultReport = defineComponent<Record<string, never>>({
       </div>
     );
   },
-  text() {
-    return boardText(requireData());
+  text(_props: Record<string, never>, ctx: TextContext) {
+    return boardText(requireData(), ctx.locale);
   },
 });
 DefaultReport.displayName = "DefaultReport";

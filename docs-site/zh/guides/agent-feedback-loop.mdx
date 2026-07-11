@@ -34,14 +34,15 @@ Eval 的价值在闭环：不只是人看报告，而是让 coding agent（Claud
           → niceeval show weather/brooklyn
 
     Results: 14 passed, 1 failed, 0 errored, 0 skipped · $0.31 · 6m 02s
-    Structured results: .niceeval/2026-07-09T10-00-00-000Z/summary.json
+    Structured results: .niceeval/local/2026-07-09T10-00-00-000Z-x1f2/
+      (snapshot.json + 每 attempt 的 result.json / events.json / trace.json / diff.json)
     ```
 
     流式行是给盯着终端的人看的，长运行会把它们刷出屏幕；收尾块专为「只看最后一屏」设计——失败集中重放一遍，每条自带 `niceeval show <eval id>`，agent 不用回滚历史输出就能开始下钻。跑多 experiment 的组（如 `exp compare`）时，收尾块还会多一张 per-experiment 汇总表，与 `niceeval show` 榜单是同一份渲染。
 
     退出码是给循环用的结论，不用解析任何文本：全绿退 `0`；有失败或错误退 `1`（按 eval 级折叠——`runs` 重试吸收掉的单次抖动不算红）；框架自身崩溃退 `2`。agent 或脚本判断「还要不要再来一轮」，看退出码就够。
 
-    `summary.json` 与 attempt 级 artifact 是结构化事实源，字段说明见[查看结果](/zh/guides/viewing-results)；`niceeval show` 是对同一份 artifact 的终端读法，逐级下钻见下一节。
+    CLI 打印的快照目录是结构化事实源：`snapshot.json` 是快照元数据，每个 attempt 的 `result.json` 是判决与断言，同目录还有 artifact；字段说明见[查看结果](/zh/guides/viewing-results)；`niceeval show` 是对同一份 artifact 的终端读法，逐级下钻见下一节。
   </Step>
   <Step title="修">
     先判断缺陷在哪一侧：被测程序，还是 eval 本身（断言过紧、fixture 错误、setup 缺失）。修对应的一侧，不要为了变绿而放宽断言。
@@ -95,8 +96,10 @@ guide in `node_modules/niceeval/docs-site/zh/` before writing any eval, experime
 adapter, or niceeval config. The bundled docs are Chinese-only — that is the single
 authoritative, always-current version; read it regardless of your working language.
 After a run, drill into failures with `niceeval show <eval id>` (add `--transcript` /
-`--trace` / `--diff` for evidence); the `summary.json` path the CLI prints and the
-artifact files it references are the structured source of truth.
+`--trace` / `--diff` for evidence); the snapshot directories the CLI prints are the
+structured source of truth: `snapshot.json` holds the run's metadata and each
+`<evalId>/a<attempt>/result.json` holds that attempt's verdict and assertions, next to
+its artifact files (`events.json` / `trace.json` / `diff.json`).
 <!-- END:niceeval-agent-rules -->
 ```
 
@@ -118,5 +121,5 @@ Ways to fix:
 
 `niceeval show` 和 `niceeval view` 读的是同一批落盘 artifact，人和 agent 随时可以互相接手：
 
-- 人在 `npx niceeval view` 里看到失败时，榜单右上角的 **Copy fix prompt** 把全部失败打包成一段可直接粘给 agent 的修复 prompt——失败清单、 artifacts 路径、判断与重跑步骤都在里面，教的读法与本页同一套：`niceeval show` 下钻、判断缺陷在哪一侧、重跑前缀、`--force` 收尾。打开单个 attempt 的弹窗，同名按钮只打包这一条失败，适合逐条转交。
+- 人在 `npx niceeval view` 里看到失败时，报告上方的 **Copy fix prompt** 按钮把全部失败打包成一段可直接粘给 agent 的修复 prompt——失败清单、 artifacts 路径、判断与重跑步骤都在里面，教的读法与本页同一套：`niceeval show` 下钻、判断缺陷在哪一侧、重跑前缀、`--force` 收尾。打开单个 attempt 的弹窗，同名按钮只打包这一条失败，适合逐条转交。
 - 反过来，agent 修完之后人想核对现场，`npx niceeval view` 打开的就是 agent 刚刚在终端里读过的那份结果。

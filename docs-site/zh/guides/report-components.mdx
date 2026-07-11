@@ -11,7 +11,7 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 - **诚实渲染。** 缺数据渲染 `—` 不补 0；覆盖不全的格子带 `12/15` 角标；截断如实标注剩余数量与原始 artifact 路径。
 - **排序与方向随指标的 `better`。** higher 的指标降序、lower 的升序，「好」的一头恒在上、在右上。
 - **证据室深链。** 网页面的格子、点和条目深链到 attempt 弹窗；终端面在条目下印 `niceeval show <eval id>` 下钻命令。
-- **两面同口径，网页面不 hydrate 也完整。** 排序在计算时由 `sort` 定死，两面预排一致；下钻是普通链接、展开折叠用 `<details>`；网页面不提供终端面没有的口径操作，静态导出零客户端 JS。
+- **两面同口径，网页面不依赖 JS 也完整。** 排序在计算时由 `sort` 定死，终端和网页看到同一份基准顺序；下钻是普通链接、展开折叠用 `<details>`。网页面另有一层浏览操作：点表头就地重排、榜单行过滤、图表点位悬停看数值——只影响眼前的视图，不改数据口径，刷新即回基准顺序；浏览器禁用 JS 时这些操作消失，内容一样不少（悬停信息退化为图内提示）。
 
 ## 排版原语
 
@@ -37,7 +37,7 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 
 ## `DefaultReport` —— 官方水位整块
 
-官方两扇门裸跑时渲染的就是它：跨 run 合成的现刻榜单加失败清单，表头如实标注合成来源。零 props、纯声明——官方水位只读瘦身条目，宿主总是替你备好，经上下文注入。把官方水位铺进自己的报告时摆上它，不要就不摆：
+官方水位有两种形式，各管一件事。值 `defaultReport`（从 `niceeval/report` 导出）是官方两扇门裸跑时渲染的默认报告本身——运行总览、每个实验组一节（质量 × 成本散点图 + 榜单，组按 experiment id 的 `/` 前缀划分）、失败清单，形态见[查看结果](/zh/guides/viewing-results)；`niceeval view` 等于 `niceeval view --report` 它。组件 `<DefaultReport />` 是摆进你自己报告里的官方水位锚点块：运行总览、现刻榜单（experiment × evals 折叠计票 / 通过率 / 成本 / 耗时）、失败清单。组件零 props、纯声明——官方水位只读瘦身条目，宿主总是替你备好，经上下文注入；官方口径与你的口径并排对照，正是摆它的理由：
 
 ```tsx
 <DefaultReport />
@@ -46,13 +46,16 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 ```text
 Current verdicts · 2 experiments · composed from 3 runs · latest 2026-07-09T10-00-00-000Z
 
-experiment              evals    pass   cost    duration
-compare/bub-gpt-5.4     13/15    87%    $0.42   4m 12s
-compare/codex-gpt-5.4   12/15    80%    $0.51   5m 03s
+experiment              evals   pass   cost    duration
+compare/bub-gpt-5.4     13/15   87%    $0.42   4m 12s
+compare/codex-gpt-5.4   12/15   80%    $0.51   5m 03s
 
 Failing:
   ✗ weather/brooklyn   compare/codex-gpt-5.4   gate calledTool("get_weather")   41s ago
+      → niceeval show weather/brooklyn
 ```
+
+榜单每行一个 experiment，evals 是按 eval 折叠后的判定计票。要 agent / model 随行列、分组散点这些默认报告的完整形态，用值 `defaultReport`；要在自己口径旁只留官方水位一块，用这个组件。
 
 ## `RunOverview` —— 页头 KPI 条
 
@@ -86,7 +89,9 @@ bub     87%         312 lines    $0.42
 codex   80% 12/15   355 lines    $0.51
 ```
 
-两面都按 `sort` 预排，看到同一份顺序——要换排序改一行重跑，不做单面才有的交互口径。`12/15` 角标表示该格 15 个 attempt 里只有 12 个测得了这个指标。
+两面都按 `sort` 预排，基准顺序一致——要固定换一种排序，改一行重跑。`12/15` 角标表示该格 15 个 attempt 里只有 12 个测得了这个指标。
+
+`rows: "experiment"` 时每行自动带 agent 与 model 列——结果里现成的元信息，不用配置。给组件传 `filter`（`<MetricTable data={…} filter />`）时，网页面在表上方渲染一个过滤框，输入即隐藏不匹配的行——纯浏览操作，不改数据，终端面没有对应物；要固定口径的过滤，用 `evals` 前缀参数或换维度重算。
 
 ## `MetricMatrix` —— 逐题格子
 
@@ -174,7 +179,7 @@ pass ↑                                    （好 → 右上）
 A bub-high   B bub-medium   C codex-high   D codex-low
 ```
 
-网页面点带 hover（值与 `samples/total`）、同系列连线、点击深链下钻。终端面用字母标点、图例列在图下；x 或 y 缺数据的点两个面都不画，注脚如实报「n 个点缺数据」；点太密排不下时降级为坐标表，不硬挤。维度槽也收自定义维度（`{ name, of }`，从 attempt 已有数据算组名）和 `flag()`（experiment 声明的变量），怎么选见[自定义报告](/zh/guides/custom-reports)的「换分组」一节。
+网页面点带悬停提示（值与 `samples/total`，禁用 JS 时退化为图内提示）、同系列连线、点击深链下钻。终端面用字母标点、图例列在图下；x 或 y 缺数据的点两个面都不画，注脚如实报「n 个点缺数据」；点太密排不下时降级为坐标表，不硬挤。维度槽也收自定义维度（`{ name, of }`，从 attempt 已有数据算组名）和 `flag()`（experiment 声明的变量），怎么选见[自定义报告](/zh/guides/custom-reports)的「换分组」一节。
 
 ## `MetricLine` —— 趋势线
 

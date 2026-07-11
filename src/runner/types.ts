@@ -46,31 +46,20 @@ export interface EvalResult {
   trace?: TraceSpan[];
   diff?: DiffData;
   rawTranscript?: string;
-  // ── 拆分 artifact 的引用(Artifacts 报告器写 summary.json 时填;view 按需懒加载)──
-  /** 本 attempt artifact 目录(相对 run 根),下有 events/trace/o11y/diff.json。 */
-  artifactsDir?: string;
-  /** artifact 目录(相对结果根,供前端 fetch 与懒加载回退);view 的 loader 注入,--resume 携带条目落盘时保留。 */
+  /** 携带条目(--resume 合入)专用:artifact 目录(相对结果根目录),指向原快照里的落盘。 */
   artifactBase?: string;
-  /** artifact 目录的绝对路径;历史字段,当前读取面不再注入。 */
-  artifactAbsBase?: string;
   hasTrace?: boolean;
   hasEvents?: boolean;
   hasSources?: boolean;
 }
 
-/** `summary.json` 的格式标记;把 niceeval 报告和其它工具的同名文件区分开。 */
+/** `snapshot.json` 的格式标记;把 niceeval 报告和其它工具的同名文件区分开。 */
 export const RESULTS_FORMAT = "niceeval.results";
-/** 结果格式版本,只在破坏兼容读取时递增;读取器只认相同版本,缺失按 1。见 docs/results-format.md。 */
-export const RESULTS_SCHEMA_VERSION = 3;
+/** 结果格式版本,只在破坏兼容读取时递增;读取器只认相同版本。见 docs/results-format.md。 */
+export const RESULTS_SCHEMA_VERSION = 4;
 
+/** 一次运行的纯运行时内存聚合(reporter 契约用);落盘格式契约在 niceeval/results 的 SnapshotMeta / AttemptRecord,见 docs/results-format.md。 */
 export interface RunSummary {
-  /** 恒为 "niceeval.results";和 schemaVersion、producer 一起构成持久化契约,永不移动或改名。 */
-  format?: typeof RESULTS_FORMAT;
-  /** 结果格式版本;与读取器不同即视为不兼容,提示用 producer.version 对应的 niceeval 查看。 */
-  schemaVersion?: number;
-  /** 写这份报告的工具:niceeval 自己,或经 niceeval/results 写入面转换的第三方 harness。
-   *  name === "niceeval" 时 version 用于拼 `npx niceeval@<version> view` 提示;其它 name 如实报出。 */
-  producer?: { name: string; version?: string; commit?: string };
   /** 项目名(来自 config.name),透传给 `niceeval view` 顶部 hero 显示。 */
   name?: LocalizedText;
   agent: string;
@@ -87,12 +76,6 @@ export interface RunSummary {
   usage?: Usage;
   estimatedCostUSD?: number;
   results: EvalResult[];
-  outputDir?: string;
-  /** 快照级元数据,按 experiment 键(缺 experimentId 时为 "<agent>/<model>" 合成键)存放:
-   *  startedAt 只在与顶层 startedAt 不同(一个 run 装多份不同时刻的快照)时需要;
-   *  knownEvalIds 是写入时刻该实验已知的 eval 并集(copySnapshots 自动补记,writer.snapshot 可声明)。
-   *  可选新增字段,不递增 schemaVersion(docs/results-format.md 版本规则)。 */
-  snapshots?: Record<string, { startedAt?: string; knownEvalIds?: string[] }>;
 }
 
 /** onRunStart 的运行规模:去重后 eval 数 × 配置(agent×model×flags)数 → 总运行(attempt)数。 */

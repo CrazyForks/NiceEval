@@ -4,7 +4,7 @@ sidebarTitle: "查看结果"
 description: "每次运行写入 .niceeval/ 的结构化 artifact 有两扇门：niceeval show 在终端逐级下钻榜单、断言、transcript、trace 与 diff；niceeval view 在网页看同一份证据。"
 ---
 
-每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入 `.niceeval/<timestamp>/`。看结果有两扇门，读的是同一批 artifact：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。show 就是 view 的终端版，两处读到的判定口径不分叉。
+每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入该实验的**结果快照**目录 `.niceeval/<experiment>/<快照>/`。看结果有两扇门，读的是同一批 artifact：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。show 就是 view 的终端版，两处读到的判定口径不分叉。
 
 ## 控制台输出
 
@@ -22,21 +22,23 @@ Failing:
       → niceeval show api-validation
 
 Results: 2 passed, 1 failed, 0 errored, 0 skipped
-Structured results: .niceeval/2026-07-09T10-00-00-000Z/summary.json
+Structured results: .niceeval/compare_web-agent/2026-07-09T10-00-00-000Z-x1f2/
+  (snapshot.json + 每 attempt 的 result.json / events.json / trace.json / diff.json)
 ```
 
-运行中每个 eval 一条流式行，失败断言内联展开；运行结束的收尾块把失败集中重放一遍，每条自带下钻命令，末尾是结构化结果入口。这段输出怎么进「跑→读→修→再跑」的循环，见 [Agent 反馈闭环](/zh/guides/agent-feedback-loop)。
+运行中每个 eval 一条流式行，失败断言内联展开；运行结束的收尾块把失败集中重放一遍，每条自带下钻命令，末尾是本次实验的快照目录。这段输出怎么进「跑→读→修→再跑」的循环，见 [Agent 反馈闭环](/zh/guides/agent-feedback-loop)。
 
-## `.niceeval/<timestamp>/`
+## `.niceeval/<experiment>/<快照>/`
 
-典型结构：
+落盘单位是**结果快照**（一个 experiment 的一次运行）：实验目录在外层，快照目录（时间戳 + 随机后缀，独占创建）在实验目录下。典型结构：
 
 ```text
 .niceeval/
-└─ 2025-01-15T14-23-00/
-   ├─ summary.json
-   └─ artifacts/
-      └─ compare__web-agent__gpt-5.4__weather-tool__0/
+└─ compare_web-agent/                     # 实验目录:experimentId 清洗后的名字
+   └─ 2026-07-09T10-00-00-000Z-x1f2/      # 快照目录:时间戳 + 随机后缀
+      ├─ snapshot.json                    # 快照元数据(开始时写,收尾补 completedAt)
+      └─ weather-tool/a0/                 # 单个 eval attempt 的目录
+         ├─ result.json                   # 判决、断言、用量 —— attempt 完成时一次写成
          ├─ events.json
          ├─ sources.json
          ├─ trace.json
@@ -66,30 +68,43 @@ niceeval show weather/brooklyn --history      # 跨 run 时间轴：抖动与回
 
 | `niceeval view` 里的视图 | 终端对应 |
 | --- | --- |
-| Experiments 榜单 | `niceeval show` |
+| 默认报告（总览、每组的散点图与榜单、失败清单） | `niceeval show` |
 | attempt 详情（断言、错误、用量） | `niceeval show <eval id>` |
 | transcript | `niceeval show <eval id> --transcript` |
 | trace 瀑布图 | `niceeval show <eval id> --trace` |
 | 文件改动 | `niceeval show <eval id> --diff` |
 | 历史 run 列表 | `niceeval show <eval id> --history`；钉死某一次用 `--run <目录>` |
-| 质量 × 成本散点图 | `niceeval show` 榜单的 pass / cost 列已含同一份数据；要图形化口径，用 `MetricScatter` 积木写[自定义报告](/zh/guides/custom-reports) |
 
-### 榜单
+### 默认报告
+
+不带 flag 的 `niceeval show` 渲染默认报告的终端版，从上到下三块：运行总览（几个 experiment、几个 eval、判定分布、总成本、合成来源），每个实验组一节（组按 experiment id 的 `/` 前缀划分）——组内一张质量 × 成本字符坐标图加一张榜单，最后是失败清单：
 
 ```text
 $ niceeval show
-Current verdicts · 2 experiments · composed from 3 runs · latest 2026-07-09T10-00-00-000Z
+2 experiments · 15 evals · 30 attempts · composed from 3 runs · latest 2026-07-09T10:00:00.000Z
+passed 25 · failed 5 · errored 0 · skipped 0 · $0.93 · 9m 15s
 
-experiment              evals    pass   cost    duration
-compare/bub-gpt-5.4     13/15    87%    $0.42   4m 12s
-compare/codex-gpt-5.4   12/15    80%    $0.51   5m 03s
+compare
+      Pass rate ↑
+   87%│                                          A
+      │
+   80%│          B
+      └────────────────────────────────────────────→ Cost (axis reversed: right = better)
+       $0.51                                  $0.42
 
-Failing:
-  ✗ weather/brooklyn   compare/codex-gpt-5.4   gate calledTool("get_weather")      41s ago
-  ✗ fixtures/button    compare/bub-gpt-5.4     gate fileChanged("src/components/Button.tsx")   2h ago
+  better → upper right
+  A compare/bub-gpt-5.4   B compare/codex-gpt-5.4
+
+  experiment              Model     Agent   Duration   Pass rate   Tokens          Cost    Verdicts
+  compare/bub-gpt-5.4     gpt-5.4   bub     4m 12s     87%         412.0k tokens   $0.42   13 passed / 2 failed
+  compare/codex-gpt-5.4   gpt-5.4   codex   5m 03s     80%         521.0k tokens   $0.51   12 passed / 3 failed
+
+✗ weather/brooklyn · compare/codex-gpt-5.4 · failed · 41s · $0.04
+    calledTool("get_weather") — score 0
+    → niceeval show weather/brooklyn
 ```
 
-跑多 experiment 的组时，`niceeval exp` 收尾块里的汇总表就是这个形状——同一份表格渲染，判定折叠口径也相同；区别只在数据范围：收尾块只汇总本次 run，`show` 榜单是跨 run 合成的现刻水位，各自在表头如实标注。
+榜单每行一个 experiment，带 agent 与 model 列——同组多配置并排时一眼看清每行是谁；verdicts 是按 eval 折叠后的判定计数。跑多 experiment 的组时，`niceeval exp` 收尾块里的汇总表就是这个榜单的形状——同一份表格渲染，判定折叠口径也相同；区别只在数据范围：收尾块只汇总本次 run，`show` 是跨 run 合成的现刻水位，各自在表头如实标注。
 
 ### 单个 eval
 
@@ -105,7 +120,7 @@ attempt 3 · compare/codex-gpt-5.4 · failed · 41s · 12.3k tokens · $0.04
   ✓ gate succeeded()
   ✗ soft judge("回答基于实时数据") — 0.2/1: reply invents a temperature without any tool call
 
-artifacts: .niceeval/2026-07-09T10-00-00-000Z/artifacts/compare__codex-gpt-5.4__weather__brooklyn__2/
+artifacts: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/weather/brooklyn/a2/
 next: niceeval show weather/brooklyn --transcript | --trace | --diff
 ```
 
@@ -179,7 +194,9 @@ npx niceeval view
   失败后立刻运行 `npx niceeval view`，可以直接打开刚刚那次运行的 artifacts。
 </Tip>
 
-view 的首页是一份报告：不传 `--report` 时是默认报告，传了就换成你自己的报告（与 `show --report` 吃同一个文件），见[自定义报告](/zh/guides/custom-reports)；证据部分（attempt 弹窗、transcript、trace 瀑布）始终保留，报告里的数字点进去就是证据。
+view 的首页是一份报告：不传 `--report` 时是默认报告——与 `show` 同一份内容（总览、每组的散点图与榜单、失败清单）的网页版；传了 `--report` 就换成你自己的报告（与 `show --report` 吃同一个文件），见[自定义报告](/zh/guides/custom-reports)。证据部分（attempt 弹窗、transcript、trace 瀑布、run 列表）始终保留，报告里的数字点进去就是证据。
+
+网页版多几样浏览操作：点表头就地排序、在榜单的过滤框里筛行、悬停散点看数值——这些只影响眼前的视图，不改判定口径，刷新即恢复。报告上方有 **Copy fix prompt** 按钮，把全部失败打包成可直接粘给 coding agent 的修复 prompt（attempt 弹窗里有单条版）。报告文案有中英两份，随界面语言切换。
 
 ## 导出与静态托管
 
@@ -191,11 +208,11 @@ view 的首页是一份报告：不传 `--report` 时是默认报告，传了就
 npx niceeval view --out site
 ```
 
-NiceEval 写入 `<dir>/index.html`，并把查看器要读取的 artifact（`sources.json`、`events.json`、`trace.json`）复制到 `<dir>/artifact/` 下。把整个目录交给任何静态托管（Vercel、GitHub Pages 或 `python3 -m http.server`），代码视图、transcript 和 trace 瀑布图都和本地 `niceeval view` 一致。
+NiceEval 写入 `<dir>/index.html`，并把查看器要读取的 artifact（`sources.json`、`events.json`、`trace.json`）复制到 `<dir>/artifact/` 下。把整个目录交给任何静态托管（Vercel、GitHub Pages 或 `python3 -m http.server`），代码视图、transcript 和 trace 瀑布图都和本地 `niceeval view` 一致；表格排序、过滤和图表悬停也照常可用——所需脚本已内联进页面，浏览器禁用 JS 时页面仍完整可读，只是少这些浏览操作。
 
 `--out` 只接受目录。没有单文件导出：代码视图、transcript 和 trace 依赖 artifact 文件，单个 HTML 装不下完整证据。要把结果发给别人，托管整站发链接即可。
 
-零可读结果时 `view` 直接报错、非零退出——本地服务起不来，`--out` 不导出空页面。错误逐条列出被跳过的 run 目录与原因；落盘 schemaVersion 与当前版本不兼容时，还给出能直接查看旧落盘的 `npx niceeval@<版本> view` 命令。
+零可读结果时 `view` 直接报错、非零退出——本地服务起不来，`--out` 不导出空页面。错误逐条列出被跳过的快照目录与原因；落盘 schemaVersion 与当前版本不兼容时，还给出能直接查看旧落盘的 `npx niceeval@<版本> view` 命令。
 
 两点限制：
 
@@ -206,9 +223,13 @@ NiceEval 写入 `<dir>/index.html`，并把查看器要读取的 artifact（`sou
 
 ## Artifact 说明
 
-### `summary.json`
+### `snapshot.json`
 
-整次运行的汇总：run ID、pass / fail 数量、耗时、成本和每个 eval 的状态。
+快照级元数据：实验身份（experimentId）、agent、model、开始与收尾时间、格式版本。不含任何逐 attempt 数据——通过数、失败数这类聚合不落盘，由读取面逐条推导。
+
+### `result.json`
+
+单个 attempt 的权威记录：判定、断言、耗时、用量、成本。attempt 完成时一次写成，之后不再改写。
 
 ### `events.json`
 

@@ -72,7 +72,7 @@ runner 在 eval 完成后把结果交给 reporters：
 
 ## 输出目录
 
-每次运行会写入 `.niceeval/<timestamp>/`，包括 `summary.json`，以及每个 attempt 的 `events.json`、`sources.json`、`trace.json`、`o11y.json` 和 `diff.json` 等拆分 artifact。
+每次运行会写入该实验的结果快照目录 `.niceeval/<experiment>/<快照>/`，包括快照级 `snapshot.json`，以及每个 attempt 的 `result.json`（判决与断言）和按需生成的 `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json` 等拆分 artifact。
 
 ## 推荐调试流程
 

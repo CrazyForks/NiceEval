@@ -34,6 +34,16 @@ export function displayExperimentName(id: string | undefined): string | undefine
   return id.split("/").filter(Boolean).at(-1) ?? id;
 }
 
+/**
+ * 实验 id 的组推导:去掉末段的目录前缀("compare/bub-low" → "compare");
+ * 无 "/" 的顶层实验不属于任何组,返回 undefined。view 榜单分组与 defaultReport
+ * 的分组用同一份,两边的「组」永远指同一个东西。
+ */
+export function experimentGroupOf(experimentId: string): string | undefined {
+  if (!experimentId.includes("/")) return undefined;
+  return experimentId.split("/").slice(0, -1).join("/");
+}
+
 /** 无 experimentId 时的兜底标签。 */
 export function fallbackExperimentLabel(result: {
   experiment?: ExperimentRunInfo;

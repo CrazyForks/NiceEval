@@ -377,7 +377,7 @@ t.judge.autoevals.closedQA("语气是否礼貌").atLeast(0.7);   // soft 阈值
 - **匹配器扩展** —— `excludes` / `isDefined` / `isTrue` / `isFalse` / `commandSucceeded`。
 - **judge 接收者默认材料** —— `t.judge` / `session.judge` 评 session;`turn.judge` 评单轮,避免为了单轮 judge 手写 `{ on: turn.message }`。
 - **sandbox author API 分层** —— 文件 IO / 命令执行 / 结果断言都在 `t.sandbox`,但生命周期动作如 `stop()` 不暴露给 eval 作者。
-- **本地结果查看器** —— 读 `.niceeval/<run>/` 结构化 artifact 出图。
+- **本地结果查看器** —— 读 `.niceeval/<experiment>/<snapshot>/` 结构化 artifact 出图。
 
 ## 接下来读什么
 

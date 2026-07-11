@@ -18,7 +18,7 @@ import {
   RunOverview,
   Scoreboard,
 } from "./index.tsx";
-import { NRE_PALETTE, colorClassForKey, colorIndexForKey } from "./colors.ts";
+import { colorClassForKey, seriesClassForKey } from "./colors.ts";
 import {
   caseListData,
   deltaData,
@@ -28,9 +28,10 @@ import {
   scatterData,
   scoreboardData,
   tableData,
+  tableDataWithMeta,
 } from "./fixtures.ts";
 
-const attemptHref = (ref: { run: string; result: number }) => `/attempts/${ref.run}/${ref.result}`;
+const attemptHref = (ref: { snapshot: string; attempt: string }) => `/attempts/${ref.snapshot}/${ref.attempt}`;
 
 describe("RunOverview", () => {
   const html = renderToStaticMarkup(<RunOverview data={overviewData} />);
@@ -88,7 +89,54 @@ describe("MetricTable", () => {
   });
 
   it("refs + attemptHref 出普通 <a>", () => {
-    expect(html).toContain('href="/attempts/run-a/0"');
+    expect(html).toContain('href="/attempts/exp/run-a/eval/a0"');
+  });
+
+  it("渐进增强的 data 属性:所有表头 data-nre-sort、格子 data-sort-value(无 JS 时纯属性,内容完整)", () => {
+    expect(html.match(/data-nre-sort/g)).toHaveLength(3); // 维度列 + 2 指标列
+    expect(html).toContain('data-sort-value="codex"');
+    expect(html).toContain('data-sort-value="0.87"');
+    // 缺数据格子的排序值为空串:enhance.js 排序时恒沉底
+    expect(html).toContain('data-sort-value=""');
+  });
+});
+
+describe("MetricTable:meta 榜单 parity 与 filter", () => {
+  const html = renderToStaticMarkup(<MetricTable data={tableDataWithMeta} />);
+
+  it("meta 在场补 Model / Agent 列,列序 experiment、model、agent、指标、verdicts", () => {
+    expect(html).toContain(">Model</th>");
+    expect(html).toContain(">Agent</th>");
+    expect(html).toContain(">Verdicts</th>");
+    expect(html.indexOf(">Model</th>")).toBeLessThan(html.indexOf(">Agent</th>"));
+    expect(html.indexOf(">Agent</th>")).toBeLessThan(html.indexOf("pass rate"));
+    expect(html).toContain("gpt-5.4");
+  });
+
+  it("verdict 计票列:eval 级折叠口径的 pill,零计数不出 pill", () => {
+    expect(html).toContain("nre-verdict-pill");
+    expect(html).toContain("1 passed");
+    expect(html).toContain("1 failed");
+    expect(html).toContain("2 passed");
+    expect(html).not.toContain("0 errored");
+  });
+
+  it("filter 开:表格前渲染 data-nre-filter 输入框(无 JS 静默无功能),仍无 <script>", () => {
+    const filtered = renderToStaticMarkup(<MetricTable data={tableDataWithMeta} filter />);
+    expect(filtered).toContain("data-nre-filter");
+    expect(filtered).toContain('class="nre-filter"');
+    expect(filtered.indexOf("nre-filter")).toBeLessThan(filtered.indexOf("<table"));
+    expect(filtered).toContain('placeholder="Filter rows…"');
+    expect(filtered).not.toContain("<script");
+  });
+
+  it("locale=zh-CN:chrome 文案与 meta 列头走字典;display 不本地化", () => {
+    const zh = renderToStaticMarkup(<MetricTable data={tableDataWithMeta} filter locale="zh-CN" />);
+    expect(zh).toContain(">模型</th>");
+    expect(zh).toContain(">结果</th>");
+    expect(zh).toContain("1 通过");
+    expect(zh).toContain('placeholder="筛选行…"');
+    expect(zh).toContain("50%"); // display 是 format 产物,不本地化
   });
 });
 
@@ -107,8 +155,8 @@ describe("MetricMatrix", () => {
   it("格子数字与 refs 下钻链接", () => {
     expect(html).toContain("100%");
     expect(html).toContain("0%");
-    expect(html).toContain('href="/attempts/run-b/3"');
-    expect(html).toContain('href="/attempts/run-b/7"');
+    expect(html).toContain('href="/attempts/exp/run-b/algebra/quadratic/a3"');
+    expect(html).toContain('href="/attempts/exp/run-b/algebra/quadratic/a7"');
   });
 
   it("列头(维度键)带稳定散列配色 class", () => {
@@ -145,13 +193,14 @@ describe("Scoreboard", () => {
 describe("MetricScatter", () => {
   const html = renderToStaticMarkup(<MetricScatter data={scatterData} pointHref={(row) => `/exp/${row.key}`} />);
 
+  // data-key 在点的 <g> 上,坐标在其内第一个 circle 上(非贪婪跨标签匹配)
   const cxOf = (key: string): number => {
-    const m = html.match(new RegExp(`data-key="${key}"[^>]*\\bcx="([\\d.]+)"`));
+    const m = html.match(new RegExp(`data-key="${key}"[\\s\\S]*?\\bcx="([\\d.]+)"`));
     expect(m, `circle for ${key}`).toBeTruthy();
     return Number(m![1]);
   };
   const cyOf = (key: string): number => {
-    const m = html.match(new RegExp(`data-key="${key}"[^>]*\\bcy="([\\d.]+)"`));
+    const m = html.match(new RegExp(`data-key="${key}"[\\s\\S]*?\\bcy="([\\d.]+)"`));
     expect(m, `circle for ${key}`).toBeTruthy();
     return Number(m![1]);
   };
@@ -168,12 +217,21 @@ describe("MetricScatter", () => {
     expect(cyOf("compare/bub-high")).toBeLessThan(cyOf("compare/bub-low"));
   });
 
-  it("同系列点连线并标系列名,线色来自稳定散列调色板", () => {
+  it("同系列点连线,系列色走类名(nre-series-cN,CSS 上色跟随深浅主题),图例列系列名", () => {
     expect(html).toContain("<polyline");
-    expect(html).toContain(">bub</text>");
-    expect(html).toContain(NRE_PALETTE[colorIndexForKey("bub")]);
-    // codex 只有 1 个可画点:不出线,但系列名仍标出
-    expect(html).toContain(">codex</text>");
+    expect(html).toContain(`nre-scatter-line ${seriesClassForKey("bub")}`);
+    // 渲染面零内联 hex:深色主题下由 CSS 变量切换
+    expect(html).not.toMatch(/#[0-9a-f]{6}/i);
+    // 图例:codex 只有 1 个可画点、不出线,但系列名仍在图例里
+    expect(html).toContain(">bub</span>");
+    expect(html).toContain(">codex</span>");
+  });
+
+  it("niceTicks 网格与每点直接标签(id 末段)", () => {
+    expect(html).toContain("nre-scatter-grid");
+    expect(html.match(/nre-scatter-tick/g)!.length).toBeGreaterThanOrEqual(6);
+    expect(html).toContain(">bub-low</text>");
+    expect(html).toContain(">codex-mid</text>");
   });
 
   it("null 点不画,底部注脚如实报数", () => {
@@ -252,8 +310,8 @@ describe("CaseList", () => {
   });
 
   it("每条案例带 attemptHref 下钻链接", () => {
-    expect(html).toContain('href="/attempts/run-a/4"');
-    expect(html).toContain('href="/attempts/run-c/1"');
+    expect(html).toContain('href="/attempts/exp/run-a/algebra/quadratic/a4"');
+    expect(html).toContain('href="/attempts/exp/run-c/geometry/angles/a1"');
   });
 
   it("长文本收进 <details>,零 JS 可展开", () => {
@@ -274,7 +332,7 @@ describe("跨组件契约", () => {
       expect(html).toContain(cls);
     }
     const scatter = renderToStaticMarkup(<MetricScatter data={scatterData} />);
-    expect(scatter).toContain(NRE_PALETTE[colorIndexForKey("bub")]);
+    expect(scatter).toContain(seriesClassForKey("bub"));
   });
 
   it("静态输出不含 <script>:交互只靠 <a>/<details>/CSS", () => {

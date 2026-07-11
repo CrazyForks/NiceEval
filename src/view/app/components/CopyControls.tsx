@@ -1,27 +1,9 @@
 import React, { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import type { T } from "../shared.ts";
-import type { ViewResult, ViewRow } from "../types.ts";
+import type { ViewResult, ViewSnapshot } from "../types.ts";
+import { snapshotLabel } from "../lib/rows.ts";
 import { failingAssertions, reasonFor } from "../lib/verdict.ts";
-
-export function CopyReason({ text, t }: { text: string; t: T }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    try {
-      await copyText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return (
-    <button className={`copy-reason${copied ? " is-copied" : ""}`} onClick={copy} aria-label={t("action.copyReason")} title={t("action.copyReason")}>
-      {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-    </button>
-  );
-}
 
 /** 修复 prompt 的一条失败条目;路径均相对 view 输入根(默认 `.niceeval/`)。 */
 export interface FixPromptEntry {
@@ -30,7 +12,7 @@ export interface FixPromptEntry {
   verdict: string;
   reason: string;
   artifactBase?: string;
-  summaryPath?: string;
+  resultPath?: string;
 }
 
 export function toFixPromptEntry(r: ViewResult, experimentLabel: string): FixPromptEntry {
@@ -40,7 +22,7 @@ export function toFixPromptEntry(r: ViewResult, experimentLabel: string): FixPro
     verdict: r.verdict,
     reason: reasonFor(r, failingAssertions(r)),
     artifactBase: r.artifactBase,
-    summaryPath: r.attemptRef ? `${r.attemptRef.run}/summary.json` : undefined,
+    resultPath: r.attemptRef ? `${r.attemptRef.snapshot}/${r.attemptRef.attempt}/result.json` : undefined,
   };
 }
 
@@ -56,7 +38,7 @@ export function buildFixPrompt(entries: FixPromptEntry[]): string {
         `${i + 1}. eval "${e.evalId}" [experiment ${e.experiment}] — ${e.verdict}`,
         e.reason ? `   reason: ${e.reason}` : null,
         e.artifactBase ? `   artifacts: ${e.artifactBase}/` : null,
-        e.summaryPath ? `   summary: ${e.summaryPath}` : null,
+        e.resultPath ? `   result: ${e.resultPath}` : null,
       ]
         .filter(Boolean)
         .join("\n"),
@@ -74,18 +56,29 @@ export function buildFixPrompt(entries: FixPromptEntry[]): string {
     "2. The paths above are relative to the results directory (default `.niceeval/`). For each failure, read `events.json` in its artifacts directory — the full agent transcript including tool calls — plus `trace.json` (execution trace) and `diff.json` (workspace diff) when present, to see what actually happened.",
     "3. Decide which side the defect is on: the program under test, or the eval itself (over-tight assertion, wrong fixture, missing setup). Fix that side; do not weaken assertions just to turn the run green.",
     `4. Re-run: \`npx niceeval exp ${experiments || "<experiment>"} <eval-id-prefix>\`. Already-passing evals are skipped by the fingerprint cache; pass \`--force\` to re-run everything.`,
-    "5. Read the new `summary.json` path the CLI prints and confirm these failures are gone.",
+    "5. Run `npx niceeval show` and confirm these failures are gone.",
   ].join("\n");
 }
 
-export function CopyFixPrompt({ rows, t }: { rows: ViewRow[]; t: T }) {
+/**
+ * 报告槽同款口径的失败清单:每个 experiment 最新一次快照(latest 标记;快照明细已在
+ * server 侧跨快照去重)里的 failed / errored attempt,从 viewData.snapshots 现算——
+ * 默认报告与 --report 两种填充下按钮都在,不依赖任何统计产物。
+ */
+export function fixPromptEntries(snapshots: ViewSnapshot[]): FixPromptEntry[] {
+  return snapshots
+    .filter((s) => s.latest)
+    .flatMap((snapshot) =>
+      snapshot.results
+        .filter((r: ViewResult) => r.verdict === "failed" || r.verdict === "errored")
+        .map((r: ViewResult) => toFixPromptEntry(r, snapshotLabel(snapshot))),
+    );
+}
+
+export function CopyFixPrompt({ snapshots, t }: { snapshots: ViewSnapshot[]; t: T }) {
   const [copied, setCopied] = useState(false);
 
-  const entries = rows.flatMap((row: ViewRow) =>
-    (row.results ?? [])
-      .filter((r: ViewResult) => r.verdict === "failed" || r.verdict === "errored")
-      .map((r: ViewResult) => toFixPromptEntry(r, row.label)),
-  );
+  const entries = fixPromptEntries(snapshots);
 
   if (!entries.length) return null;
 

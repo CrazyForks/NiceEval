@@ -4,6 +4,7 @@
 
 import type { ReactElement } from "react";
 import type { AttemptRef, CaseListData } from "../types.ts";
+import { DEFAULT_REPORT_LOCALE, localeText, type ReportLocale } from "../locale.ts";
 import { colorClassForKey } from "./colors.ts";
 import { cx, formatDurationMs, formatUSD } from "./format.ts";
 
@@ -11,19 +12,23 @@ export function CaseList({
   data,
   attemptHref,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: CaseListData;
   attemptHref?: (ref: AttemptRef) => string;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   return (
     <section className={cx("nre", "nre-case-list", className)}>
-      {data.rows.length === 0 && <p className="nre-case-empty">No failed or errored attempts</p>}
+      {data.rows.length === 0 && <p className="nre-case-empty">{localeText(locale, "caseList.empty")}</p>}
       <ol className="nre-cases">
         {data.rows.map((row) => (
-          <li key={`${row.ref.run}:${row.ref.result}`} className={cx("nre-case", `nre-case-${row.verdict}`)}>
+          <li key={`${row.ref.snapshot}:${row.ref.attempt}`} className={cx("nre-case", `nre-case-${row.verdict}`)}>
             <div className="nre-case-head">
-              <span className={cx("nre-case-verdict", `nre-verdict-${row.verdict}`)}>{row.verdict}</span>
+              <span className={cx("nre-case-verdict", `nre-verdict-${row.verdict}`)}>
+                {localeText(locale, `verdict.${row.verdict}`)}
+              </span>
               <span className="nre-case-eval">{row.eval}</span>
               {/* agent 键:稳定散列上色,与其它块同键同色 */}
               <span className={cx("nre-case-agent", "nre-key", colorClassForKey(row.agent))}>{row.agent}</span>
@@ -32,7 +37,7 @@ export function CaseList({
               {row.costUSD !== undefined && <span className="nre-case-cost">{formatUSD(row.costUSD)}</span>}
               {attemptHref && (
                 <a className="nre-case-link" href={attemptHref(row.ref)}>
-                  view attempt
+                  {localeText(locale, "caseList.viewAttempt")}
                 </a>
               )}
             </div>
@@ -45,11 +50,11 @@ export function CaseList({
                 {row.failedAssertions.map((assertion, j) => (
                   <li key={j} className="nre-assertion">
                     <span className="nre-assertion-name">{assertion.name}</span>
-                    <span className="nre-assertion-score">score {assertion.score}</span>
+                    <span className="nre-assertion-score">{localeText(locale, "caseList.score", { score: assertion.score })}</span>
                     {/* detail / evidence 可能很长:<details> 收起,不 hydrate 也能展开 */}
                     {(assertion.detail || assertion.evidence) && (
                       <details className="nre-assertion-more">
-                        <summary>details</summary>
+                        <summary>{localeText(locale, "caseList.details")}</summary>
                         {assertion.detail && <p className="nre-assertion-detail">{assertion.detail}</p>}
                         {assertion.evidence && (
                           <blockquote className="nre-assertion-evidence">{assertion.evidence}</blockquote>
@@ -64,7 +69,9 @@ export function CaseList({
         ))}
       </ol>
       {/* limit 之外还有几条,如实报,不静默截断 */}
-      {data.truncated > 0 && <p className="nre-truncated">and {data.truncated} more not shown</p>}
+      {data.truncated > 0 && (
+        <p className="nre-truncated">{localeText(locale, "caseList.truncated", { n: data.truncated })}</p>
+      )}
     </section>
   );
 }

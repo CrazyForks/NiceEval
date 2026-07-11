@@ -66,13 +66,41 @@ async function runFixtureCli(): Promise<void> {
   }
 }
 
+// 新落盘布局(Results Format schemaVersion 4,见 docs/results-format.md)是
+// .niceeval/<experiment>/<timestamp-rand>/snapshot.json + <evalId>/a<n>/result.json,
+// 不再有 run 级 summary.json。这里递归找出全部快照,取 startedAt 最新的那个,
+// 再收集它下面全部 result.json 拼出与旧 summary.results 等价的输入(逐条补回
+// experimentId——它是快照级字段,不落在 attempt 记录里)。
+async function findFiles(dir: string, filename: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const found: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...(await findFiles(full, filename)));
+    else if (entry.name === filename) found.push(full);
+  }
+  return found;
+}
+
 async function readLatestSummary(): Promise<{ results: Array<{ id: string; verdict: string }> }> {
   const runDirRoot = join(fixtureDir, ".niceeval");
-  const runs = (await readdir(runDirRoot)).sort();
-  const latest = runs.at(-1);
-  if (!latest) throw new Error(`no .niceeval run under ${runDirRoot}`);
-  const raw = await readFile(join(runDirRoot, latest, "summary.json"), "utf-8");
-  return JSON.parse(raw);
+  const snapshotMetaPaths = await findFiles(runDirRoot, "snapshot.json");
+  if (snapshotMetaPaths.length === 0) throw new Error(`no snapshot found under ${runDirRoot}`);
+  const snapshots = await Promise.all(
+    snapshotMetaPaths.map(async (metaPath) => {
+      const meta = JSON.parse(await readFile(metaPath, "utf-8")) as { experimentId: string; startedAt: string };
+      return { dir: dirname(metaPath), ...meta };
+    }),
+  );
+  const latest = snapshots.reduce((a, b) => (b.startedAt > a.startedAt ? b : a));
+  const resultPaths = await findFiles(latest.dir, "result.json");
+  const results = await Promise.all(
+    resultPaths.map(async (p) => {
+      const record = JSON.parse(await readFile(p, "utf-8")) as { id: string; verdict: string };
+      return { ...record, experimentId: latest.experimentId };
+    }),
+  );
+  return { results };
 }
 
 test("image-understanding: 模型明确拒绝识图时,eval 必须 failed,不能悄悄 passed", async () => {

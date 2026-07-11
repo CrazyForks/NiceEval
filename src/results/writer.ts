@@ -1,38 +1,45 @@
-// createRunWriter:Results Format 的写入面(定稿见 docs/results-lib.md「写:createRunWriter」)。
+// createResultsWriter:Results Format 的写入面(定稿见 docs/results-lib.md「写:createResultsWriter」)。
 //
 // writer 与 reader 是同一组类型的两半,而且是字面的两半:reader 的 attempt.result 由
-// 「snapshot() 声明的快照级字段(experiment / agent / model / startedAt)+ writeAttempt 第一参」
-// 拼成,快照级字段不在 attempt 参数类型里(AttemptEntry 的 Omit),不存在「谁的值为准」。
-// 布局知识(时间戳目录、attempt 路径清洗、大字段拆 artifact、has* 回填、空数据不落文件)全在这里;
-// src/runner/reporters/artifacts.ts 是本文件的薄壳。
+// 「snapshot() 声明的快照级字段(experimentId / agent / model / startedAt / experiment)+
+// writeAttempt 第一参」拼成,快照级字段不在 attempt 参数类型里(AttemptEntry 的 Omit),
+// 不存在「谁的值为准」。布局知识(快照目录独占创建、attempt 路径清洗、大字段拆 artifact、
+// has* 回填、空数据不落文件)全在这里;src/runner/reporters/artifacts.ts 是本文件的薄壳。
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { EvalResult, RunSummary, Usage } from "../types.ts";
-import type { LocalizedText } from "../types.ts";
+import type { EvalResult, ExperimentRunInfo, LocalizedText } from "../types.ts";
 import type { DiffData, O11ySummary, SourceArtifact, StreamEvent, TraceSpan } from "../types.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
-import { attemptDirOf } from "./format.ts";
+import { RESULT_FILE, SNAPSHOT_FILE, attemptDirOf, experimentDirOf } from "./format.ts";
+import type { Producer, SnapshotMeta } from "./types.ts";
 
-export interface RunWriterOptions {
+export interface ResultsWriterOptions {
   /** 谁在写这份结果:niceeval 自己,或第三方 harness(name 如实写,别冒充 "niceeval")。 */
-  producer: NonNullable<RunSummary["producer"]>;
+  producer: Producer;
 }
 
-/** 快照级元数据的家:一个 experiment 开一个;这些字段不塞进每条 attempt。 */
+/** 快照级声明:一个 experiment 声明一次,这些字段不塞进每条 attempt。 */
 export interface SnapshotDeclaration {
-  experiment: string;
+  experimentId: string;
   agent: string;
   model?: string;
   /** 必填:身份键与去重以它为锚,官方产出永不缺。 */
   startedAt: string;
+  /** 转换历史数据时如实交代收尾时刻;省略则 finish() 用当前时刻。 */
+  completedAt?: string;
+  /** 实验运行配置(flags / runs / earlyExit / sandbox / timeoutMs / budget),快照内全部 attempt 共享。 */
+  experiment?: ExperimentRunInfo;
   /** 该实验已知的 eval 并集(残缺检测的分母);转换只覆盖部分题目时如实交代全集。 */
   knownEvalIds?: string[];
+  /** 项目名(来自 config.name),透传给 `niceeval view` 顶部 hero 显示。 */
+  name?: LocalizedText;
 }
 
 /**
  * writeAttempt 的第一参 = attempt 级条目:reader 的 attempt.result 中,快照级字段
- * (agent / model / startedAt / experimentId)以外的全部; artifact 引用字段由 writer 回填。
+ * (experimentId / agent / model / startedAt / experiment)与引用字段(artifactBase / has*)
+ * 以外的全部;引用字段由 writer 按实际写入的 artifact 回填。
  */
 export type AttemptEntry = Omit<
   EvalResult,
@@ -40,15 +47,14 @@ export type AttemptEntry = Omit<
   | "model"
   | "startedAt"
   | "experimentId"
+  | "experiment"
   | "events"
   | "sources"
   | "o11y"
   | "trace"
   | "diff"
   | "rawTranscript"
-  | "artifactsDir"
   | "artifactBase"
-  | "artifactAbsBase"
   | "hasTrace"
   | "hasEvents"
   | "hasSources"
@@ -64,195 +70,248 @@ export interface AttemptArtifacts {
 }
 
 export interface SnapshotWriter {
-  /** 增量落盘一条 attempt:拆 artifact 文件、算 artifactsDir(含路径清洗)、回填 has* 引用;空数据不落文件。 */
+  /** 本快照的目录(绝对路径)。 */
+  readonly dir: string;
+  /** 增量落盘一条 attempt:拆 artifact 文件、回填 has* 引用、写 result.json;空数据不落文件。 */
   writeAttempt(entry: AttemptEntry, artifacts?: AttemptArtifacts): Promise<void>;
 }
 
-/** finish() 从已写 attempt 推导 summary;个别推不出的字段走这里覆盖,不让调用方手拼整份 summary。 */
-export interface FinishOverrides {
-  name?: LocalizedText;
-  agent?: string;
-  model?: string;
-  startedAt?: string;
-  completedAt?: string;
-  durationMs?: number;
-  usage?: Usage;
-  estimatedCostUSD?: number;
+export interface ResultsWriter {
   /**
-   * @internal runner 专用:携带条目(--resume 合入)与最终排序只有调度器知道,Artifacts 薄壳
-   * 从这里交权威 results(可含内联大字段,writer 统一瘦身)。第三方转换不需要它。
+   * 建快照目录(独占创建,撞名换随机后缀重试)+ 立即写 snapshot.json(不含 completedAt)。
+   * 同一 writer 内同 experimentId 重复声明 → 返回同一个 SnapshotWriter(懒建语义;
+   * knownEvalIds 取并集,completedAt / name 以最后一次声明为准,finish() 时才落盘)。
    */
-  results?: EvalResult[];
+  snapshot(decl: SnapshotDeclaration): Promise<SnapshotWriter>;
+  /** 给每个已声明的快照补 completedAt(decl.completedAt ?? 当前时刻)与 name(参数优先,声明兜底)。 */
+  finish(opts?: { name?: LocalizedText }): Promise<void>;
+  /** @internal runner 薄壳入口:按 EvalResult 的 experimentId 懒建快照并落盘一条 attempt。 */
+  writeAttemptFor(result: EvalResult): Promise<void>;
+  /** @internal 已创建快照清单(CLI 收尾打印)。 */
+  snapshotDirs(): { experimentId: string; dir: string }[];
 }
 
-export interface RunWriter {
-  /** 本次 run 的输出目录(root 下的时间戳目录,: 与 . 已替换)。 */
-  readonly dir: string;
-  snapshot(decl: SnapshotDeclaration): SnapshotWriter;
-  /** 写出 summary.json 收尾;没走到这里的目录读取面归入 skipped("incomplete")。 */
-  finish(overrides?: FinishOverrides): Promise<RunSummary>;
-  /**
-   * @internal runner Artifacts 薄壳的增量 artifact 落盘入口:runner 的条目自带 agent / model /
-   * experimentId / startedAt(且存在无 experiment 的普通 run),不经 snapshot() 声明。
-   */
-  writeAttemptArtifacts(result: EvalResult): Promise<void>;
+interface SnapshotState {
+  /** 快照的权威 meta(不含 completedAt;knownEvalIds 随重复声明累加)。 */
+  meta: SnapshotMeta;
+  dir: string;
+  writer: SnapshotWriter;
+  declCompletedAt?: string;
+  declName?: LocalizedText;
 }
 
-export async function createRunWriter(root: string, opts: RunWriterOptions): Promise<RunWriter> {
-  const createdAt = new Date();
-  const dir = join(root, safeTimestamp(createdAt));
-  await mkdir(dir, { recursive: true });
-
-  const decls: SnapshotDeclaration[] = [];
-  const entries: EvalResult[] = [];
+/** 同步:不建目录、不碰磁盘。目录创建发生在第一次 snapshot() 调用里。 */
+export function createResultsWriter(root: string, opts: ResultsWriterOptions): ResultsWriter {
+  const pending = new Map<string, Promise<SnapshotState>>();
+  const created: { experimentId: string; dir: string }[] = [];
   let finished = false;
 
-  const writeArtifacts = async (target: EvalResult | AttemptArtifacts, dirFor: EvalResult): Promise<void> => {
-    const attemptDest = join(dir, attemptDirOf(dirFor));
-    await mkdir(attemptDest, { recursive: true });
-    const writes: Promise<unknown>[] = [];
-    if (target.events?.length) writes.push(writeFile(join(attemptDest, "events.json"), JSON.stringify(target.events), "utf-8"));
-    if (target.sources?.length) writes.push(writeFile(join(attemptDest, "sources.json"), JSON.stringify(target.sources), "utf-8"));
-    if (target.trace?.length) writes.push(writeFile(join(attemptDest, "trace.json"), JSON.stringify(target.trace), "utf-8"));
-    if (target.o11y) writes.push(writeFile(join(attemptDest, "o11y.json"), JSON.stringify(target.o11y), "utf-8"));
-    if (target.diff) writes.push(writeFile(join(attemptDest, "diff.json"), JSON.stringify(target.diff), "utf-8"));
-    await Promise.all(writes);
-  };
+  async function buildSnapshot(decl: SnapshotDeclaration): Promise<SnapshotState> {
+    const meta: SnapshotMeta = {
+      format: RESULTS_FORMAT,
+      schemaVersion: RESULTS_SCHEMA_VERSION,
+      producer: opts.producer,
+      experimentId: decl.experimentId,
+      // 运行配置不带 id:身份的家是顶层 experimentId,重复一份只会引出「以谁为准」。
+      ...(decl.experiment !== undefined ? { experiment: stripInfoId(decl.experiment) } : {}),
+      agent: decl.agent,
+      ...(decl.model !== undefined ? { model: decl.model } : {}),
+      startedAt: decl.startedAt,
+      ...(decl.knownEvalIds?.length ? { knownEvalIds: [...new Set(decl.knownEvalIds)] } : {}),
+      ...(decl.name !== undefined ? { name: decl.name } : {}),
+    };
+    const dir = await createSnapshotDir(root, decl.experimentId);
+    await writeFile(join(dir, SNAPSHOT_FILE), JSON.stringify(meta, null, 2), "utf-8");
+    created.push({ experimentId: decl.experimentId, dir });
+    const writer: SnapshotWriter = {
+      dir,
+      async writeAttempt(entry: AttemptEntry, artifacts?: AttemptArtifacts): Promise<void> {
+        await writeAttemptFiles(dir, entry, artifacts);
+      },
+    };
+    return { meta, dir, writer, declCompletedAt: decl.completedAt, declName: decl.name };
+  }
+
+  async function snapshotImpl(decl: SnapshotDeclaration): Promise<SnapshotWriter> {
+    if (!decl.experimentId || !decl.agent || !decl.startedAt) {
+      throw new Error(
+        "writer.snapshot() requires experimentId, agent and startedAt. They are snapshot-level identity: declare them once here instead of on each attempt.",
+      );
+    }
+    const existing = pending.get(decl.experimentId);
+    const statePromise: Promise<SnapshotState> = existing
+      ? existing.then((state) => {
+          if (decl.knownEvalIds?.length) {
+            state.meta.knownEvalIds = [...new Set([...(state.meta.knownEvalIds ?? []), ...decl.knownEvalIds!])];
+          }
+          if (decl.completedAt !== undefined) state.declCompletedAt = decl.completedAt;
+          if (decl.name !== undefined) state.declName = decl.name;
+          return state;
+        })
+      : buildSnapshot(decl);
+    pending.set(decl.experimentId, statePromise);
+    const state = await statePromise;
+    return state.writer;
+  }
+
+  async function writeAttemptForImpl(result: EvalResult): Promise<void> {
+    if (!result.experimentId) {
+      throw new Error(
+        `writeAttemptFor() requires EvalResult.experimentId (results schemaVersion ${RESULTS_SCHEMA_VERSION} lays out one directory per experiment); eval "${result.id}" has none.`,
+      );
+    }
+    const snap = await snapshotImpl({
+      experimentId: result.experimentId,
+      agent: result.agent,
+      model: result.model,
+      // 快照 startedAt 以该实验首条落盘结果的 attempt 时刻为锚(首条 ≈ 实验开跑)。
+      startedAt: result.startedAt ?? new Date().toISOString(),
+      experiment: result.experiment,
+    });
+
+    if (result.artifactBase) {
+      // 携带条目(--resume 合入):本轮没有任何新数据,不写 artifact、不重算 has*,
+      // startedAt(身份锚)与 artifactBase 原样保留。
+      const { agent, model, experimentId, experiment, events, sources, o11y, trace, diff, rawTranscript, ...rest } = result;
+      void agent;
+      void model;
+      void experimentId;
+      void experiment;
+      void events;
+      void sources;
+      void o11y;
+      void trace;
+      void diff;
+      void rawTranscript;
+      const attemptDir = join(snap.dir, attemptDirOf(result));
+      await mkdir(attemptDir, { recursive: true });
+      await writeFile(join(attemptDir, RESULT_FILE), JSON.stringify(rest, null, 2), "utf-8");
+      return;
+    }
+
+    const {
+      agent,
+      model,
+      startedAt,
+      experimentId,
+      experiment,
+      events,
+      sources,
+      o11y,
+      trace,
+      diff,
+      rawTranscript,
+      artifactBase,
+      hasTrace,
+      hasEvents,
+      hasSources,
+      ...entry
+    } = result;
+    void agent;
+    void model;
+    void experimentId;
+    void experiment;
+    void artifactBase;
+    void hasTrace;
+    void hasEvents;
+    void hasSources;
+    // startedAt 是 attempt 级事实(每条各异,view 靠它显示「何时跑的」),原样落盘;
+    // 读取面只在记录缺失时才回退快照的 startedAt。
+    const record = { ...entry, ...(startedAt !== undefined ? { startedAt } : {}) };
+    await snap.writeAttempt(record as AttemptEntry, { events, sources, o11y, trace, diff });
+  }
 
   return {
-    dir,
-
-    snapshot(decl: SnapshotDeclaration): SnapshotWriter {
-      if (!decl.experiment || !decl.agent || !decl.startedAt) {
-        throw new Error("writer.snapshot() requires experiment, agent and startedAt. They are snapshot-level identity: declare them once here instead of on each attempt.");
-      }
-      decls.push(decl);
-      return {
-        async writeAttempt(entry: AttemptEntry, artifacts?: AttemptArtifacts): Promise<void> {
-          // 快照级字段注入用「缺才补」:参数类型上它们不存在(Omit),运行时保守处理,
-          // 不覆盖调用方带来的值,也不打乱既有键序。
-          const full = { ...entry } as EvalResult;
-          full.experimentId ??= decl.experiment;
-          full.agent ??= decl.agent;
-          if (full.model === undefined && decl.model !== undefined) full.model = decl.model;
-          full.startedAt ??= decl.startedAt;
-          await writeArtifacts( artifacts ?? {}, full);
-          entries.push(
-            slimEntry({
-              ...full,
-              events: artifacts?.events,
-              sources: artifacts?.sources,
-              trace: artifacts?.trace,
-              o11y: artifacts?.o11y,
-              diff: artifacts?.diff,
-            }),
-          );
-        },
-      };
+    snapshot: snapshotImpl,
+    writeAttemptFor: writeAttemptForImpl,
+    snapshotDirs(): { experimentId: string; dir: string }[] {
+      return [...created];
     },
 
-    async writeAttemptArtifacts(result: EvalResult): Promise<void> {
-      await writeArtifacts(result, result);
-    },
-
-    async finish(overrides: FinishOverrides = {}): Promise<RunSummary> {
-      if (finished) throw new Error(`finish() already called for run directory ${dir}.`);
+    async finish(finishOpts?: { name?: LocalizedText }): Promise<void> {
+      if (finished) throw new Error("writer.finish() was already called.");
       finished = true;
-
-      const results = overrides.results ? overrides.results.map(slimEntry) : entries;
-      const counts = { passed: 0, failed: 0, skipped: 0, errored: 0 };
-      let inTok = 0;
-      let outTok = 0;
-      let cost = 0;
-      let duration = 0;
-      for (const r of results) {
-        counts[r.verdict] += 1;
-        inTok += r.usage?.inputTokens ?? 0;
-        outTok += r.usage?.outputTokens ?? 0;
-        cost += r.estimatedCostUSD ?? 0;
-        duration += r.durationMs ?? 0;
-      }
-
-      const startedAt =
-        overrides.startedAt ??
-        decls.map((d) => d.startedAt).sort()[0] ??
-        createdAt.toISOString();
-      const agent = overrides.agent ?? decls[0]?.agent ?? results[0]?.agent ?? "";
-      const model = overrides.model ?? decls[0]?.model;
-      const estimatedCostUSD = overrides.estimatedCostUSD ?? (cost || undefined);
-      const snapshotsMeta = buildSnapshotsMeta(decls, startedAt);
-
-      // 键序是持久化契约的一部分(与 runner 直写时代逐字节一致):format / schemaVersion /
-      // producer 在最前,results 与 outputDir 收尾,可选键缺席时不留 undefined 占位。
-      const summary: RunSummary = {
-        format: RESULTS_FORMAT,
-        schemaVersion: RESULTS_SCHEMA_VERSION,
-        producer: opts.producer,
-        ...(overrides.name !== undefined ? { name: overrides.name } : {}),
-        agent,
-        ...(model !== undefined ? { model } : {}),
-        startedAt,
-        completedAt: overrides.completedAt ?? new Date().toISOString(),
-        passed: counts.passed,
-        failed: counts.failed,
-        skipped: counts.skipped,
-        errored: counts.errored,
-        durationMs: overrides.durationMs ?? duration,
-        usage: overrides.usage ?? { inputTokens: inTok, outputTokens: outTok },
-        ...(estimatedCostUSD !== undefined ? { estimatedCostUSD } : {}),
-        results,
-        outputDir: dir,
-        ...(snapshotsMeta ? { snapshots: snapshotsMeta } : {}),
-      };
-      await writeFile(join(dir, "summary.json"), JSON.stringify(summary, null, 2), "utf-8");
-      return summary;
+      const states = await Promise.all([...pending.values()]);
+      await Promise.all(
+        states.map(async (state) => {
+          const completedAt = state.declCompletedAt ?? new Date().toISOString();
+          const name = finishOpts?.name ?? state.declName;
+          const finalMeta: SnapshotMeta = {
+            format: state.meta.format,
+            schemaVersion: state.meta.schemaVersion,
+            producer: state.meta.producer,
+            experimentId: state.meta.experimentId,
+            ...(state.meta.experiment !== undefined ? { experiment: state.meta.experiment } : {}),
+            agent: state.meta.agent,
+            ...(state.meta.model !== undefined ? { model: state.meta.model } : {}),
+            startedAt: state.meta.startedAt,
+            completedAt,
+            ...(state.meta.knownEvalIds?.length ? { knownEvalIds: state.meta.knownEvalIds } : {}),
+            ...(name !== undefined ? { name } : {}),
+          };
+          state.meta = finalMeta;
+          await writeFile(join(state.dir, SNAPSHOT_FILE), JSON.stringify(finalMeta, null, 2), "utf-8");
+        }),
+      );
     },
   };
 }
 
-/**
- * 瘦身条目:去掉内联大字段,回填 artifactsDir 与 has* 引用。
- * 携带条目(--resume 合入,rest 上带着 artifactBase 指向原 run 的 artifact 目录)原样保留:
- * 本轮没有任何新数据,不能重新推导出 false 的 has*,更不能编出一个本轮没写过文件的 artifactsDir。
- */
-export function slimEntry(r: EvalResult): EvalResult {
-  const { events, sources, o11y, trace, diff, rawTranscript, ...rest } = r;
-  void rawTranscript;
-  if (rest.artifactBase) return rest;
-  return {
-    ...rest,
-    artifactsDir: attemptDirOf(r),
-    hasTrace: !!(trace && trace.length),
-    hasEvents: !!(events && events.length),
-    hasSources: !!(sources && sources.length),
-  };
+/** 一条 attempt 的落盘:拆 artifact 文件、算 has*、写 result.json;空数据不落文件。 */
+async function writeAttemptFiles(snapDir: string, entry: AttemptEntry, artifacts?: AttemptArtifacts): Promise<void> {
+  const attemptDir = join(snapDir, attemptDirOf(entry));
+  await mkdir(attemptDir, { recursive: true });
+
+  const hasEvents = !!(artifacts?.events && artifacts.events.length);
+  const hasSources = !!(artifacts?.sources && artifacts.sources.length);
+  const hasTrace = !!(artifacts?.trace && artifacts.trace.length);
+
+  const writes: Promise<unknown>[] = [];
+  if (hasEvents) writes.push(writeFile(join(attemptDir, "events.json"), JSON.stringify(artifacts!.events), "utf-8"));
+  if (hasSources) writes.push(writeFile(join(attemptDir, "sources.json"), JSON.stringify(artifacts!.sources), "utf-8"));
+  if (hasTrace) writes.push(writeFile(join(attemptDir, "trace.json"), JSON.stringify(artifacts!.trace), "utf-8"));
+  if (artifacts?.o11y) writes.push(writeFile(join(attemptDir, "o11y.json"), JSON.stringify(artifacts.o11y), "utf-8"));
+  if (artifacts?.diff) writes.push(writeFile(join(attemptDir, "diff.json"), JSON.stringify(artifacts.diff), "utf-8"));
+  await Promise.all(writes);
+
+  const record = { ...entry, hasEvents, hasTrace, hasSources };
+  await writeFile(join(attemptDir, RESULT_FILE), JSON.stringify(record, null, 2), "utf-8");
 }
 
-/** 快照级元数据落盘:startedAt 只在与顶层不同(一 run 多快照、时刻不同)时记;空 meta 不落字段。 */
-function buildSnapshotsMeta(
-  decls: SnapshotDeclaration[],
-  summaryStartedAt: string,
-): RunSummary["snapshots"] | undefined {
-  const meta: NonNullable<RunSummary["snapshots"]> = {};
-  let any = false;
-  for (const decl of decls) {
-    const entry: { startedAt?: string; knownEvalIds?: string[] } = {};
-    if (decl.startedAt !== summaryStartedAt) entry.startedAt = decl.startedAt;
-    if (decl.knownEvalIds?.length) entry.knownEvalIds = [...decl.knownEvalIds];
-    if (Object.keys(entry).length > 0) {
-      // 同一 experiment 声明多次时后声明覆盖(knownEvalIds 取并集,覆盖事实只会变大不会缩水)。
-      const existing = meta[decl.experiment];
-      if (existing?.knownEvalIds && entry.knownEvalIds) {
-        entry.knownEvalIds = [...new Set([...existing.knownEvalIds, ...entry.knownEvalIds])];
-      }
-      meta[decl.experiment] = { ...existing, ...entry };
-      any = true;
+/** 快照目录:独占创建(EEXIST 换随机后缀重试,≤5 次)。 */
+async function createSnapshotDir(root: string, experimentId: string): Promise<string> {
+  const parent = join(root, experimentDirOf(experimentId));
+  await mkdir(parent, { recursive: true });
+  let lastError: unknown;
+  for (let i = 0; i < 5; i++) {
+    const dir = join(parent, `${safeTimestamp(new Date())}-${randomSuffix()}`);
+    try {
+      await mkdir(dir);
+      return dir;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException)?.code !== "EEXIST") throw e;
+      lastError = e;
     }
   }
-  return any ? meta : undefined;
+  throw new Error(`Could not create a unique snapshot directory under "${parent}" after 5 attempts (${String(lastError)}).`);
 }
 
-/** run 目录名:Date#toISOString 把 : 与 . 换成 -(与 docs/results-format.md 一致)。 */
-export function safeTimestamp(d: Date): string {
+/** 运行配置落盘前剥掉 id:experimentId 的家在 snapshot.json 顶层。 */
+function stripInfoId(info: ExperimentRunInfo): ExperimentRunInfo {
+  const { id, ...rest } = info;
+  void id;
+  return rest;
+}
+
+/** 快照目录名的时间戳段:Date#toISOString 把 : 与 . 换成 -(与 docs/results-format.md 一致)。 */
+function safeTimestamp(d: Date): string {
   return d.toISOString().replace(/[:.]/g, "-");
+}
+
+/** 快照目录名的随机后缀:4 位 [a-z0-9]。 */
+function randomSuffix(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let out = "";
+  for (let i = 0; i < 4; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
 }

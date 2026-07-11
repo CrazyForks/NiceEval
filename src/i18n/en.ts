@@ -50,7 +50,7 @@ export const en = {
     "      --run <dir>   pin a results dir    --experiment <id>   one experiment\n" +
     "      --attempt <n>   pick an attempt    --report <file>   custom report\n" +
     "  niceeval list                                       list discovered evals\n" +
-    "  niceeval view [eval-id-prefix…|summary.json] [--out dir] [--port n] [--no-open]\n" +
+    "  niceeval view [eval-id-prefix…|snapshot.json] [--out dir] [--port n] [--no-open]\n" +
     "      report slot + evidence rooms; --report <file> swaps in your report\n" +
     "      (same file as show); --run <dir> pins a results dir;\n" +
     "      --experiment <id> one experiment\n" +
@@ -90,7 +90,7 @@ export const en = {
   "cli.noAgent": "No agent specified (use --agent <name>).\n",
   "cli.none": "(none)",
   "cli.pressCtrlC": "Press Ctrl+C to exit.\n",
-  "cli.resultsPath": "Structured results: {{path}} (each result's artifactsDir holds that attempt's events.json / trace.json / diff.json)\n",
+  "cli.resultsPath": "Structured results: {{path}} (snapshot.json + per-attempt result.json / events.json / trace.json / diff.json)\n",
   "cli.run.experimentRequired":
     "Run evals through an experiment: use `niceeval exp [group|config] [eval id prefix]`.\n" +
     "  Docs: node_modules/niceeval/docs-site/zh/guides/write-experiment.mdx\n",

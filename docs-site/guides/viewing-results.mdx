@@ -4,7 +4,7 @@ sidebarTitle: "Viewing Results"
 description: "Every run writes structured artifacts to .niceeval/. There are two ways to read them: niceeval show drills down through the leaderboard, assertions, transcripts, traces, and diffs in the terminal; niceeval view shows the same evidence in a web page."
 ---
 
-After every run, [NiceEval](https://niceeval.com/) writes structured results into `.niceeval/<timestamp>/`. There are two doors to read them, and both read the same artifacts: `niceeval show` is the terminal door, usable by both humans and coding agents; `niceeval view` is the web door, suited to humans browsing evidence. `show` is the terminal version of `view` — the verdicts you read from either one never diverge.
+After every run, [NiceEval](https://niceeval.com/) writes structured results into that experiment's **results snapshot** directory, `.niceeval/<experiment>/<snapshot>/`. There are two doors to read them, and both read the same artifacts: `niceeval show` is the terminal door, usable by both humans and coding agents; `niceeval view` is the web door, suited to humans browsing evidence. `show` is the terminal version of `view` — the verdicts you read from either one never diverge.
 
 ## Console Output
 
@@ -22,21 +22,23 @@ Failing:
       → niceeval show api-validation
 
 Results: 2 passed, 1 failed, 0 errored, 0 skipped
-Structured results: .niceeval/2026-07-09T10-00-00-000Z/summary.json
+Structured results: .niceeval/compare_web-agent/2026-07-09T10-00-00-000Z-x1f2/
+  (snapshot.json + each attempt's result.json / events.json / trace.json / diff.json)
 ```
 
-During the run, each eval prints one streaming line, with failing assertions expanded inline. At the end, the closing block replays the failures together, each with a drill-down command, followed by the path to the structured results. For how this output fits into the run → read → fix → rerun loop, see [Agent Feedback Loop](/guides/agent-feedback-loop).
+During the run, each eval prints one streaming line, with failing assertions expanded inline. At the end, the closing block replays the failures together, each with a drill-down command, followed by this run's snapshot directory. For how this output fits into the run → read → fix → rerun loop, see [Agent Feedback Loop](/guides/agent-feedback-loop).
 
-## `.niceeval/<timestamp>/`
+## `.niceeval/<experiment>/<snapshot>/`
 
-Typical structure:
+The unit of storage is a **results snapshot** — one run of one experiment. The experiment directory sits on the outside; the snapshot directory (a timestamp plus a random suffix, created exclusively) sits underneath it. Typical structure:
 
 ```text
 .niceeval/
-└─ 2025-01-15T14-23-00/
-   ├─ summary.json
-   └─ artifacts/
-      └─ compare__web-agent__gpt-5.4__weather-tool__0/
+└─ compare_web-agent/                     # experiment directory: the sanitized experimentId
+   └─ 2026-07-09T10-00-00-000Z-x1f2/      # snapshot directory: timestamp + random suffix
+      ├─ snapshot.json                    # snapshot metadata (written at start, completedAt backfilled at wrap-up)
+      └─ weather-tool/a0/                 # one eval attempt's directory
+         ├─ result.json                   # verdict, assertions, usage — written once when the attempt completes
          ├─ events.json
          ├─ sources.json
          ├─ trace.json
@@ -66,30 +68,43 @@ Every view in `niceeval view` has a terminal equivalent:
 
 | View in `niceeval view` | Terminal equivalent |
 | --- | --- |
-| Experiments leaderboard | `niceeval show` |
+| Default report (overview, per-group scatter plot and leaderboard, failure list) | `niceeval show` |
 | Attempt details (assertions, errors, usage) | `niceeval show <eval id>` |
 | Transcript | `niceeval show <eval id> --transcript` |
 | Trace waterfall | `niceeval show <eval id> --trace` |
 | File changes | `niceeval show <eval id> --diff` |
 | Historical run list | `niceeval show <eval id> --history`; pin a specific one with `--run <dir>` |
-| Quality x cost scatter plot | The pass / cost columns in `niceeval show`'s leaderboard carry the same data; for a graphical view, use the `MetricScatter` primitive to build a [custom report](/guides/custom-reports) |
 
-### Leaderboard
+### Default report
+
+Bare `niceeval show` renders the terminal version of the default report, top to bottom: a run overview (how many experiments and evals, verdict distribution, total cost, composition sources), one section per experiment group (groups split by the `/` prefix of the experiment id) — a quality × cost character plot plus a leaderboard — and a failure list:
 
 ```text
 $ niceeval show
-Current verdicts · 2 experiments · composed from 3 runs · latest 2026-07-09T10-00-00-000Z
+2 experiments · 15 evals · 30 attempts · composed from 3 runs · latest 2026-07-09T10:00:00.000Z
+passed 25 · failed 5 · errored 0 · skipped 0 · $0.93 · 9m 15s
 
-experiment              evals    pass   cost    duration
-compare/bub-gpt-5.4     13/15    87%    $0.42   4m 12s
-compare/codex-gpt-5.4   12/15    80%    $0.51   5m 03s
+compare
+      Pass rate ↑
+   87%│                                          A
+      │
+   80%│          B
+      └────────────────────────────────────────────→ Cost (axis reversed: right = better)
+       $0.51                                  $0.42
 
-Failing:
-  ✗ weather/brooklyn   compare/codex-gpt-5.4   gate calledTool("get_weather")      41s ago
-  ✗ fixtures/button    compare/bub-gpt-5.4     gate fileChanged("src/components/Button.tsx")   2h ago
+  better → upper right
+  A compare/bub-gpt-5.4   B compare/codex-gpt-5.4
+
+  experiment              Model     Agent   Duration   Pass rate   Tokens          Cost    Verdicts
+  compare/bub-gpt-5.4     gpt-5.4   bub     4m 12s     87%         412.0k tokens   $0.42   13 passed / 2 failed
+  compare/codex-gpt-5.4   gpt-5.4   codex   5m 03s     80%         521.0k tokens   $0.51   12 passed / 3 failed
+
+✗ weather/brooklyn · compare/codex-gpt-5.4 · failed · 41s · $0.04
+    calledTool("get_weather") — score 0
+    → niceeval show weather/brooklyn
 ```
 
-When you run a group of multiple experiments, the summary table in `niceeval exp`'s closing block has this same shape — the same table rendering, the same verdict-folding rules. The only difference is scope: the closing block summarizes only this run, while the `show` leaderboard is the current state composed across runs; each header states which it is.
+Each leaderboard row is one experiment, with agent and model columns — when a group holds several configurations side by side, you can tell at a glance which row is which; verdicts are per-eval folded counts. When you run a group of multiple experiments, the summary table in `niceeval exp`'s closing block has this same leaderboard shape — the same table rendering, the same verdict-folding rules. The only difference is scope: the closing block summarizes only this run, while `show` is the current state composed across runs; each header states which it is.
 
 ### Single eval
 
@@ -105,7 +120,7 @@ attempt 3 · compare/codex-gpt-5.4 · failed · 41s · 12.3k tokens · $0.04
   ✓ gate succeeded()
   ✗ soft judge("reply is based on real-time data") — 0.2/1: reply invents a temperature without any tool call
 
-artifacts: .niceeval/2026-07-09T10-00-00-000Z/artifacts/compare__codex-gpt-5.4__weather__brooklyn__2/
+artifacts: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/weather/brooklyn/a2/
 next: niceeval show weather/brooklyn --transcript | --trace | --diff
 ```
 
@@ -195,7 +210,7 @@ NiceEval writes `<dir>/index.html` and copies the artifacts the viewer reads (`s
 
 `--out` only accepts a directory. There is no single-file export: code views, transcripts, and traces depend on artifact files, and a single HTML file cannot carry the full evidence. To share results, host the whole site and send the link.
 
-When there are zero readable results, `view` errors out with a non-zero exit code instead of starting a local server or exporting an empty page. The error lists each skipped run directory and why; if a run's `schemaVersion` is incompatible with the installed version, the error also gives you an `npx niceeval@<version> view` command that can open that old data directly.
+When there are zero readable results, `view` errors out with a non-zero exit code instead of starting a local server or exporting an empty page. The error lists each skipped snapshot directory and why; if a snapshot's `schemaVersion` is incompatible with the installed version, the error also gives you an `npx niceeval@<version> view` command that can open that old data directly.
 
 Two limits:
 
@@ -206,9 +221,13 @@ The simplest flow is to export on the machine that ran the evals and deploy the 
 
 ## Artifact Reference
 
-### `summary.json`
+### `snapshot.json`
 
-The full-run summary: run ID, pass / fail counts, duration, cost, and per-eval status.
+Snapshot-level metadata: the experiment's identity (`experimentId`), agent, model, start and wrap-up time, and the format version. It carries no per-attempt data at all — aggregate counts like pass/fail are never stored on disk, they're derived on read.
+
+### `result.json`
+
+The authoritative record for a single attempt: verdict, assertions, duration, usage, cost. Written once when the attempt completes and never rewritten after.
 
 ### `events.json`
 

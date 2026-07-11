@@ -14,10 +14,10 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { openResults, type AttemptRef, type Results } from "../results/index.ts";
-import { defineReport, renderReportToText, type ReportDefinition } from "../report/report.ts";
+import { renderReportToText } from "../report/report.ts";
 import { ReportLoadError, loadReportFile } from "../report/load.ts";
-import { DefaultReport } from "../report/default-report.tsx";
-import { t } from "../i18n/index.ts";
+import { defaultReport } from "../report/default-report-definition.tsx";
+import { detectLocale, t } from "../i18n/index.ts";
 import {
   composeShowSelection,
   evalHistory,
@@ -63,12 +63,6 @@ export interface ShowIO {
 /** 可预期的用户错误:打一句英文直说问题与下一步,退出码 1,不抛堆栈。 */
 class ShowError extends Error {}
 
-/** 内置默认报告:报告槽的出厂填充 —— `niceeval show` ≡ `show --report <这一份>`。 */
-const builtinDefaultReport: ReportDefinition = defineReport(() => ({
-  type: DefaultReport,
-  props: {},
-}));
-
 function clampWidth(columns: number | undefined): number {
   if (!Number.isFinite(columns) || (columns ?? 0) <= 0) return 80;
   return Math.max(40, Math.min(columns as number, 160));
@@ -80,14 +74,16 @@ export { loadReportFile } from "../report/load.ts";
 /** 报告里的下钻命令:AttemptRef → `niceeval show <eval id>`(查不到时退 view 深链)。 */
 function makeAttemptCommand(results: Results): (ref: AttemptRef) => string {
   const byRef = new Map<string, string>();
-  for (const run of results.runDirs) {
-    for (const attempt of run.attempts) {
-      byRef.set(`${attempt.ref.run}/${attempt.ref.result}`, attempt.evalId);
+  for (const exp of results.experiments) {
+    for (const snapshot of exp.snapshots) {
+      for (const attempt of snapshot.attempts) {
+        byRef.set(`${attempt.ref.snapshot}/${attempt.ref.attempt}`, attempt.evalId);
+      }
     }
   }
   return (ref) => {
-    const id = byRef.get(`${ref.run}/${ref.result}`);
-    return id !== undefined ? `niceeval show ${id}` : `niceeval view "#/attempt/${ref.run}/${ref.result}"`;
+    const id = byRef.get(`${ref.snapshot}/${ref.attempt}`);
+    return id !== undefined ? `niceeval show ${id}` : `niceeval view "#/attempt/${ref.snapshot}/${ref.attempt}"`;
   };
 }
 
@@ -251,13 +247,16 @@ async function show(
     throw new ShowError(t("cli.show.attemptNeedsEval"));
   }
 
-  // 报告槽:--report 整槽替换,否则内置默认报告(同一条渲染路径)。
+  // 报告槽:--report 整槽替换,否则内置默认报告 defaultReport(同一条渲染路径)。
+  // locale = CLI 界面语言(NICEEVAL_LANG / LC_* / LANG 检测):报告 chrome 文案跟随
+  // 终端语言(docs/reports.md「locale:渲染面的语言」);Locale 与 ReportLocale 同为
+  // "en" | "zh-CN",直接传递。
   const definition =
-    flags.report !== undefined ? await loadReportFile(cwd, flags.report) : builtinDefaultReport;
+    flags.report !== undefined ? await loadReportFile(cwd, flags.report) : defaultReport;
   const text = await renderReportToText(
     definition,
     { selection, results },
-    { width: io.width, attemptCommand: makeAttemptCommand(results) },
+    { width: io.width, attemptCommand: makeAttemptCommand(results), locale: detectLocale() },
   );
   io.out(text + "\n");
 }

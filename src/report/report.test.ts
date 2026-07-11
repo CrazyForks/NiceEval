@@ -6,8 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { AssertionResult, EvalResult, O11ySummary, Verdict, RunSummary } from "../types.ts";
-import type { AttemptHandle, RunDir, Selection, SelectionWarning, Snapshot } from "../results/index.ts";
+import type { AssertionResult, EvalResult, O11ySummary, Verdict } from "../types.ts";
+import type { AttemptHandle, Selection, SelectionWarning, Snapshot } from "../results/index.ts";
 import type { Dimension, MetricCell } from "./types.ts";
 import { costUSD, defineMetric, durationMs, examScore, passRate, tokens, turns } from "./metrics.ts";
 import { flag } from "./flag.ts";
@@ -76,52 +76,42 @@ interface SnapSpec {
 
 let runSeq = 0;
 
-/** 最小构造:一个 run 装一个快照。runStartedAt 决定去重时谁是「最新 run」。 */
+/** 最小构造:一个快照目录装一个快照。runStartedAt 决定去重时谁是「最新快照」。 */
 function snap(spec: SnapSpec): Snapshot {
   runSeq += 1;
   const startedAt = spec.runStartedAt ?? `2026-06-01T00:00:00.${String(runSeq).padStart(3, "0")}Z`;
-  const summary: RunSummary = {
-    agent: spec.agent ?? "agent-x",
+  const dir = `/results/exp/snap-${runSeq}`;
+  const snapshot = {
+    experimentId: spec.experimentId,
     startedAt,
     completedAt: startedAt,
-    passed: 0,
-    failed: 0,
-    skipped: 0,
-    errored: 0,
-    durationMs: 0,
-    results: spec.results,
-  };
-  const runDir: RunDir = { dir: `/results/run-${runSeq}`, summary, attempts: [] };
-  const attempts: AttemptHandle[] = spec.results.map((r, i) => ({
+    agent: spec.agent ?? "agent-x",
+    model: spec.model,
+    schemaVersion: 1,
+    dir,
+    knownEvalIds: spec.knownEvalIds,
+  } as Snapshot;
+  const attempts: AttemptHandle[] = spec.results.map((r) => ({
     evalId: r.id,
     experimentId: r.experimentId ?? spec.experimentId,
     result: r,
-    ref: { run: `run-${runSeq}`, result: i },
-    runDir,
+    ref: { snapshot: `exp/snap-${runSeq}`, attempt: `${r.id}/a${r.attempt}` },
+    snapshot,
     events: async () => null,
     trace: async () => null,
     o11y: async () => r.o11y ?? null,
     diff: async () => null,
     sources: async () => null,
   }));
-  runDir.attempts = attempts;
   const evals = new Map<string, AttemptHandle[]>();
   for (const attempt of attempts) {
     const list = evals.get(attempt.evalId);
     if (list) list.push(attempt);
     else evals.set(attempt.evalId, [attempt]);
   }
-  return {
-    experimentId: spec.experimentId,
-    startedAt,
-    agent: spec.agent ?? "agent-x",
-    model: spec.model,
-    schemaVersion: 1,
-    evals: [...evals.entries()].map(([id, list]) => ({ id, attempts: list })),
-    attempts,
-    runDir,
-    knownEvalIds: spec.knownEvalIds,
-  };
+  snapshot.evals = [...evals.entries()].map(([id, list]) => ({ id, attempts: list }));
+  snapshot.attempts = attempts;
+  return snapshot;
 }
 
 /** 手工造一个 Selection(warnings 随行的形状,filter 语义与 results 一致)。 */
@@ -695,12 +685,12 @@ describe("CaseList.data", () => {
     expect(first.failedAssertions).toHaveLength(1);
     expect(first.failedAssertions[0].detail).toBe("missing text under <repo>/src");
     expect(first.failedAssertions[0].evidence).toBe("checked <repo>/src/app.ts");
-    expect(first.ref.result).toBe(0);
+    expect(first.ref.attempt).toBe("A/a0");
 
     expect(second.eval).toBe("B");
     expect(second.verdict).toBe("errored");
     expect(second.error).toBe("ENOENT <repo>/tool");
-    expect(second.ref.result).toBe(1);
+    expect(second.ref.attempt).toBe("B/a0");
   });
 
   it("verdicts 可收窄;不传 limit 不截断", async () => {

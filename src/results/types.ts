@@ -1,12 +1,12 @@
-// results 域类型:openResults 的分层读取契约与 Selection(定稿见 docs/results-lib.md)。
+// results 域类型:openResults 的分层读取契约与 Selection(定稿见 docs/results-lib.md、docs/results-format.md)。
 //
-// 结果数据类型(EvalResult / RunSummary / StreamEvent / …)仍住在各自的域文件里,
+// 结果数据类型(EvalResult / ExperimentRunInfo / StreamEvent / …)仍住在各自的域文件里,
 // 这里只 import,不搬家 —— 「类型的家」迁移(facade 反向 re-export)是下一波,不在本次范围。
 //
-// 命名约定:Experiment / Snapshot / Eval / RunDir 是纯数据,不带 Handle 后缀;
+// 命名约定:Experiment / Snapshot / Eval 是纯数据,不带 Handle 后缀;
 // 唯一叫 AttemptHandle 的是 attempt —— 它的方法真的会碰磁盘,后缀标记的就是这件事。
 
-import type { EvalResult, RunSummary } from "../types.ts";
+import type { EvalResult, ExperimentRunInfo, LocalizedText } from "../types.ts";
 import type { O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
 import type { DiffData, SourceArtifact } from "../types.ts";
 
@@ -14,43 +14,69 @@ import type { DiffData, SourceArtifact } from "../types.ts";
 export const ARTIFACT_KINDS = ["events", "trace", "o11y", "diff", "sources"] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
-/**
- * 回到证据的引用:run 目录名(相对结果根目录)+ summary.results[] 下标。
- * 字段名(run / result)是 view 深链 `#/attempt/<run>/<result>` 的持久化路由契约,不随句柄改名;
- * Reports 的 MetricCell.refs 用的是同一个身份。
- */
-export interface AttemptRef {
-  run: string;
-  result: number;
+/** 写这份结果的工具:niceeval 自己,或经 niceeval/results 写入面转换的第三方 harness。 */
+export interface Producer {
+  name: string;
+  version?: string;
+  commit?: string;
 }
 
-/** 一个物理落盘 run 目录(低层忠实磁盘面);多数消费方走 experiments,不碰它。 */
-export interface RunDir {
-  /** run 目录的绝对路径(summary.json 所在目录)。 */
-  dir: string;
-  /** 与写入侧同一类型的 RunSummary(results[] 是瘦身条目)。 */
-  summary: RunSummary;
-  /** summary.results[] 逐条包一层懒加载句柄(按下标顺序)。 */
-  attempts: AttemptHandle[];
+/**
+ * `snapshot.json` 的持久化契约:快照元数据 —— 身份、快照级字段与版本元数据,
+ * 不含任何逐 attempt 数据。快照开始时写入;收尾时补写 `completedAt`。
+ * 字段规则与版本判定见 docs/results-format.md「snapshot.json」「版本与升级设计」。
+ */
+export interface SnapshotMeta {
+  /** 恒为 "niceeval.results";和 schemaVersion、producer 一起构成持久化契约,永不移动或改名。 */
+  format: "niceeval.results";
+  /** 结果格式版本;与读取器不同即视为不兼容,提示用 producer.version 对应的 niceeval 查看。 */
+  schemaVersion: number;
+  producer: Producer;
+  /** 权威的实验身份;实验目录名是它的清洗投影。 */
+  experimentId: string;
+  /** 实验运行配置(flags / runs / earlyExit / sandbox / timeoutMs / budget),快照内全部 attempt 共享。 */
+  experiment?: ExperimentRunInfo;
+  agent: string;
+  model?: string;
+  startedAt: string;
+  /** 收尾时补写;缺失 = 快照未收尾(进程中断),已落盘的 attempt 照常可读。 */
+  completedAt?: string;
+  /** 写入时刻该实验已知的 eval 并集 —— 残缺检测的分母随数据走(copySnapshots 自动补记,writer 可声明)。 */
+  knownEvalIds?: string[];
+  /** 项目名(来自 config.name),透传给 `niceeval view` 顶部 hero 显示。 */
+  name?: LocalizedText;
+}
+
+/**
+ * 回到证据的引用:快照目录(根相对)+ 快照内 attempt 目录(快照相对)。
+ * 字段名(snapshot / attempt)是 view 深链 `#/attempt/<snapshot>/<attempt>` 的持久化路由契约,
+ * 不随句柄改名;`snapshot` 恒为两段(`<实验目录>/<快照目录>`),`attempt` 是 `<evalId 路径>/a<n>`,
+ * 路由按「前两段 = 快照」解析。Reports 的 MetricCell.refs 用的是同一个身份。
+ */
+export interface AttemptRef {
+  /** 根相对快照目录:`<experiment-dir>/<快照目录>`。 */
+  snapshot: string;
+  /** 快照相对 attempt 目录:`<evalId 路径>/a<n>`。 */
+  attempt: string;
 }
 
 /**
  * 单个 eval attempt:瘦身条目 + 重 artifact 的懒加载方法。
  * 懒加载即存在性判断: artifact 缺失返回 null,不抛错;同一 handle 内读过一次即记忆化。
- * artifact 定位按候选顺序回退:先本 run 的 artifactsDir,再 artifactBase 指向的原 run 目录
- * (--resume 合入条目的 artifact 留在原 run 里);原 run 被清理后如实返回 null。
+ * artifact 定位按候选顺序回退:先本 attempt 目录,再 artifactBase 指向的原快照 attempt 目录
+ * (--resume 合入条目的 artifact 留在原快照里);原快照被清理后如实返回 null。
  */
 export interface AttemptHandle {
   /** 属于哪道题 —— 直达字段,不绕 result。 */
   evalId: string;
-  /** 属于哪个实验;落盘缺 experimentId 时是 "<agent>/<model>" 合成键(所属快照 synthetic: true)。 */
+  /** 属于哪个实验。 */
   experimentId: string;
-  /** EvalResult 瘦身条目:判定、断言、用量、成本、experiment 元数据。 */
+  /** EvalResult 瘦身条目:判定、断言、用量、成本(快照级字段已拼合)。 */
   result: EvalResult;
-  /** 证据引用,指条目所在的落盘(合入后的新 run); artifact 经候选回退仍可达。 */
+  /** 证据引用,指条目所在的落盘(合入后的新快照); artifact 经候选回退仍可达。 */
   ref: AttemptRef;
-  /** 条目所在的物理落盘;去重「保留最新 run 目录里的那份」靠它比较新旧。 */
-  runDir: RunDir;
+  /** 所属快照(反向引用);去重「保留最新快照里的那份」靠它比较新旧。 */
+  snapshot: Snapshot;
   events(): Promise<StreamEvent[] | null>;
   trace(): Promise<TraceSpan[] | null>;
   o11y(): Promise<O11ySummary | null>;
@@ -64,29 +90,30 @@ export interface Eval {
   attempts: AttemptHandle[];
 }
 
-/**
- * 快照 = 单次跑的实验(experiment × run 切片)。一个 run 目录可以装多个 experiment
- * (`niceeval exp compare`),所以「每个 experiment 最新一次」只能用快照粒度表达。
- */
+/** 快照 = 单次跑的实验,物理上就是一个快照目录,没有更低一层。 */
 export interface Snapshot {
-  /** 结果里缺 experimentId 时以 "<agent>/<model>" 合成键,并经 latest() 记入 warnings。 */
+  /** 权威身份(snapshot.json 字段;实验目录名只是它的清洗投影)。 */
   experimentId: string;
   startedAt: string;
-  /** 本快照自己的 agent —— 不是落盘顶层那个「第一个配置」。 */
+  /** 缺失 = 未收尾(进程中断);已落盘 attempt 照常在下面读到。 */
+  completedAt?: string;
+  /** 本快照自己的 agent。 */
   agent: string;
   model?: string;
-  /** 谁写的这份结果(niceeval 或第三方 harness;legacy 结果可能缺失)。 */
-  producer?: RunSummary["producer"];
-  /** 结果格式版本(能读进来的恒为当前版本;不兼容的在 skipped),缺失按 1。 */
+  /** 实验运行配置(flags / runs / budget …),快照内全部 attempt 共享。 */
+  experiment?: ExperimentRunInfo;
+  /** 谁写的这份结果(niceeval 或第三方 harness)。 */
+  producer: Producer;
+  /** 结果格式版本(能读进来的恒为当前版本;不兼容的在 skipped)。 */
   schemaVersion: number;
+  /** 项目名(来自 config.name),透传给 `niceeval view` 顶部 hero 显示。 */
+  name?: LocalizedText;
   /** 每道题一项:{ id, attempts };残缺检测 / 逐题遍历从这里走。 */
   evals: Eval[];
   /** 全部 attempt 平铺(= evals 逐题展开),不关心题目边界的聚合消费用。 */
   attempts: AttemptHandle[];
-  /** 所属物理落盘(低层面)。 */
-  runDir: RunDir;
-  /** experimentId 是合成键(结果里没有 experimentId)时为 true。 */
-  synthetic?: boolean;
+  /** 快照目录的绝对路径(物理落盘就是快照本身,没有更低一层)。 */
+  dir: string;
   /** 写入时刻该实验已知的 eval 并集(可选);copySnapshots 自动补记,writer.snapshot() 也可声明。 */
   knownEvalIds?: string[];
 }
@@ -103,31 +130,30 @@ export interface Experiment {
 }
 
 /** 目录扫描里读不了、但必须让调用方知道的落盘;无关 JSON 不记(静默忽略)。 */
-export interface SkippedRun {
-  /** run 目录的绝对路径。 */
+export interface SkippedDir {
+  /** 落盘目录的绝对路径。 */
   dir: string;
   /**
    * incompatible-version:schemaVersion 与读取器不同(不解析、不迁移、不降级);
-   * malformed:summary.json 是坏数据;
-   * incomplete:有 attempt artifact、没有 summary.json —— run 中途 crash、writer 没走到 finish()。
-   * summary 是收尾事实,reader 不读无 summary 的目录;已完成的 artifact 留在盘上供手工排查。
+   * malformed:snapshot.json(或历史版本的 summary.json)是坏数据;
+   * incomplete:有 attempt 落盘、没有 snapshot.json —— 快照目录建好但元数据没写完的极小窗口,
+   * 或人为删文件。snapshot.json 是收尾事实,reader 不读无 snapshot.json 的目录;
+   * 已完成的 attempt 留在盘上供手工排查。
    */
   reason: "incompatible-version" | "malformed" | "incomplete";
-  /** 那份结果声明的 schemaVersion(incomplete 没有 summary,自然缺失)。 */
+  /** 那份结果声明的 schemaVersion(incomplete 没有 snapshot.json,自然缺失)。 */
   schemaVersion?: number;
   /** 完整的 producer(name + version):只有 name === "niceeval" 才能拼 npx 提示,第三方如实报名字。 */
-  producer?: RunSummary["producer"];
+  producer?: Producer;
   /** malformed:一句英文诊断。 */
   detail?: string;
 }
 
-/** openResults 的返回:experiments 分层;skipped 不静默丢;runDirs 忠实磁盘(新→旧)。 */
+/** openResults 的返回:experiments 分层;skipped 不静默丢。 */
 export interface Results {
   /** 每个实验一项,挂着自己的全部历史(id 字典序)。 */
   experiments: Experiment[];
-  skipped: SkippedRun[];
-  /** 低层忠实磁盘面:物理落盘目录,新→旧;多数消费方不碰。 */
-  runDirs: RunDir[];
+  skipped: SkippedDir[];
   /**
    * 每个实验取最新一次快照,返回 Selection(快照与挑选警告绑在一起走)。
    * `experiments` 是 experiment id 前缀过滤(string | string[]),同 CLI 位置参数语义。
@@ -152,8 +178,8 @@ export interface Selection {
 }
 
 /**
- * 挑选警告:每种带 kind、可判断的结构化字段和渲染好的英文 message。
- * kind 是契约的一部分;全集与触发条件见 docs/results-lib.md「警告 kind 全集」。
+ * 挑选警告:每种带 kind、可判断的结构化字段和渲染好的英文 message;
+ * kind 是契约的一部分,全集与触发条件见 docs/results-lib.md「警告 kind 全集」。
  */
 export type SelectionWarning =
   | {
@@ -173,11 +199,12 @@ export type SelectionWarning =
       message: string;
     }
   | {
-      /** 落盘缺 experimentId,以 "<agent>/<model>" 合成键(快照的 synthetic: true 同源)。 */
-      kind: "synthetic-experiment-id";
+      /** 选中快照缺 completedAt(进程中断,未收尾);已落盘 attempt 照常读出,警告提示集合可能不完整。 */
+      kind: "unfinished-snapshot";
       experimentId: string;
-      /** 该快照所在 run 目录的绝对路径。 */
-      runDir: string;
+      startedAt: string;
+      /** 该快照目录的绝对路径。 */
+      dir: string;
       message: string;
     };
 

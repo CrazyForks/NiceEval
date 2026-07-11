@@ -23,7 +23,9 @@ import type {
   ScatterData,
   ScoreboardData,
   TableData,
+  TableRowMeta,
 } from "./types.ts";
+import { evalLevelStats } from "../shared/verdict.ts";
 import {
   applyAggregator,
   assertUniqueMetricNames,
@@ -62,6 +64,30 @@ export interface TableDataOptions<M extends readonly Metric[]> {
   evals?: string | string[];
 }
 
+/**
+ * experiment 行的元信息:agent/model 身份(组内去重后拼接)+ eval 级折叠计票
+ * (evalLevelStats,即 view 榜单/DefaultReport 榜单的同一套 foldEvalVerdict 口径)。
+ * 其它行维度(agent/eval/自定义…)没有唯一身份,不携带。
+ */
+function experimentRowMeta(group: Item[]): TableRowMeta {
+  const agents = new Set<string>();
+  const models = new Set<string>();
+  for (const item of group) {
+    agents.add(item.attempt.result.agent);
+    const model = item.attempt.result.model ?? item.snapshot.model;
+    if (model !== undefined) models.add(model);
+  }
+  const stats = evalLevelStats(
+    group.map((item) => ({ verdict: item.attempt.result.verdict, key: evalIdOf(item) })),
+    (r) => r.key,
+  );
+  return {
+    ...(agents.size > 0 ? { agent: [...agents].join(", ") } : {}),
+    ...(models.size > 0 ? { model: [...models].join(", ") } : {}),
+    verdicts: { passed: stats.passed, failed: stats.failed, errored: stats.errored, skipped: stats.skipped },
+  };
+}
+
 export async function tableData<const M extends readonly Metric[]>(
   input: SnapshotsInput,
   opts: TableDataOptions<M>,
@@ -70,7 +96,7 @@ export async function tableData<const M extends readonly Metric[]>(
   const { snapshots } = resolveInput(input);
   const items = filterItems(collectItems(snapshots), opts.evals);
   const groups = groupItems(items, opts.rows);
-  const rows: { key: string; cells: Record<string, MetricCell> }[] = [];
+  const rows: TableData["rows"] = [];
   const sortCells = new Map<string, MetricCell>();
   for (const [key, group] of groups) {
     const cells: Record<string, MetricCell> = {};
@@ -79,7 +105,11 @@ export async function tableData<const M extends readonly Metric[]>(
       // sort 指标不在 columns 里时单独算一遍,只用于排序、不进输出
       sortCells.set(key, cells[opts.sort.name] ?? (await computeCell(opts.sort, group)));
     }
-    rows.push({ key, cells });
+    rows.push({
+      key,
+      cells,
+      ...(opts.rows === "experiment" ? { meta: experimentRowMeta(group) } : {}),
+    });
   }
   if (opts.sort) {
     const better = opts.sort.better ?? "higher";

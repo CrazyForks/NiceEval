@@ -25,12 +25,11 @@ function summary(results: EvalResult[]): RunSummary {
     errored: 0,
     durationMs: 60_000,
     results,
-    outputDir: ".niceeval/x",
   };
 }
 
 describe("filterSummary", () => {
-  it("按 eval id 过滤结果并重新计数,保留原 completedAt / outputDir", () => {
+  it("按 eval id 过滤结果并重新计数,保留原 completedAt", () => {
     const s = summary([
       result("a/1", { usage: { inputTokens: 10, outputTokens: 5 }, estimatedCostUSD: 0.1 }),
       result("a/1", { verdict: "failed", attempt: 1 }),
@@ -43,7 +42,6 @@ describe("filterSummary", () => {
     expect(sub.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
     expect(sub.estimatedCostUSD).toBe(0.1);
     expect(sub.completedAt).toBe("2026-07-07T00:01:00.000Z");
-    expect(sub.outputDir).toBe(".niceeval/x");
   });
 });
 

@@ -6,6 +6,7 @@
 
 import type { ReactElement } from "react";
 import type { AttemptRef, MatrixData } from "../types.ts";
+import { DEFAULT_REPORT_LOCALE, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";
@@ -14,10 +15,12 @@ export function MetricMatrix({
   data,
   attemptHref,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: MatrixData;
   attemptHref?: (ref: AttemptRef) => string;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   // 稀疏 cells → 首次出现顺序的行/列键 + 查找表;组件只整理形状,不碰数值
   const rowKeys: string[] = [];
@@ -33,7 +36,7 @@ export function MetricMatrix({
   return (
     <table className={cx("nre", "nre-metric-matrix", className)}>
       <caption className="nre-matrix-caption">
-        {data.metric.label}
+        {resolveMetricLabel(data.metric.label, locale, data.metric.key)}
         {data.metric.unit && <span className="nre-unit">({data.metric.unit})</span>}
         <span className="nre-matrix-axes">
           {data.rows} × {data.columns}
@@ -63,7 +66,7 @@ export function MetricMatrix({
               return (
                 <td key={column} className={cx("nre-td", !cell && "nre-td-empty")}>
                   {/* 稀疏格子:没有样本就空着(数据里不存在),不是 0 也不是缺数据文案 */}
-                  {cell ? <MetricCellView cell={cell} attemptHref={attemptHref} /> : null}
+                  {cell ? <MetricCellView cell={cell} attemptHref={attemptHref} locale={locale} /> : null}
                 </td>
               );
             })}

@@ -72,10 +72,35 @@ export const tableData: TableData<"pass-rate" | "code-lines"> = {
           display: "87%",
           samples: 6,
           total: 6,
-          refs: [{ run: "run-a", result: 0 }],
+          refs: [{ snapshot: "exp/run-a", attempt: "eval/a0" }],
         },
         // samples < total:有 attempt 测不了 → 覆盖率角标 5/6
         "code-lines": { value: 120, display: "120 lines", samples: 5, total: 6, refs: [] },
+      },
+    },
+  ],
+};
+
+/** rows: "experiment" 的榜单形态:行携带 agent/model 元信息与 eval 级折叠计票。 */
+export const tableDataWithMeta: TableData<"pass-rate"> = {
+  dimension: "experiment",
+  columns: [passRateColumn],
+  rows: [
+    {
+      key: "compare/bub",
+      cells: { "pass-rate": { value: 0.5, display: "50%", samples: 2, total: 2, refs: [] } },
+      meta: {
+        agent: "bub",
+        model: "gpt-5.4",
+        verdicts: { passed: 1, failed: 1, errored: 0, skipped: 0 },
+      },
+    },
+    {
+      key: "compare/codex",
+      cells: { "pass-rate": { value: 1, display: "100%", samples: 2, total: 2, refs: [] } },
+      meta: {
+        agent: "codex",
+        verdicts: { passed: 2, failed: 0, errored: 0, skipped: 0 },
       },
     },
   ],
@@ -96,8 +121,8 @@ export const matrixData: MatrixData = {
         samples: 2,
         total: 2,
         refs: [
-          { run: "run-b", result: 3 },
-          { run: "run-b", result: 7 },
+          { snapshot: "exp/run-b", attempt: "algebra/quadratic/a3" },
+          { snapshot: "exp/run-b", attempt: "algebra/quadratic/a7" },
         ],
       },
     },
@@ -281,7 +306,7 @@ export const caseListData: CaseListData = {
       ],
       durationMs: 32_000,
       costUSD: 0.12,
-      ref: { run: "run-a", result: 4 },
+      ref: { snapshot: "exp/run-a", attempt: "algebra/quadratic/a4" },
     },
     {
       eval: "geometry/angles",
@@ -291,7 +316,7 @@ export const caseListData: CaseListData = {
       error: "TypeError: cannot read properties of undefined (reading 'foo')",
       failedAssertions: [],
       durationMs: 4_500,
-      ref: { run: "run-c", result: 1 },
+      ref: { snapshot: "exp/run-c", attempt: "geometry/angles/a1" },
     },
   ],
   truncated: 2,

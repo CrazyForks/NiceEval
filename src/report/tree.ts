@@ -8,6 +8,7 @@
 
 import type { ReactNode } from "react";
 import type { AttemptRef } from "../results/index.ts";
+import { DEFAULT_REPORT_LOCALE, type ReportLocale } from "./locale.ts";
 
 // ───────────────────────── 节点形状 ─────────────────────────
 
@@ -43,6 +44,8 @@ export const COMPONENT_FACES: unique symbol = Symbol.for("niceeval.report.faces"
 export interface TextContext {
   /** 可用列宽;Row 分栏后变窄。 */
   width: number;
+  /** chrome 文案的 locale(verdict 词、注脚、占位符);默认 "en",show 输出不变。 */
+  locale: ReportLocale;
   /** 容器组件渲染 children 用,宽度显式传递。 */
   render(node: ReportNode, width?: number): string;
   /** 下钻命令,通证据室。 */
@@ -52,6 +55,8 @@ export interface TextContext {
 export interface WebContext {
   /** 证据室深链,同 view 的 attempt 路由。 */
   attemptHref(ref: AttemptRef): string;
+  /** chrome 文案的 locale;官方组件渲染面经上下文读取,宿主外默认 "en"。 */
+  locale: ReportLocale;
 }
 
 export interface ComponentFaces<P> {
@@ -74,7 +79,8 @@ export type ReportComponent<P> = ((props: P) => ReactNode) & {
 // 时总有去处);官方组件的「宿主里自动接证据室」只在宿主上下文激活时发生,
 // 宿主外不传 attemptHref 就是纯展示,不发明断链。
 const DEFAULT_WEB_CONTEXT: WebContext = {
-  attemptHref: (ref) => `#/attempt/${ref.run}/${ref.result}`,
+  attemptHref: (ref) => `#/attempt/${ref.snapshot}/${ref.attempt}`,
+  locale: DEFAULT_REPORT_LOCALE,
 };
 let activeWebContext: WebContext | null = null;
 
@@ -176,14 +182,18 @@ export interface TextRenderOptions {
   width?: number;
   /** 下钻命令的生成;宿主注入,默认指向 view 的 attempt 路由。 */
   attemptCommand?: (ref: AttemptRef) => string;
+  /** chrome 文案的 locale;默认 "en"(`niceeval show` 现有输出不变)。 */
+  locale?: ReportLocale;
 }
 
 export function createTextContext(options?: TextRenderOptions): TextContext {
   const width = Math.max(20, options?.width ?? 80);
+  const locale = options?.locale ?? DEFAULT_REPORT_LOCALE;
   const attemptCommand =
-    options?.attemptCommand ?? ((ref: AttemptRef) => `niceeval view "#/attempt/${ref.run}/${ref.result}"`);
+    options?.attemptCommand ?? ((ref: AttemptRef) => `niceeval view "#/attempt/${ref.snapshot}/${ref.attempt}"`);
   const make = (w: number): TextContext => ({
     width: w,
+    locale,
     attemptCommand,
     render(node, childWidth) {
       return renderNodeToText(node, childWidth === undefined ? this : make(Math.max(10, childWidth)));

@@ -41,7 +41,7 @@ export function attemptCostUSD(result: EvalResult): number | null {
 
 export const passRate = defineMetric({
   name: "pass-rate",
-  label: "Pass rate",
+  label: { en: "Pass rate", "zh-CN": "成功率" },
   description: "Share of evals that passed (skipped attempts excluded).",
   better: "higher",
   unit: "%",
@@ -51,7 +51,7 @@ export const passRate = defineMetric({
 
 export const examScore = defineMetric({
   name: "exam-score",
-  label: "Exam score",
+  label: { en: "Exam score", "zh-CN": "考试得分" },
   description: "Per-eval score: gates decide pass, soft assertions grade quality.",
   better: "higher",
   unit: "%",
@@ -70,7 +70,7 @@ export const examScore = defineMetric({
 
 export const durationMs = defineMetric({
   name: "duration",
-  label: "Duration",
+  label: { en: "Duration", "zh-CN": "平均耗时" },
   description: "Wall-clock duration of the attempt.",
   better: "lower",
   unit: "ms",
@@ -79,7 +79,7 @@ export const durationMs = defineMetric({
 
 export const tokens = defineMetric({
   name: "tokens",
-  label: "Tokens",
+  label: { en: "Tokens", "zh-CN": "Tokens" },
   description: "Input + output tokens (cache reads/writes excluded).",
   better: "lower",
   unit: "tokens",
@@ -95,7 +95,7 @@ export const tokens = defineMetric({
 
 export const costUSD = defineMetric({
   name: "cost",
-  label: "Cost",
+  label: { en: "Cost", "zh-CN": "预估成本" },
   description: "USD cost per attempt (gateway-measured beats estimated).",
   better: "lower",
   unit: "$",
@@ -109,7 +109,7 @@ export const costUSD = defineMetric({
  */
 export const turns = defineMetric({
   name: "turns",
-  label: "Turns",
+  label: { en: "Turns", "zh-CN": "轮次" },
   description: "Total agent turns (assistant replies) per attempt. Reads o11y — “—” if not published alongside this attempt.",
   better: "lower",
   unit: "turns",

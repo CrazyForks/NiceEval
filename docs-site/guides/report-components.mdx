@@ -11,7 +11,7 @@ All components share one contract, not repeated below for each:
 - **Honest rendering.** Missing data renders as `—`, never padded to `0`; an incompletely-covered cell carries a `12/15` badge; truncation faithfully labels the remaining count and the original artifact path.
 - **Sort direction and orientation follow the metric's `better`.** A `higher` metric sorts descending, a `lower` one ascending — the "good" end is always at the top, or in the top-right.
 - **Evidence-room deep links.** On the web face, cells, points, and entries deep-link to the attempt popup; on the terminal face, a `niceeval show <eval id>` drill-down command is printed under each entry.
-- **Both faces share the same scoring, and the web face is complete without hydration.** Sort order is fixed at compute time by `sort`, so both faces show a pre-sorted, identical order; drill-down is an ordinary link, expand/collapse uses `<details>`; the web face offers no scoring-level interaction that the terminal face lacks, so a static export needs zero client-side JS.
+- **Both faces share the same scoring, and the web face is complete without JS.** Sort order is fixed at compute time by `sort`, so both faces show the same baseline order; drill-down is an ordinary link, expand/collapse uses `<details>`. The web face adds a browsing layer on top: click a header to re-sort in place, filter table rows, hover a chart point for its values — these only affect the view in front of you, never the data, and a refresh restores the baseline order; with JS disabled the interactions disappear but no content is lost (hover details fall back to in-chart tooltips).
 
 ## Layout primitives
 
@@ -37,7 +37,7 @@ Exam scorecard
 
 ## `DefaultReport` — the whole official layout
 
-This is exactly what the two official doors render when run bare: a cross-run composed current leaderboard plus a failure list, with the header faithfully noting the composition sources. Zero props, purely declarative — the official layout only reads slimmed-down entries, and the host always has it ready, injected via context. Lay it into your own report when you want the official layout mixed in; skip it if you don't:
+The official layout comes in two forms with distinct jobs. The value `defaultReport` (exported from `niceeval/report`) is the default report the two official doors render when run bare — a run overview, one section per experiment group (quality × cost scatter plot + leaderboard, groups split by the `/` prefix of the experiment id), and a failure list; see [Viewing results](/guides/viewing-results) for its shape. `niceeval view` equals `niceeval view --report` with it. The component `<DefaultReport />` is the official-layout anchor block you lay into your own report: a run overview, the current leaderboard (experiment × folded eval tallies / pass rate / cost / duration), and a failure list. Zero props, purely declarative — the official layout only reads slimmed-down entries, and the host always has it ready, injected via context; putting the official reading side by side with your own is exactly why you'd place it:
 
 ```tsx
 <DefaultReport />
@@ -46,13 +46,16 @@ This is exactly what the two official doors render when run bare: a cross-run co
 ```text
 Current verdicts · 2 experiments · composed from 3 runs · latest 2026-07-09T10-00-00-000Z
 
-experiment              evals    pass   cost    duration
-compare/bub-gpt-5.4     13/15    87%    $0.42   4m 12s
-compare/codex-gpt-5.4   12/15    80%    $0.51   5m 03s
+experiment              evals   pass   cost    duration
+compare/bub-gpt-5.4     13/15   87%    $0.42   4m 12s
+compare/codex-gpt-5.4   12/15   80%    $0.51   5m 03s
 
 Failing:
   ✗ weather/brooklyn   compare/codex-gpt-5.4   gate calledTool("get_weather")   41s ago
+      → niceeval show weather/brooklyn
 ```
+
+Each leaderboard row is one experiment; evals is the per-eval folded verdict tally. For the full default-report shape — agent / model columns riding along, per-group scatter plots — use the value `defaultReport`; to keep just the official block next to your own reading, use this component.
 
 ## `RunOverview` — the KPI header bar
 
@@ -86,7 +89,9 @@ bub     87%         312 lines    $0.42
 codex   80% 12/15   355 lines    $0.51
 ```
 
-Both faces are pre-sorted by `sort`, seeing the same order — changing the sort is a one-line edit and a rerun, not an interaction available on only one face. The `12/15` badge means only 12 of the 15 attempts in that cell had this metric measured.
+Both faces are pre-sorted by `sort`, sharing the same baseline order — to permanently change the sort, it's a one-line edit and a rerun. The `12/15` badge means only 12 of the 15 attempts in that cell had this metric measured.
+
+With `rows: "experiment"`, every row automatically carries agent and model columns — metadata already present in the results, no configuration needed. Passing `filter` (`<MetricTable data={…} filter />`) renders a filter box above the table on the web face; typing hides non-matching rows — a browsing operation only, never changing the data, with no terminal counterpart. For filtering that is part of the scoring, use the `evals` prefix parameter or recompute with a different dimension.
 
 ## `MetricMatrix` — per-question grid
 

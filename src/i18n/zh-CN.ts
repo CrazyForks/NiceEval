@@ -48,7 +48,7 @@ export const zhCN = {
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --attempt <n> 指定 attempt   --report <文件> 自定义报告\n" +
     "  niceeval list                            列出发现到的 eval\n" +
-    "  niceeval view [eval-id 前缀…|summary.json] [--out 目录] [--port n] [--no-open]\n" +
+    "  niceeval view [eval-id 前缀…|snapshot.json] [--out 目录] [--port n] [--no-open]\n" +
     "      报告槽 + 证据室;--report <文件> 整槽换成自定义报告(与 show 同一文件)\n" +
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --out <目录> 静态导出:index.html 连同查看器 artifact,可直接静态托管\n" +
@@ -87,7 +87,7 @@ export const zhCN = {
   "cli.noAgent": "未指定 agent(用 --agent <name>)。\n",
   "cli.none": "(无)",
   "cli.pressCtrlC": "按 Ctrl+C 退出。\n",
-  "cli.resultsPath": "结构化结果:{{path}}(每条结果的 artifactsDir 下是该次 attempt 的 events.json / trace.json / diff.json)\n",
+  "cli.resultsPath": "结构化结果:{{path}}(snapshot.json + 每 attempt 的 result.json / events.json / trace.json / diff.json)\n",
   "cli.run.experimentRequired":
     "运行 eval 必须通过 experiment:用 `niceeval exp [实验组|配置] [eval id 前缀]`。\n" +
     "  文档:node_modules/niceeval/docs-site/zh/guides/write-experiment.mdx\n",

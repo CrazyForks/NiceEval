@@ -113,6 +113,9 @@ export type MessageKey =
   | "banner.skipped.incompatibleForeign"
   | "banner.skipped.malformed"
   | "banner.skipped.incomplete"
+  | "banner.expandRest"
+  | "banner.collapse"
+  | "banner.copyCommand"
   | "banner.warningsTitle"
   | "hero.composedFrom"
   | "chart.costVsScore"
@@ -141,7 +144,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     "section.traces": "Traces",
     "search.experiments": "Filter experiment, agent, model, or eval...",
     "search.runs": "Filter eval ID or experiment...",
-    "empty.summary": "No summary.json files found. Run niceeval or pass niceeval view path/to/summary.json.",
+    "empty.summary": "No snapshots found. Run niceeval or pass niceeval view path/to/snapshot.json.",
     "empty.individualRuns": "No individual runs found.",
     "empty.runsFilter": "No results match the filter.",
     "empty.traces": "No traces available. Traces are collected during eval runs when artifacts are saved.",
@@ -227,11 +230,14 @@ const dictionaries: Record<Locale, Dictionary> = {
     "verdict.failed": "failed",
     "verdict.errored": "errors",
     "verdict.skipped": "skipped",
-    "banner.skippedTitle": "Some runs could not be loaded and are not shown here:",
-    "banner.skipped.incompatible": "written by niceeval {{producer}} (schemaVersion {{schemaVersion}}) — view it with the command on the right",
-    "banner.skipped.incompatibleForeign": "written by {{name}} {{version}} (schemaVersion {{schemaVersion}}) — this viewer cannot read it; open it with the tool that produced it",
-    "banner.skipped.malformed": "unreadable report ({{detail}}) — it may be corrupted; re-run the eval or delete this run directory",
-    "banner.skipped.incomplete": "the run crashed before writing summary.json — completed attempt artifacts remain on disk for manual inspection; delete the directory if you no longer need them",
+    "banner.skippedTitle": "{{count}} run(s) could not be loaded and are not shown here",
+    "banner.skipped.incompatible": "written by niceeval {{producer}} (schemaVersion {{schemaVersion}}) — current version can't read it, expand for the view command",
+    "banner.skipped.incompatibleForeign": "written by {{name}} {{version}} (schemaVersion {{schemaVersion}}) — this viewer cannot read them; open with the tool that produced them",
+    "banner.skipped.malformed": "unreadable report ({{detail}}) — may be corrupted; re-run the eval or delete the run directory",
+    "banner.skipped.incomplete": "snapshot.json was never written (a narrow crash window) — completed attempt artifacts remain on disk for manual inspection; delete the directory if you no longer need them",
+    "banner.expandRest": "Show {{count}} more",
+    "banner.collapse": "Collapse",
+    "banner.copyCommand": "Copy view command",
     "banner.warningsTitle": "Heads-up about the current leaderboard selection:",
     "hero.composedFrom": "Composed from {{count}} run(s)",
     "chart.costVsScore": "Cost vs. Score",
@@ -257,7 +263,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     "section.traces": "追踪",
     "search.experiments": "筛选实验、agent、model 或 eval...",
     "search.runs": "筛选 eval ID 或实验...",
-    "empty.summary": "没有找到 summary.json。请先运行 niceeval，或传入 niceeval view path/to/summary.json。",
+    "empty.summary": "没有找到快照。请先运行 niceeval，或传入 niceeval view path/to/snapshot.json。",
     "empty.individualRuns": "没有单次运行结果。",
     "empty.runsFilter": "没有匹配筛选条件的结果。",
     "empty.traces": "没有可用追踪。保存 artifact 的 eval run 会收集 traces。",
@@ -343,11 +349,14 @@ const dictionaries: Record<Locale, Dictionary> = {
     "verdict.failed": "失败",
     "verdict.errored": "错误",
     "verdict.skipped": "跳过",
-    "banner.skippedTitle": "以下 run 读取失败,此处不展示:",
-    "banner.skipped.incompatible": "由 niceeval {{producer}} 写入(schemaVersion {{schemaVersion}})—— 用右侧命令查看",
+    "banner.skippedTitle": "{{count}} 个 run 读取失败,此处不展示",
+    "banner.skipped.incompatible": "由 niceeval {{producer}} 写入(schemaVersion {{schemaVersion}})—— 当前版本读不了,展开查看命令",
     "banner.skipped.incompatibleForeign": "由 {{name}} {{version}} 写入(schemaVersion {{schemaVersion}})—— 当前查看器读不了;请用写出它的工具查看",
-    "banner.skipped.malformed": "报告读不了({{detail}})—— 可能已损坏;重跑该 eval 或删除这个 run 目录",
-    "banner.skipped.incomplete": "该 run 中途崩溃、没写出 summary.json —— 已完成的 attempt artifact 仍在盘上供手工排查;不需要就删除该目录",
+    "banner.skipped.malformed": "报告读不了({{detail}})—— 可能已损坏;重跑该 eval 或删除对应 run 目录",
+    "banner.skipped.incomplete": "快照目录已创建但从未写出 snapshot.json(极窄的崩溃窗口)—— 已完成的 attempt artifact 仍在盘上供手工排查;不需要就删除对应目录",
+    "banner.expandRest": "展开其余 {{count}} 个",
+    "banner.collapse": "收起",
+    "banner.copyCommand": "复制查看命令",
     "banner.warningsTitle": "当前榜单挑选的提醒:",
     "hero.composedFrom": "合成自 {{count}} 个 run",
     "chart.costVsScore": "成本 × 通过率",

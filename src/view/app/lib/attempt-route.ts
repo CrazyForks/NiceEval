@@ -1,43 +1,51 @@
-// attempt 级 hash 深链:`#/attempt/<run>/<result>`(docs/view.md「用 Reports 积木重建 view」)。
-// 路由参数就是 AttemptRef(run 目录名 + summary.results 下标),由 loader 注入到每条 result 上;
-// 这里只做纯解析 / 格式化 / 匹配,不碰 location / history,方便单测。
+// attempt 级 hash 深链:`#/attempt/<snapshot>/<attempt>`(docs/view.md「用 Reports 积木重建 view」)。
+// 路由参数就是 AttemptRef(快照的根相对路径 + attempt 的快照相对路径),由 loader 注入到每条
+// result 上;这里只做纯解析 / 格式化 / 匹配,不碰 location / history,方便单测。
 // hash 目前只有这一种路由:tab 切换是纯组件 state,旧版 modal 深链走 ?modal= 查询参数,互不占用。
 
 import type { AttemptRef, ViewResult, ViewSnapshot } from "../types.ts";
 
 export const ATTEMPT_HASH_PREFIX = "#/attempt/";
 
-/** AttemptRef → 可分享的 hash。run 整体编码(嵌套 run 目录里的 "/" 也编进去),下标恒为末段。 */
+/** attempt 段的形状:`a<n>`。 */
+const ATTEMPT_TAIL = /^a\d+$/;
+
+function encodeSegments(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+/** AttemptRef → 可分享的 hash。snapshot 与 attempt 各自按 "/" 切段、逐段编码,再首尾相接。 */
 export function formatAttemptHash(ref: AttemptRef): string {
-  return `${ATTEMPT_HASH_PREFIX}${encodeURIComponent(ref.run)}/${ref.result}`;
+  return `${ATTEMPT_HASH_PREFIX}${encodeSegments(ref.snapshot)}/${encodeSegments(ref.attempt)}`;
 }
 
 /**
  * hash → AttemptRef;不是本路由 / 形状不对返回 null(由调用方决定 warn 与否)。
- * 手写链接可能不编码 run 里的 "/"(嵌套 run 目录),所以按「最后一段是下标」切,而不是按段数。
+ * 去前缀、按 "/" 切段逐段解码;段数 < 3 或末段不匹配 `a<n>` 视为畸形。snapshot 恒占前两段
+ * (与 niceeval/results 的约定一致),其余段拼回 attempt(evalId 本身可能带 "/")。
  */
 export function parseAttemptHash(hash: string): AttemptRef | null {
   if (!hash.startsWith(ATTEMPT_HASH_PREFIX)) return null;
   const rest = hash.slice(ATTEMPT_HASH_PREFIX.length);
-  const cut = rest.lastIndexOf("/");
-  if (cut <= 0) return null; // 没有下标段,或 run 为空
-  const indexPart = rest.slice(cut + 1);
-  if (!/^\d+$/.test(indexPart)) return null;
-  let run: string;
+  if (!rest) return null;
+  let segments: string[];
   try {
-    run = decodeURIComponent(rest.slice(0, cut));
+    segments = rest.split("/").map((segment) => decodeURIComponent(segment));
   } catch {
     return null; // 非法 % 转义
   }
-  if (!run) return null;
-  return { run, result: parseInt(indexPart, 10) };
+  if (segments.length < 3 || segments.some((segment) => segment.length === 0)) return null;
+  if (!ATTEMPT_TAIL.test(segments.at(-1)!)) return null;
+  const snapshot = segments.slice(0, 2).join("/");
+  const attempt = segments.slice(2).join("/");
+  return { snapshot, attempt };
 }
 
 /** 在全部快照(含历史)里找 AttemptRef 指向的 attempt;旧格式烘焙的数据没有 attemptRef,自然找不到。 */
 export function resolveAttemptRef(snapshots: ViewSnapshot[], ref: AttemptRef): ViewResult | null {
   for (const snapshot of snapshots) {
     for (const result of snapshot.results ?? []) {
-      if (result.attemptRef?.run === ref.run && result.attemptRef.result === ref.result) return result;
+      if (result.attemptRef?.snapshot === ref.snapshot && result.attemptRef.attempt === ref.attempt) return result;
     }
   }
   return null;
@@ -47,6 +55,6 @@ export function resolveAttemptRef(snapshots: ViewSnapshot[], ref: AttemptRef): V
 export function unresolvedAttemptWarning(hash: string): string {
   return (
     `[niceeval view] Ignoring attempt link "${hash}": no matching attempt in this view ` +
-    `(run not loaded, result index out of range, or the data was baked without attempt refs).`
+    `(snapshot not loaded, attempt not found, or the data was baked without attempt refs).`
   );
 }

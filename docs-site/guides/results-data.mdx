@@ -1,7 +1,7 @@
 ---
 title: "Read and write results data directly with niceeval/results"
 sidebarTitle: "Results Data API"
-description: "The data layer underneath the report building blocks: openResults parses the on-disk artifacts under .niceeval/ into a typed experiment → snapshot → eval → attempt hierarchy, createRunWriter writes other harnesses' results into NiceEval's format, and copySnapshots handles publish-time slimming."
+description: "The data layer underneath the report building blocks: openResults parses the on-disk artifacts under .niceeval/ into a typed experiment → snapshot → eval → attempt hierarchy, createResultsWriter writes other harnesses' results into NiceEval's format, and copySnapshots handles publish-time slimming."
 ---
 
 Underneath the building blocks in [Custom Reports](/guides/custom-reports) — metrics, compute functions, dual-faced components — sits one more layer: `niceeval/results`, the parser for on-disk artifacts. Both official doors and every report building block read from this layer, with no private data channel; when a scoring need cannot even be expressed as a compute function, drop to this layer and grab the data directly.
@@ -16,7 +16,7 @@ This layer only handles reading and writing data; it holds no opinion of its own
 
 ## Reading: `openResults`
 
-The input is a `.niceeval/` directory (or a single run directory); the output is four layers of data: **experiment → snapshot (one run of an experiment) → eval → attempt**. From here on you never touch a path, never check file existence, never parse JSON:
+The input is a `.niceeval/` directory (or a results root produced by `copySnapshots`, the same layout); the output is four layers of data: **experiment → snapshot (one run of an experiment) → eval → attempt**. From here on you never touch a path, never check file existence, never parse JSON:
 
 ```typescript
 import { openResults } from "niceeval/results";
@@ -45,6 +45,8 @@ const snap = exp.latest;
 snap.agent;                    // this snapshot's own agent
 snap.model;
 snap.startedAt;                // when this run happened
+snap.completedAt;              // written back at wrap-up; missing = the process was interrupted, completed attempts still read fine
+snap.dir;                      // the snapshot directory's absolute path — the on-disk snapshot itself, there is no lower layer
 snap.producer;                 // { name: "niceeval", version: "0.4.6" } — who wrote this result
 snap.schemaVersion;            // the result format version
 ```
@@ -67,7 +69,7 @@ const attempt = snap.evals[0].attempts[0];
 attempt.evalId;                // "algebra/quadratic" — which question it belongs to, no detour through result
 attempt.experimentId;          // which experiment it belongs to
 attempt.result;                // EvalResult: verdict, assertions, usage, cost, experiment metadata
-attempt.ref;                   // { run, result }: an evidence reference, the same identity as view deep links and report cell refs
+attempt.ref;                   // { snapshot, attempt }: an evidence reference, the same identity as view deep links and report cell refs
 await attempt.events();        // StreamEvent[] | null
 await attempt.trace();         // TraceSpan[] | null
 await attempt.o11y();          // O11ySummary | null
@@ -78,7 +80,7 @@ await attempt.sources();       // SourceArtifact[] | null
 Three key points:
 
 - **Lazy loading doubles as an existence check.** A missing artifact returns `null`, never throws — when a remote agent has no `diff.json`, `await attempt.diff()` is simply `null`, and you decide from there whether to skip or report the gap.
-- **Unreadable data on disk is never silent.** A version-incompatible or corrupted run directory goes into `skipped` with a reason; whether to display it is up to you, but the gap is always computed.
+- **Unreadable data on disk is never silent.** A version-incompatible or corrupted snapshot goes into `skipped` with a reason; whether to display it is up to you, but the gap is always computed.
 - **Memoized by handle within the same process.** Reading `diff()` twice from two places never reads the same hundred-plus MB payload twice.
 
 ## Version: who wrote it, and can it be read
@@ -93,15 +95,13 @@ for (const s of results.skipped) {
 }
 ```
 
-`"incomplete"` has nothing to do with version: a run that crashed midway, never reached the point of writing out a finished summary, falls into this category — the artifacts for already-completed attempts are still on disk for manual inspection, but a stored result with no summary is invisible to the reading side.
+`"incomplete"` is a vanishingly rare case: attempts are on disk but `snapshot.json` never got written — this can only happen in the tiny window where the snapshot directory was created but the process died before finishing the metadata, or someone manually deleted the file. It is not the same thing as the common case of "the process was interrupted": that produces an **unfinished snapshot** (`snapshot.json` is there, it's just missing `completedAt`), which reads fine — every completed attempt is visible — and only earns a `unfinished-snapshot` warning when `results.latest()` selects it (see below); it never lands in `skipped`.
 
 An old version's results are never lost: they remain on disk as-is, viewable with the tool that wrote them — when `producer.name` is `"niceeval"`, suggest `npx niceeval@<producer.version> view` to the user; when it is a third-party harness, faithfully report its name and version rather than composing an incorrect npx command. `skipped` gives you exactly enough information to get this branch right.
 
-## Why a snapshot is not a run directory
+## A snapshot is the directory itself
 
-One CLI invocation writes one run directory, but a single run directory can hold multiple experiments' results (`niceeval exp compare` runs a whole comparison group into one combined report). "The latest run per experiment" therefore cannot be expressed at directory granularity: if the whole group ran on Monday and only `compare/bub-gpt-5.4` was rerun on Tuesday, bub's latest is in Tuesday's directory while codex's is still in Monday's.
-
-A snapshot makes "one run's worth of one experiment" an explicit identity of its own — **the portion of results belonging to one experiment within one run**. The physical directory is still reachable through `results.runDirs` and `snap.runDir` (used for publishing, or tracking down artifact paths), but most consumers never need to touch it.
+**A snapshot = one run of an experiment**, and physically it is exactly one snapshot directory (`.niceeval/<experiment>/<snapshot>/`) — there is no lower layer. A single `niceeval exp compare` invocation opens one independent snapshot directory per experiment involved; they are never merged, and nothing is aggregated across experiments on disk. "The latest per experiment" is therefore naturally snapshot-grained: if the whole `compare` group ran on Monday and only `compare/bub-gpt-5.4` was rerun on Tuesday, bub's latest snapshot lands on Tuesday while codex's stays on Monday, and `exp.latest` reflects each experiment's own history.
 
 ## Selecting snapshots: `results.latest()`
 
@@ -129,7 +129,7 @@ latest.warnings[0];
 // }
 ```
 
-The fields are for programmatic judgment — a CI check like "fail if coverage shrinks" tests `covered < total` directly, no text parsing needed; `message` is a pre-rendered English sentence, printable as-is if you want to display it. Whether to render is up to you; the gap is always computed. This is not the only kind of warning — a snapshot lagging behind the latest stored result in the selection, or a synthesized key for a missing experimentId, both also go into `warnings`, each carrying a `kind`, structured judgable fields, and a pre-rendered `message`.
+The fields are for programmatic judgment — a CI check like "fail if coverage shrinks" tests `covered < total` directly, no text parsing needed; `message` is a pre-rendered English sentence, printable as-is if you want to display it. Whether to render is up to you; the gap is always computed. This is not the only kind of warning — a snapshot lagging behind the latest stored result in the selection goes into `stale-snapshot`, and a selected snapshot that never wrapped up (interrupted process) goes into `unfinished-snapshot`, each carrying a `kind`, structured judgable fields, and a pre-rendered `message`.
 
 A selection is the common input for both the [report building blocks](/guides/custom-reports) and `copySnapshots` below: when they receive a `Selection`, warnings ride along (components like `RunOverview` display them faithfully); a hand-picked `Snapshot[]` array is accepted just the same. Fine-tuning the official policy does not require downgrading to a plain array: `latest.filter((s) => s.experimentId !== "compare/broken")` returns a new selection — snapshots are trimmed, warnings are pruned down to the surviving experiments, and provenance is not lost. `filter` only ever trims down; **replacing** a pick ("swap in this experiment's previous complete snapshot instead") is not its job — go back to `exp.snapshots` and pick it yourself; a hand-picked array has no picking process, so naturally it carries no warnings, which is also honest.
 
@@ -157,7 +157,7 @@ for (const exp of results.experiments) {
 
 Even on this deepest path, the disk layout is never touched: path joining, existence checks, version filtering, and snapshot splitting are all absorbed by the library. To lay this distribution into a report page, wrap it in a dual-faced component with [`defineComponent`](/guides/custom-reports).
 
-One obligation when accumulating across snapshots: `--resume` merges the previous round's passed results verbatim into the new run, so the same attempt can end up existing in more than one stored result. A merged-in entry is not a hollow shell: its artifacts still live in the original run directory, and lazy loading automatically falls back to reading from there (faithfully returning `null` if that original run directory was cleaned up); `ref` points at wherever the entry's data actually lives. All four fields of the identity key `(experimentId, evalId, attempt, startedAt)` are present in the data — the first two are direct fields on the attempt, and the sequence number and `startedAt` are on `attempt.result`. The reader faithfully reflects this duplication; before aggregating across snapshots, deduplicate with `dedupeAttempts` by identity key, keeping the copy in the newest run directory — the report building blocks' compute functions already do this internally, so remember to do the same pass in your own scripts:
+One obligation when accumulating across snapshots: `--resume` carries the previous round's passed results (whose fingerprint still matches) into the new snapshot, so the same attempt can end up existing in more than one stored result. A carried-over entry is not a hollow shell: it carries the original snapshot's `startedAt` (its identity anchor) and `artifactBase` (a relative path to the original snapshot's attempt directory), and lazy loading falls back through a candidate order — first this snapshot's own attempt directory, then the directory `artifactBase` points at (faithfully returning `null` if that original snapshot was cleaned up); `ref` points at the snapshot the entry was carried into. All four fields of the identity key `(experimentId, evalId, attempt, startedAt)` are present in the data — the first two are direct fields on the attempt, and the sequence number and `startedAt` are on `attempt.result`. The reader faithfully reflects this duplication; before aggregating across snapshots, deduplicate with `dedupeAttempts` by identity key, keeping the copy in the newest snapshot — the report building blocks' compute functions already do this internally, so remember to do the same pass in your own scripts:
 
 ```typescript
 import { dedupeAttempts } from "niceeval/results";
@@ -166,35 +166,35 @@ const all = exp.snapshots.flatMap((s) => s.attempts);   // accumulate across sna
 const { attempts, warnings } = dedupeAttempts(all);      // duplicates merged in by resume are folded away
 ```
 
-## Writing: `createRunWriter`
+## Writing: `createResultsWriter`
 
-The write side and the read side are two halves of the same set of types, and the signature itself proves the roundtrip: the reader's `attempt.result` is assembled from two parts — snapshot-level fields (agent / model / startedAt / producer) come from one declaration in `writer.snapshot()`, and everything else is exactly the type of `writeAttempt`'s first argument; the second argument is the type of the handful of artifacts lazy loading can retrieve. "`writeAttempt`'s argument + `snapshot()`'s declaration = everything the reader reads back" is backed by the type merge — snapshot-level fields are not in the attempt argument's type, so there is no question of "whose value wins". Use it to convert results from another platform or a home-grown harness into NiceEval's format:
+The write side and the read side are two halves of the same set of types, and the signature itself proves the roundtrip: the reader's `attempt.result` is assembled from two parts — snapshot-level fields (experimentId / agent / model / startedAt / producer) come from one declaration in `writer.snapshot()`, and everything else is exactly the type of `writeAttempt`'s first argument; the second argument is the type of the handful of artifacts lazy loading can retrieve. "`writeAttempt`'s argument + `snapshot()`'s declaration = everything the reader reads back" is backed by the type merge — snapshot-level fields are not in the attempt argument's type, so there is no question of "whose value wins". Use it to convert results from another platform or a home-grown harness into NiceEval's format:
 
 ```typescript
-import { createRunWriter } from "niceeval/results";
+import { createResultsWriter } from "niceeval/results";
 
-const writer = await createRunWriter(".niceeval", {
+const writer = createResultsWriter(".niceeval", {
   producer: { name: "my-harness", version: "1.0.0" },
 });
 
-const snap = writer.snapshot({         // the home for snapshot-level metadata: open one per experiment
-  experiment: "compare/my-agent",
+const snap = await writer.snapshot({   // create the snapshot directory (exclusive create, retries on a name clash) + write snapshot.json
+  experimentId: "compare/my-agent",
   agent: "my-agent",
   model: "gpt-5.4",
   startedAt: sourceRun.startedAt,      // required: the dedup identity key is anchored on it
 });
 
 for (const r of convertedResults) {
-  await snap.writeAttempt(r.result, {  // first arg = attempt-level entry; snapshot-level fields are declared in snapshot()
+  await snap.writeAttempt(r.result, {  // write result.json (the authoritative verdict record, written once) + split out artifact files
     events: r.events,                  // second arg = artifacts, all optional; whichever is missing, the reader lazily returns null
     diff: r.diff,
   });                                  // splitting artifact files, computing paths, and backfilling refs all happen inside the library
 }
 
-await writer.finish();                 // the summary is derived from the attempts already written, so counts always match the entries
+await writer.finish();                 // backfills completedAt on every snapshot; there is no closing aggregation of any kind
 ```
 
-`writer.snapshot()` is the mirror of the reading side's "one run can hold multiple snapshots": converting multiple experiments means opening multiple snapshots, with snapshot-level metadata like agent / model / startedAt declared here rather than stuffed into every attempt; the optional `knownEvalIds` (the union of evals known for this experiment) is also declared here — it is the denominator for coverage detection, so when a conversion only covers part of the question set, declare the full set honestly and the downstream coverage warning can be computed (`copySnapshots` automatically backfills this field when publishing, see below). The converted directory is a standard results directory: `niceeval show` / `niceeval view` can view it directly, the report building blocks can compute on it directly, with no format documentation to consult; `producer` shows up verbatim on the reading side's `snap.producer`. Attempt artifacts are written incrementally as they complete, but the summary is a closing fact written by `finish()`: for a directory that crashed midway and never reached `finish()`, the already-completed artifacts are still on disk for manual inspection, while the reading side classifies it into `skipped("incomplete")` — it never treats a half-written result as valid.
+`writer.snapshot()` is the mirror of the reading side's "experiment → snapshot" layering: converting multiple experiments means opening multiple snapshot directories, with snapshot-level metadata like experimentId / agent / model / startedAt declared once here rather than stuffed into every attempt; the optional `knownEvalIds` (the union of evals known for this experiment) is also declared here — it is the denominator for coverage detection, so when a conversion only covers part of the question set, declare the full set honestly and the downstream coverage warning can be computed (`copySnapshots` automatically backfills this field when publishing, see below). The converted directory is a standard results directory: `niceeval show` / `niceeval view` can view it directly, the report building blocks can compute on it directly, with no format documentation to consult; `producer` shows up verbatim on the reading side's `snap.producer`. **Every file is written exactly once** is the write side's core promise: `snapshot.json` is written as soon as the run starts and only ever gets `completedAt` backfilled at wrap-up; `result.json` and artifacts land as each attempt completes. An interrupted process only loses attempts that were still in flight — completed verdicts and artifacts are already on disk. The reading side reflects this faithfully: an unfinished-but-otherwise-intact snapshot reads fine and only carries a warning; only the genuinely rare case of "attempts on disk but no `snapshot.json` at all" lands in `skipped("incomplete")`.
 
 ## Publishing: `copySnapshots`
 

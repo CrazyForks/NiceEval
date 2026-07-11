@@ -3,78 +3,157 @@
  * 契约(docs/reports.md「四条跨组件契约」):
  *   - 所有节点都有稳定的 nre-* 类名;这份 CSS + 类名 = 静态页零依赖成立;
  *   - 要定制,在本文件之后加载自己的覆盖即可,不需要构建工具;
- *   - 调色板 --nre-c0..c7 的值与 src/report/react/colors.ts 的 NRE_PALETTE
- *     逐个对应(SVG 内联 hex 用那份),改色时两边一起改。
- * 视觉刻意极简:结构与诚实细节优先,品牌化交给使用者的覆盖样式。
+ *   - 令牌体系与 view 同观感:.nre 作用域下自带 light-dark() 令牌(值抄
+ *     src/view/styles.css 的 :root),不倚赖宿主壳的变量,深浅色自动跟随;
+ *   - 调色板 --nre-c0..c5 是 view 六色 CVD 色板(--series-1..6,顺序按 CVD 校验过,
+ *     不要重排),与 src/report/react/colors.ts 的 NRE_PALETTE 逐个对应
+ *     (NRE_PALETTE 存浅色值;深色值只住在这里),改色时两边一起改;
+ *   - SVG 面零内联 hex:图形挂 nre-series-cN 类,由下面的 --nre-series 上色。
  */
 
 .nre {
-  /* 调色板:键 → 稳定散列下标 → 同键同色(colors.ts) */
-  --nre-c0: #2563eb;
-  --nre-c1: #db2777;
-  --nre-c2: #059669;
-  --nre-c3: #d97706;
-  --nre-c4: #7c3aed;
-  --nre-c5: #0891b2;
-  --nre-c6: #dc2626;
-  --nre-c7: #65a30d;
+  /* ---- 设计令牌:与 view 同一族(src/view/styles.css :root),报告样式零依赖成立 ---- */
+  color-scheme: light dark;
+  --panel: light-dark(#ffffff, #0b0b0b);
+  --panel-2: light-dark(#f4f4f5, #111111);
+  --line: light-dark(#dedee2, #262626);
+  --line-strong: light-dark(#c9c9cf, #343434);
+  --text: light-dark(#111113, #ededed);
+  --muted: light-dark(#62636a, #a1a1aa);
+  --soft: light-dark(#8b8d98, #74747b);
+  --good: light-dark(#087f5b, #3ddc97);
+  --bad: light-dark(#b42318, #ff6b6b);
+  --warn: light-dark(#9a6700, #e8b84a);
 
-  font-family: system-ui, -apple-system, sans-serif;
+  /* ---- 六色 CVD 分类色板(= view --series-1..6;colors.ts 的散列下标指到这里)---- */
+  --nre-c0: light-dark(#2a78d6, #3987e5);
+  --nre-c1: light-dark(#1baf7a, #199e70);
+  --nre-c2: light-dark(#eda100, #c98500);
+  --nre-c3: light-dark(#008300, #008300);
+  --nre-c4: light-dark(#e34948, #e66767);
+  --nre-c5: light-dark(#eb6834, #d95926);
+  /* 系列色的缺省(无系列的点/柱):中性,不冒充身份 */
+  --nre-series: var(--muted);
+
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #171717;
+  color: var(--text);
   margin: 1rem 0;
 }
 
-/* ---- 维度键上色:同一个 key 在任何块里同色 ---- */
+/* ---- 维度键上色:同一个 key 在任何块里同色(文字) ---- */
 .nre .nre-c0 { color: var(--nre-c0); }
 .nre .nre-c1 { color: var(--nre-c1); }
 .nre .nre-c2 { color: var(--nre-c2); }
 .nre .nre-c3 { color: var(--nre-c3); }
 .nre .nre-c4 { color: var(--nre-c4); }
 .nre .nre-c5 { color: var(--nre-c5); }
-.nre .nre-c6 { color: var(--nre-c6); }
-.nre .nre-c7 { color: var(--nre-c7); }
-.nre .nre-key { font-weight: 600; }
+.nre .nre-key { font-weight: 620; }
 
-/* ---- 表格通用 ---- */
+/* ---- 系列上色(SVG 图形):nre-series-cN 设 --nre-series,fill/stroke 走 var ---- */
+.nre .nre-series-c0 { --nre-series: var(--nre-c0); }
+.nre .nre-series-c1 { --nre-series: var(--nre-c1); }
+.nre .nre-series-c2 { --nre-series: var(--nre-c2); }
+.nre .nre-series-c3 { --nre-series: var(--nre-c3); }
+.nre .nre-series-c4 { --nre-series: var(--nre-c4); }
+.nre .nre-series-c5 { --nre-series: var(--nre-c5); }
+.nre .nre-series-none { --nre-series: var(--muted); }
+
+/* ---- 表格通用:圆角 panel、细分隔线、tabular-nums 数字、uppercase 小标签 ---- */
 table.nre,
 .nre table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
 }
 .nre th,
 .nre td {
-  border: 1px solid #e5e5e5;
-  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  padding: 9px 14px;
   text-align: left;
   vertical-align: top;
+  font-size: 13.5px;
 }
 .nre thead th {
-  background: #fafafa;
-  font-weight: 600;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--panel);
+  white-space: nowrap;
+}
+.nre tbody tr:last-child th,
+.nre tbody tr:last-child td {
+  border-bottom: 0;
+}
+.nre tbody th[scope="row"] {
+  font-weight: 610;
+}
+.nre td {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 .nre .nre-dimension {
-  color: #737373;
+  color: var(--muted);
   font-weight: 500;
 }
 .nre .nre-unit {
-  color: #a3a3a3;
+  color: var(--soft);
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
   margin-left: 0.25em;
 }
 .nre .nre-better {
-  color: #a3a3a3;
+  color: var(--soft);
   margin-left: 0.25em;
 }
 
+/* ---- 渐进增强:排序指示(enhance.js 点表头时切类)与行过滤 ---- */
+.nre th[data-nre-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+.nre th[data-nre-sort]:hover { color: var(--text); }
+.nre th[data-nre-sort]::after {
+  content: "↕";
+  margin-left: 6px;
+  color: var(--soft);
+  font-size: 11px;
+}
+.nre th[data-nre-sort].nre-sort-asc::after { content: "↑"; color: var(--text); }
+.nre th[data-nre-sort].nre-sort-desc::after { content: "↓"; color: var(--text); }
+.nre .nre-row-hidden { display: none; }
+.nre-metric-table-wrap .nre-filter {
+  height: 34px;
+  min-width: 260px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 12px;
+  margin-bottom: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.nre-metric-table-wrap .nre-filter:focus { border-color: var(--line-strong); }
+.nre-metric-table-wrap .nre-filter::placeholder { color: var(--soft); }
+
 /* ---- MetricCell:缺数据 / 覆盖率角标 / 证据链接 ---- */
+.nre .nre-value { white-space: nowrap; }
 .nre .nre-missing {
-  color: #a3a3a3;
+  color: var(--soft);
   font-style: italic;
 }
 .nre .nre-coverage {
-  color: #b45309;
+  color: var(--warn);
   font-size: 0.72em;
   margin-left: 0.3em;
 }
@@ -82,7 +161,7 @@ table.nre,
   margin-left: 0.4em;
 }
 .nre .nre-ref {
-  color: #2563eb;
+  color: var(--nre-c0);
   font-size: 0.85em;
   text-decoration: none;
   margin-right: 0.25em;
@@ -91,38 +170,74 @@ table.nre,
   text-decoration: underline;
 }
 .nre .nre-td-empty {
-  background: #fafafa;
+  background: var(--panel-2);
 }
 
-/* ---- RunOverview ---- */
-.nre-overview .nre-kpis {
-  display: flex;
+/* ---- verdict 语义色与计票 pill ---- */
+.nre .nre-verdict-passed { color: var(--good); }
+.nre .nre-verdict-failed { color: var(--bad); }
+.nre .nre-verdict-errored { color: var(--warn); }
+.nre .nre-verdict-skipped { color: var(--soft); }
+.nre .nre-verdict-tally {
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin: 0 0 0.5rem;
+  gap: 6px;
 }
+.nre .nre-verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--panel);
+}
+.nre .nre-verdict-pill.nre-verdict-passed { border-color: color-mix(in oklch, var(--good), var(--line) 55%); }
+.nre .nre-verdict-pill.nre-verdict-failed { border-color: color-mix(in oklch, var(--bad), var(--line) 55%); }
+.nre .nre-verdict-pill.nre-verdict-errored { border-color: color-mix(in oklch, var(--warn), var(--line) 55%); }
+
+/* ---- RunOverview:KPI 条(对齐 view 的 .summary/.metric 密度) ---- */
+.nre-overview .nre-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0 0 10px;
+  background: linear-gradient(180deg, color-mix(in oklch, var(--panel), var(--panel-2) 18%), var(--panel));
+}
+.nre-overview .nre-kpi {
+  padding: 12px 16px 13px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.nre-overview .nre-kpi:last-child { border-right: 0; }
 .nre-overview .nre-kpi dt {
-  color: #737373;
-  font-size: 0.85em;
+  color: var(--soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 .nre-overview .nre-kpi dd {
-  margin: 0;
-  font-size: 1.4em;
-  font-weight: 600;
+  margin: 6px 0 0;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .nre-overview .nre-verdicts {
   margin: 0.25rem 0;
-  color: #525252;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .nre-overview .nre-verdict {
   margin-right: 1em;
 }
-.nre .nre-verdict-passed { color: #059669; }
-.nre .nre-verdict-failed { color: #dc2626; }
-.nre .nre-verdict-errored { color: #b45309; }
-.nre .nre-verdict-skipped { color: #a3a3a3; }
 .nre-overview .nre-source {
-  color: #737373;
+  color: var(--soft);
   font-size: 0.85em;
   margin: 0.25rem 0;
 }
@@ -132,21 +247,24 @@ table.nre,
 .nre .nre-warnings {
   list-style: none;
   margin: 0.5rem 0 0;
-  padding: 0.5rem 0.75rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklch, var(--warn), var(--line) 45%);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--warn), var(--panel) 92%);
+  color: var(--text);
+  font-size: 13px;
 }
 
 /* ---- MetricMatrix ---- */
 .nre-metric-matrix .nre-matrix-caption {
   caption-side: top;
   text-align: left;
-  font-weight: 600;
+  font-weight: 650;
   padding-bottom: 0.4rem;
 }
 .nre-metric-matrix .nre-matrix-axes {
-  color: #a3a3a3;
+  color: var(--soft);
   font-weight: 400;
   margin-left: 0.75em;
 }
@@ -156,17 +274,17 @@ table.nre,
   font-weight: 700;
 }
 .nre-scoreboard .nre-full-marks {
-  color: #a3a3a3;
+  color: var(--soft);
   font-weight: 400;
   margin-left: 0.25em;
 }
 .nre-scoreboard .nre-subject-missing {
   display: block;
-  color: #b45309;
+  color: var(--warn);
   font-size: 0.8em;
 }
 .nre-scoreboard .nre-weights {
-  color: #737373;
+  color: var(--muted);
   font-size: 0.85em;
   margin: 0.4rem 0 0;
 }
@@ -175,30 +293,104 @@ table.nre,
   margin-left: 0.5em;
 }
 
-/* ---- MetricScatter ---- */
-.nre-metric-scatter {
+/* ---- 图表通用:panel 卡片、轴/网格/tooltip ---- */
+.nre-metric-scatter,
+.nre-metric-line,
+.nre-metric-bars {
+  position: relative; /* tooltip 的定位根 */
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px 8px;
   margin: 1rem 0;
+  background: var(--panel);
 }
-.nre-metric-scatter .nre-scatter-svg {
-  max-width: 640px;
+.nre-metric-scatter .nre-scatter-svg,
+.nre-metric-line .nre-line-svg,
+.nre-metric-bars .nre-bars-svg {
+  max-width: 720px;
   width: 100%;
   height: auto;
   display: block;
+  overflow: visible;
 }
-.nre-metric-scatter .nre-scatter-missing {
-  color: #b45309;
+.nre .nre-scatter-grid line { stroke: var(--line); stroke-width: 1; }
+.nre .nre-scatter-tick,
+.nre .nre-line-tick { fill: var(--muted); font-size: 10px; }
+.nre .nre-scatter-xlabel,
+.nre .nre-scatter-ylabel,
+.nre .nre-line-xlabel,
+.nre .nre-line-ylabel,
+.nre .nre-bars-group-label { fill: var(--muted); font-size: 12px; }
+.nre .nre-scatter-better-hint { fill: var(--soft); font-size: 11px; }
+.nre .nre-line-plot { stroke: var(--line); }
+.nre .nre-bars-baseline { stroke: var(--line-strong); }
+.nre .nre-leader { stroke: var(--line-strong); stroke-width: 1; }
+
+.nre .nre-scatter-line,
+.nre .nre-line-path {
+  stroke: var(--nre-series);
+  stroke-width: 1.5;
+  fill: none;
+}
+.nre .nre-scatter-point { cursor: default; }
+.nre .nre-scatter-hit { fill: transparent; }
+.nre .nre-scatter-dot {
+  fill: var(--nre-series);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+.nre .nre-scatter-point:hover .nre-scatter-dot { r: 6.5; }
+.nre .nre-scatter-point-label { fill: var(--text); font-size: 11px; }
+.nre .nre-line-point { fill: var(--nre-series); }
+.nre .nre-line-series-label { fill: var(--nre-series); font-size: 12px; }
+.nre .nre-bar { fill: var(--nre-series); }
+.nre .nre-bar-value { fill: var(--muted); font-size: 10px; }
+.nre .nre-scatter-point-link .nre-scatter-dot:hover,
+.nre .nre-line-point-link circle:hover {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+.nre-metric-scatter .nre-scatter-legend,
+.nre-metric-bars .nre-bars-legend {
+  color: var(--muted);
+  font-size: 0.85em;
+  margin-top: 0.25rem;
+}
+.nre .nre-legend-key { margin-right: 0.75em; }
+.nre-metric-bars .nre-bars-metric {
+  margin-right: 1em;
+  font-weight: 600;
+  color: var(--text);
+}
+.nre-metric-scatter .nre-scatter-missing,
+.nre-metric-line .nre-line-missing {
+  color: var(--warn);
   font-size: 0.85em;
   margin: 0.25rem 0 0;
 }
-.nre-metric-scatter .nre-scatter-point-link circle:hover {
-  stroke: #171717;
-  stroke-width: 1.5;
+
+/* enhance.js 的样式化 tooltip(无 JS 时退化为 SVG <title>) */
+.nre .nre-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: pre;
+  pointer-events: none;
+  box-shadow: 0 4px 16px color-mix(in oklch, var(--text), transparent 88%);
+  z-index: 5;
 }
+.nre .nre-tooltip b { font-size: 13px; display: block; }
+.nre .nre-tooltip .nre-tooltip-meta { color: var(--muted); margin-top: 2px; }
 
 /* ---- DeltaTable ---- */
 .nre-delta-table .nre-pair-ids {
   display: block;
-  color: #a3a3a3;
+  color: var(--soft);
   font-size: 0.8em;
   font-weight: 400;
 }
@@ -209,14 +401,14 @@ table.nre,
 .nre-delta-table .nre-delta-tag {
   display: inline-block;
   width: 1.2em;
-  color: #a3a3a3;
+  color: var(--soft);
   font-size: 0.8em;
 }
-.nre .nre-delta-good { color: #059669; }
-.nre .nre-delta-bad { color: #dc2626; }
-.nre .nre-delta-flat { color: #737373; }
-.nre .nre-delta-neutral { color: #171717; }
-.nre .nre-delta-missing { color: #a3a3a3; }
+.nre .nre-delta-good { color: var(--good); }
+.nre .nre-delta-bad { color: var(--bad); }
+.nre .nre-delta-flat { color: var(--muted); }
+.nre .nre-delta-neutral { color: var(--text); }
+.nre .nre-delta-missing { color: var(--soft); }
 
 /* ---- CaseList ---- */
 .nre-case-list .nre-cases {
@@ -225,13 +417,15 @@ table.nre,
   padding: 0;
 }
 .nre-case-list .nre-case {
-  border: 1px solid #e5e5e5;
-  border-left-width: 3px;
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: var(--panel);
 }
-.nre-case-list .nre-case-failed { border-left-color: #dc2626; }
-.nre-case-list .nre-case-errored { border-left-color: #b45309; }
+.nre-case-list .nre-case-failed { border-left-color: var(--bad); }
+.nre-case-list .nre-case-errored { border-left-color: var(--warn); }
 .nre-case-list .nre-case-head {
   display: flex;
   flex-wrap: wrap;
@@ -242,46 +436,54 @@ table.nre,
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.8em;
+  letter-spacing: 0.04em;
 }
 .nre-case-list .nre-case-eval {
-  font-weight: 600;
+  font-weight: 620;
 }
 .nre-case-list .nre-case-experiment,
 .nre-case-list .nre-case-duration,
 .nre-case-list .nre-case-cost {
-  color: #737373;
+  color: var(--muted);
   font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
 }
 .nre-case-list .nre-case-link {
   margin-left: auto;
-  color: #2563eb;
+  color: var(--nre-c0);
 }
 .nre-case-list .nre-case-error {
   margin: 0.4rem 0 0;
-  padding: 0.3rem 0.5rem;
-  background: #fef2f2;
-  color: #991b1b;
-  font-family: ui-monospace, monospace;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in oklch, var(--bad), var(--line) 50%);
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--bad), var(--panel) 92%);
+  color: var(--bad);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
   white-space: pre-wrap;
+  word-break: break-word;
 }
 .nre-case-list .nre-assertions {
   margin: 0.4rem 0 0;
   padding-left: 1.25rem;
 }
 .nre-case-list .nre-assertion-name {
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
 }
 .nre-case-list .nre-assertion-score {
-  color: #737373;
+  color: var(--muted);
   margin-left: 0.75em;
   font-size: 0.9em;
 }
 .nre-case-list .nre-assertion-more summary {
   cursor: pointer;
-  color: #737373;
+  color: var(--muted);
   font-size: 0.85em;
+  user-select: none;
 }
+.nre-case-list .nre-assertion-more summary:hover { color: var(--text); }
 .nre-case-list .nre-assertion-detail {
   margin: 0.25rem 0;
   white-space: pre-wrap;
@@ -289,68 +491,30 @@ table.nre,
 .nre-case-list .nre-assertion-evidence {
   margin: 0.25rem 0 0.25rem 0.75rem;
   padding-left: 0.5rem;
-  border-left: 2px solid #d4d4d4;
-  color: #525252;
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
   white-space: pre-wrap;
 }
 .nre-case-list .nre-truncated {
-  color: #b45309;
+  color: var(--warn);
   font-size: 0.9em;
 }
 .nre-case-list .nre-case-empty {
-  color: #737373;
-}
-
-/* ---- MetricBars ---- */
-.nre-metric-bars {
-  margin: 1rem 0;
-}
-.nre-metric-bars .nre-bars-svg {
-  max-width: 640px;
-  width: 100%;
-  height: auto;
-  display: block;
-}
-.nre-metric-bars .nre-bars-legend {
-  color: #737373;
-  font-size: 0.85em;
-  margin-top: 0.25rem;
-}
-.nre-metric-bars .nre-bars-metric {
-  margin-right: 1em;
-  font-weight: 600;
-  color: #171717;
-}
-.nre-metric-bars .nre-legend-key {
-  margin-right: 0.75em;
-}
-
-/* ---- MetricLine ---- */
-.nre-metric-line {
-  margin: 1rem 0;
-}
-.nre-metric-line .nre-line-svg {
-  max-width: 640px;
-  width: 100%;
-  height: auto;
-  display: block;
-}
-.nre-metric-line .nre-line-missing {
-  color: #b45309;
-  font-size: 0.85em;
-  margin: 0.25rem 0 0;
-}
-.nre-metric-line .nre-line-point-link circle:hover {
-  stroke: #171717;
-  stroke-width: 1.5;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--panel);
 }
 
 /* ---- 排版原语 Row / Col / Section / Text ---- */
 .nre-col {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
+.nre-col > .nre { margin: 0; }
 .nre-row {
   display: flex;
   flex-wrap: wrap;
@@ -362,12 +526,14 @@ table.nre,
   min-width: 0;
 }
 .nre-section .nre-section-title {
-  font-size: 1.1em;
+  font-size: 17px;
   font-weight: 700;
-  margin: 0 0 0.5rem;
+  line-height: 1.2;
+  margin: 0 0 10px;
 }
+.nre-section > .nre { margin: 0 0 1rem; }
 .nre-text {
-  color: #525252;
+  color: var(--muted);
   margin: 0.25rem 0;
 }
 
@@ -375,5 +541,6 @@ table.nre,
 .nre-default-report {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
+.nre-default-report > .nre { margin: 0; }

@@ -1,25 +1,33 @@
-// niceeval/results —— 实验结果数据的读写库(定稿见 docs/results-lib.md)。
+// niceeval/results —— 实验结果数据的读写库(定稿见 docs/results-lib.md、docs/results-format.md)。
 //
-// 读:openResults(实验 → 快照 → eval → attempt 分层、skipped、runDirs、latest() Selection);
-// 写:createRunWriter(快照级声明 + attempt 增量落盘 + summary 收尾);
+// 读:openResults(实验 → 快照 → eval → attempt 分层、skipped、latest() Selection);
+// 写:createResultsWriter(快照声明 + attempt 增量落盘 + finish 补 completedAt);
 // 发布:copySnapshots(格式感知复制 + knownEvalIds 补记);
-// 身份:dedupeAttempts(跨快照聚合前按 (experimentId, evalId, attempt, startedAt) 去重)。
+// 身份:dedupeAttempts(跨快照聚合前按 (experimentId, evalId, attempt, startedAt) 去重)、isNewerSnapshot。
 // 布局知识(路径、清洗、拆分、版本)全宇宙只有这一份实现;
-// src/runner/reporters/artifacts.ts 是写入面的薄壳,view 的读取收编是下一波。
+// src/runner/reporters/artifacts.ts 是写入面的薄壳,view 的读取经 openResults 消费。
 
-export { openResults } from "./open.ts";
-export { dedupeAttempts } from "./select.ts";
+export { openResults, experimentOfSnapshot } from "./open.ts";
+export { dedupeAttempts, isNewerSnapshot } from "./select.ts";
 export { copySnapshots, type CopySnapshotsOptions, type CopySnapshotsResult } from "./copy.ts";
 export {
-  createRunWriter,
+  createResultsWriter,
   type AttemptArtifacts,
   type AttemptEntry,
-  type FinishOverrides,
-  type RunWriter,
-  type RunWriterOptions,
+  type ResultsWriter,
+  type ResultsWriterOptions,
   type SnapshotDeclaration,
   type SnapshotWriter,
 } from "./writer.ts";
+export {
+  RESULT_FILE,
+  SNAPSHOT_FILE,
+  attemptDirOf,
+  artifactFileOf,
+  classifySnapshot,
+  experimentDirOf,
+  type SnapshotClassification,
+} from "./format.ts";
 export {
   ARTIFACT_KINDS,
   type ArtifactKind,
@@ -29,11 +37,11 @@ export {
   type Eval,
   type Experiment,
   type Results,
-  type RunDir,
   type Selection,
   type SelectionWarning,
-  type SkippedRun,
+  type SkippedDir,
   type Snapshot,
+  type SnapshotMeta,
 } from "./types.ts";
 
 // 结果数据类型的家还没搬(facade 迁移是下一波);先从这里 re-export,

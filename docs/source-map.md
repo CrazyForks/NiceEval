@@ -97,21 +97,21 @@
 | 报告器(Console / Json / JUnit / Live / 符号表) | `src/runner/reporters/{console,json,live,table,shared,index}.ts` |
 | Braintrust 上报(运行 → experiment,attempt → 一行) | `src/runner/reporters/braintrust.ts` |
 | eval 级折叠 / 计票口径(CLI 表格与 view 共用) | `src/shared/verdict.ts` |
-| 本地结果保存格式(`.niceeval/<run>/summary.json` + attempt 级 JSON artifact) | `src/runner/reporters/artifacts.ts`、`src/runner/types.ts`(`RunSummary` / `EvalResult`) |
+| 本地结果保存格式(快照目录 `.niceeval/<experiment>/<snapshot>/snapshot.json` + attempt 级 `result.json` / JSON artifact) | `src/runner/reporters/artifacts.ts`(reporter 薄壳,按 experimentId 路由到快照 writer)、`src/results/writer.ts`(`createResultsWriter`)、`src/results/types.ts`(`SnapshotMeta` / `AttemptRecord`) |
 | CLI(exp / show / list / view / clean / init,--help,parseArgs 表驱动,.env 加载,NICEEVAL_* 环境变量层) | `src/cli.ts` |
 | `niceeval show` 终端宿主(Selection 合成「现刻水位」、--history 复印件不占行、--report 装载 + 组合语义矩阵、证据切面 transcript/trace/diff) | `src/show/{index,compose,render}.ts` |
 | 数据集加载器(loadJson / loadYaml) | `src/loaders/index.ts` |
 
 ## Results Lib 与 Reports
 
-设计文档:[results-lib.md](results-lib.md) / [reports.md](reports.md) / [view.md](view.md) 合流一节。实现落点(view 的读取层/统计层已收编,show 与 view 两个宿主的 `--report` 装载都已接线;view 默认报告的渲染层仍是自绘,未换官方组件):
+设计文档:[results-lib.md](results-lib.md) / [reports.md](reports.md) / [view.md](view.md) 合流一节。实现落点(show 与 view 两个宿主的 `--report` 装载都已接线;view = 报告槽 + 证据室,裸跑渲染 `defaultReport`):
 
 | 行为 | 文件 |
 |---|---|
-| `openResults`:实验/结果快照/eval 分层、版本分流(skipped 三种原因)、懒加载( artifactsDir→artifactBase 回退) | `src/results/open.ts` |
-| 布局与版本知识(attempt 目录规则、summary 分类、完整 producer) | `src/results/format.ts` |
-| `results.latest()`(Selection + 三种警告)/ `Selection.filter` / `dedupeAttempts`(身份键去重) | `src/results/select.ts` |
-| `createRunWriter`(快照级元数据、增量落盘、finish 推导 summary) | `src/results/writer.ts` |
+| `openResults`:实验/结果快照/eval 分层、版本分流(skipped 三种原因)、懒加载(attempt 目录→artifactBase 携带条目回退) | `src/results/open.ts` |
+| 布局与版本知识(attempt 目录规则、快照分类、完整 producer) | `src/results/format.ts` |
+| `results.latest()`(Selection + 四种警告)/ `Selection.filter` / `dedupeAttempts`(身份键去重) | `src/results/select.ts` |
+| `createResultsWriter`(快照目录独占创建、快照级元数据落盘、attempt 记录与 artifact 增量落盘、`finish()` 补 `completedAt`) | `src/results/writer.ts` |
 | `copySnapshots`(发布原语:瘦身复制 + knownEvalIds 补记) | `src/results/copy.ts` |
 | 分层契约(Experiment / Snapshot / Eval / AttemptHandle / AttemptRef / Selection / 警告类型) | `src/results/types.ts` |
 | `defineMetric` 与内置指标(verdict 逐项表态) | `src/report/metrics.ts` |
@@ -126,13 +126,16 @@
 | `--report` 装载(两宿主共用:存在性/默认导出判别、dev server 的 mtime cache-busting) | `src/report/load.ts` |
 | show 宿主接线(组合语义矩阵、attemptCommand 下钻、内置默认报告即出厂报告槽) | `src/show/index.ts`(Selection 合成与时间轴口径在 `src/show/compose.ts`,详情/证据切面渲染在 `src/show/render.ts`,测试 `src/show/show.test.ts`) |
 | web 宿主装载入口 `renderReportToStaticHtml`(唯一 import react-dom 的一侧) | `src/report/web.ts` |
-| `DefaultReport`(官方水位整块,宿主注入 Selection) | `src/report/default-report.tsx` |
-| 九个组件的 web 面 + 稳定散列配色 + styles.css | `src/report/react/`(零件复用入口 `index.tsx`;演示 `scripts/report-react-demo.tsx`) |
+| `DefaultReport`(官方水位整块,宿主注入 Selection)与 `defaultReport`(内置默认报告值,`niceeval/report` 公开导出;裸跑 ≡ `--report` 它) | `src/report/default-report.tsx` |
+| 实验组推导(experimentId 的 `/` 前缀分组,`defaultReport` 分节用,住中性共享层) | `src/shared/aggregate.ts`(`experimentGroupOf`) |
+| 报告 chrome 文案的 locale 字典(`ReportLocale = "en" \| "zh-CN"`,渲染入口 options 收 `locale`,经 `WebContext` / `TextContext` 携带) | `src/report/locale.ts` |
+| 九个组件的 web 面 + 稳定散列配色 + styles.css(令牌与 view 同源,`.nre` 作用域自带) | `src/report/react/`(零件复用入口 `index.tsx`;演示 `scripts/report-react-demo.tsx`) |
+| 渐进增强 runtime(表头排序 / 行过滤 / hover tooltip,只作用于 `.nre` 与 `data-nre-*`;宿主内联) | `src/report/react/enhance.js` |
 | 双面验收(renderToStaticMarkup + text 快照,两面同口径) | `src/report/dual-render.test.tsx` |
-| view attempt 深链(`#/attempt/<run>/<result>`,路由参数即 AttemptRef) | `src/view/app/lib/attempt-route.ts`、`src/view/app/App.tsx`、`src/view/data.ts`(`annotateResult` 注入,ref 直接用 `niceeval/results` 的 `attempt.ref`) |
-| view 数据层(openResults + `results.latest()` Selection + 官方计算函数烘 `__NICEEVAL_VIEW_DATA__`;skipped 三种原因、warnings 透传) | `src/view/data.ts`(数据契约在 `src/view/shared/types.ts`,前端拼接在 `src/view/app/lib/rows.ts`) |
-| `view --report` 报告槽(组合语义经 show 的 Selection 合成、`renderReportSlot` 静态渲染、`<template id="niceeval-report">` 静态块 + 官方样式注入、位置参数判定 `resolveViewInput`) | `src/view/data.ts`、`src/view/server.ts`、`src/view/index.ts`、前端摆放 `src/view/app/{main.tsx,App.tsx}`(测试 `src/view/view-report.test.ts`) |
-| **未落地** | view 默认报告的渲染层换官方组件、memory-evals 静态导出流水线(reports.md 场景三) |
+| view attempt 深链(`#/attempt/<snapshot>/<attempt>`,路由参数即 AttemptRef `{ snapshot, attempt }`) | `src/view/app/lib/attempt-route.ts`、`src/view/app/App.tsx`、`src/view/data.ts`(`annotateResult` 注入,ref 直接用 `niceeval/results` 的 `attempt.ref`) |
+| view 数据层(openResults;`__NICEEVAL_VIEW_DATA__` 只携带证据室数据:快照明细 + skipped + 壳元信息,统计住报告槽) | `src/view/data.ts`(数据契约在 `src/view/shared/types.ts`) |
+| view 报告槽(裸跑填充 `defaultReport`、`--report` 整槽替换;组合语义经 show 的 Selection 合成、`renderReportSlot` 静态渲染、en/zh-CN 两遍烘成两个 `<template>` 静态块、增强 runtime 与官方样式内联、位置参数判定 `resolveViewInput`) | `src/view/data.ts`、`src/view/server.ts`、`src/view/index.ts`、前端摆放 `src/view/app/{main.tsx,App.tsx}`(测试 `src/view/view-report.test.ts`) |
+| **未落地** | memory-evals 静态导出流水线(reports.md 场景三)、view 的 Compare(view.md 计划) |
 
 ## 与设计文档的已知差异(实现取舍)
 

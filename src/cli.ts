@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs as nodeParseArgs } from "node:util";
 import { discoverEvals, discoverExperiments, makeFilter } from "./runner/discover.ts";
@@ -124,7 +124,7 @@ const FLAG_OPTIONS = {
   experiment: { type: "string" },
   /** `show` 命令专用:指定详情 / 证据切面看第几次 attempt(与展示一致的 1 计序号)。 */
   attempt: { type: "string" },
-  /** `show` / `view` 命令专用:钉死看某一个结果目录(历史 run 或 `copySnapshots` 产物)。 */
+  /** `show` / `view` 命令专用:钉死看某一个结果目录(某次快照或 `copySnapshots` 产物)。 */
   run: { type: "string" },
   /** `show` / `view` 命令专用:用你的报告文件替换默认报告(文件默认导出 `defineReport(...)`)。 */
   report: { type: "string" },
@@ -279,8 +279,10 @@ const AGENT_RULES_CONTENT = [
   "adapter, or niceeval config. The bundled docs are Chinese-only — that is the single",
   "authoritative, always-current version; read it regardless of your working language.",
   "After a run, drill into failures with `niceeval show <eval id>` (add `--transcript` /",
-  "`--trace` / `--diff` for evidence); the `summary.json` path the CLI prints and the",
-  "artifact files it references are the structured source of truth.",
+  "`--trace` / `--diff` for evidence); the snapshot directories the CLI prints are the",
+  "structured source of truth: `snapshot.json` holds the run's metadata and each",
+  "`<evalId>/a<attempt>/result.json` holds that attempt's verdict and assertions, next to",
+  "its artifact files (`events.json` / `trace.json` / `diff.json`).",
 ].join("\n");
 
 // 优先复用已有的 AGENTS.md;项目只有 CLAUDE.md(没有 AGENTS.md)时改写 CLAUDE.md 本身,
@@ -405,7 +407,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "show") {
-    // show 不依赖 niceeval.config.ts:读的是 .niceeval/(或 --run 指定目录)的落盘结果。
+    // show 不依赖 niceeval.config.ts:读的是 .niceeval/(或 --run 指定的某个快照目录)的落盘结果。
     const code = await runShow(cwd, positionals, {
       transcript: flags.transcript,
       trace: flags.trace,
@@ -621,10 +623,13 @@ async function main(): Promise<void> {
   // 跑顺利时登记表已空,是 no-op。
   await stopAllSandboxes();
 
-  // agent 反馈闭环的入口:跑完直接给出结构化结果路径,agent 读 summary.json 与各
-  // attempt 的 artifact(events/trace/diff),不必解析人类向的流式输出。--quiet 下也输出。
-  if ( artifacts.outputDir()) {
-    process.stdout.write(t("cli.resultsPath", { path: join( artifacts.outputDir(), "summary.json") }));
+  // agent 反馈闭环的入口:跑完直接给出每个已创建快照的目录,agent 读 snapshot.json 与各
+  // attempt 的 result.json / artifact(events/trace/diff),不必解析人类向的流式输出。
+  // --quiet 下也输出。相对 cwd 的路径更友好;结果落在 cwd 外时(relative 路径以 .. 开头)
+  // 原样打印绝对路径。
+  for (const { dir } of artifacts.outputDirs()) {
+    const rel = relative(cwd, dir);
+    process.stdout.write(t("cli.resultsPath", { path: rel && !rel.startsWith("..") ? rel : dir }));
   }
 
   // 退出码按 eval 级判定,不按 attempt:summary.failed/errored 统计的是每次 attempt,

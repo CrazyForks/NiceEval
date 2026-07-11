@@ -30,8 +30,13 @@ export type {
 export { Row, Col, Section, Text, Style } from "./primitives.tsx";
 export type { LayoutProps, SectionProps, StyleProps } from "./primitives.tsx";
 
-// 官方水位整块(零 props 的锚点)
+// 官方水位整块(零 props 的锚点)与内置默认报告(报告槽的出厂填充,一份普通 ReportDefinition)
 export { DefaultReport } from "./default-report.tsx";
+export { defaultReport } from "./default-report-definition.tsx";
+
+// locale:官方组件 chrome 文案的语言(en / zh-CN);指标 label 可按 locale 给字典
+export { DEFAULT_REPORT_LOCALE, resolveMetricLabel } from "./locale.ts";
+export type { LocalizedLabel, ReportLocale } from "./locale.ts";
 
 // 官方双面组件(各自带 data 计算函数;MetricBars.data = MetricMatrix.data)
 export {
@@ -89,6 +94,7 @@ export type {
   ScoreboardData,
   SelectionWarning,
   TableData,
+  TableRowMeta,
 } from "./types.ts";
 
 // 数据层输入的类型(家在 niceeval/results,这里 re-export 方便写指标 / 报告)

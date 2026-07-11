@@ -4,66 +4,72 @@
 
 import type { ReactElement } from "react";
 import type { OverviewData } from "../types.ts";
-import { MISSING_TEXT, cx, formatDurationMs, formatPercent, formatUSD } from "./format.ts";
+import { DEFAULT_REPORT_LOCALE, localeText, type ReportLocale } from "../locale.ts";
+import { cx, formatDurationMs, formatPercent, formatUSD } from "./format.ts";
 
 export function RunOverview({
   data,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: OverviewData;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   const { totals } = data;
   // 通过率口径与内置 passRate 指标一致:skipped → null 不进分母,errored/failed 计 0
   const judged = totals.passed + totals.failed + totals.errored;
   const passRate = judged > 0 ? formatPercent(totals.passed / judged) : null;
+  const missing = <span className="nre-missing">{localeText(locale, "cell.missing")}</span>;
 
   return (
     <header className={cx("nre", "nre-overview", className)}>
       <dl className="nre-kpis">
         <div className="nre-kpi">
-          <dt>Snapshots</dt>
+          <dt>{localeText(locale, "overview.snapshots")}</dt>
           <dd>{data.snapshots.length}</dd>
         </div>
         <div className="nre-kpi">
-          <dt>Evals</dt>
+          <dt>{localeText(locale, "overview.evals")}</dt>
           <dd>{totals.evals}</dd>
         </div>
         <div className="nre-kpi">
-          <dt>attempts</dt>
+          <dt>{localeText(locale, "overview.attempts")}</dt>
           <dd>{totals.attempts}</dd>
         </div>
         <div className="nre-kpi">
-          <dt>Pass rate</dt>
-          <dd>{passRate ?? <span className="nre-missing">{MISSING_TEXT}</span>}</dd>
+          <dt>{localeText(locale, "overview.passRate")}</dt>
+          <dd>{passRate ?? missing}</dd>
         </div>
         <div className="nre-kpi">
-          <dt>Total cost</dt>
+          <dt>{localeText(locale, "overview.totalCost")}</dt>
           {/* costUSD 全缺 = null:显示缺数据,不编 $0 */}
-          <dd>
-            {totals.costUSD === null ? (
-              <span className="nre-missing">{MISSING_TEXT}</span>
-            ) : (
-              formatUSD(totals.costUSD)
-            )}
-          </dd>
+          <dd>{totals.costUSD === null ? missing : formatUSD(totals.costUSD)}</dd>
         </div>
         <div className="nre-kpi">
-          <dt>Total duration</dt>
+          <dt>{localeText(locale, "overview.totalDuration")}</dt>
           <dd>{formatDurationMs(totals.durationMs)}</dd>
         </div>
       </dl>
 
       <p className="nre-verdicts">
-        <span className="nre-verdict nre-verdict-passed">passed {totals.passed}</span>
-        <span className="nre-verdict nre-verdict-failed">failed {totals.failed}</span>
-        <span className="nre-verdict nre-verdict-errored">errored {totals.errored}</span>
-        <span className="nre-verdict nre-verdict-skipped">skipped {totals.skipped}</span>
+        <span className="nre-verdict nre-verdict-passed">
+          {localeText(locale, "verdict.passed")} {totals.passed}
+        </span>
+        <span className="nre-verdict nre-verdict-failed">
+          {localeText(locale, "verdict.failed")} {totals.failed}
+        </span>
+        <span className="nre-verdict nre-verdict-errored">
+          {localeText(locale, "verdict.errored")} {totals.errored}
+        </span>
+        <span className="nre-verdict nre-verdict-skipped">
+          {localeText(locale, "verdict.skipped")} {totals.skipped}
+        </span>
       </p>
 
       {/* 数据来源:哪些快照、何时跑的——报告的数字都从这里来 */}
       <p className="nre-source">
-        Source: {data.snapshots.length} snapshots
+        {localeText(locale, "overview.source", { n: data.snapshots.length })}
         {data.snapshots.map((s) => (
           <span key={`${s.experimentId}@${s.startedAt}`} className="nre-source-snapshot">
             {s.experimentId}({s.agent}

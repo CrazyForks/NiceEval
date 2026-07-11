@@ -45,7 +45,12 @@ export type {
   ScoreboardData,
   SelectionWarning,
   TableData,
+  TableRowMeta,
 } from "../types.ts";
 
-// 稳定配色(自定义组件想与官方组件同键同色时用)
-export { NRE_PALETTE, colorClassForKey, colorHexForKey, colorIndexForKey } from "./colors.ts";
+// locale(官方组件 chrome 文案;指标 label 的按 locale 字典也用它解析)
+export { DEFAULT_REPORT_LOCALE, resolveMetricLabel } from "../locale.ts";
+export type { LocalizedLabel, ReportLocale } from "../locale.ts";
+
+// 稳定配色(自定义组件想与官方组件同键同色时用;seriesClassForKey 配 CSS 的 --nre-series)
+export { NRE_PALETTE, colorClassForKey, colorHexForKey, colorIndexForKey, seriesClassForKey } from "./colors.ts";

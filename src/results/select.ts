@@ -1,15 +1,13 @@
 // 快照 Selection 与 attempt 去重(定稿见 docs/results-lib.md「选择快照」「身份键与去重」)。
 //
 // 选择器只有一个(latest),长在集合上;它不是 DSL,只是最常用的那次筛选。
-// 选择器必须诚实:残缺、落后、合成键都被算出来,以结构化 warnings 随 Selection 走 ——
+// 选择器必须诚实:残缺、落后、未收尾都被算出来,以结构化 warnings 随 Selection 走 ——
 // 渲染与否在消费方(message 是渲染好的英文句子),但缺口不静默。
 
-import { experimentKeyOf } from "./format.ts";
 import type {
   AttemptHandle,
   DedupeWarning,
   Experiment,
-  RunDir,
   Selection,
   SelectionWarning,
   Snapshot,
@@ -37,16 +35,12 @@ export function selectLatest(
     const covered = snapshot.evals.length;
     const total = exp.evalIds.length;
     if (covered < total) {
-      // 合成键不是真实 experiment id,拼不出可执行的 `niceeval exp` 命令,提示退化成中性说法。
-      const hint = snapshot.synthetic
-        ? "re-run the experiment for a full snapshot"
-        : `re-run \`niceeval exp ${exp.id}\` for a full snapshot`;
       warnings.push({
         kind: "partial-coverage",
         experimentId: exp.id,
         covered,
         total,
-        message: `snapshot covers ${covered} of ${total} evals seen in history; ${hint}`,
+        message: `snapshot covers ${covered} of ${total} evals seen in history; re-run \`niceeval exp ${exp.id}\` for a full snapshot`,
       });
     }
     if (snapshot.startedAt < latestStartedAt) {
@@ -58,12 +52,13 @@ export function selectLatest(
         message: `snapshot "${exp.id}" (${snapshot.startedAt}) predates the latest run in this selection by ${humanizeGap(snapshot.startedAt, latestStartedAt)}`,
       });
     }
-    if (snapshot.synthetic) {
+    if (!snapshot.completedAt) {
       warnings.push({
-        kind: "synthetic-experiment-id",
+        kind: "unfinished-snapshot",
         experimentId: exp.id,
-        runDir: snapshot.runDir.dir,
-        message: `run "${snapshot.runDir.dir}" has results without experimentId; grouped as "${exp.id}" by agent/model`,
+        startedAt: snapshot.startedAt,
+        dir: snapshot.dir,
+        message: `snapshot "${exp.id}" (${snapshot.startedAt}) has no completedAt — the run was interrupted; results may be incomplete`,
       });
     }
   }
@@ -92,8 +87,8 @@ export function makeSelection(snapshots: Snapshot[], warnings: SelectionWarning[
 
 /**
  * 跨快照聚合前的身份键去重:(experimentId, evalId, attempt, startedAt)。
- * --resume 会把上一轮已通过的结果原样合入新 run 的 summary,同一 attempt 因此存在于多份落盘;
- * 重复时保留最新 run 目录里的那份(内容相同,取新 run 的副本让 ref 落在最新落盘上;
+ * --resume 会把上一轮已通过的结果原样合入新快照,同一 attempt 因此存在于多份落盘;
+ * 重复时保留最新快照里的那份(内容相同,取新快照的副本让 ref 落在最新落盘上;
  * 位置取首次出现处,顺序稳定)。startedAt 缺失时宁可不去重也不误删,记入 warnings。
  */
 export function dedupeAttempts(attempts: AttemptHandle[]): { attempts: AttemptHandle[]; warnings: DedupeWarning[] } {
@@ -113,21 +108,21 @@ export function dedupeAttempts(attempts: AttemptHandle[]): { attempts: AttemptHa
       deduped.push(attempt);
       continue;
     }
-    const key = JSON.stringify([experimentKeyOf(r).id, r.id, r.attempt, r.startedAt]);
+    const key = JSON.stringify([attempt.experimentId, r.id, r.attempt, r.startedAt]);
     const existing = indexByKey.get(key);
     if (existing === undefined) {
       indexByKey.set(key, deduped.length);
       deduped.push(attempt);
-    } else if (isNewerRunDir(attempt.runDir, deduped[existing].runDir)) {
+    } else if (isNewerSnapshot(attempt.snapshot, deduped[existing].snapshot)) {
       deduped[existing] = attempt;
     }
   }
   return { attempts: deduped, warnings };
 }
 
-/** run 新旧比较:startedAt 优先,同刻按目录名(时间戳目录,字典序即时序)。 */
-export function isNewerRunDir(a: RunDir, b: RunDir): boolean {
-  const byStart = a.summary.startedAt.localeCompare(b.summary.startedAt);
+/** 快照新旧比较:startedAt 优先,同刻按快照目录名(时间戳 + 随机后缀,字典序即时序)。 */
+export function isNewerSnapshot(a: Snapshot, b: Snapshot): boolean {
+  const byStart = a.startedAt.localeCompare(b.startedAt);
   if (byStart !== 0) return byStart > 0;
   return a.dir.localeCompare(b.dir) > 0;
 }

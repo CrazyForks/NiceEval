@@ -21,7 +21,7 @@ description: "Wire the report site into CI: commit .niceeval/ into the repo, the
 npx niceeval view --out site
 ```
 
-`view` fails outright with a non-zero exit code on zero readable results — it never exports an empty report. If the `.niceeval/` checkout is broken, or every stored run is incompatible with the current niceeval's `schemaVersion` and gets skipped wholesale, the build fails and Vercel / GitHub Pages keeps the previous deployment. The error lists every skipped run directory with its reason, and for the `schemaVersion` case also gives the `npx niceeval@<version>` view command that can view the old data directly.
+`view` fails outright with a non-zero exit code on zero readable results — it never exports an empty report. If the `.niceeval/` checkout is broken, or every stored snapshot is incompatible with the current niceeval's `schemaVersion` and gets skipped wholesale, the build fails and Vercel / GitHub Pages keeps the previous deployment. The error lists every skipped snapshot directory with its reason, and for the `schemaVersion` case also gives the `npx niceeval@<version>` view command that can view the old data directly.
 
 ## Publishing a custom report
 
@@ -85,7 +85,7 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-From here on, the daily loop is just two steps: run the eval locally, commit `.niceeval/`, and push. The published site carries the full history — a teammate opens the link and sees exactly what you saw in local `niceeval view`; the repo, the local viewer, and the live report share one single source of truth. Repo size grows with stored runs (`diff.json` is already excluded; growth mostly comes from transcript and trace artifacts) — delete the directory for any old run you no longer want to keep, and the viewer and report follow the repo.
+From here on, the daily loop is just two steps: run the eval locally, commit `.niceeval/`, and push. The published site carries the full history — a teammate opens the link and sees exactly what you saw in local `niceeval view`; the repo, the local viewer, and the live report share one single source of truth. Repo size grows with stored snapshots (`diff.json` is already excluded; growth mostly comes from transcript and trace artifacts) — delete the directory for any old snapshot you no longer want to keep, and the viewer and report follow the repo.
 
 ## What gets published is the complete evidence
 

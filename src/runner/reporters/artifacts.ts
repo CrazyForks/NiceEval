@@ -1,13 +1,14 @@
 // 默认本地 artifact 报告器:给 `niceeval view` 提供稳定的离线输入。
 //
-// 本文件是 niceeval/results 写入面(createRunWriter)的薄壳:订阅 reporter 事件转手调 writer,
-// 自己不持有任何布局知识(时间戳目录、attempt 路径、大字段拆分、瘦身、版本元数据都在库内)。
-// 落盘格式见 docs/results-format.md;每 eval-attempt 一个文件夹,重数据分文件,
-// summary.json 只留榜单元数据,view 展开某条 trace 时再按需 fetch 它的 trace.json。
+// 本文件是 niceeval/results 写入面(createResultsWriter)的薄壳:订阅 reporter 事件按
+// experimentId 路由转手调 writer,自己不持有任何布局知识(实验目录、快照目录、attempt
+// 路径清洗、大字段拆分、瘦身、版本元数据全在库内)。落盘格式见 docs/results-format.md:
+// 每个 experiment 一个实验目录,目录下按时间戳开快照,快照内每 eval-attempt 一个文件夹,
+// 重数据分文件,snapshot.json 只留快照元数据,view 展开某条 trace 时再按需 fetch 它的 trace.json。
 
 import { readFile } from "node:fs/promises";
 import type { Reporter } from "../../types.ts";
-import { createRunWriter, type RunWriter } from "../../results/writer.ts";
+import { createResultsWriter, type ResultsWriter } from "../../results/writer.ts";
 
 /** niceeval 自身的 npm 版本,写进 producer.version;版本不匹配时读取器靠它拼 npx 提示。 */
 let producerVersionPromise: Promise<string | undefined> | undefined;
@@ -18,53 +19,38 @@ function producerVersion(): Promise<string | undefined> {
   return producerVersionPromise;
 }
 
-/** Artifacts 报告器额外暴露输出目录:CLI 在 run 结束时打出 summary.json 路径给 agent 直读。 */
-export type ArtifactsReporter = Reporter & { outputDir(): string };
+/** Artifacts 报告器额外暴露已创建的快照目录清单:CLI 在 run 结束时逐条打出给 agent 直读。 */
+export type ArtifactsReporter = Reporter & { outputDirs(): { experimentId: string; dir: string }[] };
 
 export function Artifacts(root = ".niceeval"): ArtifactsReporter {
-  let writer: Promise<RunWriter> | undefined;
-  let dir = "";
-  const ensureWriter = (): Promise<RunWriter> => {
-    writer ??= (async () => {
-      const w = await createRunWriter(root, {
-        producer: { name: "niceeval", version: await producerVersion() },
-      });
-      dir = w.dir;
-      return w;
-    })();
-    return writer;
-  };
+  let writer: ResultsWriter | undefined;
 
   return {
-    outputDir: () => dir,
+    outputDirs: () => writer?.snapshotDirs() ?? [],
 
     async onRunStart() {
-      // 每次 run 开一个新的时间戳目录(同一个 reporter 实例可能被复用)。
-      writer = undefined;
-      await ensureWriter();
-    },
-
-    // 每条结果一出来就把它的重数据落到自己的文件夹(增量、互不影响)。
-    // runner 的条目自带 agent / model / experimentId / startedAt(且存在无 experiment 的
-    // 普通 run),不经 snapshot() 声明,走 writer 的内部增量入口。
-    async onEvalComplete(result) {
-      await (await ensureWriter()).writeAttemptArtifacts(result);
-    },
-
-    // run 结束写瘦身 summary.json:携带条目(--resume 合入)与最终排序只有调度器知道,
-    // 权威 results 经 overrides 交给 writer,瘦身与版本元数据注入都在库内发生。
-    async onRunComplete(summary) {
-      await (await ensureWriter()).finish({
-        ...(summary.name !== undefined ? { name: summary.name } : {}),
-        agent: summary.agent,
-        ...(summary.model !== undefined ? { model: summary.model } : {}),
-        startedAt: summary.startedAt,
-        completedAt: summary.completedAt,
-        durationMs: summary.durationMs,
-        ...(summary.usage !== undefined ? { usage: summary.usage } : {}),
-        ...(summary.estimatedCostUSD !== undefined ? { estimatedCostUSD: summary.estimatedCostUSD } : {}),
-        results: summary.results,
+      // 每次 run 换一个新 writer(同一个 reporter 实例可能被复用):writer 内部按
+      // experimentId 懒建各自的快照目录,这里只重置引用。
+      writer = createResultsWriter(root, {
+        producer: { name: "niceeval", version: await producerVersion() },
       });
+    },
+
+    // 每条结果一出来就按它的 experimentId 路由落盘(增量、互不影响)。fresh 条目在这里
+    // 一次写成;--resume 携带合入的条目(带 artifactBase)不经这里,onRunComplete 补写。
+    async onEvalComplete(result) {
+      await writer?.writeAttemptFor(result);
+    },
+
+    // run 结束:先把携带条目(--resume 合入,summary.results 里带 artifactBase 的那些)
+    // 逐条落盘——它们没有触发过 onEvalComplete,只会原样写 result.json,不写 artifact
+    // (artifact 仍在原快照里,靠 artifactBase 懒加载回退)。再给每个快照补 completedAt。
+    async onRunComplete(summary) {
+      if (!writer) return;
+      for (const result of summary.results) {
+        if (result.artifactBase !== undefined) await writer.writeAttemptFor(result);
+      }
+      await writer.finish({ name: summary.name });
     },
   };
 }

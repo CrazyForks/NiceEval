@@ -38,7 +38,7 @@ export function filterExperiments(experiments: Experiment[], prefix?: string): E
 /**
  * 合成「现刻水位」Selection:每个实验一份合成快照,快照里每道题的判定取该题最后一次
  * 出现的快照(--resume 携带的复印件身份与原判定相同,取到哪份内容都一致)。
- * 警告随 Selection 重算:partial-coverage 的分母 = 已知并集 ∩ 范围;stale / synthetic
+ * 警告随 Selection 重算:partial-coverage 的分母 = 已知并集 ∩ 范围;stale / unfinished
  * 与 results.latest() 同口径。
  */
 export function composeShowSelection(results: Results, opts: ComposeOptions = {}): Selection {
@@ -76,28 +76,25 @@ export function composeShowSelection(results: Results, opts: ComposeOptions = {}
       startedAt,
       agent: base.agent,
       ...(base.model !== undefined ? { model: base.model } : {}),
-      ...(base.producer ? { producer: base.producer } : {}),
+      producer: base.producer,
       schemaVersion: base.schemaVersion,
       evals,
       attempts: evals.flatMap((ev) => ev.attempts),
-      runDir: newest.runDir,
-      ...(base.synthetic ? { synthetic: true } : {}),
+      dir: newest.dir,
+      ...(newest.completedAt !== undefined ? { completedAt: newest.completedAt } : {}),
       ...(base.knownEvalIds ? { knownEvalIds: [...base.knownEvalIds] } : {}),
     });
 
-    // 残缺检测:跨 run 补齐后仍缺,只可能是历史上见过(或 knownEvalIds 声明过)
+    // 残缺检测:跨快照补齐后仍缺,只可能是历史上见过(或 knownEvalIds 声明过)
     // 却从未在可读落盘里出现的题 —— 分母收窄到范围内,不让范围外的缺口刷屏。
     const total = exp.evalIds.filter(match).length;
     if (evals.length < total) {
-      const hint = base.synthetic
-        ? "re-run the experiment for a full snapshot"
-        : `re-run \`niceeval exp ${exp.id}\` for a full snapshot`;
       warnings.push({
         kind: "partial-coverage",
         experimentId: exp.id,
         covered: evals.length,
         total,
-        message: `verdicts cover ${evals.length} of ${total} evals seen in history; ${hint}`,
+        message: `verdicts cover ${evals.length} of ${total} evals seen in history; re-run \`niceeval exp ${exp.id}\` for a full snapshot`,
       });
     }
   }
@@ -116,12 +113,13 @@ export function composeShowSelection(results: Results, opts: ComposeOptions = {}
         message: `verdicts for "${snapshot.experimentId}" were produced at ${snapshot.startedAt}, before the latest run in this selection (${latestStartedAt})`,
       });
     }
-    if (snapshot.synthetic) {
+    if (snapshot.completedAt === undefined) {
       warnings.push({
-        kind: "synthetic-experiment-id",
+        kind: "unfinished-snapshot",
         experimentId: snapshot.experimentId,
-        runDir: snapshot.runDir.dir,
-        message: `run "${snapshot.runDir.dir}" has results without experimentId; grouped as "${snapshot.experimentId}" by agent/model`,
+        startedAt: snapshot.startedAt,
+        dir: snapshot.dir,
+        message: `snapshot "${snapshot.experimentId}" (${snapshot.startedAt}) is unfinished (the process was interrupted); completed attempts are read as-is, but the set may be incomplete`,
       });
     }
   }

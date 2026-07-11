@@ -1,24 +1,22 @@
 // niceeval show 终端宿主的测试(行为规范:docs-site/zh/guides/viewing-results.mdx;
 // 组合语义:docs/reports.md「宿主输入的组合语义」)。覆盖:
-// - 榜单合成口径:每 experiment × eval 取最新判定,局部重跑从更早 run 补齐,头部标注合成自几个 run;
+// - 榜单合成口径:每 experiment × eval 取最新判定,局部重跑从更早快照补齐,头部标注合成自几个快照;
 // - 前缀过滤收窄 Selection,覆盖警告分母 = 已知并集 ∩ 范围;
 // - --history 时间轴只列真实执行,resume 携带的复印件不占行;
 // - --report 装载(合法 / 非法默认导出 / 文件缺失)、位置前缀收窄注入 Selection、attemptCommand 下钻;
 // - 互斥:--history 与 --report;
 // - 单 eval 详情与 --transcript 证据切面的输出形态。
+//
+// fixture 直接写新布局(<expDir>/<snapDir>/snapshot.json + <evalId>/a<n>/result.json),
+// 依据是 docs/results-format.md 的稳定磁盘契约,不经 writer 运行时 API(避免与并行重写的
+// niceeval/results 写入面签名耦合)。
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  RESULTS_FORMAT,
-  RESULTS_SCHEMA_VERSION,
-  createRunWriter,
-  openResults,
-  type EvalResult,
-  type RunSummary,
-} from "../results/index.ts";
+import { openResults } from "../results/index.ts";
+import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION, type EvalResult, type Verdict } from "../types.ts";
 import { composeShowSelection, evalHistory } from "./compose.ts";
 import { runShow, type ShowFlags } from "./index.ts";
 
@@ -34,40 +32,72 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((r) => rm(r, { recursive: true, force: true })));
 });
 
-function res(over: Partial<EvalResult> & Pick<EvalResult, "id">): EvalResult {
-  return {
-    agent: "bub",
-    verdict: "passed",
-    attempt: 0,
-    durationMs: 1000,
-    assertions: [],
-    ...over,
-  };
+// show 的报告 chrome 跟随 CLI 界面语言(detectLocale);本文件的断言按英文写,
+// 固定 en 让用例不随宿主机 LANG 漂移;zh-CN 传递单独一条用例覆盖。
+let langBackup: string | undefined;
+beforeAll(() => {
+  langBackup = process.env.NICEEVAL_LANG;
+  process.env.NICEEVAL_LANG = "en";
+});
+afterAll(() => {
+  if (langBackup === undefined) delete process.env.NICEEVAL_LANG;
+  else process.env.NICEEVAL_LANG = langBackup;
+});
+
+/** 一条 attempt 的最小 fixture;字段照 docs/results-format.md 的 AttemptRecord。 */
+type AttemptFixture = Pick<EvalResult, "id" | "verdict"> &
+  Partial<
+    Pick<
+      EvalResult,
+      "attempt" | "durationMs" | "assertions" | "estimatedCostUSD" | "usage" | "error" | "startedAt" | "artifactBase" | "hasEvents"
+    >
+  >;
+
+function res(id: string, verdict: Verdict, extra: Partial<AttemptFixture> = {}): AttemptFixture {
+  return { id, verdict, attempt: 0, durationMs: 1000, assertions: [], ...extra };
 }
 
-function summaryOf(results: EvalResult[], over: Partial<RunSummary> = {}): RunSummary {
-  const count = (o: EvalResult["verdict"]) => results.filter((r) => r.verdict === o).length;
-  return {
+/** 实验目录名的清洗:与 docs/results-format.md 一致(/ 与非 [\w.@-] 换成 _)。 */
+function cleanDirName(id: string): string {
+  return id.replace(/[^\w.@-]/g, "_");
+}
+
+interface SnapshotOpts {
+  experimentId: string;
+  agent?: string;
+  model?: string;
+  startedAt: string;
+  completedAt?: string;
+  knownEvalIds?: string[];
+}
+
+/** 写一份新布局快照:snapshot.json + 各 attempt 的 result.json。返回快照目录绝对路径。 */
+async function writeSnapshot(
+  root: string,
+  snapDirName: string,
+  opts: SnapshotOpts,
+  results: AttemptFixture[],
+): Promise<string> {
+  const dir = join(root, cleanDirName(opts.experimentId), snapDirName);
+  await mkdir(dir, { recursive: true });
+  const meta = {
     format: RESULTS_FORMAT,
     schemaVersion: RESULTS_SCHEMA_VERSION,
     producer: { name: "niceeval", version: "0.4.6" },
-    agent: results[0]?.agent ?? "bub",
-    startedAt: "2026-07-08T10:00:00.000Z",
-    completedAt: "2026-07-08T10:10:00.000Z",
-    passed: count("passed"),
-    failed: count("failed"),
-    skipped: count("skipped"),
-    errored: count("errored"),
-    durationMs: 60_000,
-    results,
-    ...over,
+    experimentId: opts.experimentId,
+    agent: opts.agent ?? "bub",
+    ...(opts.model !== undefined ? { model: opts.model } : {}),
+    startedAt: opts.startedAt,
+    completedAt: opts.completedAt ?? opts.startedAt,
+    ...(opts.knownEvalIds ? { knownEvalIds: opts.knownEvalIds } : {}),
   };
-}
-
-async function writeRun(root: string, dirName: string, summary: RunSummary): Promise<void> {
-  const dir = join(root, dirName);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "summary.json"), JSON.stringify(summary, null, 2), "utf-8");
+  await writeFile(join(dir, "snapshot.json"), JSON.stringify(meta, null, 2), "utf-8");
+  for (const r of results) {
+    const attemptDir = join(dir, r.id, `a${r.attempt ?? 0}`);
+    await mkdir(attemptDir, { recursive: true });
+    await writeFile(join(attemptDir, "result.json"), JSON.stringify(r, null, 2), "utf-8");
+  }
+  return dir;
 }
 
 interface Captured {
@@ -88,66 +118,67 @@ async function show(root: string, patterns: string[], flags: ShowFlags = {}): Pr
   return { out, err, code };
 }
 
-/** 两个 run:老 run 全量(a ✓ b ✓),新 run 只重跑 b(✗)—— 榜单该跨 run 合成。 */
+/** 两个快照:老快照全量(a ✓ b ✓),新快照只重跑 b(✗)—— 榜单该跨快照合成。 */
 async function seedComposedRoot(): Promise<string> {
   const root = await makeRoot();
-  await writeRun(
-    root,
-    "2026-07-08T10-00-00-000Z",
-    summaryOf(
-      [
-        res({ id: "weather/brooklyn", experimentId: "compare/bub", startedAt: "2026-07-08T10:00:01.000Z" }),
-        res({ id: "fixtures/button", experimentId: "compare/bub", startedAt: "2026-07-08T10:00:02.000Z" }),
+  await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-08T10:00:00.000Z" }, [
+    res("weather/brooklyn", "passed"),
+    res("fixtures/button", "passed"),
+  ]);
+  await writeSnapshot(root, "2026-07-09T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-09T10:00:00.000Z" }, [
+    res("fixtures/button", "failed", {
+      assertions: [
+        {
+          name: 'fileChanged("src/components/Button.tsx")',
+          severity: "gate",
+          score: 0,
+          passed: false,
+          detail: "file was not modified",
+        },
       ],
-      { startedAt: "2026-07-08T10:00:00.000Z" },
-    ),
-  );
-  await writeRun(
-    root,
-    "2026-07-09T10-00-00-000Z",
-    summaryOf(
-      [
-        res({
-          id: "fixtures/button",
-          experimentId: "compare/bub",
-          verdict: "failed",
-          startedAt: "2026-07-09T10:00:01.000Z",
-          assertions: [
-            {
-              name: 'fileChanged("src/components/Button.tsx")',
-              severity: "gate",
-              score: 0,
-              passed: false,
-              detail: "file was not modified",
-            },
-          ],
-        }),
-      ],
-      { startedAt: "2026-07-09T10:00:00.000Z" },
-    ),
-  );
+    }),
+  ]);
   return root;
 }
 
 // ───────────────────────── 榜单合成口径 ─────────────────────────
 
-describe("榜单:跨 run 合成的现刻水位", () => {
-  it("局部重跑不撕榜单:另一题从更早 run 补齐,头部如实标注合成自 2 个 run", async () => {
+describe("榜单:跨快照合成的现刻水位(defaultReport 的 text 面)", () => {
+  it("局部重跑不撕榜单:另一题从更早快照补齐,分组 Section + 榜单 + 失败清单", async () => {
     const root = await seedComposedRoot();
     const { out, code } = await show(root, []);
     expect(code).toBe(0);
-    expect(out).toContain("Current verdicts · 1 experiment · composed from 2 runs");
-    expect(out).toContain("latest 2026-07-09T10-00-00-000Z");
-    // eval 级折叠计票:2 题里 1 题通过;两题都在(没有 partial-coverage 撕榜)
-    expect(out).toContain("1/2");
-    expect(out).toContain("50%");
+    // 顶部 RunOverview:合成快照的整体口径
+    expect(out).toContain("1 experiment · 2 evals · 2 attempts");
     expect(out).not.toContain("verdicts cover");
-    // Failing 清单:新判定的 fixtures/button,带失败断言与下钻命令
-    expect(out).toContain("Failing:");
+    // 实验组 Section("compare/bub" 的组是 "compare");组内可画点 <2,scatter 省略
+    expect(out).toContain("compare\n");
+    // 榜单 parity:experiment 行带 Agent 与 eval 级折叠计票列(1 题通过 1 题失败)
+    expect(out).toContain("compare/bub");
+    expect(out).toContain("Agent");
+    expect(out).toContain("Verdicts");
+    expect(out).toContain("1 passed / 1 failed");
+    expect(out).toContain("50%");
+    // 失败清单:新判定的 fixtures/button,带失败断言与下钻命令
     expect(out).toContain("✗ fixtures/button");
-    expect(out).toContain('gate fileChanged("src/components/Button.tsx")');
+    expect(out).toContain('fileChanged("src/components/Button.tsx") — file was not modified');
     expect(out).toContain("→ niceeval show fixtures/button");
     expect(out).not.toContain("✗ weather/brooklyn");
+  });
+
+  it("CLI 界面语言传给报告渲染:NICEEVAL_LANG=zh-CN 时 chrome 文案是中文", async () => {
+    const root = await seedComposedRoot();
+    process.env.NICEEVAL_LANG = "zh-CN";
+    try {
+      const { out, code } = await show(root, []);
+      expect(code).toBe(0);
+      expect(out).toContain("合成自 1 个 run"); // RunOverview 的 zh chrome(composed-from 标注)
+      expect(out).toContain("1 通过 / 1 失败"); // verdict 词按 locale
+      // 数据本身不分语言:experiment id / eval id 原样。
+      expect(out).toContain("compare/bub");
+    } finally {
+      process.env.NICEEVAL_LANG = "en";
+    }
   });
 
   it("合成 Selection:每 experiment × eval 取最新判定;compose 不产生残缺警告", async () => {
@@ -158,7 +189,7 @@ describe("榜单:跨 run 合成的现刻水位", () => {
     const evals = selection.snapshots[0].evals.map((e) => e.id).sort();
     expect(evals).toEqual(["fixtures/button", "weather/brooklyn"]);
     const button = selection.snapshots[0].evals.find((e) => e.id === "fixtures/button")!;
-    expect(button.attempts[0].result.verdict).toBe("failed"); // 新 run 的判定赢
+    expect(button.attempts[0].result.verdict).toBe("failed"); // 新快照的判定赢
     expect(selection.warnings).toEqual([]);
     // 对照:results.latest() 的最新快照是残缺的(这正是宿主要合成的原因)
     expect(results.latest().warnings.some((w) => w.kind === "partial-coverage")).toBe(true);
@@ -170,20 +201,16 @@ describe("榜单:跨 run 合成的现刻水位", () => {
 describe("位置前缀收窄", () => {
   it("前缀收窄 Selection 覆盖的 eval;覆盖警告分母 = 已知并集 ∩ 范围", async () => {
     const root = await makeRoot();
-    await writeRun(
+    await writeSnapshot(
       root,
       "2026-07-08T10-00-00-000Z",
-      summaryOf(
-        [
-          res({ id: "weather/brooklyn", experimentId: "compare/bub", startedAt: "2026-07-08T10:00:01.000Z" }),
-          res({ id: "algebra/quadratic", experimentId: "compare/bub", startedAt: "2026-07-08T10:00:02.000Z" }),
-        ],
-        {
-          startedAt: "2026-07-08T10:00:00.000Z",
-          // 已知并集包含一道从未落盘的题:algebra 范围外,不该刷 weather 范围的屏
-          snapshots: { "compare/bub": { knownEvalIds: ["weather/brooklyn", "weather/queens", "algebra/quadratic"] } },
-        },
-      ),
+      {
+        experimentId: "compare/bub",
+        startedAt: "2026-07-08T10:00:00.000Z",
+        // 已知并集包含一道从未落盘的题:algebra 范围外,不该刷 weather 范围的屏
+        knownEvalIds: ["weather/brooklyn", "weather/queens", "algebra/quadratic"],
+      },
+      [res("weather/brooklyn", "passed"), res("algebra/quadratic", "passed")],
     );
     const results = await openResults(root);
 
@@ -211,52 +238,36 @@ describe("位置前缀收窄", () => {
 describe("单 eval 详情", () => {
   it("attempt 行 + 断言明细 + artifacts 路径 + 下钻提示", async () => {
     const root = await makeRoot();
-    await writeRun(
+    await writeSnapshot(
       root,
       "2026-07-09T10-00-00-000Z",
-      summaryOf(
-        [
-          res({
-            id: "weather/brooklyn",
-            experimentId: "compare/codex",
-            agent: "codex",
-            verdict: "failed",
-            attempt: 0,
-            startedAt: "2026-07-09T10:00:01.000Z",
-            durationMs: 40_000,
-          }),
-          res({
-            id: "weather/brooklyn",
-            experimentId: "compare/codex",
-            agent: "codex",
-            verdict: "failed",
-            attempt: 1,
-            startedAt: "2026-07-09T10:00:42.000Z",
-            durationMs: 41_000,
-            usage: { inputTokens: 12_000, outputTokens: 300 },
-            estimatedCostUSD: 0.04,
-            artifactsDir: "artifacts/compare__codex__weather__brooklyn__1",
-            assertions: [
-              {
-                name: 'calledTool("get_weather")',
-                severity: "gate",
-                score: 0,
-                passed: false,
-                detail: "tool was never called",
-              },
-              { name: "succeeded()", severity: "gate", score: 1, passed: true },
-              {
-                name: 'judge("回答基于实时数据")',
-                severity: "soft",
-                score: 0.2,
-                passed: false,
-                detail: "reply invents a temperature without any tool call",
-              },
-            ],
-          }),
-        ],
-        { agent: "codex", startedAt: "2026-07-09T10:00:00.000Z" },
-      ),
+      { experimentId: "compare/codex", agent: "codex", startedAt: "2026-07-09T10:00:00.000Z" },
+      [
+        res("weather/brooklyn", "failed", { attempt: 0, durationMs: 40_000 }),
+        res("weather/brooklyn", "failed", {
+          attempt: 1,
+          durationMs: 41_000,
+          usage: { inputTokens: 12_000, outputTokens: 300 },
+          estimatedCostUSD: 0.04,
+          assertions: [
+            {
+              name: 'calledTool("get_weather")',
+              severity: "gate",
+              score: 0,
+              passed: false,
+              detail: "tool was never called",
+            },
+            { name: "succeeded()", severity: "gate", score: 1, passed: true },
+            {
+              name: 'judge("回答基于实时数据")',
+              severity: "soft",
+              score: 0.2,
+              passed: false,
+              detail: "reply invents a temperature without any tool call",
+            },
+          ],
+        }),
+      ],
     );
     const { out, code } = await show(root, ["weather/brooklyn"]);
     expect(code).toBe(0);
@@ -269,7 +280,8 @@ describe("单 eval 详情", () => {
     expect(out).toContain('✗ gate calledTool("get_weather") — tool was never called');
     expect(out).toContain("✓ gate succeeded()");
     expect(out).toContain('✗ soft judge("回答基于实时数据") — 0.2/1: reply invents a temperature');
-    expect(out).toContain("artifacts/compare__codex__weather__brooklyn__1/");
+    // artifacts 路径 = <experiment-dir>/<snapshot-dir>/<evalId>/a<n>(root 相对)
+    expect(out).toContain("compare_codex/2026-07-09T10-00-00-000Z/weather/brooklyn/a1");
     expect(out).toContain("next: niceeval show weather/brooklyn --transcript | --trace | --diff");
   });
 
@@ -284,48 +296,32 @@ describe("单 eval 详情", () => {
 // ───────────────────────── --history:复印件不占行 ─────────────────────────
 
 describe("--history 时间轴", () => {
-  /** run1 真实执行;run2 resume 携带同一判定(身份键相同的复印件)+ 新题真实执行。 */
+  /** 快照1 真实执行;快照2 resume 携带同一判定(身份键相同的复印件)+ 新题真实执行。 */
   async function seedHistoryRoot(): Promise<string> {
     const root = await makeRoot();
-    const original = res({
-      id: "weather/brooklyn",
-      experimentId: "compare/bub",
-      verdict: "passed",
-      startedAt: "2026-07-07T09:00:01.000Z",
-      estimatedCostUSD: 0.03,
-      artifactsDir: "artifacts/compare__bub__weather__brooklyn__0",
-    });
-    await writeRun(
+    await writeSnapshot(
       root,
       "2026-07-07T09-00-00-000Z",
-      summaryOf([original], { startedAt: "2026-07-07T09:00:00.000Z" }),
+      { experimentId: "compare/bub", startedAt: "2026-07-07T09:00:00.000Z" },
+      [res("weather/brooklyn", "passed", { estimatedCostUSD: 0.03 })],
     );
-    // 复印件:同 id / attempt / startedAt, artifactBase 指回原 run(resume 合入的形状)
-    const { artifactsDir: _dropped, ...carriedBase } = original;
-    const carried: EvalResult = {
-      ...carriedBase,
-      artifactBase: "2026-07-07T09-00-00-000Z/artifacts/compare__bub__weather__brooklyn__0",
-    };
-    await writeRun(
+    // 复印件:同 id / attempt / startedAt(锚定原快照的 startedAt),artifactBase 指回原快照。
+    await writeSnapshot(
       root,
       "2026-07-09T10-00-00-000Z",
-      summaryOf(
-        [
-          carried,
-          res({
-            id: "weather/brooklyn",
-            experimentId: "compare/bub",
-            verdict: "failed",
-            attempt: 1,
-            startedAt: "2026-07-09T10:00:05.000Z",
-            estimatedCostUSD: 0.04,
-            assertions: [
-              { name: 'calledTool("get_weather")', severity: "gate", score: 0, passed: false },
-            ],
-          }),
-        ],
-        { startedAt: "2026-07-09T10:00:00.000Z" },
-      ),
+      { experimentId: "compare/bub", startedAt: "2026-07-09T10:00:00.000Z" },
+      [
+        res("weather/brooklyn", "passed", {
+          estimatedCostUSD: 0.03,
+          startedAt: "2026-07-07T09:00:00.000Z",
+          artifactBase: "compare_bub/2026-07-07T09-00-00-000Z/weather/brooklyn/a0",
+        }),
+        res("weather/brooklyn", "failed", {
+          attempt: 1,
+          estimatedCostUSD: 0.04,
+          assertions: [{ name: 'calledTool("get_weather")', severity: "gate", score: 0, passed: false }],
+        }),
+      ],
     );
     return root;
   }
@@ -335,7 +331,7 @@ describe("--history 时间轴", () => {
     const results = await openResults(root);
     const exp = results.experiments.find((e) => e.id === "compare/bub")!;
     const rows = evalHistory(exp, "weather/brooklyn");
-    // run2 里复印件被识别,真实执行只有:run1 的 passed + run2 的 failed(新 attempt)
+    // 快照2 里复印件被识别,真实执行只有:快照1 的 passed + 快照2 的 failed(新 attempt)
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ verdict: "failed", attempts: 1, costUSD: 0.04 });
     expect(rows[0].failedAssertion).toBe('gate calledTool("get_weather")');
@@ -346,7 +342,7 @@ describe("--history 时间轴", () => {
     expect(out).toContain("compare/bub · 2 runs · passed 1/2");
     expect(out).toContain("2026-07-09T10-00");
     expect(out).toContain("2026-07-07T09-00");
-    // 复印件那份 passed 判定只出现一行(run1),不在 run2 再占一行
+    // 复印件那份 passed 判定只出现一行(快照1),不在快照2 再占一行
     expect(out.match(/✓ passed/g)).toHaveLength(1);
   });
 
@@ -355,7 +351,7 @@ describe("--history 时间轴", () => {
     const { out, code } = await show(root, [], { history: true });
     expect(code).toBe(0);
     expect(out).toContain("compare/bub · 2 runs");
-    // 每个快照一行(run2 折叠含携带的 passed 复印件,任一轮通过 → passed)
+    // 每个快照一行(快照2 折叠含携带的 passed 复印件,任一轮通过 → passed)
     expect(out.match(/1\/1 passed/g)).toHaveLength(2);
   });
 });
@@ -411,13 +407,11 @@ describe("--report 装载", () => {
 
   it("--experiment 让 Selection 只留该实验", async () => {
     const root = await seedComposedRoot();
-    await writeRun(
+    await writeSnapshot(
       root,
       "2026-07-09T11-00-00-000Z",
-      summaryOf(
-        [res({ id: "weather/brooklyn", experimentId: "compare/codex", agent: "codex", startedAt: "2026-07-09T11:00:01.000Z" })],
-        { agent: "codex", startedAt: "2026-07-09T11:00:00.000Z" },
-      ),
+      { experimentId: "compare/codex", agent: "codex", startedAt: "2026-07-09T11:00:00.000Z" },
+      [res("weather/brooklyn", "passed")],
     );
     const results = await openResults(root);
     const selection = composeShowSelection(results, { experiment: "compare/codex" });
@@ -463,28 +457,20 @@ describe("--report 装载", () => {
 describe("--transcript", () => {
   it("逐轮对话 + 截断标注(事件数 · 工具调用数 · 原始 artifact 路径)", async () => {
     const root = await makeRoot();
-    const writer = await createRunWriter(root, { producer: { name: "niceeval", version: "0.0.0" } });
-    const snap = writer.snapshot({
-      experiment: "compare/codex",
-      agent: "codex",
-      startedAt: "2026-07-09T10:00:00.000Z",
-    });
-    await snap.writeAttempt(
-      {
-        id: "weather/brooklyn",
-        verdict: "failed",
-        attempt: 2,
-        durationMs: 41_000,
-        assertions: [],
-      },
-      {
-        events: [
-          { type: "message", role: "user", text: "布鲁克林今天天气怎么样?" },
-          { type: "message", role: "assistant", text: "布鲁克林今天大约 24°C,晴。" },
-        ],
-      },
+    const dir = await writeSnapshot(
+      root,
+      "2026-07-09T10-00-00-000Z",
+      { experimentId: "compare/codex", agent: "codex", startedAt: "2026-07-09T10:00:00.000Z" },
+      [res("weather/brooklyn", "failed", { attempt: 2, durationMs: 41_000, hasEvents: true })],
     );
-    await writer.finish();
+    await writeFile(
+      join(dir, "weather/brooklyn/a2/events.json"),
+      JSON.stringify([
+        { type: "message", role: "user", text: "布鲁克林今天天气怎么样?" },
+        { type: "message", role: "assistant", text: "布鲁克林今天大约 24°C,晴。" },
+      ]),
+      "utf-8",
+    );
 
     const { out, code } = await show(root, ["weather/brooklyn"], { transcript: true });
     expect(code).toBe(0);

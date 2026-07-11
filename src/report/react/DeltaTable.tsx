@@ -4,9 +4,10 @@
 
 import type { ReactElement } from "react";
 import type { DeltaData, MetricColumn } from "../types.ts";
+import { DEFAULT_REPORT_LOCALE, localeText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
-import { MISSING_TEXT, cx } from "./format.ts";
+import { cx } from "./format.ts";
 
 /** Δ 的语义配色 class:好/坏由 better 方向判定,不看正负号本身。 */
 function deltaToneClass(delta: number | null, better: MetricColumn["better"]): string {
@@ -20,20 +21,22 @@ function deltaToneClass(delta: number | null, better: MetricColumn["better"]): s
 export function DeltaTable({
   data,
   className,
+  locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: DeltaData;
   className?: string;
+  locale?: ReportLocale;
 }): ReactElement {
   return (
     <table className={cx("nre", "nre-delta-table", className)}>
       <thead>
         <tr>
           <th scope="col" className="nre-dimension">
-            pair (A → B)
+            {localeText(locale, "delta.pairHeader")}
           </th>
           {data.columns.map((col) => (
             <th scope="col" key={col.key} className="nre-metric-col">
-              {col.label}
+              {resolveMetricLabel(col.label, locale, col.key)}
               {col.unit && <span className="nre-unit">({col.unit})</span>}
             </th>
           ))}
@@ -57,16 +60,16 @@ export function DeltaTable({
                   {/* A/B 走统一的 MetricCellView:缺数据文案与覆盖率角标同一套 */}
                   <span className="nre-delta-side nre-delta-a">
                     <span className="nre-delta-tag">A</span>
-                    <MetricCellView cell={cell.a} />
+                    <MetricCellView cell={cell.a} locale={locale} />
                   </span>
                   <span className="nre-delta-side nre-delta-b">
                     <span className="nre-delta-tag">B</span>
-                    <MetricCellView cell={cell.b} />
+                    <MetricCellView cell={cell.b} locale={locale} />
                   </span>
                   <span className={cx("nre-delta-side", "nre-delta-d", deltaToneClass(cell.delta, col.better))}>
                     <span className="nre-delta-tag">Δ</span>
                     {/* 任一侧 null → delta null:显示缺,不硬算 */}
-                    {cell.delta === null ? <span className="nre-missing">{MISSING_TEXT}</span> : cell.display}
+                    {cell.delta === null ? <span className="nre-missing">{localeText(locale, "cell.missing")}</span> : cell.display}
                   </span>
                 </td>
               );

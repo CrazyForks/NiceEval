@@ -129,7 +129,7 @@ npx skill add Effect-TS/skills --ref 8f3c1a2 --only effect --only effect-sql
 - `source` 指明装哪个 repo;
 - `ref` 固定版本,保证 eval 可复现;
 - `skills` 在多 skill repo 中选择启用集合;
-- 安装后写 lock/artifact,让 `.niceeval/<run>/` 能看见实际安装了什么。
+- 安装后写 lock/artifact,让 `.niceeval/<experiment>/<snapshot>/` 能看见实际安装了什么。
 
 选择规则:
 
@@ -266,7 +266,7 @@ adapter 在 setup 结束后应写一份标准 manifest 到沙箱和结果 artifa
 建议路径:
 
 - 沙箱内:`__niceeval__/agent-setup.json`
-- 结果目录:`.niceeval/<run>/<eval>/<attempt>/agent-setup.json`
+- 结果目录:`.niceeval/<experiment>/<snapshot>/<evalId>/aN/agent-setup.json`
 
 这份 manifest 不参与评分,但用于复现和诊断:"这次失败到底有没有装 skill"应该能从 artifact 一眼确认。
 

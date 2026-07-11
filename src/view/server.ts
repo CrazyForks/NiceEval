@@ -83,27 +83,32 @@ export async function startViewServer(opts: ViewOptions = {}): Promise<ViewServe
 
 /**
  * 把 viewData(只含原始值与相对路径,不含宿主机绝对路径)和前端产物烘焙进单个 HTML。
- * --report 在场时,报告 HTML 作为 <template id="niceeval-report"> 静态块烘在
- * __NICEEVAL_VIEW_DATA__ 旁(零客户端 JS、不 hydrate,自定义组件的 <Style> 产物
- * 已内联其中),并附官方组件样式(report/react/styles.css);前端只把这块摆进
- * 报告槽位置,不解析。
+ * 报告槽恒在:报告 HTML 作为 <template id="niceeval-report-en"> / <template
+ * id="niceeval-report-zh-CN"> 两个静态块烘在 __NICEEVAL_VIEW_DATA__ 旁(不 hydrate,
+ * 自定义组件的 <Style> 产物已内联其中),并恒内联官方组件样式(report/react/styles.css)
+ * 与渐进增强 runtime(report/react/enhance.js,内联 <script>:排序 / 过滤 / tooltip,
+ * document 级事件委托,报告块被前端搬进槽位也无需重绑;无 JS 时报告内容依旧完整);
+ * 前端只把当前界面语言对应的那块摆进报告槽位置,不解析。
  */
 export async function renderHtml(scan: ViewScan): Promise<string> {
   const template = await readViewAsset("template.html");
   const styles = await readViewAsset("client-dist/app.css");
   const app = await readViewAsset("client-dist/app.js");
-  const reportStyles =
-    scan.reportHtml !== undefined
-      ? await readFile(new URL("../report/react/styles.css", import.meta.url), "utf-8")
-      : undefined;
+  const [reportStyles, reportEnhance] = await Promise.all([
+    readFile(new URL("../report/react/styles.css", import.meta.url), "utf-8"),
+    readFile(new URL("../report/react/enhance.js", import.meta.url), "utf-8"),
+  ]);
 
   return template
     .replace(
       TEMPLATE_PLACEHOLDERS.styles,
-      () => `<style>\n${styles}\n</style>${reportStyles !== undefined ? `\n<style>\n${reportStyles}\n</style>` : ""}`,
+      () => `<style>\n${styles}\n</style>\n<style>\n${reportStyles}\n</style>\n<script>\n${reportEnhance}\n</script>`,
     )
-    .replace(TEMPLATE_PLACEHOLDERS.reportSlot, () =>
-      scan.reportHtml !== undefined ? `<template id="niceeval-report">${scan.reportHtml}</template>` : "",
+    .replace(
+      TEMPLATE_PLACEHOLDERS.reportSlot,
+      () =>
+        `<template id="niceeval-report-en">${scan.reportHtml.en}</template>\n` +
+        `<template id="niceeval-report-zh-CN">${scan.reportHtml["zh-CN"]}</template>`,
     )
     .replace(TEMPLATE_PLACEHOLDERS.viewData, () => JSON.stringify(scan.viewData).replace(/</g, "\\u003c"))
     .replace(TEMPLATE_PLACEHOLDERS.appCode, () => JSON.stringify(app).replace(/</g, "\\u003c"));

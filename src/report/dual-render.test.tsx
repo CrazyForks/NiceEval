@@ -24,6 +24,7 @@ import {
   Section,
   Style,
   Text,
+  defaultReport,
   defineComponent,
   defineReport,
   isReportDefinition,
@@ -135,7 +136,7 @@ describe("MetricBars 双面", () => {
     expect(html).toContain("100%");
     expect(html).toContain("50%");
     // web 面:codex 在 geometry/angles 组没有柱(缺数据),柱数 = 3
-    expect(html.match(/class="nre-bar"/g)).toHaveLength(3);
+    expect(html.match(/class="nre-bar /g)).toHaveLength(3);
     // text 面:codex 行是 —
     expect(term).toContain("codex   —");
   });
@@ -410,18 +411,15 @@ describe("defineComponent", () => {
 
 function fakeContext(): { selection: Selection; results: Results } {
   const snapshot: Snapshot = (() => {
-    const summary = {
-      agent: "bub",
+    const dir = "/results/compare_bub/snap-1";
+    const base = {
+      experimentId: "compare/bub",
       startedAt: "2026-07-01T10:00:00Z",
       completedAt: "2026-07-01T10:05:00Z",
-      passed: 1,
-      failed: 1,
-      skipped: 0,
-      errored: 0,
-      durationMs: 2000,
-      results: [] as never[],
+      agent: "bub",
+      schemaVersion: 1,
+      dir,
     };
-    const runDir = { dir: "/results/run-1", summary, attempts: [] as never[] };
     const mk = (id: string, verdict: "passed" | "failed", index: number) => ({
       evalId: id,
       experimentId: "compare/bub",
@@ -434,8 +432,8 @@ function fakeContext(): { selection: Selection; results: Results } {
         durationMs: 1000,
         assertions: [],
       },
-      ref: { run: "run-1", result: index },
-      runDir,
+      ref: { snapshot: "compare_bub/snap-1", attempt: `${id}/a0` },
+      snapshot: base,
       events: async () => null,
       trace: async () => null,
       o11y: async () => null,
@@ -444,13 +442,9 @@ function fakeContext(): { selection: Selection; results: Results } {
     });
     const attempts = [mk("algebra/x", "passed", 0), mk("algebra/y", "failed", 1)];
     return {
-      experimentId: "compare/bub",
-      startedAt: "2026-07-01T10:00:00Z",
-      agent: "bub",
-      schemaVersion: 1,
+      ...base,
       evals: attempts.map((a) => ({ id: a.evalId, attempts: [a] })),
       attempts,
-      runDir,
     } as unknown as Snapshot;
   })();
   const selection: Selection = {
@@ -461,7 +455,6 @@ function fakeContext(): { selection: Selection; results: Results } {
   const results = {
     experiments: [{ id: "compare/bub", snapshots: [snapshot], latest: snapshot, evalIds: ["algebra/x", "algebra/y"] }],
     skipped: [],
-    runDirs: [snapshot.runDir],
     latest: () => selection,
   } as Results;
   return { selection, results };
@@ -507,7 +500,7 @@ describe("defineReport + 渲染入口", () => {
     expect(html).toContain("nre-scoreboard");
     expect(html).toContain("考试成绩单");
     // 宿主注入的 attemptHref:CaseList 的下钻是普通 <a>,默认 view 路由
-    expect(html).toContain('href="#/attempt/run-1/1"');
+    expect(html).toContain('href="#/attempt/compare_bub/snap-1/algebra/y/a0"');
     expect(html).not.toContain("<script");
   });
 
@@ -523,5 +516,46 @@ describe("defineReport + 渲染入口", () => {
 
   it("<DefaultReport /> 在宿主之外渲染:一句直说的错误", () => {
     expect(() => renderToStaticMarkup(<DefaultReport />)).toThrow(/renders the host-injected selection/);
+  });
+});
+
+// ───────────────────────── defaultReport(内置默认报告)─────────────────────────
+
+describe("defaultReport", () => {
+  it("是普通 ReportDefinition;text 面 = RunOverview + 分组榜单(meta 列)+ 失败清单", async () => {
+    expect(isReportDefinition(defaultReport)).toBe(true);
+    const out = await renderReportToText(defaultReport, fakeContext(), { width: 100 });
+    // 顶部 RunOverview
+    expect(out).toContain("1 experiment · 2 evals · 2 attempts");
+    // "compare/bub" 的组是 "compare":Section 标题;组内可画点 <2(无成本数据),scatter 省略
+    expect(out).toContain("compare\n");
+    expect(out).not.toContain("better → upper right");
+    // 榜单 parity:Agent 与 eval 级折叠计票列
+    expect(out).toContain("compare/bub");
+    expect(out).toContain("Agent");
+    expect(out).toContain("Verdicts");
+    expect(out).toContain("1 passed / 1 failed");
+    // 尾部失败清单
+    expect(out).toContain("✗ algebra/y");
+  });
+
+  it("web 面:分组 Section + 过滤输入框 + 排序 data 属性,无 <script>", async () => {
+    const html = await renderReportToStaticHtml(defaultReport, fakeContext());
+    expect(html).toContain("nre-section");
+    expect(html).toContain(">compare</h2>");
+    expect(html).toContain("data-nre-filter");
+    expect(html).toContain("data-nre-sort");
+    expect(html).toContain("nre-verdict-pill");
+    expect(html).not.toContain("<script");
+  });
+
+  it("locale 管线:web 面 zh-CN 走字典(chrome 与内置指标 label),text 面默认 en 不变", async () => {
+    const zh = await renderReportToStaticHtml(defaultReport, fakeContext(), { locale: "zh-CN" });
+    expect(zh).toContain("成功率"); // passRate 的 zh-CN label
+    expect(zh).toContain('placeholder="筛选行…"');
+    expect(zh).toContain("通过 1"); // RunOverview 的 verdict 词
+    const zhText = await renderReportToText(defaultReport, fakeContext(), { locale: "zh-CN" });
+    expect(zhText).toContain("1 个实验");
+    expect(zhText).toContain("成功率");
   });
 });
