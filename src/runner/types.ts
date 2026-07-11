@@ -278,8 +278,15 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** TTY live display 的进度回调;设置后 attempt 的 log 消息路由到它而不是 stderr。 */
   onProgress?: (evalId: string, who: string, msg: string) => void;
-  /** 上次运行的结果。verdict === "passed" 的 (experimentId, evalId) 组合跳过重跑,结果直接合入本次汇总。 */
+  /** 上次运行的结果。verdict 为 passed/failed 的 (experimentId, evalId) 组合跳过重跑,结果直接合入本次汇总。 */
   priorResults?: EvalResult[];
+  /**
+   * 预算好的携入计划(见 fingerprint.ts 的 planCarry)。cli.ts 为了让 live 表格提前知道
+   * 哪些行会被携入,必须在构建 liveRows 之前算一次;传进来后 runEvals 直接复用,不重算
+   * 一遍(否则两处各自算一次,不仅重复 I/O,还留下"两边判断可能不一致"的隐患)。
+   * 省略时 runEvals 自己算(测试直调等场景)。
+   */
+  carryPlan?: import("./fingerprint.ts").CarryPlan;
   /**
    * 非沙箱 tracing agent 的 run 级共享 OTLP 接收池(runEvals 创建并回收;
    * 每个 agent 一个 receiver,attempt 之间共享 —— 被测应用是长驻进程,端点不能随 attempt 换)。

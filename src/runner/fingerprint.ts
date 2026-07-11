@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { sandboxLabel } from "../sandbox/resolve.ts";
-import type { DiscoveredEval } from "../types.ts";
+import type { DiscoveredEval, EvalResult } from "../types.ts";
 import type { AgentRun } from "./types.ts";
 
 export function cacheKey(run: AgentRun, evalId: string): string {
@@ -45,6 +45,59 @@ export async function computeFingerprint(
     },
   };
   return createHash("sha256").update(stableJson(payload)).digest("hex");
+}
+
+export interface CarryPlan {
+  /** `cacheKey(run, evalId)` → 本次规划出的指纹,供调用方按同一口径判断"这条要不要携入"。 */
+  plannedFingerprints: Map<string, string>;
+  /** 命中携入条件(passed/failed 终态 + 指纹匹配)的 `${experimentId}|${evalId}` 集合。 */
+  priorRunKeys: Set<string>;
+  /** priorRunKeys 对应的完整结果对象,供 run.ts 直接并入 summary、cli.ts 直接取 verdict 展示。 */
+  carriedResults: EvalResult[];
+}
+
+/**
+ * 算出这一批 (agentRun × eval) 的指纹,并据此从 priorResults 里筛出可以携入(跳过重跑)的结果。
+ * run.ts 与 cli.ts(live 表格构建)必须共用这同一份计算 —— 否则两边一旦对"哪些携入"的判断
+ * 不一致,live 表格就会显示"还在等名额",而 run.ts 其实已经把它筛掉、根本不会调度这个 attempt
+ * (见 memory 的 live-carry-row-shows-waiting-forever)。
+ */
+export async function planCarry(
+  evals: DiscoveredEval[],
+  agentRuns: AgentRun[],
+  priorResults: EvalResult[] | undefined,
+): Promise<CarryPlan> {
+  const sourceCache = new Map<string, Promise<string>>();
+  const plannedFingerprints = new Map<string, string>();
+  const jobs: Promise<void>[] = [];
+  for (const run of agentRuns) {
+    for (const evalDef of evals.filter((e) => run.evalFilter(e.id))) {
+      jobs.push(
+        computeFingerprint(evalDef, run, sourceCache).then((fp) => {
+          plannedFingerprints.set(cacheKey(run, evalDef.id), fp);
+        }),
+      );
+    }
+  }
+  await Promise.all(jobs);
+
+  const priorRunKeys = new Set<string>();
+  const carriedResults: EvalResult[] = [];
+  if (priorResults?.length) {
+    for (const r of priorResults) {
+      if (!r.experimentId) continue;
+      const key = `${r.experimentId}|${r.id}`;
+      const isTerminalVerdict = r.verdict === "passed" || r.verdict === "failed";
+      if (isTerminalVerdict && r.fingerprint !== undefined && r.fingerprint === plannedFingerprints.get(key)) {
+        priorRunKeys.add(key);
+      }
+    }
+    for (const r of priorResults) {
+      if (!r.experimentId || !priorRunKeys.has(`${r.experimentId}|${r.id}`)) continue;
+      carriedResults.push(r);
+    }
+  }
+  return { plannedFingerprints, priorRunKeys, carriedResults };
 }
 
 /** 键序稳定的 JSON 序列化(对象键排序),保证同一 payload 永远同一指纹。 */

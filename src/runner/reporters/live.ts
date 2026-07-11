@@ -32,6 +32,13 @@ export interface LiveRow {
   who: string;
   /** 该 (evalId, who) 对的总 attempt 数(含 earlyExit 估算值)。 */
   total: number;
+  /**
+   * 设置时表示这一行从第一帧起就是携入(carry)的结果,不会真的调度 attempt——直接按这个
+   * verdict 渲染成已完成,不经过 waiting → spinner 的过程。没有它,carry 掉的行会卡在
+   * "waiting for a slot"直到进程退出:它永远等不到 eval:start,因为 run.ts 压根不会为
+   * 它派发 attempt。
+   */
+  carriedVerdict?: string;
 }
 
 export interface LiveReporter extends Reporter {
@@ -50,12 +57,21 @@ interface RowState extends LiveRow {
 export function Live(rows: LiveRow[], totalAttempts: number): LiveReporter {
   const stateMap = new Map<string, RowState>();
   const keyOrder: string[] = [];
+  let totalCompleted = 0;
 
   for (const r of rows) {
     const k = `${r.evalId}|${r.who}`;
     if (!stateMap.has(k)) {
-      stateMap.set(k, { ...r, completed: 0, lastMsg: "", dominantVerdict: undefined, started: false });
+      const carried = r.carriedVerdict !== undefined;
+      stateMap.set(k, {
+        ...r,
+        completed: carried ? r.total : 0,
+        lastMsg: "",
+        dominantVerdict: r.carriedVerdict,
+        started: carried,
+      });
       keyOrder.push(k);
+      if (carried) totalCompleted += r.total;
     } else {
       // 同一 (evalId, who) 可能在多个 agentRun 里出现(不应发生,但做防御)
       stateMap.get(k)!.total += r.total;
@@ -63,7 +79,6 @@ export function Live(rows: LiveRow[], totalAttempts: number): LiveReporter {
   }
 
   let spinFrame = 0;
-  let totalCompleted = 0;
   let drawnLines = 0; // 上次 draw() 写了多少行,用于 \x1B[nA 回跳
   let intervalId: ReturnType<typeof setInterval> | undefined;
   let shape: RunShape | undefined;

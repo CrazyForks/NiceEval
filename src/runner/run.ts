@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { Effect, Cause, Exit } from "effect";
 import { probeJudge } from "../scoring/judge.ts";
 import { t } from "../i18n/index.ts";
-import { cacheKey, computeFingerprint } from "./fingerprint.ts";
+import { cacheKey, planCarry } from "./fingerprint.ts";
 import { OtelReceiverPool } from "../o11y/otlp/turn-otel.ts";
 import { runAttemptEffect } from "./attempt.ts";
 import { runReporter, emitReporterEvent, scopeReporter, summarize } from "./report.ts";
@@ -54,46 +54,14 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
     return p;
   };
 
-  const plannedFingerprints = new Map<string, string>();
-  {
-    const jobs: Promise<void>[] = [];
-    for (const run of opts.agentRuns) {
-      for (const evalDef of opts.evals.filter((e) => run.evalFilter(e.id))) {
-        jobs.push(
-          computeFingerprint(evalDef, run, sourceCache).then((fp) => {
-            plannedFingerprints.set(cacheKey(run, evalDef.id), fp);
-          }),
-        );
-      }
-    }
-    await Promise.all(jobs);
-  }
-
   // 跨实验结果复用:上次 passed 或 failed 且 fingerprint 匹配的 (experimentId, evalId) 组合
   // 直接携入 —— 两者都是"跑完了、判定确定"的终态,没有理由重花一次 agent/sandbox 成本去
   // 复现同一个已知结果。errored 是框架/环境层面的不确定失败(超时、沙箱挂了、judge 探测失败
-  // 等),判定本身不可信,必须重跑。跳过/fingerprint 不匹配同样重跑。--force 跳过此逻辑。
-  const priorRunKeys = new Set<string>();
-  const carriedResults: EvalResult[] = [];
-  if (opts.priorResults?.length) {
-    for (const r of opts.priorResults) {
-      if (!r.experimentId) continue;
-      const key = `${r.experimentId}|${r.id}`;
-      const isTerminalVerdict = r.verdict === "passed" || r.verdict === "failed";
-      if (isTerminalVerdict && r.fingerprint !== undefined && r.fingerprint === plannedFingerprints.get(key)) {
-        priorRunKeys.add(key);
-      }
-    }
-    for (const r of opts.priorResults) {
-      if (!r.experimentId || !priorRunKeys.has(`${r.experimentId}|${r.id}`)) continue;
-      // artifactBase 是相对结果根(.niceeval)的路径,指向原快照的 attempt 目录:
-      // loadLatestResultsPerEval(经 withViewRefs)已经拼好这个稳定路径,换一个新快照
-      // 目录不影响它的可解析性,原样带过来——writer 落盘携带条目时只写 result.json,
-      // artifact 仍留在原快照里,靠 artifactBase 懒加载回退;不然 view 就再也找不到
-      // 这条携带结果的源码/转录/trace 了。
-      carriedResults.push(r);
-    }
-  }
+  // 等),判定本身不可信,必须重跑。跳过/fingerprint 不匹配同样重跑。--force 跳过此逻辑
+  // (cli.ts 在 --force 时不传 priorResults,也不算 carryPlan)。
+  // carryPlan 优先用调用方(cli.ts,为了 live 表格)已经算好的那份,不重算一遍。
+  const { plannedFingerprints, priorRunKeys, carriedResults } =
+    opts.carryPlan ?? (await planCarry(opts.evals, opts.agentRuns, opts.priorResults));
 
   // 展开 attempts
   // 外层按「round」(run index)迭代,内层按 eval 迭代:同一 key 的第 i+1 次 attempt 排在

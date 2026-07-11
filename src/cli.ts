@@ -13,6 +13,7 @@ import { parseArgs as nodeParseArgs } from "node:util";
 import { discoverEvals, discoverExperiments, makeFilter } from "./runner/discover.ts";
 import { runEvals, type AgentRun } from "./runner/run.ts";
 import { runWho } from "./runner/types.ts";
+import { planCarry } from "./runner/fingerprint.ts";
 import { stopAllSandboxes, liveSandboxCount } from "./sandbox/registry.ts";
 import { evalLevelStats } from "./shared/verdict.ts";
 import { sandboxRecommendedConcurrency } from "./sandbox/resolve.ts";
@@ -525,6 +526,18 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // 提前算好(而不是等 runEvals 内部算):live 表格要在第一帧就知道哪些行会被携入
+  // (carry),直接渲染成已完成,不然会显示"waiting for a slot"直到进程退出——它们
+  // 永远等不到 eval:start,run.ts 压根不会为携入的 (experimentId, evalId) 派发 attempt。
+  // 两处必须共用同一份 planCarry() 判断,否则各自算一遍,一旦判断不一致,live 表格
+  // 显示的"携入"和 run.ts 实际调度的"携入"就会对不上。
+  const priorResults = flags.force ? undefined : await loadLatestResultsPerEval(join(cwd, ".niceeval"));
+  const carryPlan = priorResults?.length ? await planCarry(evals, agentRuns, priorResults) : undefined;
+  const carriedVerdictByKey = new Map<string, string>();
+  for (const r of carryPlan?.carriedResults ?? []) {
+    if (r.experimentId) carriedVerdictByKey.set(`${r.experimentId}|${r.id}`, r.verdict);
+  }
+
   const reporters: Reporter[] = [];
   let onProgress: ((evalId: string, who: string, msg: string) => void) | undefined;
 
@@ -538,7 +551,10 @@ async function main(): Promise<void> {
         const who = runWho({ agentName: agentRun.agent.name, model: agentRun.model, experimentId: agentRun.experimentId });
         const matched = evals.filter((e) => agentRun.evalFilter(e.id));
         for (const evalDef of matched) {
-          liveRows.push({ evalId: evalDef.id, who, total: agentRun.runs });
+          const carriedVerdict = agentRun.experimentId
+            ? carriedVerdictByKey.get(`${agentRun.experimentId}|${evalDef.id}`)
+            : undefined;
+          liveRows.push({ evalId: evalDef.id, who, total: agentRun.runs, carriedVerdict });
         }
       }
       const totalAttempts = liveRows.reduce((s, r) => s + r.total, 0);
@@ -602,8 +618,6 @@ async function main(): Promise<void> {
   const sandboxRecs = agentRuns.map((r) => sandboxRecommendedConcurrency(r.sandbox));
   const sandboxDefaultConcurrency = sandboxRecs.length > 0 ? Math.min(...sandboxRecs) : 10;
 
-  const priorResults = flags.force ? undefined : await loadLatestResultsPerEval(join(cwd, ".niceeval"));
-
   const summary = await runEvals({
     config,
     evals,
@@ -617,6 +631,7 @@ async function main(): Promise<void> {
     signal: ctrl.signal,
     onProgress,
     priorResults,
+    carryPlan,
   });
 
   // 正常返回(含被中断后走部分汇总)后再兜一刀:Scope finalizer 没停掉的残留沙箱在这里强清。
