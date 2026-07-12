@@ -76,7 +76,7 @@ eve 能用一个 url 当 target,是因为它定义了一套协议、被测 agent
 ## 与参考项目的关系
 
 - **eve evals** 给了我们 DX 形状:`defineEval`、路径即身份、gate/soft 断言、LLM-as-judge、reporter 插件、有界并发运行器。niceeval 的会话型 eval 基本是这套模型的再实现。
-- **Vercel agent-eval** 给了我们 agent 评测的工程形状:`Adapter` 接口、`Sandbox` 抽象与多 provider、transcript 归一化与注入、失败分类、指纹缓存。它的 fixture(目录约定自动发现 PROMPT + EVAL 测试)没有照搬——niceeval 里沙箱要放什么文件,是 `test()` 里的手工调用,不靠目录约定隐式发现。
+- **Vercel agent-eval** 给了我们 agent 评测的工程形状:`Adapter` 接口、`Sandbox` 抽象与多 provider、transcript 归一化与注入、指纹缓存。它的 fixture(目录约定自动发现 PROMPT + EVAL 测试)没有照搬——niceeval 里沙箱要放什么文件,是 `test()` 里的手工调用,不靠目录约定隐式发现。
 - **crabbox** 给了我们这条"核心 vs 适配器"的纪律,以及"文档是用户面真相、source-map 把行为映射回代码"的文档观。
 
 niceeval 的新意不在任何单一机制,而在于**把这两种本来分裂的评测范式(会话型 / 沙箱型)收敛进同一套 `defineEval` + 评分器 + 运行器 + 报告器**,让"评我自己的函数"和"评一个塞进容器的 Claude Code"读起来是同一种东西。

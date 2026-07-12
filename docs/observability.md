@@ -322,16 +322,6 @@ defineEval({ reporters: [Braintrust({ project: "weather" })], async test(t) { ..
 
 eval 级 reporter 经作用域包装接入(`scopeReporter`,见 `src/runner/report.ts`):`onEvalComplete` 按 eval id 过滤,`onRunComplete` 收到重新计数的子集汇总;同一实例被多个 eval 引用时合并观测集(共享一个目的地,比如同一个 Braintrust 实验),已经挂在全局 `reporters` 里的实例在 eval 上再列一遍也不会重复上报。
 
-## 失败分类(可选,沙箱型)
-
-沙箱型可开 AI 失败分类:跑完用一个小模型(给它只读探索结果目录的工具:list/read/grep)把失败归为三类:
-
-- **model** —— agent 试了但代码不对(测试挂)。
-- **infra** —— 基础设施坏了(API 错误、限流、崩溃、无 transcript)。
-- **timeout** —— 撞了时限。
-
-分类缓存进 `classification.json`。这让你在一大批失败里快速分清"是模型不行"还是"环境抖了",而不用逐个翻日志。
-
 ## 相关阅读
 
 - [Scoring](feature/scoring/README.md) —— 作用域断言如何消费 o11y。
