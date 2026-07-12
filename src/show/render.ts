@@ -130,13 +130,44 @@ function scoreText(score: number): string {
 
 /** 断言行:✓/✗ + severity + name;gate 失败带 detail,soft 恒带 score/1(失败再补 detail)。 */
 export function assertionLine(a: AssertionResult): string {
-  const head = `${a.passed ? "✓" : "✗"} ${a.severity} ${a.name}`;
+  const scope = a.group ? `${a.group} · ` : "";
+  const head = `${a.passed ? "✓" : "✗"} ${a.severity} ${scope}${a.name}`;
   if (a.severity === "soft") {
     const detail = !a.passed && a.detail ? `: ${a.detail}` : "";
     return `${head} — ${scoreText(a.score)}/1${detail}`;
   }
-  if (!a.passed) return a.detail ? `${head} — ${a.detail}` : `${head} — score ${scoreText(a.score)}`;
+  if (!a.passed) {
+    const reason = a.detail ?? `score ${scoreText(a.score)}`;
+    return a.evidence !== undefined ? `${head} — ${reason} · actual: ${a.evidence}` : `${head} — ${reason}`;
+  }
   return head;
+}
+
+function equalsExpected(name: string): string | undefined {
+  const match = /^equals\((.*)\)$/.exec(name);
+  return match?.[1];
+}
+
+/** 默认 Attempt 页的首要诊断：不要求用户再猜一次 evidence flag 才知道为何失败。 */
+export function failureDiagnostics(assertions: AssertionResult[], width: number): string | undefined {
+  const failed = assertions.filter((a) => !a.passed);
+  if (failed.length === 0) return undefined;
+  const lines = ["failures:"];
+  for (const a of failed) {
+    const label = a.group ?? a.name;
+    lines.push(`  ${a.severity} · ${label}`);
+    if (a.group) lines.push(`    assertion: ${a.name}`);
+    const expected = equalsExpected(a.name);
+    if (expected !== undefined) lines.push(`    expected: ${expected}`);
+    if (a.evidence !== undefined) lines.push(`    received: ${a.evidence}`);
+    if (a.detail) lines.push(`    reason: ${a.detail}`);
+    if (a.loc) lines.push(`    source: ${a.loc.file}:${a.loc.line}${a.loc.column ? `:${a.loc.column}` : ""}`);
+    if (a.severity === "soft") lines.push(`    score: ${scoreText(a.score)}/1`);
+  }
+  return lines.flatMap((line) => {
+    const indent = line.length - line.trimStart().length;
+    return wrapDisplay(line.trimStart(), Math.max(20, width - indent)).map((part) => `${" ".repeat(indent)}${part}`);
+  }).join("\n");
 }
 
 /** 详情块头部:`attempt 3 · compare/codex-gpt-5.4 · failed · 41s · 12.3k tokens · $0.04`。 */
@@ -387,6 +418,18 @@ function jsonPreview(value: unknown, max = 200): string {
   return clip(text, max);
 }
 
+function recordOf(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function indentedText(text: string, width: number, indent = 4, maxLines = 18): string[] {
+  const source = clip(text).split("\n");
+  const shown = source.slice(0, maxLines);
+  const lines = shown.flatMap((line) => wrapDisplay(line || " ", Math.max(20, width - indent)).map((part) => `${" ".repeat(indent)}${part}`));
+  if (source.length > shown.length) lines.push(`${" ".repeat(indent)}… (+${source.length - shown.length} more lines)`);
+  return lines;
+}
+
 // ───────────────────────── 证据切面:--eval(Eval 源码标注) ─────────────────────────
 
 const MAX_SOURCE_LINES = 400;
@@ -397,7 +440,16 @@ function evalAssertionDetailLine(a: AssertionResult): string | undefined {
     const detail = !a.passed && a.detail ? ` · ${a.detail}` : "";
     return `soft · ${scoreText(a.score)}/1${detail}`;
   }
-  if (!a.passed) return `gate${a.detail ? ` · ${a.detail}` : ""}`;
+  if (!a.passed) {
+    const parts = ["gate"];
+    if (a.group) parts.push(a.group);
+    parts.push(a.name);
+    const expected = equalsExpected(a.name);
+    if (expected !== undefined) parts.push(`expected ${expected}`);
+    if (a.evidence !== undefined) parts.push(`received ${a.evidence}`);
+    if (a.detail) parts.push(a.detail);
+    return parts.join(" · ");
+  }
   return undefined;
 }
 
@@ -493,55 +545,43 @@ function execBody(
 function executionNodeLines(node: ExecutionNode, originMs: number, timingAvailable: boolean, width: number): string[] {
   const time = node.kind !== "telemetry" && node.span ? relSeconds(node.span.startMs, originMs) : undefined;
   const duration = node.kind !== "telemetry" && node.span ? formatDurationMs(node.span.endMs - node.span.startMs) : undefined;
-  const resultTime = node.kind !== "telemetry" && node.span ? relSeconds(node.span.endMs, originMs) : undefined;
+  const meta = [time, duration].filter(Boolean).join(" · ");
+  const block = (title: string, body: string, extra: string[] = []): string[] => {
+    const heading = meta ? `${title}  ${meta}` : title;
+    const bodyLines = wrapDisplay(clip(body), Math.max(20, width - 2)).map((line) => `  ${line}`);
+    return [heading, ...bodyLines, ...extra.flatMap((line) => wrapDisplay(line, Math.max(20, width - 2)).map((part) => `  ${part}`))];
+  };
 
   switch (node.kind) {
     case "message":
-      return execBody(time, node.role, node.text, duration, width, timingAvailable);
+      return block(node.role.toUpperCase(), node.text);
     case "thinking":
-      return execBody(time, "thinking", clip(node.text, 200), duration, width, timingAvailable);
+      return block("THINKING", clip(node.text, 200));
     case "skill.loaded":
-      return execBody(time, "skill load", node.skill, duration, width, timingAvailable);
+      return block(`SKILL · ${node.skill}`, "loaded");
     case "action": {
-      const status = node.status !== "completed" ? ` (${node.status})` : "";
-      const call = execBody(time, "tool call", `${node.name} ${jsonPreview(node.input)}`, duration, width, timingAvailable);
-      const result = execBody(
-        resultTime,
-        "tool result",
-        `${node.output !== undefined ? jsonPreview(node.output) : "(no result)"}${status}`,
-        undefined,
-        width,
-        timingAvailable,
-      );
-      return [...call, ...result];
+      const input = recordOf(node.input);
+      const output = recordOf(node.output);
+      const inputText = typeof input?.command === "string" ? input.command : jsonPreview(node.input);
+      const outputText = typeof output?.output === "string" ? output.output : node.output !== undefined ? jsonPreview(node.output) : "(no result)";
+      const exit = typeof output?.exit_code === "number" ? ` · exit ${output.exit_code}` : "";
+      return [
+        meta ? `TOOL · ${node.name}  ${meta}` : `TOOL · ${node.name}`,
+        "  input",
+        ...indentedText(inputText, width),
+        `  result · ${node.status}${exit}`,
+        ...indentedText(outputText, width),
+      ];
     }
     case "subagent": {
-      const status = node.status !== "completed" ? ` (${node.status})` : "";
-      const call = execBody(time, "subagent", node.name, duration, width, timingAvailable);
-      if (node.output === undefined && node.status === "pending") return call;
-      const result = execBody(
-        resultTime,
-        "subagent result",
-        `${node.output !== undefined ? jsonPreview(node.output) : "(no result)"}${status}`,
-        undefined,
-        width,
-        timingAvailable,
-      );
-      return [...call, ...result];
+      return block(`SUBAGENT · ${node.name}`, node.output === undefined ? node.status : `result · ${node.status}: ${jsonPreview(node.output)}`);
     }
     case "input.requested":
-      return execBody(
-        time,
-        "input",
-        node.request.prompt ?? node.request.display ?? "(input requested)",
-        duration,
-        width,
-        timingAvailable,
-      );
+      return block("INPUT REQUESTED", node.request.prompt ?? node.request.display ?? "(input requested)");
     case "compaction":
-      return execBody(time, "compaction", node.reason ?? "context compacted", duration, width, timingAvailable);
+      return block("COMPACTION", node.reason ?? "context compacted");
     case "error":
-      return execBody(time, "error", node.message, duration, width, timingAvailable);
+      return block("ERROR", node.message);
     case "telemetry":
       return execBody(
         relSeconds(node.span.startMs, originMs),
@@ -575,8 +615,15 @@ export function executionText(
   const spanStarts = tree.nodes.flatMap((n) => (n.span ? [n.span.startMs] : []));
   const originMs = spanStarts.length > 0 ? Math.min(...spanStarts) : 0;
 
-  const shown = tree.nodes.slice(0, MAX_EVENTS);
-  const lines = shown.flatMap((node) => executionNodeLines(node, originMs, timingAvailable, width));
+  // `--execution` 回答 Agent 做了什么。未关联到标准事件的原始 spans 属于 trace 证据，
+  // 逐条混入 transcript 会把几十条 SDK 内部 span 盖过消息和工具调用。
+  const agentNodes = tree.nodes.filter((node) => node.kind !== "telemetry");
+  const telemetryCount = tree.nodes.length - agentNodes.length;
+  const shown = agentNodes.slice(0, MAX_EVENTS);
+  const lines = shown.flatMap((node, index) => [
+    ...(index === 0 ? [] : [""]),
+    ...executionNodeLines(node, originMs, timingAvailable, width),
+  ]);
 
   const tail: string[] = [];
   if (timingAvailable) {
@@ -589,18 +636,19 @@ export function executionText(
         `${skillLoads} skill ${skillLoads === 1 ? "load" : "loads"}`,
         `${toolCalls} tool ${toolCalls === 1 ? "call" : "calls"}`,
         `${aiMessages} AI ${aiMessages === 1 ? "message" : "messages"}`,
-        ...(tree.nodes.length > shown.length ? [`${tree.nodes.length - shown.length} more events not shown`] : []),
+        ...(agentNodes.length > shown.length ? [`${agentNodes.length - shown.length} more events not shown`] : []),
       ].join(" · "),
     );
   } else {
     tail.push(
       [
         "timing unavailable · OTel trace was not collected",
-        ...(tree.nodes.length > shown.length ? [`${tree.nodes.length - shown.length} more events not shown`] : []),
+        ...(agentNodes.length > shown.length ? [`${agentNodes.length - shown.length} more events not shown`] : []),
       ].join(" · "),
     );
   }
   if (eventsSource) tail.push(`full events: ${eventsSource}`);
+  if (telemetryCount > 0) tail.push(`${telemetryCount} unlinked telemetry spans omitted; inspect the OTel trace for framework timing.`);
   if (timingAvailable && artifactPath) tail.push(`full OTel trace: ${join(artifactPath, "trace.json")}`);
 
   return `${header}\n\n${lines.join("\n")}\n\n${tail.join("\n")}`;
@@ -648,8 +696,11 @@ export function attemptOverviewText(
     ].join("\n"),
   );
 
+  const diagnostics = failureDiagnostics(r.assertions, opts.width);
+  if (diagnostics) blocks.push(diagnostics);
+
   if (evidence.execution) {
-    const nodes = evidence.execution.nodes;
+    const nodes = evidence.execution.nodes.filter((node) => node.kind !== "telemetry");
     const skillLoads = nodes.filter((n) => n.kind === "skill.loaded").length;
     const toolCalls = nodes.filter((n) => n.kind === "action").length;
     const aiMessages = nodes.filter((n) => n.kind === "message" && n.role === "assistant").length;

@@ -51,7 +51,7 @@ type AttemptFixture = Pick<EvalResult, "id" | "verdict"> &
   Partial<
     Pick<
       EvalResult,
-      "attempt" | "durationMs" | "assertions" | "estimatedCostUSD" | "usage" | "error" | "startedAt" | "artifactBase" | "hasEvents"
+      "attempt" | "durationMs" | "assertions" | "estimatedCostUSD" | "usage" | "error" | "startedAt" | "artifactBase" | "hasEvents" | "hasTrace"
     >
   >;
 
@@ -471,8 +471,8 @@ describe("--execution", () => {
     const { out, code } = await show(root, ["weather/brooklyn"], { execution: true });
     expect(code).toBe(0);
     expect(out).toMatch(/^@1[0-9a-z]{7} · weather\/brooklyn · compare\/codex · failed/m);
-    expect(out).toMatch(/user\s+布鲁克林今天天气怎么样?/);
-    expect(out).toMatch(/assistant\s+布鲁克林今天大约 24°C,晴。/);
+    expect(out).toMatch(/USER\s+布鲁克林今天天气怎么样?/);
+    expect(out).toMatch(/ASSISTANT\s+布鲁克林今天大约 24°C,晴。/);
     expect(out).toContain("timing unavailable · OTel trace was not collected");
     expect(out).toContain("full events: ");
     expect(out).toContain("events.json");
@@ -489,6 +489,19 @@ describe("--execution", () => {
     const { out, code } = await show(root, ["weather/brooklyn"], { execution: true });
     expect(code).toBe(0);
     expect(out).toContain("no events recorded for this attempt");
+  });
+
+  it("不把未关联的 telemetry spans 混进 Agent 执行记录", async () => {
+    const root = await makeRoot();
+    const dir = await writeSnapshot(root, "2026-07-09T10-00-00-000Z", { experimentId: "compare/codex", startedAt: "2026-07-09T10:00:00.000Z" }, [
+      res("weather/brooklyn", "failed", { hasEvents: true, hasTrace: true }),
+    ]);
+    await writeFile(join(dir, "weather/brooklyn/a0/events.json"), JSON.stringify([{ type: "message", role: "user", text: "hello" }]), "utf-8");
+    await writeFile(join(dir, "weather/brooklyn/a0/trace.json"), JSON.stringify([{ traceId: "t", spanId: "s", name: "sdk.internal", startMs: 1, endMs: 2 }]), "utf-8");
+    const { out } = await show(root, ["weather/brooklyn"], { execution: true });
+    expect(out).toContain("USER");
+    expect(out).not.toMatch(/telemetry\s+sdk\.internal/);
+    expect(out).toContain("unlinked telemetry spans omitted");
   });
 
   it("多个 eval 匹配时证据切面报错:给紧凑索引(locator + 失败原因)而不是只报个数", async () => {
@@ -551,16 +564,45 @@ describe("--eval", () => {
     expect(out).toContain(`eval source: evals/weather/brooklyn.eval.ts · sha256:${sha.slice(0, 8)}`);
     // 源码行的缩进是语义的一部分,渲染必须原样保留(不按词重排折叠掉这两个空格)。
     expect(out).toMatch(/2✗ {3}turn\.calledTool\("get_weather"\);/);
-    expect(out).toContain("gate · tool was never called");
+    expect(out).toContain('gate · calledTool("get_weather") · tool was never called');
     expect(out).toContain("unmapped assertions (1, no source location):");
     expect(out).toContain("unlocated()");
     expect(out).toContain("assertions: 1 gate failed · 1 soft below target");
+  });
+
+  it("源码行标注保留 group 与值断言的 expected/received", async () => {
+    const root = await makeRoot();
+    const dir = await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("manager", "failed", { assertions: [{ name: "equals(4)", severity: "gate", score: 0, passed: false, evidence: "1", group: "Issue 15193", loc: { file: "evals/manager.eval.ts", line: 1 } }] }),
+    ]);
+    const attemptDir = join(dir, "manager/a0");
+    const content = "t.check(actual, equals(expected));\n";
+    const sha = createHash("sha256").update(content).digest("hex");
+    await writeFile(join(attemptDir, "sources.json"), JSON.stringify([{ path: "evals/manager.eval.ts", sha256: sha }]), "utf-8");
+    await mkdir(join(dir, "sources"), { recursive: true });
+    await writeFile(join(dir, "sources", `${sha}.json`), JSON.stringify({ content }), "utf-8");
+    const { out } = await show(root, ["manager"], { eval: true });
+    expect(out).toContain("gate · Issue 15193 · equals(4) · expected 4 · received 1");
   });
 });
 
 // ───────────────────────── @<locator> ─────────────────────────
 
 describe("show @<locator>", () => {
+  it("默认页直接解释失败断言的 group、期望值、实际值和源码位置", async () => {
+    const root = await makeRoot();
+    await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("manager", "failed", { assertions: [{ name: "equals(4)", severity: "gate", score: 0, passed: false, evidence: "1", group: "Issue 15193", loc: { file: "evals/manager.eval.ts", line: 40, column: 11 } }] }),
+    ]);
+    const results = await openResults(root);
+    const locator = results.experiments[0]!.latest.evals[0]!.attempts[0]!.locator!;
+    const { out } = await show(root, [locator]);
+    expect(out).toContain("gate · Issue 15193");
+    expect(out).toContain("assertion: equals(4)");
+    expect(out).toContain("expected: 4");
+    expect(out).toContain("received: 1");
+    expect(out).toContain("source: evals/manager.eval.ts:40:11");
+  });
   it("解析到对应 attempt,渲染紧凑全景(不当成 eval id 前缀匹配)", async () => {
     const root = await makeRoot();
     await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-08T10:00:00.000Z" }, [

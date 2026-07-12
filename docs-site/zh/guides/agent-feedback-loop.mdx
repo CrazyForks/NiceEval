@@ -59,7 +59,7 @@ AI 通常按任务选择这些入口：
 
     `--execution` 合并 AI 输出与 trace：标准事件流提供消息、thinking、tool call/result 和 Skill load；OTel 在能够关联时给同一节点补开始时间、耗时、父子关系和错误状态。没有 OTel 时步骤仍完整，只不显示时间。
 
-    不带证据 flag 时，`show @<id>` 给出一份紧凑的 Attempt 全景：Eval 断言、OTel 执行步骤、耗时瀑布和工作区变化。它展示**运行当时保存的 Eval 源码**，不读取当前工作区的同名文件；长内容只给摘要和展开命令。
+    不带证据 flag 时，`show @<id>` 是失败诊断首页。它先列出失败断言的 group、matcher、expected、received、原因和源码位置，再给执行与文件变化摘要。AI 应该先读这一页；只有需要回答“为什么产生这个值”时，才继续打开对应证据。
 
     ```text
     $ niceeval show @1k2m9qtr
@@ -81,6 +81,13 @@ AI 通常按任务选择这些入口：
 
     assertions: 1 passed · 1 gate failed · 1 soft below target
 
+    failures:
+      gate · Issue 15193: selected proposal matches the one maintainers accepted
+        assertion: equals(4)
+        expected: 4
+        received: 1
+        source: evals/memory/swelancer-manager-proposals.eval.ts:40:11
+
     execution [X,⏱]
     agent run                     ▕████████████████████▏ 41.2s
     ├─ inference                  ▕█████░░░░░░░░░░░░░░░▏ 10.1s · "布鲁克林今天大约 24°C，晴。"
@@ -96,21 +103,30 @@ AI 通常按任务选择这些入口：
     next: niceeval show @1k2m9qtr [--eval|--execution|--diff]
     ```
 
-    `--execution` 把 AI 消息、Skill load、工具调用和工具结果排成一棵执行树。下面的 Attempt 有 OTel，所以同一棵树同时带相对时间与耗时：
+    `--execution` 把 AI 消息、Skill load、工具调用和工具结果排成一棵执行树。它只展示 Agent 可理解的事件；没有关联到这些事件的 SDK / runtime span 不逐行输出，只报告省略数量并保留 `trace.json` 路径。下面的 Attempt 有 OTel，所以能关联的节点同时带相对时间与耗时：
 
     ```text
     $ niceeval show @1k2m9qtr --execution
     @1k2m9qtr · weather/brooklyn · compare/codex-gpt-5.4 · failed · OTel timing
 
-      0.0s  user        布鲁克林今天天气怎么样？
-      0.2s  assistant   我先读取天气工具的使用说明。
-      0.3s  skill load  weather-tools                         0.4s
-      0.8s  tool call   get_weather {"location":"Brooklyn"}  1.8s
-      2.6s  tool result {"temperatureC":18,"condition":"rain"}
-      2.8s  assistant   布鲁克林当前约 18°C，有雨。             1.2s
+    USER
+      布鲁克林今天天气怎么样？
+
+    ASSISTANT
+      我先读取天气工具的使用说明。
+
+    TOOL · get_weather  0.8s · 1.8s
+      input
+        {"location":"Brooklyn"}
+      result · completed
+        {"temperatureC":18,"condition":"rain"}
+
+    ASSISTANT  2.8s · 1.2s
+      布鲁克林当前约 18°C，有雨。
 
     total 4.0s · 1 skill load · 1 tool call · 2 AI messages
     full events: …/weather/brooklyn/a2/events.json
+    69 unlinked telemetry spans omitted; inspect the OTel trace for framework timing.
     full OTel trace: …/weather/brooklyn/a2/trace.json
     ```
 
@@ -120,12 +136,20 @@ AI 通常按任务选择这些入口：
     $ niceeval show @1nx4dpwq --execution
     @1nx4dpwq · weather/brooklyn · compare/bub-gpt-5.4 · failed
 
-    user        布鲁克林今天天气怎么样？
-    assistant   我先读取天气工具的使用说明。
-    skill load  weather-tools
-    tool call   get_weather {"location":"Brooklyn"}
-    tool result {"temperatureC":18,"condition":"rain"}
-    assistant   布鲁克林当前约 18°C，有雨。
+    USER
+      布鲁克林今天天气怎么样？
+
+    ASSISTANT
+      我先读取天气工具的使用说明。
+
+    TOOL · get_weather
+      input
+        {"location":"Brooklyn"}
+      result · completed
+        {"temperatureC":18,"condition":"rain"}
+
+    ASSISTANT
+      布鲁克林当前约 18°C，有雨。
 
     timing unavailable · OTel trace was not collected
     full events: …/weather/brooklyn/a2/events.json

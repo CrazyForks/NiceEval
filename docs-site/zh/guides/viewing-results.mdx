@@ -150,7 +150,7 @@ next: niceeval show @1k2m9qrs [--eval|--execution|--diff]
 
 ### `@<locator>`：一次 Attempt 的全景
 
-不带证据 flag 的 `niceeval show @<locator>` 给出一份紧凑全景：断言计票、Eval 源码是否可用、执行记录的事件计数与 OTel 计时可用性、工作区 diff 摘要，末尾列出这次 Attempt 实际捕获到的证据与下一步命令——四个证据切面里，哪些有数据、哪些没有，一眼看完，不需要把 `--eval`/`--execution`/`--diff` 都跑一遍才知道该看哪个:
+不带证据 flag 的 `niceeval show @<locator>` 是失败诊断首页：除断言计票外，失败项直接列 group、matcher、expected、received、原因和源码位置；随后给 Eval 源码是否可用、Agent 事件计数、OTel 计时可用性与工作区 diff 摘要。通常这一页已经能回答“为什么失败”，需要解释 Agent 为什么产生该结果时再打开证据切面：
 
 ```text
 $ niceeval show @1k2m9qrs
@@ -159,6 +159,13 @@ snapshot 2026-07-09T10:00:00.000Z · attempt 3 · 41.2s · 12.3k tokens · $0.04
 
 assertions: 1 passed · 1 gate failed · 1 soft below target
 eval source: evals/weather/brooklyn.eval.ts · sha256:a3fa4555…
+
+failures:
+  gate · Issue 15193: selected proposal matches the one maintainers accepted
+    assertion: equals(4)
+    expected: 4
+    received: 1
+    source: evals/memory/swelancer-manager-proposals.eval.ts:40:11
 
 execution: 2 events · 0 skill loads · 0 tool calls · 1 AI messages
 timing: OTel spans recorded for this attempt — see --execution for per-step timing.
@@ -203,14 +210,17 @@ full eval source: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/
 
 它展示的是**这次 Attempt 运行当时保存的源码**，不是当前工作区里同名文件的最新内容——eval 改过之后再看旧 Attempt，看到的仍是它跑的那一版。没有捕获到源码时如实说明「eval source unavailable for this attempt」，不伪造一份空文档。
 
-`--execution` 把标准事件流（消息、thinking、Skill 加载、工具调用/结果、subagent、错误）排成一棵执行树；这次 Attempt 接入过 OTel 时同一节点补上相对时间与耗时，没接入时骨架、顺序和内容不变，只去掉时间列并在结尾如实标 `timing unavailable`——不把「没有计时」误显示成「没有执行」：
+`--execution` 把标准事件流（消息、thinking、Skill 加载、工具调用/结果、subagent、错误）排成一棵执行树；这次 Attempt 接入过 OTel 时，同一节点能关联到的 span 会补上相对时间与耗时。无法关联到 Agent 事件的 SDK / runtime span 不逐行混入执行记录，只在结尾报告省略数量并指向完整 `trace.json`。没接入 OTel 时骨架、顺序和内容不变，只去掉时间列并标 `timing unavailable`：
 
 ```text
 $ niceeval show @1k2m9qrs --execution
 @1k2m9qrs · weather/brooklyn · compare/codex-gpt-5.4 · failed
 
-0.0s   user        布鲁克林今天天气怎么样?  100ms
-0.2s   assistant   布鲁克林今天大约 24°C,晴。  41.0s
+USER  0.0s · 100ms
+  布鲁克林今天天气怎么样?
+
+ASSISTANT  0.2s · 41.0s
+  布鲁克林今天大约 24°C,晴。
 
 total 41.2s · 0 skill loads · 0 tool calls · 1 AI message
 full events: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/weather/brooklyn/a2/events.json
@@ -223,12 +233,23 @@ full OTel trace: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/w
 $ niceeval show @1c3h6twx --execution
 @1c3h6twx · fixtures/button · compare/bub-gpt-5.4 · errored
 
-0.0s   user        给 Button 组件加一个 loading 态  100ms
-0.2s   assistant   我先看看现有 Button 组件的实现。  100ms
-0.3s   skill load  component-scaffold  400ms
-0.8s   tool call   write_file {"path":"src/components/Button.tsx"}  1.8s
-2.6s   tool result {"bytesWritten":1820}
-2.8s   assistant   已经加上 loading 态并补了对应样式。  1.2s
+USER  0.0s · 100ms
+  给 Button 组件加一个 loading 态
+
+ASSISTANT  0.2s · 100ms
+  我先看看现有 Button 组件的实现。
+
+SKILL · component-scaffold  0.3s · 400ms
+  loaded
+
+TOOL · write_file  0.8s · 1.8s
+  input
+    {"path":"src/components/Button.tsx"}
+  result · completed
+    {"bytesWritten":1820}
+
+ASSISTANT  2.8s · 1.2s
+  已经加上 loading 态并补了对应样式。
 
 total 4.0s · 1 skill load · 1 tool call · 2 AI messages
 full events: fixtures/button/a1/events.json
@@ -241,8 +262,11 @@ full OTel trace: fixtures/button/a1/trace.json
 $ niceeval show @1nx4dpqr --execution
 @1nx4dpqr · weather/brooklyn · compare/codex-gpt-5.4 · failed
 
-user        布鲁克林今天天气怎么样?
-assistant   布鲁克林今天大约 24°C,晴。
+USER
+  布鲁克林今天天气怎么样?
+
+ASSISTANT
+  布鲁克林今天大约 24°C,晴。
 
 timing unavailable · OTel trace was not collected
 full events: .niceeval/compare_codex-gpt-5.4/2026-07-09T10-00-00-000Z-x1f2/weather/brooklyn/a2/events.json
