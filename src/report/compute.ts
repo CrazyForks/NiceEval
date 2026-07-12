@@ -11,13 +11,14 @@
 // - core 中立:只认 Metric / Dimension 接口,不出现具体 agent 名的分支。
 
 import type {
-  AttemptRef,
-  CaseListData,
+  AttemptEvidenceCapabilities,
+  AttemptListItem,
+  AttemptLocator,
   DeltaData,
   DimensionInput,
-  ExperimentAttemptRowData,
-  ExperimentEvalRowData,
-  ExperimentTableData,
+  EvalListItem,
+  ExperimentListEvalRow,
+  ExperimentListItem,
   GroupSummaryData,
   LineData,
   MatrixData,
@@ -29,9 +30,9 @@ import type {
   ScoreboardData,
   TableData,
   TableRowMeta,
-  TableSubRow,
 } from "./types.ts";
 import type { AssertionResult, EvalResult } from "../types.ts";
+import type { AttemptHandle } from "../results/types.ts";
 import { evalLevelStats, foldEvalVerdict } from "../shared/verdict.ts";
 import {
   applyAggregator,
@@ -49,16 +50,15 @@ import {
   filterItems,
   groupItems,
   flagAxisValue,
+  locatorOf,
   resolveInput,
   snapshotKeyOf,
   toColumn,
   type Item,
   type SnapshotsInput,
 } from "./aggregate.ts";
-import { attemptCostUSD, examScore, passRate } from "./metrics.ts";
-import { costUSD, durationMs, tokens } from "./metrics.ts";
+import { attemptCostUSD, costUSD, durationMs, examScore, passRate, tokens } from "./metrics.ts";
 import { formatMetricValue, formatPlainNumber } from "./format.ts";
-import { displayExperimentName, totalTokens } from "../shared/aggregate.ts";
 
 // ───────────────────────── MetricTable.data ─────────────────────────
 
@@ -71,13 +71,6 @@ export interface TableDataOptions<M extends readonly Metric[]> {
   sort?: Metric;
   /** eval id 前缀过滤,同 CLI 位置参数语义。 */
   evals?: string | string[];
-  /**
-   * 展开维度:每行的 group 再按这个维度分一次组,渲染面把子行摆进这一行下面可展开的明细
-   * (典型 `expand: "eval"`——点开一个 experiment 行看它每道题的判定/原因,同一套 columns
-   * 在子群体上重算)。与 `rows` 是同一种维度输入,不限于 "eval",也不要求 rows 是
-   * "experiment"——任何行维度都能配 expand 展开出下一级。
-   */
-  expand?: DimensionInput;
 }
 
 // 一组 Item 的 eval 全身份键:experimentId + eval id。单 experiment 场景(如 experimentRowMeta,
@@ -105,7 +98,7 @@ function summarizeItems(items: Item[]): {
   attempts: number;
   verdicts: { passed: number; failed: number; errored: number; skipped: number };
   /** 折叠后代表每个「已跑」(非 skipped)eval 的一条 attempt 引用,与 ran 同序同数。 */
-  refs: AttemptRef[];
+  refs: AttemptLocator[];
   /** 计入通过率分母的 eval 数(passed + failed + errored,不含 skipped)。 */
   ran: number;
   totalCostUSD: number | null;
@@ -125,14 +118,14 @@ function summarizeItems(items: Item[]): {
     items.map((item) => ({ verdict: item.attempt.result.verdict, key: fullEvalKey(item) })),
     (r) => r.key,
   );
-  // 折叠代表 attempt:每个已跑的 eval 挑一条与折叠判定一致的 attempt 做证据引用
-  // (与 subRows() 挑代表 attempt 同一姿势),skipped 的 eval 不进分母、不出证据。
-  const refs: AttemptRef[] = [];
+  // 折叠代表 attempt:每个已跑的 eval 挑一条与折叠判定一致的 attempt 做证据引用,
+  // skipped 的 eval 不进分母、不出证据。
+  const refs: AttemptLocator[] = [];
   for (const group of byEval.values()) {
     const verdict = foldEvalVerdict(group.map((item) => item.attempt.result));
     if (verdict === "skipped") continue;
     const rep = group.find((item) => item.attempt.result.verdict === verdict) ?? group[0]!;
-    refs.push(rep.attempt.ref);
+    refs.push(locatorOf(rep));
   }
 
   let totalCostUSD: number | null = null;
@@ -161,7 +154,7 @@ function summarizeItems(items: Item[]): {
 
 /**
  * experiment 行的元信息:agent/model 身份(组内去重后拼接)+ eval 级折叠计票 + eval/attempt
- * 数量与最后运行时间(summarizeItems,即 view 榜单/ExperimentTable 的同一套 foldEvalVerdict
+ * 数量与最后运行时间(summarizeItems,即 view 榜单 / ExperimentList 的同一套 foldEvalVerdict
  * 口径)。其它行维度(agent/eval/自定义…)没有唯一身份,不携带。
  */
 function experimentRowMeta(group: Item[]): TableRowMeta {
@@ -185,8 +178,8 @@ function experimentRowMeta(group: Item[]): TableRowMeta {
 
 /**
  * 一次 attempt 未通过的 gate 断言,原始声明顺序不变;soft 断言不参与判定,不算「失败原因」,
- * 只影响得分,永不出现在这份列表里。`MetricTable expand` 子行、`CaseList`、`ExperimentTable`
- * 的失败诊断共用这同一份材料,保证同一个 attempt 在三处给出同一个原因。
+ * 只影响得分,永不出现在这份列表里。`EvalList` / `ExperimentList` 的失败诊断与 `AttemptList`
+ * 的断言列表共用这同一份材料,保证同一个 attempt 在各处给出同一个原因。
  */
 export function failingGateAssertions(result: EvalResult): AssertionResult[] {
   return result.assertions.filter((a) => !a.passed && a.severity === "gate");
@@ -206,37 +199,6 @@ export function reasonFor(result: EvalResult): string | undefined {
   return gates.map((a) => (a.detail ? `${a.name}: ${a.detail}` : a.name)).join(", ");
 }
 
-/**
- * `expand` 展开:group 按 `expand` 维度再分组,同一套父表 columns 在每个子群体上重算一遍——
- * 子行与父行同构(维度键 × 指标列),只是维度换了、群体收窄了。verdict/reason/ref/runs
- * 对任何维度都通用(不是 eval 维度专属):折一下判定、挑代表 attempt。
- */
-async function subRows<const M extends readonly Metric[]>(
-  group: Item[],
-  expand: DimensionInput,
-  columns: M,
-): Promise<TableSubRow<M[number]["name"]>[]> {
-  const groups = groupItems(group, expand);
-  const out: TableSubRow<M[number]["name"]>[] = [];
-  for (const [key, items] of groups) {
-    const cells: Record<string, MetricCell> = {};
-    for (const metric of columns) cells[metric.name] = await computeCell(metric, items);
-    const verdict = foldEvalVerdict(items.map((item) => item.attempt.result));
-    const rep = items.find((item) => item.attempt.result.verdict === verdict) ?? items[0]!;
-    out.push({
-      key,
-      cells: cells as Record<M[number]["name"], MetricCell>,
-      verdict,
-      reason: reasonFor(rep.attempt.result),
-      ref: rep.attempt.ref,
-      runs: items.length,
-      passedRuns: items.filter((item) => item.attempt.result.verdict === "passed").length,
-    });
-  }
-  out.sort((a, b) => a.key.localeCompare(b.key));
-  return out;
-}
-
 export async function tableData<const M extends readonly Metric[]>(
   input: SnapshotsInput,
   opts: TableDataOptions<M>,
@@ -254,10 +216,7 @@ export async function tableData<const M extends readonly Metric[]>(
       // sort 指标不在 columns 里时单独算一遍,只用于排序、不进输出
       sortCells.set(key, cells[opts.sort.name] ?? (await computeCell(opts.sort, group)));
     }
-    const meta: TableRowMeta = {
-      ...(opts.rows === "experiment" ? experimentRowMeta(group) : {}),
-      ...(opts.expand ? { subRows: await subRows(group, opts.expand, opts.columns) } : {}),
-    };
+    const meta: TableRowMeta = opts.rows === "experiment" ? experimentRowMeta(group) : {};
     rows.push({
       key,
       cells,
@@ -282,133 +241,167 @@ export async function tableData<const M extends readonly Metric[]>(
   } as TableData<M[number]["name"]>;
 }
 
-// ───────────────────────── ExperimentTable.data ─────────────────────────
+// ───────────────────────── ExperimentList.data / EvalList.data / AttemptList.data ─────────────────────────
+//
+// 三个实体列表逐级下钻(experiment → experimentId × eval → attempt),固定展示实体事实,
+// 没有列配置;过滤是报告作者对返回数组调用 .filter()/.slice() 的事,不进这里
+// (docs/reports.md「实体列表与指标表不重叠」)。AttemptListItem 是三者共用的叶子形状——
+// ExperimentList / EvalList 的下钻数组直接复用它,不各自精简一份。
 
-export interface ExperimentTableDataOptions {
-  /** eval id 前缀过滤，同 CLI 位置参数语义。 */
-  evals?: string | string[];
-}
-
-function scoreSummary(result: EvalResult): string | undefined {
-  const scored = result.assertions.filter((a) => a.score !== undefined && a.score !== null);
-  if (scored.length === 0) return undefined;
-  return scored
-    .map((a) => {
-      const score = formatPlainNumber(a.score);
-      return a.threshold === undefined
-        ? `${a.name} ${score}`
-        : `${a.name} ${score}/${formatPlainNumber(a.threshold)}`;
-    })
-    .join(" · ");
-}
-
-function attemptRow(item: Item): ExperimentAttemptRowData {
-  const result = item.attempt.result;
+/**
+ * 一个 attempt 的证据能力标记,只读已有的瘦身摘要位(`hasSources` / `hasEvents` / `hasTrace`)
+ * 加一次 `diff()` 懒加载——不调用完整的 `loadAttemptEvidence`(那还会额外装配 Eval 源码标注
+ * 与 ExecutionTree,这里只要四个布尔位)。三位定义与 `AttemptEvidence.capabilities` 完全一致:
+ *
+ * - `eval`:`hasSources` 为真。真正的门槛是 `AnnotatedEvalSource` 非空且有内容(源码行或断言
+ *   非空),但 sources 存在时 `buildAnnotatedEvalSource` 恒产出至少一行源码,断言又永远来自
+ *   `result.assertions`(不需要 IO)——`hasSources` 是这个条件的精确瘦身版,不是近似。
+ * - `execution`:`hasEvents` 为真,与 `loadAttemptEvidence` 的 `events !== null && events.length > 0`
+ *   同一个判定,写入面按同一条规则算的 `hasEvents` 就是它的瘦身镜像。
+ * - `timing`:`hasEvents && hasTrace` 为真——`execution` 成立且这次运行接入过 OTel
+ *   (`ExecutionTree.timingAvailable` = `spans.length > 0`,`hasTrace` 正是这个判定的瘦身镜像)。
+ * - `diff`:唯一需要 IO 的一位,`attempt.diff()` 非空且至少改动/删除了一个文件——落盘没有
+ *   与 `hasEvents` 对应的瘦身摘要位,只能懒加载判定;成本是每个 item 一次 `diff()` 读取,
+ *   不是完整证据装配的四路 Promise.all。
+ */
+async function attemptCapabilities(attempt: AttemptHandle): Promise<AttemptEvidenceCapabilities> {
+  const result = attempt.result;
+  const diff = await attempt.diff();
+  const diffCapable = diff !== null && (Object.keys(diff.generatedFiles).length > 0 || diff.deletedFiles.length > 0);
   return {
-    attempt: result.attempt,
-    verdict: result.verdict,
-    reason: reasonFor(result),
-    scoreSummary: result.verdict === "passed" ? scoreSummary(result) : undefined,
-    startedAt: result.startedAt,
-    durationMs: result.durationMs,
-    tokens: totalTokens([result.usage]),
-    totalCostUSD: attemptCostUSD(result),
-    ref: item.attempt.ref,
-    hasEvidence:
-      result.hasEvents === true ||
-      result.hasTrace === true ||
-      result.assertions.some((a) => a.score !== undefined && a.score !== null),
+    eval: result.hasSources === true,
+    execution: result.hasEvents === true,
+    timing: result.hasEvents === true && result.hasTrace === true,
+    diff: diffCapable,
   };
 }
 
-function experimentEvalRows(items: Item[]): ExperimentEvalRowData[] {
-  const groups = groupItems(items, "eval");
-  const rows: ExperimentEvalRowData[] = [];
-  for (const [key, group] of groups) {
+/** 自由文本(error / 断言 detail / evidence)的发布消毒钩子;身份字段(name/severity/loc)不经它。 */
+function redactAssertions(assertions: AssertionResult[], redact: (text: string) => string): AssertionResult[] {
+  if (assertions.length === 0) return assertions;
+  return assertions.map((a) => ({
+    ...a,
+    ...(a.detail !== undefined ? { detail: redact(a.detail) } : {}),
+    ...(a.evidence !== undefined ? { evidence: redact(a.evidence) } : {}),
+  }));
+}
+
+/** AttemptList / ExperimentList / EvalList 共用的叶子构造:一个 Item → 一个 AttemptListItem。 */
+async function attemptListItemOf(item: Item, redact: (text: string) => string): Promise<AttemptListItem> {
+  const result = item.attempt.result;
+  const cost = attemptCostUSD(result);
+  return {
+    evalId: evalIdOf(item),
+    experimentId: experimentIdOf(item),
+    attempt: result.attempt,
+    agent: result.agent,
+    verdict: result.verdict,
+    ...(result.error !== undefined ? { error: redact(result.error) } : {}),
+    assertions: redactAssertions(result.assertions, redact),
+    durationMs: result.durationMs,
+    ...(cost !== null ? { costUSD: cost } : {}),
+    locator: locatorOf(item),
+    capabilities: await attemptCapabilities(item.attempt),
+  };
+}
+
+const identityRedact = (text: string): string => text;
+
+export interface AttemptListDataOptions {
+  /** 发布消毒:error / 断言 detail / evidence 经这个钩子;身份字段(experimentId/evalId/locator…)不经它。 */
+  redact?: (text: string) => string;
+}
+
+/** `AttemptList.data(selection)`:每个 Attempt 一项,顺序取自 Selection 展平顺序(不重排)。 */
+export async function attemptListData(
+  input: SnapshotsInput,
+  opts?: AttemptListDataOptions,
+): Promise<AttemptListItem[]> {
+  const { snapshots } = resolveInput(input);
+  const redact = opts?.redact ?? identityRedact;
+  const items = collectItems(snapshots);
+  return Promise.all(items.map((item) => attemptListItemOf(item, redact)));
+}
+
+/** `EvalList.data(selection)`:每个 `experimentId + evalId` 一项,按 evalId 再按 experimentId 升序。 */
+export async function evalListData(input: SnapshotsInput): Promise<EvalListItem[]> {
+  const { snapshots } = resolveInput(input);
+  const items = collectItems(snapshots);
+  const groups = new Map<string, Item[]>();
+  for (const item of items) {
+    const key = fullEvalKey(item);
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+  const out: EvalListItem[] = [];
+  for (const group of groups.values()) {
     const sorted = [...group].sort((a, b) => a.attempt.result.attempt - b.attempt.result.attempt);
     const verdict = foldEvalVerdict(sorted.map((item) => item.attempt.result));
     const representative = sorted.find((item) => item.attempt.result.verdict === verdict) ?? sorted[0]!;
-    const costs = sorted.map((item) => attemptCostUSD(item.attempt.result)).filter((n): n is number => n !== null);
-    rows.push({
-      key,
+    const attempts = await Promise.all(sorted.map((item) => attemptListItemOf(item, identityRedact)));
+    out.push({
+      evalId: evalIdOf(sorted[0]!),
+      experimentId: experimentIdOf(sorted[0]!),
       verdict,
       reason: reasonFor(representative.attempt.result),
-      scoreSummary: verdict === "passed" ? scoreSummary(representative.attempt.result) : undefined,
-      durationMs: sorted.reduce((sum, item) => sum + item.attempt.result.durationMs, 0),
-      tokens: totalTokens(sorted.map((item) => item.attempt.result.usage)),
-      totalCostUSD: costs.length === 0 ? null : costs.reduce((sum, n) => sum + n, 0),
-      runs: sorted.length,
-      passedRuns: sorted.filter((item) => item.attempt.result.verdict === "passed").length,
-      representativeRef: representative.attempt.ref,
-      attempts: sorted.map(attemptRow),
+      score: await computeCell(examScore, sorted),
+      duration: await computeCell(durationMs, sorted),
+      cost: await computeCell(costUSD, sorted),
+      attempts,
     });
   }
-  rows.sort((a, b) => a.key.localeCompare(b.key));
-  return rows;
+  out.sort((a, b) => a.evalId.localeCompare(b.evalId) || a.experimentId.localeCompare(b.experimentId));
+  return out;
 }
 
-/**
- * 构建旧 view ExperimentTable 的完整、可序列化工作台数据。计算全部发生在 Node 面；
- * web/text face 只负责排版，因此同一份定义不会再长出第三套公式。
- */
-export async function experimentTableData(
-  input: SnapshotsInput,
-  opts?: ExperimentTableDataOptions,
-): Promise<ExperimentTableData> {
+/** `ExperimentList.data(selection)`:每个 experiment 一项,按 experimentId 升序;展开到每道 Eval。 */
+export async function experimentListData(input: SnapshotsInput): Promise<ExperimentListItem[]> {
   const { snapshots } = resolveInput(input);
-  const items = filterItems(collectItems(snapshots), opts?.evals);
+  const items = collectItems(snapshots);
   const groups = groupItems(items, "experiment");
-  const rows: ExperimentTableData["rows"] = [];
+  const out: ExperimentListItem[] = [];
   for (const [experimentId, group] of groups) {
     const stats = summarizeItems(group);
     const newest = [...group].sort((a, b) => b.snapshot.startedAt.localeCompare(a.snapshot.startedAt))[0]!;
-    const results = group.map((item) => item.attempt.result);
-    const rawSample =
-      results.find((result) => result.verdict === "errored") ??
-      results.find((result) => result.verdict === "failed") ??
-      results[0];
+    const evalGroups = groupItems(group, "eval");
+    const evalRows: ExperimentListEvalRow[] = [];
+    for (const [evalId, evalItems] of evalGroups) {
+      const sorted = [...evalItems].sort((a, b) => a.attempt.result.attempt - b.attempt.result.attempt);
+      const verdict = foldEvalVerdict(sorted.map((item) => item.attempt.result));
+      const representative = sorted.find((item) => item.attempt.result.verdict === verdict) ?? sorted[0]!;
+      const attempts = await Promise.all(sorted.map((item) => attemptListItemOf(item, identityRedact)));
+      evalRows.push({
+        evalId,
+        verdict,
+        reason: reasonFor(representative.attempt.result),
+        duration: await computeCell(durationMs, sorted),
+        cost: await computeCell(costUSD, sorted),
+        attempts,
+      });
+    }
+    evalRows.sort((a, b) => a.evalId.localeCompare(b.evalId));
     const experiment = newest.snapshot.experiment ?? newest.attempt.result.experiment;
-    rows.push({
-      key: experimentId,
+    out.push({
       experimentId,
-      label: displayExperimentName(experimentId) ?? experimentId,
       agent: newest.snapshot.agent,
-      model: newest.attempt.result.model ?? newest.snapshot.model,
-      config: {
-        runs: experiment?.runs ?? stats.attempts,
-        earlyExit: experiment?.earlyExit,
-        sandbox: experiment?.sandbox,
-        timeoutMs: experiment?.timeoutMs,
-        budget: experiment?.budget,
-        flags: experiment?.flags,
-      },
+      ...((newest.attempt.result.model ?? newest.snapshot.model) !== undefined
+        ? { model: newest.attempt.result.model ?? newest.snapshot.model }
+        : {}),
+      ...(experiment?.flags ? { flags: experiment.flags } : {}),
+      verdicts: stats.verdicts,
+      passRate: await computeCell(passRate, group),
+      cost: await computeCell(costUSD, group),
+      duration: await computeCell(durationMs, group),
+      tokens: await computeCell(tokens, group),
+      evals: stats.evals,
+      attempts: stats.attempts,
       lastRunAt: stats.lastRunAt!,
-      summary: {
-        evals: stats.evals,
-        attempts: stats.attempts,
-        verdicts: stats.verdicts,
-        durationMs: group.reduce((sum, item) => sum + item.attempt.result.durationMs, 0),
-        totalCostUSD: stats.totalCostUSD,
-        passRate: await computeCell(passRate, group),
-        duration: await computeCell(durationMs, group),
-        tokens: await computeCell(tokens, group),
-        cost: await computeCell(costUSD, group),
-      },
-      evals: experimentEvalRows(group),
-      rawSample,
+      evalRows,
     });
   }
-  // 旧 view 的默认榜单顺序:通过率高的在前,缺数据沉底。web 增强可再按任一列重排;
-  // 无 JS 与 text 面仍从第一帧读到同一份官方预排。
-  rows.sort((a, b) => {
-    const av = a.summary.passRate.value;
-    const bv = b.summary.passRate.value;
-    if (av === null && bv === null) return 0;
-    if (av === null) return 1;
-    if (bv === null) return -1;
-    return bv - av;
-  });
-  return { rows };
+  out.sort((a, b) => a.experimentId.localeCompare(b.experimentId));
+  return out;
 }
 
 // ───────────────────────── MetricMatrix.data(= MetricBars.data)─────────────────────────
@@ -780,46 +773,3 @@ function deltaDisplay(metric: Metric, delta: number | null): string {
   return delta > 0 ? `+${text}` : text;
 }
 
-// ───────────────────────── CaseList.data ─────────────────────────
-
-export interface CaseListDataOptions {
-  /** 要列出的判定;默认 failed + errored。 */
-  verdicts?: ("failed" | "errored")[];
-  /** 超出如实报 truncated,不静默截断。 */
-  limit?: number;
-  /** 自由文本(error / 断言 detail / judge evidence)的发布消毒钩子;身份字段不经它。 */
-  redact?: (text: string) => string;
-}
-
-export async function caseListData(input: SnapshotsInput, opts?: CaseListDataOptions): Promise<CaseListData> {
-  const { snapshots } = resolveInput(input);
-  const wanted = new Set<"failed" | "errored">(opts?.verdicts ?? ["failed", "errored"]);
-  const redact = opts?.redact ?? ((text: string) => text);
-  const selected = collectItems(snapshots).filter((item) => {
-    const verdict = item.attempt.result.verdict;
-    return (verdict === "failed" || verdict === "errored") && wanted.has(verdict);
-  });
-  const shown = opts?.limit === undefined ? selected : selected.slice(0, opts.limit);
-  const rows: CaseListData["rows"] = shown.map((item) => {
-    const result = item.attempt.result;
-    const cost = attemptCostUSD(result);
-    return {
-      eval: evalIdOf(item),
-      experimentId: experimentIdOf(item),
-      agent: result.agent,
-      verdict: result.verdict as "failed" | "errored",
-      error: result.error === undefined ? undefined : redact(result.error),
-      // gate 断言同 reasonFor 口径(soft 不决定判定,不算「为什么失败」,排除在外)
-      failedAssertions: failingGateAssertions(result).map((assertion) => ({
-        name: assertion.name,
-        score: assertion.score,
-        detail: assertion.detail === undefined ? undefined : redact(assertion.detail),
-        evidence: assertion.evidence === undefined ? undefined : redact(assertion.evidence),
-      })),
-      durationMs: result.durationMs,
-      costUSD: cost ?? undefined,
-      ref: item.attempt.ref,
-    };
-  });
-  return { rows, truncated: selected.length - shown.length };
-}

@@ -65,14 +65,18 @@ niceeval view --out site              # 目录式静态导出:index.html + artif
 
 单文件模式指向版本不同的 `snapshot.json` 时输出同样的提示后退出,而不是报「不是 niceeval 结果」。如果 `producer.version` 缺失,文案退化成「upgrade niceeval」或「try an older niceeval matching when the report was created」,不要编造版本号。
 
+**这套版本机制是 results 层的通用能力,不是 view 专属。** `niceeval show` 裸跑零可读结果时,`skipped` 目录同样按上表分类展示;niceeval 自己写的、schemaVersion 不兼容的部分额外给出可执行建议——但 `show` 没有 view 的单快照直读模式,`--run` 认的是结果根(其下可以有多个 experiment,不是单个快照目录),所以不对每份落盘各拼一条命令,而是按 `producer.version` 分组、每组一条 `npx niceeval@<version> show --run <结果根>`,同版本的多份快照合并成一行,不重复刷屏。分组实现在中性层(`src/results/skipped-notice.ts` 的 `groupIncompatibleVersionSkips`),`show` 侧文案在 `src/show/render.ts` 的 `skippedRunsText`,`view` 侧文案(逐条给出,因为 view 支持精确打开某一份快照)仍是 `src/view/data.ts` 的 `noReadableResults`。
+
 版本不匹配没有隐式迁移:eval 结果是审计材料,原地改写会让「当时到底写出了什么」变模糊,view 是读工具,不应该因为想看结果而修改 `.niceeval/`。`niceeval clean` 也不是迁移工具,只负责删除当前项目的历史运行结果——适合用户明确表示「旧结果不要了,只想让 view 干净」的场景,不在 view 报错时自动执行。
 
-## 现状(已实现)
+## 现状
+
+> 状态:证据室(Runs / Traces / `AttemptModal` / trace 瀑布图 / Copy fix prompt / 横幅)与报告槽默认组件(`ExperimentList` + `AttemptLocator`,见下文「用 Reports 积木重建 view」)都是当前已实现行为——报告槽渲染出的 `#/attempt/@<locator>` 深链格式已生效。唯一尚未跟进的是证据室自己的 attempt 路由(`src/view/app/lib/attempt-route.ts` 与 `AttemptModal`)仍在解析旧的两段式 `#/attempt/<snapshot>/<attempt>`,还没切到消费单段 `AttemptLocator`——报告槽里的深链因此暂时点不进证据室,这是下一阶段要接上的最后一段。
 
 view = **报告槽 + 证据室**:
 
 - **报告槽(首页)**:由 `renderReportToStaticHtml` 渲染。默认报告 `CostPassRateComparison` 跨整个 Selection 摆一张成本 × 通过率 `MetricScatter`,下面是一份 `ExperimentList`;实验项展开到 Eval,再经证据引用进入 Attempt。默认报告不分组,不含 `RunOverview` / `GroupSummary` / `EvalList` / `AttemptList`。自定义报告可对三个实体列表的 `.data(selection)` 返回数组自行 `.filter()` / `.slice()` 后再传 `items`。`--report <文件>` 整槽替换。
-- **证据室**:Runs(所有 run 打平成一张表)、Traces(trace 瀑布图)两个 tab,加 `AttemptModal` 钻取(断言、错误、耗时、用量、transcript、trace)。报告槽里的数字经 `#/attempt/<snapshot>/<attempt>` 深链进来;证据室数据恒为全量,不随位置参数收窄。
+- **证据室**:Runs(所有 run 打平成一张表)、Traces(trace 瀑布图)两个 tab,加 `AttemptModal` 钻取(断言、错误、耗时、用量、transcript、trace)。报告槽里的数字经 `#/attempt/@<locator>` 深链进来,`<locator>` 是不透明的、at 符号前缀的 `AttemptLocator` 短码;证据室数据恒为全量,不随位置参数收窄。
 - **trace 瀑布图** —— 把 `trace.json` 画成时间轴瀑布,只读 canonical(`gen_ai.operation.name` → `kind`、`gen_ai.*`),不认任何原生 span 名,所以不同 agent 的图天然对齐、可叠加对比。
 - **Copy fix prompt(学 Next.js 16.3 的 Copy prompt)** —— 宿主壳里、报告槽上方的批量按钮:把全部失败(含 artifact 路径与修复步骤)打包成可直接粘给 coding agent 的英文修复 prompt,从 `viewData.snapshots` 现算,所以默认报告与 `--report` 两种填充下都在;`AttemptModal` 头部有单条版。实现在 `src/view/app/components/CopyControls.tsx` 的 `buildFixPrompt`。
 - **横幅**:两类横幅各有唯一出口。skipped run 横幅在壳(读不了的落盘,与 Selection 无关)。Selection 的挑选警告(partial-coverage / stale-snapshot / unfinished-snapshot 及任何未来的按实验警告)由宿主渲染入口(view 的 `renderReportToStaticHtml`、show 的 `renderReportToText`)在报告树输出之前自动前置一条警告横幅——这是宿主级保证,与报告树里有没有 `RunOverview` 无关,任何报告(内置或自定义)渲染时都得到同一条横幅。内置默认报告 `CostPassRateComparison` 不含 `RunOverview`,靠这条宿主级横幅让 `Selection.warnings` 一份不落地出现在报告槽,警告仍只有一个出口。
@@ -127,7 +131,7 @@ view = **报告槽 + 证据室**:
 
 ## 用 Reports 积木重建 view
 
-> 状态:已实现。读取层、统计层、渲染层三层都建立在 results lib 与 Reports 积木上(源码入口见 [Source Map](source-map.md#results-lib-与-reports));仍在计划的只剩 Compare(见上节)与 memory-evals 的静态导出流水线([Reports 场景三](reports.md#dx-模拟))。
+> 状态:读取层、渲染层与报告槽已实现(`openResults` 版本分流、`renderReportToStaticHtml` 静态渲染、`defineComponent` 的 web/text 双面,源码入口见 [Source Map](source-map.md#results-lib-与-reports));默认报告已换成 `ExperimentList` / `EvalList` / `AttemptList` 三级实体列表,报告槽渲染出的深链已经是本节描述的 `#/attempt/@<locator>` 单段格式。尚未跟进的只有证据室这一侧:`src/view/app/lib/attempt-route.ts` 与 `AttemptModal` 仍在解析旧的两段式路由,还没切到消费不透明 `AttemptLocator`——本节其余关于路由/证据室的描述是已定稿但对这一侧尚未落地的目标形态。仍在计划的还有 Compare(见上节)与 memory-evals 的静态导出流水线([Reports 场景三](reports.md#dx-模拟))。
 
 [Reports](reports.md) 把「自己搭报告页」拆成组件 + 计算函数 + 结果库三种零件之后,view 的定位是:**不是一套并行实现,而是用同一批零件搭出来的「默认报告页 + 证据室」**——用户搭页面用什么零件,view 自己就用什么。view 因此是这套积木的第一个常驻消费者,组件与计算函数的正确性被它天天验证。
 
@@ -142,8 +146,8 @@ view = **报告槽 + 证据室**:
 
 数据与路由契约:
 
-- `__NICEEVAL_VIEW_DATA__`(声明在 `src/view/shared/types.ts`)只携带证据室与壳需要的东西:快照明细(`snapshots`,含 attemptRef / artifact 基址)、`skippedRuns`、项目名与 run 元信息。**不携带 overview / 榜单这类统计产物**——统计口径整体住在报告槽的 HTML 里,报告槽自己算,壳与报告之间没有第二条数据通道。内嵌数据不是承诺的持久化格式,要数据走 [Reports 场景三](reports.md#dx-模拟)自己算——coding-agent-memory-evals 曾用字符串标记从 index.html 里抠内嵌 JSON、再正则消毒构建机路径,那类 hack 的存在本身就是数据契约缺位的证据。
-- `#/attempt/<snapshot>/<attempt>` 路由,路由参数就是 `AttemptRef`(`snapshot` 恒为两段 `<实验目录>/<快照目录>`,`attempt` 是 `<evalId 路径>/a<n>`)——报告页(前门)与 view(证据室)靠同一个身份契约打通,`attemptHref` 有确定的去处(`src/view/app/lib/attempt-route.ts` + `App.tsx` 接线,loader 给每条 result 注入 `attemptRef`;旧 `?modal=` 参数保留为只读回退)。
+- `__NICEEVAL_VIEW_DATA__`(声明在 `src/view/shared/types.ts`)只携带证据室与壳需要的东西:快照明细(`snapshots`,含 attempt locator / artifact 基址)、`skippedRuns`、项目名与 run 元信息。**不携带 overview / 榜单这类统计产物**——统计口径整体住在报告槽的 HTML 里,报告槽自己算,壳与报告之间没有第二条数据通道。内嵌数据不是承诺的持久化格式,要数据走 [Reports 场景三](reports.md#dx-模拟)自己算——coding-agent-memory-evals 曾用字符串标记从 index.html 里抠内嵌 JSON、再正则消毒构建机路径,那类 hack 的存在本身就是数据契约缺位的证据。
+- `#/attempt/@<locator>` 路由,路由参数是不透明的 `AttemptLocator`——at 符号前缀的短确定性编码,由 `{experimentId, 快照 startedAt, evalId, attempt 下标}` 这个不可变元组派生,从不编码快照目录名或数组下标。报告页(前门)与 view(证据室)靠同一个 locator 身份契约打通:reader 打开结果根时建立 locator → AttemptHandle 索引,`ctx.attemptHref(locator)` 落到这条路由;locator 缺失、畸形或撞车是结构化错误,从不回退成「随便挑一个」。旧 `?modal=` 参数保留为只读回退。
 - dev server 每次请求现读现渲染,报告文件变更下次请求整页重算(装载走 mtime cache-busting,`src/report/load.ts`);`--out` 时报告页即首页,证据室同站。
 
 明确裁决的取舍(是裁决,不是缺口):

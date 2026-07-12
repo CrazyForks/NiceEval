@@ -19,8 +19,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { EvalResult, Verdict } from "../types.ts";
 import type { AttemptHandle, Results, Selection, Snapshot } from "../results/index.ts";
-import type { ExperimentTableData, ScatterData } from "./types.ts";
-import { Col, ExperimentTable, defineReport } from "./index.ts";
+import type { ExperimentListItem, ScatterData } from "./types.ts";
+import { encodeAttemptLocator } from "../results/locator.ts";
+import { Col, ExperimentList, defineReport } from "./index.ts";
 import { CostPassRateComparison } from "./built-ins/index.ts";
 import publicCopy from "../../test/fixtures/report/cost-pass-rate-comparison-public-copy.tsx";
 import { renderReportToText } from "./report.ts";
@@ -38,7 +39,8 @@ import * as compute from "./compute.ts";
 // ───────────────────────── fake Selection / Snapshot(按 results 读取契约造)─────────────────────────
 
 // 夹具刻意做成纯确定性:同一 spec 每次都产出逐字节相同的 Snapshot —— 每个场景的 ctx() 被
-// built-in / public-copy 分别调用一次,只有两份快照的 AttemptRef.snapshot、startedAt 完全一致,
+// built-in / public-copy 分别调用一次,只有两份快照的身份元组(experimentId / snapshot
+// startedAt / evalId / attempt)完全一致,locatorOf() 兜底算出的 AttemptLocator 才会相同,
 // 跨 definition 的 attempt 深链集合与 resolved data 才可能相等。所以不用任何全局自增计数器。
 function res(id: string, verdict: Verdict, extra: Partial<EvalResult> = {}): EvalResult {
   return {
@@ -243,8 +245,9 @@ async function resolvedTreeOf(def: { build: (c: never) => unknown }, ctx: Return
 function scatterOf(tree: ReportNode): ScatterData | undefined {
   return collect(tree).find((c) => c.label === "MetricScatter")?.props.data as ScatterData | undefined;
 }
-function tableOf(tree: ReportNode): ExperimentTableData | undefined {
-  return collect(tree).find((c) => c.label === "ExperimentTable")?.props.data as ExperimentTableData | undefined;
+/** ExperimentList 没有 selection-form,树里的 props.items 就是 `await ExperimentList.data(selection)` 的产物。 */
+function experimentListOf(tree: ReportNode): ExperimentListItem[] | undefined {
+  return collect(tree).find((c) => c.label === "ExperimentList")?.props.items as ExperimentListItem[] | undefined;
 }
 
 /** HTML 里所有 attempt 深链,排序后便于集合比较。 */
@@ -254,6 +257,20 @@ function hrefsOf(html: string): string[] {
 /** 散点 web 面每个点的 data-key。 */
 function scatterKeysOf(html: string): string[] {
   return [...html.matchAll(/data-key="([^"]+)"/g)].map((m) => m[1]).sort();
+}
+
+/**
+ * 这份夹具的 AttemptHandle 都不带 `.locator` 字段(snap() 手工构造,故意留白),
+ * report 侧的 locatorOf() 按身份元组兜底算一份——这里复算同一个身份元组,验证深链确实
+ * 指向 Selection 里真实存在的那个 attempt,而不是随便一个字符串。
+ */
+function expectedLocatorFor(attempt: AttemptHandle): string {
+  return encodeAttemptLocator({
+    experimentId: attempt.experimentId,
+    snapshotStartedAt: attempt.snapshot.startedAt,
+    evalId: attempt.evalId,
+    attempt: attempt.result.attempt,
+  });
 }
 
 // ═════════════════════════ 1. built-in 与 public-copy 逐节点同构 ═════════════════════════
@@ -271,9 +288,9 @@ describe("resolved 树结构化等价(built-in ≡ 包外 public-copy)", () => {
       const builtIn = await resolvedTreeOf(CostPassRateComparison, c);
       const user = await resolvedTreeOf(publicCopy, ctx()); // 各用一份等价 ctx,证明不依赖共享状态
 
-      // 组件类型与顺序:<Col> 包 [MetricScatter, ExperimentTable],别无它物。
+      // 组件类型与顺序:<Col> 包 [MetricScatter, ExperimentList],别无它物。
       const labels = collect(builtIn).map((n) => n.label);
-      expect(labels).toEqual(["Col", "MetricScatter", "ExperimentTable"]);
+      expect(labels).toEqual(["Col", "MetricScatter", "ExperimentList"]);
       expect(collect(user).map((n) => n.label)).toEqual(labels);
 
       // 逐节点结构化相等:组件类型、顺序、resolved data、props keys(pointHref/filter/…)全一致。
@@ -281,7 +298,7 @@ describe("resolved 树结构化等价(built-in ≡ 包外 public-copy)", () => {
 
       // resolved data 本身也逐字段相等(不只是树同构)。
       expect(scatterOf(user)).toEqual(scatterOf(builtIn));
-      expect(tableOf(user)).toEqual(tableOf(builtIn));
+      expect(experimentListOf(user)).toEqual(experimentListOf(builtIn));
     });
   }
 });
@@ -289,10 +306,10 @@ describe("resolved 树结构化等价(built-in ≡ 包外 public-copy)", () => {
 // ═════════════════════════ 2. 9 个必测场景的 resolved 事实 ═════════════════════════
 
 describe("必测场景:resolved data 事实", () => {
-  it("场景 1+2:多 experiment/agent,成本与通过率都有值;缺成本的点如实 x=null,表格仍出行", async () => {
+  it("场景 1+2:多 experiment/agent,成本与通过率都有值;缺成本的点如实 x=null,实验列表仍出项", async () => {
     const tree = await resolvedTreeOf(CostPassRateComparison, richContext());
     const scatter = scatterOf(tree)!;
-    const table = tableOf(tree)!;
+    const experiments = experimentListOf(tree)!;
 
     // 散点:points=experiment、series=agent、x=cost、y=pass-rate
     expect(scatter.points).toBe("experiment");
@@ -318,9 +335,9 @@ describe("必测场景:resolved data 事实", () => {
     // ≥2 可画点
     expect(scatter.rows.filter((r) => r.x.value !== null && r.y.value !== null)).toHaveLength(2);
 
-    // 表格仍为每个 experiment 出一行,包括缺成本的 solo
-    expect(table.rows.map((r) => r.key).sort()).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
-    expect(table.rows.find((r) => r.key === "solo/no-cost")!.summary.totalCostUSD).toBeNull();
+    // 实验列表仍为每个 experiment 出一项,包括缺成本的 solo
+    expect(experiments.map((e) => e.experimentId).sort()).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
+    expect(experiments.find((e) => e.experimentId === "solo/no-cost")!.cost.value).toBeNull();
   });
 
   it("场景 3:恰好一个可画点(另一实验缺成本)", async () => {
@@ -331,10 +348,10 @@ describe("必测场景:resolved data 事实", () => {
     expect(drawable[0].key).toBe("only/priced");
   });
 
-  it("场景 4:空 Selection —— 散点无 rows、表格无行", async () => {
+  it("场景 4:空 Selection —— 散点无 rows、实验列表为空数组", async () => {
     const tree = await resolvedTreeOf(CostPassRateComparison, emptyContext());
     expect(scatterOf(tree)!.rows).toEqual([]);
-    expect(tableOf(tree)!.rows).toEqual([]);
+    expect(experimentListOf(tree)).toEqual([]);
   });
 
   it("场景 4 变体:全 skipped —— 每个点 x/y 都不可测,0 可画点", async () => {
@@ -344,30 +361,30 @@ describe("必测场景:resolved data 事实", () => {
     expect(scatter.rows.filter((r) => r.x.value !== null && r.y.value !== null)).toHaveLength(0);
   });
 
-  it("场景 5:failed/errored/skipped 混合 —— ExperimentTable 结果摘要正确(eval 级折叠计票)", async () => {
+  it("场景 5:failed/errored/skipped 混合 —— ExperimentList 展开区结果摘要正确(eval 级折叠计票)", async () => {
     const tree = await resolvedTreeOf(CostPassRateComparison, richContext());
-    const codex = tableOf(tree)!.rows.find((r) => r.key === "compare/codex-mid")!;
+    const codex = experimentListOf(tree)!.find((e) => e.experimentId === "compare/codex-mid")!;
     // algebra/x errored、algebra/y skipped、algebra/z passed → eval 级折叠 {passed:1, errored:1, skipped:1}
-    expect(codex.summary.verdicts).toEqual({ passed: 1, failed: 0, errored: 1, skipped: 1 });
-    const errored = codex.evals.find((e) => e.key === "algebra/x")!;
+    expect(codex.verdicts).toEqual({ passed: 1, failed: 0, errored: 1, skipped: 1 });
+    const errored = codex.evalRows.find((e) => e.evalId === "algebra/x")!;
     expect(errored.verdict).toBe("errored");
     expect(errored.reason).toBe("adapter crashed");
-    expect(codex.evals.find((e) => e.key === "algebra/y")!.verdict).toBe("skipped");
+    expect(codex.evalRows.find((e) => e.evalId === "algebra/y")!.verdict).toBe("skipped");
   });
 
-  it("场景 6:同 experiment 多 eval、多 attempts —— 展开层与 attempt refs 正确", async () => {
+  it("场景 6:同 experiment 多 eval、多 attempts —— 展开层与 attempt locator 正确", async () => {
     const tree = await resolvedTreeOf(CostPassRateComparison, richContext());
-    const bub = tableOf(tree)!.rows.find((r) => r.key === "compare/bub-low")!;
-    expect(bub.evals.map((e) => e.key).sort()).toEqual(["algebra/x", "algebra/y"]);
-    const multi = bub.evals.find((e) => e.key === "algebra/x")!;
-    // 多轮 attempt 折成一条子行:任一轮通过 → passed,runs/passedRuns 如实
+    const bub = experimentListOf(tree)!.find((e) => e.experimentId === "compare/bub-low")!;
+    expect(bub.evalRows.map((e) => e.evalId).sort()).toEqual(["algebra/x", "algebra/y"]);
+    const multi = bub.evalRows.find((e) => e.evalId === "algebra/x")!;
+    // 多轮 attempt 折成 passed(任一轮通过),两次 attempt 都在展开区的 attempts 里
     expect(multi.verdict).toBe("passed");
-    expect(multi.runs).toBe(2);
-    expect(multi.passedRuns).toBe(1);
     expect(multi.attempts.map((a) => a.attempt)).toEqual([0, 1]);
-    // attempt 深链指向真实 attempt artifact
-    expect(multi.attempts.map((a) => a.ref.attempt)).toEqual(["algebra/x/a0", "algebra/x/a1"]);
-    expect(multi.representativeRef.snapshot).toBe("compare_bub-low/snap-1");
+    expect(multi.attempts.map((a) => a.verdict)).toEqual(["failed", "passed"]);
+    // attempt locator 唯一、格式正确 —— 回到证据的引用不丢
+    const locators = multi.attempts.map((a) => a.locator);
+    expect(new Set(locators).size).toBe(2);
+    for (const locator of locators) expect(locator).toMatch(/^@1[0-9a-z]{7}$/);
   });
 });
 
@@ -391,8 +408,8 @@ describe("built-in 与 public-copy 渲染出的事实相同", () => {
 
   it("场景 8:view 的 attemptHref 深链格式与用户 --report 完全一致", async () => {
     const ctx = richContext();
-    // renderReportToStaticHtml 默认 attemptHref = view 的 `#/attempt/<snapshot>/<attempt>`
-    // (与 view/data.ts renderReportSlot 不传 attemptHref 时同一条默认路径)。
+    // renderReportToStaticHtml 默认 attemptHref = view 的 `#/attempt/@<locator>`(不透明单段路由,
+    // 与 view/data.ts renderReportSlot 不传 attemptHref 时同一条默认路径)。
     const builtinHtml = await renderReportToStaticHtml(CostPassRateComparison, ctx);
     const userHtml = await renderReportToStaticHtml(publicCopy, richContext());
     const builtinHrefs = hrefsOf(builtinHtml);
@@ -400,15 +417,18 @@ describe("built-in 与 public-copy 渲染出的事实相同", () => {
     expect(userHrefs).toEqual(builtinHrefs);
     expect(builtinHrefs.length).toBeGreaterThan(0);
     for (const href of builtinHrefs) {
-      expect(href).toMatch(/^#\/attempt\/[^/]+\/[^/]+\/.+\/a\d+$/);
+      expect(href).toMatch(/^#\/attempt\/@[0-9a-z]+$/);
     }
-    // 每个深链都指向 Selection 里真实存在的 attempt(格式 = view 的 attempt 路由,与 AttemptRef 同身份)。
+    // 每个深链都指向 Selection 里真实存在的 attempt(身份元组确定性派生同一个 locator)。
     const realDeepLinks = new Set(
-      ctx.selection.snapshots.flatMap((s) => s.attempts.map((a) => `#/attempt/${a.ref.snapshot}/${a.ref.attempt}`)),
+      ctx.selection.snapshots.flatMap((s) => s.attempts.map((a) => `#/attempt/${expectedLocatorFor(a)}`)),
     );
     for (const href of builtinHrefs) expect(realDeepLinks.has(href)).toBe(true);
     // errored eval 一定被深链(codex-mid 的 algebra/x)
-    expect(builtinHrefs).toContain("#/attempt/compare_codex-mid/snap-1/algebra/x/a0");
+    const erroredAttempt = ctx.selection.snapshots
+      .flatMap((s) => s.attempts)
+      .find((a) => a.experimentId === "compare/codex-mid" && a.evalId === "algebra/x")!;
+    expect(builtinHrefs).toContain(`#/attempt/${expectedLocatorFor(erroredAttempt)}`);
   });
 });
 
@@ -430,7 +450,10 @@ describe("散点空态 / 单点 / 多点行为", () => {
     expect(text).not.toContain("better → upper right");
     const html = await renderReportToStaticHtml(CostPassRateComparison, oneDrawableContext());
     expect(html).toContain("nre-scatter-empty");
-    expect(html).not.toContain("nre-missing"); // 单点不是「缺数据」空态
+    // 单点不是「缺数据」空态:散点空态本身不带 nre-missing 变体类(与 0 可画点的
+    // "nre-scatter-empty nre-missing" 区分开)。ExperimentList 展开区自己的缺成本格子
+    // 也合法渲染 nre-missing,不属于这条散点专属的断言范围。
+    expect(html).not.toContain("nre-scatter-empty nre-missing");
     expect(html).not.toContain("<svg");
   });
 
@@ -454,16 +477,16 @@ describe("场景 7:en / zh-CN 数据 resolve 一次、chrome 分别本地化", (
 
     // 同一棵 resolved 树 → data 只算了一次(下方 spy 版另证调用次数)。
     const scatter = scatterOf(resolved)!;
-    const table = tableOf(resolved)!;
+    const experiments = experimentListOf(resolved)!;
 
     const enText = renderNodeToText(resolved, createTextContext({ width: 100, locale: "en" }));
     const zhText = renderNodeToText(resolved, createTextContext({ width: 100, locale: "zh-CN" }));
     const enHtml = runWithWebContext(
-      { attemptHref: (r) => `#/attempt/${r.snapshot}/${r.attempt}`, locale: "en" },
+      { attemptHref: (locator) => `#/attempt/${locator}`, locale: "en" },
       () => renderToStaticMarkup(resolved as never),
     );
     const zhHtml = runWithWebContext(
-      { attemptHref: (r) => `#/attempt/${r.snapshot}/${r.attempt}`, locale: "zh-CN" },
+      { attemptHref: (locator) => `#/attempt/${locator}`, locale: "zh-CN" },
       () => renderToStaticMarkup(resolved as never),
     );
 
@@ -486,56 +509,70 @@ describe("场景 7:en / zh-CN 数据 resolve 一次、chrome 分别本地化", (
     expect(codex.y.value).toBeCloseTo(0.5, 10);
     expect(solo.x.value).toBeNull();
     expect(solo.y.value).toBeCloseTo(0.5, 10);
-    expect(table.rows.map((r) => r.key)).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
+    expect(experiments.map((e) => e.experimentId)).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
   });
 
-  it("spy 佐证:一次 resolve 各计算函数恰好调用一次,随后两 locale 渲染不再重算", async () => {
+  it("spy 佐证:build() 里各计算函数恰好调用一次,随后两 locale 渲染不再重算", async () => {
     const scatterSpy = vi.spyOn(compute, "scatterData");
-    const tableSpy = vi.spyOn(compute, "experimentTableData");
+    // 注意:spy 挂在 ExperimentList.data 本身,不是 compute.experimentListData —— components.tsx
+    // 用 `Object.assign(component, { data: experimentListData })` 把函数值复制成一个普通属性,
+    // 那份拷贝在 components.tsx 求值时(模块加载期)就定死了,晚于此的 vi.spyOn(compute, …) патch
+    // 不到已经复制走的引用。直接调用方(built-ins/cost-pass-rate-comparison.tsx)读的是
+    // `ExperimentList.data` 这个属性,所以要在这个属性上打桩。MetricScatter 不受影响:它的
+    // resolve() 住在 components.tsx 里,调用的是 scatterData 这个 import 绑定本身(ESM 实时绑定),
+    // vi.spyOn(compute, "scatterData") 打得中。
+    const experimentListSpy = vi.spyOn(ExperimentList, "data");
     try {
+      // ExperimentList 没有 resolve 面,.data() 直接在 build() 里 await——计算发生在 build,
+      // 不是 resolveReportTree;MetricScatter 仍是 selection-form,resolve 阶段才调它的 .data()。
       const node = (await CostPassRateComparison.build(richContext())) as ReportNode;
+      expect(experimentListSpy).toHaveBeenCalledTimes(1);
       const resolved = await resolveReportTree(node);
       expect(scatterSpy).toHaveBeenCalledTimes(1);
-      expect(tableSpy).toHaveBeenCalledTimes(1);
+      expect(experimentListSpy).toHaveBeenCalledTimes(1);
 
       // 渲染面纯同步、零 IO:两 locale 渲染同一棵 resolved 树,不再触发任何计算。
       renderNodeToText(resolved, createTextContext({ locale: "en" }));
       renderNodeToText(resolved, createTextContext({ locale: "zh-CN" }));
       expect(scatterSpy).toHaveBeenCalledTimes(1);
-      expect(tableSpy).toHaveBeenCalledTimes(1);
+      expect(experimentListSpy).toHaveBeenCalledTimes(1);
     } finally {
       scatterSpy.mockRestore();
-      tableSpy.mockRestore();
+      experimentListSpy.mockRestore();
     }
   });
 });
 
-// ═════════════════════════ 6. 场景 9:只放 ExperimentTable 的最小报告不触发散点计算 ═════════════════════════
+// ═════════════════════════ 6. 场景 9:只放 ExperimentList 的最小报告不触发散点计算 ═════════════════════════
 
-describe("场景 9:最小用户报告只放 <ExperimentTable> —— 不计算散点", () => {
-  const minimal = defineReport(({ selection }) => (
-    <Col>
-      <ExperimentTable selection={selection} />
-    </Col>
-  ));
+describe("场景 9:最小用户报告只放 <ExperimentList> —— 不计算散点", () => {
+  const minimal = defineReport(async ({ selection }) => {
+    const experiments = await ExperimentList.data(selection);
+    return (
+      <Col>
+        <ExperimentList items={experiments} />
+      </Col>
+    );
+  });
 
   it("结构性缺席:resolved 树里没有 MetricScatter 节点", async () => {
     const tree = await resolvedTreeOf(minimal, richContext());
-    expect(collect(tree).map((n) => n.label)).toEqual(["Col", "ExperimentTable"]);
+    expect(collect(tree).map((n) => n.label)).toEqual(["Col", "ExperimentList"]);
     expect(scatterOf(tree)).toBeUndefined();
-    expect(tableOf(tree)).toBeDefined();
+    expect(experimentListOf(tree)).toBeDefined();
   });
 
-  it("spy 佐证:scatterData 从未被调用,experimentTableData 调一次", async () => {
+  it("spy 佐证:scatterData 从未被调用,experimentListData 调一次", async () => {
     const scatterSpy = vi.spyOn(compute, "scatterData");
-    const tableSpy = vi.spyOn(compute, "experimentTableData");
+    // 见上一个 describe 块的注释:直接调用方读的是 ExperimentList.data 属性,打桩要打在这上面。
+    const experimentListSpy = vi.spyOn(ExperimentList, "data");
     try {
       await resolvedTreeOf(minimal, richContext());
       expect(scatterSpy).not.toHaveBeenCalled();
-      expect(tableSpy).toHaveBeenCalledTimes(1);
+      expect(experimentListSpy).toHaveBeenCalledTimes(1);
     } finally {
       scatterSpy.mockRestore();
-      tableSpy.mockRestore();
+      experimentListSpy.mockRestore();
     }
   });
 

@@ -7,7 +7,7 @@
 // 计算全部发生在报告函数体里,可达百 MB 的 artifact 永远不进渲染路径。
 
 import type { ReactNode } from "react";
-import type { AttemptRef } from "../results/index.ts";
+import type { AttemptLocator } from "../results/locator.ts";
 import { DEFAULT_REPORT_LOCALE, type ReportLocale } from "./locale.ts";
 
 // ───────────────────────── 节点形状 ─────────────────────────
@@ -48,13 +48,13 @@ export interface TextContext {
   locale: ReportLocale;
   /** 容器组件渲染 children 用,宽度显式传递。 */
   render(node: ReportNode, width?: number): string;
-  /** 下钻命令,通证据室。 */
-  attemptCommand(ref: AttemptRef): string;
+  /** 下钻命令,通证据室:`niceeval show @<locator>`。 */
+  attemptCommand(locator: AttemptLocator): string;
 }
 
 export interface WebContext {
-  /** 证据室深链,同 view 的 attempt 路由。 */
-  attemptHref(ref: AttemptRef): string;
+  /** 证据室深链,同 view 的 attempt 路由(`#/attempt/@<locator>`,单段、不透明)。 */
+  attemptHref(locator: AttemptLocator): string;
   /** chrome 文案的 locale;官方组件渲染面经上下文读取,宿主外默认 "en"。 */
   locale: ReportLocale;
 }
@@ -87,8 +87,12 @@ export type ReportComponent<P> = ((props: P) => ReactNode) & {
 // 用默认值 —— attemptHref 默认 view 的 attempt 路由格式(自定义组件显式调 ctx.attemptHref
 // 时总有去处);官方组件的「宿主里自动接证据室」只在宿主上下文激活时发生,
 // 宿主外不传 attemptHref 就是纯展示,不发明断链。
+//
+// URL 格式取 `#/attempt/${locator}`:AttemptLocator 本身已经是 `@` 前缀的不透明短串
+// (如 "@1x7f3q9"),原样嵌进路径段就得到 `#/attempt/@1x7f3q9`——与 docs/view.md「用
+// Reports 积木重建 view」定稿的单段路由逐字一致,不额外拆分或去掉 `@`。
 const DEFAULT_WEB_CONTEXT: WebContext = {
-  attemptHref: (ref) => `#/attempt/${ref.snapshot}/${ref.attempt}`,
+  attemptHref: (locator) => `#/attempt/${locator}`,
   locale: DEFAULT_REPORT_LOCALE,
 };
 let activeWebContext: WebContext | null = null;
@@ -138,8 +142,10 @@ export function facesOf(type: unknown): ComponentFaces<unknown> | undefined {
 
 /**
  * 报告 build 之后、树校验与 text/web 渲染之前的解析遍历:把声明式数据组件(实现了
- * `faces.resolve` 的双面组件,如 selection 形态的 MetricScatter / ExperimentTable)的 props
- * 就地换成算好的数据形态 props。计算发生在这里(唯一允许 await 的组件级步骤),两个渲染面
+ * `faces.resolve` 的双面组件,如 selection 形态的 MetricScatter)的 props
+ * 就地换成算好的数据形态 props(三个实体列表没有 `resolve` 面,不经这一步——它们的 `items`
+ * 由报告作者在 `build()` 里直接 `await .data(selection)` 备好)。计算发生在这里(唯一允许
+ * await 的组件级步骤,连同报告函数体自己的 `build()`),两个渲染面
  * 之后都只看已解析的树、保持同步零 IO。遍历形状与 {@link validateReportTree} /
  * {@link renderNodeToText} 一致:
  *
@@ -245,8 +251,8 @@ export function validateReportTree(node: ReportNode, path: string[] = []): void 
 export interface TextRenderOptions {
   /** 终端可用列宽;默认 80。 */
   width?: number;
-  /** 下钻命令的生成;宿主注入,默认指向 view 的 attempt 路由。 */
-  attemptCommand?: (ref: AttemptRef) => string;
+  /** 下钻命令的生成;宿主注入,默认 `niceeval show @<locator>`(真实可跑的 CLI 语法)。 */
+  attemptCommand?: (locator: AttemptLocator) => string;
   /** chrome 文案的 locale;默认 "en"(`niceeval show` 现有输出不变)。 */
   locale?: ReportLocale;
 }
@@ -254,8 +260,10 @@ export interface TextRenderOptions {
 export function createTextContext(options?: TextRenderOptions): TextContext {
   const width = Math.max(20, options?.width ?? 80);
   const locale = options?.locale ?? DEFAULT_REPORT_LOCALE;
-  const attemptCommand =
-    options?.attemptCommand ?? ((ref: AttemptRef) => `niceeval view "#/attempt/${ref.snapshot}/${ref.attempt}"`);
+  // 默认下钻命令:AttemptLocator 是 `@` 前缀的不透明短串,`niceeval show @<locator>` 是
+  // show/index.ts 已实现的真实 CLI 语法(见该文件 `@<locator>` 位置参数解析),不需要
+  // 反查 eval id 再拼一条近似命令。
+  const attemptCommand = options?.attemptCommand ?? ((locator: AttemptLocator) => `niceeval show ${locator}`);
   const make = (w: number): TextContext => ({
     width: w,
     locale,

@@ -10,7 +10,9 @@ import { statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { dedupeAttempts, openResults } from "../results/index.ts";
 import type { AttemptHandle, Results, Selection, Snapshot, SkippedDir } from "../results/index.ts";
-import { loadReportFile } from "../report/load.ts";
+// dist-sourced: ReportDefinition/ReportLoadError identity must match the built-ins/web.ts
+// module instance renderReportSlot() dynamically imports below (see its comment).
+import { loadReportFile } from "../../dist/report/load.js";
 import { selectCurrentResults, filterExperiments } from "../results/select.ts";
 import type { EvalResult } from "../types.ts";
 import type { ReportSlotHtml, SkippedRunNotice, ViewData, ViewEvalResult, ViewSnapshot } from "./shared/types.ts";
@@ -265,10 +267,15 @@ async function renderReportSlot(
   results: Results,
   selection: Selection,
 ): Promise<ReportSlotHtml> {
+  // built-ins/index.ts 和 web.ts 都碰 JSX(.tsx / import react-dom);package-owned 的报告
+  // runtime 走预编译产物(dist/report/**,`pnpm run build:report` 产出),不受 view 消费方
+  // cwd/tsconfig 影响 —— 见 tsconfig.report-build.json。两个动态 import 必须落在同一份编译
+  // 产物图里(dist/report/tree.js 的 WebContext 模块级状态不能跨实例),不能一个走 dist
+  // 一个走 src。
   const definition = report
     ? await loadReportFile(report.cwd, report.path, { freshImport: true })
-    : (await import("../report/built-ins/index.ts")).CostPassRateComparison;
-  const { renderReportToStaticHtml } = await import("../report/web.ts");
+    : (await import("../../dist/report/built-ins/index.js")).CostPassRateComparison;
+  const { renderReportToStaticHtml } = await import("../../dist/report/web.js");
   const ctx = { selection, results };
   return {
     en: await renderReportToStaticHtml(definition, ctx, { locale: "en" }),

@@ -6,9 +6,11 @@
 // 默认 en 与历史输出逐字一致;数据(display、键、warnings message)不本地化。
 
 import type {
-  CaseListData,
+  AttemptListItem,
   DeltaData,
-  ExperimentTableData,
+  EvalListItem,
+  ExperimentListEvalRow,
+  ExperimentListItem,
   GroupSummaryData,
   LineData,
   MatrixData,
@@ -19,7 +21,15 @@ import type {
   TableData,
 } from "../types.ts";
 import type { TextContext } from "../tree.ts";
-import { formatDurationMs, formatMetricValue, formatPlainNumber, formatUSD } from "../format.ts";
+import {
+  attemptItemReason,
+  capabilityBadge,
+  formatDurationMs,
+  formatMetricValue,
+  formatPlainNumber,
+  formatUSD,
+  verdictMark,
+} from "../format.ts";
 import { countText, localeText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { indentBlock, padDisplay, renderAlignedRows, textBar, wrapDisplay } from "./layout.ts";
 import { renderCharPlot, renderCoordinateTable, type PlotPoint } from "./plot.ts";
@@ -89,33 +99,6 @@ export function groupSummaryText(data: GroupSummaryData, ctx: TextContext): stri
   return lines.join("\n");
 }
 
-// ───────────────────────── ExperimentTable ─────────────────────────
-
-/** 主榜完整列 + 每个 experiment 的失败/错误诊断；终端不模拟网页展开状态。 */
-export function experimentTableText(data: ExperimentTableData, ctx: TextContext): string {
-  const zh = ctx.locale === "zh-CN";
-  const verdicts = (row: ExperimentTableData["rows"][number]) => {
-    const words = zh ? { passed:"通过", failed:"失败", errored:"错误", skipped:"跳过" } : { passed:"passed", failed:"failed", errored:"errored", skipped:"skipped" };
-    return (["passed","failed","errored","skipped"] as const).filter(k => row.summary.verdicts[k]).map(k => `${row.summary.verdicts[k]} ${words[k]}`).join(" / ") || MISSING_MARK;
-  };
-  const table = renderAlignedRows([
-    zh ? ["实验","模型","Agent","平均耗时","成功率","Tokens","预估成本","结果"] : ["Experiment","Model","Agent","Avg duration","Pass rate","Tokens","Est. cost","Result"],
-    ...data.rows.map(row => [row.label,row.model ?? MISSING_MARK,row.agent,cellText(row.summary.duration),cellText(row.summary.passRate),cellText(row.summary.tokens),cellText(row.summary.cost),verdicts(row)]),
-  ]);
-  const details = data.rows.flatMap(row => {
-    const failing = row.evals.filter(e => e.verdict === "failed" || e.verdict === "errored");
-    if (!failing.length) return [];
-    const config = [`runs=${row.config.runs}`, ...(row.config.earlyExit === undefined ? [] : [`earlyExit=${row.config.earlyExit}`]), ...(row.config.sandbox ? [`sandbox=${row.config.sandbox}`] : []), ...(row.config.budget === undefined ? [] : [`budget=${formatUSD(row.config.budget)}`])].join(" · ");
-    const lines = [`${row.experimentId} — ${config}`];
-    for (const e of failing) {
-      lines.push(`  ${e.verdict === "errored" ? "!" : "✗"} ${e.key}${e.runs > 1 ? ` (${e.passedRuns}/${e.runs})` : ""}${e.reason ? ` — ${e.reason}` : ""} · ${formatDurationMs(e.durationMs)} · ${formatPlainNumber(e.tokens)} tokens · ${e.totalCostUSD === null ? MISSING_MARK : formatUSD(e.totalCostUSD)}`);
-      lines.push(`    → niceeval show ${e.key}`);
-    }
-    return [lines.join("\n")];
-  });
-  return [table, ...details].join("\n\n");
-}
-
 // ───────────────────────── MetricTable ─────────────────────────
 
 /** verdict 计票的紧凑文案("3 passed / 1 failed"):非零判定逐个列,全部为零如实 —。 */
@@ -170,27 +153,7 @@ export function tableText(data: TableData, ctx: TextContext): string {
     metaLines.push(`  ${row.key}: ${parts.join(" · ")}`);
   }
 
-  // expand 展开的子行:表格本身只挤得下判定计票,原因得另起一块——每个有失败/错误子行
-  // 的父行下面跟一段缩进明细(✗/! + 原因 + 下钻命令),没有 expand 或全通过的行不产出。
-  const details: string[] = [];
-  for (const row of data.rows) {
-    const failing = (row.meta?.subRows ?? []).filter((sub) => sub.verdict === "failed" || sub.verdict === "errored");
-    if (failing.length === 0) continue;
-    const lines = [row.key];
-    for (const sub of failing) {
-      const mark = sub.verdict === "errored" ? "!" : "✗";
-      const runs = sub.runs > 1 ? ` (${sub.passedRuns}/${sub.runs})` : "";
-      const reason = sub.reason ? ` — ${sub.reason}` : "";
-      lines.push(`  ${mark} ${sub.key}${runs}${reason}`);
-      lines.push(`    → niceeval show ${sub.key}`);
-    }
-    details.push(indentBlock(lines.join("\n"), "  "));
-  }
-  const blocks = [
-    table,
-    ...(metaLines.length > 0 ? [metaLines.join("\n")] : []),
-    ...(details.length > 0 ? [details.join("\n\n")] : []),
-  ];
+  const blocks = [table, ...(metaLines.length > 0 ? [metaLines.join("\n")] : [])];
   return blocks.join("\n\n");
 }
 
@@ -459,38 +422,109 @@ export function deltaText(data: DeltaData, ctx: TextContext): string {
   return renderAlignedRows([header, ...rows]);
 }
 
-// ───────────────────────── CaseList ─────────────────────────
+// ───────────────────────── 实体列表(ExperimentList / EvalList / AttemptList)─────────────────────────
+//
+// 三面共用的紧凑标记:`locator✓[E,X,⏱]`(判定符紧跟 locator,证据能力方括号紧跟判定符,
+// 中间不留空格)——docs-site/zh/guides/report-components.mdx「终端输出形成反馈闭环」定的形态。
+// ExperimentList / EvalList 逐 attempt 只列这一个标记 + 各自的原因/耗时摘要,不重复整段
+// niceeval show 命令;要看某个 attempt 的完整证据,agent 自己拼 `niceeval show <locator>`——
+// 命令模板只在 AttemptList(叶子层)展示完整断言明细时才值得,不在中间层重复。
 
-export function caseListText(data: CaseListData, ctx: TextContext): string {
+function locatorBadge(item: { locator: string; verdict: AttemptListItem["verdict"]; capabilities: AttemptListItem["capabilities"] }): string {
+  return `${item.locator}${verdictMark(item.verdict)}${capabilityBadge(item.capabilities)}`;
+}
+
+// ── ExperimentList ──
+
+function experimentListEvalLine(row: ExperimentListEvalRow): string {
+  const badges = row.attempts.map(locatorBadge).join(" ");
+  const trailer =
+    row.verdict === "passed"
+      ? [formatDurationMs(row.duration.value ?? 0), row.cost.value === null ? undefined : formatUSD(row.cost.value)]
+          .filter((s): s is string => s !== undefined)
+          .join(" · ")
+      : (row.reason ?? "");
+  return `  ${verdictMark(row.verdict)} ${row.evalId}   ${badges}   ${trailer}`;
+}
+
+export function experimentListText(items: ExperimentListItem[], ctx: TextContext): string {
   const locale = ctx.locale;
-  if (data.rows.length === 0) return localeText(locale, "caseList.empty");
-  const lines: string[] = [];
-  for (const row of data.rows) {
-    const head = [
-      `✗ ${row.eval}`,
-      row.experimentId,
-      localeText(locale, `verdict.${row.verdict}`),
-      formatDurationMs(row.durationMs),
-      ...(row.costUSD !== undefined ? [formatUSD(row.costUSD)] : []),
+  if (items.length === 0) return localeText(locale, "attemptList.empty");
+  const blocks = items.map((item) => {
+    const identity = item.model ? `${item.experimentId} · ${item.agent} · ${item.model}` : `${item.experimentId} · ${item.agent}`;
+    const summary = [
+      `${localeText(locale, "overview.passRate")} ${cellText(item.passRate)}`,
+      verdictTallyText(item.verdicts, locale),
+      localeText(locale, "overview.attemptsCount", { n: item.attempts }),
+      formatDurationMs(item.duration.value ?? 0),
+      item.cost.value === null ? missingText(locale) : formatUSD(item.cost.value),
     ].join(" · ");
-    lines.push(head);
-    if (row.error) {
-      lines.push(indentBlock(wrapDisplay(row.error, ctx.width - 4).join("\n"), "    "));
-    }
-    for (const assertion of row.failedAssertions) {
-      const summary = assertion.detail
-        ? `${assertion.name} — ${assertion.detail}`
-        : `${assertion.name} — ${localeText(locale, "caseList.score", { score: assertion.score })}`;
-      lines.push(indentBlock(wrapDisplay(summary, ctx.width - 4).join("\n"), "    "));
-      if (assertion.evidence) {
-        lines.push(indentBlock(wrapDisplay(assertion.evidence, ctx.width - 6).join("\n"), "      "));
-      }
-    }
-    lines.push(`    → niceeval show ${row.eval}`);
+    const evalLines = item.evalRows.map(experimentListEvalLine);
+    return [identity, `  ${summary}`, ...evalLines].join("\n");
+  });
+  return blocks.join("\n\n");
+}
+
+// ── EvalList ──
+
+function evalListAttemptLine(item: AttemptListItem): string {
+  const reason = attemptItemReason(item);
+  return `  ${locatorBadge(item)}${reason ? ` · ${reason}` : ""}`;
+}
+
+export function evalListText(items: EvalListItem[], ctx: TextContext): string {
+  const locale = ctx.locale;
+  if (items.length === 0) return localeText(locale, "attemptList.empty");
+  const blocks = items.map((item) => {
+    const identity = `${item.evalId} · ${item.experimentId} · ${localeText(locale, `verdict.${item.verdict}`)}`;
+    const summary = [
+      `${localeText(locale, "attemptList.score")} ${cellText(item.score)}`,
+      localeText(locale, "overview.attemptsCount", { n: item.attempts.length }),
+      `${formatDurationMs(item.duration.value ?? 0)} avg`,
+      item.cost.value === null ? `${missingText(locale)} avg` : `${formatUSD(item.cost.value)} avg`,
+    ].join(" · ");
+    const attemptLines = item.attempts.map(evalListAttemptLine);
+    return [identity, `  ${summary}`, ...attemptLines].join("\n");
+  });
+  return blocks.join("\n\n");
+}
+
+// ── AttemptList ──
+
+/** 一个 AttemptListItem 的完整 text 卡片:判定符 + locator + 身份 + 耗时/成本 + 证据能力,
+ * 然后逐条断言(gate 与 soft 都列,与 web 面的 AttemptRow 同一份材料)。 */
+function attemptListItemText(item: AttemptListItem, ctx: TextContext, locale: ReportLocale): string {
+  const head = [
+    `${verdictMark(item.verdict)} ${item.locator}`,
+    item.evalId,
+    item.experimentId,
+    formatDurationMs(item.durationMs),
+    ...(item.costUSD !== undefined ? [formatUSD(item.costUSD)] : []),
+    ...(capabilityBadge(item.capabilities) ? [capabilityBadge(item.capabilities)] : []),
+  ].join(" · ");
+  const lines = [head];
+  if (item.error) {
+    lines.push(indentBlock(wrapDisplay(item.error, ctx.width - 4).join("\n"), "    "));
   }
-  if (data.truncated > 0) {
-    lines.push("");
-    lines.push(localeText(locale, "caseList.truncatedText", { n: data.truncated }));
+  for (const assertion of item.assertions) {
+    const scoreText =
+      assertion.threshold !== undefined
+        ? `${formatPlainNumber(assertion.score)}/${formatPlainNumber(assertion.threshold)}`
+        : formatPlainNumber(assertion.score);
+    lines.push(
+      `  ${assertion.severity} ${assertion.name} · ${localeText(locale, `verdict.${assertion.passed ? "passed" : "failed"}`)}${assertion.severity === "soft" ? ` ${scoreText}` : ""}`,
+    );
+    if (assertion.detail) lines.push(indentBlock(wrapDisplay(assertion.detail, ctx.width - 4).join("\n"), "    "));
+    if (assertion.evidence) lines.push(indentBlock(wrapDisplay(assertion.evidence, ctx.width - 6).join("\n"), "      "));
   }
   return lines.join("\n");
+}
+
+export function attemptListText(items: AttemptListItem[], total: number | undefined, ctx: TextContext): string {
+  const locale = ctx.locale;
+  if (items.length === 0) return localeText(locale, "attemptList.empty");
+  const blocks = items.map((item) => attemptListItemText(item, ctx, locale));
+  const remaining = (total ?? items.length) - items.length;
+  if (remaining > 0) blocks.push(localeText(locale, "attemptList.truncatedText", { n: remaining }));
+  return blocks.join("\n\n");
 }

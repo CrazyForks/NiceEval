@@ -2,18 +2,18 @@
 // HTML 烘进查看器的报告槽。只有这一侧真正 import react-dom(import 边界即运行时边界),
 // 所以本文件不从 niceeval/report 的入口 re-export —— 宿主与测试按源路径 import。
 
-import "./jsx-runtime-patch.ts";
 import * as React from "react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { AttemptRef, SelectionWarning } from "../results/index.ts";
+import type { AttemptLocator } from "../results/locator.ts";
+import type { SelectionWarning } from "../results/types.ts";
 import { resolveReportTree, runWithWebContext, validateReportTree, type WebContext } from "./tree.ts";
 import { DEFAULT_REPORT_LOCALE, type ReportLocale } from "./locale.ts";
 import type { ReportContext, ReportDefinition } from "./report.ts";
 
 export interface StaticHtmlOptions {
-  /** 证据室深链;缺省用 view 的 attempt 路由 `#/attempt/<snapshot>/<attempt>`。 */
-  attemptHref?: (ref: AttemptRef) => string;
+  /** 证据室深链;缺省用 view 的 attempt 路由 `#/attempt/@<locator>`(单段、不透明)。 */
+  attemptHref?: (locator: AttemptLocator) => string;
   /** 官方组件 chrome 文案的 locale;默认 "en"。 */
   locale?: ReportLocale;
 }
@@ -53,7 +53,7 @@ export async function renderReportToStaticHtml(
   const resolved = await resolveReportTree(node);
   validateReportTree(resolved);
   const webCtx: WebContext = {
-    attemptHref: options?.attemptHref ?? ((ref) => `#/attempt/${ref.snapshot}/${ref.attempt}`),
+    attemptHref: options?.attemptHref ?? ((locator) => `#/attempt/${locator}`),
     locale: options?.locale ?? DEFAULT_REPORT_LOCALE,
   };
   const body = runWithWebContext(webCtx, () => renderToStaticMarkup(resolved as ReactNode));

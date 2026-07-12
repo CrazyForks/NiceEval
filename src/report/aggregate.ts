@@ -4,16 +4,11 @@
 // 和重试策略纠缠在一起(eval A=[1]、eval B=[0,0,0] 平铺 = 0.25,两级宏平均 = 0.5)。
 // 自定义维度把同一道题的 attempt 分进不同组时,第一级折叠发生在各组内部。
 
-import {
-  dedupeAttempts,
-  type AttemptHandle,
-  type Selection,
-  type SelectionWarning,
-  type Snapshot,
-} from "../results/index.ts";
+import { dedupeAttempts } from "../results/select.ts";
+import type { AttemptHandle, Selection, SelectionWarning, Snapshot } from "../results/types.ts";
+import { encodeAttemptLocator, type AttemptLocator } from "../results/locator.ts";
 import type {
   Aggregator,
-  AttemptRef,
   DimensionInput,
   Metric,
   MetricCell,
@@ -57,6 +52,24 @@ export function evalIdOf(item: Item): string {
 /** 快照键:与 view Compare 同口径的 "<experimentId> @ <startedAt>"。 */
 export function snapshotKeyOf(snapshot: Snapshot): string {
   return `${snapshot.experimentId} @ ${snapshot.startedAt}`;
+}
+
+/**
+ * 一条 Item 的 AttemptLocator:真实读取路径(openResults() 产出的 handle)恒有
+ * `attempt.locator`;手工构造的测试 fixture 若省略它,按当前身份元组兜底算一份
+ * (与 `loadAttemptEvidence`、`open.ts` 的回填同一口径)——只服务这类场景,不改变真实
+ * 读取路径的行为。
+ */
+export function locatorOf(item: Item): AttemptLocator {
+  return (
+    item.attempt.locator ??
+    encodeAttemptLocator({
+      experimentId: experimentIdOf(item),
+      snapshotStartedAt: item.snapshot.startedAt,
+      evalId: evalIdOf(item),
+      attempt: item.attempt.result.attempt,
+    })
+  );
 }
 
 /**
@@ -196,13 +209,13 @@ export function displayValue(metric: Metric, value: number | null): string {
 export async function computeCell(metric: Metric, items: Item[]): Promise<MetricCell> {
   // 第一级桶:同一 (eval × 快照) 的 attempt 折成一个题级值
   const buckets = new Map<string, number[]>();
-  const refs: AttemptRef[] = [];
+  const refs: AttemptLocator[] = [];
   let samples = 0;
   for (const item of items) {
     const value = await evaluateMetric(metric, item.attempt);
     if (value === null) continue;
     samples += 1;
-    refs.push(item.attempt.ref); // 证据引用由句柄直供,不反查下标
+    refs.push(locatorOf(item)); // 证据引用由句柄直供,不反查下标
     const bucketKey = `${evalIdOf(item)}${KEY_SEP}${snapshotKeyOf(item.snapshot)}`;
     const bucket = buckets.get(bucketKey);
     if (bucket) bucket.push(value);

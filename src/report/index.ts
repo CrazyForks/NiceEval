@@ -39,37 +39,38 @@ export type { LocalizedLabel, ReportLocale } from "./locale.ts";
 
 // 官方双面组件(各自带 data 计算函数;MetricBars.data = MetricMatrix.data)
 export {
-  CaseList,
+  AttemptList,
   DeltaTable,
+  EvalList,
+  ExperimentList,
   GroupSummary,
   MetricBars,
   MetricLine,
   MetricMatrix,
   MetricScatter,
   MetricTable,
-  ExperimentTable,
   RunOverview,
   Scoreboard,
 } from "./components.tsx";
 export type {
-  CaseListProps,
+  AttemptListProps,
   DeltaTableProps,
+  EvalListProps,
+  ExperimentListProps,
   GroupSummaryProps,
   MetricLineProps,
   MetricMatrixProps,
   MetricScatterProps,
   MetricTableProps,
-  ExperimentTableProps,
   RunOverviewProps,
   ScoreboardProps,
 } from "./components.tsx";
 
 // 计算函数的选项类型(函数本体挂在组件上,不做顶层导出)
 export type {
-  CaseListDataOptions,
+  AttemptListDataOptions,
   DeltaDataOptions,
   DeltaPair,
-  ExperimentTableDataOptions,
   LineDataOptions,
   MatrixDataOptions,
   ScatterDataOptions,
@@ -80,15 +81,15 @@ export type {
 // 数据契约(组件的 data props)
 export type {
   Aggregator,
-  AttemptRef,
-  CaseListData,
+  AttemptEvidenceCapabilities,
+  AttemptListItem,
+  AttemptLocator,
   DeltaData,
   Dimension,
   DimensionInput,
-  ExperimentAttemptRowData,
-  ExperimentEvalRowData,
-  ExperimentTableData,
-  ExperimentTableRowData,
+  EvalListItem,
+  ExperimentListEvalRow,
+  ExperimentListItem,
   GroupSummaryData,
   LineAxis,
   LineData,
@@ -107,7 +108,7 @@ export type {
 } from "./types.ts";
 
 // 数据层输入的类型(家在 niceeval/results,这里 re-export 方便写指标 / 报告)
-export type { AttemptHandle, Results, Selection, Snapshot } from "../results/index.ts";
+export type { AttemptHandle, Results, Selection, Snapshot } from "../results/types.ts";
 
 // experiment id 的组键推导(id 的目录前缀,如 `compare/bub-low` 的 `compare`)。
 // 重新导出,让自定义报告能按同一份口径把 experiment 分组,不必自己重写这两行逻辑。

@@ -4,8 +4,10 @@
 // 稀疏矩阵、缺数据的散点、delta 的 null 不硬算、truncated 计数。
 
 import type {
-  CaseListData,
+  AttemptListItem,
   DeltaData,
+  EvalListItem,
+  ExperimentListItem,
   GroupSummaryData,
   LineData,
   MatrixData,
@@ -15,6 +17,9 @@ import type {
   ScoreboardData,
   TableData,
 } from "../types.ts";
+import type { AttemptLocator } from "../../results/locator.ts";
+
+const locator = (s: string): AttemptLocator => s as AttemptLocator;
 
 export const passRateColumn: MetricColumn = { key: "pass-rate", label: "pass rate", unit: "%", better: "higher" };
 export const codeLinesColumn: MetricColumn = { key: "code-lines", label: "code lines", unit: "lines", better: "lower" };
@@ -89,7 +94,7 @@ export const tableData: TableData<"pass-rate" | "code-lines"> = {
           display: "87%",
           samples: 6,
           total: 6,
-          refs: [{ snapshot: "exp/run-a", attempt: "eval/a0" }],
+          refs: [locator("@1a0a0a0")],
         },
         // samples < total:有 attempt 测不了 → 覆盖率角标 5/6
         "code-lines": { value: 120, display: "120 lines", samples: 5, total: 6, refs: [] },
@@ -137,10 +142,7 @@ export const matrixData: MatrixData = {
         display: "100%",
         samples: 2,
         total: 2,
-        refs: [
-          { snapshot: "exp/run-b", attempt: "algebra/quadratic/a3" },
-          { snapshot: "exp/run-b", attempt: "algebra/quadratic/a7" },
-        ],
+        refs: [locator("@1b3b3b3"), locator("@1b7b7b7")],
       },
     },
     {
@@ -306,35 +308,120 @@ export const deltaData: DeltaData<"pass-rate" | "cost"> = {
   ],
 };
 
-export const caseListData: CaseListData = {
-  rows: [
+// ───────────────────────── 实体列表(ExperimentList / EvalList / AttemptList)─────────────────────────
+
+/** algebra/quadratic 在 compare/bub 上失败的那次 attempt——两条子失败夹具共用同一条。 */
+const failedAttempt: AttemptListItem = {
+  evalId: "algebra/quadratic",
+  experimentId: "compare/bub",
+  attempt: 3,
+  agent: "bub",
+  verdict: "failed",
+  assertions: [
     {
-      eval: "algebra/quadratic",
-      experimentId: "compare/bub",
-      agent: "bub",
-      verdict: "failed",
-      failedAssertions: [
-        {
-          name: "roots-correct",
-          score: 0,
-          detail: "expected x=2, got x=3",
-          evidence: "judge: sign flipped when substituting into the quadratic formula",
-        },
-      ],
-      durationMs: 32_000,
-      costUSD: 0.12,
-      ref: { snapshot: "exp/run-a", attempt: "algebra/quadratic/a4" },
-    },
-    {
-      eval: "geometry/angles",
-      experimentId: "compare/codex",
-      agent: "codex",
-      verdict: "errored",
-      error: "TypeError: cannot read properties of undefined (reading 'foo')",
-      failedAssertions: [],
-      durationMs: 4_500,
-      ref: { snapshot: "exp/run-c", attempt: "geometry/angles/a1" },
+      name: "roots-correct",
+      severity: "gate",
+      score: 0,
+      passed: false,
+      detail: "expected x=2, got x=3",
+      evidence: "judge: sign flipped when substituting into the quadratic formula",
     },
   ],
-  truncated: 2,
+  durationMs: 32_000,
+  costUSD: 0.12,
+  locator: locator("@1a4a4a4"),
+  capabilities: { eval: true, execution: true, timing: true, diff: false },
 };
+
+const erroredAttempt: AttemptListItem = {
+  evalId: "geometry/angles",
+  experimentId: "compare/codex",
+  attempt: 0,
+  agent: "codex",
+  verdict: "errored",
+  error: "TypeError: cannot read properties of undefined (reading 'foo')",
+  assertions: [],
+  durationMs: 4_500,
+  locator: locator("@1c1c1c1"),
+  capabilities: { eval: false, execution: true, timing: false, diff: false },
+};
+
+export const attemptListItems: AttemptListItem[] = [failedAttempt, erroredAttempt];
+
+export const evalListItems: EvalListItem[] = [
+  {
+    evalId: "algebra/quadratic",
+    experimentId: "compare/bub",
+    verdict: "failed",
+    reason: "roots-correct: expected x=2, got x=3",
+    score: { value: 0, display: "0%", samples: 1, total: 1, refs: [failedAttempt.locator] },
+    duration: { value: 32_000, display: "32.0s", samples: 1, total: 1, refs: [failedAttempt.locator] },
+    cost: { value: 0.12, display: "$0.12", samples: 1, total: 1, refs: [failedAttempt.locator] },
+    attempts: [failedAttempt],
+  },
+  {
+    evalId: "geometry/angles",
+    experimentId: "compare/codex",
+    verdict: "errored",
+    reason: erroredAttempt.error,
+    score: { value: 0, display: "0%", samples: 1, total: 1, refs: [erroredAttempt.locator] },
+    duration: { value: 4_500, display: "4.5s", samples: 1, total: 1, refs: [erroredAttempt.locator] },
+    cost: { value: null, display: "—", samples: 0, total: 1, refs: [] },
+    attempts: [erroredAttempt],
+  },
+];
+
+export const experimentListItems: ExperimentListItem[] = [
+  {
+    experimentId: "compare/bub",
+    agent: "bub",
+    model: "gpt-5.4",
+    verdicts: { passed: 1, failed: 1, errored: 0, skipped: 0 },
+    passRate: { value: 0.5, display: "50%", samples: 2, total: 2, refs: [] },
+    cost: { value: 0.12, display: "$0.12", samples: 1, total: 2, refs: [failedAttempt.locator] },
+    duration: { value: 32_000, display: "32.0s", samples: 2, total: 2, refs: [] },
+    tokens: { value: null, display: "—", samples: 0, total: 2, refs: [] },
+    evals: 2,
+    attempts: 2,
+    lastRunAt: "2026-07-01T10:00:00Z",
+    evalRows: [
+      {
+        evalId: "algebra/quadratic",
+        verdict: "failed",
+        reason: "roots-correct: expected x=2, got x=3",
+        duration: { value: 32_000, display: "32.0s", samples: 1, total: 1, refs: [failedAttempt.locator] },
+        cost: { value: 0.12, display: "$0.12", samples: 1, total: 1, refs: [failedAttempt.locator] },
+        attempts: [failedAttempt],
+      },
+      {
+        evalId: "algebra/simple",
+        verdict: "passed",
+        duration: { value: 5_000, display: "5.0s", samples: 1, total: 1, refs: [] },
+        cost: { value: 0.02, display: "$0.02", samples: 1, total: 1, refs: [] },
+        attempts: [],
+      },
+    ],
+  },
+  {
+    experimentId: "compare/codex",
+    agent: "codex",
+    verdicts: { passed: 0, failed: 0, errored: 1, skipped: 0 },
+    passRate: { value: 0, display: "0%", samples: 1, total: 1, refs: [] },
+    cost: { value: null, display: "—", samples: 0, total: 1, refs: [] },
+    duration: { value: 4_500, display: "4.5s", samples: 1, total: 1, refs: [] },
+    tokens: { value: null, display: "—", samples: 0, total: 1, refs: [] },
+    evals: 1,
+    attempts: 1,
+    lastRunAt: "2026-07-01T11:30:00Z",
+    evalRows: [
+      {
+        evalId: "geometry/angles",
+        verdict: "errored",
+        reason: erroredAttempt.error,
+        duration: { value: 4_500, display: "4.5s", samples: 1, total: 1, refs: [erroredAttempt.locator] },
+        cost: { value: null, display: "—", samples: 0, total: 1, refs: [] },
+        attempts: [erroredAttempt],
+      },
+    ],
+  },
+];

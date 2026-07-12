@@ -5,7 +5,8 @@
 // 是格子里的普通 <a>,不 hydrate 也能点。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, MatrixData } from "../types.ts";
+import type { MatrixData } from "../types.ts";
+import type { AttemptLocator } from "../../results/locator.ts";
 import { DEFAULT_REPORT_LOCALE, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { MetricCellView } from "./cell.tsx";
 import { colorClassForKey } from "./colors.ts";
@@ -18,7 +19,7 @@ export function MetricMatrix({
   locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: MatrixData;
-  attemptHref?: (ref: AttemptRef) => string;
+  attemptHref?: (locator: AttemptLocator) => string;
   className?: string;
   locale?: ReportLocale;
 }): ReactElement {

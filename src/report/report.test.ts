@@ -13,8 +13,10 @@ import { costUSD, defineMetric, durationMs, examScore, passRate, tokens, turns }
 import { flag } from "./flag.ts";
 import { formatMetricValue } from "./format.ts";
 import {
-  CaseList,
+  AttemptList,
   DeltaTable,
+  EvalList,
+  ExperimentList,
   GroupSummary,
   MetricBars,
   MetricLine,
@@ -24,7 +26,7 @@ import {
   RunOverview,
   Scoreboard,
 } from "./components.tsx";
-import { experimentTableData } from "./compute.ts";
+import { reasonFor } from "./compute.ts";
 
 // ───────────────────────── fake 数据(按 results 读取契约造)─────────────────────────
 
@@ -132,8 +134,8 @@ function selection(snapshots: Snapshot[], warnings: SelectionWarning[]): Selecti
   };
 }
 
-describe("ExperimentTable.data", () => {
-  it("保留父行配置/KPI、逐 eval/attempt、原因、证据与 raw sample", async () => {
+describe("ExperimentList.data", () => {
+  it("身份、flags、Eval 判定构成、官方两级聚合汇总指标,展开到 Eval 携带 locator 与证据能力", async () => {
     const s = snap({
       experimentId: "group/codex-e2b--mempal",
       agent: "codex",
@@ -143,17 +145,13 @@ describe("ExperimentTable.data", () => {
         res("memory/a", "failed", {
           attempt: 0,
           durationMs: 1_000,
-          assertions: [
-            { name: "gate", severity: "gate", passed: false, score: 0, detail: "wrong" },
-            { name: "style", severity: "soft", passed: false, score: 0.4 },
-          ],
+          assertions: [{ name: "gate", severity: "gate", passed: false, score: 0, detail: "wrong" }],
           usage: { inputTokens: 10, outputTokens: 5, costUSD: 0.1 },
           hasEvents: true,
         }),
         res("memory/a", "passed", {
           attempt: 1,
           durationMs: 2_000,
-          assertions: [{ name: "style", severity: "soft", passed: true, score: 0.8, threshold: 0.7 }],
           usage: { inputTokens: 20, outputTokens: 10, costUSD: 0.2 },
         }),
         res("memory/b", "errored", { error: "timeout", durationMs: 3_000 }),
@@ -161,52 +159,159 @@ describe("ExperimentTable.data", () => {
     });
     s.experiment = { id: s.experimentId, runs: 2, earlyExit: false, sandbox: "e2b:fast", budget: 2, flags: { cache: true } };
 
-    const data = await experimentTableData([s]);
-    expect(data.rows).toHaveLength(1);
-    const row = data.rows[0]!;
-    expect(row).toMatchObject({
-      key: "group/codex-e2b--mempal",
-      label: "codex-e2b--mempal",
+    const items = await ExperimentList.data([s]);
+    expect(items).toHaveLength(1);
+    const item = items[0]!;
+    expect(item).toMatchObject({
+      experimentId: "group/codex-e2b--mempal",
       agent: "codex",
       model: "gpt-5.4-mini",
+      flags: { cache: true },
+      verdicts: { passed: 1, failed: 0, errored: 1, skipped: 0 },
+      evals: 2,
+      attempts: 3,
       lastRunAt: "2026-07-10T22:44:00.000Z",
-      config: { runs: 2, earlyExit: false, sandbox: "e2b:fast", budget: 2, flags: { cache: true } },
-      summary: {
-        evals: 2,
-        attempts: 3,
-        verdicts: { passed: 1, failed: 0, errored: 1, skipped: 0 },
-        durationMs: 6_000,
-      },
     });
-    expect(row.summary.totalCostUSD).toBeCloseTo(0.3);
-    expect(row.summary.passRate.value).toBe(0.25);
-    expect(row.evals[0]).toMatchObject({
-      key: "memory/a",
-      verdict: "passed",
-      runs: 2,
-      passedRuns: 1,
-      durationMs: 3_000,
-      tokens: 45,
-      scoreSummary: "style 0.8/0.7",
-    });
-    expect(row.evals[0]!.totalCostUSD).toBeCloseTo(0.3);
-    expect(row.evals[0]!.attempts[0]).toMatchObject({ reason: "gate: wrong", hasEvidence: true });
-    expect(row.evals[1]).toMatchObject({ key: "memory/b", verdict: "errored", reason: "timeout" });
-    expect(row.rawSample?.id).toBe("memory/b");
+    // 官方两级聚合口径:memory/a 题内均值 (0+1)/2=0.5,memory/b 题内 0;跨题均值 0.25
+    expect(item.passRate.value).toBeCloseTo(0.25);
+    expect(item.cost.samples).toBe(2); // 只有 memory/a 的两次 attempt 报了成本
+
+    const evalA = item.evalRows.find((e) => e.evalId === "memory/a")!;
+    expect(evalA.verdict).toBe("passed"); // 任一轮通过 → 该题通过
+    expect(evalA.attempts.map((a) => a.attempt)).toEqual([0, 1]);
+    expect(evalA.attempts[0]!.locator).toMatch(/^@1[0-9a-z]{7}$/);
+    expect(evalA.attempts[0]!.capabilities.execution).toBe(true); // attempt0 的 hasEvents:true
+    expect(evalA.attempts[1]!.capabilities.execution).toBe(false);
+    // 每次 attempt 独立编码,即使同一道题也不撞车
+    expect(evalA.attempts[0]!.locator).not.toBe(evalA.attempts[1]!.locator);
+
+    const evalB = item.evalRows.find((e) => e.evalId === "memory/b")!;
+    expect(evalB.verdict).toBe("errored");
+    expect(evalB.reason).toBe("timeout");
   });
 
-  it("eval 过滤、空成本与 soft 失败原因保持原语义", async () => {
+  it("展开数组按 evalId 升序,顶层数组按 experimentId 升序", async () => {
+    const s1 = snap({ experimentId: "exp/b", results: [res("z", "passed"), res("a", "passed")] });
+    const s2 = snap({ experimentId: "exp/a", results: [res("x", "passed")] });
+    const items = await ExperimentList.data([s1, s2]);
+    expect(items.map((i) => i.experimentId)).toEqual(["exp/a", "exp/b"]);
+    expect(items.find((i) => i.experimentId === "exp/b")!.evalRows.map((e) => e.evalId)).toEqual(["a", "z"]);
+  });
+});
+
+describe("EvalList.data", () => {
+  it("每项一个 experimentId + evalId,判定/分数/成本耗时均值/失败原因与展开到 Attempt 都在", async () => {
+    const s = snap({
+      experimentId: "compare/codex",
+      results: [
+        res("weather/brooklyn", "failed", {
+          attempt: 0,
+          durationMs: 40_000,
+          usage: { inputTokens: 1, outputTokens: 1, costUSD: 0.02 },
+          assertions: [{ name: 'calledTool("get_weather")', severity: "gate", passed: false, score: 0, detail: "tool was never called" }],
+        }),
+        res("weather/brooklyn", "failed", {
+          attempt: 1,
+          durationMs: 42_000,
+          usage: { inputTokens: 1, outputTokens: 1, costUSD: 0.06 },
+          assertions: [{ name: 'calledTool("get_weather")', severity: "gate", passed: false, score: 0, detail: "tool was never called" }],
+        }),
+      ],
+    });
+    const items = await EvalList.data([s]);
+    expect(items).toHaveLength(1);
+    const item = items[0]!;
+    expect(item.evalId).toBe("weather/brooklyn");
+    expect(item.experimentId).toBe("compare/codex");
+    expect(item.verdict).toBe("failed");
+    expect(item.reason).toBe('calledTool("get_weather"): tool was never called');
+    expect(item.score.value).toBe(0); // examScore: failed → 0
+    expect(item.duration.value).toBeCloseTo(41_000); // 平均耗时
+    expect(item.cost.value).toBeCloseTo(0.04); // 平均成本
+    expect(item.attempts.map((a) => a.attempt)).toEqual([0, 1]);
+    expect(item.attempts[0]!.locator).not.toBe(item.attempts[1]!.locator);
+  });
+
+  it("同一个 eval id 出现在两个 experiment 上是两条不同结果,不合并", async () => {
+    const s1 = snap({ experimentId: "exp/a", results: [res("shared", "passed")] });
+    const s2 = snap({ experimentId: "exp/b", results: [res("shared", "failed")] });
+    const items = await EvalList.data([s1, s2]);
+    expect(items).toHaveLength(2);
+    expect(items.map((i) => `${i.experimentId}:${i.verdict}`).sort()).toEqual(["exp/a:passed", "exp/b:failed"]);
+  });
+});
+
+describe("AttemptList.data", () => {
+  it("每项一个 Attempt:身份、判定、assertions、耗时、成本、locator 与证据能力标记", async () => {
     const s = snap({
       experimentId: "exp/x",
       results: [
-        res("keep/a", "passed", { assertions: [{ name: "soft", severity: "soft", passed: false, score: 0.2 }] }),
-        res("drop/b", "failed"),
+        res("A", "failed", {
+          durationMs: 5_000,
+          usage: { inputTokens: 1, outputTokens: 1, costUSD: 0.05 },
+          assertions: [{ name: "gate", severity: "gate", passed: false, score: 0, detail: "nope" }],
+          hasEvents: true,
+          hasSources: true,
+        }),
       ],
     });
-    const row = (await experimentTableData([s], { evals: "keep" })).rows[0]!;
-    expect(row.summary.totalCostUSD).toBeNull();
-    expect(row.evals).toHaveLength(1);
-    expect(row.evals[0]).toMatchObject({ key: "keep/a", reason: undefined, scoreSummary: "soft 0.2" });
+    const items = await AttemptList.data([s]);
+    expect(items).toHaveLength(1);
+    const item = items[0]!;
+    expect(item).toMatchObject({
+      evalId: "A",
+      experimentId: "exp/x",
+      attempt: 0,
+      agent: "agent-x",
+      verdict: "failed",
+      durationMs: 5_000,
+      costUSD: 0.05,
+    });
+    expect(item.assertions).toHaveLength(1);
+    expect(item.locator).toMatch(/^@1[0-9a-z]{7}$/);
+    // 证据能力:cheap 计算,不调用完整 loadAttemptEvidence——execution 来自 hasEvents,
+    // eval 来自 hasSources,diff 懒加载(fixture 的 diff() 恒返回 null → false)。
+    expect(item.capabilities).toEqual({ eval: true, execution: true, timing: false, diff: false });
+  });
+
+  it("redact 作用于 error 与断言 detail/evidence,不作用于身份字段", async () => {
+    const s = snap({
+      experimentId: "exp/x",
+      results: [
+        res("A", "errored", { error: "ENOENT /Users/me/repo/tool" }),
+        res("B", "failed", {
+          assertions: [
+            {
+              name: "includes",
+              severity: "gate",
+              score: 0,
+              passed: false,
+              detail: "missing text under /Users/me/repo/src",
+              evidence: "checked /Users/me/repo/src/app.ts",
+            },
+          ],
+        }),
+      ],
+    });
+    const items = await AttemptList.data([s], { redact: (text) => text.replaceAll("/Users/me/repo", "<repo>") });
+    const a = items.find((i) => i.evalId === "A")!;
+    expect(a.error).toBe("ENOENT <repo>/tool");
+    const b = items.find((i) => i.evalId === "B")!;
+    expect(b.assertions[0]!.detail).toBe("missing text under <repo>/src");
+    expect(b.assertions[0]!.evidence).toBe("checked <repo>/src/app.ts");
+    // 身份字段不经 redact
+    expect(items.every((i) => i.experimentId === "exp/x")).toBe(true);
+  });
+
+  it("不预设只看失败:passed 的 attempt 同样列出,原样携带 assertions", async () => {
+    const s = snap({
+      experimentId: "exp/x",
+      results: [res("A", "passed", { assertions: [{ name: "ok", severity: "gate", passed: true, score: 1 }] })],
+    });
+    const items = await AttemptList.data([s]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ verdict: "passed" });
+    expect(items[0]!.assertions).toHaveLength(1);
   });
 });
 
@@ -616,123 +721,60 @@ describe("flag()", () => {
   });
 });
 
-// ───────────────────────── MetricTable.data · expand 展开 ─────────────────────────
+// ───────────────────────── MetricTable.data:没有实体下钻 ─────────────────────────
 
-describe("MetricTable.data · expand", () => {
-  it("expand: \"eval\":子行按 eval 分组、同一套 columns 重算,verdict/reason/ref/runs 随行", async () => {
+describe("MetricTable.data", () => {
+  it("rows: \"experiment\" 的 meta 不带 subRows —— MetricTable 只表达维度 × 指标,没有 expand", async () => {
     const s = snap({
       experimentId: "exp/x",
-      results: [
-        res("A", "passed"),
-        res("B", "failed", {
-          assertions: [softAssertion("gate-check", 0, { passed: false, severity: "gate", detail: "expected 2, got 1" })],
-        }),
-      ],
+      results: [res("A", "passed"), res("B", "failed")],
     });
-    const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate], expand: "eval" });
-    expect(data.rows).toHaveLength(1);
-    const subRows = data.rows[0].meta?.subRows;
-    expect(subRows).toHaveLength(2);
-    // 按 key 字母序(A、B)
-    expect(subRows?.map((r) => r.key)).toEqual(["A", "B"]);
-    const a = subRows!.find((r) => r.key === "A")!;
-    expect(a.verdict).toBe("passed");
-    expect(a.reason).toBeUndefined();
-    expect(a.runs).toBe(1);
-    expect(a.passedRuns).toBe(1);
-    // 子行与父行同一套 columns:cells 里有 pass-rate,值口径与父行单独算这道题一致
-    expect(a.cells["pass-rate"].value).toBe(1);
-    const b = subRows!.find((r) => r.key === "B")!;
-    expect(b.verdict).toBe("failed");
-    expect(b.reason).toBe("gate-check: expected 2, got 1");
-    expect(b.cells["pass-rate"].value).toBe(0);
-    // ref 指向这道题的代表 attempt,供渲染面深链
-    expect(a.ref.attempt).toBe("A/a0");
-    expect(b.ref.attempt).toBe("B/a0");
-  });
-
-  it("多轮 attempt 折成一条子行:任一轮通过则 verdict=passed,runs/passedRuns 如实报", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [res("flaky", "failed", { attempt: 0 }), res("flaky", "passed", { attempt: 1 })],
-    });
-    const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate], expand: "eval" });
-    const sub = data.rows[0].meta!.subRows!;
-    expect(sub).toHaveLength(1);
-    expect(sub[0].key).toBe("flaky");
-    expect(sub[0].verdict).toBe("passed"); // 任一轮通过 → 该 eval 通过,对齐 earlyExit 语义
-    expect(sub[0].runs).toBe(2);
-    expect(sub[0].passedRuns).toBe(1);
-  });
-
-  it("不设 expand:meta 没有 subRows 字段(旧调用点行为不变)", async () => {
-    const s = snap({ experimentId: "exp/x", results: [res("A", "passed")] });
     const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate] });
-    expect(data.rows[0].meta?.subRows).toBeUndefined();
+    expect(data.rows).toHaveLength(1);
+    expect(data.rows[0]!.meta).not.toHaveProperty("subRows");
+    // 展开到 Eval 是 ExperimentList 的职责,不在这里验证 —— 见 ExperimentList.data 的测试组。
   });
+});
 
-  it("expand 不限于 rows: \"experiment\":任何行维度都能展开子维度", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [res("A", "passed", { agent: "bub" }), res("B", "failed", { agent: "bub" })],
-    });
-    const data = await MetricTable.data([s], { rows: "agent", columns: [passRate], expand: "eval" });
-    expect(data.rows[0].key).toBe("bub");
-    expect(data.rows[0].meta?.subRows?.map((r) => r.key)).toEqual(["A", "B"]);
-  });
+// ───────────────────────── reasonFor(原因优先级)─────────────────────────
+// docs/reports.md「原因摘要」口径:error → skipReason → 未通过的 gate 断言。
+// ExperimentList / EvalList 的 evalRows.reason、AttemptList 的 attemptItemReason 都port这同一份材料,
+// 这里直接测 reasonFor 本身,不必再经 MetricTable 之类的中间组件绕一圈。
 
-  // ── 原因优先级(docs/reports.md「原因摘要」口径:error → skipReason → 未通过的 gate 断言)──
-
-  it("原因优先级:同一 result 同时含 error、失败 gate、失败 soft → 只显示 error", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [
-        res("A", "errored", {
-          error: "adapter crashed",
-          assertions: [
-            { name: "includes", severity: "gate", score: 0, passed: false, detail: "missing text" },
-            softAssertion("judge", 0.2, { passed: false }),
-          ],
-        }),
+describe("reasonFor", () => {
+  it("同一 result 同时含 error、失败 gate、失败 soft → 只显示 error", () => {
+    const result = res("A", "errored", {
+      error: "adapter crashed",
+      assertions: [
+        { name: "includes", severity: "gate", score: 0, passed: false, detail: "missing text" },
+        softAssertion("judge", 0.2, { passed: false }),
       ],
     });
-    const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate], expand: "eval" });
-    const sub = data.rows[0].meta!.subRows![0]!;
-    expect(sub.reason).toBe("adapter crashed");
+    expect(reasonFor(result)).toBe("adapter crashed");
   });
 
-  it("skipReason 优先于 gate 断言,但让位给 error", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [
-        res("A", "skipped", {
-          skipReason: "missing fixture",
-          assertions: [{ name: "includes", severity: "gate", score: 0, passed: false }],
-        }),
-      ],
+  it("skipReason 优先于 gate 断言,但让位给 error", () => {
+    const result = res("A", "skipped", {
+      skipReason: "missing fixture",
+      assertions: [{ name: "includes", severity: "gate", score: 0, passed: false }],
     });
-    const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate], expand: "eval" });
-    const sub = data.rows[0].meta!.subRows![0]!;
-    expect(sub.reason).toBe("missing fixture");
+    expect(reasonFor(result)).toBe("missing fixture");
   });
 
-  it("多个失败 gate 按原始声明顺序全部保留,拼接成一行;失败 soft 不出现在 reason 里", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [
-        res("A", "failed", {
-          assertions: [
-            softAssertion("judge-first", 0.1, { passed: false }), // 声明顺序第一,但 soft 不进 reason
-            { name: "includes", severity: "gate", score: 0, passed: false, detail: "missing text" },
-            { name: "matches", severity: "gate", score: 0, passed: false }, // 无 detail,只有 name
-            softAssertion("judge-last", 0.3, { passed: false }), // soft 依旧不进 reason
-          ],
-        }),
+  it("多个失败 gate 按原始声明顺序全部保留,拼接成一行;失败 soft 不出现在 reason 里", () => {
+    const result = res("A", "failed", {
+      assertions: [
+        softAssertion("judge-first", 0.1, { passed: false }), // 声明顺序第一,但 soft 不进 reason
+        { name: "includes", severity: "gate", score: 0, passed: false, detail: "missing text" },
+        { name: "matches", severity: "gate", score: 0, passed: false }, // 无 detail,只有 name
+        softAssertion("judge-last", 0.3, { passed: false }), // soft 依旧不进 reason
       ],
     });
-    const data = await MetricTable.data([s], { rows: "experiment", columns: [passRate], expand: "eval" });
-    const sub = data.rows[0].meta!.subRows![0]!;
-    expect(sub.reason).toBe("includes: missing text, matches");
+    expect(reasonFor(result)).toBe("includes: missing text, matches");
+  });
+
+  it("都缺席 → 无原因", () => {
+    expect(reasonFor(res("A", "passed"))).toBeUndefined();
   });
 });
 
@@ -940,78 +982,6 @@ describe("DeltaTable.data", () => {
     expect(cell.a.value).toBe(0); // 旧快照那份
     expect(cell.b.value).toBe(1); // 新快照那份
     expect(cell.display).toBe("+100%");
-  });
-});
-
-// ───────────────────────── CaseList.data ─────────────────────────
-
-describe("CaseList.data", () => {
-  it("默认只列 failed+errored;redact 作用于 error/detail/evidence;truncated 如实", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [
-        res("A", "failed", {
-          assertions: [
-            {
-              name: "includes",
-              severity: "gate",
-              score: 0,
-              passed: false,
-              detail: "missing text under /Users/me/repo/src",
-              evidence: "checked /Users/me/repo/src/app.ts",
-            },
-            { name: "ok", severity: "gate", score: 1, passed: true }, // 通过的断言不列
-          ],
-        }),
-        res("B", "errored", { error: "ENOENT /Users/me/repo/tool" }),
-        res("C", "failed"),
-        res("D", "passed"),
-        res("E", "skipped"),
-      ],
-    });
-    const data = await CaseList.data([s], {
-      limit: 2,
-      redact: (text) => text.replaceAll("/Users/me/repo", "<repo>"),
-    });
-    expect(data.rows).toHaveLength(2);
-    expect(data.truncated).toBe(1); // C 被截;D/E 本就不在默认 verdicts 里
-
-    const [first, second] = data.rows;
-    expect(first.eval).toBe("A");
-    expect(first.verdict).toBe("failed");
-    expect(first.failedAssertions).toHaveLength(1);
-    expect(first.failedAssertions[0].detail).toBe("missing text under <repo>/src");
-    expect(first.failedAssertions[0].evidence).toBe("checked <repo>/src/app.ts");
-    expect(first.ref.attempt).toBe("A/a0");
-
-    expect(second.eval).toBe("B");
-    expect(second.verdict).toBe("errored");
-    expect(second.error).toBe("ENOENT <repo>/tool");
-    expect(second.ref.attempt).toBe("B/a0");
-  });
-
-  it("verdicts 可收窄;不传 limit 不截断", async () => {
-    const s = snap({ experimentId: "exp/x", results: [res("A", "failed"), res("B", "errored")] });
-    const onlyErrored = await CaseList.data([s], { verdicts: ["errored"] });
-    expect(onlyErrored.rows.map((r) => r.eval)).toEqual(["B"]);
-    expect(onlyErrored.truncated).toBe(0);
-  });
-
-  it("failedAssertions 只列未通过的 gate 断言;失败 soft 不算「为什么失败」,与 MetricTable expand 同一套材料", async () => {
-    const s = snap({
-      experimentId: "exp/x",
-      results: [
-        res("A", "failed", {
-          assertions: [
-            { name: "includes", severity: "gate", score: 0, passed: false, detail: "missing text" },
-            softAssertion("judge", 0.2, { passed: false }), // soft 失败:不算失败原因,只影响得分
-          ],
-        }),
-      ],
-    });
-    const data = await CaseList.data([s]);
-    expect(data.rows[0].failedAssertions).toHaveLength(1);
-    expect(data.rows[0].failedAssertions[0].name).toBe("includes");
   });
 });
 

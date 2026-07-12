@@ -9,9 +9,10 @@
 //   - 跨块配色一致:维度键 → 稳定散列 → 固定调色板下标(colors.ts)。
 
 export {
-  CaseList,
+  AttemptList,
   DeltaTable,
-  ExperimentTable,
+  EvalList,
+  ExperimentList,
   GroupSummary,
   MetricBars,
   MetricLine,
@@ -22,9 +23,10 @@ export {
   Scoreboard,
 } from "../components.tsx";
 export type {
-  CaseListProps,
+  AttemptListProps,
   DeltaTableProps,
-  ExperimentTableProps,
+  EvalListProps,
+  ExperimentListProps,
   GroupSummaryProps,
   MetricLineProps,
   MetricMatrixProps,
@@ -36,13 +38,13 @@ export type {
 
 // 数据契约类型(家在 ../types.ts,「算」与「画」两侧共用同一份)
 export type {
-  AttemptRef,
-  CaseListData,
+  AttemptEvidenceCapabilities,
+  AttemptListItem,
+  AttemptLocator,
   DeltaData,
-  ExperimentTableData,
-  ExperimentTableRowData,
-  ExperimentEvalRowData,
-  ExperimentAttemptRowData,
+  EvalListItem,
+  ExperimentListEvalRow,
+  ExperimentListItem,
   GroupSummaryData,
   LineAxis,
   LineData,

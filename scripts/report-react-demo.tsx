@@ -16,7 +16,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
-  CaseList,
+  AttemptList,
   DeltaTable,
   MetricBars,
   MetricLine,
@@ -27,7 +27,7 @@ import {
   Scoreboard,
 } from "../src/report/react/index.tsx";
 import {
-  caseListData,
+  attemptListItems,
   deltaData,
   lineData,
   matrixData,
@@ -38,7 +38,7 @@ import {
 } from "../src/report/react/fixtures.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const attemptHref = (ref: { run: string; result: number }) => `view/#/attempt/${ref.run}/${ref.result}`;
+const attemptHref = (locator: string) => `view/#/attempt/${locator}`;
 
 const page = renderToStaticMarkup(
   <main style={{ maxWidth: "960px", margin: "0 auto", padding: "0 1rem" }}>
@@ -58,8 +58,11 @@ const page = renderToStaticMarkup(
     <MetricScatter data={scatterData} pointHref={(row) => `view/#/experiment/${row.key}`} />
     <h2>DeltaTable</h2>
     <DeltaTable data={deltaData} />
-    <h2>CaseList</h2>
-    <CaseList data={caseListData} attemptHref={attemptHref} />
+    {/* AttemptList/EvalList/ExperimentList 没有 attemptHref prop(证据室深链恒经宿主 ctx,
+        docs/reports.md「第一档」的函数签名没有这个参数);裸嵌进自己的 React 应用时退化为
+        默认 `#/attempt/<locator>`,不在这里自定去处。 */}
+    <h2>AttemptList</h2>
+    <AttemptList items={attemptListItems} />
   </main>,
 );
 

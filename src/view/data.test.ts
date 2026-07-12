@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { IncompatibleResultsError, ViewInputError, loadLatestResultsPerEval, loadViewScan } from "./data.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION, type EvalResult, type Verdict } from "../types.ts";
+import { encodeAttemptLocator } from "../results/locator.ts";
 
 const roots: string[] = [];
 async function makeRoot(): Promise<string> {
@@ -161,10 +162,23 @@ describe("loadViewScan · 报告槽是现刻水位口径,裸跑与局部收窄�
 
     const { viewData, reportHtml } = await loadViewScan(root);
     // 现刻水位:q1 取周二(更新,通过),q2 取周一(仅此一次,通过)—— 两题全过(2/2 = 100%),
-    // 不是「只看周二快照的 1/1」。深链分别指向各自的贡献快照。
+    // 不是「只看周二快照的 1/1」。深链分别指向各自的贡献快照(AttemptLocator 由身份元组——
+    // 含快照 startedAt——确定性派生,两个不同快照的 q1/q2 编出两个不同的 locator)。
     expect(reportHtml.en).toContain("100%");
-    expect(reportHtml.en).toContain("#/attempt/exp_a/2026-07-02T08-00-00-000Z/"); // q1 来自周二
-    expect(reportHtml.en).toContain("#/attempt/exp_a/2026-07-01T08-00-00-000Z/"); // q2 来自周一
+    const q1Locator = encodeAttemptLocator({
+      experimentId: "exp/a",
+      snapshotStartedAt: "2026-07-02T08:00:00.000Z",
+      evalId: "q1",
+      attempt: 0,
+    });
+    const q2Locator = encodeAttemptLocator({
+      experimentId: "exp/a",
+      snapshotStartedAt: "2026-07-01T08:00:00.000Z",
+      evalId: "q2",
+      attempt: 0,
+    });
+    expect(reportHtml.en).toContain(`#/attempt/${q1Locator}`); // q1 来自周二
+    expect(reportHtml.en).toContain(`#/attempt/${q2Locator}`); // q2 来自周一
 
     // 两题都有真实判定,不是伪残缺:报告槽不再出 partial-coverage 警告。
     expect(reportHtml.en).not.toContain('data-kind="partial-coverage"');

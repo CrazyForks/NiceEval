@@ -16,7 +16,10 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ReportLoadError } from "../report/load.ts";
+// dist-sourced: this must be the exact class loadViewScan()/data.ts's loadReportFile() throws
+// (see src/view/data.ts's comment) — a raw-src import would be a structurally-identical but
+// `instanceof`-incompatible class.
+import { ReportLoadError } from "../../dist/report/load.js";
 import { ViewInputError, loadViewScan } from "./data.ts";
 import { buildView, resolveViewInput } from "./index.ts";
 import { runShow } from "../show/index.ts";
@@ -182,16 +185,18 @@ describe("loadViewScan · 默认报告槽(裸跑)", () => {
   it("报告槽双语渲染:同一棵树按 locale 渲染两遍,chrome 文案分语言、数据不分语言", async () => {
     const root = await seedRoot();
     const { reportHtml } = await loadViewScan(root);
-    expect(reportHtml.en).toContain("Pass rate"); // ExperimentTable 表头(en)
-    expect(reportHtml["zh-CN"]).toContain("成功率"); // ExperimentTable 表头(zh-CN,passRate 的 zh label)
+    expect(reportHtml.en).toContain("Pass rate"); // ExperimentList 主行(en)
+    expect(reportHtml["zh-CN"]).toContain("成功率"); // ExperimentList 主行(zh-CN,passRate 的 zh label)
     for (const html of [reportHtml.en, reportHtml["zh-CN"]]) {
       expect(html).toContain("compare/bub");
-      expect(html).toContain("#/attempt/compare_bub/2026-07-08T10-00-00-000Z/"); // 失败案例深链进证据室
+      // 失败案例深链进证据室:不透明 AttemptLocator 单段路由 `#/attempt/@<locator>`,
+      // 不再是旧的两段式 `#/attempt/<snapshot>/<attempt>`。
+      expect(html).toMatch(/href="#\/attempt\/@[0-9a-z]+"/);
       expect(html).not.toContain("<script"); // 报告槽产物零客户端 JS,不 hydrate
     }
   });
 
-  it("失败清单与警告住在报告槽里:CaseList 列出失败,壳的 viewData 不携带统计产物", async () => {
+  it("失败清单与警告住在报告槽里:ExperimentList 列出失败,壳的 viewData 不携带统计产物", async () => {
     const root = await seedRoot();
     const { viewData, reportHtml } = await loadViewScan(root);
     expect(reportHtml.en).toContain("fixtures/button");
@@ -212,7 +217,7 @@ describe("loadViewScan · --report 报告槽", () => {
     expect(html).toContain("考试成绩单"); // 自定义 Section
     expect(html).toContain("nre-"); // 官方组件的稳定类名
     expect(html).toContain("<style>.exam-note { color: #4a7; }</style>"); // <Style> 随树带走
-    expect(html).toContain("#/attempt/compare_bub/2026-07-08T10-00-00-000Z/"); // 失败案例深链进证据室
+    expect(html).toMatch(/href="#\/attempt\/@[0-9a-z]+"/); // 失败案例深链进证据室(单段 locator 路由)
     expect(html).not.toContain("<script"); // 报告槽产物零客户端 JS,不 hydrate
     // 用户报告同样双语渲染两遍(壳按界面语言摆放)。
     expect(scan.reportHtml["zh-CN"]).toContain("考试成绩单");

@@ -4,7 +4,8 @@
 // 组内按值排序,方向随 better;缺数据的系列不画柱、不编 0(与 text 面的 — 同口径)。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, MatrixData, MetricCell } from "../types.ts";
+import type { MatrixData, MetricCell } from "../types.ts";
+import type { AttemptLocator } from "../../results/locator.ts";
 import { DEFAULT_REPORT_LOCALE, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { colorClassForKey, seriesClassForKey } from "./colors.ts";
 import { cx } from "./format.ts";
@@ -20,7 +21,7 @@ export function MetricBars({
   locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: MatrixData;
-  attemptHref?: (ref: AttemptRef) => string;
+  attemptHref?: (locator: AttemptLocator) => string;
   className?: string;
   locale?: ReportLocale;
 }): ReactElement {
@@ -82,10 +83,10 @@ export function MetricBars({
                     <title>{title}</title>
                   </rect>
                 );
-                const ref = cell.refs[0];
+                const locator = cell.refs[0];
                 return (
                   <g key={series}>
-                    {attemptHref && ref ? <a href={attemptHref(ref)}>{rect}</a> : rect}
+                    {attemptHref && locator ? <a href={attemptHref(locator)}>{rect}</a> : rect}
                     {/* 柱顶标数值;覆盖不全时把 samples/total 一并标出,不藏 */}
                     <text className="nre-bar-value" x={x + barWidth / 2} y={y - 4} textAnchor="middle">
                       {cell.samples < cell.total ? `${cell.display} ${cell.samples}/${cell.total}` : cell.display}

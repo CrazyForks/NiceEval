@@ -3,7 +3,8 @@
 // 纯渲染、零 hooks;交互只有普通 <a>(下钻由使用者的 attemptHref 决定去处)。
 
 import type { ReactElement } from "react";
-import type { AttemptRef, MetricCell } from "../types.ts";
+import type { MetricCell } from "../types.ts";
+import type { AttemptLocator } from "../../results/locator.ts";
 import { DEFAULT_REPORT_LOCALE, localeText, type ReportLocale } from "../locale.ts";
 
 export function MetricCellView({
@@ -12,7 +13,7 @@ export function MetricCellView({
   locale = DEFAULT_REPORT_LOCALE,
 }: {
   cell: MetricCell;
-  attemptHref?: (ref: AttemptRef) => string;
+  attemptHref?: (locator: AttemptLocator) => string;
   locale?: ReportLocale;
 }): ReactElement {
   // 全 null(没有任何有效样本)→ 缺数据文案,绝不画 0;total 仍如实入 title
@@ -45,8 +46,8 @@ export function MetricCellView({
       {/* refs + attemptHref:格子可点,「给我看那次 attempt」就在手边 */}
       {attemptHref && cell.refs && cell.refs.length > 0 && (
         <span className="nre-refs">
-          {cell.refs.map((ref, i) => (
-            <a key={`${ref.snapshot}:${ref.attempt}`} className="nre-ref" href={attemptHref(ref)}>
+          {cell.refs.map((locator, i) => (
+            <a key={locator} className="nre-ref" href={attemptHref(locator)}>
               #{i + 1}
             </a>
           ))}

@@ -37,19 +37,10 @@
     for (var i = 0; i < siblings.length; i++) siblings[i].classList.remove("nre-sort-asc", "nre-sort-desc");
     th.classList.add(dir === "asc" ? "nre-sort-asc" : "nre-sort-desc");
 
-    // 主行按「自己 + 紧随其后的展开明细行(若有,MetricTable 的 expand 子行)」成对处理——
-    // 明细行没有 data-sort-value,单独参与排序会沉到表尾、跟丢它所属的主行。
-    var all = Array.prototype.slice.call(tbody.rows);
-    var units = [];
-    for (var j = 0; j < all.length; j++) {
-      if (all[j].classList.contains("nre-subrows-row")) continue; // 已被上一个主行收编
-      var unit = [all[j]];
-      if (all[j + 1] && all[j + 1].classList.contains("nre-subrows-row")) unit.push(all[j + 1]);
-      units.push(unit);
-    }
-    units.sort(function (a, b) {
-      var va = sortValue(a[0], index);
-      var vb = sortValue(b[0], index);
+    var rows = Array.prototype.slice.call(tbody.rows);
+    rows.sort(function (a, b) {
+      var va = sortValue(a, index);
+      var vb = sortValue(b, index);
       // 空值 = 缺数据:恒沉底,与「缺数据不编 0」同一姿势
       if (va === "" && vb === "") return 0;
       if (va === "") return 1;
@@ -61,9 +52,7 @@
       else out = String(va).localeCompare(String(vb));
       return dir === "asc" ? out : -out;
     });
-    for (var u = 0; u < units.length; u++) {
-      for (var k = 0; k < units[u].length; k++) tbody.appendChild(units[u][k]);
-    }
+    for (var u = 0; u < rows.length; u++) tbody.appendChild(rows[u]);
   });
 
   // ───────────────────────── 过滤:input[data-nre-filter] ─────────────────────────
@@ -79,55 +68,8 @@
     var rows = table.tBodies[0].rows;
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
-      var hide;
-      if (row.classList.contains("nre-subrows-row")) {
-        // 展开明细行跟着上一行(它所属的主行)走,不单独参与文本匹配——避免主行被过滤掉、
-        // 明细行却孤零零留在原地(或反过来,主行还在、明细行自己先被滤没了)。
-        var prev = rows[i - 1];
-        hide = prev ? prev.classList.contains("nre-row-hidden") : false;
-      } else {
-        hide = query !== "" && row.textContent.toLowerCase().indexOf(query) === -1;
-      }
+      var hide = query !== "" && row.textContent.toLowerCase().indexOf(query) === -1;
       row.classList.toggle("nre-row-hidden", hide);
-    }
-  });
-
-  // ExperimentTable 以原生 details 表达「主行 + 展开诊断」，不是 table/tbody。
-  // 单独按 summary 的八列排序、按整条 details 的文本过滤；无 JS 时保持数据侧顺序且内容完整。
-  document.addEventListener("click", function (e) {
-    var control = closest(e.target, "[data-nre-experiment-sort]");
-    if (!control) return;
-    var board = control.closest(".nre-experiment-table");
-    if (!board) return;
-    var index = Number(control.getAttribute("data-nre-experiment-sort"));
-    var dir = control.classList.contains("nre-sort-asc") ? "desc" : "asc";
-    var controls = board.querySelectorAll("[data-nre-experiment-sort]");
-    for (var i = 0; i < controls.length; i++) controls[i].classList.remove("nre-sort-asc", "nre-sort-desc");
-    control.classList.add(dir === "asc" ? "nre-sort-asc" : "nre-sort-desc");
-    var entries = Array.prototype.slice.call(board.querySelectorAll(":scope > .nre-experiment-entry"));
-    entries.sort(function (a, b) {
-      var ac = a.querySelector(".nre-experiment-summary").children[index];
-      var bc = b.querySelector(".nre-experiment-summary").children[index];
-      var av = ac ? ac.getAttribute("data-sort-value") || ac.textContent.trim() : "";
-      var bv = bc ? bc.getAttribute("data-sort-value") || bc.textContent.trim() : "";
-      if (av === "" && bv === "") return 0;
-      if (av === "") return 1;
-      if (bv === "") return -1;
-      var an = Number(av), bn = Number(bv);
-      var out = !isNaN(an) && !isNaN(bn) ? an - bn : String(av).localeCompare(String(bv));
-      return dir === "asc" ? out : -out;
-    });
-    for (var j = 0; j < entries.length; j++) board.appendChild(entries[j]);
-  });
-
-  document.addEventListener("input", function (e) {
-    var input = closest(e.target, "input[data-nre-experiment-filter]");
-    if (!input) return;
-    var scope = input.parentElement;
-    var entries = scope ? scope.querySelectorAll(".nre-experiment-entry") : [];
-    var query = input.value.trim().toLowerCase();
-    for (var i = 0; i < entries.length; i++) {
-      entries[i].classList.toggle("nre-row-hidden", query !== "" && entries[i].textContent.toLowerCase().indexOf(query) === -1);
     }
   });
 

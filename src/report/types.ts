@@ -2,10 +2,14 @@
 // 产物(即组件的 data props)。数据契约照 docs/reports.md「计算函数与数据契约」;
 // 这些不是持久化格式,没有 format / schemaVersion 信封,兼容性跟随 npm 版本。
 
-import type { AttemptHandle, AttemptRef, SelectionWarning } from "../results/index.ts";
+import type { AttemptHandle, SelectionWarning } from "../results/types.ts";
+import type { AttemptLocator } from "../results/locator.ts";
+import type { AttemptEvidenceCapabilities } from "../results/attempt-evidence.ts";
+import type { AssertionResult, Verdict } from "../types.ts";
 import type { LocalizedLabel, ReportLocale } from "./locale.ts";
 
-export type { AttemptRef, SelectionWarning };
+export type { SelectionWarning };
+export type { AttemptLocator, AttemptEvidenceCapabilities };
 export type { LocalizedLabel, ReportLocale };
 
 // ───────────────────────── 指标与聚合 ─────────────────────────
@@ -111,33 +115,7 @@ export interface MetricCell {
    * 这个格子由哪些 attempt 算出 —— 回到证据的引用。必填(可空数组):
    * 「每个数字点进去就是证据」是页面的核心承诺,可选字段会让深链静默缺失。
    */
-  refs: AttemptRef[];
-}
-
-/**
- * `expand` 展开出的一条子行:父行的 group 按 `expand` 维度再分一次组,同一套父表 `columns`
- * 在子群体上重新算一遍格子——子行与父行是同一种东西(维度键 × 指标列),只是维度换了、
- * 群体收窄了,渲染面可以复用同一套格子渲染逻辑,不是另起一套子行专属的展示字段。
- * 额外三项(verdict / reason / ref)对任何维度都成立(拿 foldEvalVerdict 折一下、挑代表
- * attempt),不是 eval 维度专属,不需要为其它 expand 维度另写一套。
- */
-export interface TableSubRow<K extends string = string> {
-  /** 子维度键,如 eval id(`expand: "eval"` 时)。 */
-  key: string;
-  cells: Record<K, MetricCell>;
-  /** 子群体折叠判定(foldEvalVerdict 口径:任一 attempt 通过则通过,否则取最严重的)。 */
-  verdict: "passed" | "failed" | "errored" | "skipped";
-  /**
-   * 失败原因文案,按优先级取第一个在场的:`error` → `skipReason` → 未通过的 gate 断言
-   * (原始声明顺序,`name`,detail 在场则 `"name: detail"`,多条用「, 」连接)→ 缺席。
-   * soft 断言永不进入;soft 得分是独立概念,不会出现在这个字段里。
-   */
-  reason?: string;
-  /** 代表 attempt 的深链(与 verdict 同一条:折叠判定对应的那条 attempt)。 */
-  ref: AttemptRef;
-  /** 子群体里的 attempt 总数;>1 时渲染面标出「通过轮数/总轮数」(flaky/重试一眼可见)。 */
-  runs: number;
-  passedRuns: number;
+  refs: AttemptLocator[];
 }
 
 /**
@@ -145,8 +123,8 @@ export interface TableSubRow<K extends string = string> {
  * eval 级折叠计票与「这行覆盖了多少题/多少次尝试/最近何时跑的」);其它维度不携带。
  * web / text 面在 meta 在场时补 Model / Agent / Verdicts 列,`evals`/`attempts`/
  * `lastRunAt` 则渲染成行键下的一行紧凑摘要——与 view 原生榜单同一份信息密度。
- * `subRows` 由 `expand` 选项触发,不限于 rows: "experiment"——任何行维度配 `expand`
- * 都能展开出子行。
+ * `MetricTable` 只表达维度 × 指标,没有实体下钻——要展开到 experiment 的 Eval 或
+ * Eval 的 Attempt,用 `ExperimentList` / `EvalList`,这里不再有 `subRows`。
  */
 export interface TableRowMeta<K extends string = string> {
   agent?: string;
@@ -170,8 +148,6 @@ export interface TableRowMeta<K extends string = string> {
    * 时间,ISO 8601,字符串比较即可比大小)。组内没有任何 item 时缺席。
    */
   lastRunAt?: string;
-  /** `expand` 维度展开出的子行;未设 `expand` 时缺席。 */
-  subRows?: TableSubRow<K>[];
 }
 
 /** 列键 K 来自 columns 元组的字面量 name:拼错列名编译不过,不是运行时 undefined。 */
@@ -300,81 +276,6 @@ export interface GroupSummaryData {
   lastRunAt?: string;
 }
 
-/**
- * Experiment 工作台的数据契约。它与通用的 `TableData` 有意分开：父行回答一次
- * experiment 的整体表现，展开区则保留配置、KPI、逐 eval/attempt 证据与原始样例。
- * 默认报告和自定义报告使用同一个公开组件，不存在默认报告私有字段。
- */
-export interface ExperimentTableData {
-  rows: ExperimentTableRowData[];
-}
-
-export interface ExperimentTableRowData {
-  /** 完整 experiment id，也是稳定行键。 */
-  key: string;
-  experimentId: string;
-  /** 主行短名（experiment id 的最后一段）。 */
-  label: string;
-  agent: string;
-  model?: string;
-  config: {
-    runs: number;
-    earlyExit?: boolean;
-    sandbox?: string;
-    timeoutMs?: number;
-    budget?: number;
-    flags?: Record<string, unknown>;
-  };
-  /** 所含快照中最近的 startedAt。 */
-  lastRunAt: string;
-  summary: {
-    evals: number;
-    attempts: number;
-    verdicts: { passed: number; failed: number; errored: number; skipped: number };
-    /** attempt 墙钟耗时之和；展开 KPI 的“总耗时”。 */
-    durationMs: number;
-    /** attempt 成本之和；全缺时为 null。 */
-    totalCostUSD: number | null;
-    /** 主行四格走官方两级聚合引擎，web/text face 不现场重算。 */
-    passRate: MetricCell;
-    duration: MetricCell;
-    tokens: MetricCell;
-    cost: MetricCell;
-  };
-  evals: ExperimentEvalRowData[];
-  /** 优先 error、其次 failure、再取首条，供折叠的调试 JSON 使用。 */
-  rawSample?: import("../types.ts").EvalResult;
-}
-
-export interface ExperimentEvalRowData {
-  key: string;
-  verdict: "passed" | "failed" | "errored" | "skipped";
-  reason?: string;
-  /** 通过时的软评分摘要；与失败原因分字段，避免 reason 语义漂移。 */
-  scoreSummary?: string;
-  durationMs: number;
-  tokens: number;
-  totalCostUSD: number | null;
-  runs: number;
-  passedRuns: number;
-  representativeRef: AttemptRef;
-  attempts: ExperimentAttemptRowData[];
-}
-
-export interface ExperimentAttemptRowData {
-  attempt: number;
-  verdict: "passed" | "failed" | "errored" | "skipped";
-  reason?: string;
-  scoreSummary?: string;
-  startedAt?: string;
-  durationMs: number;
-  tokens: number;
-  totalCostUSD: number | null;
-  ref: AttemptRef;
-  /** 有事件、trace 或评分时，宿主证据室能提供更深的 attempt 内容。 */
-  hasEvidence: boolean;
-}
-
 export interface OverviewData {
   snapshots: { experimentId: string; agent: string; model?: string; startedAt: string }[];
   totals: {
@@ -427,21 +328,102 @@ export interface DeltaData<K extends string = string> {
   }[];
 }
 
-export interface CaseListData {
-  rows: {
-    eval: string;
-    experimentId: string;
-    agent: string;
-    verdict: "failed" | "errored";
-    /** errored 的错误摘要(已过 redact)。 */
-    error?: string;
-    /** 未通过的 gate 断言,原始声明顺序;soft 断言不决定判定,不列在这里。 */
-    failedAssertions: { name: string; score: number; detail?: string; evidence?: string }[];
-    durationMs: number;
-    costUSD?: number;
-    /** 每条案例都能回到证据。 */
-    ref: AttemptRef;
-  }[];
-  /** limit 之外还有几条,如实报,不静默截断。 */
-  truncated: number;
+// ───────────────────────── 实体列表(ExperimentList / EvalList / AttemptList)─────────────────────────
+//
+// 三个组件按「experiment → experimentId × eval → attempt」逐级下钻,固定展示实体事实,
+// 没有列配置(docs/reports.md「实体列表与指标表不重叠」)。每一级都以下一级的 `AttemptListItem[]`
+// 收尾——同一个类型既是 `AttemptList` 自己的 items,也是 `ExperimentListEvalRow.attempts` /
+// `EvalListItem.attempts` 的元素,报告作者可以直接把这些嵌套数组喂给 `<AttemptList items={...} />`。
+
+/**
+ * `AttemptList` 一项 = 一个 Attempt:身份、判定、断言、error、耗时、成本、locator,外加
+ * 证据能力标记(有没有保存的 Eval 源码 / 执行事件 / OTel 计时 / diff——与 `AttemptEvidence.capabilities`
+ * 同一个类型,不重新发明四个布尔位的含义)。`ExperimentList` / `EvalList` 的下钻数组复用同一个
+ * 类型,不是各自的精简版。
+ */
+export interface AttemptListItem {
+  evalId: string;
+  experimentId: string;
+  attempt: number;
+  agent: string;
+  verdict: Verdict;
+  error?: string;
+  assertions: AssertionResult[];
+  durationMs: number;
+  costUSD?: number;
+  locator: AttemptLocator;
+  /**
+   * 证据能力标记:`eval`(运行时 Eval 源码已保存)、`execution`(执行事件非空)、
+   * `timing`(执行事件 + 这次运行接入过 OTel)、`diff`(工作区有文件改动)。逐位定义与
+   * `AttemptEvidence.capabilities` 完全一致——这里复用同一个类型,不重复声明四个布尔位的门槛。
+   * 计算函数从 `EvalResult` 上已有的 `hasEvents` / `hasSources` / `hasTrace` 摘要位与一次
+   * `attempt.diff()` 懒加载算出,不对每个 item 调用完整的 `loadAttemptEvidence`
+   * (那还会额外装配 Eval 源码标注与 ExecutionTree,这里只要四个布尔位)。
+   */
+  capabilities: AttemptEvidenceCapabilities;
+}
+
+/**
+ * `ExperimentList` 一项里,一个 Eval 的展开行:折叠判定(`foldEvalVerdict`)、失败原因摘要
+ * (`error` → `skipReason` → 未通过的 gate 断言,`reasonFor` 的口径,soft 断言永不进入)、
+ * 该 Eval 内 attempt 的平均耗时/成本(两级聚合引擎在单一 eval 上退化成组内均值),以及这道题
+ * 的全部 Attempt(升序,供进一步展开到 `AttemptList`)。
+ */
+export interface ExperimentListEvalRow {
+  evalId: string;
+  /** 折叠判定(任一 attempt 通过则通过,否则取最严重的)。 */
+  verdict: Verdict;
+  reason?: string;
+  /** 这道题内 attempt 的平均耗时(`computeCell(durationMs, …)`,单一 eval 分组下即均值)。 */
+  duration: MetricCell;
+  /** 这道题内 attempt 的平均成本。 */
+  cost: MetricCell;
+  /** 这道题的全部 Attempt,按 attempt 序号升序。 */
+  attempts: AttemptListItem[];
+}
+
+/**
+ * `ExperimentList.data(selection)` 的一项 = 一个 experiment:身份(experimentId/agent/model)、
+ * 声明的 flags、Eval 判定构成(`foldEvalVerdict` 计票,与 view 榜单同一口径)、官方两级聚合
+ * 汇总指标(passRate/cost/duration/tokens,直接来自 `computeCell`,不现场重算),以及展开到
+ * 这个 experiment 每道 Eval 的 `evalRows`(按 eval id 升序)。
+ */
+export interface ExperimentListItem {
+  experimentId: string;
+  agent: string;
+  model?: string;
+  flags?: Record<string, unknown>;
+  /** eval 级折叠计票(foldEvalVerdict 口径,与 `TableRowMeta.verdicts`、view 榜单同一套)。 */
+  verdicts: { passed: number; failed: number; errored: number; skipped: number };
+  /** 官方两级聚合口径,与 `MetricTable.data(..., columns: [passRate])` 同一台引擎。 */
+  passRate: MetricCell;
+  cost: MetricCell;
+  duration: MetricCell;
+  tokens: MetricCell;
+  /** 这个 experiment 覆盖的 eval 数(去重后,与 `verdicts` 四项之和一致)。 */
+  evals: number;
+  /** 这个 experiment 覆盖的 attempt 总数(原始计数,含多轮重试)。 */
+  attempts: number;
+  /** 所含快照中最近的 startedAt。 */
+  lastRunAt: string;
+  /** 展开到这个 experiment 的 Eval,按 eval id 升序。 */
+  evalRows: ExperimentListEvalRow[];
+}
+
+/**
+ * `EvalList.data(selection)` 的一项 = 一个 `experimentId + evalId`(同一个 Eval 跑在两个
+ * experiment 上是两条不同结果,不合并)。判定、分数(examScore 的两级聚合)、这道题内 attempt
+ * 的平均耗时/成本,失败原因摘要(与 `ExperimentListEvalRow.reason` 同一口径),外加展开到这道题
+ * 全部 Attempt 的 `attempts`(按 attempt 序号升序)。
+ */
+export interface EvalListItem {
+  evalId: string;
+  experimentId: string;
+  verdict: Verdict;
+  reason?: string;
+  /** examScore 的两级聚合;单一 eval 分组下即这道题的题级分数。 */
+  score: MetricCell;
+  duration: MetricCell;
+  cost: MetricCell;
+  attempts: AttemptListItem[];
 }
