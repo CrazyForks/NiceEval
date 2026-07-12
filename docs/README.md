@@ -50,3 +50,16 @@ docs/
 ## 关于这些文档
 
 这些是**内部设计与实现协作文档**:记录 niceeval 的目标 DX、架构边界和实现协作约定,全部用中文书写。[Source Map](source-map.md) 把设计行为定位到源码。功能文档([Feature](feature/README.md))先于代码定稿是正常流程,代码后续跟上;正文不写实现状态。未列入当前契约的提案放 [Roadmap](roadmap/README.md),同样只写"要什么、是什么"。
+
+## 文档写作
+### Engineering
+本repo的功能。比如e2e测试、benchmark或者文档、示例的维护方案
+
+### Feature与Roadmap
+niceeval给用户提供的功能。可以分为Library与CLI或者混合. 对应的模版是 docs/feature/_template
+
+cli.md(可选) 是用户怎么怎么用niceeval来使用这个功能。应该举例怎么调用。并且举例说明对应命令的输出什么样的东西。应该考虑各种case
+
+libraray.md(可选) 是用户怎么在ts中使用你这个库。也应该举例说明，覆盖各种情况
+
+architecture.md，则是怎么用代码或者数据结构来实现这个功能。
