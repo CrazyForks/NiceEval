@@ -19,6 +19,7 @@
         sources.json                 # 引用 sources/ 里的条目,不内联源码内容(见下)
         trace.json
         o11y.json
+        agent-setup.json              # Skill / Native Plugin / MCP / Python Plugin 安装清单
         diff.json
 ```
 
@@ -257,6 +258,12 @@ interface PhaseTiming {
 
 这个文件面向人和调试脚本:当一个 attempt 失败时,先看 `result.json` 的 `verdict` / `error`,再看 `events.json` 与 `o11y.json`,通常能分清是断言没过、agent runtime 错误,还是 adapter / provider / timeout 问题。
 
+### `agent-setup.json`
+
+类型是 `AgentSetupManifest`。沙箱型 Coding Agent Adapter 用它记录该 Attempt 实际安装的 Skill、Agent Native Plugin、MCP Server 与 Python Plugin。Manifest 保存来源、固定 ref、Plugin / Skill 名和可公开的解析版本，不保存 API Key、Token 或其它环境变量值。
+
+它不参与评分，只提供复现与诊断证据。没有安装这些扩展的 Adapter 不生成该文件。完整结构与各 Adapter 的类型边界见 [Coding Agent Skills / Plugins](../adapters/coding-agent-skills-plugins.md#安装-manifest)。
+
 ### `diff.json`
 
 类型是 `DiffData`:
@@ -276,7 +283,7 @@ interface DiffData {
 
 1. 定位快照:`.niceeval/<experiment>/` 下最新的时间戳目录,读 `snapshot.json` 确认身份与版本。
 2. 逐 attempt 读 `<evalId>/a<attempt>/result.json` 拿判决、断言、用量、成本、`locator`。
-3. 需要证据时读同目录的 `events.json`、`trace.json`、`sources.json`、`o11y.json`、`diff.json`;携带条目按 `artifactBase`(相对结果根)回原快照取。`sources.json` 只是引用,内容在 `<快照根>/sources/<sha256>.json`——携带条目要去原快照的 `sources/`,不是当前快照的。
+3. 需要证据时读同目录的 `events.json`、`trace.json`、`sources.json`、`o11y.json`、`agent-setup.json`、`diff.json`;携带条目按 `artifactBase`(相对结果根)回原快照取。`sources.json` 只是引用,内容在 `<快照根>/sources/<sha256>.json`——携带条目要去原快照的 `sources/`,不是当前快照的。
 
 两种非正常落盘的判定:
 
@@ -292,7 +299,7 @@ interface DiffData {
 因此,不要在文档或工具里假设本地结果有 `results.jsonl`、transcript NDJSON 或固定测试输出文件。当前稳定契约是:
 
 - 快照级: `snapshot.json`、`sources/<sha256>.json`(eval 源码去重仓库);
-- attempt 级: `result.json`、`events.json`、`sources.json`(引用,不内联内容)、`trace.json`、`o11y.json`、`diff.json`;
+- attempt 级: `result.json`、`events.json`、`sources.json`(引用,不内联内容)、`trace.json`、`o11y.json`、`agent-setup.json`、`diff.json`;
 - 每个文件都是 JSON,不是 JSONL。
 
 ## 相关阅读

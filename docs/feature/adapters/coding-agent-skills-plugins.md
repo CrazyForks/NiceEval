@@ -1,328 +1,336 @@
-# Coding Agent Skills / Plugins DX
+# Coding Agent Skills / Plugins
 
-这篇只讨论沙箱型 coding agent adapter:Claude Code、Codex、bub 这类 CLI agent 如何在 niceeval 里安装 skill 与 plugin,并让实验可以 A/B 对比它们的收益。
+沙箱型 Coding Agent Adapter 负责在每个 Attempt 的 setup 阶段安装 Skill、MCP Server 或 Agent 专属扩展。Experiment 通过构造不同的 Agent 变体，比较这些上下文与工具是否提高通过率、质量或成本效率。
 
-先定词:
+## 概念边界
 
-- **Skill** 是模型上下文。它告诉 agent "遇到某类任务时怎么想、怎么写、用哪些约定"。典型形态是一个本地 Markdown / `SKILL.md`,或一个可以用 `npx skill add` 安装的 repo skill。
-- **Plugin** 是可执行能力。它给 agent 增加工具、MCP server、Python package、hook 或其它运行时扩展。它可能也带文档,但核心价值是让 agent 能调用新的东西。
+- **Skill** 是模型上下文：项目约定、领域知识、API 指南或解决任务的方法。
+- **Native Plugin** 是 Claude Code 或 Codex 从自己的 Marketplace 安装的扩展。
+- **MCP Server** 是 Claude Code 与 Codex 可连接的工具服务，不等同于 Native Plugin。
+- **Python Plugin** 是 Bub 运行环境中的 Python Package。
 
-不要把两者混在一个 `flags.skill = true` 里。skill 影响 prompt / context,plugin 影响工具面 / runtime;这两个维度要能独立打开,否则无法判断收益来自"指导更清楚"还是"多了工具"。
+这些扩展没有共同安装协议。NiceEval 不提供跨 Agent 的统一 `PluginSpec`：Claude Code 与 Codex 各自拥有 Adapter 专属的 Plugin 类型，Bub 使用 Python Plugin，MCP 保持独立。具体字段放在支持它的 Adapter Config 上，让 TypeScript 在构造期拒绝无效组合。
 
-## 设计目标
+## 设计规则
 
-1. **实验决定装什么。** base agent 只知道怎么跑 Claude Code / Codex / bub;某次实验要不要加 skill / plugin,在 experiment 里表达,而不是 CLI 位置参数或全局 config。
-2. **adapter 负责翻译。** niceeval core 不知道 Claude Code 怎么读 skill、Codex 配置文件在哪、bub 插件怎么装。统一配置只到 adapter 边界,再由具体 adapter 翻译成它自己的安装动作。
-3. **安装发生在 `setup`。** 每个 attempt 的沙箱建好后、第一次 `send` 前安装。多轮会话不能在每轮 `send` 里重装。
-4. **结果可对比。** 同一组 eval 应该能跑 `baseline`、`with-local-skill`、`with-installed-skill`、`with-plugin` 四类实验,报告里 agent 名字要带出变体。
-5. **选择要显式。** 一个 repo 里有多个 skill 时,必须能选择其中几个;不要默认把整个 repo 全部启用。
+1. **Experiment 决定安装内容。** Skill、Native Plugin、MCP 与 Python Plugin 是 Agent 构造参数，不是 CLI 位置参数或项目级全局开关。
+2. **Adapter 翻译配置。** Core 不知道 Claude Code、Codex 或 Bub 的配置目录与安装命令。
+3. **每个 Attempt 只安装一次。** 安装发生在 `Agent.setup`，早于第一次 `send`；多轮对话不重复安装。
+4. **来源必须可复现。** Repo Skill 可固定 ref，多 Skill Repo 必须明确选择启用集合。
+5. **无效组合在类型层拒绝。** `ClaudeCodePluginSpec` 不能传给 Codex，`CodexPluginSpec` 不能传给 Claude Code；Bub Config 没有 `mcpServers`，Claude Code 与 Codex Config 没有 `pythonPlugins`。
+6. **安装结果可审计。** setup 写出安装 Manifest，失败时能够判断实际装了什么。
 
-## 目标 API
+## SkillSpec
 
-建议内置 coding-agent adapter 都收敛到同一组概念字段:
+Claude Code、Codex 与 Bub 共用 Skill 的来源描述：
 
-```typescript
+```ts
 type SkillSpec =
   | {
       kind: "local";
-      path: string;          // repo 内文件或目录,如 "skills/zod.md" / "skills/ponytail/SKILL.md"
-      name?: string;         // 展示名;省略则由文件名推导
+      /** 相对项目根的 Skill 文件或目录。 */
+      path: string;
+      /** 展示名；省略时由文件或目录名推导。 */
+      name?: string;
     }
   | {
       kind: "repo";
-      source: string;        // "owner/repo" 或 git URL,传给 npx skill add
-      skills?: string[];     // repo 内只启用这些 skill;省略 = repo 只有一个 skill 时可接受
-      ref?: string;          // 可选 pin:tag / commit / branch
-    };
-
-type PluginSpec =
-  | {
-      kind: "mcp";
-      name: string;
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-    }
-  | {
-      kind: "python";
-      package: string;       // bub:uv tool install --with <package>
-    }
-  | {
-      kind: "agent-native";
-      source: string;        // 预留给 Claude Code / Codex 自己的 plugin installer
-      plugins?: string[];    // repo 内选择其中几个 plugin
+      /** GitHub owner/repo 或 Git URL。 */
+      source: string;
+      /** 多 Skill Repo 中要启用的 Skill。 */
+      skills?: string[];
+      /** Tag、Commit 或 Branch。 */
       ref?: string;
     };
 ```
 
-在 experiment 里使用:
+Adapter Config 使用同一个字段：
 
-```typescript
-import { defineExperiment } from "niceeval";
-import { dockerSandbox } from "niceeval/sandbox";
-import { claudeCodeAgent, codexAgent, bubAgent } from "niceeval/adapter";
+```ts
+interface ClaudeCodeConfig {
+  skills?: SkillSpec[];
+  plugins?: ClaudeCodePluginSpec[];
+  mcpServers?: McpServer[];
+}
 
-export default defineExperiment({
-  description: "codex + local zod skill",
-  agent: codexAgent({
-    name: "codex+zod-skill",
-    skills: [{ kind: "local", path: "skills/zod.md" }],
-  }),
-  model: "gpt-5.4",
-  sandbox: dockerSandbox(),
+interface CodexConfig {
+  skills?: SkillSpec[];
+  plugins?: CodexPluginSpec[];
+  mcpServers?: McpServer[];
+}
+
+interface BubConfig {
+  skills?: SkillSpec[];
+  pythonPlugins?: PythonPluginSpec[];
+}
+```
+
+`SkillSpec` 只统一“从哪里取得哪份 Skill”。安装位置、发现机制与是否需要额外 Project Instruction 由 Adapter 决定。
+
+## 本地 Skill
+
+本地 Skill 是 Eval Project 的签入内容：
+
+```ts
+import { codexAgent } from "niceeval/adapter";
+
+const agent = codexAgent({
+  skills: [
+    { kind: "local", path: "skills/effect-ts/SKILL.md" },
+    { kind: "local", path: "skills/repository-guide.md", name: "repository-guide" },
+  ],
 });
 ```
 
-当前代码里 `claudeCodeAgent` / `codexAgent` 已有 `skills?: string[]` 和 `mcpServers?: McpServer[]`,`bubAgent` 已有 `pythonPlugins?: string[]`。上面的 `SkillSpec` / `PluginSpec` 是 DX 目标:把已有字符串数组升级成可选择、可 pin、可解释的结构。
+Adapter 从运行 NiceEval 的项目根读取 `path`，把内容写入沙箱中该 Agent 能发现的位置。路径不存在、指向不支持的形状或内容无法写入时，setup 失败。
 
-## Skill 两种来源
+不同 Agent 的注入方式可以不同：
 
-### 1. 本地 skill
-
-本地 skill 适合团队内部规范、项目知识、API 使用约定、迁移指南。[coding-agent-skill](https://github.com/CorrectRoadH/coding-agent-skill) 就是这个形状:实验 wrapper 在 `setup` 阶段把 `skills/zod.md` 写成工作区 `CLAUDE.md`,让 Claude Code 自动读到。
-
-目标 DX 不应该要求每个实验手写 wrapper。adapter 应提供统一注入:
-
-```typescript
-const agent = claudeCodeAgent({
-  name: "claude-code+zod",
-  skills: [{ kind: "local", path: "skills/zod.md" }],
-});
-```
-
-adapter 翻译规则:
-
-| Agent | 本地 skill 注入 |
+| Agent | Adapter 义务 |
 |---|---|
-| Claude Code | 写入工作区 `CLAUDE.md`,或写入 Claude Code 原生 skill 目录(如果当前 CLI 版本支持) |
-| Codex | 写入工作区 `AGENTS.md` / Codex skill 目录,保持和 Codex CLI 当前读取规则一致 |
-| bub | 写入工作区 `AGENTS.md` 或 bub 支持的项目说明文件;如果 bub 没有原生 skill 概念,就把 skill 作为明确的 project instruction 注入 |
+| Claude Code | 写入 Claude Code 的 Project Instruction 或原生 Skill 目录 |
+| Codex | 写入 Codex 可发现的 Skill 目录，并提供让 Codex 检查 Skill 的 Project Instruction |
+| Bub | 写入 Bub 支持的项目说明或 Skill 目录 |
 
-规则是:本地 skill 是 eval fixture 的一部分,应该随 repo 签入,并被沙箱上传 / 写入;不要依赖用户机器上的全局 skill 状态。
+Codex 没有与 Claude Code Skill Tool 等价的自动加载机制。仅把文件装到 `.agents/skills/` 不足以证明 Codex 会读取它；Codex Adapter 必须同时写入稳定的发现指引。Eval 验证 Skill 使用时，应检查读取 Skill 文件的行为证据或 Skill 特有结果，不假设存在固定的 `load_skill` Tool。
 
-### 2. `npx skill add` 安装的 skill
+## Repo Skill
 
-第三方 skill 适合复用公开仓库,也适合把一个组织维护的 skill repo 分发给多项目。DX 应支持:
+Repo Skill 用于复用外部 Skill Repository：
 
-```typescript
+```ts
 const agent = claudeCodeAgent({
-  name: "claude-code+effect-sql",
   skills: [
     {
       kind: "repo",
       source: "Effect-TS/skills",
-      skills: ["effect", "effect-sql"],
       ref: "8f3c1a2",
+      skills: ["effect", "effect-sql"],
     },
   ],
 });
 ```
 
-安装流程放在 `setup`:
+Adapter 在 setup 阶段调用对应 Installer，并以非交互方式指定目标 Agent。配置语义固定为：
 
-```sh
-npx skill add Effect-TS/skills --ref 8f3c1a2 --only effect --only effect-sql
-```
+- `source` 决定 Repository。
+- `ref` 固定版本；省略表示使用 Repository 默认 ref。
+- `skills` 选择要启用的 Skill。
 
-如果实际 installer 叫 `skills add` 或选择参数不是 `--only`,这是 adapter 的翻译细节;文档层只要求表达能力:
+选择规则：
 
-- `source` 指明装哪个 repo;
-- `ref` 固定版本,保证 eval 可复现;
-- `skills` 在多 skill repo 中选择启用集合;
-- 安装后写 lock/artifact,让 `.niceeval/<experiment>/<snapshot>/` 能看见实际安装了什么。
-
-选择规则:
-
-| 情况 | 行为 |
+| 输入 | 结果 |
 |---|---|
-| repo 只有一个 skill,`skills` 省略 | 可以安装并启用这个 skill |
-| repo 有多个 skill,`skills` 省略 | adapter 应 fail fast,错误里列出可选 skill,要求显式选择 |
-| 指定的 skill 不存在 | adapter 应 fail fast,把 source/ref/skill 名写进错误 |
-| 同一个 skill 既本地又 repo 安装 | 不自动合并;按配置顺序注入,并在 agent 名字或安装 manifest 中保留来源 |
+| Repository 只有一个 Skill，省略 `skills` | 安装唯一 Skill |
+| Repository 有多个 Skill，省略 `skills` | setup 失败，并列出可选 Skill |
+| 指定不存在的 Skill | setup 失败，并报告 source、ref 与 Skill 名 |
+| 同名 Skill 来自多个来源 | 按配置顺序安装；Manifest 保留每个来源，不静默合并 |
 
-## Plugin 设计
+## MCP Server
 
-plugin 不应该通过 skill 文本偷偷安装。它改变运行时能力,必须独立配置,否则 trace / tool 调用 / 失败诊断会很难读。
+MCP 使用已有的 `McpServer`，不包装成通用 Plugin：
 
-### MCP plugin
+```ts
+const browser: McpServer = {
+  name: "browser",
+  command: "npx",
+  args: ["-y", "@modelcontextprotocol/server-browser"],
+  env: { BROWSER_MODE: "headless" },
+};
 
-Claude Code 和 Codex 都能走 MCP 这条共同抽象。DX:
-
-```typescript
-const agent = codexAgent({
-  name: "codex+browser-mcp",
-  plugins: [
-    {
-      kind: "mcp",
-      name: "browser",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-browser"],
-    },
-  ],
-});
+const claude = claudeCodeAgent({ mcpServers: [browser] });
+const codex = codexAgent({ mcpServers: [browser] });
 ```
 
-adapter 翻译:
+Adapter 分别翻译到原生配置：
 
-| Agent | MCP 写入位置 |
+| Agent | 写入位置 |
 |---|---|
-| Claude Code | `~/.claude.json` 顶层 `mcpServers` 字段(不是 `~/.claude/claude.json`——后者 claude CLI 不读) |
-| Codex | `~/.codex/config.toml` 的 `[mcp_servers.<name>]`(复数——单数 `[mcp_server.x]` 会被 codex 静默忽略) |
-| bub | 不支持——没有 MCP 概念,`kind: "mcp"` 对 bub agent fail fast |
+| Claude Code | `~/.claude.json` 顶层 `mcpServers` |
+| Codex | `~/.codex/config.toml` 的 `[mcp_servers.<name>]` |
 
-MCP 只有一条进入路径:adapter factory 的构造期配置(现为 `mcpServers`,未来收敛进 `plugins`)。不提供「给已构造 Agent 后置追加 MCP」的原语——那会把两家 CLI 配置文件的格式知识复制出 factory,并在中立模块里引入按 `agent.name` 分发的行为分支。条件包装器(如"只在某个实验变体上多挂一个 MCP server")的正确姿势是接收 factory 而不是已构造的 Agent,在包装内部把 MCP 并进构造入参——这条规则管的是**构造期配置**(MCP / skills / model),不管**环境预置**:按实验变化的环境准备(装二进制、预热、写 hook 文件、载入/回存跨 attempt 状态)不写进 Agent wrapper,挂在 `experiment.sandbox` 的 `.setup()` / `.teardown()` 链式钩子上,见 [Sandbox · 沙箱生命周期钩子](../sandbox/library.md#沙箱生命周期钩子setup--teardown)。
+MCP 只有 Adapter Factory 构造期这一条入口。不提供给已构造 Agent 后置追加 MCP 的 API。需要条件变体时，包装 Factory 并合并 `mcpServers`；不要读取 `agent.name` 后修改配置文件。
 
-### bub Python plugin
+## Claude Code Native Plugin
 
-bub 当前更自然的 plugin 面是 Python package:
+Claude Code Plugin 使用 Claude Code 专属类型。每一项同时声明 Marketplace 连接和其中的 Plugin 名：
 
-```typescript
-const agent = bubAgent({
-  name: "bub+otel-memory",
-  plugins: [
-    { kind: "python", package: "bub-plugin-memory" },
-    { kind: "python", package: "git+https://github.com/acme/bub-tools.git" },
-  ],
-});
+```ts
+interface ClaudeCodePluginSpec {
+  marketplace: {
+    /** Marketplace 在 Claude Code 配置中的连接名。 */
+    name: string;
+    /** Marketplace Repository 或 Claude Code 支持的连接来源。 */
+    source: string;
+    /** 固定 Marketplace 的 Tag、Commit 或 Branch。 */
+    ref?: string;
+  };
+  /** Marketplace 中的 Plugin 名。 */
+  name: string;
+}
 ```
 
-adapter 翻译为:
-
-```sh
-uv tool install --reinstall --python 3.12 --prerelease allow bub --with <package>
-```
-
-这类 plugin 应进安装 checkpoint 的 hash。否则一次 eval 装了插件、下一次没装插件却复用了缓存,结果会污染。
-
-### agent-native plugin
-
-给未来 Claude Code / Codex 原生 plugin installer 预留:
-
-```typescript
+```ts
 const agent = claudeCodeAgent({
-  name: "claude-code+org-plugin",
   plugins: [
     {
-      kind: "agent-native",
-      source: "acme/coding-agent-plugins",
-      plugins: ["safe-shell", "repo-map"],
-      ref: "v1.3.0",
+      marketplace: {
+        name: "acme",
+        source: "acme/claude-code-plugins",
+        ref: "v1.3.0",
+      },
+      name: "safe-shell",
     },
   ],
 });
 ```
 
-和 repo skill 一样:多 plugin repo 必须显式选择,安装结果要落 manifest。
+Claude Code Adapter 先以 `marketplace.name` 建立 Marketplace 连接，再从该连接安装 `name` 指定的 Plugin，并把 Marketplace 名、来源、ref、Plugin 名与解析后的版本写入 Manifest。配置只允许显式 Plugin 名；连接 Marketplace 不代表启用其中全部 Plugin。
 
-## A/B 组织方式
+## Codex Native Plugin
 
-不要用 CLI flag 临时开关 skill/plugin。用 experiment 文件表达可比组:
+Codex Plugin 使用独立的 Codex 类型，不与 Claude Code Plugin 互换：
+
+```ts
+interface CodexPluginSpec {
+  marketplace: {
+    /** Marketplace 在 Codex 配置中的连接名。 */
+    name: string;
+    /** Codex Marketplace Repository 或 Codex 支持的连接来源。 */
+    source: string;
+    /** 固定 Marketplace 的 Tag、Commit 或 Branch。 */
+    ref?: string;
+  };
+  /** Marketplace 中的 Plugin 名。 */
+  name: string;
+}
+```
+
+```ts
+const agent = codexAgent({
+  plugins: [
+    {
+      marketplace: {
+        name: "acme",
+        source: "acme/codex-plugins",
+        ref: "8f3c1a2",
+      },
+      name: "repo-map",
+    },
+  ],
+});
+```
+
+Codex Adapter 只按 Codex 的 Marketplace 与 Plugin 协议安装。即使 Claude Code 与 Codex 的字段当前相似，也保留两个命名类型：任一 Agent 的 Marketplace 认证、锁文件、选择规则或安装参数变化时，不会迫使另一 Adapter 接受无意义字段。
+
+## Bub Python Plugin
+
+Bub 的扩展使用专属类型：
+
+```ts
+interface PythonPluginSpec {
+  /** PyPI Package、Version Specifier 或 Git URL。 */
+  package: string;
+}
+```
+
+```ts
+const agent = bubAgent({
+  pythonPlugins: [
+    { package: "bub-plugin-memory==1.3.0" },
+    { package: "git+https://github.com/acme/bub-tools.git@8f3c1a2" },
+  ],
+});
+```
+
+Bub Adapter 将 Package 加入 `uv tool install ... --with <package>`，并把规范化后的 Package 列表纳入安装 Checkpoint Key。Plugin 集合不同的两个 Agent 变体不能复用同一个安装 Checkpoint。
+
+## Experiment 中组织 A/B
+
+不用 CLI Flag 临时打开 Skill 或 Plugin。每个变体由独立 Experiment 文件构造：
 
 ```text
 experiments/
 └── skill-ab/
     ├── baseline.ts
-    ├── claude-zod-local.ts
-    ├── codex-zod-local.ts
-    ├── claude-ponytail-repo.ts
-    └── bub-python-plugin.ts
+    ├── claude-effect.ts
+    ├── codex-effect.ts
+    └── bub-memory.ts
 ```
 
-每个文件引用一个明确 agent 变体:
-
-```typescript
+```ts
+// experiments/skill-ab/codex-effect.ts
 export default defineExperiment({
-  description: "claude-code + ponytail repo skill",
-  agent: claudeCodeAgent({
-    name: "claude-code+ponytail",
-    skills: [{ kind: "repo", source: "DietrichGebert/ponytail", skills: ["ponytail"], ref: "..." }],
+  description: "Codex with Effect Skill",
+  agent: codexAgent({
+    skills: [
+      {
+        kind: "repo",
+        source: "Effect-TS/skills",
+        ref: "8f3c1a2",
+        skills: ["effect"],
+      },
+    ],
   }),
-  model: "claude-sonnet-4-6",
-  evals: (id) => id.startsWith("ponytail-"),
+  model: "gpt-5.4",
+  sandbox: dockerSandbox(),
+  evals: (id) => id.startsWith("effect/"),
   runs: 3,
   earlyExit: false,
 });
 ```
 
-这样 `niceeval exp skill-ab` 的含义清楚:同一批任务,不同 agent 上下文 / runtime 变体。`niceeval view` 里也能直接按 agent 名比较通过率、成本、工具调用和 diff 质量。
+Experiment ID 表达变体身份；报告按 Experiment、Agent、Model 与 Flags 比较，不要求修改 Agent 的基础名称来编码全部配置。
 
 ## 安装 Manifest
 
-adapter 在 setup 结束后应写一份标准 manifest 到沙箱和结果 artifact,例如:
+每个沙箱型 Adapter 在 setup 完成后写出标准 Manifest：
 
-```json
-{
-  "agent": "codex+zod-local",
-  "skills": [
-    { "kind": "local", "name": "zod", "path": "skills/zod.md", "sha256": "..." },
-    { "kind": "repo", "source": "Effect-TS/skills", "ref": "8f3c1a2", "skills": ["effect"] }
-  ],
-  "plugins": [
-    { "kind": "mcp", "name": "browser", "command": "npx" }
-  ]
+```ts
+interface AgentSetupManifest {
+  skills: Array<
+    | { kind: "local"; name: string; path: string; sha256: string }
+    | { kind: "repo"; source: string; ref?: string; skills: string[] }
+  >;
+  nativePlugins?: Array<{
+    agent: "claude-code" | "codex";
+    marketplace: { name: string; source: string; ref?: string };
+    name: string;
+    resolvedVersion?: string;
+  }>;
+  mcpServers?: Array<{ name: string; command: string; args?: string[] }>;
+  pythonPlugins?: Array<{ package: string }>;
 }
 ```
 
-建议路径:
-
-- 沙箱内:`__niceeval__/agent-setup.json`
-- 结果目录:`.niceeval/<experiment>/<snapshot>/<evalId>/aN/agent-setup.json`
-
-这份 manifest 不参与评分,但用于复现和诊断:"这次失败到底有没有装 skill"应该能从 artifact 一眼确认。
+Manifest 在沙箱中写到 `__niceeval__/agent-setup.json`，并作为 Attempt Artifact 保存为 `agent-setup.json`。它不参与评分，只回答“这次实际安装了什么”。环境变量值与 Secret 不写入 Manifest。
 
 ## 失败语义
 
-skill/plugin 安装失败是 **errored**,不是 agent 做题失败:
+以下问题发生在 Agent setup，Attempt 判为 `errored`：
 
-- 本地 skill 路径不存在;
-- `npx skill add` 下载失败;
-- 多 skill repo 未指定 `skills`;
-- MCP command 找不到;
-- bub Python plugin 安装失败。
+- 本地 Skill 路径不存在或无法读取。
+- Repo Skill 下载、ref 解析或选择失败。
+- Native Plugin 的 Marketplace 连接、Plugin 解析或安装失败。
+- MCP Config 无法写入。
+- Python Plugin 安装失败。
+- Manifest 无法完整反映安装结果。
 
-这些都发生在 adapter setup 阶段,应该进入 `EvalResult.verdict = "errored"`。不要让它伪装成 `Turn.status = "failed"` 或一个 gate assertion fail。
+安装失败不是 Agent 对任务作答后的质量问题，因此不能伪装成 `failed` Verdict、`Turn.status = "failed"` 或 Gate Assertion。
 
-## 当前示例如何演进
+## 架构边界
 
-[coding-agent-skill](https://github.com/CorrectRoadH/coding-agent-skill) 当前有两个好点:
+Core 只调 `Agent.setup`，不解释 `SkillSpec`、MCP Config 或 Python Package。所有 Agent 差异留在对应 Adapter：
 
-- 它已经用 experiment 表达 baseline vs skill 变体;
-- 它把本地 `zod.md` 与迁移来的 `ponytail.md` 分成两组 eval。
+- `SkillSpec` 是 Adapter Config 共享的数据类型。
+- `ClaudeCodePluginSpec` 与 `CodexPluginSpec` 分别属于对应 Adapter，不存在跨 Agent 的 Plugin 联合。
+- `McpServer` 是支持 MCP 的 Adapter Config 类型，不属于 Native Plugin。
+- `PythonPluginSpec` 只属于 Bub Config。
+- 安装 Manifest 是 setup 的 Artifact，不改变评分语义。
 
-这个 wrapper 做的是**往 workspace 里注入一个文件**(把 skill 内容写成 `CLAUDE.md`),不是环境层预置——它不装二进制、不跨 attempt 存状态,只在这一次 `setup` 里写一个内容已知的文件到工作区,所以现阶段继续用手写 wrapper 是合理的过渡写法。真正的环境层动作(装某个实验专属的二进制、预热、按 `ctx.experimentId` 载入/回存记忆状态)不要塞进这类 wrapper,应该挂在 `experiment.sandbox` 的 `.setup()` / `.teardown()` 上,见 [Sandbox · 沙箱生命周期钩子](../sandbox/library.md#沙箱生命周期钩子setup--teardown)。
+## 相关阅读
 
-下一步可以把手写 wrapper:
-
-```typescript
-const baseAgent = claudeCodeAgent();
-const zodAgent = {
-  ...baseAgent,
-  name: "claude-code+zod-skill",
-  async setup(sb, ctx) {
-    const cleanup = await baseAgent.setup?.(sb, ctx);
-    await sb.writeFiles({ "CLAUDE.md": zodSkill });   // targetDir 省略 → workdir,跨 provider 可移植
-    return cleanup;
-  },
-};
-```
-
-收敛为:
-
-```typescript
-const zodAgent = claudeCodeAgent({
-  name: "claude-code+zod-skill",
-  skills: [{ kind: "local", path: "skills/zod.md" }],
-});
-```
-
-ponytail 如果继续 vendored 到本 repo,就用 `kind: "local"`;如果希望测试真实第三方安装路径,就用 `kind: "repo"` 并指定 `skills: ["ponytail"]` 与 `ref`。
-
-## 落地顺序
-
-1. 在 `src/types.ts` 增加 `SkillSpec` / `PluginSpec`,并让内置 adapter config 复用它们。
-2. 先实现本地 skill 注入,替换 [coding-agent-skill](https://github.com/CorrectRoadH/coding-agent-skill) 里的手写 wrapper。
-3. 实现 repo skill 安装和多 skill 选择失败提示。
-4. 把 `mcpServers` / `pythonPlugins` 兼容迁移到 `plugins`,旧字段保留一版并打印 deprecation。
-5. 写 `agent-setup.json` artifact,让 view 可以展示每个 attempt 的安装清单。
-
-这套设计不改变 core:core 仍只看 Agent/Adapter 契约、标准事件流、sandbox 与 result artifact。所有 Claude Code / Codex / bub 的差异都留在对应 adapter 的 setup 翻译层。
+- [Adapter Contract](contract.md) —— setup 生命周期与失败边界。
+- [Adapter Authoring](authoring.md) —— 如何实现沙箱型 Adapter。
+- [Sandbox Hooks](../sandbox/library.md#沙箱生命周期钩子setup--teardown) —— 环境预置与 Agent 构造配置的分工。
+- [Experiments](../experiments/README.md) —— 如何组织可比较变体。
