@@ -85,7 +85,7 @@ Effect.acquireRelease(
 
 ### 3. 取消是一等信号,不是事后检查
 
-`cli.ts` 的 SIGINT/SIGTERM 处理器建一个 `AbortController`,`abort()` 之后把 `{ signal: ctrl.signal }` 传给 `Effect.runPromiseExit`——这一步把 Node 的 `AbortSignal` 世界桥接进 Effect 的 fiber 中断世界:
+`cli.ts` 的 SIGINT/SIGTERM 处理器创建一个 `AbortController`，在收到信号后调用 `abort()`，再把 `ctrl.signal` 作为 `runEvals()` 的输入交给 runner。`src/runner/run.ts` 负责把这个 signal 传给 `Effect.runPromiseExit`；这一层才完成从 Node `AbortSignal` 到 Effect fiber 中断的桥接：
 
 ```typescript
 const exit = await Effect.runPromiseExit(
@@ -98,7 +98,7 @@ const exit = await Effect.runPromiseExit(
 );
 ```
 
-`runPromiseExit`(而非 `runPromise`)返回一个 `Exit` 而不抛错,让"用户按了 Ctrl+C"能被当成正常的部分结果收尾(用已完成的 results 出一份汇总),而不是让中断变成一条看起来像 bug 的崩溃栈。`catchAllCause` 把中断类的 `Cause` 咽下、非中断的意外照常上抛——这两类必须分开处理,否则一次 Ctrl+C 要么被误判成真·缺陷,要么真缺陷被误当成正常中断吞掉。
+`runPromiseExit`（而非 `runPromise`）返回一个 `Exit` 而不抛错，让 runner 把“用户按了 Ctrl+C”当成正常的部分结果收尾（用已完成的 results 出一份汇总），而不是让中断变成一条看起来像 bug 的崩溃栈。`catchAllCause` 把中断类的 `Cause` 咽下、非中断的意外照常上抛——这两类必须分开处理，否则一次 Ctrl+C 要么被误判成真缺陷，要么真缺陷被误当成正常中断吞掉。
 
 每个 attempt 自己还有硬性的超时边界(`Effect.timeoutTo`),独立于外层的用户中断信号:到点中断整段 body、触发 `Scope` release(停容器),产出一条 `errored` 结果——即便 adapter 完全无视传给它的 signal 也能被这层拦下来,这是"一个卡死的 attempt 不会挂起整批"承诺的硬边界,`run.ts` 层面的两级并发闸解决不了这个问题(它只管发不发新 attempt,不管已经在飞的会不会卡死)。
 
