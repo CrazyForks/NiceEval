@@ -13,7 +13,7 @@ import type { ExecutionNode } from "../o11y/execution-tree.ts";
 import { foldEvalVerdict } from "../shared/verdict.ts";
 import { attemptCostUSD } from "../report/metrics.ts";
 import { formatDurationMs, formatMetricValue, formatPlainNumber, formatUSD } from "../report/format.ts";
-import { indentBlock, padDisplay, renderAlignedRows, wrapDisplay } from "../report/text/layout.ts";
+import { indentBlock, padDisplay, renderAlignedRows, stringWidth, wrapDisplay } from "../report/text/layout.ts";
 import type { EvalHistoryRow, ExperimentHistoryRow } from "./compose.ts";
 
 const MISSING = "—";
@@ -43,6 +43,172 @@ function verdictMark(verdict: Verdict): string {
   if (verdict === "passed") return "✓";
   if (verdict === "skipped") return "-";
   return "✗";
+}
+
+function showVerdictLabel(verdict: Verdict): string {
+  switch (verdict) {
+    case "passed":
+      return "✓ passed";
+    case "failed":
+      return "✗ failed";
+    case "errored":
+      return "! errored";
+    case "skipped":
+      return "○ skipped";
+  }
+}
+
+/** 按终端显示宽度截断，末尾保留一个省略号；不从 CJK 字符中间切开。 */
+function clipDisplay(text: string, width: number): string {
+  if (stringWidth(text) <= width) return text;
+  if (width <= 1) return "…";
+  let out = "";
+  let used = 0;
+  for (const ch of text) {
+    const next = stringWidth(ch);
+    if (used + next > width - 1) break;
+    out += ch;
+    used += next;
+  }
+  return out + "…";
+}
+
+function commandExitCode(evidence: string | undefined): string | undefined {
+  if (!evidence) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(evidence);
+    if (typeof parsed === "object" && parsed !== null && "exitCode" in parsed) {
+      const exitCode = parsed.exitCode;
+      if (typeof exitCode === "number") return String(exitCode);
+    }
+  } catch {
+    // Assertion evidence is allowed to be arbitrary text; fall through to textual hints.
+  }
+  return /(?:returncode|retcode|exit(?:ed| code)?)\D{0,8}(-?\d+)/i.exec(evidence)?.[1];
+}
+
+/** 默认索引 RESULT 列：只给能决定下一步的短原因，完整 evidence 留在 attempt 首页。 */
+export function showResultReason(result: EvalResult): string {
+  if (result.verdict === "passed") return MISSING;
+  if (result.error !== undefined) return result.error;
+  if (result.skipReason !== undefined) return result.skipReason;
+  const gate = result.assertions.find((assertion) => !assertion.passed && assertion.severity === "gate");
+  if (!gate) return MISSING;
+  const expected = equalsExpected(gate.name);
+  if (expected !== undefined && gate.evidence !== undefined) {
+    return `expected ${expected}, received ${gate.evidence} · ${gate.name}`;
+  }
+  if (gate.name === "commandSucceeded()") {
+    const exitCode = commandExitCode(gate.evidence);
+    return `${exitCode === undefined ? "command failed" : `command exited ${exitCode}`} · ${gate.name}`;
+  }
+  return gate.detail ? `${gate.detail} · ${gate.name}` : gate.name;
+}
+
+function average(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function snapshotSummary(snapshot: Snapshot): string {
+  const counts: Record<Verdict, number> = { passed: 0, failed: 0, errored: 0, skipped: 0 };
+  for (const attempt of snapshot.attempts) counts[attempt.result.verdict] += 1;
+  const costs = snapshot.attempts.map((attempt) => attemptCostUSD(attempt.result)).filter((cost): cost is number => cost !== null);
+  const duration = average(snapshot.attempts.map((attempt) => attempt.result.durationMs));
+  return [
+    `${counts.passed} passed`,
+    `${counts.failed} failed`,
+    `${counts.errored} errored`,
+    `${counts.skipped} skipped`,
+    attemptsLabel(snapshot.attempts.length),
+    formatDurationMs(duration),
+    costs.length === 0 ? MISSING : formatUSD(average(costs)),
+  ].join(" · ");
+}
+
+function warningText(selection: Selection, width: number): string {
+  return selection.warnings
+    .flatMap((warning) => {
+      const lines = wrapDisplay(warning.message, Math.max(20, width - 9));
+      return lines.map((line, index) => `${index === 0 ? "WARNING  " : "         "}${line}`);
+    })
+    .join("\n");
+}
+
+function labeledBlock(label: string, value: string, width: number): string {
+  const prefix = padDisplay(label, 12);
+  return wrapDisplay(value, Math.max(8, width - stringWidth(prefix)))
+    .map((line, index) => `${index === 0 ? prefix : " ".repeat(stringWidth(prefix))}${line}`)
+    .join("\n");
+}
+
+function experimentAttemptTable(snapshot: Snapshot, width: number): string {
+  const separator = width >= 100 ? "   " : width >= 70 ? "  " : " ";
+  const fixedWidth = 9 + 9 + 8 + 5 + stringWidth(separator) * 5;
+  const flexible = Math.max(10, width - fixedWidth);
+  const naturalEval = Math.max(4, ...snapshot.attempts.map((attempt) => stringWidth(attempt.evalId)));
+  const evalWidth = Math.min(naturalEval, Math.max(4, Math.floor(flexible * 0.52)));
+  const resultWidth = Math.max(6, flexible - evalWidth);
+  const rows: string[][] = [["STATUS", "EVAL", "ATTEMPT", "RESULT", "DURATION", "COST"]];
+  for (const ev of snapshot.evals) {
+    for (const attempt of ev.attempts) {
+      const result = attempt.result;
+      const cost = attemptCostUSD(result);
+      rows.push([
+        showVerdictLabel(result.verdict),
+        clipDisplay(ev.id, evalWidth),
+        attempt.locator ?? MISSING,
+        clipDisplay(showResultReason(result), resultWidth),
+        result.verdict === "skipped" && result.durationMs === 0 ? MISSING : formatDurationMs(result.durationMs),
+        cost === null ? MISSING : formatUSD(cost),
+      ]);
+    }
+  }
+  return renderAlignedRows(rows, ["left", "left", "left", "left", "right", "right"], separator);
+}
+
+function comparisonTable(snapshots: Snapshot[], width: number): string {
+  const rows: string[][] = [["EXPERIMENT", "AGENT", "MODEL", "PASS", "FAILED", "ERROR", "SKIP", "DURATION", "COST"]];
+  for (const snapshot of snapshots) {
+    const verdicts = snapshot.evals.map((ev) => foldEvalVerdict(ev.attempts.map((attempt) => attempt.result)));
+    const passed = verdicts.filter((verdict) => verdict === "passed").length;
+    const failed = verdicts.filter((verdict) => verdict === "failed").length;
+    const errored = verdicts.filter((verdict) => verdict === "errored").length;
+    const skipped = verdicts.filter((verdict) => verdict === "skipped").length;
+    const ran = verdicts.length - skipped;
+    const costs = snapshot.attempts.map((attempt) => attemptCostUSD(attempt.result)).filter((cost): cost is number => cost !== null);
+    rows.push([
+      clipDisplay(snapshot.experimentId, Math.max(12, Math.floor(width * 0.24))),
+      snapshot.agent,
+      snapshot.model ?? MISSING,
+      ran === 0 ? MISSING : `${Math.round((passed / ran) * 1000) / 10}% ${passed}/${ran}`,
+      String(failed),
+      String(errored),
+      String(skipped),
+      formatDurationMs(average(snapshot.attempts.map((attempt) => attempt.result.durationMs))),
+      costs.length === 0 ? MISSING : formatUSD(average(costs)),
+    ]);
+  }
+  return renderAlignedRows(rows, ["left", "left", "left", "right", "right", "right", "right", "right", "right"]);
+}
+
+/** docs/feature/reports/show.md 的默认结果索引；只服务裸 show，不是可替换报告组件。 */
+export function showIndexText(selection: Selection, width: number): string {
+  const blocks: string[] = [];
+  const warnings = warningText(selection, width);
+  if (warnings) blocks.push(warnings);
+  if (selection.snapshots.length >= 2) blocks.push(`COMPARISON\n${comparisonTable(selection.snapshots, width)}`);
+  for (const snapshot of selection.snapshots) {
+    blocks.push(
+      [
+        labeledBlock("EXPERIMENT", `${snapshot.experimentId} · ${snapshot.agent}${snapshot.model ? ` · ${snapshot.model}` : ""}`, width),
+        labeledBlock("SUMMARY", snapshotSummary(snapshot), width),
+        "",
+        experimentAttemptTable(snapshot, width),
+      ].join("\n"),
+    );
+  }
+  blocks.push(labeledBlock("DRILL DOWN", "niceeval show @<attempt> [--eval | --execution | --diff]", width));
+  return blocks.join("\n\n");
 }
 
 function attemptsLabel(n: number): string {
@@ -721,17 +887,15 @@ export function attemptOverviewText(
     blocks.push("changes: diff unavailable · no workspace diff was recorded for this attempt");
   }
 
-  const capWords = [
-    evidence.capabilities.eval ? "eval source [E]" : undefined,
-    evidence.capabilities.execution ? "execution [X]" : undefined,
-    evidence.capabilities.timing ? "OTel timing [⏱]" : undefined,
-    evidence.capabilities.diff ? "diff [D]" : undefined,
-  ].filter((x): x is string => x !== undefined);
-
-  const tail: string[] = [`evidence: ${capWords.length > 0 ? capWords.join(" · ") : "(none captured for this attempt)"}`];
+  const tail: string[] = [];
   if (artifactPath) tail.push(`artifacts: ${artifactPath}/`);
-  tail.push(`next: niceeval show ${evidence.locator} [--eval|--execution|--diff]`);
-  blocks.push(tail.join("\n"));
+  const available = [
+    evidence.capabilities.eval ? `niceeval show ${evidence.locator} --eval` : undefined,
+    evidence.capabilities.execution ? `niceeval show ${evidence.locator} --execution` : undefined,
+    evidence.capabilities.diff ? `niceeval show ${evidence.locator} --diff` : undefined,
+  ].filter((command): command is string => command !== undefined);
+  if (available.length > 0) tail.push(`available:\n${available.map((command) => `  ${command}`).join("\n")}`);
+  if (tail.length > 0) blocks.push(tail.join("\n"));
 
   return blocks.join("\n\n");
 }

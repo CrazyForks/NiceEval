@@ -1,5 +1,7 @@
 # PLAN：让 `niceeval show` 与 `niceeval view` 使用同一份现刻水位
 
+> 状态：Selection 等价部分仍有效；“共用默认报告”的部分已被 2026-07-13 的后续 show 契约取代。裸 show 使用专用 Attempt 索引，view 使用 `CostPassRateComparison`。
+
 > 面向执行者：把本文件直接交给实现 AI。按阶段顺序执行；每个阶段都必须先满足自己的验收条件，再进入下一阶段。
 >
 > 来源：用户确认的三段垂直切片——统一默认 Selection、建立宿主等价契约测试、收口公开文档与真实 CLI 冒烟。

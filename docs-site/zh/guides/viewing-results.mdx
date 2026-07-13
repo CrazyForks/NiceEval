@@ -4,7 +4,7 @@ sidebarTitle: "查看结果"
 description: "每次运行写入 .niceeval/ 的结构化 artifact 有两扇门：niceeval show 在终端用 @<locator> 精确定位一次 Attempt，逐级下钻 Eval 源码、执行记录与 diff；niceeval view 在网页看同一份证据。"
 ---
 
-每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入该实验的**结果快照**目录 `.niceeval/<experiment>/<快照>/`。看结果有两扇门，读的是同一批 artifact：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。两扇门共用同一份默认报告和判定公式，选结果的规则也完全一样：对每个 experiment 的每道 eval，取时间上最新的那份判定，同一个 experiment 跨多次运行拼出来。所以按前缀只补跑了一道题，报告里其余的题不会跟着退回残缺或过期的样子——它们照旧显示各自最近一次的判定。收窄范围（eval ID 前缀、`--experiment`、`--run`）时，两扇门也按同一条规则收窄。
+每次运行后，[NiceEval](https://niceeval.com/) 都会把结构化结果写入该实验的**结果快照**目录 `.niceeval/<experiment>/<快照>/`。看结果有两扇门，读的是同一批 artifact：`niceeval show` 是终端读法，人和 coding agent 都能用；`niceeval view` 是网页读法，适合人浏览证据。两扇门共用判定公式与选结果规则：对每个 experiment 的每道 eval，取时间上最新的那份判定，同一个 experiment 跨多次运行拼出来。默认首页针对媒介不同：`show` 先给可下钻的 Attempt 表，`view` 先给图表分析；传入同一个 `--report` 文件时则共用报告组件与数据口径。
 
 ## 控制台输出
 
@@ -51,7 +51,7 @@ Structured results: .niceeval/compare_web-agent/2026-07-09T10-00-00-000Z-x1f2/
 `niceeval show` 的位置参数有两种形态：eval id 前缀选「看哪些 eval」，`@<locator>` 精确指名「看哪一次 Attempt」。flag 选「看哪个切面」：
 
 ```bash
-niceeval show                       # 榜单：每个 experiment 的通过率、成本、耗时,每行下面带失败的题与原因
+niceeval show                       # 榜单：每个 Attempt 的判定、eval、locator、短原因、耗时与成本
 niceeval show weather               # 前缀过滤：weather/* 下每个 eval 的判定
 niceeval show weather/brooklyn      # 单个 eval：各 experiment 的 attempt 行(含 @<locator>)、默认 attempt 的断言明细
 niceeval show @1k2m9qrs             # 精确到一次 Attempt:紧凑全景(断言/执行/diff 摘要 + 可用证据一览)
@@ -61,17 +61,17 @@ niceeval show @1c3h6twx --diff      # sandbox 里的文件改动
 niceeval show weather/brooklyn --history      # 跨 run 时间轴：抖动与回归拐点
 ```
 
-`@<locator>` 是一次 Attempt 的持久、不透明身份，形如 `@1k2m9qrs`：由 `{experimentId, 快照时刻, evalId, attempt 序号}` 这个身份元组确定性派生，同一份落盘结果反复解析恒得到同一个值。它出现在 `niceeval show`（不管是裸跑的榜单、前缀过滤，还是单个 eval 的 attempt 行）打印的紧凑索引里，直接复制粘贴就能定位到那一次运行——不用先记住是哪个 experiment 第几次 attempt。索引里的 locator 后面常跟一段方括号，是这次 Attempt 已捕获证据的一览：`E` = Eval 源码已保存、`X` = 有执行记录、`⏱` = 执行记录带 OTel 计时、`D` = 有工作区 diff；缺的证据不出现在方括号里，不是恒定四位。
+`@<locator>` 是一次 Attempt 的持久、不透明身份，形如 `@1k2m9qrs`：由 `{experimentId, 快照时刻, evalId, attempt 序号}` 这个身份元组确定性派生，同一份落盘结果反复解析恒得到同一个值。它出现在 `niceeval show` 的紧凑索引里，直接复制粘贴就能定位到那一次运行。裸 `show` 的 locator 列只打印 `@<id>`，不追加判定或证据能力缩写；打开 Attempt 首页后，`available` 会列出实际可用的证据命令。
 
 同一个实验多次跑会留下多份结果，不带 `@<locator>` 的默认视图只回答一个问题——「现在整体怎样」：每个 experiment × eval 取时间上最新的那份判定，同一个 experiment 跨多次运行拼出来。按前缀只重跑了部分 eval 时，其余 eval 的判定从更早的运行补齐，报告永远是全局最新，不会因为一次局部重跑变残缺。合成是有标注的：每份判定都带上它产生的时间，能看出报告是从哪几次运行拼出来的。合成结果可能混着不同版本的被测代码——所以收工判定以 `--force` 全量重跑为准，迭代途中的 `show` 负责快、收尾的全量跑负责真。
 
-单个 eval 视图里，多 experiment、多 attempt 时的断言明细块默认挑最新一次失败的 attempt 展开；没有失败就挑最新一次。这只是一个默认展开的启发式，不是精确选择——需要精确看某一次 attempt（哪怕它不是最新一次失败），复制那一行的 `@<locator>` 直接 `show` 它即可：attempt 唯一的精确选择方式就是 `@<locator>`。`--experiment` 把 Selection 收窄到一个实验，`--run <目录>` 钉死看某一次历史 run（或 `copySnapshots` 产物）的落盘，`--history` 看跨 run 趋势（见下文）。不带 `--report` 时 `show` 渲染的是默认报告；`--report <文件>` 换成你自己的报告，同一个文件也能喂给 `view`，见[自定义报告](/zh/guides/custom-reports)。位置前缀、`--run`、`--experiment` 对 `--report` 同样生效（收窄报告拿到的 Selection）；`--history` 与 `--report` 互斥，证据切面 flag 出现时只看证据、不渲染报告。
+单个 eval 视图里，多 experiment、多 Attempt 时的断言明细块默认挑最新一次失败的 Attempt 展开；没有失败就挑最新一次。这只是一个默认展开的启发式，不是精确选择——需要精确看某一次 Attempt，复制那一行的 `@<locator>` 直接 `show` 它即可。`--experiment` 把 Selection 收窄到一个实验，`--run <目录>` 钉死看某一次历史 run，`--history` 看跨 run 趋势。不带 `--report` 时 `show` 渲染专用 Attempt 索引；`--report <文件>` 换成你自己的报告，同一个文件也能喂给 `view`。位置前缀、`--run`、`--experiment` 对 `--report` 同样生效；`--history` 与 `--report` 互斥。
 
 `niceeval view` 的每个视图都有 CLI 对应物：
 
 | `niceeval view` 里的视图 | 终端对应 |
 | --- | --- |
-| 默认报告（一张成本 × 通过率散点图 + 一张逐实验表；整行展开配置、KPI、逐 Eval/Attempt 和 raw sample） | `niceeval show` |
+| 当前结果的同构 Attempt 表 | `niceeval show` |
 | 该 eval 各 experiment 的判定行 + 默认 attempt 的断言明细 | `niceeval show <eval id>` |
 | 单次 Attempt 的紧凑全景（断言、执行、diff 摘要与证据可用性） | `niceeval show @<locator>` |
 | Eval 源码标注（断言标回源码行） | `niceeval show @<locator> --eval` |
@@ -79,53 +79,11 @@ niceeval show weather/brooklyn --history      # 跨 run 时间轴：抖动与回
 | 文件改动 | `niceeval show @<locator> --diff` |
 | 历史 run 列表 | `niceeval show <eval id> --history`；钉死某一次用 `--run <目录>` |
 
-### 默认报告
+### 默认 Attempt 索引
 
-不带 flag 的 `niceeval show` 渲染默认报告的终端版。它由两块组成，铺在同一屏上：一张成本 × 通过率散点图，和一张逐实验表。图和表都是整个 Selection 拉平的一张，不按 experiment id 的目录前缀分组——所有 experiment 的点画在同一张图里，所有 experiment 的行列在同一张表里。
+不带 flag 的 `niceeval show` 先按 experiment 打印摘要，再用同构表列出每个 Attempt。列固定为 `STATUS / EVAL / ATTEMPT / RESULT / DURATION / COST`：四态判定同时给图标与完整单词，locator 只保留 `@<id>`，失败原因优先显示期望值/实际值或命令退出码。完整断言和 evidence 留在 `niceeval show @<locator>`。
 
-散点图每个点是一个 experiment，横轴是预估成本、纵轴是通过率，成本轴反向（越靠右越便宜、越好），点的颜色按 agent 区分，越靠右上越好。这里的通过率是两级聚合口径：同一道题在同一次快照下多次 attempt 部分通过，按份额计入（比如 3 次 attempt 过 2 次贡献 0.667，不是非过即不过的二元票），再对所有题取平均——和表里 `Pass rate` 列同一套公式、同一个数字。
-
-只有一个 experiment 时画不成对比图，散点这块就明说「至少两个实验才能比较」；横轴或纵轴的指标全都测不到值时，明说「没有可用数据」。它不会静默消失，你永远知道图为什么没画出来——第一次只跑了一个 experiment 时看到的就是这个提示，补跑第二个 experiment 后图自然出现。
-
-逐实验表每行一个 experiment：关闭态显示短名称、model/agent、平均耗时、通过率、Tokens、预估成本和紧凑判定摘要；点整行展开后依次看到完整配置、通过/失败/错误与总耗时/总成本 KPI、可内部滚动的逐 Eval/Attempt 诊断表和原始样例结果。失败原因只取三处之一：`error`、跳过原因，或未通过的 gate 断言；soft 断言不进入失败原因。终端面读取同一份数据，把每个 experiment 的失败/错误诊断紧凑列在它那行下面。
-
-当选出来的结果有需要提醒的情况时，报告顶端会先列出这些提示，再往下才是图和表：比如某道题在这个 experiment 的历史里从头到尾就没产生过结果（覆盖不全）、某个 experiment 的最新快照相对其它明显偏旧、或某次快照还没跑完。这一栏是所有报告共有的——不管是默认报告，还是你用 `--report` 递进来的报告，这些提示都不会被吞掉，`show` 的终端面和 `view` 的网页面一样。
-
-以下是一份真实转录（`bub-gpt-5.4` 5 道题全过，其中一道题 3 次 attempt 里 2 次过、贡献部分通过率；`codex-gpt-5.4` 5 道题里 1 道两个 gate 都没过、1 道跑到 sandbox 超时算 errored）：
-
-```text
-$ niceeval show
-
-        Pass rate ↑
-   93.3%│                                                                      A
-        │
-        │
-        │
-        │
-        │
-        │
-        │
-     60%│B
-        └───────────────────────────────────────────────────────────────────────→ Cost (axis reversed: right = better)
-         $0.08                                                             $0.05
-
-  better → upper right
-  A compare/bub-gpt-5.4   B compare/codex-gpt-5.4
-
-  experiment              Model     Agent   Duration   Pass rate   Tokens        Cost    Verdicts
-  compare/bub-gpt-5.4     gpt-5.4   bub     50.3s      93.3%       6.4k tokens   $0.05   5 passed
-  compare/codex-gpt-5.4   gpt-5.4   codex   1m 23s     60%         7.8k tokens   $0.08   3 passed / 1 failed / 1 errored
-
-    compare/codex-gpt-5.4
-      ! api/validate — sandbox timeout after 180000ms
-        → niceeval show api/validate
-      ✗ weather/brooklyn — calledTool("get_weather"): tool was never called, noHallucinatedTemperature(): reply invents a temperature without any tool call
-        → niceeval show weather/brooklyn
-```
-
-散点图的两个点 A、B 就是表里的两个 experiment：A（`compare/bub-gpt-5.4`，93.3%、$0.05）在右上角，又准又便宜；B（`compare/codex-gpt-5.4`，60%、$0.08）在左下角。表每行一个 experiment，带 Model 与 Agent 列——多配置并排时一眼看清每行是谁；Verdicts 是按 eval 折叠后的判定计数（同一题多次 attempt 先折成一个判定，再计数）。`compare/bub-gpt-5.4` 5 道题全过，那行下面没有诊断；`compare/codex-gpt-5.4` 那行下面列出它的失败与错误：`weather/brooklyn` 两个 gate 断言都没过，原因按声明顺序全列、用逗号连接；`api/validate` 是 sandbox 超时，`error` 优先于任何断言，原因就是这条错误本身。每条诊断自带下钻命令。
-
-跑多 experiment 时，`niceeval exp` 收尾块里的汇总表就是这张逐实验表的形状——同一份表格渲染，判定折叠口径也相同；区别只在数据范围：收尾块只汇总本次运行，`show` 是跨多次运行拼出来的最新结果，各自在表头如实标注。网页版（`niceeval view`）同一份数据，散点图和表都在，表每行可以点开/收起失败明细，不用一直全部铺开。
+只有一个 experiment 时直接显示它的表，不出现“至少两个实验才能比较”的无关空态。有两个及以上 experiment 时，前面增加紧凑比较表；成本 × 通过率散点留给 `niceeval view`。快照未完成、过旧或覆盖不全的 warning 位于索引前；自定义报告摆了 `RunOverview` 时，同一条 warning 也只显示一次。
 
 ### 单个 eval
 
@@ -334,7 +292,7 @@ npx niceeval view
   失败后立刻运行 `npx niceeval view`，可以直接打开刚刚那次运行的 artifacts。
 </Tip>
 
-view 的首页是一份报告：不传 `--report` 时是默认报告——与 `show` 同一份内容（一张成本 × 通过率散点图 + 一张逐实验表）的网页版；传了 `--report` 就换成你自己的报告（与 `show --report` 吃同一个文件），见[自定义报告](/zh/guides/custom-reports)。证据部分（attempt 弹窗、transcript、trace 瀑布、run 列表）始终保留，报告里的数字点进去就是证据。
+`view` 的首页是一份报告：不传 `--report` 时是成本 × 通过率散点图与逐实验表，适合人在网页比较；传了 `--report` 就换成你自己的报告（与 `show --report` 吃同一个文件），见[自定义报告](/zh/guides/custom-reports)。裸 `show` 则使用更适合终端 agent 循环的 Attempt 索引。证据部分（Attempt 弹窗、transcript、trace 瀑布、run 列表）始终保留。
 
 网页版多几样浏览操作：点表头就地排序、在榜单的过滤框里筛行、点开一个 experiment 行看它每道题的判定与原因、悬停散点看数值——这些只影响眼前的视图，不改判定口径，刷新即恢复。报告上方有 **Copy fix prompt** 按钮，把全部失败打包成可直接粘给 coding agent 的修复 prompt（attempt 弹窗里有单条版）。报告文案有中英两份，随界面语言切换。
 

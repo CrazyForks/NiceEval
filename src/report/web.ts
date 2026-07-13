@@ -42,7 +42,8 @@ function renderSelectionWarningsHtml(warnings: SelectionWarning[]): string {
 
 /**
  * build → 渲染前解析数据组件(唯一的 await 边界)→ 树校验(与 text 宿主同一遍)→ 静态渲染
- * web 面;Selection 有挑选警告时在报告顶部前置一块警告 HTML。
+ * web 面;Selection 有挑选警告时在报告顶部前置一块警告 HTML；报告树里的 RunOverview
+ * 已经渲染同一条时不重复。
  */
 export async function renderReportToStaticHtml(
   definition: ReportDefinition,
@@ -57,6 +58,10 @@ export async function renderReportToStaticHtml(
     locale: options?.locale ?? DEFAULT_REPORT_LOCALE,
   };
   const body = runWithWebContext(webCtx, () => renderToStaticMarkup(resolved as ReactNode));
-  const warnings = ctx.selection.warnings.length > 0 ? renderSelectionWarningsHtml(ctx.selection.warnings) : "";
+  const missingWarnings = ctx.selection.warnings.filter((warning) => {
+    const escapedMessage = renderToStaticMarkup(React.createElement(React.Fragment, null, warning.message));
+    return !body.includes(escapedMessage);
+  });
+  const warnings = missingWarnings.length > 0 ? renderSelectionWarningsHtml(missingWarnings) : "";
   return warnings + body;
 }

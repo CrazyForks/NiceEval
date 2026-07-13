@@ -130,7 +130,7 @@ const FLAG_OPTIONS = {
   experiment: { type: "string" },
   /** `show` / `view` 命令专用:钉死看某一个结果目录(某次快照或 `copySnapshots` 产物)。 */
   run: { type: "string" },
-  /** `show` / `view` 命令专用:用你的报告文件替换默认报告(文件默认导出 `defineReport(...)`)。 */
+  /** `show` / `view` 命令专用:渲染你的报告文件(文件默认导出 `defineReport(...)`);show 用它替换 Attempt 索引,view 用它替换默认分析报告。 */
   report: { type: "string" },
   /** 只打印本次会匹配到的 eval × 运行配置,不实际执行。 */
   dry: { type: "boolean" },

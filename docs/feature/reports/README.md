@@ -8,7 +8,7 @@
 | 在浏览器浏览历史、图表和完整证据 | [`niceeval view`](view.md) | 人工复盘、分享静态报告 |
 | 定义自己的成绩单、榜单或趋势图 | [`niceeval/report`](library.md) | 产品页面、benchmark 站、定制汇报 |
 
-`show` 和 `view` 是两个官方报告宿主。它们的默认首页都由同一套报告组件生成,也都接受 `--report <file>` 替换报告槽；区别在于证据呈现方式：`show` 把证据打印到终端，`view` 提供 Runs、Traces 和 Attempt 详情。
+`show` 和 `view` 读取同一份 Selection，也都接受 `--report <file>` 替换报告槽。默认入口针对各自场景优化：`show` 是紧凑 attempt 表，`view` 是成本 × 通过率分析报告；自定义报告文件仍可同时交给两者渲染。
 
 报告只表达“怎么看”。原始判定、断言、事件、trace 和 diff 的事实归 [Results](../results/README.md)；运行过程中把事实写出去的回调叫 [Reporter](../../runner.md),不属于这里。
 

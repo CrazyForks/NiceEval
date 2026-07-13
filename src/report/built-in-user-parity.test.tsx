@@ -611,13 +611,14 @@ describe("架构不变量:renderer 不认识 built-in", () => {
   }
 });
 
-// ═════════════════════════ 8. 宿主选择:裸跑 ≡ --report <public-copy> ═════════════════════════
+// ═════════════════════════ 8. 宿主选择:show 索引与可替换报告槽分开 ═════════════════════════
 
-describe("宿主选择:裸跑与 --report 只差一个 definition", () => {
-  it("show / view 源码:内置报告只在「无 --report」分支被选,--report 只换 definition", () => {
+describe("宿主选择:裸 show 是诊断索引,--report 与 view 走报告 definition", () => {
+  it("show / view 源码:裸 show 选择专用索引,--report 才装载 definition", () => {
     const showSrc = readFileSync(new URL("../show/index.ts", import.meta.url), "utf8");
-    // show 的报告槽:三元只切 definition —— flags.report 有值走 loadReportFile,否则 CostPassRateComparison。
-    expect(showSrc).toMatch(/flags\.report !== undefined\s*\?\s*await loadReportFile\([^)]*\)\s*:\s*CostPassRateComparison/);
+    expect(showSrc).toMatch(/flags\.report === undefined[\s\S]*showIndexText\(selection, io\.width\)/);
+    expect(showSrc).toMatch(/const definition = await loadReportFile\(cwd, flags\.report\)/);
+    expect(showSrc).not.toMatch(/import \{ CostPassRateComparison \}/);
     // Selection 在报告槽之前、与 report 无关地由 selectCurrentResults 合成。
     expect(showSrc).toMatch(/selectCurrentResults\(results, \{ experiment: flags\.experiment, patterns \}\)/);
 
@@ -627,8 +628,7 @@ describe("宿主选择:裸跑与 --report 只差一个 definition", () => {
     expect(viewSrc).toMatch(/selectCurrentResults\(results, \{ experiment: opts\.experiment, patterns \}\)/);
   });
 
-  it("裸跑默认(CostPassRateComparison)与显式 --report <public-copy> 在同一 Selection 下事实完全相同", async () => {
-    // 这正是 show/view 的差别所在:两条路径把不同 definition 交给同一个 render 函数、同一份注入 Selection。
+  it("CostPassRateComparison 与 public-copy 作为显式报告时事实完全相同", async () => {
     for (const { ctx } of SCENARIOS) {
       const bareText = await renderReportToText(CostPassRateComparison, ctx(), { width: 100 });
       const reportText = await renderReportToText(publicCopy, ctx(), { width: 100 });

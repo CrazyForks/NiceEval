@@ -21,6 +21,7 @@ import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION, type EvalResult, type Verdict }
 import { selectCurrentResults } from "../results/select.ts";
 import { evalHistory } from "./compose.ts";
 import { runShow, type ShowFlags } from "./index.ts";
+import { stringWidth } from "../report/text/layout.ts";
 
 // ───────────────────────── fixture 工具 ─────────────────────────
 
@@ -108,13 +109,13 @@ interface Captured {
   code: number;
 }
 
-async function show(root: string, patterns: string[], flags: ShowFlags = {}): Promise<Captured> {
+async function show(root: string, patterns: string[], flags: ShowFlags = {}, width = 100): Promise<Captured> {
   let out = "";
   let err = "";
   const code = await runShow(root, patterns, { run: root, ...flags }, {
     out: (s) => (out += s),
     err: (s) => (err += s),
-    width: 100,
+    width,
     now: Date.parse("2026-07-09T10:01:00.000Z"),
   });
   return { out, err, code };
@@ -145,40 +146,66 @@ async function seedComposedRoot(): Promise<string> {
 
 // ───────────────────────── 榜单合成口径 ─────────────────────────
 
-describe("榜单:跨快照合成的现刻水位(CostPassRateComparison 的 text 面)", () => {
-  it("局部重跑不撕榜单:另一题从更早快照补齐,成本×通过率散点 + 实验列表 + 失败诊断", async () => {
+describe("榜单:跨快照合成的现刻水位(show 专用 attempt 表)", () => {
+  it("局部重跑不撕榜单:另一题从更早快照补齐,单实验不出现比较空态", async () => {
     const root = await seedComposedRoot();
     const { out, code } = await show(root, []);
     expect(code).toBe(0);
-    // 成本×通过率散点:seedComposedRoot 无成本数据 → 0 可画点,显式空态,不画空图
-    expect(out).toContain("No data to plot");
-    expect(out).not.toContain("better → upper right");
-    // 实验列表:experiment 行带身份与 eval 级折叠计票(1 题通过 1 题失败)
-    expect(out).toContain("compare/bub · bub");
-    expect(out).toContain("Pass rate 50%");
-    expect(out).toContain("1 passed / 1 failed");
-    // 失败诊断:新判定的 fixtures/button,带 locator 徽标与失败原因,展开到 Eval 一行
-    // (fixture 没声明 hasEvents/hasSources/hasTrace,证据能力方括号如实为空,不硬凑)。
-    expect(out).toMatch(/✗ fixtures\/button\s+@1[0-9a-z]{7}✗/);
-    expect(out).toContain('fileChanged("src/components/Button.tsx"): file was not modified');
-    expect(out).not.toContain("✗ weather/brooklyn");
-    // 只有两个直接业务组件:没有 RunOverview / 组分 Section
-    expect(out).not.toContain("Current verdicts");
+    expect(out).not.toContain("No data to plot");
+    expect(out).not.toContain("At least 2 experiments");
+    expect(out).not.toContain("COMPARISON");
+    expect(out).toContain("EXPERIMENT  compare/bub · bub");
+    expect(out).toContain("SUMMARY     1 passed · 1 failed · 0 errored · 0 skipped · 2 attempts");
+    expect(out).toMatch(/STATUS\s+EVAL\s+ATTEMPT\s+RESULT\s+DURATION\s+COST/);
+    expect(out).toMatch(/✗ failed\s+fixtures\/button\s+@1[0-9a-z]{7}\s+file was not modified/);
+    expect(out).toMatch(/✓ passed\s+weather\/brooklyn\s+@1[0-9a-z]{7}\s+—/);
+    expect(out).not.toMatch(/@1[0-9a-z]{7}[✓✗]/);
+    expect(out).not.toContain("[E,X,");
+    expect(out).toContain("DRILL DOWN  niceeval show @<attempt>");
   });
 
-  it("CLI 界面语言传给报告渲染:NICEEVAL_LANG=zh-CN 时 chrome 文案是中文", async () => {
+  it("裸 show 使用稳定表头,不受自定义报告 locale chrome 影响", async () => {
     const root = await seedComposedRoot();
     process.env.NICEEVAL_LANG = "zh-CN";
     try {
       const { out, code } = await show(root, []);
       expect(code).toBe(0);
-      expect(out).toContain("没有可绘制的数据"); // 散点空态 zh chrome
-      expect(out).toContain("1 通过 / 1 失败"); // ExperimentList verdict 词按 locale
-      // 数据本身不分语言:experiment id / eval id 原样。
+      expect(out).toMatch(/STATUS\s+EVAL\s+ATTEMPT\s+RESULT\s+DURATION\s+COST/);
+      expect(out).toContain("1 passed · 1 failed");
+      expect(out).not.toContain("没有可绘制的数据");
       expect(out).toContain("compare/bub");
     } finally {
       process.env.NICEEVAL_LANG = "en";
     }
+  });
+
+  it("窄终端截断长 eval 与原因,每一行都不超过终端显示宽度", async () => {
+    const root = await seedComposedRoot();
+    const { out, code } = await show(root, [], {}, 60);
+    expect(code).toBe(0);
+    expect(out).toContain("…");
+    for (const line of out.trimEnd().split("\n")) {
+      expect(stringWidth(line), line).toBeLessThanOrEqual(60);
+    }
+  });
+
+  it("多个 experiment 先显示紧凑比较表,再逐 experiment 显示 attempt 表", async () => {
+    const root = await makeRoot();
+    await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/a", agent: "codex", model: "mini", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("q1", "passed", { estimatedCostUSD: 0.1 }),
+      res("q2", "failed", { estimatedCostUSD: 0.2 }),
+    ]);
+    await writeSnapshot(root, "2026-07-08T11-00-00-000Z", { experimentId: "compare/b", agent: "claude", model: "large", startedAt: "2026-07-08T11:00:00.000Z" }, [
+      res("q1", "passed", { estimatedCostUSD: 0.3 }),
+      res("q2", "passed", { estimatedCostUSD: 0.3 }),
+    ]);
+    const { out, code } = await show(root, []);
+    expect(code).toBe(0);
+    expect(out).toMatch(/COMPARISON\nEXPERIMENT\s+AGENT\s+MODEL\s+PASS\s+FAILED\s+ERROR\s+SKIP\s+DURATION\s+COST/);
+    expect(out).toContain("50% 1/2");
+    expect(out).toContain("100% 2/2");
+    expect(out.match(/^EXPERIMENT  compare\//gm)).toHaveLength(2);
+    expect(out).not.toContain("At least 2 experiments");
   });
 
   it("合成 Selection:每 experiment × eval 取最新判定;compose 不产生残缺警告", async () => {
@@ -619,7 +646,31 @@ describe("show @<locator>", () => {
     expect(out).toContain("attempt 1 · ");
     expect(out).toContain("execution: unavailable (no events recorded for this attempt)");
     expect(out).toContain("changes: diff unavailable");
-    expect(out).toContain(`next: niceeval show ${locator} [--eval|--execution|--diff]`);
+    expect(out).not.toContain("evidence:");
+    expect(out).not.toContain("available:");
+  });
+
+  it("available 只逐行列出实际存在的证据命令,不打印能力字母或合并式 next", async () => {
+    const root = await makeRoot();
+    const dir = await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/bub", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("weather/brooklyn", "failed", { hasEvents: true }),
+    ]);
+    const attemptDir = join(dir, "weather/brooklyn/a0");
+    const content = "t.check(false, equals(true));\n";
+    const sha = createHash("sha256").update(content).digest("hex");
+    await writeFile(join(attemptDir, "sources.json"), JSON.stringify([{ path: "evals/weather.eval.ts", sha256: sha }]), "utf-8");
+    await mkdir(join(dir, "sources"), { recursive: true });
+    await writeFile(join(dir, "sources", `${sha}.json`), JSON.stringify({ content }), "utf-8");
+    await writeFile(join(attemptDir, "events.json"), JSON.stringify([{ type: "message", role: "user", text: "hello" }]), "utf-8");
+    const results = await openResults(root);
+    const locator = results.experiments[0]!.latest.evals[0]!.attempts[0]!.locator!;
+
+    const { out, code } = await show(root, [locator]);
+    expect(code).toBe(0);
+    expect(out).toContain(`available:\n  niceeval show ${locator} --eval\n  niceeval show ${locator} --execution`);
+    expect(out).not.toContain(`niceeval show ${locator} --diff`);
+    expect(out).not.toContain("evidence:");
+    expect(out).not.toContain("next:");
   });
 
   it("配 --execution 走证据切面,不是紧凑全景", async () => {
@@ -635,7 +686,7 @@ describe("show @<locator>", () => {
     expect(out).toContain(`${locator} · weather/brooklyn · compare/bub · passed`);
     expect(out).toContain("no events recorded for this attempt");
     // 紧凑全景独有的行不应该出现在证据切面输出里
-    expect(out).not.toContain("next: niceeval show");
+    expect(out).not.toContain("available:");
   });
 
   it("语法不对的 locator 报「not a valid attempt locator」,退出码 1,不崩", async () => {

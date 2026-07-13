@@ -20,7 +20,7 @@ import type { ReportLocale } from "./locale.ts";
 
 export interface ReportContext {
   /** 宿主按现刻水位规则挑好的 Selection:每个 experiment × eval 取跨快照合成的最新判定,外加结构化挑选
-   警告;show 裸跑、view 裸跑与两者的 --report 收到的是同一份。 */
+   警告;show 的默认索引、view 默认报告与两者的 --report 使用同一选择口径。 */
   selection: Selection;
   /** 默认挑法不合口径时,全量数据自己挑(见 docs/feature/results/library.md)。 */
   results: Results;
@@ -65,7 +65,8 @@ function renderSelectionWarningsText(warnings: SelectionWarning[], _locale: Repo
 
 /**
  * text 宿主的装载语义:build → 渲染前解析数据组件(唯一的 await 边界)→ 树校验 → 遍历渲染
- * text 面;Selection 有挑选警告时在报告顶部前置一块 "! <message>"。不需要 react-dom。
+ * text 面;Selection 有挑选警告时在报告顶部前置一块 "! <message>"；报告树里的 RunOverview
+ * 已经渲染同一条时不重复。不需要 react-dom。
  */
 export async function renderReportToText(
   definition: ReportDefinition,
@@ -77,7 +78,10 @@ export async function renderReportToText(
   validateReportTree(resolved);
   const textCtx = createTextContext(options);
   const body = renderNodeToText(resolved, textCtx);
-  return ctx.selection.warnings.length > 0
-    ? [renderSelectionWarningsText(ctx.selection.warnings, textCtx.locale), body].join("\n\n")
+  // RunOverview can render the same Selection warnings as part of the user tree. Keep the
+  // host guarantee for reports that omit it, while never printing an identical warning twice.
+  const missingWarnings = ctx.selection.warnings.filter((warning) => !body.includes(`! ${warning.message}`));
+  return missingWarnings.length > 0
+    ? [renderSelectionWarningsText(missingWarnings, textCtx.locale), body].join("\n\n")
     : body;
 }

@@ -542,7 +542,14 @@ function attemptListItemText(item: AttemptListItem, ctx: TextContext, locale: Re
       `  ${assertion.severity} ${assertion.name} · ${localeText(locale, `verdict.${assertion.passed ? "passed" : "failed"}`)}${assertion.severity === "soft" ? ` ${scoreText}` : ""}`,
     );
     if (assertion.detail) lines.push(indentBlock(wrapDisplay(assertion.detail, ctx.width - 4).join("\n"), "    "));
-    if (assertion.evidence) lines.push(indentBlock(wrapDisplay(assertion.evidence, ctx.width - 6).join("\n"), "      "));
+    if (assertion.evidence) {
+      const limit = Math.max(240, ctx.width * 5);
+      const evidence =
+        assertion.evidence.length <= limit
+          ? assertion.evidence
+          : `${assertion.evidence.slice(0, limit)}… (${assertion.evidence.length - limit} more chars; open ${item.locator} for full evidence)`;
+      lines.push(indentBlock(wrapDisplay(evidence, ctx.width - 6).join("\n"), "      "));
+    }
   }
   return lines.join("\n");
 }

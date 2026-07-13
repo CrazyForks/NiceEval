@@ -482,6 +482,19 @@ describe("AttemptList 双面", () => {
     expect(termTrunc).toContain("2 more not shown");
   });
 
+  it("text 面截断超长 assertion evidence,并保留 locator 作为完整证据入口", () => {
+    const longEvidence = "x".repeat(2_000);
+    const item = {
+      ...attemptListItems[0],
+      assertions: [{ ...attemptListItems[0].assertions[0], evidence: longEvidence }],
+    };
+    const out = text(<AttemptList items={[item]} />);
+    expect(out).toContain(item.locator);
+    expect(out.replace(/\s+/g, " ")).toContain(`open ${item.locator} for full evidence`);
+    expect(out).not.toContain(longEvidence);
+    expect(out.length).toBeLessThan(1_000);
+  });
+
   it("text 面是逐条卡片,不是 renderTableText 的产物:空行分隔每个 attempt、断言明细逐级缩进——共享表格渲染器不产生这种嵌套形状", () => {
     const blocks = term.split("\n\n");
     expect(blocks).toHaveLength(attemptListItems.length); // 每个 attempt 独立一块,块间空行分隔;表格行之间不留空行
@@ -993,6 +1006,22 @@ describe("defineReport + 渲染入口", () => {
     // 宿主注入的 attemptHref:ExperimentList 的 locator 徽标是普通 <a>,默认 view 路由(单段 locator)
     expect(html).toMatch(/href="#\/attempt\/@[0-9a-z]+"/);
     expect(html).not.toContain("<script");
+  });
+
+  it("RunOverview 已渲染 Selection warning 时,宿主不会在 text/web 顶部重复一遍", async () => {
+    const context = fakeContext();
+    const message = "snapshot is unfinished; completed attempts may be incomplete";
+    context.selection.warnings.push({
+      kind: "unfinished-snapshot",
+      experimentId: "compare/bub",
+      startedAt: "2026-07-01T10:00:00Z",
+      dir: "/results/compare_bub/snap-1",
+      message,
+    });
+    const textOut = await renderReportToText(report, context, { width: 100 });
+    const htmlOut = await renderReportToStaticHtml(report, context);
+    expect(textOut.split(message)).toHaveLength(2);
+    expect(htmlOut.split(message)).toHaveLength(2);
   });
 
   it("树里混进 <div>:两个宿主 resolve 后同一遍校验拦住", async () => {

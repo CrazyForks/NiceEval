@@ -89,7 +89,7 @@ npx niceeval exp compare-models weather
 | `--history` | boolean | `show` 命令专用:跨 run 时间轴,只列真实执行;与 `--report` 互斥。 |
 | `--experiment` | string | `show` / `view` 命令专用:Selection 只留该实验。 |
 | `--run` | string | `show` / `view` 命令专用:钉死看某一个结果目录(某次快照或 `copySnapshots` 产物)。 |
-| `--report` | string | `show` / `view` 命令专用:用你的报告文件替换默认报告(文件默认导出 `defineReport(...)`)。 |
+| `--report` | string | `show` / `view` 命令专用:渲染你的报告文件(文件默认导出 `defineReport(...)`);show 用它替换 Attempt 索引,view 用它替换默认分析报告。 |
 | `--dry` | boolean | 只打印本次会匹配到的 eval × 运行配置,不实际执行。 |
 | `--quiet` | boolean | 关闭控制台 / live 的逐条结果与末尾汇总(attempt 进度行仍写 stderr);errored / failed 的结果各在 stderr 补一行摘要,passed / skipped 静默;reporter 仍会写 artifacts。 |
 | `--force` | boolean | 忽略上次运行结果,不跳过已通过的 (experiment, eval) 组合,强制全部重跑。 |

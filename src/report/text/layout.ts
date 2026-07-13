@@ -137,7 +137,11 @@ export type ColumnAlign = "left" | "right";
  * 内部件:公开面是 <Table> 原语(见 ./table.ts 的 renderTableText,它先按 ctx.width
  * 定好列宽再调这里)。不导出到 `niceeval/report` —— 两条并行的建表路径只会让作者选错。
  */
-export function renderAlignedRows(rows: string[][], align: readonly ColumnAlign[] = []): string {
+export function renderAlignedRows(
+  rows: string[][],
+  align: readonly ColumnAlign[] = [],
+  separator = "   ",
+): string {
   const columnCount = Math.max(...rows.map((r) => r.length), 0);
   const widths: number[] = [];
   for (let c = 0; c < columnCount; c++) {
@@ -147,7 +151,7 @@ export function renderAlignedRows(rows: string[][], align: readonly ColumnAlign[
     .map((row) =>
       row
         .map((cell, c) => (align[c] === "right" ? padStartDisplay(cell, widths[c]) : padDisplay(cell, widths[c])))
-        .join("   ")
+        .join(separator)
         .replace(/\s+$/, ""),
     )
     .join("\n");

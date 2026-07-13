@@ -1,26 +1,26 @@
 ---
 title: "用报告积木搭自己的口径"
 sidebarTitle: "自定义报告"
-description: "一份报告就是一个报告文件：官方宿主打开结果、注入数据，Row / Col 负责排版，双面组件同时渲染网页与终端——niceeval show 与 niceeval view 默认渲染的默认报告，就是内置导出的那份报告定义。"
+description: "一份报告就是一个报告文件：官方宿主打开结果、注入数据，双面组件让同一份自定义报告同时用于 niceeval show 与 niceeval view。"
 ---
 
 [查看结果](/zh/guides/viewing-results)讲「用」：官方两扇门 `niceeval show`（终端）和 `niceeval view`（网页）怎么看。本页讲「写」：官方摆法不够时，怎么写一份自己的报告——考试成绩单、代码行数榜、质量 × 成本 frontier。
 
 一份报告就是一个报告文件。你不用打开结果目录、不用写渲染代码、不用起自己的应用：`niceeval show` / `niceeval view` 本体就是宿主——替你打开结果、把数据注入进来，你用官方组件和 `Row` / `Col` 摆版面，写完把文件路径递给 `--report`，终端和网页两扇门就都认它——官方的证据室深链、`--run` 历史切换、静态导出，自定义报告全部原样享有。
 
-## 官方默认报告也是一份报告定义
+## view 的默认报告也是一份报告定义
 
-`niceeval view` 和 `niceeval show` 不传 `--report` 时渲染的默认报告不是私有实现，而是 `niceeval/report` 公开导出的一个值：
+`niceeval view` 不传 `--report` 时渲染的默认报告不是私有实现，而是 `niceeval/report` 公开导出的一个值，也可显式传给 `niceeval show --report`：
 
 ```ts
 import { CostPassRateComparison } from "niceeval/report";
 ```
 
-`niceeval view` 就等于 `niceeval view --report <CostPassRateComparison>`，`show` 同理。它只有两块，从上到下：一张成本 × 通过率散点图（每个实验一个点，同 agent 的点连成线），一张实验明细表（一行一个实验，可展开看配置、KPI、逐 Eval/Attempt 和 raw sample）。整表拉平，不按实验分组。我们自己用的零件和给你的完全一样，没有私有数据通道，默认报告上的每个数字你都能用同样几行代码原样重算出来。
+`niceeval view` 缺省选择 `CostPassRateComparison`：一张成本 × 通过率散点图加一张实验明细表，没有私有数据通道。裸 `niceeval show` 使用更适合终端的 Attempt 索引；显式自定义报告（包括这份 definition）仍可由两个宿主按同一双面协议渲染。
 
 |  | 网页（人看） | 终端（agent 和你看） |
 | --- | --- | --- |
-| 官方摆法 | `niceeval view` | `niceeval show` |
+| 官方默认 | 分析报告 | Attempt 索引 |
 | 自定义摆法 | `niceeval view --report reports/exam.tsx` | `niceeval show --report reports/exam.tsx` |
 
 四个格子是同一个宿主。自定义只有三个层次，逐层深入：
