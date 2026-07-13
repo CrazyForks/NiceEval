@@ -19,7 +19,7 @@
 真机验证过程中新发现两个未在原裁决预期内的问题:
 
 3. **`marketplace.name` 不是调用方能自定的**:`ClaudeCodePluginSpec`/`CodexPluginSpec` 的文档与类型注释暗示这是调用方自选的连接名,但两家真实 CLI 都按目标仓库自己 manifest 里的 `name` 注册,与调用方传的字符串无关——传错名字时 `marketplace add` 会静默成功,下一步 `plugin install/add` 才报"找不到"。真实仓库复现,尚未修复(设计决定,不是可以顺手改的实现 bug)。详见 [[native-plugin-marketplace-name-not-caller-assignable]]。
-4. **Claude Code 的原生 `Skill` 工具在 `deepseek-v4-flash` 代理模型下不会自动触发**:`feature-skill-used` eval(`skillUsed()` 的 `calledTool("Skill", …)` 断言)真机 3/3 全部失败——`events.json` 静态核实零 `Skill` 工具事件,模型改用通用 `Read` 工具直接打开 skill 文件(内容确实用上了,judge 断言照样通过)。这不是 setup/安装侧的问题(manifest 与文件都装对了),是行为断言依赖的"原生 Skill 工具自动判断要不要用"这一产品能力,在非原生 Claude 模型(本仓库 e2e 的默认便宜档)下不生效。是否要为这一条断言切换到真实 Claude 模型(涉及新凭据与真实 API 成本),是需要另外裁决的开放问题,不在本条修法范围内。
+4. **已修：Claude Code repo Skill 的真机行为断言查错了事件层**。最初把 `feature-skill-used` 的失败误诊为 `deepseek-v4-flash` 不触发原生 Skill；重新检查完整 artifact 后，旧 `events.json` 本来就有 `{"type":"skill.loaded","skill":"effect-ts"}`。真正问题是 parser 已按契约把原生 `Skill` tool_use 归一成一等 `skill.loaded`、且刻意不重复产出 `action.called`，E2E 却仍调用 `calledTool("Skill")`，所以必然查不到。修在 `e2e/shared/evals.ts`：正调改为 `t.loadedSkill(skill)`，反调断言不存在 `skill.loaded`。相同默认模型、真实 Docker + agent turn 复验 snapshot `.niceeval/features/2026-07-13T05-10-20-187Z-e3l7`，2/2 passed；无需切模型或新增凭据。
 
 关联:[[npx-skills-add-headless-hang]]、[[codex-no-native-skill-tool]]、
 [[claude-code-skill-tool-name-not-load-skill]](断言侧怎么验 skill 真的被用了)、

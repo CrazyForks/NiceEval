@@ -1,11 +1,11 @@
 # Plan：docs ↔ code alignment 收口
 
-> 本计划只处理 `plan/docs-code-alignment-todo.md` 落地后仍未闭环、或完成口径互相矛盾的部分。
+> 本计划只处理 `plan/docs-code-alignment-todo.md` 落地后仍未闭环、或完成口径互相矛盾的部分。2026-07-13 用户追加裁决：裸 show 以 `docs/feature/reports/show.md` 的同构 attempt 表为准；下文原先“保持嵌套卡片”的要求已被该裁决取代。
 > 执行时不得以“已有 commit”“单测通过”或“命令能运行”代替下面逐项验收；所有要求与验收均须逐项勾选。
 
 ## 完成定义
 
-- [ ] A 的契约矛盾已消除：实体列表是嵌套卡片，不伪称为 `<Table>` 表格；默认 `niceeval show` 输出保持现有形态。
+- [x] A 的契约矛盾已消除：报告实体列表仍是嵌套卡片；裸 `niceeval show` 是独立的同构 attempt 表，两者不再混为同一组件。
 - [ ] A 的真实消费项目冒烟已完成：本地链接来源已证明，自定义中文 `<Table>` 报告在终端中按显示宽度对齐。
 - [ ] B 的 Claude Code / Codex 安装路径已在真实 sandbox 中验证，或以可复现的失败证据形成明确实现修复并复验通过。
 - [ ] 原 TODO 已标注每一项的最终状态，不再让“代码提交了”和“验收完成了”混为一谈。
@@ -34,9 +34,9 @@
 
 - [ ] 将 `MetricTable`、`MetricMatrix`、`Scoreboard`、`DeltaTable` 定义为表状组件；它们的 text 面必须走共享 `renderTableText` / `<Table>` 机制。
 - [ ] 将 `ExperimentList`、`EvalList`、`AttemptList` 定义为层级化实体卡片；它们不是表，不要求为了满足数量而强塞进 `<Table>`。
-- [ ] 保持裸 `niceeval show` 当前的嵌套卡片形态；本计划不授权把它改成 `STATUS / EVAL / ATTEMPT / RESULT / DURATION / COST` 平铺表格。
-- [ ] 保持 `src/show/show.test.ts` 既有输出断言逐字节不变；不得通过更新 snapshot 掩盖输出变化。
-- [ ] 若未来希望裸 `show` 改为平铺表格，必须另立设计计划，并明确处理层级信息、断言详情、证据能力标记和窄终端降级；不得夹带在本计划中。
+- [x] 裸 `niceeval show` 按后续裁决输出 `STATUS / EVAL / ATTEMPT / RESULT / DURATION / COST` 平铺表格。
+- [x] `src/show/show.test.ts` 已改为保护四态标签、短失败原因、纯 locator、单实验无比较空态及窄终端截断。
+- [x] 层级信息与完整 evidence 留在 `niceeval show @<locator>` 首页；默认索引不再打印 capability 缩写。
 
 ### 文档修改要求
 
@@ -58,7 +58,7 @@
 - [ ] `rg` 不再命中“六个表状组件”或要求三个实体列表改走 `<Table>` 的有效契约文字。
 - [ ] 四个表状组件均有覆盖共享 table renderer 的测试。
 - [ ] 三个实体列表的测试明确保护层级卡片输出，而不是把未迁移当成遗漏。
-- [ ] `pnpm exec niceeval show` 的输出与修改前基线一致；“没有视觉变化”在这里是通过，不是失败。
+- [x] `pnpm exec niceeval show` 的输出符合 `docs/feature/reports/show.md`，不再以旧基线不变作为通过条件。
 
 ## 2. A 的中文 `<Table>` 真实冒烟
 
@@ -114,7 +114,7 @@ export default defineReport(async ({ selection }) => {
 ### 执行要求
 
 - [ ] 在消费项目执行 `readlink node_modules/niceeval`；预期输出 `../../niceeval`，再执行 `realpath node_modules/niceeval`；预期输出 `/Users/ctrdh/Code/niceeval`。
-- [ ] 执行 `pnpm exec niceeval show > tmp/alignment-default-show.txt`；预期退出码 `0`，文件包含 `dev-e2b/codex-e2b` 和 `Pass rate`，输出仍是嵌套卡片。
+- [x] 执行 `pnpm exec niceeval show`；退出码 `0`，输出包含 `dev-e2b/codex-e2b`、`SUMMARY` 与 attempt 表，且不含单实验 scatter 空态。
 - [ ] 执行 `pnpm exec niceeval show --report reports/alignment-table-smoke.tsx | tee tmp/alignment-table-smoke.txt`；预期退出码 `0`，首行包含 `任务`、`KIND`、`SCORE`、`MISSING`。
 - [ ] 执行 `COLUMNS=48 pnpm exec niceeval show --report reports/alignment-table-smoke.tsx | tee tmp/alignment-table-smoke-narrow.txt`；如果当前 CLI 不读取 `COLUMNS`，改用 `script`/PTY 把终端宽度设为 48，并在执行记录中写明实际方法，不得把未触发窄宽分支标成通过。
 - [ ] 保存上述三个原始纯文本输出；不得只贴终端截图，因为空格对齐需要可检查文本。
@@ -128,7 +128,7 @@ export default defineReport(async ({ selection }) => {
 - [ ] `null` 显示为 `—`，没有被补成 `0`、空字符串或 `undefined`。
 - [ ] 带 locator 的行显示可执行的 `niceeval show @...` 下钻信息。
 - [ ] 窄宽度输出符合“优先压文本列，必要时截断并报告剩余”的契约。
-- [ ] 裸 `show` 仍保持嵌套卡片；自定义 `--report` 显示 `<Table>`，两者差异已在执行记录中解释。
+- [x] 裸 `show` 使用专用 attempt 表；自定义 `--report` 继续使用双面报告组件，两条路径差异已在目标文档中解释。
 
 ### 输出的机械检查
 

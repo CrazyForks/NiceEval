@@ -377,10 +377,9 @@ export function skillUsed(p: AgentProfile) {
 
       await t.group("行为痕迹:真的用到了这个 skill", () => {
         if (p.skillDetection === "tool") {
-          // claude-code 原生 Skill 工具,入参 { skill, args }——不是 t.loadedSkill()
-          // (那是 calledTool("load_skill", …) 的糖,专配 eve 协议的 load-skill action,
-          // 匹配不上 claude-code 这个原始工具名,见 memory/)。
-          t.calledTool("Skill", { input: { skill } });
+          // Adapter 已把 Claude Code 原生 Skill tool_use 归一成一等 skill.loaded 事件,
+          // 并刻意不再重复产出 action.called；行为断言必须读规范事件，而不是倒查原始工具名。
+          t.loadedSkill(skill);
         } else {
           // codex 没有原生 skill 工具,只能看它是否真的用 shell 读过这个 skill 的文件。
           const dir = p.skillInstallDir ?? ".agents/skills";
@@ -412,7 +411,10 @@ export function skillAbsent(p: AgentProfile) {
       turn.expectOk();
 
       if (p.skillDetection === "tool") {
-        t.notCalledTool("Skill");
+        t.eventsSatisfy(
+          (events) => !events.some((event) => event.type === "skill.loaded"),
+          "no skill.loaded event without an installed skill",
+        );
       } else {
         // 与 skillUsed 的正向断言严格镜像:没有一条**成功完成**的 shell 命令碰过 skill 安装
         // 目录。注意不能宽到"命令行里出现 SKILL.md 就算"——提示词本身就叫它去找 skill 文件,

@@ -21,7 +21,7 @@ niceeval show memory/swelancer --history   # 这个 eval 的真实执行历史
 
 裸 `niceeval show` 的主输出是一张同构的 attempt 表。每行只保留做下一步判断需要的字段：四态判定、eval id、locator、结果原因、耗时和成本。
 
-```text
+```sh
 $ niceeval show
 WARNING  snapshot dev-e2b/codex-e2b @ 2026-07-12T10:08:29.361Z is unfinished;
          8 completed attempts are shown, but the snapshot may be incomplete.
