@@ -57,7 +57,11 @@ export function upsertManagedBlock(source: string, begin: string, end: string, c
 export function brief(value: unknown, max = 200): string {
   let s: string;
   try {
-    s = typeof value === "string" ? value : JSON.stringify(value);
+    // `JSON.stringify` 对 undefined / function / symbol 返回**值** undefined,不是字符串
+    // "undefined"——不兜底会让 s 变成非字符串,下面 `s.length` 直接抛
+    // `Cannot read properties of undefined (reading 'length')`(2026-07-13 native plugin
+    // e2e 断言 `equals(undefined 的字段)` 时真实复现,不是假设场景)。
+    s = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
   } catch {
     s = String(value);
   }

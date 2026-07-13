@@ -158,7 +158,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
  * 再以本地路径连接(CLI 支持 path 形态的 marketplace 源)—— 「来源必须可复现」不因 CLI 少个
  * flag 就打折。
  */
-async function installPlugins(
+export async function installPlugins(
   sb: Sandbox,
   plugins: readonly ClaudeCodePluginSpec[],
 ): Promise<NonNullable<AgentSetupManifest["nativePlugins"]>> {

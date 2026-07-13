@@ -347,6 +347,20 @@ describe("Scoreboard 双面", () => {
     expect(html).toContain("algebra/ ×2");
     expect(term).toContain("algebra/ ×2");
   });
+
+  it("一整科完全没跑(不是 missing>0 的部分缺):text 面该格渲染 —,证明走的是 renderTableText 的 null 处理,不是 scoreboardText 自己拼字符串", () => {
+    const oneSubjectMissing: typeof scoreboardData = {
+      ...scoreboardData,
+      rows: [
+        scoreboardData.rows[0]!,
+        { key: "solo", total: { value: 14, display: "14" }, subjects: [{ key: "algebra", earned: 14, possible: 16, evals: 8, missing: 0 }] },
+      ],
+    };
+    const soloTerm = text(<Scoreboard data={oneSubjectMissing} />);
+    const [, , soloLine] = soloTerm.split("\n");
+    expect(soloLine).toContain("—"); // geometry 列:solo 完全没有这一科,cells.subject1 = null → renderTableText 补 —
+    expect(soloLine).not.toContain("0/4"); // 不补 0,与 <Table> null 契约一致
+  });
 });
 
 describe("MetricScatter 双面", () => {
@@ -467,6 +481,14 @@ describe("AttemptList 双面", () => {
     expect(htmlTrunc).toContain("2 more not shown");
     expect(termTrunc).toContain("2 more not shown");
   });
+
+  it("text 面是逐条卡片,不是 renderTableText 的产物:空行分隔每个 attempt、断言明细逐级缩进——共享表格渲染器不产生这种嵌套形状", () => {
+    const blocks = term.split("\n\n");
+    expect(blocks).toHaveLength(attemptListItems.length); // 每个 attempt 独立一块,块间空行分隔;表格行之间不留空行
+    const lines = term.split("\n");
+    expect(lines.some((l) => /^  \S/.test(l))).toBe(true); // 断言行缩进两格
+    expect(lines.some((l) => /^    \S/.test(l))).toBe(true); // 断言 detail 再缩进两格,是卡片的层级,不是列
+  });
 });
 
 describe("EvalList 双面", () => {
@@ -484,6 +506,12 @@ describe("EvalList 双面", () => {
     expect(term).toContain("score 0%");
     expect(term).not.toContain("{score}");
   });
+
+  it("text 面是逐条卡片,不是 renderTableText 的产物:空行分隔每个 eval、展开到 attempt 的行缩进——表格没有这层嵌套", () => {
+    const blocks = term.split("\n\n");
+    expect(blocks).toHaveLength(evalListItems.length);
+    expect(term.split("\n").some((l) => /^  \S/.test(l))).toBe(true); // 展开到 attempt 的行缩进两格
+  });
 });
 
 describe("ExperimentList 双面", () => {
@@ -498,6 +526,12 @@ describe("ExperimentList 双面", () => {
     // 官方两级聚合 passRate.display 两面同一个数字,不各自重算
     expect(html).toContain("50%");
     expect(term).toContain("50%");
+  });
+
+  it("text 面是逐条卡片,不是 renderTableText 的产物:空行分隔每个 experiment、展开到 eval 的行缩进——表格没有这层嵌套", () => {
+    const blocks = term.split("\n\n");
+    expect(blocks).toHaveLength(experimentListItems.length);
+    expect(term.split("\n").some((l) => /^  \S/.test(l))).toBe(true); // 展开到 eval 的行缩进两格
   });
 });
 

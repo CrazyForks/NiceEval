@@ -6,6 +6,40 @@
 >
 > 不在本文件里：Benchmark 阶段计时（`AttemptRecord.phases`，`docs/engineering/benchmark/README.md`，commit `946df65`）——用户明确单独处理。
 
+## 收口状态（对照 `plan/docs-code-alignment-closeout.md`）
+
+> 逐项标注可核验证据（测试名 / 命令输出 / 文件路径 / commit）；没有独立证据支撑的一律保持未完成，不因某路 agent 的报告说“做了”就直接勾选——报告本身写明受阻或部分完成的，这里如实保留受阻状态。新读者只看这一区块即可判断哪些是代码完成、哪些是真机完成、哪些仍未完成。
+
+### A. `<Table>` 双面原语与文本排版工具箱
+
+- [x] **文档**：`docs/feature/reports/library.md`（`<Table>` 契约、第 424 行“`MetricTable`、`MetricMatrix`、`Scoreboard` 和 `DeltaTable`”四个表状组件的正确表述）、`docs-site/zh/guides/report-components.mdx`「表格（`Table`）」一节（含中文示例）、`docs-site/zh/guides/custom-reports.mdx`「换形态：表格用 Table，其余自己画」一节均已写入目标契约；`.padEnd(8)` 手搓示例已不存在（`grep -c "padEnd(8)" docs-site/zh/guides/custom-reports.mdx` → 0）。本文件“六个表状组件”的错误表述已改为四个（见下方「第 3 层」与「阶段 3」两处），并把 A 阶段的「官方组件重建」（阶段 3）与「真实冒烟」（阶段 4）拆成两个独立可判断的状态。
+- [x] **`<Table>` 实现**：代码本来就是目标形态，未改动实现逻辑。`src/report/index.ts:30-43` 确认导出 `Table`、`TableProps`、`stringWidth`、`padEnd`、`padStart`、`wrapText`、`indent`、`bar`、`columns` 共 9 个名字，与契约逐一对应。
+- [x] **官方四个表状组件迁移的测试覆盖**：`src/report/text/faces.ts` 静态引用确认 `tableText`（145 行）/`matrixText`（189 行）/`scoreboardText`（301 行）/`deltaText`（449 行）均调用 `renderTableText`；`experimentListText`/`evalListText`/`attemptListText` 三个实体列表不调用。`pnpm exec vitest run src/report/dual-render.test.tsx` → 55/55 passed（含新增的 Scoreboard 全科缺席 `null→—` 用例，以及 AttemptList/EvalList/ExperimentList 三个「按空行分块 + 缩进正则」的卡片形状保护测试——`renderTableText` 无法产生这种输出形状）。
+- [x] **默认 `show` 回归（未变）**：`src/show/show.test.ts` 未改动，`pnpm exec vitest run src/show/show.test.ts` → 28/28 passed；本轮 A 相关改动的 `git diff --stat` 对 `src/show/**`、`src/report/text/**`、`src/report/components.tsx`、`src/report/primitives.tsx` 零 diff。
+- [ ] **中文自定义报告真机冒烟**：**部分完成**——核心契约已用真实消费项目证实，但未逐字节满足 closeout 计划第 2 节的字面验收，如实保留未完成。已证实：CJK 列按 `stringWidth`（非 `.length`）对齐（`中文任务`.length=4，实测终端显示宽度 8；KIND 列在表头/两行数据的显示列起点一致为 11）；数字列右对齐（`7`/`123` 前导空格差 = 数值宽度差）；`null → —`；带 locator 的行可执行 `niceeval show @160iuj3h` 下钻（exit 0，打开同一 attempt）；窄宽度“压列/丢列并报告剩余”契约已用真实 PTY（30 列）证实存在（输出 `(1 more column not shown)`）。未满足字面验收的三处：① 计划指定的 `COLUMNS=48` 对这份 fixture 的自然宽度（44–46）不触发压缩分支，只是数值巧合，不是机制失效；② `--report` 输出“首行”字面上是 `pnpm exec` 前导消息与既有数据的 unfinished-snapshot 诊断行，表头实际在第 5 行；③ 消费项目级 `pnpm run typecheck` 退出码 `2`，根因是既有无关文件 `reports/memory-conditions.tsx`（非本 fixture，fixture 隔离编译 exit 0）。证据文件：`/Users/ctrdh/Code/coding-agent-memory-evals/reports/alignment-table-smoke.tsx`（长期 fixture）、`tmp/alignment-default-show.txt`、`tmp/alignment-table-smoke.txt`、`tmp/alignment-table-smoke-narrow.txt`。
+
+### B. Coding Agent 的 Skills / Plugins
+
+- [x] **类型 / 实现（已有）**：`src/agents/types.ts` 定义 `SkillSpec`（local/repo，repo 支持 `ref` 与 skills 子集选择）与 `AgentSetupManifest`；`src/agents/skills.ts` 的 `installSkills` 实现本地与 repo 两种安装（`git clone → git checkout <ref> → cp -R`，不调用 `npx skills add`）；`src/agents/claude-code.ts`/`src/agents/codex.ts` 各自实现 `ClaudeCodePluginSpec`/`CodexPluginSpec` 的 `installPlugins`（互不共享类型）；`src/agents/bub.ts` 实现 `PythonPluginSpec`。
+- [x] **单元测试（新增）**：`installPlugins` 由 private 改为 export（无行为变化），新增 `src/agents/claude-code.test.ts`（8 用例，命令构造 + 失败语义）、`src/agents/codex.test.ts`（10 用例，同上，另含真实 `codex plugin list --json` 输出形状回归）；`pnpm exec vitest run src/agents/claude-code.test.ts src/agents/codex.test.ts src/agents/plugin-config.test.ts` → 3 files / 20 tests passed。编译期类型测试 `src/agents/plugin-config.test.ts` 证明 Bub 收 MCP/plugins、Codex/Claude Code 收 `pythonPlugins`、`plugins` 字段塞 `PythonPluginSpec` 形状均编译失败（`@ts-expect-error` 生效，已用临时删除验证其非装饰性）。**已知缺口**：Claude Code `plugins` 与 Codex `plugins` 互换因两者结构完全同形（`{ marketplace: { name, source, ref? }, name }`）在类型系统层面无法区分，`docs/feature/adapters/coding-agent-skills-plugins.md` 已知悉此限制，未能覆盖，非遗漏。
+- [ ] **Claude Code 真机 · repo Skill**：安装侧完成，行为侧未通过，全链路判定未通过。真实 Docker + 真实 Anthropic API 两轮运行，最新一轮 `.niceeval/features/2026-07-13T03-28-53-896Z-3rw4/feature-skill-used/{a0,a1}/result.json` 的 `verdict` 均为 `"failed"`。`ref` 已钉定到 `b5026c68318f395bbfd258182ea6b524ff2be549`（`e2e/projects/claude-code/agents/claude-code-features.ts:11`）；安装痕迹断言（send 前读 `__niceeval__/agent-setup.json` 含 `effect-ts`）3/3 通过；行为断言 `calledTool("Skill", { input: { skill: "effect-ts" } })` 3/3 未命中——`events.json` 静态核实零命中，模型为 `deepseek-v4-flash`（经代理，非原生 Anthropic 模型），疑似未触发 Claude Code 原生 Skill 工具包装；`judge.autoevals.closedQA` 证实回答内容确实来自该 skill 文件，只是走了通用 `Read` 而非 `Skill` 工具。按 closeout 计划要求“最终全链路验收仍保持未通过”，如实标注未通过，不因安装侧成功而拔高。
+- [x] **Claude Code 真机 · local Skill**：完成。新增 `e2e/fixtures/skills/local-smoke/SKILL.md`、`e2e/projects/claude-code/agents/claude-code-local-skill.ts`、`experiments/local-skill.ts`、`evals/local-skill-used.eval.ts`。`node ../../../bin/niceeval.js exp local-skill --force` 三轮真实运行退出码均为 `0`；最新一轮 `.niceeval/local-skill/2026-07-13T03-43-33-260Z-ehpf/local-skill-used/a0/result.json` 的 `verdict` 为 `"passed"`。改 1 字节 fixture 内容 → manifest `sha256` 改变；还原该字节 → `sha256` 恢复原值——三轮全部用真实沙箱验证，只用 Edit 工具改 fixture。
+- [x] **Codex 真机**：完成。`ref` 已钉定到同一 commit（`e2e/projects/codex/agents/codex-features.ts:12`）。`node ../../../bin/niceeval.js exp features feature-skill-used --force` 第二轮 `.niceeval/features/2026-07-13T03-30-24-766Z-7t0v/feature-skill-used/{a0,a1}/result.json` 的 `verdict` 均为 `"passed"`；send 前直接读取 `.agents/skills/effect-ts/SKILL.md`（9895 字节）与 `AGENTS.md`（含 `.agents/skills`/`effect-ts` 发现指引）经宿主 `docker exec` 独立验证存在；行为断言用既有 `calledTool("shell", ...)`，命中 `.agents/skills/effect-ts` 路径，未假造原生 Skill 工具，与 `memory/codex-no-native-skill-tool.md` 结论一致。
+- [x] **artifact 读回（`e2e/scripts/verify-agent-setup.mts`）**：已验证通过，脚本存在且被独立复跑确认：
+  ```
+  node --import tsx e2e/scripts/verify-agent-setup.mts e2e/projects/claude-code/.niceeval @11ntguqf
+  → OK: attempt.agentSetup() deep-equals .../native-plugin/2026-07-13T04-08-19-887Z-j6i3/native-plugin-installed/a0/agent-setup.json (exit 0)
+  node --import tsx e2e/scripts/verify-agent-setup.mts e2e/projects/codex/.niceeval @181uuebt
+  → OK: attempt.agentSetup() deep-equals .../native-plugin/2026-07-13T04-19-12-419Z-9e5a/native-plugin-installed/a0/agent-setup.json (exit 0)
+  ```
+  **已知缺口**：`src/runner/attempt.ts:299` 里从 sandbox 读回 manifest、提升为 attempt artifact 的这一步（“路径提升”）没有独立于真实 sandbox e2e 的单元测试——`src/runner/*.test.ts`（`discover`/`eval-source`/`report`/`run` 四个文件）不含任何 `agentSetup` 引用，只在真机 e2e 层面被间接验证。
+- [ ] **矩阵补全 · 多 Skill 仓库选择**：**已知缺口，未做真机验证**。仅在函数级别验证：直接调用生产用 `installSkills`（真实 `child_process`，对 `anthropics/skills`、钉定 commit `9d2f1ae187231d8199c64b5b762e1bdf2244733d`）证明按名选择子集有效（`skills: ["pdf"]` → 磁盘仅落地 `pdf/`），未经 Docker 容器、未经真实 agent turn；Claude Code 与 Codex 两侧均未各自跑过这个矩阵格的完整 e2e。`Effect-TS/skills`（3.1/3.3 用的 fixture）经核实实际只含一个 Skill，无法覆盖“多 Skill 选择”这一格。
+- [x] **矩阵补全 · native plugin**：完成，双 agent 真实 Docker e2e 均通过。fixture 固定到 `duyet/codex-claude-plugins`，钉定 commit `82de4021a311034a9596e891baf3a8266fb33bf7`。`.niceeval/native-plugin/2026-07-13T04-08-19-887Z-j6i3/native-plugin-installed/a0/result.json`（Claude Code）与 `.niceeval/native-plugin/2026-07-13T04-19-12-419Z-9e5a/native-plugin-installed/a0/result.json`（Codex）的 `verdict` 均为 `"passed"`，且均确认 `result.json` 不含内联 `agentSetup` 字段。过程中发现并修复两个真实 bug：`src/agents/codex.ts` 的 `installedVersion()` 此前解析的 JSON 形状与真实 `codex plugin list --json` 输出（`{ installed: [{ pluginId, version }] }`）不符（记入 `memory/codex-plugin-list-json-shape-guessed-wrong.md`）；`src/util.ts` 的 `brief()` 对 `undefined` 输入崩溃（记入 `memory/brief-crashes-on-preview-undefined.md`）；两者均有回归测试。**未覆盖**：Bub 无 native-plugin 概念，未做真机 e2e，只有类型级测试覆盖（`plugin-config.test.ts` 的 Bub 拒收 MCP/plugins 断言）。另发现一个未修复的真实 bug——`marketplace.name` 实际由目标 repo 自身 manifest 决定，并非调用方可自由指定字符串，文档现状与真实 CLI 行为不符——记入 `memory/native-plugin-marketplace-name-not-caller-assignable.md`，本次复核确认该文件存在；这是一个契约层面的决策，未在本轮修复，超出本轮范围。
+
+### C. `src/` 注释里 85 处死链
+
+- [x] **已完成**。commit `b9537e7`（“docs: repoint stale doc paths in comments; guard them with a test”）修复全部死链；`test/docs-consistency.test.ts` 新增守护用例「代码注释里的 docs/….md 路径指向真实文档」。全仓扫描 `rg -n "docs/reports\.md|docs/results-format\.md|docs/results-lib\.md|docs/view\.md|docs/scoring\.md|docs/sandbox\.md" src/ --glob '*.ts' --glob '*.tsx'` → 0 处命中。
+
 ## 已经处理掉的（不必再看，防止重复劳动）
 
 - **文档写错、代码是对的** → 已按代码重写文档：判定优先级（`errored > failed > skipped > passed`）、`Config` 的 `name`/`workspace`/`telemetry`/`PriceOverride`、`.eval.tsx` 发现、`Sandbox` 接口快照、`t.group` / 沙箱二进制 IO / `noFailedShellCommands`、`readSourceFiles(opts)` 签名、`EvalDef.setup`、`ExperimentDef.maxConcurrency`、`uploadDirectory` 的 `opts.ignore`、`AgentContext.reasoningEffort`、judge 无 key 时静默 no-op、`aiSdkAgent` / `aiSdkOtel`、codex 鉴权（`CODEX_API_KEY`，无 login/profile）、`classifySnapshot` / `exitOnViewUserError` / `estimateCost` 等名字、`resolveLocator`、并发推荐值（vercel=1，不是「云的可以开大」）、`architecture.md` 的源码树。
@@ -78,7 +112,7 @@ text({ rows }, { width }) {
 
 `renderAlignedRows` **不单独导出**：能力由 `<Table>` 承担，公开两条并行路径只会让作者选错。
 
-**第 3 层 —— 官方组件重建在其上**（对等的构造证明）：`AttemptList` / `EvalList` / `ExperimentList` / `MetricTable` / `DeltaTable` / `Scoreboard` 的 text 面改走 `<Table>`。官方组件用不上的能力，用户就拿不到；官方绕过 `<Table>` 手搓，`<Table>` 就一定会长歪。
+**第 3 层 —— 官方组件重建在其上**（对等的构造证明）：`MetricTable` / `MetricMatrix` / `Scoreboard` / `DeltaTable` 四个表状组件的 text 面改走 `<Table>`。官方组件用不上的能力，用户就拿不到；官方绕过 `<Table>` 手搓，`<Table>` 就一定会长歪。`AttemptList` / `EvalList` / `ExperimentList` 三个实体列表保留各自的卡片 renderer——它们表达层级、展开与证据详情，是嵌套结构不是规则二维表，不为凑数字强塞进 `<Table>`。
 
 **不在范围**：`src/show/render.ts`（证据室切片 `--execution` / `--eval` / `--diff`）不是报告组件，是 CLI 自己的渲染器，继续直接 import 内部 `layout.ts`。
 
@@ -86,7 +120,8 @@ text({ rows }, { width }) {
 
 1. **文档定稿**（先文档后代码）：`docs/feature/reports/library.md` 写 `<Table>` props 契约与工具箱导出表；`docs-site/zh/guides/report-components.mdx`「排版原语」把清单改成 Row / Col / Section / Text / Style / **Table**，示例**必须含中文**（证明不歪）；`docs-site/zh/guides/custom-reports.mdx`「换形态」**删掉 `.padEnd(8)` 示例**、改成「表格用 `<Table>`，非表格用工具箱」两条路，补一句为什么不能用 `String.padEnd`。验收：`docs:validate` + `docs:links`（需 Node 22）。
 2. **实现**：`renderAlignedRows` 加 per-column `align`（默认 left，不传时逐字节同旧输出）；`primitives.tsx` 实现 `Table` 双面组件（TSDoc 写全，参考页从 TSDoc 生成）；`report/index.ts` 导出 `Table` / `TableProps` + 工具箱六函数。测试加：**中文列宽**（`stringWidth` vs `.length` 的回归护栏）、`align: "right"`、`null → —`、超宽折行。验收：`pnpm run typecheck`、`pnpm test`、`pnpm docs:reference`。
-3. **官方组件重建 + 真实冒烟**：六个表状组件 text 面改走 `<Table>`；`src/show/show.test.ts` 既有断言**不许改**——官方表输出应逐字节保持（右对齐是新增能力，不是把现有列改成右对齐；改视觉要另开裁决）。在 `/Users/ctrdh/Code/coding-agent-memory-evals` 跑 `pnpm exec niceeval show` 冒烟，再写一个含中文列的自定义报告跑 `--report` 确认不歪。
+3. **官方组件重建**：`MetricTable`、`MetricMatrix`、`Scoreboard`、`DeltaTable` 四个表状组件的 text 面改走 `<Table>`；`ExperimentList`、`EvalList`、`AttemptList` 三个实体列表保留卡片 renderer，不强塞进 `<Table>`——它们表达层级、展开与证据详情，不是规则二维表。`src/show/show.test.ts` 既有断言**不许改**——官方表输出应逐字节保持（右对齐是新增能力，不是把现有列改成右对齐；改视觉要另开裁决）。**实现完成的判定**：`src/report/text/faces.ts` 里 `tableText`/`matrixText`/`scoreboardText`/`deltaText` 均调用 `renderTableText`（`src/report/text/table.ts`），`experimentListText`/`evalListText`/`attemptListText` 各自走独立卡片渲染、不调用 `renderTableText`。
+4. **真实冒烟**：在 `/Users/ctrdh/Code/coding-agent-memory-evals` 跑 `pnpm exec niceeval show` 冒烟，再写一个含中文列的自定义报告跑 `--report` 确认不歪。**真实冒烟完成的判定**独立于上一步的实现完成，由 `plan/docs-code-alignment-closeout.md` 第 2 节（「A 的中文 `<Table>` 真实冒烟」）单独跟踪验收，不在本文件重复勾选。
 
 ---
 

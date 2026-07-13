@@ -180,7 +180,7 @@ export function codexAgent(config?: CodexConfig): Agent {
  * 先按 `marketplace.name` 连 Marketplace(同名只连一次,`--ref` 钉版本),再装指定 Plugin。
  * 只按 codex 自己的 marketplace / plugin 协议走 —— 与 claude-code 的实现不共用命令、不共用类型。
  */
-async function installPlugins(
+export async function installPlugins(
   sb: Sandbox,
   plugins: readonly CodexPluginSpec[],
 ): Promise<NonNullable<AgentSetupManifest["nativePlugins"]>> {
@@ -237,18 +237,27 @@ async function installPlugins(
   return out;
 }
 
-/** `codex plugin list --json` 的版本回读;取不到不阻断安装(manifest 里 resolvedVersion 省略)。 */
+/**
+ * `codex plugin list --json` 的版本回读;取不到不阻断安装(manifest 里 resolvedVersion 省略)。
+ * 真实输出(实测 codex-cli 0.144.1)是 `{ installed: [...], available: [...] }`,已安装的这条在
+ * `installed` 数组里,字段名是 `pluginId`(不是 `id`)——早前按裸数组 / `{ plugins: [...] }` 猜的
+ * 形状全部猜错,`installedVersion` 曾对任何真实安装恒返回 undefined(见
+ * memory/native-plugin-marketplace-name-not-caller-assignable.md 的姊妹发现,2026-07-13 e2e 复现)。
+ */
 async function installedVersion(sb: Sandbox, name: string, marketplace: string): Promise<string | undefined> {
   try {
     const res = await sb.runShell(`codex plugin list --json --marketplace ${shared.shellQuote(marketplace)}`);
     if (res.exitCode !== 0) return undefined;
     const raw = JSON.parse(res.stdout) as unknown;
-    const list = (Array.isArray(raw) ? raw : ((raw as { plugins?: unknown[] })?.plugins ?? [])) as {
+    const list = (
+      Array.isArray(raw) ? raw : ((raw as { installed?: unknown[] })?.installed ?? [])
+    ) as {
+      pluginId?: string;
       id?: string;
       name?: string;
       version?: string;
     }[];
-    const hit = list.find((p) => p.id === `${name}@${marketplace}` || p.name === name);
+    const hit = list.find((p) => p.pluginId === `${name}@${marketplace}` || p.id === `${name}@${marketplace}` || p.name === name);
     return typeof hit?.version === "string" ? hit.version : undefined;
   } catch {
     return undefined;

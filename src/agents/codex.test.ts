@@ -1,0 +1,192 @@
+// Codex native plugin 安装(installPlugins)的单测:单 plugin 的命令构造、同名 marketplace
+// 的去重、ref 钉定走 `--ref`(不像 claude-code 需要先 clone)、resolvedVersion 取不到时
+// 优雅省略(含 `codex plugin list --json` 的真实输出形状 `{ installed: [...], available: [...] }`,
+// 字段名 `pluginId`——实测 codex-cli 0.144.1,2026-07-13 native plugin e2e 复现过按裸数组 /
+// `{ plugins: [...] }` 猜形状的旧版本恒返回 undefined,见
+// memory/native-plugin-marketplace-name-not-caller-assignable.md)、marketplace/plugin 安装
+// 失败的报错。风格与 src/agents/skills.test.ts、src/agents/claude-code.test.ts 一致,不另起一套。
+// 定稿见 docs/feature/adapters/architecture/coding-agent-extensions.md。
+
+import { describe, expect, it } from "vitest";
+import { installPlugins, type CodexPluginSpec } from "./codex.ts";
+import type { CommandResult, Sandbox, SandboxFile } from "../types.ts";
+
+/** 内存沙箱:runShell 记命令(可按命令包含的子串打脚本化输出)。 */
+class FakeSandbox implements Partial<Sandbox> {
+  readonly workdir = "/workspace";
+  readonly sandboxId = "fake";
+  readonly otlpHost = null;
+  readonly commands: string[] = [];
+  script: { match: string; result: (cmd: string) => Partial<CommandResult> }[] = [];
+
+  async runShell(script: string): Promise<CommandResult> {
+    this.commands.push(script);
+    const hit = this.script.find((s) => script.includes(s.match));
+    return { stdout: "", stderr: "", exitCode: 0, ...hit?.result(script) };
+  }
+  async writeFiles(): Promise<void> {}
+  async uploadFiles(_files: SandboxFile[]): Promise<void> {}
+  async fileExists(): Promise<boolean> {
+    return false;
+  }
+  async readFile(): Promise<string> {
+    throw new Error("not used in this test");
+  }
+}
+
+const sb = (s?: FakeSandbox["script"]): FakeSandbox => {
+  const box = new FakeSandbox();
+  if (s) box.script = s;
+  return box;
+};
+const asSandbox = (box: FakeSandbox): Sandbox => box as unknown as Sandbox;
+
+describe("codex installPlugins · 命令构造", () => {
+  it("单 plugin:先连 marketplace(不带 --ref)再用 `plugin add` 装,manifest 记 marketplace/name", async () => {
+    const box = sb();
+    const plugins: CodexPluginSpec[] = [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ];
+    const out = await installPlugins(asSandbox(box), plugins);
+
+    expect(box.commands).toEqual([
+      "codex plugin marketplace add 'acme/codex-plugins'",
+      "codex plugin add 'repo-map@acme'",
+      "codex plugin list --json --marketplace 'acme'",
+    ]);
+    expect(out).toEqual([
+      { agent: "codex", marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+  });
+
+  it("同名 marketplace 只连一次:两个 plugin 共用一个 marketplace.name → 只有一条 marketplace add,两条 plugin add", async () => {
+    const box = sb();
+    const plugins: CodexPluginSpec[] = [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "safe-shell" },
+    ];
+    const out = await installPlugins(asSandbox(box), plugins);
+
+    const marketplaceAdds = box.commands.filter((c) => c.startsWith("codex plugin marketplace add"));
+    expect(marketplaceAdds).toHaveLength(1);
+    const adds = box.commands.filter((c) => c.startsWith("codex plugin add"));
+    expect(adds).toEqual(["codex plugin add 'repo-map@acme'", "codex plugin add 'safe-shell@acme'"]);
+    expect(out.map((p) => p.name)).toEqual(["repo-map", "safe-shell"]);
+    expect(out.every((p) => p.marketplace.name === "acme")).toBe(true);
+  });
+
+  it("ref 钉定:直接走 `marketplace add --ref`,不像 claude-code 需要先 clone;manifest 保留 ref", async () => {
+    const box = sb();
+    const plugins: CodexPluginSpec[] = [
+      { marketplace: { name: "acme", source: "acme/codex-plugins", ref: "8f3c1a2" }, name: "repo-map" },
+    ];
+    const out = await installPlugins(asSandbox(box), plugins);
+
+    expect(box.commands.some((c) => c.includes("git clone"))).toBe(false);
+    const add = box.commands.find((c) => c.startsWith("codex plugin marketplace add"))!;
+    expect(add).toBe("codex plugin marketplace add 'acme/codex-plugins' --ref '8f3c1a2'");
+
+    expect(out).toEqual([
+      {
+        agent: "codex",
+        marketplace: { name: "acme", source: "acme/codex-plugins", ref: "8f3c1a2" },
+        name: "repo-map",
+      },
+    ]);
+  });
+
+  it("resolvedVersion:list 输出真实 `{ installed: [...] }` 形状、按 pluginId 命中 → manifest 记版本(实测 codex-cli 0.144.1)", async () => {
+    const box = sb([
+      {
+        match: "codex plugin list --json",
+        result: () => ({
+          stdout: JSON.stringify({
+            installed: [{ pluginId: "repo-map@acme", name: "repo-map", version: "2.0.0" }],
+            available: [],
+          }),
+        }),
+      },
+    ]);
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out[0]?.resolvedVersion).toBe("2.0.0");
+  });
+
+  it("resolvedVersion:`installed` 条目缺 pluginId、只有 name 时按 name 命中 → manifest 记版本", async () => {
+    const box = sb([
+      {
+        match: "codex plugin list --json",
+        result: () => ({ stdout: JSON.stringify({ installed: [{ name: "repo-map", version: "2.1.0" }] }) }),
+      },
+    ]);
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out[0]?.resolvedVersion).toBe("2.1.0");
+  });
+
+  it("resolvedVersion:list 输出裸数组(非当前实测形状,但保留兼容)、按 id 命中 → manifest 记版本", async () => {
+    const box = sb([
+      {
+        match: "codex plugin list --json",
+        result: () => ({ stdout: JSON.stringify([{ id: "repo-map@acme", version: "2.0.0" }]) }),
+      },
+    ]);
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out[0]?.resolvedVersion).toBe("2.0.0");
+  });
+
+  it("resolvedVersion 取不到时优雅省略:list 输出旧的 `{ plugins: [...] }` 猜测形状(实测证伪,不是真实 CLI 输出)不再命中", async () => {
+    const box = sb([
+      {
+        match: "codex plugin list --json",
+        result: () => ({ stdout: JSON.stringify({ plugins: [{ name: "repo-map", version: "2.1.0" }] }) }),
+      },
+    ]);
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out[0]).not.toHaveProperty("resolvedVersion");
+  });
+
+  it("resolvedVersion 取不到时优雅省略(不阻断安装):list 命令失败 → manifest 里没有 resolvedVersion 键", async () => {
+    const box = sb([{ match: "codex plugin list --json", result: () => ({ exitCode: 1 }) }]);
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).not.toHaveProperty("resolvedVersion");
+  });
+
+  it("resolvedVersion 取不到时优雅省略:list 输出不是合法 JSON(如空 stdout)同样不阻断安装", async () => {
+    const box = sb(); // 默认 stdout 为空字符串,JSON.parse("") 抛错,installedVersion 内部吞掉
+    const out = await installPlugins(asSandbox(box), [
+      { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+    ]);
+    expect(out[0]).not.toHaveProperty("resolvedVersion");
+  });
+});
+
+describe("codex installPlugins · 失败语义", () => {
+  it("marketplace 连接失败:抛错并点名 marketplace 名与来源,不继续装 plugin", async () => {
+    const box = sb([{ match: "codex plugin marketplace add", result: () => ({ exitCode: 1, stderr: "boom" }) }]);
+    await expect(
+      installPlugins(asSandbox(box), [
+        { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+      ]),
+    ).rejects.toThrow(/acme/);
+    expect(box.commands.some((c) => c.startsWith("codex plugin add"))).toBe(false);
+  });
+
+  it("plugin 安装失败:抛错并点名 plugin 名", async () => {
+    const box = sb([{ match: "codex plugin add", result: () => ({ exitCode: 1, stderr: "boom" }) }]);
+    await expect(
+      installPlugins(asSandbox(box), [
+        { marketplace: { name: "acme", source: "acme/codex-plugins" }, name: "repo-map" },
+      ]),
+    ).rejects.toThrow(/repo-map/);
+  });
+});

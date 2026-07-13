@@ -8,6 +8,6 @@ import { claudeCodeAgent } from "niceeval/adapter";
 export default claudeCodeAgent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   baseUrl: process.env.ANTHROPIC_BASE_URL,
-  skills: [{ kind: "repo", source: "Effect-TS/skills" }],
+  skills: [{ kind: "repo", source: "Effect-TS/skills", ref: "b5026c68318f395bbfd258182ea6b524ff2be549" }],
   mcpServers: [{ name: "e2e", command: "npx", args: ["-y", "@modelcontextprotocol/server-everything"] }],
 });
