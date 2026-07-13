@@ -27,7 +27,7 @@
 | 断言 | Assertion | Scorer 的一次具体应用,带名字、严重度、可选阈值,产出 0–1 分数和过/挂 |
 | 判定 | Verdict | 一个 Eval 的评分判定,四态:`passed` / `failed` / `errored` / `skipped`,没有中间态 |
 | 严重度 | Severity | 断言的两档:gate 不过即 `failed`;soft 只记分,`--strict` 下低于阈值才降级 `failed` |
-| Judge(LLM-as-judge) | Judge(LLM-as-judge) | 用一个大模型当裁判给开放式回答打分的 Scorer,默认 soft、无阈值,详见 [Scoring](feature/scoring/library.md#llm-as-judge) |
+| Judge(LLM-as-judge) | Judge(LLM-as-judge) | 用一个大模型当裁判给开放式回答打分的 Scorer,默认 soft、无阈值,详见 [Scoring](feature/scoring/library/judge.md) |
 
 ### 被测对象与适配器
 
@@ -91,7 +91,7 @@
 | 报告 | Report | `defineReport` 定义的 `.tsx` 报告文件,返回一棵组件树,经 `--report` 交给宿主渲染 |
 | 双面组件 | Dual-render component | `defineComponent({ web, text })` 的产物:一个定义、两个纯函数渲染面,同一棵树两个宿主共用 |
 | 宿主 | Host | 打开结果、挑 Selection、渲染报告的那一侧:`show` 是终端宿主,`view` 是网页宿主 |
-| 默认报告 | —(角色名,非 API) | 不传 `--report` 时 show/view 渲染的那份内置报告(当前是 `CostPassRateComparison`:成本 × 成功率散点图 + 逐实验明细表)。它是一份普通 `ReportDefinition`,和包外用户报告逐节点同构、无任何渲染器特权;「默认」只表示宿主在缺省时选它,不是报告内容的特殊类别 |
+| 默认报告 | —(角色名,非 API) | 不传 `--report` 时 view 渲染的内置 `CostPassRateComparison`(成本 × 成功率散点图 + 逐实验明细表)。它是一份普通 `ReportDefinition`,也可显式传给 show；裸 show 的默认面是专用 attempt 索引，不是报告 definition |
 | 报告槽 / 证据室 | —(内部代号) | 宿主结构的两半:报告槽整个归 `--report`,证据室(transcript / trace / diff 下钻)是宿主本体;这两个词不出现在公开站 |
 
 ### 报告组件
@@ -150,7 +150,7 @@
 
 **Provider** —— 某个 Sandbox 的具体实现选择。沙箱型 Agent 必须从 experiment 或项目级 config 获得工厂函数产出的 `SandboxSpec`；NiceEval 不根据云 token、本机 Docker 状态或其它环境条件猜测 Provider。
 
-**Capability** / **能力** —— `t` 上暴露哪些动作(会话续接、工具调用观测、文件 diff、trace…),完全由**构造证据**决定,不是声明式的能力位:`send` 里接了 `ctx.session` 的续接存取器就有多轮,返回过 `waiting` + `input.requested` 就有 HITL,用官方转换器就带完整性证明(负断言可信),`defineSandboxAgent` 构造就有 `t.sandbox`。`Agent` 接口上不存在 `capabilities` 字段。核心**按构造证据分发**,不按名字分支。这是 [Vision](vision.md) 的承重墙。逐能力的精确义务见[能力参考](../docs-site/zh/reference/capabilities.mdx)与[Agent 数据契约](feature/adapters/architecture/agent-contract.md#能力由构造证明)。
+**Capability** / **能力** —— `t` 上暴露哪些动作(会话续接、工具调用观测、文件 diff、trace…),完全由**构造证据**决定,不是声明式的能力位:`send` 里接了 `ctx.session` 的续接存取器就有多轮,返回过 `waiting` + `input.requested` 就有 HITL,用官方转换器就带完整性证明(负断言可信),`defineSandboxAgent` 构造就有 `t.sandbox`。`Agent` 接口上不存在 `capabilities` 字段。核心**按构造证据分发**,不按名字分支。模块边界见 [Architecture](architecture.md#一个授权面能力决定形状);逐能力的精确义务见[能力参考](../docs-site/zh/reference/capabilities.mdx)与[Agent 数据契约](feature/adapters/architecture/agent-contract.md#能力由构造证明)。
 
 **Integration tier** / **接入等级** —— 按「Adapter 接到哪里、额外拿到什么观测数据」给接入方式分的三级(和下面的 **`model` 字段**是两回事,后者说的是给 agent 指定哪个模型)。**Tier 1(只接 send)**:应用代码一行不改——adapter 适配应用现有对外接口实现 `send`,靠手写事件映射或官方转换器拿到工具断言;应用接口本身暴露模型选择的话,**模型对比**类 [Experiment](#experiment) 也在这一档(`model` 经 `ctx.model` 透传)。**Tier 2(send + OTel)**:还是同一个 `send`,事件来源换成应用发给 niceeval 的 OTel span(应用已埋点则零代码,未埋点补一段通用 OTel 初始化)——买到的是观测质量的跃升:事件流免手写映射、负断言带完整性证明、trace 瀑布图。**Tier 3(侵入改造 + experiment flags)**:改应用内部代码,把内部可变点(prompt、工具集、feature flag)暴露成 experiment 可选的配置(经 `flags` → `ctx.flags` 透传),解锁**完整的 feature A/B test**——对照的不再只是模型,而是应用内部的功能变体。前两档都是**无侵入**的:应用按自己的方式启动,eval 侧不 spawn 应用进程、不另开端口,Adapter 只对着用户前端本来就在用的那个接口收发。三档递进不互斥,详见 [docs-site · Tier](../docs-site/zh/concepts/tier.mdx)。
 
@@ -176,7 +176,7 @@
 
 **Session** —— 一条会话线。`t` 驱动主 session;`t.newSession()` 返回独立 session,用于并行或隔离的多会话测试。`session.*` 作用域断言只看这条 session 已经发生的事件;这些事件仍会汇入 `t.*` run 级断言。
 
-**Turn** —— `t.send()` 的一次返回值,对应该 Turn 的标准事件流片段。带 `message` / `data` / `toolCalls` / `status` / `usage` / `events` 等只读字段,以及一套与 `t` 同名的作用域断言(`turn.calledTool`/`turn.succeeded`/…),作用域收窄成只看这一个 Turn,详见 [Assertions](assertions.md#作用域规则)。
+**Turn** —— `t.send()` 的一次返回值,对应该 Turn 的标准事件流片段。带 `message` / `data` / `toolCalls` / `status` / `usage` / `events` 等只读字段,以及一套与 `t` 同名的作用域断言(`turn.calledTool`/`turn.succeeded`/…),作用域收窄成只看这一个 Turn,详见 [Scoring · 作用域](feature/scoring/architecture/scopes.md)。
 
 **EarlyExit** / **首过即停** —— 一个 eval 取通过率时,先过一次即中止其余 attempt 的策略(可关);配置名 `earlyExit`,CLI 上 `--early-exit` / `--no-early-exit`。
 
@@ -201,7 +201,7 @@
 | 字段 | 类型 | 作用 |
 |---|---|---|
 | `name` | `LocalizedText` | 项目名,显示在 `niceeval view` 顶部;可给字符串,或按 locale 给多语言(`{ en, "zh-CN" }`) |
-| `judge` | `JudgeConfig` | 默认 Judge(裁判模型,见 [Scoring](feature/scoring/library.md#llm-as-judge)) |
+| `judge` | `JudgeConfig` | 默认 Judge(裁判模型,见 [Scoring](feature/scoring/library/judge.md)) |
 | `reporters` | `Reporter[]` | 全局报告器(见 [Observability](observability.md#reporters)) |
 | `maxConcurrency` | `number` | 并发上限(见 [Runner](runner.md#调度有界并发)) |
 | `timeoutMs` | `number` | 单 eval 超时 |

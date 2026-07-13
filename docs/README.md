@@ -15,7 +15,7 @@
 
 | 现在要做什么 | 从哪里开始 |
 |---|---|
-| 建立产品心智 | [Vision](vision.md) → [Concepts](concepts.md) → [Architecture](architecture.md) |
+| 建立产品心智 | [Concepts](concepts.md) → [Architecture](architecture.md) |
 | 从零理解使用路径 | [Getting Started](getting-started.md) |
 | 设计或修改一个用户功能 | [Feature](feature/README.md) → 对应功能目录 |
 | 讨论尚未定稿的方向 | [Roadmap](roadmap/README.md) |
@@ -55,10 +55,8 @@ docs/
 │   └── tier-sync/                       示例同步机制
 │
 └── 暂未归入 feature/ 的设计入口
-    ├── vision.md                        产品目标
     ├── concepts.md                      术语与心智模型
     ├── architecture.md                  核心边界
-    ├── assertions.md                    断言契约
     ├── origin-integration.md            Origin 应用接入
     ├── capabilities-by-construction.md  能力由构造证明
     ├── observability.md                 Observability

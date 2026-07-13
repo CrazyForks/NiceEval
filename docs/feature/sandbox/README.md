@@ -69,7 +69,8 @@ interface CommandOptions {
 ## 相关阅读
 
 - [Library](library.md) —— 路径与 workdir、用户与 root、provider 选择、生命周期钩子、自定义 provider。
+- [操作 Sandbox](library/operations.md) —— eval 里怎样读写文件和运行命令。
+- [断言 Sandbox 结果](library/asserting-results.md) —— 怎样判断 diff、文件和 shell 行为。
 - [Architecture](architecture.md) —— provider 内部实现、生命周期在 attempt 里的位置、性能与重试。
 - [Sandbox Agent](../adapters/library/sandbox-agent.md) —— Adapter 如何通过 `Sandbox` 接口驱动 agent。
 - [Runner](../../runner.md) —— 并发、预热、复用的调度。
-- [Vision](../../vision.md) —— provider 名只用于路由,不进核心行为。

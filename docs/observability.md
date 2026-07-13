@@ -2,8 +2,6 @@
 
 评测的价值不止"过/挂",更在"为什么"。这一篇讲三件事:agent 的 **transcript** 如何被归一化成统一 trace、跑完落盘的**artifact**长什么样、**报告器**如何把结果回传。
 
-这是 niceeval "看得快"承诺的落点,见 [Vision](vision.md#看得快)。
-
 ## Transcript → 标准事件流
 
 每个 agent 都吐自己格式的 transcript(Claude Code 一种 JSONL、Codex 另一种、bub 又一种)。直接消费这些就得到处写 `if (agent === ...)`。adapter 的核心活,就是把它**归一化**成那条[标准事件流 `StreamEvent[]`](feature/adapters/architecture/events.md) —— 它既是 trace,也是整套断言的唯一数据源,断言和报告只面对它。
@@ -275,7 +273,7 @@ run 级合计不落盘:总时长、总用量、总成本由消费方([Results Li
 
 ### 把成本变成可断言 / 可护栏的维度
 
-- **断言效率**(见 [Scoring](feature/scoring/library.md#效率--成本断言)):`t.maxTokens(50_000)` / `t.maxCost(0.5)` —— agent 答对了但烧太多,也判失败。
+- **断言效率**(见 [Scoring · 作用域断言](feature/scoring/library/scoped-assertions.md)):`t.maxTokens(50_000)` / `t.maxCost(0.5)` —— agent 答对了但烧太多,也判失败。
 - **预算护栏**:`--budget <usd>` 给整个 run 设上限,累计花费超了就停止派发新 attempt(借鉴 crabbox 的 spend cap),避免一次跑爆账单。
 
 ## 结果可视化:`niceeval view`

@@ -80,7 +80,7 @@ t.succeeded();
 
 ### 多轮里评整段对话
 
-多轮里要分清 judge 的接收者:`t.judge` / `session.judge` 是 session 级,默认评对应 session 的对话;`turn.judge` 才是 turn 级,默认只评这一轮的 `turn.message`。完整的作用域规则与每条断言看哪一轮,见 [Assertions · 作用域规则](../../assertions.md#作用域规则)。
+多轮里要分清 judge 的接收者:`t.judge` / `session.judge` 是 session 级,默认评对应 session 的对话;`turn.judge` 才是 turn 级,默认只评这一轮的 `turn.message`。完整的作用域规则与每条断言看哪一轮,见 [Scoring · 作用域](../scoring/architecture/scopes.md)。
 
 要让 judge 评「整段多轮对话」(典型:跨轮一致性),直接挂在 `t.judge` 上;要只评某一轮,挂在那一轮的 `turn.judge` 上:
 
@@ -230,7 +230,7 @@ export default defineEval({
 });
 ```
 
-`t.sandbox` 这一个命名空间下按语义分组:`writeFiles` / `uploadFiles` / `runCommand` 是立即 IO / 命令;`fileChanged` / `fileDeleted` / `notInDiff` / `diff` / `file` 是结果视图和延迟断言。`stop()` 这类生命周期动作不暴露给 eval 作者,由 runner 管。要用 judge 评 sandbox 产物,直接 `t.judge.autoevals.closedQA(criteria, { on: t.sandbox.diff.get(path) })`。完整列表见 [Assertions · API 分组速查](../../assertions.md#api-分组速查)。沙箱创建时运行器已经打好一次空 git 基线,所以 `t.sandbox.diff` / `t.sandbox.fileChanged` 不依赖你怎么写入起始文件、写了没有,随时可读。
+`t.sandbox` 这一个命名空间下按语义分组:`writeFiles` / `uploadFiles` / `runCommand` 是立即 IO / 命令;`fileChanged` / `fileDeleted` / `notInDiff` / `diff` / `file` 是结果视图和延迟断言。`stop()` 这类生命周期动作不暴露给 eval 作者,由 runner 管。要用 judge 评 sandbox 产物,直接 `t.judge.autoevals.closedQA(criteria, { on: t.sandbox.diff.get(path) })`。操作列表见 [Sandbox · 文件与命令](../sandbox/library/operations.md),评分写法见 [Sandbox · 断言结果](../sandbox/library/asserting-results.md)。沙箱创建时运行器已经打好一次空 git 基线,所以 `t.sandbox.diff` / `t.sandbox.fileChanged` 不依赖你怎么写入起始文件、写了没有,随时可读。
 
 ## 命名与组织约定
 
@@ -242,5 +242,6 @@ export default defineEval({
 ## 相关阅读
 
 - [README](README.md) —— `defineEval` 的核心契约。
+- [Eval Context](library/context.md) —— `t`、`session`、`turn` 的调用和结果字段。
 - [Architecture](architecture.md) —— 作用域断言的设计依据。
-- [Assertions](../../assertions.md) —— 断言完整速查表。
+- [Scoring](../scoring/README.md) —— 断言、judge、严重度与判定。

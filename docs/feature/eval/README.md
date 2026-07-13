@@ -28,8 +28,8 @@ export default defineEval({
 ## 相关阅读
 
 - [Library](library.md) —— 单轮、多轮、HITL、数据集扇出、沙箱型的完整写法与命名约定。
+- [Eval Context](library/context.md) —— `t`、`session`、`turn` 怎样驱动会话和读取结果。
 - [Architecture](architecture.md) —— 为什么作用域断言按接收者(`t` / `session` / `turn`)分层,对齐 eve 的设计依据。
-- [Assertions](../../assertions.md) —— `t.check` / 作用域断言的完整速查表(看哪一轮、来源哪里)。
-- [Scoring](../scoring/README.md) —— judge 细节、测试即评分、判定规则。
+- [Scoring](../scoring/README.md) —— 值断言、作用域断言、judge、严重度与判定规则。
 - [Agents 与 Adapters](../adapters/README.md) —— agent 三类 transport 与 agent 适配。
 - [Experiments](../experiments/README.md) —— eval 由谁跑、跑几次、对着哪个 agent。

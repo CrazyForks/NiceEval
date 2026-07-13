@@ -51,10 +51,10 @@ export default rows.map((row) =>
 - `session.*`(`t.newSession()` 的返回值)复用 `t.*` 的同一套**作用域断言词汇**,但只看这个 session 在断言记录时已有的事件。
 - `turn.*`(`t.send()` 的返回值)也复用同一套**作用域断言词汇**,但只看这一轮自己的事件和用量,不再是旧版文档里的 4 个手写方法。`turn.outputEquals` / `turn.outputMatches` 是 turn 独有的(只对单轮结果有意义,聚合层不需要),继续保留。
 
-也就是:**接收者决定作用域,不是断言名字决定作用域。** author-facing 接收者是 `t` / `session` / `turn`;`Attempt` 只作为 runner/result 里的执行单位存在,不是写 eval 时要操作的一层。完整清单见 [Assertions · 作用域规则](../../assertions.md#作用域规则)。
+也就是:**接收者决定作用域,不是断言名字决定作用域。** author-facing 接收者是 `t` / `session` / `turn`;`Attempt` 只作为 runner/result 里的执行单位存在,不是写 eval 时要操作的一层。完整清单见 [Scoring · 作用域](../scoring/architecture/scopes.md)。
 
 ## 相关阅读
 
 - [README](README.md) —— `defineEval` 的核心契约。
 - [Library](library.md) —— 单轮、多轮、数据集扇出、沙箱型的完整写法。
-- [Assertions](../../assertions.md) —— 作用域规则的完整清单。
+- [Scoring Architecture](../scoring/architecture.md) —— 作用域、严重度、判定与证据不变量。
