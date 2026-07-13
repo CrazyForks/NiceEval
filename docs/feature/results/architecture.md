@@ -277,6 +277,46 @@ interface DiffData {
 
 它只存在于有沙箱 workspace diff 的运行。coding-agent eval 常用它验证文件修改结果;remote / in-process agent 不一定有 diff。
 
+## 大值截断
+
+Agent 的一次工具调用可以产出任意大的输出——一条递归 grep 撞进 minified bundle,单行就能有几 MB,`head -100` 这类行数护栏拦不住。OTLP instrumentation 又常把同一份工具结果原样挂进 span 属性。不设上限时,单个 attempt 的 `events.json` 与 `trace.json` 能一起长到上百 MB,远大于同一个 attempt 的 `diff.json`。所以写入面对**落盘的字符串值**统一设上限。
+
+**运行时全量,落盘截断。** 截断只发生在 artifact 序列化的那一刻:断言、`t.*` 作用域查询与 `o11y.json` 的派生统计在内存里看到的始终是完整值。**截断永远不影响判决**——落盘是证据,不是评分输入。
+
+契约:
+
+- **落点唯一**:`snap.writeAttempt()`(见 [Library](library.md))。不在 adapter、不在 OTLP 解析、不在事件归一化里做——任何 adapter、任何 sandbox 产出的 artifact 都被同一条规则约束,adapter 作者不需要记得截断。
+- **适用范围**:`events.json` 的事件字段与 `trace.json` 的 span 属性里的**任意字符串值**。不只工具输出——`thinking` 文本、`error` 消息同样可能爆。`result.json` / `o11y.json` / `snapshot.json` 只有定长摘要,不涉及。`sources.json` 与 `sources/` 不截断:源码是断言定位的锚,且已按内容去重。`diff.json` 不截断:它的每个文件是完整语义单位,截断后不再是一份能 apply 的证据,体积由 [`copySnapshots`](library.md#复制与瘦身copysnapshots) 的 artifact 白名单管理。
+- **上限**:每个字符串值 256 KiB(UTF-8 字节),常量 `ARTIFACT_VALUE_MAX_BYTES`。截断按 UTF-8 字符边界回退,不切断多字节字符。
+- **没有 flag、没有配置项。**「需要完整落盘」的场景不存在:评分看的是运行时全量,诊断一条失控命令 256 KiB 绰绰有余(足够看清它 grep 进了 `node_modules`)。给旋钮只会让某天有人把它调大、再把仓库塞爆。
+
+被截断的值保留前 256 KiB,末尾追加一行人可读 marker:
+
+```text
+…(前 256 KiB 内容)
+[niceeval] truncated 51467156 → 262144 bytes
+```
+
+marker 只服务直接 `cat` / `jq` 的人。程序判断走结构化字段——`StreamEvent` 与 `TraceSpan` 各多一个可选 `truncated`:
+
+```typescript
+interface Truncation {
+  /** 被截断的位置:事件里是字段名(如 "output"),span 里是 attribute key(如 "output.value")。 */
+  path: string;
+  /** 截断前的 UTF-8 字节数。 */
+  originalBytes: number;
+}
+```
+
+view 显示「输出过大,已截断(原始 51.5 MB)」靠的是它,不是正则匹配 marker:「只给文本等于逼消费方正则解析」与 [Selection 警告](library.md#警告-kind-全集) 是同一条原则。
+
+两条明确不做:
+
+- **不对 span 属性做去重。** 同一份工具结果被 instrumentation 同时挂在 `output.value`(OpenInference 约定)与 `gen_ai.tool.call.result`(GenAI semconv)下、两份字节完全相同,是现实中会遇到的写法。截断之后两份各 256 KiB,重复的代价可忽略;而去重要判定「哪个 key 是 canonical」,那是 agent 侧的属性约定,core 不猜——`tagSpan` 的「raw 属性只增不改」继续成立。
+- **不设单文件总量上限。** 现实中的爆炸是单值爆炸(一条失控命令),不是一万条正常 span 累加。加文件预算就要回答「超了丢哪一条」,那是有看法的取舍,不属于忠实落盘。
+
+`truncated` 是新增可选字段,按[版本规则](#版本与升级设计)不递增 `schemaVersion`——老读取器读到的仍然是字符串。截断只对新写入生效:`copySnapshots` 不改 artifact 内容,历史上落下的超大文件不会被追溯截断。
+
 ## 读取规则
 
 编程消费用 [`openResults`](library.md)——布局知识全部被库消化。手工(`jq` / 脚本)读的路线:
@@ -300,6 +340,7 @@ interface DiffData {
 
 - 快照级: `snapshot.json`、`sources/<sha256>.json`(eval 源码去重仓库);
 - attempt 级: `result.json`、`events.json`、`sources.json`(引用,不内联内容)、`trace.json`、`o11y.json`、`agent-setup.json`、`diff.json`;
+- `events.json` 与 `trace.json` 里的字符串值有 256 KiB 上限,超出的带 `truncated` 标记(见[大值截断](#大值截断));
 - 每个文件都是 JSON,不是 JSONL。
 
 ## 相关阅读

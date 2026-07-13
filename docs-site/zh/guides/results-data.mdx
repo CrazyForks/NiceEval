@@ -83,6 +83,31 @@ await attempt.sources();       // SourceArtifact[] | null
 - **读不了的落盘不静默。** 版本不兼容、目录损坏的快照进 `skipped` 并带原因；要不要展示由你定，但缺口永远被算出来。
 - **同进程内按句柄记忆化。** 两处都读同一个 `diff()` 不会把上百 MB 读两遍。
 
+## 超大输出会被截断
+
+Agent 跑一条命令，输出可以大得离谱——一次递归 `grep` 扫进 `node_modules`，撞上压缩过的 JS 文件，单行就有几 MB。这种输出会同时进 `events.json` 和 `trace.json`，不管的话一个 attempt 就能占上百 MB。
+
+所以 NiceEval 落盘时会削：`events.json` 和 `trace.json` 里任何超过 256 KiB 的字符串，只保留前 256 KiB，末尾留一行说明：
+
+```text
+[niceeval] truncated 51467156 → 262144 bytes
+```
+
+**这不影响判定。** 断言读的是运行时的完整输出，截断只发生在写文件的那一刻——落盘的 artifact 是证据，不是评分的输入。断言该过还是过，该挂还是挂。
+
+要在自己的报告里如实标出「这里少了东西」，别去匹配上面那行文本，读结构化字段：被截断的事件和 span 都带 `truncated`，里面是被截断的位置和原始字节数。
+
+```typescript
+const events = await attempt.events();
+for (const e of events ?? []) {
+  for (const t of e.truncated ?? []) {
+    console.log(`${t.path} 原始 ${t.originalBytes} 字节,已截断`);
+  }
+}
+```
+
+`diff.json` 不截断——里面每个文件都要完整才能用来核对 agent 改了什么。它是唯一可能拖到上百 MB 的 artifact，所以发布时通常不带它（见下面的 `copySnapshots`）。
+
 ## 版本：谁写的、读不读得了
 
 每个快照都带自己的出身：`producer` 是写这份结果的工具与版本（niceeval 自己，或经写入面转换的第三方 harness），`schemaVersion` 是磁盘格式版本。格式只在破坏兼容时递增版本，读取器只认相同版本——**版本不兼容的落盘不解析、不迁移、不猜**，整个 run 进 `skipped`：
@@ -205,8 +230,9 @@ import { openResults, copySnapshots } from "niceeval/results";
 
 const results = await openResults(".niceeval");
 await copySnapshots(results.latest(), "site-data/run", {
-  artifacts: ["sources", "events", "trace", "o11y"],   // diff 可达百 MB,发布时常见地不带;
-});                                                     // o11y 只有几 KB,报告用到 turns 这类
+  artifacts: ["sources", "events", "trace", "o11y"],   // diff 不截断、可达百 MB,发布时常见地不带;
+});                                                     // events / trace 有 256 KiB 上限,带上是安全的;
+                                                        // o11y 只有几 KB,报告用到 turns 这类
                                                         // 读 o11y 的指标就把它带上,不然渲染成「—」
 ```
 
