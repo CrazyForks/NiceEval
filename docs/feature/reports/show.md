@@ -10,6 +10,7 @@ niceeval show memory/swelancer             # 按 eval id 前缀收窄
 niceeval show @1qrdcfq8                    # 打开一个 attempt 的诊断首页
 niceeval show @1qrdcfq8 --eval             # 断言标回 eval 源码
 niceeval show @1qrdcfq8 --execution        # 对话、工具调用和步骤耗时
+niceeval show @1qrdcfq8 --timing           # 生命周期阶段耗时分解
 niceeval show @1qrdcfq8 --diff             # workspace 改动摘要
 niceeval show @1qrdcfq8 --diff=path/to.ts  # 某个文件的完整 diff
 niceeval show memory/swelancer --history   # 这个 eval 的真实执行历史
@@ -84,7 +85,8 @@ failures:
     source: evals/memory/swelancer-manager-proposals.eval.ts:40:11
 
 execution: 12 events · 0 skill loads · 7 tool calls · 4 AI messages
-timing: OTel spans recorded for this attempt — see --execution for per-step timing.
+timing: sandbox 9.3s (queue 0.2s · create 5.6s · setup 3.5s) · agent setup 12.1s ·
+        test 26.4s · diff 0.3s · score 1.4s · teardown +0.8s
 
 changes: 1 file changed · M manager_decisions.json
 
@@ -92,10 +94,13 @@ artifacts: .niceeval/dev-e2b_codex-e2b/<snapshot>/memory/swelancer-manager-propo
 available:
   niceeval show @1qrdcfq8 --eval
   niceeval show @1qrdcfq8 --execution
+  niceeval show @1qrdcfq8 --timing
   niceeval show @1qrdcfq8 --diff
 ```
 
 这页应当足以判断“为什么失败”。只有实际可用的命令才出现在 `available`；没有捕获某类证据时省略对应命令。只有在需要理解断言上下文、agent 为什么给出这个结果、或具体改了什么时，才继续打开证据切面。
+
+`timing:` 行是 `result.json` 里 `phases` 的一行摘要：主链阶段按执行序分解（sandbox 排队 / 启动 / setup、agent 安装、测试主体、评分），收尾段合计成一个 `teardown +N` 尾项——收尾不计入 attempt 总耗时，所以用 `+` 与主链区分。落盘没有 `phases`（旧结果或第三方 harness 写入）时这一行如实输出 `phase timing unavailable`，不猜。
 
 `errored` attempt 的首页不用 trace 也必须能解释基础设施错误。它先显示结构化 error 的 phase/operation、code、message 与有限 cause,再列本 attempt 的 diagnostics;stack 放在后面并保持原始换行:
 
@@ -114,6 +119,7 @@ diagnostics:
     Primary region was unavailable; retried in us-west (2 occurrences)
 
 execution: unavailable (attempt failed before telemetry was configured)
+timing: sandbox queue 1.2s · sandbox create 2m 6s ✗ failed here
 ```
 
 diagnostic 的 level 不等于 verdict:一个 passed/failed attempt 也可以带 cleanup warning。榜单只显示致命 error 的一层原因;diagnostics、cause 和 stack 留在 locator 首页,避免几十个并发 sandbox 错误淹没终端。
@@ -162,6 +168,46 @@ full events: .niceeval/.../events.json
 69 unlinked telemetry spans omitted; inspect the OTel trace for framework timing.
 full OTel trace: .niceeval/.../trace.json
 ```
+
+## `--timing`：时间花在哪个生命周期阶段
+
+首页的 `timing:` 行回答「大头在哪」；`--timing` 给完整分解：逐阶段一行，`sandbox.setup` / `sandbox.teardown` 钩子链展开到链上每个钩子，收尾段单独分组并标明不计入总耗时。数据来自 `result.json` 的 `phases`，不依赖 OTel。它与 `--execution` 分工明确：`--timing` 回答「环境与调度花了多久」（runner 侧阶段），`--execution` 回答「agent 内部每一步花了多久」（事件与 OTel span）。
+
+```text
+$ niceeval show @1qrdcfq8 --timing
+@1qrdcfq8 · memory/swelancer-manager-proposals · dev-e2b/codex-e2b · failed
+total 50.0s
+
+sandbox.queue        0.2s
+sandbox.create       5.6s
+sandbox.setup        3.5s
+  ├─ warmModelCache      2.9s
+  └─ setup#2             0.6s
+baseline             0.1s
+agent.setup         12.1s
+test                26.4s
+diff                 0.3s
+score                1.4s
+trace                0.3s
+
+teardown (not counted in total):
+agent.teardown       0.2s
+sandbox.teardown     0.1s
+sandbox.stop         0.5s
+```
+
+主链各阶段之和小于等于 `total`，差值是阶段间的粘合代码，不单独列行。errored 或超时的 attempt 里，`--timing` 直接标出死在哪一步——最后一条主链阶段带 `✗`，其后没有主链条目；沙箱从未创建成功时收尾段整段缺席：
+
+```text
+$ niceeval show @2h8m4k1 --timing
+@2h8m4k1 · memory/agent-029-use-cache · compare/claude-e2b · errored
+total 2m 8s
+
+sandbox.queue        1.2s
+sandbox.create     2m 6s ✗ failed here (sandbox-rate-limit)
+```
+
+收尾阶段的 `✗` 独立于判定：一个 passed attempt 也可以带一条失败的 `sandbox.teardown`，对应它的 teardown diagnostic。落盘没有 `phases` 时输出 `phase timing unavailable` 并说明该结果不是由带阶段计时的 runner 产出。
 
 ## `--diff`：核对实际改动
 

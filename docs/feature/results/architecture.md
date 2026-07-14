@@ -157,6 +157,7 @@ interface AttemptRecord {
 }
 
 type PhaseName =
+  // 主链:从排队到 trace collect,覆盖到结果构造为止
   | "sandbox.queue"
   | "sandbox.create"
   | "sandbox.setup"
@@ -167,13 +168,27 @@ type PhaseName =
   | "test"
   | "diff"
   | "score"
-  | "trace";
+  | "trace"
+  // 收尾段:无论主链成败都执行,不计入 durationMs 口径
+  | "agent.teardown"
+  | "sandbox.teardown"
+  | "sandbox.stop";
 
 interface PhaseTiming {
   name: PhaseName;
   /** 阶段耗时；失败阶段计到抛错或超时中断时。 */
   durationMs: number;
-  /** 该阶段抛错或被超时中断；至多一条，且总在数组末尾。 */
+  /** 该阶段抛错或被超时中断。主链至多一条,其后无主链条目;收尾阶段各自独立标记,不改判定。 */
+  failed?: true;
+  /** 阶段内步级明细(钩子链阶段逐钩子);label 只供人读,不是稳定身份,不做跨实验聚合。 */
+  steps?: StepTiming[];
+}
+
+interface StepTiming {
+  /** 人读标签:具名钩子用函数名,匿名钩子用 setup#<链上序号> / teardown#<链上序号>。 */
+  label: string;
+  /** 该步耗时;失败步计到抛错那一刻。 */
+  durationMs: number;
   failed?: true;
 }
 
@@ -209,7 +224,7 @@ interface DiagnosticRecord {
 }
 ```
 
-`phases` 缺失表示结果不是由带阶段计时的 runner 产出。数组顺序就是执行顺序；不适用、未定义或没有执行的阶段不写 0 值条目。阶段边界、失败封口、与 `durationMs` 的口径以及安装基准消费方式见 [Phase Timings 与安装基准](../../engineering/benchmark/README.md)。
+`phases` 缺失表示结果不是由带阶段计时的 runner 产出。数组顺序就是执行顺序；不适用、未定义或没有执行的阶段不写 0 值条目。`agent.teardown` / `sandbox.teardown` / `sandbox.stop` 是收尾段：主链抛错后它们照常执行、照常计时，各自可独立标 `failed`（对应 teardown diagnostic，不改判定），且不计入 `durationMs` 口径——「结果早已确定、收尾还卡着」的耗时因此可归因。阶段边界、主链 / 收尾两段的 failed 语义、钩子链的步级明细以及安装基准消费方式见 [Phase Timings 与安装基准](../../engineering/benchmark/README.md)；终端与网页的展示入口见 [Show `--timing`](../reports/show.md#--timing时间花在哪个生命周期阶段) 与 [View](../reports/view.md) 的 Attempt 详情。
 
 `error` 与 `diagnostics` 都使用 runner 已绑定的 lifecycle operation,调用方不能自行填写 phase/scope。两者的区别是结果语义:`error` 是让 attempt 进入 `errored` 的致命原因,至多一个;`diagnostics` 是运行仍可继续或收尾时发现的问题,可以与 passed/failed/errored 任一 verdict 共存。`diagnostic.level` 表达消息严重度,不是 verdict 的别名。
 

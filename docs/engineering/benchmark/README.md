@@ -26,7 +26,17 @@ interface PhaseTiming {
   name: PhaseName;
   /** 该阶段耗时;failed 条目计到抛错 / 超时中断那一刻。 */
   durationMs: number;
-  /** 该阶段抛错或超时中断。至多一条,总在数组末尾;它之后的阶段没有跑。 */
+  /** 该阶段抛错或超时中断。主链至多一条,其后无主链条目;收尾阶段各自独立标记。 */
+  failed?: true;
+  /** 阶段内步级明细(钩子链阶段逐钩子);只供单 attempt debug,不参与聚合。 */
+  steps?: StepTiming[];
+}
+
+interface StepTiming {
+  /** 人读标签:具名钩子用函数名,匿名钩子用 setup#<链上序号> / teardown#<链上序号>。不是稳定身份。 */
+  label: string;
+  /** 该步耗时;失败步计到抛错那一刻。 */
+  durationMs: number;
   failed?: true;
 }
 ```
@@ -39,7 +49,7 @@ interface PhaseTiming {
 | --- | --- | --- |
 | `sandbox.queue` | 等待容器创建信号量(并发限流)的排队时间 | remote agent |
 | `sandbox.create` | provider 起沙箱(`createSandbox`) | remote agent |
-| `sandbox.setup` | `SandboxSpec.setup()` 钩子链,全链合计一条 | remote agent / 没挂钩子 |
+| `sandbox.setup` | `SandboxSpec.setup()` 钩子链,phase 级合计一条,`steps` 逐钩子 | remote agent / 没挂钩子 |
 | `baseline` | git init + 空基线 commit | remote agent |
 | `eval.setup` | `EvalDef.setup` | 没定义 |
 | `agent.setup` | `Agent.setup`(装 CLI、写主配置;**安装基准的主角**) | 没定义 |
@@ -48,29 +58,38 @@ interface PhaseTiming {
 | `diff` | 采 `git diff`(`captureGeneratedFiles`) | remote agent / skipped |
 | `score` | 断言 finalize + 判定,含 judge 调用 | skipped 时为空集但仍记 |
 | `trace` | OTLP receiver settle / collect(有固定的落地等待窗口) | 没起 receiver |
+| `agent.teardown` | `Agent.teardown`(finally 收尾,先跑) | 没定义 |
+| `sandbox.teardown` | `SandboxSpec.teardown()` 钩子链,phase 级合计一条,`steps` 逐钩子 | remote agent / 没挂钩子 |
+| `sandbox.stop` | provider 销毁沙箱(`sandbox.stop()`) | remote agent |
 
-语义规则:
+`sandbox.queue` 到 `trace` 是**主链**,覆盖到结果构造为止;`agent.teardown` / `sandbox.teardown` / `sandbox.stop` 是**收尾段**,主链成败都执行。语义规则:
 
-- **只记实际发生的阶段**。没跑到、不适用(remote agent 的 `sandbox.*`)、没定义(可选钩子)都不落条目——缺席本身就是信息,不用 0 占位制造二义。
-- **顺序即执行序**,与生命周期文档的调用链一致。
-- **错误归因**:阶段抛错时,该条目以抛错时刻封口并标 `failed: true`,其后无条目。errored 结果「死在哪一步」= 数组最后一条 `failed` 条目,不设单独的 `failedPhase` 字段(可从数组一行推导的东西不重复落盘)。
+- **只记实际发生的阶段**。没跑到、不适用(remote agent 的 `sandbox.*`)、没定义(可选钩子)都不落条目——缺席本身就是信息,不用 0 占位制造二义。主链在某一步抛错时,该步之前已经执行的收尾动作照常记录(如 `sandbox.create` 失败则整个收尾段缺席——沙箱从未存在)。
+- **顺序即执行序**,与生命周期文档的调用链一致;收尾段总排在主链条目之后。
+- **错误归因**:主链阶段抛错时,该条目以抛错时刻封口并标 `failed: true`,其后无主链条目。errored 结果「死在哪一步」= 主链最后一条 `failed` 条目,不设单独的 `failedPhase` 字段(可从数组一行推导的东西不重复落盘)。收尾阶段的 `failed` 各自独立:teardown 失败是 diagnostic、不改判定,所以一个 passed attempt 也可以带一条 `failed` 的 `sandbox.teardown`。
 - **超时归因**:计时收集器在阶段开始时即登记 open 条目,attempt 总超时(`Effect.timeoutTo`)中断整段 body 时,超时路径构造的结果同样携带已收集的 phases,in-flight 阶段以中断时刻封口并标 `failed`。这样「顶到 timeoutMs 的 attempt 卡在哪」直接可读,不再靠最近进度行猜。
-- **口径与 `durationMs` 对齐**:phases 覆盖到结果构造为止,teardown 不计——`durationMs` 本就不含 teardown,且 teardown 失败只是 diagnostic、不改判定;两个字段保持同一时间口径,∑ phases ≤ `durationMs`(差值为阶段间粘合代码)。
+- **`durationMs` 口径**:`durationMs` 只覆盖到结果构造为止,不含收尾——teardown 失败只是 diagnostic、不改判定,判定口径不该被收尾拖长。因此 ∑ 主链 phases ≤ `durationMs`(差值为阶段间粘合代码);收尾段条目在这个口径之外单独可读——「判定早已确定、进程还在等收尾」这类问题(teardown 钩子回存状态慢、provider stop 卡住)的归因数据就在这里,不算进任何跨实验的耗时对比。
 - **`sandbox.queue` 单列**:容器创建被信号量限流,并发下排队等待可以远大于创建本身。混进 `sandbox.create` 会让「provider 起沙箱要多久」这个被测量被实验的并发度污染;单列后 create 的口径跨实验可比。
-- **`sandbox.setup` 钩子链合计一条**:钩子是匿名用户代码,没有稳定标识,分列的条目名跨实验不可比;钩子内部需要细分时自己 `log()`。
+- **钩子链 phase 级合计、step 级逐钩子**:钩子是匿名用户代码,没有稳定标识,跨实验的聚合与对比只在 phase 层进行——`sandbox.setup` / `sandbox.teardown` 各合计一条。同一条目的 `steps` 按链序逐钩子明细(具名函数用函数名,匿名钩子用 `setup#<i>` / `teardown#<i>`),只回答「这一次 attempt 的 setup 时间花在链上哪一环」,不做跨 attempt / 跨实验聚合;∑ steps ≤ 所在阶段的 `durationMs`。钩子内部再细的进度仍走 `ctx.log`,不落盘。
+- **`agent.setup` 不带 steps**:装 CLI、装 Skill / plugin、写配置发生在 adapter 函数内部,runner 看不见步骤边界;adapter 侧的结构化进度出口是 [Scoped Attempt Feedback](../../roadmap/scoped-attempt-feedback.md) 提案的范围,该提案定稿前 `agent.setup` 保持单条。
 
 ### 形状与落点的裁决
 
 - **为什么是有序数组而不是固定字段 record**:顺序天然携带「死在哪一步之前」;缺席语义干净(没跑 = 没条目,不用在 0 / undefined 之间选);新增阶段不改类型形状。聚合侧按 `name` 分组,和 record 一样是一行代码。
 - **为什么住 `result.json` 而不是 OTel trace**:trace 是条件产物(agent 配了 tracing、receiver 起了才有),而阶段计时必须无条件产出;且 [Observability](../../observability.md) 的契约是 span 只来自被测 agent、只喂瀑布图——runner 自己的阶段 span 混进去会污染跨 agent 对比语义。phases 是判定记录旁的运行事实,家在权威记录里。
 - **为什么不给进度行加时间戳再挖掘**:进度行是人读的 UI 文案,把它变成机器口径意味着改文案就破坏数据管道;计时和展示各自独立,共享的只是阶段边界这几个代码位置。
-- **兼容性**:纯增量的可选字段,读取面「忠实磁盘、忽略未知字段」的契约不变,`schemaVersion` 不升。携带条目(`--resume`)的 phases 随 `result.json` 原样携带。
+- **兼容性**:纯增量的可选字段与闭集增补,读取面「忠实磁盘、忽略未知字段」的契约不变,`schemaVersion` 不升。读取器读到闭集之外的阶段名时原样透传、渲染面按未知阶段列在末尾,不报错。携带条目(`--resume`)的 phases 随 `result.json` 原样携带。
 
 ### 消费边界
 
-普通 `niceeval exp` 由 runner 写入 `phases`，`niceeval/results` 读取面原样透传。`bench/` 不经过 CLI，也不写 `.niceeval/result.json`；它直接调用 runner 的单次 Attempt 引擎，从内存返回值读取同一份 `phases`。两条路径共享阶段名和计时语义，只在是否经过 discover、是否持久化上不同。
+普通 `niceeval exp` 由 runner 写入 `phases`，`niceeval/results` 读取面原样透传。消费面有四个:
 
-`niceeval show`、`niceeval view` 与 Reports 不提供阶段分段视图；本工程机制的消费面是结果读取 API 与 `bench/`。
+- **`niceeval show`**:attempt 首页的 `timing:` 行给主链分解与收尾合计;`--timing` 切面给逐阶段表格与钩子链步级明细。契约见 [Show](../../feature/reports/show.md#--timing时间花在哪个生命周期阶段)。
+- **`niceeval view`**:Attempt 详情的阶段耗时区,同一份 phases 的图形面。契约见 [View](../../feature/reports/view.md)。
+- **结果读取 API**:`niceeval/results` 原样透传,聚合脚本按 `name` 分组。
+- **`bench/`**:不经过 CLI,也不写 `.niceeval/result.json`;它直接调用 runner 的单次 Attempt 引擎,从内存返回值读取同一份 `phases`。与 CLI 路径共享阶段名和计时语义,只在是否经过 discover、是否持久化上不同。
+
+阶段计时不进 OTel trace,也不混入 Traces 瀑布图——span 只来自被测 agent(见 [Observability](../../observability.md)),phases 是 runner 侧的运行事实;两条数据各有各的家与展示位,永不合并。
 
 ## 基准:`bench/` 直接调用的内部脚本
 
@@ -151,9 +170,11 @@ npx tsx bench/compare.ts bench/.snapshots/docker-codex-<old>.json bench/.snapsho
 
 复用 `test/fixtures/sandbox-hooks` 这条既有 e2e 流水线(内存假 sandbox + mock send + 真实 CLI,全程不联网、不起容器)——它已经覆盖 setup 全序与抛错路径,phases 是同一条流水线的另一个观察面,新增断言不新增 fixture:
 
-1. **全序与闭集**:成功 attempt 的 `result.json` 里 phases 顺序与生命周期一致,阶段名全部落在闭集内,`durationMs ≥ 0` 且 ∑ phases ≤ 总 `durationMs`。
-2. **错误归因**:`sandbox.setup` 抛错的 fixture,phases 止于 `sandbox.setup` 且该条 `failed: true`,其后无条目(`agent.setup` 从未出现)。
+1. **全序与闭集**:成功 attempt 的 `result.json` 里 phases 顺序与生命周期一致,阶段名全部落在闭集内,`durationMs ≥ 0` 且 ∑ 主链 phases ≤ 总 `durationMs`;收尾段条目总排在主链之后。
+2. **错误归因**:`sandbox.setup` 抛错的 fixture,主链止于 `sandbox.setup` 且该条 `failed: true`,其后无主链条目(`agent.setup` 从未出现);已创建沙箱的收尾段照常有条目。
 3. **remote 无沙箱阶段**:remote agent 的结果不含任何 `sandbox.*` / `baseline` / `diff` 条目。
+4. **收尾独立 failed**:teardown 钩子抛错的 fixture,`sandbox.teardown` 条目标 `failed: true`、`sandbox.stop` 照常记录,verdict 不因此改变。
+5. **步级明细**:挂多个 setup 钩子的 fixture,`sandbox.setup` 的 `steps` 逐钩子有条目、顺序与链序一致,且 ∑ steps ≤ 该阶段 `durationMs`。
 
 ## 相关阅读
 
