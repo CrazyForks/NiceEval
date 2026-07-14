@@ -151,8 +151,9 @@ interface AttemptRecord {
   /**
    * 不透明的 Attempt 定位符:`@` + 1 位 scheme 字符 + 7 位 base36 body(如 `@1x7f3q9k`)。
    * 由 `{experimentId, 快照 startedAt, evalId, attempt}` 这个不可变身份元组确定性派生——
-   * 不是数组下标、不是磁盘路径。非携带条目由 writer 落盘时算出;携带条目(见下)原样复制
-   * 上一轮的值,从不重算(原快照的 startedAt 已经不在本轮快照里,重算会算出不同的字符串)。
+   * 不是数组下标、不是磁盘路径。fresh 条目在 attempt 调度前由 runner 算出并贯穿执行、留存登记与落盘;
+   * 携带条目(见下)原样复制上一轮的值,从不重算(原快照的 startedAt 已经不在本轮快照里,
+   * 重算会算出不同的字符串)。
    * `niceeval show @<locator>` 与报告 / view 的 attempt 深链都靠它寻址,详见
    * [Library · 按 locator 寻址一个 attempt](library.md#按-locator-寻址一个-attemptresolvelocator)。
    */
@@ -250,6 +251,8 @@ interface DiagnosticRecord {
   count?: number;
 }
 ```
+
+`sandbox` 是新增的可选字段(remote attempt 与旧 producer 都可以没有),老读取器按未知字段忽略,因此按本页版本规则不递增 `schemaVersion`;当前版本仍是 `7`。
 
 `phases` 缺失表示结果不是由带阶段计时的 runner 产出。数组顺序就是执行顺序；不适用、未定义或没有执行的阶段不写 0 值条目。`eval.teardown` / `agent.teardown` / `sandbox.teardown` / `sandbox.stop` 是收尾段：主链抛错后它们照常执行、照常计时，各自可独立标 `failed`（对应 teardown diagnostic，不改判定），且不计入 `durationMs` 口径——「结果早已确定、收尾还卡着」的耗时因此可归因。结果封口必须发生在 Effect Scope 的 release 完成之后：`sandbox.stop` 与 receiver close 这类 finalizer 也向 attempt 共用的 timing recorder 写入，再由 Scope 外层组装最终 `AttemptRecord`；不能在 body 返回时先封口、事后再尝试修改已写出的结果。
 

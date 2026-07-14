@@ -345,6 +345,8 @@ export default defineSandbox({
 });
 ```
 
+自定义 provider 不支持 `--keep-sandbox`。留存后的 `niceeval sandbox stop` 是不加载 config / eval 模块的新进程,无法安全找回用户对象上的销毁函数;框架也不会用“删登记项、让用户手工清理”冒充完整生命周期。组合使用会在调用 `create()` 前报错,不会先起一个无法纳管的实例。
+
 要贡献进 niceeval 本体(像 docker/vercel/e2b 那样内置)走另一条路,见 [Architecture · 再接一个 provider](architecture.md#再接一个-provider)。
 
 ## 相关阅读

@@ -35,7 +35,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [run-command-canonical-tool-name-portability](run-command-canonical-tool-name-portability.md) — 断言"跑过 shell"要用规范类目 `"shell"`,不要用某一家的原始工具名字面量(如 `"command_execution"` 只对 codex 恰好成立)
 - [docker-apple-silicon-amd64-emulation-slow](docker-apple-silicon-amd64-emulation-slow.md) — 本机 Apple Silicon 上 dockerSandbox 默认拉 amd64 镜像走模拟,沙箱型 eval 实测比原生慢好几倍,timeoutMs 要留余量
 - [claude-code-persistent-memory-breaks-verbal-isolation](claude-code-persistent-memory-breaks-verbal-isolation.md) — claude-code 会把"帮我记住"写进磁盘 memory,newSession 后合法记得;session-isolation 反证要测 transcript 不回放历史,不测回答不含事实
-- [sandbox-provision-ratelimit-retry](sandbox-provision-ratelimit-retry.md) — 设计裁决:provisioning 瞬时错误(限流 + 传输层,2026-07-14 翻案扩围)退避重试,provider 归类 + 瞬时分类器兜底,重试在 resolve.ts 而非 runner
+- [sandbox-provision-ratelimit-retry](sandbox-provision-ratelimit-retry.md) — 设计裁决:provisioning 瞬时错误退避重试(2026-07-14 两轮:先扩围到传输层,评审再否决盲重试)——瞬时按后果分拒绝类(直接重试)/歧义类(须 provision token 对账、销毁重建后才能重试,无检索通道则第一次抛),防泄漏计费实例;vercel 外层封顶收窄防嵌套放大;重试在 resolve.ts 而非 runner
 - 已修 [provision-retry-holds-concurrency-slot](provision-retry-holds-concurrency-slot.md) — provisioning 退避重试期间攥着 sandboxSem 并发名额陪跑 setTimeout,一批 429 能把实际并发拖到远低于 --max-concurrency 声明值(个位数);修为 ProvisionSlot 退避前 release、睡醒后 reacquire(`src/sandbox/retry.ts` + `resolve.ts` + `runner/attempt.ts`)
 
 ## judge
@@ -165,7 +165,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [phase-timings-teardown-steps-and-show-view](phase-timings-teardown-steps-and-show-view.md) — 裁决(2026-07-14):`phases` 闭集补收尾段(agent.teardown/sandbox.teardown/sandbox.stop,不入 durationMs 口径)、setup/teardown 钩子链新增 step 级明细(phase 级合计保留),消费面扩到 show 首页 timing 行 + `--timing` 切面与 view Attempt 详情;翻案「teardown 不计时」「钩子链只合计」「show/view 不提供阶段视图」三条原契约
 - [unified-attempt-timing-tree](unified-attempt-timing-tree.md) — 裁决(2026-07-14):扁平 phase steps 升级为 phase→hook/turn→sandbox command 的递归时间树,turn 以 traceId 挂接 OTel agent/model/tool；`--timing` 成为完整时间入口,`--execution` 只保留事件旁时间注释；推翻「agent.setup 不细分」与「timing/execution 各管半边时间」
 - [lifecycle-phase-vocabulary-unification](lifecycle-phase-vocabulary-unification.md) — 裁决(2026-07-14):AttemptPhase/PhaseName/LifecycleOperationName 三套生命周期词表合一为 `LifecyclePhase` 闭集(含归并对照表,新增 eval.teardown);`error.operation`/`diagnostics.operation` 改名 `phase`,schemaVersion 6→7;曾选「保留三套+映射表」因永久同步税与已发生的可见漂移否决
-- [sandbox-keep-scene-decision](sandbox-keep-scene-decision.md) — 裁决(2026-07-14):debug 沙箱走 opt-in 留存现场(`--keep-sandbox` + `niceeval sandbox list/stop`,注册表登记,「不留孤儿」精化为「不留无主」);曾选「加大 artifact 采集」「按 artifact 重建环境」「接口加 pause/detach」「只打印清理命令不做命令组」均否决(最后一条被用户推翻——要完整生命周期)
+- [sandbox-keep-scene-decision](sandbox-keep-scene-decision.md) — 裁决(2026-07-14):debug 沙箱走 opt-in 留存现场(`--keep-sandbox` + `niceeval sandbox list/stop`,Scope 外包 timeout、逐条目原子登记,「不留孤儿」精化为「不留无主」);自定义 provider 因无法跨进程销毁而不支持 keep;曾选「加大 artifact 采集」「按 artifact 重建环境」「接口加 pause/detach」「只打印清理命令不做命令组」均否决
 - [scoped-feedback-finalized](scoped-feedback-finalized.md) — 裁决(2026-07-14):ScopedFeedback(progress/diagnostic)定稿为 feature 契约、单一归属 experiments/library.md,roadmap 提案页删除;三个遗留分歧逐条裁决(ctx 注入签名、core 中立属实现纪律、`ctx.log` = progress 别名);07-13 的推迟裁决仍约束实现排期,不再约束文档定稿状态
 - [results-schema-version-history](results-schema-version-history.md) — Results Format schemaVersion 逐版差异台账(1→7),正文只声明当前版本,升版时来这里追加一行
 - [test-system-two-layers-no-offline-integration](test-system-two-layers-no-offline-integration.md) — 裁决(2026-07-14):测试体系只有 unit(确定性 fixture)+E2E(全真实)两层,否决「离线 CLI 集成层/无 key 档」(AI 不贵,mock 协议=再实现一遍协议);同批确立变更预算判据(无关测试变红=缺陷)、unit-tests 每 Feature 拆架构/用例两页,并修正 budget 与 Results 选择两处旧测试文档漂移

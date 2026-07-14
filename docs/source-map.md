@@ -106,7 +106,7 @@
 | 反馈 coordinator(profile 解析、纯 reducer、human/agent/ci renderer、终端 sink、可注入 FeedbackIO) | `src/runner/feedback/{profile,reducer,renderer,human,agent,ci,sink,coordinator,io,testing,index}.ts` |
 | 机器 / 平台 reporter(Artifacts / Json / JUnit(同目录 temp→rename 原子写)/ Braintrust) | `src/runner/reporters/{artifacts,json,braintrust,index}.ts` |
 | eval 级折叠 / 计票口径(CLI 退出码与 view 共用) | `src/shared/verdict.ts` |
-| 本地结果保存格式(快照目录 `.niceeval/<experiment>/<snapshot>/snapshot.json` + attempt 级 `result.json` / JSON artifact;fresh attempt 完成后立即写入最终 `locator`,与 Artifacts writer 共用同一个 `snapshotStartedAt`) | `src/runner/reporters/artifacts.ts`(reporter 薄壳,按 experimentId 路由到快照 writer)、`src/results/writer.ts`(`createResultsWriter`)、`src/results/types.ts`(`SnapshotMeta` / `AttemptRecord`)、`src/runner/run.ts`(locator 生成点) |
+| 本地结果保存格式(快照目录 `.niceeval/<experiment>/<snapshot>/snapshot.json` + attempt 级 `result.json` / JSON artifact;fresh attempt 调度前即生成最终 `locator`,与 Artifacts writer 共用同一个 `snapshotStartedAt`) | `src/runner/reporters/artifacts.ts`(reporter 薄壳,按 experimentId 路由到快照 writer)、`src/results/writer.ts`(`createResultsWriter`)、`src/results/types.ts`(`SnapshotMeta` / `AttemptRecord`)、`src/runner/run.ts`(locator 生成点) |
 | CLI(exp / show / list / view / clean / init,--help,parseArgs 表驱动,.env 加载,NICEEVAL_* 环境变量层,`--output` profile 解析) | `src/cli.ts` |
 | `niceeval show` 终端宿主(Selection 合成「现刻水位」、--history 复印件不占行、--report 装载 + 组合语义矩阵、证据切面 transcript/trace/diff) | `src/show/{index,compose,render}.ts` |
 | 数据集加载器(loadJson / loadYaml) | `src/loaders/index.ts` |

@@ -20,7 +20,7 @@
   → collectGeneratedFiles()                # git diff HEAD
   → SandboxAgent.teardown?.(sandbox, ctx)   # finally:agent 级收尾先跑
   → sandbox.teardown?.(sandbox, ctx)        # finally:环境层收尾最后跑,销毁前——回存跨 attempt 状态用这个时机
-  → sandbox.stop()                         # 销毁;--keep-sandbox 命中时跳过,沙箱转入留存注册表(见下)
+   → commitKeepOrStop()                     # verdict 命中时原子登记后留存;否则 sandbox.stop()(见下)
 ```
 
 环境层钩子排在最前、也收在最后,不是任意选择:它准备的是**环境**(装二进制、预热模型、写 hook 文件),不是这条 eval 的任务材料,必须先于 git 基线跑——像镜像构建先于代码挂载——否则它写下的文件会被 `git diff` 误记成"agent 生成的改动",污染这条 eval 的 diff 归因。teardown 顺序对称颠倒:agent 级收尾先跑(它可能还要用沙箱做收尾动作,比如导出 transcript),环境层收尾最后跑、销毁前一刻——这个位置正好用来把状态回存到沙箱外部。
@@ -35,18 +35,27 @@
 
 ## 留存(keep)与注册表
 
-[`--keep-sandbox`](cli.md) 的留存决策发生在 attempt 收尾链的最后一步:verdict 定稿后,策略命中(`failed` 档匹配 `failed` / `errored`,含硬超时打断的 `errored`;`always` 档全收)则跳过 `sandbox.stop()`,其余收尾(agent teardown、环境层 teardown、diff 采集)已经照常完成。授予留存的同时做两件事:
+[`--keep-sandbox`](cli.md) 的留存决策发生在 attempt 收尾链的最后一步:verdict 定稿后,策略命中(`failed` 档匹配 `failed` / `errored`,含硬超时打断的 `errored`;`always` 档全收)才提交留存,其余收尾(agent teardown、环境层 teardown、diff 采集)已经照常完成。attempt 的最终 `locator` 在调度前已经由 invocation 的 `snapshotStartedAt` 与 attempt 身份算好,因此登记项、run 收尾反馈与 `result.json` 从第一次写入起就使用同一个 locator,没有事后补写窗口。
 
-- **移出本次 run 的清理集合** —— `stopAllSandboxes()` 兜底、Ctrl+C 三级路径、attempt Scope finalizer 都只清仍在集合里的沙箱。「不留无主沙箱」的不变量由此保持:任何沙箱要么在清理集合里(退出前必被 stop),要么已登记进注册表(`niceeval sandbox list` 可见、`stop` 可清),不存在第三种状态。
-- **登记进留存注册表** —— `.niceeval/sandboxes.json`,一条 = `{ sandboxId, provider, evalId, attempt, experimentId?, locator?, verdict, keptAt, workdir, enter?, expiresAt? }`。`enter` 是 provider 给出的进入命令(docker 的 `docker exec -it … bash`、e2b 的 `e2b sandbox connect …`);`expiresAt` 是云 provider 的自然过期时刻。条目的移除只发生在 `niceeval sandbox stop`。
+沙箱的 Effect Scope 持有一个只在本 attempt 内可变的 release disposition,初始为 `stop`。attempt deadline 只中断 Scope **里面的 verdict-producing 工作 fiber**,把超时转换成 `errored` draft;它不关闭外层 Scope。runner 随后仍在同一个 Scope 内执行有界 teardown、定稿 verdict,再调用 `commitKeepOrStop()`。这样硬超时现场尚未被 finalizer 销毁,而 Ctrl+C 中断外层 Scope 时 disposition 仍是 `stop`,照常清理。Scope release 最后按 disposition 执行:只有留存提交成功才跳过 `sandbox.stop()`。
+
+留存提交严格按以下顺序,不能调换:
+
+1. 把完整登记项原子写入持久注册表。一条 = `{ sandboxId, provider, evalId, attempt, experimentId?, locator, verdict, keptAt, workdir, enter?, expiresAt? }`。
+2. 写入成功后,才把 disposition 改成 `keep` 并从本次 run 的内存清理集合移除。
+3. 写入失败时保持 `stop`,记录 diagnostic,让 Scope finalizer 正常销毁;该 attempt 的 `sandbox.kept` 不得写成 `true`。
+
+持久注册表是 `.niceeval/sandboxes/` 下的**逐条目文件**,不是多个 attempt 竞争改写的一份 JSON。entry id 由 `provider + sandboxId` 做稳定散列;每条先写同目录临时文件、`fsync` 文件后 `rename` 成 `<entry-id>.json`,再 `fsync` 目录;不同 attempt 与不同 niceeval 进程不会覆盖彼此。`sandbox stop` 先完成 detached 销毁(实例已不存在也算完成),再删除对应条目并同步目录;销毁失败则保留条目并退出 1,不能为了让列表变干净而制造无主资源。受支持的正常返回、异常、超时和 Ctrl+C 路径因此保持:沙箱要么仍在内存清理集合,要么已有可被 `list` / `stop` 发现的持久条目。无法拦截的进程 `SIGKILL` / 宿主断电不承诺分布式原子性;Docker 的 candidate label 与云 provider TTL 用于事后核对这类外部中断。
+
+`enter` 是 provider 给出的进入命令(docker 的 `docker exec -it … bash`、e2b 的 `e2b sandbox connect …`);`expiresAt` 是云 provider 的自然过期时刻。
 
 `sandbox list` / `stop` 按注册表条目的 `provider` 名路由到各 provider 的 **detached 销毁**能力——不需要原来的 run 进程或 `Sandbox` 实例还活着(docker:`rm -f`;e2b / vercel:SDK 按 id kill)。这层按名字路由发生在 CLI / 注册表边界,符合[核心中立](../../architecture.md)的分界:运行器与评分路径仍不感知 provider 名。
 
 各 provider 的留存语义:
 
-- **Docker** —— 留存的容器不会自己消失,是唯一需要用户主动清理的 provider。`--keep-sandbox` 的 run 在创建容器时就不带 `AutoRemove`(留存意图必须在创建期传入),`stop()` 改为显式 stop + remove,行为等价;容器带 `niceeval.kept` 标签,与注册表互为核对(`docker ps -f label=niceeval.kept`)。
+- **Docker** —— 留存的容器不会自己消失,是唯一需要用户主动清理的 provider。`--keep-sandbox` 的 run 在创建容器时就不带 `AutoRemove`(留存意图必须在创建期传入),`stop()` 改为显式 stop + remove,行为等价;容器带 `niceeval.keep-candidate=true` 标签。正常 run 结束后该标签下只剩已登记的 kept 容器;异常硬退时可用它核对未完成提交的候选。
 - **E2B / Vercel Sandbox** —— 留存 = 不调 kill,微 VM 活到自身 session / 模板 timeout 自然过期,成本天然有界;`expiresAt` 写进注册表,`list` 据此报 `expired`。Vercel session 只有数分钟量级,留存窗口相应短,`list` 如实展示而不掩盖。
-- **`defineSandbox` 自定义 provider** —— 可选声明 `stopDetached(sandboxId)`。未声明时留存照常生效(跳过 `stop()` 不需要 provider 配合),但登记时附一条 diagnostic 说明该 provider 需按原生方式手动清理;`sandbox stop` 对这类条目只移除注册表记录并重复该提示。
+- **`defineSandbox` 自定义 provider** —— 不参与留存。`niceeval sandbox` 刻意不加载 config / eval 模块,新进程只有序列化登记项,无法安全找回用户对象上的任意 `stopDetached` 函数;只删登记项又会违反「stop = 销毁」。因此 `--keep-sandbox` 与自定义 provider 组合在创建前报清晰错误。需要统一留存生命周期的 provider 应贡献为内置 provider;未来若引入可序列化、可审计的 detached cleanup 协议,再扩这条边界。
 
 `Sandbox` 接口不因留存扩大:没有 pause / detach / keep 方法——「留下」不是沙箱的能力,是 runner 的一次调度决定。留存的 attempt 在 `result.json` 落 `sandbox: { provider, sandboxId, kept: true }`(字段契约见 [Results](../results/architecture.md#resultjson)),`phases` 无 `sandbox.stop` 条目。
 
@@ -88,12 +97,27 @@ await sandbox.runCommand("npm", ["install"]);     // cwd 省略 → workdir
 
 ## Provisioning 失败与重试
 
-`createSandbox()` 跨网络调用 provider 控制面,会撞上两类本质不同的失败。瞬时失败的本质是"再等等就好":限流(E2B/Vercel 云配额、Docker Hub 镜像拉取限流),以及传输层瞬时错误(`fetch failed`、连接重置、5xx、临时 DNS / 网络不可达)。确定性失败是"配置就是错的":模板不存在、凭据缺失、权限不足。框架在 provisioning 阶段对两者分别处理:
+`createSandbox()` 跨网络调用 provider 控制面,失败按两个维度分类:**性质**(瞬时还是确定性)决定要不要重试,**后果**(远端是否可能已经创建了实例)决定能不能直接重试。
 
-- 分类分两层,都留在 sandbox/ 内、不外泄到 Adapter / Runner:各内置 provider 先把自己 SDK 原生的限流错误(e2b 的 `RateLimitError`、vercel 的 `APIError{ response.status: 429 }`、docker 拉镜像时 message 里的 `toomanyrequests`)归类成中性的 `"rate_limit"`;provider 没认出的错误再过一遍与文件 IO 重试共用的保守瞬时分类器(见下节),识别出的传输层瞬时错误同样判为可重试。创建沙箱是幂等的——失败的 create 没有留下会被复用的实例,重试传输错误不会造成半个环境。
-- `resolve.ts` 的 `createProvider()` 对可重试错误做指数退避重试(封顶次数 + 抖动);确定性错误第一次就抛出——重试对着"配置就是错的"没有意义,只会拖慢失败反馈。
+**性质**:瞬时失败的本质是"再等等就好"——限流(E2B/Vercel 云配额、Docker Hub 镜像拉取限流)与传输层瞬时错误;确定性失败是"配置就是错的"——模板不存在、凭据缺失、权限不足,重试没有意义,识别出即第一次抛出。两个方向的误判代价不对称:把瞬时误判成确定性,一个本可自愈的 attempt 被白白判死;把确定性误判成瞬时,只多花封顶的退避时间,最后仍如实抛出原始错误——只慢不错。分类器因此偏向宽认瞬时,并接受有界的误判代价(存在把确定性错误包装成 5xx 文案的 SDK,反例台账见 memory 的 sandbox-provision-ratelimit-retry 条目)。
+
+**后果**:同为瞬时,重试的安全性完全不同——
+
+- **拒绝类**(请求确定没被受理,远端没有实例):限流响应、连接建立失败(DNS 解析失败、连接被拒、TLS 握手失败)。直接指数退避重试(封顶次数 + 抖动)。
+- **歧义类**(请求可能已被受理、只是响应丢了,远端可能有一台正在计费的实例):响应中途的连接重置(`fetch failed`、`other side closed`)、请求超时、5xx。盲目重试会在远端积累没有任何一方持有 id 的实例——泄漏计费资源,也打破[「不留无主沙箱」](#留存keep与注册表)的不变量。歧义类重试前必须**对账**:每次 create 请求把一次性 provision token 写进 provider 原生元数据,重试前按 token 检索远端,查到的实例先销毁再重建——不做断线收养,重建比重连语义干净,冷启动成本本来就要付。provider 没有按元数据检索实例的通道时,歧义类不重试、第一次抛出:宁可判死一个 attempt,不留一台计费的无主实例。
+
+分类分两层,都留在 sandbox/ 内、不外泄到 Adapter / Runner:各内置 provider 先把自己 SDK 原生的限流错误(e2b 的 `RateLimitError`、vercel 的 `APIError{ response.status: 429 }`、docker 拉镜像时 message 里的 `toomanyrequests`)归入拒绝类;provider 没认出的错误再过一遍与文件 IO 重试共用的保守瞬时分类器(见下节),由错误形态落进拒绝类或歧义类。
+
+各内置 provider 的对账通道与重试面:
+
+- **Docker** —— create 是对本地 daemon 的调用,歧义窗口极小;容器创建时即带 niceeval label(与留存候选的 `niceeval.keep-candidate` 标签同一机制),对账 = 按 label 查询本地容器。拒绝类主要是拉镜像限流。
+- **E2B** —— create 经 `metadata` 打 provision token,对账走 SDK 实例列表的 metadata 过滤,查到即 kill 后重建。真实跑分中出现过的 `Sandbox.create` 阶段 `fetch failed · other side closed` 由此可安全重试。
+- **Vercel Sandbox** —— SDK 对 429 已内建多次退避重试(读 `Retry-After`),外层对拒绝类的封顶次数相应收窄,避免「外层次数 × 内层次数」在请求量和退避时长两个维度同时放大;SDK 没有按元数据检索实例的通道,歧义类第一次抛出。
+
+重试循环本身在 `resolve.ts` 的 `createProvider()`:
+
 - 退避睡眠期间临时归还并发槽位(`retry.ts` 的 `ProvisionSlot`),睡醒后再排队要回来——在退避的 attempt 只是在等,不该攥着 `sandboxSem` 的名额陪跑 `setTimeout`,不然一批 429 会把整批实际并发拖成远低于 `--max-concurrency` 声明值的个位数。
-- 重试全部耗尽后仍按原语义走:`verdict: "errored"`(基建问题,不是 agent 表现)。
+- 重试全部耗尽后仍按原语义走:`verdict: "errored"`(基建问题,不是 agent 表现);对账中销毁的实例不额外报错,只留 diagnostic。
 
 Provisioning 的分类只覆盖"创建沙箱"这一步。沙箱创建成功后被 provider 终止属于 lifecycle failure,不能当成同一个实例里的普通 IO 失败继续重试;应保留明确终止原因,由 attempt 层决定是否允许重新创建整个环境。
 

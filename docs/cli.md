@@ -30,7 +30,7 @@ process.argv
       view  → resolveViewInput → startViewServer / buildView(--out)   # 只读路径
       show  → runShow(cwd, positionals, flags)                        # 只读路径
       clean / init / watch → 各自的一次性动作,直接退出
-      sandbox → 留存沙箱的 list / stop(读写 .niceeval/sandboxes.json,按条目 provider 名路由 detached 销毁;
+      sandbox → 留存沙箱的 list / stop(读写 .niceeval/sandboxes/ 逐条目注册表,按条目 provider 名路由 detached 销毁;
                 不读 config、不发现 eval,行为契约见 feature/sandbox/cli.md)
       list  → loadConfig + discoverEvals,打印后退出
       exp   → loadConfig + discoverEvals + discoverExperiments
@@ -46,7 +46,7 @@ process.argv
               → 注册 SIGINT/SIGTERM 三级响应(见下)
               → runEvals({ config, evals, agentRuns, reporters, signal, priorResults, carryPlan, … })  # 进入 Effect 调度核心
               → 收尾:stopAllSandboxes() 兜底强清(只清运行清理集合;--keep-sandbox 留存的沙箱已在
-                verdict 定稿时移出集合并登记注册表,见 feature/sandbox/architecture.md)
+                verdict 定稿时先原子登记注册表、再移出集合,见 feature/sandbox/architecture.md)
                 → coordinator.stopDynamic() → 把 coordinator 累计的诊断
                 折成 RunCompletion → coordinator.finish({ summary, completion, paths, json, junit }) 打印
                 最终摘要与快照路径 → 按 CompletionStatus 与 evalLevelStats 折叠的 verdict 统一计算退出码
@@ -91,15 +91,15 @@ reporter 失败、Ctrl+C 中断——都经 `sink.ts` 的 `reportActivity` / `re
 统一吞掉每次回调抛出的异常,按 `reg.name` 去重折叠成一条 `reporter-error:<name>` diagnostic;
 `reg.required` 决定它是否写进最终 `RunCompletion.reporterErrors` 并让 completion 非 `complete`。
 
-### locator 提前生成
+### locator 在调度前生成
 
-`runEvals()` 在展开/调度任何 attempt 之前就确定好本次 invocation 的 `snapshotStartedAt`;每个 fresh
-attempt 完成后,在广播 `eval:complete` 或触发任何 reporter 回调之前,`run.ts` 立即算出
-`result.locator = encodeAttemptLocator({ experimentId, snapshotStartedAt, evalId, attempt })` 并写回
-`EvalResult`。Artifacts writer 落盘时经 `RunShape.snapshotStartedAt` 拿到同一个锚点,不再各自按"该
-experiment 第一条完成 result 的 attempt startedAt"猜——reporter 的 `onEvalComplete`、feedback
-coordinator 的 `failure` 事件与 `niceeval show` 读到的 `result.json` 看到的都是同一个最终 locator。
-携带(`--resume` 合入)条目原样保留旧 locator,不按当前 invocation 重算。
+`runEvals()` 在展开/调度任何 attempt 之前就确定好本次 invocation 的 `snapshotStartedAt`,并在构造 fresh
+attempt plan 时立即计算
+`locator = encodeAttemptLocator({ experimentId, snapshotStartedAt, evalId, attempt })`。这个值作为 attempt
+身份的一部分传进 `runAttempt`,不是完成后再写回结果。于是 verdict 定稿时提交的留存注册表、feedback
+coordinator 的 failure / kept 事件、reporter 的 `eval:complete` 与最终 `result.json` 从第一次观察起就拿到
+同一个 locator。Artifacts writer 经 `RunShape.snapshotStartedAt` 使用同一个锚点;携带(`--resume` 合入)
+条目仍原样保留旧 locator,不按当前 invocation 重算。
 
 ## flag 解析:表驱动,单源
 
@@ -134,13 +134,16 @@ preflight(要不要跑这个 attempt)不占 permit——它是即时返回的判
 
 ```typescript
 // sandbox/resolve.ts
-Effect.acquireRelease(
-  Effect.promise<Sandbox>(async () => /* create */),
-  (sb) => Effect.promise(() => stopSandbox(sb)),
+const disposition = yield* Ref.make<"stop" | "keep">("stop");
+const sandbox = yield* Effect.acquireRelease(
+  Effect.promise(() => create()),
+  (sb) => Ref.get(disposition).pipe(
+    Effect.flatMap((mode) => mode === "stop" ? Effect.promise(() => stopSandbox(sb)) : Effect.void),
+  ),
 );
 ```
 
-`attempt.ts` 把整个 attempt body 包进 `Effect.scoped(...)`:无论 body 成功、抛错,还是被中断(Ctrl+C),`Scope` 的 finalizer 都保证跑完——容器一定会被 `stop()`,OTel 接收器一定会被 `close()`。这是"不留孤儿沙箱"承诺的实现机制,不是靠 `try/finally` 手写覆盖每条退出路径。
+`attempt.ts` 把资源 lease、工作超时、teardown 与留存提交包在同一个 `Effect.scoped(...)` 里。沙箱 lease 的 release disposition 初始为 `stop`;正常、抛错或 Ctrl+C 关闭 Scope 时都会停容器。只有 verdict 定稿后先把留存条目原子写盘成功,runner 才把 disposition 切到 `keep`;写盘失败保持 `stop`。OTel receiver 不参与留存,始终由自己的 finalizer 关闭。这是"不留无主沙箱"承诺的实现机制,不是靠 `try/finally` 手写覆盖每条退出路径。
 
 ### 3. 取消是一等信号,不是事后检查
 
@@ -159,7 +162,7 @@ const exit = await Effect.runPromiseExit(
 
 `runPromiseExit`（而非 `runPromise`）返回一个 `Exit` 而不抛错，让 runner 把“用户按了 Ctrl+C”当成正常的部分结果收尾（用已完成的 results 出一份汇总），而不是让中断变成一条看起来像 bug 的崩溃栈。`catchAllCause` 把中断类的 `Cause` 咽下、非中断的意外照常上抛——这两类必须分开处理，否则一次 Ctrl+C 要么被误判成真缺陷，要么真缺陷被误当成正常中断吞掉。
 
-每个 attempt 自己还有硬性的超时边界(`Effect.timeoutTo`),独立于外层的用户中断信号:到点中断整段 body、触发 `Scope` release(停容器),产出一条 `errored` 结果——即便 adapter 完全无视传给它的 signal 也能被这层拦下来,这是"一个卡死的 attempt 不会挂起整批"承诺的硬边界,`run.ts` 层面的两级并发闸解决不了这个问题(它只管发不发新 attempt,不管已经在飞的会不会卡死)。
+每个 attempt 自己还有硬性的工作超时边界(`Effect.timeoutTo`),独立于外层的用户中断信号。关键嵌套是 **Scope 在外、timeout 在内**:到点只中断产生 verdict 的工作 fiber并转换成 `errored` draft,沙箱 lease 此时仍活着;runner 在同一 Scope 内执行有界 teardown、定稿 verdict并尝试提交 keep,最后才关闭 Scope。这样超时现场可以按策略留下,而 Ctrl+C 是中断外层 Scope,没有 verdict / keep commit 就一定走 `stop`。即便 adapter / test 无视传入 signal,Effect 仍能从调度侧结束等待并进入收尾;各 teardown 与 provider stop 自己另有清理超时,不能无限拖住硬边界后的退出。
 
 ### 为什么 `cli.ts` 本身不用 Effect
 
@@ -174,7 +177,7 @@ const exit = await Effect.runPromiseExit(
 第 3 次 Ctrl+C   → 硬退(process.exit),此时多半已无可清理的
 ```
 
-目标是任何情况下都不留**无主**沙箱:每个沙箱要么在本次 run 的清理集合里——退出前必被 stop,第 1 次 Ctrl+C 给 Effect 的 Scope finalizer 一个机会走优雅路径,用户等不及时第 2 次直接兜底强清,`main()` 的顶层 `.catch()` 对真·崩溃路径同样先 `stopAllSandboxes()` 再退出,三条路径共用同一个兜底函数;要么已按 [`--keep-sandbox`](feature/sandbox/cli.md) 在 verdict 定稿时移出清理集合、登记进留存注册表(`niceeval sandbox list` 可见、`stop` 可清)。不存在第三种状态。中断时刻尚无 verdict 的 attempt 拿不到留存授予,照常被清。
+目标是在所有受支持的正常返回、异常、超时与 Ctrl+C 路径都不留**无主**沙箱:每个沙箱要么在本次 run 的清理集合里——退出前必被 stop,第 1 次 Ctrl+C 给 Effect 的 Scope finalizer 一个机会走优雅路径,用户等不及时第 2 次直接兜底强清,`main()` 的顶层 `.catch()` 对真·崩溃路径同样先 `stopAllSandboxes()` 再退出,三条路径共用同一个兜底函数;要么已按 [`--keep-sandbox`](feature/sandbox/cli.md) 先原子登记进留存注册表、再从清理集合移出(`niceeval sandbox list` 可见、`stop` 可清)。中断时刻尚无 verdict 的 attempt 拿不到留存授予,照常被清。`SIGKILL` / 宿主断电无法与外部 provider 做分布式事务,不在这条绝对保证内;provider label / TTL 留作事后核对。
 
 ## 相关阅读
 

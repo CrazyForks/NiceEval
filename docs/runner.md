@@ -95,7 +95,7 @@ run:saved           { summary }
 run:summary         { summary }
 ```
 
-`verdict` 是互斥的判定分类:`passed` / `failed` / `errored` / `skipped`,没有 `scored` 中间态。`run:summary.failed` 只统计断言/评分不通过,环境、超时、adapter 或 agent runtime 问题统计到 `errored`。`eval:complete` 携带的 `EvalResult` 在触发这个事件前已经写好最终 `locator`(在展开/调度任何 attempt 之前就确定的 `snapshotStartedAt`,与落盘 `result.json` 完全一致),reporter 不需要等 artifact 落盘就能拿到稳定的 attempt 身份。
+`verdict` 是互斥的判定分类:`passed` / `failed` / `errored` / `skipped`,没有 `scored` 中间态。`run:summary.failed` 只统计断言/评分不通过,环境、超时、adapter 或 agent runtime 问题统计到 `errored`。fresh attempt 的最终 `locator` 在构造调度计划时就由预先确定的 `snapshotStartedAt` 与 attempt 身份算好并传入执行体,所以留存注册表、feedback、`eval:complete` 与落盘 `result.json` 从第一次观察起就是同一个值;reporter 不需要等 artifact 落盘。
 
 终端反馈(human dashboard、agent envelope、CI 的单一 stdout 事件流)不消费这条 `Reporter` 事件流——它们由一个独立的反馈 coordinator 消费另一条内部事件通道,只服务 `--output` 选出的 profile,不对外暴露,详见 [CLI · 反馈 coordinator](cli.md#反馈-coordinator一个-run-只有一个终端协调者)。
 
