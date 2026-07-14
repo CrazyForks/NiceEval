@@ -10,14 +10,15 @@
 
 ## `--keep-sandbox`:跑完留下现场
 
+`--keep-sandbox` 是 `niceeval exp` 的运行 flag,不是独立命令——留存是"这次怎么跑"的一部分,挂在唯一会创建沙箱的命令上:
+
 ```bash
-niceeval onboarding/tool-first --agent claude --keep-sandbox         # failed / errored 的 attempt 留存
-niceeval onboarding/tool-first --agent claude --keep-sandbox=always  # 全部留存(看通过 case 的环境)
+niceeval exp local onboarding/tool-first --keep-sandbox   # failed / errored 的 attempt 留存现场
 ```
 
-- 裸 flag 等价于 `--keep-sandbox=failed`:verdict 为 `failed` 或 `errored` 的 attempt 留存沙箱——包括被 attempt 硬超时打断的 `errored`(这是最高价值的现场)。debug 流程的典型形态是「这条挂了,重跑这一条」,配合位置参数选 eval,天然不会一次留下几十个容器。
-- `always` 给环境开发用:沙箱 spec / setup 钩子还在调,run 通过与否都想进去看。
-- 符合 CLI 输入模型:位置参数选 eval,flag 说怎么跑。`=<value>` 形式与 `--diff=<path>` 同属可选值 flag,在表驱动解析前统一预扫(见 [CLI 内部架构](../../cli.md#flag-解析表驱动单源))。
+- 纯布尔 flag,只有一档语义:verdict 为 `failed` 或 `errored` 的 attempt 留存沙箱——包括被 attempt 硬超时打断的 `errored`(这是最高价值的现场)。`passed` 的沙箱永远照常销毁:现场的价值在解释失败,通过的环境没有要排查的问题;调环境时想拿一个现场,让一条 eval 失败即可,不为边缘场景设全收档。
+- debug 流程的典型形态是「这条挂了,重跑这一条」,配合 eval 前缀位置参数收窄范围,天然不会一次留下几十个容器。
+- 符合 CLI 输入模型:位置参数选实验组与 eval,flag 说怎么跑。
 - 留存只跳过销毁这一步:`teardown` 钩子链照常执行(环境层回存状态不因 debug 被跳过),留下的现场是收尾完成后的状态。对应地,该 attempt 的 `phases` 没有 `sandbox.stop` 条目。
 - 被中断的 run 不留存:留存授予发生在 verdict 定稿的收尾点,Ctrl+C 时还没有 verdict 的 attempt 走正常清理;此前已完成并授予留存的沙箱不被中断收回。
 - 留存的沙箱永不进入跨 case 复用链(现场必须属于那一次 attempt,被 `git clean` 重置过就没意义了);`--keep-sandbox` 生效时该 run 的沙箱复用关闭,预热池行为不变(未领用的池内沙箱照常销毁)。
@@ -95,4 +96,4 @@ stopped a3f9c2d1 (docker)
 - [README](README.md) —— 为什么需要沙箱、provider 统一接口。
 - [Architecture](architecture.md) —— 留存决策在 attempt 收尾链里的位置、注册表、各 provider 的留存语义。
 - [Results · `result.json`](../results/architecture.md#resultjson) —— `sandbox` 字段(provider、实例 id、是否留存)。
-- [CLI 内部架构](../../cli.md) —— 命令分派、可选值 flag 预扫、中断路径与「不留无主沙箱」。
+- [CLI 内部架构](../../cli.md) —— 命令分派、中断路径与「不留无主沙箱」。

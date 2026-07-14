@@ -105,7 +105,7 @@ coordinator 的 failure / kept 事件、reporter 的 `eval:complete` 与最终 `
 
 `FLAG_OPTIONS`(`src/cli.ts`)是 `node:util` `parseArgs` 的 options 表,每一项的 JSDoc 注释就是它在生成的 CLI 参考页 flag 表里的说明——改 flag 语义只改这条注释,不用碰生成脚本(`scripts/generate-reference.ts`)。`--no-x` 形式的负向 flag 显式声明成独立表项(而不是依赖 `parseArgs` 的 `allowNegative`,后者要求 Node 20.14+,而 `engines` 只保证 >=18)。`strict: true` 让未知 flag 直接报错,不静默吞掉后面的位置参数。
 
-表驱动解析之外唯一的机制例外是**可选值 flag 预扫**:`--diff` 与 `--keep-sandbox` 都是布尔 flag(裸 `--diff` = 文件级摘要,裸 `--keep-sandbox` = 留存 failed/errored 现场),各自的 `=<value>` 形式(`--diff=<path>`、`--keep-sandbox=always`)必须在喂给 `parseArgs` 之前统一预扫出来。空格分隔的 `--diff <path>` 里 `<path>` 会被当成位置参数 = eval id 前缀,这是刻意的,不是 bug;`--keep-sandbox` 同理。
+`--diff=<path>` 是表驱动解析之外唯一的例外:`--diff` 本身是布尔 flag(裸 `--diff` = 文件级摘要),`=<path>` 形式必须在喂给 `parseArgs` 之前手工预扫出来(空格分隔的 `--diff <path>` 里 `<path>` 会被当成位置参数 = eval id 前缀,这是刻意的,不是 bug)。
 
 ## Effect-TS 用在哪、为什么
 

@@ -35,7 +35,7 @@
 
 ## 留存(keep)与注册表
 
-[`--keep-sandbox`](cli.md) 的留存决策发生在 attempt 收尾链的最后一步:verdict 定稿后,策略命中(`failed` 档匹配 `failed` / `errored`,含硬超时打断的 `errored`;`always` 档全收)才提交留存,其余收尾(agent teardown、环境层 teardown、diff 采集)已经照常完成。attempt 的最终 `locator` 在调度前已经由 invocation 的 `snapshotStartedAt` 与 attempt 身份算好,因此登记项、run 收尾反馈与 `result.json` 从第一次写入起就使用同一个 locator,没有事后补写窗口。
+[`--keep-sandbox`](cli.md) 的留存决策发生在 attempt 收尾链的最后一步:verdict 定稿后,只有 `failed` / `errored`(含硬超时打断的 `errored`)才提交留存,其余收尾(agent teardown、环境层 teardown、diff 采集)已经照常完成。attempt 的最终 `locator` 在调度前已经由 invocation 的 `snapshotStartedAt` 与 attempt 身份算好,因此登记项、run 收尾反馈与 `result.json` 从第一次写入起就使用同一个 locator,没有事后补写窗口。
 
 沙箱的 Effect Scope 持有一个只在本 attempt 内可变的 release disposition,初始为 `stop`。attempt deadline 只中断 Scope **里面的 verdict-producing 工作 fiber**,把超时转换成 `errored` draft;它不关闭外层 Scope。runner 随后仍在同一个 Scope 内执行有界 teardown、定稿 verdict,再调用 `commitKeepOrStop()`。这样硬超时现场尚未被 finalizer 销毁,而 Ctrl+C 中断外层 Scope 时 disposition 仍是 `stop`,照常清理。Scope release 最后按 disposition 执行:只有留存提交成功才跳过 `sandbox.stop()`。
 
