@@ -16,6 +16,18 @@ const agent = codexAgent({
 });
 ```
 
+`settings` 用 codex 自己的 config.toml 词汇配置 CLI 行为，setup 阶段按 TOML 语义合并进 `~/.codex/config.toml`：
+
+```ts
+const agent = codexAgent({
+  settings: {
+    web_search: "disabled",
+  },
+});
+```
+
+键名与取值以 codex 官方 config 文档为准，niceeval 不翻译、不发明中间词汇。保留键是 `model`、`model_provider`、`model_providers`、`model_reasoning_effort`、`mcp_servers` 与 `otel`——模型与 reasoning effort 归 experiment，provider 路由、MCP 表和 OTel 导出归 Adapter——出现在 `settings` 里 setup 报错并点名冲突键。settings 进安装 checkpoint key 与安装 manifest；secret 走环境变量，不写进 settings。上例关闭内置 web_search：评测答案能被搜到时，联网检索会污染通过率。
+
 Codex Adapter 把 Skills 写到可发现目录并提供稳定发现指引；不能假设存在与 Claude Code Skill Tool 相同的自动加载事件。验证 Skill 使用时检查读取行为或 Skill 特有结果。
 
 行为轨来自 `codex exec --json` 的结构化 stdout，session ID 来自 thread started 事件；工具调用优先按显式 call ID 配对。实际模型可能被网关改写，需要时从 Codex session 侧写读取，不能只信请求参数。

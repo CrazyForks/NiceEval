@@ -171,3 +171,4 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [scoped-feedback-finalized](scoped-feedback-finalized.md) — 裁决(2026-07-14):ScopedFeedback(progress/diagnostic)定稿为 feature 契约、单一归属 experiments/library.md,roadmap 提案页删除;三个遗留分歧逐条裁决(ctx 注入签名、core 中立属实现纪律、`ctx.log` = progress 别名);07-13 的推迟裁决仍约束实现排期,不再约束文档定稿状态
 - [results-schema-version-history](results-schema-version-history.md) — Results Format schemaVersion 逐版差异台账(1→7),正文只声明当前版本,升版时来这里追加一行
 - [test-system-two-layers-no-offline-integration](test-system-two-layers-no-offline-integration.md) — 裁决(2026-07-14):测试体系只有 unit(确定性 fixture)+E2E(全真实)两层,否决「离线 CLI 集成层/无 key 档」(AI 不贵,mock 协议=再实现一遍协议);同批确立变更预算判据(无关测试变红=缺陷)、unit-tests 每 Feature 拆架构/用例两页,并修正 budget 与 Results 选择两处旧测试文档漂移
+- [agent-native-settings-official-surface](agent-native-settings-official-surface.md) — 裁决(2026-07-14):cc/codex factory 新增官方 `settings`(原生配置词汇的结构化对象)并升格为 Adapter 契约义务;透传原文、webSearch 语义字段、钩子写文件、McpServer.tools 白名单四方案否决/搁置;动机=codex web_search 评测答案污染;两条上游 FR 待提

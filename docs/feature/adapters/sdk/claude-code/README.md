@@ -18,6 +18,18 @@ const agent = claudeCodeAgent({
 
 `skills`、`mcpServers` 和 Claude Code 原生 `plugins` 均在 setup 阶段安装。Marketplace 连接不代表启用其中所有插件，每项必须显式给出 Plugin 名。
 
+`settings` 用 Claude Code 自己的 settings.json 词汇配置 CLI 行为，setup 阶段写进沙箱用户级 `~/.claude/settings.json`：
+
+```ts
+const agent = claudeCodeAgent({
+  settings: {
+    permissions: { deny: ["WebSearch", "WebFetch"] },
+  },
+});
+```
+
+键名与取值以 Claude Code 官方 settings 文档为准，niceeval 不翻译、不发明中间词汇。保留键是 `model` 与 `env`——模型选择归 experiment，鉴权与 OTel 导出归 Adapter——出现在 `settings` 里 setup 报错并点名冲突键。settings 进安装 checkpoint key 与安装 manifest；secret 走环境变量，不写进 settings。上例关闭 WebSearch / WebFetch：评测答案能被搜到时，联网检索会污染通过率。
+
 Adapter 用 Claude Code transcript JSONL 取得消息、thinking、工具、usage 和 session ID，按 `tool_use.id` / `tool_result.tool_use_id` 配对。Skill Tool 调用归一为 `skill.loaded`。会话通过原生 resume ID 续接。
 
 Claude Code 的原生 OTel 内容默认可能脱敏；行为断言仍以 transcript 为准，OTel 只用于 trace。
