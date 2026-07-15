@@ -120,6 +120,18 @@ it("latest 取实验最新快照，覆盖缺口以 partial-coverage 警告表达
 })
 ```
 
+## 现刻水位与宿主等价（results.current() / show · view）
+
+契约来源：[Results Library · 官方现刻水位](../../../feature/results/library.md#官方现刻水位resultscurrent)、[Reports Architecture · Selection 是计算入口](../../../feature/reports/architecture.md#selection-是计算入口)。`current()`/`selectCurrentResults` 与 `latest()` 是不同口径：按 experiment × eval 取"包含该 eval 的最新快照"里的全部 attempt，跨历史拼出当前判定水位；`show` / `view` 默认首页与自定义报告的 `ctx.selection` 共用同一个入口，不各自选一遍。
+
+| 契约 | 场景 |
+|---|---|
+| 每个 experiment × eval 取"包含该 eval 的最新快照"里的全部 attempt；同一 eval 的多个 attempt 整批来自同一快照，不跨快照拼装 | 正例：单 experiment 单快照单 attempt；正例：局部补跑时 q1 取最新快照、q2 从旧快照补齐补全；正例：同 eval 多 attempt 整批取自最新快照，旧快照的同 eval attempt 不掺入 |
+| 历史已知 eval（跨快照并集 ∪ knownEvalIds）在现刻水位中缺失时产出 `partial-coverage` 警告，覆盖齐全不产出；eval id 前缀过滤与 `--experiment` 分段前缀过滤都相应收窄分母 | 正例：knownEvalIds 声明但从未落盘 → partial-coverage；反例：覆盖齐全无警告；边界：位置前缀过滤后分母同步收窄，范围外缺口不触发 |
+| 多 experiment 更新时间不同时较早者触发 `stale-snapshot`；未完成快照（缺 completedAt）触发 `unfinished-snapshot`；`--run` 只看该结果根，不跨根 | 正例：两 experiment 时间差触发 stale；正例：中断快照被选中时触发 unfinished 且 attempts 仍可读；正例：两个独立结果根互不可见 |
+| resume 携带的复印件不重复计票：同一 eval 若"当前活着"的快照恰好是复印件所在快照，只计一次，证据 ref 仍可读 | 正例：复印件整批只出现一次且 `events()` 非 null |
+| `show` 的 text 面与 `view` 的 web 面对同一结果根、同一 scope 传给 `selectCurrentResults` 同形参数，反映同一批事实（experiment / eval 集合、通过率、`partial-coverage` 警告在/不在）；`--report` 注入的 Selection 与不传 `--report` 时的默认报告一致 | 正例：局部补跑下两面都见补齐的 eval、通过率一致；正例：位置前缀收窄后两面一致排除范围外 eval；正例：`--report` 回显的 eval id 集合与裸默认报告相同；正例：真实 partial-coverage 时两面警告都在场且消息里的分子/分母一致 |
+
 ## 身份与去重
 
 契约来源：[Library](../../../feature/results/library.md)、[Architecture](../../../feature/results/architecture.md)。
@@ -169,9 +181,20 @@ it.each([
 
 | 契约 | 场景 |
 |---|---|
-| 断言按 `SourceLoc` 标回源码行；无 loc / 异文件 / 越界行进 unmapped 桶，never silently dropped | 正例：同一行多条断言；反例：三类不可映射断言都出现在 unmapped |
+| 断言按 `SourceLoc` 标回源码行；无 loc / 异文件 / 越界行进 unmapped 桶，never silently dropped | 正例：同一行多条断言；反例：三类不可映射断言都出现在 unmapped；边界：`summary` 的 totalAssertions/mappedAssertions/unmappedAssertions 与 passed/failed、gate/soft 双维计数按映射结果精确统计，空断言数组时全零但行数仍正确 |
 | send 标注按同一映射规则落到 `t.send(...)` 调用行，一行多轮逐轮保留；定位不到行的轮直接丢（轮次全量面是 `--execution`，不设兜底桶） | 正例：同一行两轮都保留；反例：异文件与越界行的轮不落任何行 |
 | `deriveSendAnnotations`：第 i 条用户消息配 `eval.run` 下第 i 个 turn 节点（与 `--execution` 分轮同一规则），头行事实取 turn 节点的 label / failed / durationMs；用户消息无 loc 的轮不产出且不使后续轮错位 | 正例：三轮中第二轮无 loc 时第三轮仍配对正确；边界：时间树缺 turn 节点回退 `t<i>` 标签、无墙钟；边界：空事件流产出空数组 |
+| `content` 按行切分不产生幻影尾空行（结尾单个换行符不多出一行，结尾双换行保留一行真实空行），空文件视为一行空字符串；`sourceSha256` 用 SHA-256 归一化后的源码计算，CRLF 与 LF 内容一致时哈希与行文本都相同 | 正例：单/双尾换行两态各自产出正确行数；边界：空文件为单个空行；正例：CRLF 与 LF 的 `sourceSha256` 相同且逐行文本一致 |
+
+## Attempt 证据装配（AttemptEvidence）
+
+契约来源：[概念 · Attempt 证据](../../../concepts.md)（"AttemptEvidence" 词条：`locator`、身份、`EvalResult`、`AnnotatedEvalSource`、`ExecutionTree`、diff、artifact 路径与能力位一次装配，`show` / `view` / 静态导出 / 报告列表共用同一份）。
+
+| 契约 | 场景 |
+|---|---|
+| 四个能力位（eval/execution/timing/diff）各自只在"数据真的存在且非空"时为真，不是"artifact 文件存在"；四位全具备、全缺失、部分具备（有 events 无 phases、有 diff 文件但两数组皆空）都要能分辨 | 正例：四位全真；正例：四位全假不崩溃；边界：无 phases 时 execution 真、timing 假；边界：diff 文件存在但两数组皆空时 `capabilities.diff` 为假 |
+| execution 节点与 trace span 按 call id 精确关联，不按名字/文本猜；identity 与源 attempt 的 experimentId/snapshotStartedAt/evalId/attempt 完全一致，`locator` 恒有值且与源 attempt 的 `locator` 原样一致（不重算） | 正例：action 节点关联上对应 span；正例：identity 四字段与 `attempt.locator` 逐一核对相等 |
+| `artifactPaths.dir` 是该 attempt 落盘目录的绝对路径 | 正例：等于 `join(snapshot.dir, ref.attempt)` |
 
 ## copySnapshots 与 resolveLocator
 

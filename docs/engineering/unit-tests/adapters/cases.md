@@ -11,7 +11,7 @@
 | `action.called` 与 `action.result` 用稳定 callId 配对，并发调用的交错帧各自配对不串线 | 正例：单调用；正例：两调用交错帧；边界：合成 id 兜底时的单并发限制 |
 | 事件保持原始发生顺序输出，不按类型重排 | 正例：message/thinking/工具帧交错时顺序与输入一致 |
 | 人工/策略拒绝归一为 `status:"rejected"`，执行故障归一为 `status:"failed"`，不互相混淆 | 正例：denied 帧 → rejected；正例：非零退出 → failed；反例：拒绝不得产出 failed |
-| Skill 加载只产生 `skill.loaded`，不重复计入 action 工具对 | 正例：Skill 帧 → 仅一条 skill.loaded；反例：无对应 action.called |
+| Skill 加载只产生 `skill.loaded`，不重复计入 action 工具对；限定名（`namespace:skill`）原样作为 `skill` 字段透传，不拆分或改写 | 正例：Skill 帧 → 仅一条 skill.loaded；反例：无对应 action.called；边界：`ms-office-suite:pdf` 这类限定名整串原样透传 |
 | Adapter 不截断工具输出；截断只发生在落盘写入面 | 边界：>256 KiB 输出在事件中完整 |
 | `name` 保留协议原始工具名，`tool` 保存跨 Agent 规范名，两字段并存 | 正例：`command_execution` → name 原名 + `tool:"shell"`；边界：无规范名映射时 tool 省略 |
 | 一个原生审批/提问只产生一条 `input.requested`，request 携带足以匹配的 id/action/input/options | 正例：审批帧 → 单条请求且字段齐全；反例：同一问题多帧不产生重复请求 |

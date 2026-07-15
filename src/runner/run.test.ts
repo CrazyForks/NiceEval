@@ -32,6 +32,7 @@ import type {
 // judge 预检的目标收敛:只探测「实际要跑、且源码里出现 judge 字样」的 eval 的生效配置。
 // 这是对 memory/judge-config-precheck-hard-fails-without-key 的修复守护——
 // 全局配了 judge 但选中的 eval 都不用时,不能再因 judge key / 端点问题拦下整次运行。
+// bug: memory/judge-config-precheck-hard-fails-without-key.md
 describe("judgeProbeTargets", () => {
   const configJudge: JudgeConfig = { model: "gpt-5.4" };
 

@@ -174,6 +174,7 @@ it("已完成花费到顶后不再派发新 attempt，在飞的照常完成", as
 | 生命周期阶段按固定顺序发出且取自 LifecyclePhase 闭集；无对应钩子的步骤直接跳过；phase 只由 runner 发出 | 正例：无 setup 钩子时 phases 无 sandbox.setup；反例：hook 调 progress 不切 phase |
 | 主链 phase 在 Scope release 前封口，`sandbox.stop` / `sandbox.suspend` 只计入收尾；主链 phase 合计不超过 `durationMs` | 正例：延迟 stop 的 fake 中 stop 有独立耗时且主链不增长；反例：最后一个主链 phase 不能包含 stop |
 | `diagnostic` 同 attempt 内相同 `dedupeKey` 折叠并累计 count；`error` 级与 cleanup 阶段的 diagnostic 都不改变 verdict | 正例：并发同 key 只留一条；反例：error 级后 verdict 仍 passed |
+| 每轮 `t.send()` 自动产出一条进度行（[Experiments Library · 生命周期代码怎样向这次运行反馈](../../../feature/experiments/library.md#生命周期代码怎样向这次运行反馈)的 `progress` 表达形态）：开始时带输入预览，结束时带状态/工具数/token/耗时；仅 `failed` 时追加从事件流提取的失败原因，`completed` 不提取；原因文本压成单行并截断到 120 字符 | 正例：failed 轮末尾带最后一条 error 事件的 message；反例：completed 轮混入 error 事件不提取原因；反例：failed 轮没有 error 事件时不追加空后缀；边界：长原因压单行、截断到 120 字符并以省略号收尾 |
 | 分类账以一条命令导出全部窗口并经文件通道下载，provider 往返不随文件数与窗口数增长，只依赖 git + POSIX shell；Python venv 默认不进账；窗口证据越界明确 errored | 正例：多窗口 500 文件仍是一条导出命令加一次下载；正例：`venv/` / `.testing-venv/` 排除；反例：超过路径/字节上限不返回空 diff |
 
 示例——中断路径的资源释放：

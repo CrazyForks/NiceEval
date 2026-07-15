@@ -17,7 +17,7 @@
 | `isDefined(label?)` 对 null/undefined 得 0，其它一切值（含 0、""、false）得 1 | 正例：0、空串通过；反例：null、undefined |
 | `commandSucceeded()` 仅按退出码 0 判定 | 正例：exitCode 0；反例：exitCode 1 |
 | `satisfies(predicate, label?)` 谓词映射 1/0，label 进 AssertionResult.name | 正例、反例；边界：谓词抛异常不得伪装成 passed |
-| `makeAssertion` 的同步与异步 matcher 进入统一 Assertion 记录 | 正例：sync/async 各一；边界：score 抛异常归入错误 |
+| `makeAssertion` 的同步与异步 matcher 进入统一 Assertion 记录；抛出的错误文本优先取 stack（可定位 file:line），无 stack 回退 `name: message`，非 `Error` 值原样字符串化 | 正例：sync/async 各一；边界：score 抛异常归入错误；边界：有 stack 的错误保留完整调用栈；反例：无 stack 的错误回退 `name: message`；正例：抛字符串/数字等非 Error 值原样转字符串 |
 
 ```ts
 import { describe, expect, it } from "vitest"
@@ -100,7 +100,7 @@ it("receiver 决定 scope", async () => {
 | `.atLeast(x)` 产生 soft threshold；`.gate()` 用默认通过线，`.gate(x)` 指定硬阈值并提级为 gate | 正例：gate(0.9) 下 0.8 → failed；边界：soft matcher 被 .gate() 提级 |
 | Sandbox 延迟断言在 finalize 时读取求值；值 matcher 与 require 立即求值——两种时机产出同一种 AssertionResult | 边界：finalize 前 diff 变化只被延迟断言看到；正例：两类结果结构一致 |
 | 五种评分来源（值/scope/judge/sandbox/效率）全部折叠进同一 collector 与同一 `assertions` 数组 | 正例：混合来源 finalize 输出单一有序数组 |
-| AssertionResult 是 `outcome` 判别联合：passed/failed 分支必有 score（归一化），threshold 仅在设了阈值时出现，expected/received 是有界预览；unavailable 分支必有 reason、无 score | 正例：无阈值断言不含 threshold 键；边界：超长实际值被截断；反例：unavailable 条目不含 score 键 |
+| AssertionResult 是 `outcome` 判别联合：passed/failed 分支必有 score（归一化），threshold 仅在设了阈值时出现，expected/received 是有界预览；unavailable 分支必有 reason、无 score | 正例：无阈值断言不含 threshold 键；边界：超长实际值被截断；反例：unavailable 条目不含 score 键；边界：受检值为 `undefined` 时预览不崩溃、产出可读占位字符串而非抛出（`JSON.stringify(undefined)` 返回值本身是 `undefined` 不是字符串，见[bug 台账](../../../../memory/brief-crashes-on-preview-undefined.md)） |
 | 判定只消费 severity/outcome/optional/score/threshold | 边界：改 name/expected 不改变 computeVerdict 输出；正例：非 optional 断言 unavailable → errored，`.optional()` 的不影响 |
 
 链式分级检查调用次数是有意义的，因为"延迟断言只求值一次"是生命周期契约；一般 helper 调用次数不是：
@@ -208,6 +208,14 @@ it.each([
 | 端点与凭据解析进入真实请求：baseUrl 按 `judge.baseUrl` > `NICEEVAL_JUDGE_BASE` > `CODEX_BASE_URL` > `OPENAI_BASE_URL` > OpenAI 官方，key 按 `judge.apiKeyEnv` 指定的变量 > `NICEEVAL_JUDGE_KEY` > `CODEX_API_KEY` > `OPENAI_API_KEY`；解析结果落在请求 URL 与 Authorization 头 | 正例：env base/key 进入捕获请求的 URL 与 Bearer 头（fixture judge client 截获 fetch，不出网络、不起 HTTP server） |
 | 默认材料按接收者分层：t 评主 session 对话、session 评该 session、turn 评 turn.message；`{ on }` 覆盖 | 正例：请求材料随接收者不同；边界：on 为 diff 时不含对话 |
 | judge 只有 closedQA / factuality / summarizes 三个固定入口 | 反例：访问不存在入口报错 |
+
+## 仓库工具函数（无独立 Scoring 契约出处）
+
+`upsertManagedBlock` 是 CLI `init` 写 AGENTS.md/CLAUDE.md 托管区块用的通用字符串工具（`src/cli.ts`），语义是仓库工具而非 Scoring 判定的一部分；因所在测试文件已整体归属本清单，一并登记其幂等更新场景。
+
+| 契约 | 场景 |
+|---|---|
+| `upsertManagedBlock` 按起止标记原地替换托管区块内容，标记不存在则在文件尾追加（空文件时只留区块本身），周边文本不受影响；对相同输入重复调用是幂等的 | 正例：空文件生成区块；正例：非空文件追加空行分隔后的新区块；正例：已存在标记时原地替换内容、前后文本原样保留；边界：重复调用输出不再变化 |
 
 ## 不这样测
 

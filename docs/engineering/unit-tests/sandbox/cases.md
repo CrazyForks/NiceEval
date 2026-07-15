@@ -136,12 +136,13 @@ it("runCommand 保留参数边界、cwd、env 和 root 语义", async () => {
 
 ## Provisioning 失败与重试
 
-契约来源：[Architecture](../../../feature/sandbox/architecture.md)。相关裁决与踩坑见 memory 的 [sandbox-provision-ratelimit-retry](../../../../memory/sandbox-provision-ratelimit-retry.md) 与 [provision-retry-holds-concurrency-slot](../../../../memory/provision-retry-holds-concurrency-slot.md)。
+契约来源：[Architecture](../../../feature/sandbox/architecture.md)。相关裁决与踩坑见 memory 的 [sandbox-provision-ratelimit-retry](../../../../memory/sandbox-provision-ratelimit-retry.md)、[provision-retry-holds-concurrency-slot](../../../../memory/provision-retry-holds-concurrency-slot.md) 与 [e2b-provision-429-duplicate-sandbox](../../../../memory/e2b-provision-429-duplicate-sandbox.md)。
 
 | 契约 | 场景 |
 |---|---|
 | provider 原生限流错误归类为中性 kind `rate_limit`；provider 没认出的错误兜底走与文件 IO 共用的瞬时分类器，传输层瞬时错误同样可重试；createProvider 对可重试 kind 指数退避（封顶+抖动），确定性错误第一次即抛 | 正例：三家原生限流各自归类、create 期间 `fetch failed`／连接重置进入重试；反例：凭据错误、模板不存在零重试 |
-| 退避睡眠期间临时归还并发槽位，睡醒后重新排队，不占着 sandboxSem 陪跑 | 正例：一批 429 期间其它 attempt 能获得槽位 |
+| 退避睡眠期间临时归还并发槽位，睡醒后重新排队，不占着 sandboxSem 陪跑；create 首次成功或遇不可重试错误时全程不触碰槽位 | 正例：一批 429 期间其它 attempt 能获得槽位；反例：成功或不可重试错误路径下 release/reacquire 均未被调用 |
+| 有对账通道时任何重试前都对账，不分拒绝类（如 `rate_limit`）与歧义类；对账排在退避睡眠之后（睡醒再查）；对账失败即放弃重试并抛回原始 create 错误，不抛对账错误；无对账通道时歧义类错误第一次即抛不重试（[bug 台账](../../../../memory/e2b-provision-429-duplicate-sandbox.md)：`create()` 闭包内 SDK create 成功后的初始化请求撞 429 曾被当拒绝类盲重试，同一 provision token 开出两台实例） | 正例：`rate_limit` 携对账通道时顺序为 create→对账→retry create；反例：无对账通道时歧义类错误零重试；反例：对账通道抛错时重试终止、attempts 保持 1 且抛出的是原始 create 错误 |
 | 重试耗尽后 verdict `errored`；defineSandbox 自定义 provider 的 create 不套用这层重试 | 反例：自定义 provider 抛限流只调一次 |
 
 ## diff 与结果断言
@@ -165,6 +166,14 @@ it("runCommand 保留参数边界、cwd、env 和 root 语义", async () => {
 | spec 上有 create 即直接调用（defineSandbox 路径）；内置 spec 归一化后按 provider 派发；recommendedConcurrency 省略默认 5 | 正例：自定义 provider 无需注册名字；反例：核心路径无 provider 名分支 |
 | `t.sandbox` 不暴露 stop；remote agent 上首次调用 `t.sandbox.*` 报错须指出具体 API 名和 agent 名 | 反例：类型上无 stop；正例：错误信息含 "readFile" 与 agent 名 |
 | provider create 与 hook 的 progress/diagnostic 经反馈管线而非 stdout；调用方不能指定 phase | 正例：hook 内 progress 归属 sandbox-setup 阶段；边界：dedupeKey 去重 |
+
+## Checkpoint（运行时快照归档）
+
+契约来源：[预制环境 · 运行时 checkpoint](../../../feature/sandbox/library/prebuilt-environments.md#运行时-checkpointcreatecheckpoint--restorecheckpoint)。`createCheckpoint` / `restoreCheckpoint` 是 provider 无关的 tar 打包/还原工具，只依赖 `runShell` / `downloadFile` / `uploadFile` 三个方法。
+
+| 契约 | 场景 |
+|---|---|
+| `createCheckpoint` 打包失败（tar 非零退出）直接抛错，不下载残缺归档冒充成功 checkpoint；`restoreCheckpoint` 解压失败同样直接抛错，临时归档文件按 finally 语义清理不受失败影响 | 反例：tar 打包非零退出 → 抛 "checkpoint archive failed" 且 `downloadFile` 未被调用；反例：tar 解压非零退出 → 抛 "checkpoint restore failed" 但清理命令 `rm -f` 仍执行 |
 
 ## 不这样测
 

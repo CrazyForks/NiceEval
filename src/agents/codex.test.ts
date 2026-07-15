@@ -8,6 +8,7 @@
 // marketplace/plugin 安装失败的报错;外加 configFile(原生配置文件)的 setup 流。
 // 风格与 src/agents/skills.test.ts、src/agents/claude-code.test.ts 一致,不另起一套。
 // 定稿见 docs/feature/adapters/architecture/coding-agent-extensions.md。
+// bug: memory/native-plugin-marketplace-name-not-caller-assignable.md
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
