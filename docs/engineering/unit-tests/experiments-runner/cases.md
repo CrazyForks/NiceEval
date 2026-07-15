@@ -170,6 +170,7 @@ it("已完成花费到顶后不再派发新 attempt，在飞的照常完成", as
 | 预热池按 `min(池大小, 计划 attempt 数)` 预创建；池空回落即时创建；run 结束销毁未领用沙箱 | 边界：池 > attempt 数不多建；反例：run 结束不留孤儿沙箱 |
 | 跨 case 复用默认关闭；开启后收尾重置而非销毁，`stop` 只在最后一次使用后发生，每个 attempt 仍完整走 setup 链与分类账锚点 | 正例：N attempt 复用只 1 次 stop；正例：每 attempt 都调 setup；反例：默认不复用 |
 | 生命周期阶段按固定顺序发出且取自 LifecyclePhase 闭集；无对应钩子的步骤直接跳过；phase 只由 runner 发出 | 正例：无 setup 钩子时 phases 无 sandbox.setup；反例：hook 调 progress 不切 phase |
+| 主链 phase 在 Scope release 前封口，`sandbox.stop` / `sandbox.suspend` 只计入收尾；主链 phase 合计不超过 `durationMs` | 正例：延迟 stop 的 fake 中 stop 有独立耗时且主链不增长；反例：最后一个主链 phase 不能包含 stop |
 | `diagnostic` 同 attempt 内相同 `dedupeKey` 折叠并累计 count；`error` 级与 cleanup 阶段的 diagnostic 都不改变 verdict | 正例：并发同 key 只留一条；反例：error 级后 verdict 仍 passed |
 | 分类账按 send 窗口批量导出，provider 往返不随文件数增长；Python venv 默认不进账；窗口证据越界明确 errored | 正例：500 文件仍是每窗口一次导出命令；正例：`venv/` / `.testing-venv/` 排除；反例：超过文件数上限不返回空 diff |
 
