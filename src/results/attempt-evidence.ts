@@ -124,9 +124,8 @@ export async function loadAttemptEvidence(attempt: AttemptHandle): Promise<Attem
   const execution = hasEvents ? buildExecutionTree(events, trace ?? []) : null;
 
   const evalCapable = evalSource !== null && (evalSource.lines.length > 0 || evalSource.summary.totalAssertions > 0);
-  // 与 show/render.ts::diffText 的既有空判定同一口径:generatedFiles 与 deletedFiles 都空
-  // 才算"没有变化"。
-  const diffCapable = diff !== null && (Object.keys(diff.generatedFiles).length > 0 || diff.deletedFiles.length > 0);
+  // 与 show/render.ts::diffText 同一口径:任一窗口触及过任一文件才算"有变化"。
+  const diffCapable = diff !== null && Object.keys(diff.files).length > 0;
 
   return {
     locator,

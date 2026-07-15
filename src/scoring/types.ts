@@ -105,9 +105,46 @@ export interface ScriptResult {
   output: string;
 }
 
+// ── agent 归因增量(见 docs/feature/results/architecture.md「diff.json」与
+//    docs/feature/sandbox/architecture.md「变更归因:send 窗口与分类账」)──
+
+/** diff.json 的落盘形状:按时序的窗口数组(逐窗口 delta 序列,不做跨窗口压缩)。 */
+export type DiffArtifact = DiffWindow[];
+
+export interface DiffWindow {
+  /** send 窗口标签,与时间树 turn 节点、--execution 轮次同源(如 "s1/t2")。 */
+  window: string;
+  /** 该窗口内 agent 改动的文件;窗口内没有 workspace 变化时窗口仍落一条、changes 为空对象。 */
+  changes: Record<string, WindowChange>;
+}
+
+export interface WindowChange {
+  status: "added" | "modified" | "deleted";
+  /** 窗口开始时的内容;added 无此字段。 */
+  before?: string;
+  /** 窗口结束时的内容;deleted 无此字段。 */
+  after?: string;
+  /** 二进制文件不内联内容,只记字节数。 */
+  binary?: { beforeBytes?: number; afterBytes?: number };
+}
+
+/** 读取面在窗口序列之上派生的文件级视图(派生物可随时重算,不落盘)。 */
+export interface DiffFileSummary {
+  /** 净效果:首个触及窗口的起点 vs 最后触及窗口的终点;"none" = 动过但净无变化(创建又删除、改回原样)。 */
+  net: "added" | "modified" | "deleted" | "none";
+  /** 触及该文件的窗口标签,按时序。 */
+  windows: string[];
+  binary?: true;
+}
+
+/** agent 归因 diff 的消费视图:窗口序列(落盘事实)+ 派生的文件级摘要与终态读取。 */
 export interface DiffData {
-  generatedFiles: Record<string, string>;
-  deletedFiles: string[];
+  /** 落盘事实,原样。 */
+  windows: DiffWindow[];
+  /** 派生:每个被 agent 触及的文件一条。 */
+  files: Record<string, DiffFileSummary>;
+  /** 该文件最后一个触及窗口结束时的内容;净删除或从未触及返回 undefined。t.sandbox.diff.get 同一语义。 */
+  get(path: string): string | undefined;
 }
 
 export type Verdict = "passed" | "failed" | "errored" | "skipped";

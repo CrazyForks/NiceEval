@@ -21,7 +21,8 @@ import { deriveRunFacts, buildO11ySummary } from "../o11y/derive.ts";
 import { estimateCost } from "../o11y/cost.ts";
 import { t } from "../i18n/index.ts";
 import { describeError, firstLine, formatThrown } from "../util.ts";
-import { captureGeneratedFiles, initGitAndCommit } from "./sandbox-prep.ts";
+import { createChangeLedger, type ChangeLedger } from "./ledger.ts";
+import { deriveDiffData, emptyDiffData } from "../scoring/diff.ts";
 import { createRemoteSandbox, withEvalLocalPaths } from "./remote-sandbox.ts";
 import type { CapturedEvalSource } from "./eval-source.ts";
 import type {
@@ -451,6 +452,8 @@ async function runAttemptBody(
   let agentSetup: AgentSetupManifest | undefined;
   // EvalDef.setup() 返回的 cleanup 闭包;finally 里按 LIFO 跑(见下)。
   let evalCleanup: Cleanup | void = undefined;
+  // 变更分类账(仅沙箱型;workspace.baseline 阶段建立)。
+  let ledger: ChangeLedger | undefined;
   // SandboxSpec.setup() 返回的 cleanup 闭包,按调用顺序收集;finally 里 LIFO 跑(见下)。
   const sandboxCleanups: Cleanup[] = [];
   try {
@@ -487,8 +490,9 @@ async function runAttemptBody(
         }
       }
 
+      // 变更分类账锚点:私有 git ledger(git 目录在 workdir 外),排除清单在此冻结。
       enterPhase("workspace.baseline");
-      await initGitAndCommit(sandbox);
+      ledger = await createChangeLedger(sandbox, evalDef.diff);
 
       // eval 级 setup(starter prep:npm install / 装系统依赖等)。命令默认非 root;
       // setup 里需要 root 的(apt/pip)自己传 { root: true }。
@@ -538,6 +542,13 @@ async function runAttemptBody(
       otel,
       evalBaseDir: evalDef.baseDir,
       feedback,
+      // send 窗口钩子:进入前落 eval 归因、返回后落 agent 归因(见 ledger.ts)。
+      ledgerHooks: ledger
+        ? {
+            beforeSend: (label) => ledger!.commitEvalWindow(label),
+            afterSend: (label) => ledger!.commitAgentWindow(label),
+          }
+        : undefined,
       onSendActive: setSendActive,
       // 每次 send 一个 turn 节点:本地单调时钟测得的端到端包络 + session/turn 身份;
       // OTel 接入时再带 traceId,trace.json 的 spans 由消费方按它临时挂到 turn 下。
@@ -576,17 +587,16 @@ async function runAttemptBody(
 
     if (skipReason) log(t("runner.skip", { reason: skipReason }));
 
-    // 采 diff(脚本如 next build 在采集后才跑,避免 .next 污染 diff)。remote agent 没有 workspace。
+    // 采 agent 归因增量(workspace.diff 阶段:从分类账折叠逐窗口 delta)。remote agent 没有 workspace。
     if (!skipReason && usesSandbox) enterPhase("workspace.diff");
-    const diff =
-      skipReason || !usesSandbox
-        ? { generatedFiles: {}, deletedFiles: [] }
-        : await captureGeneratedFiles(sandbox);
+    const diffWindows = skipReason || !usesSandbox || !ledger ? [] : await ledger.exportWindows();
+    const diff = deriveDiffData(diffWindows);
     state.late.diff = diff;
     if (!skipReason && usesSandbox) {
+      const files = Object.values(diff.files);
       log(t("runner.diffProgress", {
-        changed: Object.keys(diff.generatedFiles).length,
-        deleted: diff.deletedFiles.length,
+        changed: files.filter((f) => f.net !== "deleted").length,
+        deleted: files.filter((f) => f.net === "deleted").length,
       }));
     }
 
@@ -684,7 +694,7 @@ async function runAttemptBody(
       o11y,
       trace,
       agentSetup,
-      diff,
+      diff: diffWindows,
       coverage: state.manager.coverage,
       ...(usesSandbox
         ? {

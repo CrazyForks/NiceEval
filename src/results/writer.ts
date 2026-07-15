@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentSetupManifest, EvalResult, ExperimentRunInfo, LocalizedText } from "../types.ts";
-import type { DiffData, O11ySummary, SourceArtifact, StreamEvent, TraceSpan } from "../types.ts";
+import type { DiffArtifact, O11ySummary, SourceArtifact, StreamEvent, TraceSpan } from "../types.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
 import { RESULT_FILE, SNAPSHOT_FILE, artifactFileOf, attemptDirOf, experimentDirOf } from "./format.ts";
 import { encodeAttemptLocator } from "./locator.ts";
@@ -82,7 +82,7 @@ export interface AttemptArtifacts {
   o11y?: O11ySummary;
   /** agent setup 的安装清单(沙箱型 coding agent 装了 Skill / plugin / MCP 才有)。 */
   agentSetup?: AgentSetupManifest;
-  diff?: DiffData;
+  diff?: DiffArtifact;
   sources?: SourceArtifact[];
 }
 

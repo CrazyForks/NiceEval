@@ -4,7 +4,7 @@
 // 省略时 resolveSandbox() 直接抛错,不猜环境、不兜底。
 // provider 名的行为分支只允许出现在 sandbox/ 内(见 docs/architecture.md)。
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Effect } from "effect";
 import type { CustomSandboxSpec, JsonValue, Sandbox, SandboxOption, SandboxRuntime, ScopedFeedback } from "../types.ts";
 import { registerSandbox, stopSandbox } from "./registry.ts";
@@ -138,20 +138,24 @@ async function createProvider(
   if (r.create) return r.create({ timeout, runtime: r.runtime, feedback });
   switch (r.provider) {
     case "docker": {
-      const { DockerSandbox, classifyProvisionError } = await import("./docker.ts").catch(() => {
+      const { DockerSandbox, classifyProvisionError, reconcileProvision } = await import("./docker.ts").catch(() => {
         throw new Error(t("sandbox.dependencyMissing.docker"));
       });
+      // 一次性 provision token:歧义类失败重试前按它对账(销毁可能已创建的实例再重建)。
+      const token = randomUUID();
       return withProvisionRetry(
-        () => DockerSandbox.create({ timeout, runtime: r.runtime, image: r.image, feedback }),
+        () => DockerSandbox.create({ timeout, runtime: r.runtime, image: r.image, feedback, provisionToken: token }),
         classifyProvisionError,
         provisionSlot,
         feedback,
+        () => reconcileProvision(token),
       );
     }
     case "vercel": {
       const { VercelSandbox, classifyProvisionError } = await import("./vercel.ts").catch(() => {
         throw new Error(t("sandbox.dependencyMissing.vercel"));
       });
+      // vercel SDK 没有按元数据检索实例的通道:不传 reconcile,歧义类第一次抛出。
       return withProvisionRetry(
         () => VercelSandbox.create({ timeout, runtime: r.runtime, snapshotId: r.snapshotId, feedback }),
         classifyProvisionError,
@@ -160,14 +164,16 @@ async function createProvider(
       );
     }
     case "e2b": {
-      const { E2BSandbox, classifyProvisionError } = await import("./e2b.ts").catch(() => {
+      const { E2BSandbox, classifyProvisionError, reconcileProvision } = await import("./e2b.ts").catch(() => {
         throw new Error(t("sandbox.dependencyMissing.e2b"));
       });
+      const token = randomUUID();
       return withProvisionRetry(
-        () => E2BSandbox.create({ timeout, runtime: r.runtime, template: r.template }),
+        () => E2BSandbox.create({ timeout, runtime: r.runtime, template: r.template, provisionToken: token }),
         classifyProvisionError,
         provisionSlot,
         feedback,
+        () => reconcileProvision(token),
       );
     }
     default:

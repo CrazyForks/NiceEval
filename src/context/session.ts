@@ -100,6 +100,15 @@ export interface SessionDeps {
   feedback?: import("../types.ts").ScopedFeedback;
   /** adapter send 在飞时通知 runner(errored 归因到嵌套的 `agent.run` 阶段用)。 */
   onSendActive?: (active: boolean) => void;
+  /**
+   * 变更分类账的 send 窗口钩子(仅沙箱型 agent):`beforeSend` 在 adapter send 前落 eval 归因
+   * commit,`afterSend` 在返回后落 agent 归因 commit;label 是 `s<session>/t<turn>` 窗口标签。
+   * 提供钩子时 send 自动串行(同一 workdir 上重叠的 send 是写入竞争,窗口不重叠)。
+   */
+  ledgerHooks?: {
+    beforeSend(label: string): Promise<void>;
+    afterSend(label: string): Promise<void>;
+  };
   /** 每轮 send 结束后回报墙钟包络(runner 挂成 eval.run 下的 turn 时间树节点)。 */
   onTurn?: (info: {
     sessionIndex: number;
@@ -139,6 +148,8 @@ export class SessionManager {
   private readonly sessions: RunSession[] = [];
   private turnCount = 0;
   private sessionCount = 0;
+  /** 沙箱型 send 的串行链(见 SessionDeps.ledgerHooks):窗口不重叠。 */
+  private sendChain: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly deps: SessionDeps) {
     this.agentCoverage = resolveAgentCoverage(deps.agent.coverage);
@@ -167,6 +178,23 @@ export class SessionManager {
   ): Promise<Turn> {
     // 抓住作者调 t.send / t.sendFile 那一行(view 把回复叠回这一行)。
     const loc = captureLoc();
+    if (this.deps.ledgerHooks) {
+      // 沙箱型 send 经串行链执行:同一 workdir 上重叠的 send 本身就是写入竞争,
+      // 合并窗口只会掩盖归因不确定性(见 docs/feature/sandbox/architecture.md)。
+      const run = this.sendChain.then(() => this.sendSerialized(session, text, loc, files, responses));
+      this.sendChain = run.catch(() => {});
+      return run;
+    }
+    return this.sendSerialized(session, text, loc, files, responses);
+  }
+
+  private async sendSerialized(
+    session: RunSession,
+    text: string,
+    loc: ReturnType<typeof captureLoc>,
+    files?: readonly InputFile[],
+    responses?: readonly InputResponse[],
+  ): Promise<Turn> {
     const ctx: AgentContext = {
       signal: this.deps.signal,
       model: this.deps.model,
@@ -200,6 +228,9 @@ export class SessionManager {
     session.events.push(userEvent);
     session.pendingInputRequests.length = 0;
     const turnIndex = ++session.turnCount;
+    const windowLabel = `s${session.index}/t${turnIndex}`;
+    // send 进入前:workdir 有未记录变化(fixture / setup / runCommand 副作用)先落 eval 归因。
+    await this.deps.ledgerHooks?.beforeSend(windowLabel);
     let turn: Turn;
     let sentTraceId: string | undefined;
     let sentAttribution: "traceparent" | "window" | "none" | undefined;
@@ -225,6 +256,9 @@ export class SessionManager {
       throw e;
     } finally {
       this.deps.onSendActive?.(false);
+      // send 返回后:这个 send 窗口内的全部 workspace 变化落 agent 归因(HITL waiting 同样收窗:
+      // adapter 义务保证返回时 agent 侧进程已退出或进入不再写 workspace 的静止态)。
+      await this.deps.ledgerHooks?.afterSend(windowLabel).catch(() => {});
     }
     this.deps.onTurn?.({
       sessionIndex: session.index,

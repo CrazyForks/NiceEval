@@ -12,6 +12,7 @@ import * as Scoped from "../scoring/scoped.ts";
 import { buildJudge } from "../scoring/judge.ts";
 import { EvalSkipped, EvalRequirementFailed, TurnFailed } from "./control-flow.ts";
 import { deriveRunFacts } from "../o11y/derive.ts";
+import { diffIsEmpty, diffMatches, emptyDiffData } from "../scoring/diff.ts";
 import { t } from "../i18n/index.ts";
 import { resolveLocalPath } from "../sandbox/paths.ts";
 import { brief } from "../util.ts";
@@ -79,6 +80,8 @@ export interface ContextDeps {
   feedback?: import("../types.ts").ScopedFeedback;
   /** adapter send 在飞时的通知(errored 归因到嵌套的 `agent.run` 阶段用);透传给 SessionManager。 */
   onSendActive?: (active: boolean) => void;
+  /** 变更分类账的 send 窗口钩子(仅沙箱型);透传给 SessionManager(见 SessionDeps.ledgerHooks)。 */
+  ledgerHooks?: import("./session.ts").SessionDeps["ledgerHooks"];
   /** 每轮 send 的墙钟包络回报(runner 挂 turn 时间树节点);透传给 SessionManager。 */
   onTurn?: import("./session.ts").SessionDeps["onTurn"];
 }
@@ -111,12 +114,13 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     feedback: deps.feedback,
     onSendActive: deps.onSendActive,
     onTurn: deps.onTurn,
+    ledgerHooks: deps.ledgerHooks,
   });
   const collector = new AssertionCollector();
   const state: ContextState = {
     collector,
     manager,
-    late: { diff: { generatedFiles: {}, deletedFiles: [] }, scripts: {} },
+    late: { diff: emptyDiffData(), scripts: {} },
   };
 
   async function resolveValue(value: unknown, sc: ScoringContext): Promise<unknown> {
@@ -133,13 +137,11 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     return brief(value, 4000);
   }
 
+  // agent 归因 diff 的只读视图:get = 最后触及窗口的终态;matches 扫触及路径与各窗口内容。
   const diffView: DiffView = {
-    get: (path) => state.late.diff.generatedFiles[path],
-    isEmpty: () =>
-      Object.keys(state.late.diff.generatedFiles).length === 0 &&
-      state.late.diff.deletedFiles.length === 0,
-    matches: (re) =>
-      Object.entries(state.late.diff.generatedFiles).some(([p, c]) => re.test(p) || re.test(c)),
+    get: (path) => state.late.diff.get(path),
+    isEmpty: () => diffIsEmpty(state.late.diff),
+    matches: (re) => diffMatches(state.late.diff, re),
   };
 
   const sandboxAssertions = {

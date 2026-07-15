@@ -464,7 +464,7 @@ describe("createResultsWriter", () => {
     await snapA.writeAttempt({ id: "q2", verdict: "failed", attempt: 1, durationMs: 50, assertions: [] });
 
     const snapB = await writer.snapshot({ experimentId: "compare/b", agent: "codex", startedAt: "2026-07-02T09:00:00.000Z" });
-    await snapB.writeAttempt({ id: "q1", verdict: "passed", attempt: 1, durationMs: 80, assertions: [] }, { diff: { generatedFiles: { "a.txt": "1" }, deletedFiles: [] } });
+    await snapB.writeAttempt({ id: "q1", verdict: "passed", attempt: 1, durationMs: 80, assertions: [] }, { diff: [{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "1" } } }] });
 
     await writer.finish();
     expect(writer.snapshotDirs().map((s) => s.experimentId).sort()).toEqual(["compare/a", "compare/b"]);
@@ -506,7 +506,9 @@ describe("createResultsWriter", () => {
 
     const b = results.experiments[1].latest;
     expect(b.model).toBeUndefined();
-    expect(await b.attempts[0].diff()).toEqual({ generatedFiles: { "a.txt": "1" }, deletedFiles: [] });
+    const bDiff = await b.attempts[0].diff();
+    expect(bDiff?.windows).toEqual([{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "1" } } }]);
+    expect(bDiff?.get("a.txt")).toBe("1");
 
     const partial = results.latest().warnings.find((w) => w.kind === "partial-coverage")!;
     expect(partial).toMatchObject({ experimentId: "compare/a", covered: 2, total: 3 });
@@ -636,7 +638,7 @@ describe("createResultsWriter", () => {
       sources: [{ path: "evals/a.ts", content: "x" }],
       trace: [{ name: "turn", kind: "turn" } as never],
       o11y: { toolCalls: 2 } as never,
-      diff: { generatedFiles: { "a.txt": "1" }, deletedFiles: [] },
+      diff: [{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "1" } } }],
       rawTranscript: "raw",
     };
     const carried: EvalResult = {
@@ -714,7 +716,7 @@ describe("copySnapshots", () => {
     await writeResultFile(monday, "q1/a1", record({ id: "q1", attempt: 1, hasEvents: true, hasTrace: true }));
     await writeArtifactFile(monday, "q1/a1", "events.json", [{ n: 1 }]);
     await writeArtifactFile(monday, "q1/a1", "trace.json", [{ name: "turn" }]);
-    await writeArtifactFile(monday, "q1/a1", "diff.json", { generatedFiles: {}, deletedFiles: [] });
+    await writeArtifactFile(monday, "q1/a1", "diff.json", [{ window: "s1/t1", changes: {} }]);
     await writeResultFile(monday, "q2/a1", record({ id: "q2", attempt: 1 }));
 
     // 周五只重跑了 q1:最新快照残缺。

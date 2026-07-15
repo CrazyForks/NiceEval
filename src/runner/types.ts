@@ -5,7 +5,7 @@ import type { Cleanup, JsonValue, LocalizedText, SourceArtifact } from "../share
 import type { O11ySummary, StreamEvent, TraceSpan, Usage } from "../o11y/types.ts";
 import type { Agent, AgentSetupManifest } from "../agents/types.ts";
 import type { Sandbox, SandboxHookContext, SandboxOption } from "../sandbox/types.ts";
-import type { AssertionResult, DiffData, JudgeConfig, Verdict } from "../scoring/types.ts";
+import type { AssertionResult, DiffArtifact, JudgeConfig, Verdict } from "../scoring/types.ts";
 import type { TestContext } from "../context/types.ts";
 import type { CapturedEvalSource } from "./eval-source.ts";
 import type { AttemptLocator } from "../results/locator.ts";
@@ -191,7 +191,8 @@ export interface EvalResult {
    * 状态归 `niceeval sandbox list` 回答,本记录一次写成、不回写。
    */
   sandbox?: { provider: string; sandboxId: string; kept?: true };
-  diff?: DiffData;
+  /** agent 归因增量:逐 send 窗口的 delta 序列(落盘为 diff.json;文件级视图由读取面派生)。 */
+  diff?: DiffArtifact;
   rawTranscript?: string;
   /** 携带条目(--resume 合入)专用:artifact 目录(相对结果根目录),指向原快照里的落盘。 */
   artifactBase?: string;
@@ -319,6 +320,13 @@ export interface EvalDef {
   timeoutMs?: number;
   /** 任意附加元数据,原样透传进 EvalResult,不参与调度或打分;供自定义 reporter 消费。 */
   metadata?: Record<string, unknown>;
+  /**
+   * 调整 agent diff 的归因排除清单(仅沙箱型;见 docs/feature/eval/README.md):两个数组都是
+   * gitignore 风格 glob(workdir 相对)。默认排除 .git/node_modules/构建产物/包管理器缓存;
+   * `ignore` 在默认清单上追加排除;`include` 优先级最高,把匹配路径显式加回。
+   * 合成规则固定为「默认 ∪ ignore,再被 include 打洞」,清单在分类账锚点时冻结。
+   */
+  diff?: { include?: string[]; ignore?: string[] };
   /**
    * eval 级预置:拿到沙箱(已上传 workspace + git 基线 + 装好依赖前)。
    * 默认命令以非 root 跑(agent 的自然环境);装系统依赖时给 `runCommand` 传 `{ root: true }`

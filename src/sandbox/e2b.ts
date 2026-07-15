@@ -14,7 +14,7 @@ import type {
   SourceFiles,
   ReadSourceFilesOptions,
 } from "../types.ts";
-import type { SandboxProvisionErrorKind } from "./errors.ts";
+import { classifyProvisionErrorFallback, type SandboxProvisionErrorKind } from "./errors.ts";
 import { classifySandboxIoError } from "./errors.ts";
 import { readSourceFilesByList } from "./source-files.ts";
 import { collectLocalFiles } from "./local-files.ts";
@@ -30,8 +30,30 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 600_000;
 const SESSION_TIMEOUT_MS = 1_800_000;
 
 /** e2b 的限流错误是 SDK 原生的 RateLimitError(HTTP 429 映射而来);见 resolve.ts 的 withProvisionRetry。 */
+/** 歧义类 provisioning 失败的对账:按 metadata 里的 provision token 检索远端实例,查到即 kill。 */
+export async function reconcileProvision(token: string): Promise<void> {
+  try {
+    const apiKey = process.env.E2B_API_KEY;
+    const list = (E2BSdkSandbox as unknown as {
+      list?: (opts?: Record<string, unknown>) => Promise<Array<{ sandboxId: string; metadata?: Record<string, string> }>>;
+    }).list;
+    if (typeof list !== "function") return;
+    const sandboxes = await list({ apiKey });
+    for (const info of sandboxes) {
+      if (info.metadata?.["niceeval-provision-token"] !== token) continue;
+      const kill = (E2BSdkSandbox as unknown as { kill?: (id: string, opts?: Record<string, unknown>) => Promise<unknown> }).kill;
+      if (typeof kill === "function") await kill(info.sandboxId, { apiKey }).catch(() => {});
+    }
+  } catch {
+    // 对账失败不掩盖原始错误。
+  }
+}
+
 export function classifyProvisionError(e: unknown): SandboxProvisionErrorKind {
-  return e instanceof RateLimitError ? "rate_limit" : "unknown";
+  // SDK 原生限流先归拒绝类;没认出的过与文件 IO 共用的保守瞬时兜底分类器
+  // (真实跑分里出现过 create 阶段 `fetch failed · other side closed`,属歧义类)。
+  if (e instanceof RateLimitError) return "rate_limit";
+  return classifyProvisionErrorFallback(e);
 }
 
 export class E2BSandbox implements Sandbox {
@@ -48,12 +70,18 @@ export class E2BSandbox implements Sandbox {
   }
 
   static async create(
-    opts: { timeout?: number; runtime?: "node20" | "node24"; template?: string } = {},
+    opts: { timeout?: number; runtime?: "node20" | "node24"; template?: string; provisionToken?: string } = {},
   ): Promise<E2BSandbox> {
     const commandTimeoutMs = opts.timeout ?? DEFAULT_COMMAND_TIMEOUT_MS;
     // e2b 的 node 版本由模板决定,runtime 仅作记录(不在创建时选)。
     const apiKey = process.env.E2B_API_KEY;
-    const sdkOpts = { apiKey, timeoutMs: SESSION_TIMEOUT_MS } as const;
+    // provision token 经 metadata 打进实例:歧义类失败(fetch failed · other side closed)
+    // 重试前按它检索远端、销毁可能已创建的实例(见 reconcileProvision)。
+    const sdkOpts = {
+      apiKey,
+      timeoutMs: SESSION_TIMEOUT_MS,
+      ...(opts.provisionToken ? { metadata: { "niceeval-provision-token": opts.provisionToken } } : {}),
+    } as const;
     // 有 template 就从模板起,否则用 e2b 默认 "base"。
     const sbx = opts.template
       ? await E2BSdkSandbox.create(opts.template, sdkOpts)

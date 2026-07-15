@@ -11,6 +11,7 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { EvalResult } from "../types.ts";
 import type { O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
 import type { AgentSetupManifest, DiffData, SourceArtifact } from "../types.ts";
+import { deriveDiffData } from "../scoring/diff.ts";
 import { RESULT_FILE, SNAPSHOT_FILE, artifactFileOf, classifySnapshot } from "./format.ts";
 import { isNewerSnapshot, selectLatest } from "./select.ts";
 import {
@@ -360,7 +361,12 @@ function makeAttempt(snapshot: Snapshot, snapshotDir: string, attemptDir: string
     trace: lazyArtifact<TraceSpan[]>(candidates, "trace", record.trace),
     o11y: lazyArtifact<O11ySummary>(candidates, "o11y", record.o11y),
     agentSetup: lazyArtifact<AgentSetupManifest>(candidates, "agentSetup", record.agentSetup),
-    diff: lazyArtifact<DiffData>(candidates, "diff", record.diff),
+    diff: (() => {
+      // diff.json 落盘的是逐窗口 delta 序列(DiffArtifact);文件级视图在读取面派生。
+      const raw = lazyArtifact<import("../types.ts").DiffArtifact>(candidates, "diff", record.diff);
+      let memo: Promise<DiffData | null> | undefined;
+      return () => (memo ??= raw().then((windows) => (windows === null ? null : deriveDiffData(windows))));
+    })(),
     sources: lazySources(candidates, candidateSnapshotRoots, record.sources),
   };
 }

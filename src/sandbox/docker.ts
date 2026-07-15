@@ -25,7 +25,7 @@ import { createExecDemuxer, extractFileFromTar, packFilesToTar, readableToBuffer
 import { resolveSandboxPath } from "./paths.ts";
 import { t } from "../i18n/index.ts";
 import { reportActivity } from "../runner/feedback/sink.ts";
-import type { SandboxProvisionErrorKind } from "./errors.ts";
+import { classifyProvisionErrorFallback, type SandboxProvisionErrorKind } from "./errors.ts";
 
 /**
  * dockerode 对镜像拉取限流没有专门的错误类型;Docker Hub 429 体现在错误 message 里
@@ -33,7 +33,32 @@ import type { SandboxProvisionErrorKind } from "./errors.ts";
  */
 export function classifyProvisionError(e: unknown): SandboxProvisionErrorKind {
   const msg = e instanceof Error ? e.message : String(e);
-  return /toomanyrequests|rate limit exceeded|429/i.test(msg) ? "rate_limit" : "unknown";
+  // provider 原生限流形态先归拒绝类;没认出的过与文件 IO 共用的保守瞬时兜底分类器。
+  if (/toomanyrequests|rate limit exceeded|429/i.test(msg)) return "rate_limit";
+  return classifyProvisionErrorFallback(e);
+}
+
+/**
+ * 歧义类 provisioning 失败的对账:按 provision token 查询本地 daemon,查到的实例先销毁再重建
+ * (不做断线收养,重建比重连语义干净)。docker create 是对本地 daemon 的调用,歧义窗口极小,
+ * 这条主要兜 daemon 代理 / 远程 DOCKER_HOST 的场景。
+ */
+export async function reconcileProvision(token: string): Promise<void> {
+  try {
+    const docker = new Docker();
+    const containers = await docker.listContainers({
+      all: true,
+      filters: { label: [`niceeval.provision-token=${token}`] },
+    });
+    for (const info of containers) {
+      await docker
+        .getContainer(info.Id)
+        .remove({ force: true })
+        .catch(() => {});
+    }
+  } catch {
+    // 对账失败不掩盖原始错误;留给 TTL / candidate label 的事后核对。
+  }
 }
 
 // 行首哨兵:源码文件几乎不可能出现这一串,用来切分单次 shell 输出里的多份文件。
@@ -86,6 +111,8 @@ export interface DockerSandboxOptions {
   image?: string;
   /** runner 绑定到 `sandbox.create` 的反馈句柄(镜像拉取进度走它);省略退回全局 sink。 */
   feedback?: import("../types.ts").ScopedFeedback;
+  /** 一次性 provision token:写进容器 label,歧义类失败重试前按它对账(见 errors.ts 的两维分类)。 */
+  provisionToken?: string;
 }
 
 /**
@@ -102,6 +129,7 @@ export class DockerSandbox implements Sandbox {
   private runtime: string;
   private image?: string;
   private feedback?: import("../types.ts").ScopedFeedback;
+  private provisionToken?: string;
 
   constructor(options: DockerSandboxOptions = {}) {
     this.docker = new Docker();
@@ -109,6 +137,7 @@ export class DockerSandbox implements Sandbox {
     this.runtime = options.runtime ?? "node24";
     this.image = options.image;
     this.feedback = options.feedback;
+    this.provisionToken = options.provisionToken;
   }
 
   /** 创建并启动一个 Docker 沙箱。 */
@@ -144,6 +173,12 @@ export class DockerSandbox implements Sandbox {
         `touch ${CONTAINER_LOG}; chmod 666 ${CONTAINER_LOG}; exec timeout ${ttlSec} tail -n +1 -F ${CONTAINER_LOG}`,
       ],
       WorkingDir: CONTAINER_WORKDIR,
+      // provision token:歧义类失败的对账通道(按 label 查询本地容器);
+      // keep-candidate:留存候选标记(异常硬退时核对未完成提交的候选)。
+      Labels: {
+        "niceeval.keep-candidate": "true",
+        ...(this.provisionToken ? { "niceeval.provision-token": this.provisionToken } : {}),
+      },
       Tty: true,
       HostConfig: {
         AutoRemove: true, // 停止即清理

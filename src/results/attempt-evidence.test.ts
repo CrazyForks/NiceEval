@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DiffArtifact } from "../types.ts";
 import {
   createResultsWriter,
   loadAttemptEvidence,
@@ -47,8 +48,8 @@ const TRACE: TraceSpan[] = [
   { traceId: "t1", spanId: "s1", name: "tool.get_weather", startMs: 0, endMs: 10, attributes: { call_id: "c1" } },
 ];
 
-const NONEMPTY_DIFF: DiffData = { generatedFiles: { "a.txt": "hello" }, deletedFiles: [] };
-const EMPTY_DIFF: DiffData = { generatedFiles: {}, deletedFiles: [] };
+const NONEMPTY_DIFF: DiffArtifact = [{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "hello" } } }];
+const EMPTY_DIFF: DiffArtifact = [{ window: "s1/t1", changes: {} }];
 
 /** 起一个 writer,写一条 attempt,finish,再从头 openResults 读回它的 AttemptHandle。 */
 async function seedAttempt(
@@ -86,7 +87,7 @@ describe("loadAttemptEvidence", () => {
     const actionNode = evidence.execution!.nodes.find((n) => n.kind === "action");
     expect(actionNode).toBeDefined();
     expect((actionNode as { span?: TraceSpan }).span).toBeDefined();
-    expect(evidence.diff).toEqual(NONEMPTY_DIFF);
+    expect(evidence.diff?.windows).toEqual(NONEMPTY_DIFF);
 
     expect(evidence.capabilities).toEqual({ eval: true, execution: true, timing: true, diff: true });
   });
@@ -122,7 +123,7 @@ describe("loadAttemptEvidence", () => {
 
     const evidence = await loadAttemptEvidence(attempt);
 
-    expect(evidence.diff).toEqual(EMPTY_DIFF);
+    expect(evidence.diff?.windows).toEqual(EMPTY_DIFF);
     expect(evidence.capabilities.diff).toBe(false);
   });
 

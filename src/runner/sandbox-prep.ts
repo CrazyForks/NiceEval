@@ -1,9 +1,9 @@
-// 沙箱编排的固定段(对所有沙箱型 agent 一致):收集 workspace 文件、打 git 基线、
-// 跑完采 diff。adapter 只管中间「把 agent 跑起来」那一段。
+// 沙箱编排的固定段(对所有沙箱型 agent 一致):收集 workspace 文件。
+// 变更归因(私有 git ledger、send 窗口)见 ledger.ts;adapter 只管「把 agent 跑起来」那一段。
 
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import type { DiffData, Sandbox, SandboxFile } from "../types.ts";
+import type { SandboxFile } from "../types.ts";
 
 const IGNORE_DIRS = new Set([
   "node_modules",
@@ -49,43 +49,4 @@ export async function isDirectory(path: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** 打 git 基线:gitignore 掉依赖 / 构建产物,提交一版,供之后 diff HEAD 采改动。 */
-export async function initGitAndCommit(sandbox: Sandbox): Promise<void> {
-  await sandbox.writeFiles({
-    ".gitignore": "node_modules/\n.next/\ndist/\npackage-lock.json\n.niceeval/\n__niceeval__/\n",
-  });
-  await sandbox.runShell(
-    'git init -q && git config user.email "niceeval@localhost" && git config user.name "niceeval" && git add -A && git commit -q -m "baseline" || true',
-  );
-}
-
-/** git diff HEAD 采 agent 生成 / 删除的文件。 */
-export async function captureGeneratedFiles(sandbox: Sandbox): Promise<DiffData> {
-  const generatedFiles: Record<string, string> = {};
-  const deletedFiles: string[] = [];
-  try {
-    const res = await sandbox.runShell("git add -A && git diff HEAD --name-status");
-    const lines = res.stdout.trim().split("\n").filter(Boolean);
-    for (const line of lines) {
-      const tab = line.indexOf("\t");
-      if (tab === -1) continue;
-      const status = line.slice(0, tab).trim();
-      const path = line.slice(tab + 1).trim();
-      if (!path) continue;
-      if (status.startsWith("D")) {
-        deletedFiles.push(path);
-      } else {
-        try {
-          generatedFiles[path] = await sandbox.readFile(path);
-        } catch {
-          // 二进制 / 不可读跳过
-        }
-      }
-    }
-  } catch {
-    // 采集失败返回空
-  }
-  return { generatedFiles, deletedFiles };
 }

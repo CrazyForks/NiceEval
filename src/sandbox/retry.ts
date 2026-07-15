@@ -2,7 +2,7 @@
 // provider 的 create() 套这一层。只有各 provider 自己的 classifyProvisionError 判为
 // 可重试(目前仅 rate_limit)的错误才会退避重试;其它错误第一次就抛出。
 
-import { isRetryableProvisionError, type SandboxProvisionErrorKind } from "./errors.ts";
+import { isRejectedProvisionError, isRetryableProvisionError, type SandboxProvisionErrorKind } from "./errors.ts";
 import { t } from "../i18n/index.ts";
 import { reportActivity } from "../runner/feedback/sink.ts";
 import type { ScopedFeedback } from "../types.ts";
@@ -29,12 +29,24 @@ export async function withProvisionRetry<T>(
   classify: (e: unknown) => SandboxProvisionErrorKind,
   slot?: ProvisionSlot,
   feedback?: ScopedFeedback,
+  /**
+   * 歧义类失败(请求可能已被受理)的对账钩子:按 provision token 检索远端、销毁可能已创建的
+   * 实例。没有对账通道的 provider 不传——歧义类第一次抛出:宁可判死一个 attempt,
+   * 不留一台计费的无主实例(见 docs/feature/sandbox/architecture.md)。
+   */
+  reconcile?: () => Promise<void>,
 ): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await create();
     } catch (e) {
-      if (!isRetryableProvisionError(classify(e)) || attempt >= MAX_ATTEMPTS - 1) throw e;
+      const kind = classify(e);
+      if (!isRetryableProvisionError(kind) || attempt >= MAX_ATTEMPTS - 1) throw e;
+      if (!isRejectedProvisionError(kind)) {
+        // 歧义类:远端可能已有实例。重试前必须对账;没有对账通道就第一次抛出。
+        if (!reconcile) throw e;
+        await reconcile().catch(() => {});
+      }
       // 退避期间只是在睡觉,不是在真的创建沙箱:攥着并发槽位陪跑 setTimeout 会让被限流的
       // provider 把整批并发名额拖垮成"看起来卡在个位数并发"——先还名额,睡醒了再排队要回来。
       if (slot) await slot.release();

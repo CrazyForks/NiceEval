@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { completeCoverage, downgradeCoverage, resolveAgentCoverage, worstCoverage } from "./coverage.ts";
+import { emptyDiffData } from "./diff.ts";
 import { computeVerdict } from "./verdict.ts";
 import { AssertionCollector } from "./collector.ts";
 import * as Scoped from "./scoped.ts";
@@ -17,7 +18,7 @@ function ctxWith(over: Partial<ScoringContext> = {}): ScoringContext {
   return {
     events,
     facts: deriveRunFacts(events),
-    diff: { generatedFiles: {}, deletedFiles: [] },
+    diff: emptyDiffData(),
     scripts: {},
     usage: { inputTokens: 0, outputTokens: 0 },
     status: "completed",

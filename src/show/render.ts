@@ -686,14 +686,38 @@ export function executionText(
 
 const MAX_OVERVIEW_DIFF_NAMES = 5;
 
+/** net 效果的单字母标记(A/M/D;none = 动过但净无变化,标 ±)。 */
+function netLetter(net: string): string {
+  switch (net) {
+    case "added":
+      return "A";
+    case "deleted":
+      return "D";
+    case "none":
+      return "±";
+    default:
+      return "M";
+  }
+}
+
 function overviewDiffLine(diff: DiffData): string {
-  const names = [
-    ...Object.keys(diff.generatedFiles).sort().map((p) => `M ${p}`),
-    ...[...diff.deletedFiles].sort().map((p) => `D ${p}`),
-  ];
+  const names = Object.entries(diff.files)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([p, f]) => `${netLetter(f.net)} ${p}`);
   const shown = names.slice(0, MAX_OVERVIEW_DIFF_NAMES);
   const more = names.length > shown.length ? ` · +${names.length - shown.length} more` : "";
-  return `changes: ${names.length} ${names.length === 1 ? "file" : "files"} changed · ${shown.join(", ")}${more}`;
+  return `changes: ${names.length} ${names.length === 1 ? "file" : "files"} changed by agent · ${shown.join(" · ")}${more}`;
+}
+
+/** 有界行 diff(公共前后缀修剪):对单区域编辑精确,复杂编辑给出上界近似。 */
+function lineDelta(before: string | undefined, after: string | undefined): { adds: number; dels: number } {
+  const a = before === undefined ? [] : before.split("\n");
+  const b = after === undefined ? [] : after.split("\n");
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+  return { adds: b.length - prefix - suffix, dels: a.length - prefix - suffix };
 }
 
 /**
@@ -829,45 +853,83 @@ export function diffText(opts: {
   file?: string;
 }): string {
   const { header, diff, artifactPath, file } = opts;
-  const source = artifactPath ? join( artifactPath, "diff.json") : undefined;
+  const source = artifactPath ? join(artifactPath, "diff.json") : undefined;
   if (!diff) {
-    return `${header}\n\n(no diff recorded for this attempt${source ? ` · expected: ${source}` : ""})`;
+    return `${header}\n\ndiff unavailable (no diff recorded for this attempt: remote agent, or diff artifact not published${source ? `; expected: ${source}` : ""})`;
   }
 
   if (file !== undefined) {
-    const content = diff.generatedFiles[file];
-    if (content === undefined) {
-      if (diff.deletedFiles.includes(file)) return `${header}\n\nD ${file} (deleted by the agent)`;
-      const known = [...Object.keys(diff.generatedFiles), ...diff.deletedFiles];
-      return `${header}\n\nFile "${file}" is not in this attempt's diff. Files: ${known.join(", ") || "(none)"}`;
+    const summary = diff.files[file];
+    if (summary === undefined) {
+      const known = Object.keys(diff.files).sort();
+      return `${header}\n\nFile "${file}" is not in this attempt's agent diff. Files: ${known.join(", ") || "(none)"}`;
     }
-    const lines = content.split("\n");
-    const shown = lines.slice(0, MAX_DIFF_LINES);
-    const footer = [
-      `${lines.length} ${lines.length === 1 ? "line" : "lines"}`,
-      ...(lines.length > shown.length ? [`${lines.length - shown.length} more lines not shown`] : []),
-      ...(source ? [`full diff: ${source}`] : []),
-    ].join(" · ");
-    return `${header}\n\n${file}\n${shown.join("\n")}\n\n(${footer})`;
+    // 单文件 patch 按窗口逐段渲染(diff.json 存的就是逐窗口 delta,不产出跨窗口合成 patch)。
+    const head = `${netLetter(summary.net)} ${file} · touched in ${summary.windows.join(", ")}`;
+    if (summary.binary) {
+      const sections = diff.windows
+        .filter((w) => w.changes[file] !== undefined)
+        .map((w) => {
+          const c = w.changes[file]!;
+          const b = c.binary ?? {};
+          return `── window ${w.window}\nbinary · ${b.beforeBytes ?? 0} → ${b.afterBytes ?? 0} bytes`;
+        });
+      return `${header}\n\n${head}\n\n${sections.join("\n\n")}`;
+    }
+    const sections: string[] = [];
+    for (const w of diff.windows) {
+      const c = w.changes[file];
+      if (c === undefined) continue;
+      sections.push(`── window ${w.window}\n${windowHunk(c)}`);
+    }
+    return `${header}\n\n${head}\n\n${sections.join("\n\n")}${source ? `\n\n(full diff: ${source})` : ""}`;
   }
 
-  const generated = Object.entries(diff.generatedFiles).sort(([a], [b]) => a.localeCompare(b));
-  const deleted = [...diff.deletedFiles].sort();
-  if (generated.length === 0 && deleted.length === 0) {
-    return `${header}\n\n(no file changes recorded${source ? ` · full diff: ${source}` : ""})`;
+  const entries = Object.entries(diff.files).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) {
+    return `${header}\n\n(no file changes by the agent in any send window${source ? ` · full diff: ${source}` : ""})`;
   }
-  // 落盘的 diff 只有改后全文(git name-status + readFile),没有基线:
-  // 行数是文件现大小,不硬编 +/- 增删行;A/M 无从区分,统一 M(created or modified)。
-  const rows = [
-    ...generated.map(([path, content]) => {
-      const lines = content.split("\n").length;
-      return ["M", path, `${lines} ${lines === 1 ? "line" : "lines"}`];
-    }),
-    ...deleted.map((path) => ["D", path, "(deleted)"]),
-  ];
-  const footer = [
-    `${rows.length} ${rows.length === 1 ? "file" : "files"}`,
-    ...(source ? [`full diff: ${source}`] : []),
-  ].join(" · ");
-  return `${header}\n\n${renderAlignedRows(rows)}\n\n(${footer})`;
+  const rows = entries.map(([path, summary]) => {
+    if (summary.binary) {
+      return [netLetter(summary.net), path, "binary", summary.windows.join(", ")];
+    }
+    let adds = 0;
+    let dels = 0;
+    for (const w of diff.windows) {
+      const c = w.changes[path];
+      if (!c) continue;
+      const d = lineDelta(c.before, c.after);
+      adds += Math.max(0, d.adds);
+      dels += Math.max(0, d.dels);
+    }
+    const delta = [adds > 0 ? `+${adds}` : "", dels > 0 ? `-${dels}` : ""].filter(Boolean).join(" ") || "±0";
+    return [netLetter(summary.net), path, delta, summary.windows.join(", ")];
+  });
+  const headLine = `${entries.length} ${entries.length === 1 ? "file" : "files"} changed by agent`;
+  const single = entries[0] ? `\n\nsingle file: niceeval show @… --diff=${entries[0][0]}` : "";
+  return `${header}\n\n${headLine}\n${renderAlignedRows(rows).split("\n").map((l) => `  ${l}`).join("\n")}${single}`;
+}
+
+/** 一个窗口内单文件的最小 unified hunk:公共前后缀修剪出的编辑区,一段 @@ 展示。 */
+function windowHunk(c: { status: string; before?: string; after?: string }): string {
+  const a = c.before === undefined ? [] : c.before.replace(/\n$/, "").split("\n");
+  const b = c.after === undefined ? [] : c.after.replace(/\n$/, "").split("\n");
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+  const removed = a.slice(prefix, a.length - suffix);
+  const added = b.slice(prefix, b.length - suffix);
+  const ctxBefore = a.slice(Math.max(0, prefix - 2), prefix);
+  const lines: string[] = [];
+  lines.push(`@@ -${Math.max(1, prefix - ctxBefore.length + 1)},${removed.length + ctxBefore.length} +${Math.max(1, prefix - ctxBefore.length + 1)},${added.length + ctxBefore.length} @@`);
+  for (const l of ctxBefore) lines.push(` ${l}`);
+  const MAX_HUNK_LINES = 200;
+  const shownRemoved = removed.slice(0, MAX_HUNK_LINES);
+  const shownAdded = added.slice(0, MAX_HUNK_LINES);
+  for (const l of shownRemoved) lines.push(`-${l}`);
+  if (removed.length > shownRemoved.length) lines.push(`… (${removed.length - shownRemoved.length} more removed lines)`);
+  for (const l of shownAdded) lines.push(`+${l}`);
+  if (added.length > shownAdded.length) lines.push(`… (${added.length - shownAdded.length} more added lines)`);
+  return lines.join("\n");
 }

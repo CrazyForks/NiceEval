@@ -84,6 +84,17 @@ metadata?: Record<string, unknown>;
 
 任意附加元数据,原样透传进 EvalResult,不参与调度或打分;供自定义 reporter 消费。
 
+#### `diff`
+
+```ts
+diff?: { include?: string[]; ignore?: string[] };
+```
+
+调整 agent diff 的归因排除清单(仅沙箱型;见 docs/feature/eval/README.md):两个数组都是
+gitignore 风格 glob(workdir 相对)。默认排除 .git/node_modules/构建产物/包管理器缓存;
+`ignore` 在默认清单上追加排除;`include` 优先级最高,把匹配路径显式加回。
+合成规则固定为「默认 ∪ ignore,再被 include 打洞」,清单在分类账锚点时冻结。
+
 #### `setup`
 
 ```ts

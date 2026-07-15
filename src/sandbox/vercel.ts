@@ -15,7 +15,7 @@ import { collectLocalFiles } from "./local-files.ts";
 import { resolveSandboxPath } from "./paths.ts";
 import { t } from "../i18n/index.ts";
 import { reportActivity, reportDiagnostic } from "../runner/feedback/sink.ts";
-import type { SandboxProvisionErrorKind } from "./errors.ts";
+import { classifyProvisionErrorFallback, type SandboxProvisionErrorKind } from "./errors.ts";
 
 /**
  * vercel SDK 对单次 fetch 的 429 已有内部重试(见 @vercel/sandbox 的 with-retry.js,
@@ -23,7 +23,9 @@ import type { SandboxProvisionErrorKind } from "./errors.ts";
  * 响应的 APIError,或 create() 轮询 session 状态过程里撞到的限流,都会走到这里。
  */
 export function classifyProvisionError(e: unknown): SandboxProvisionErrorKind {
-  return e instanceof APIError && e.response.status === 429 ? "rate_limit" : "unknown";
+  if (e instanceof APIError && e.response.status === 429) return "rate_limit";
+  // SDK 没有按元数据检索实例的通道:歧义类不重试、第一次抛出(见 retry.ts 的 reconcile 语义)。
+  return classifyProvisionErrorFallback(e);
 }
 
 // Vercel Sandbox 的默认工作区路径(SDK writeFiles 默认落这里)。

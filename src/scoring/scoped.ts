@@ -11,7 +11,7 @@
 
 import { unavailable, type EvalUnavailable, type Spec } from "./collector.ts";
 import type { CoverageChannel } from "./coverage.ts";
-import type { DiffData, ScoringContext, StreamEvent, SubagentCall, SubagentMatch, ToolCall, ToolMatch } from "../types.ts";
+import type { ScoringContext, StreamEvent, SubagentCall, SubagentMatch, ToolCall, ToolMatch } from "../types.ts";
 
 // ── 覆盖折叠 ──
 
@@ -410,26 +410,26 @@ export function eventsSatisfy(
   };
 }
 
-// ── 工作区 / 沙箱 ──
-
-function diffMatchesRe(diff: DiffData, re: RegExp): boolean {
-  for (const [path, content] of Object.entries(diff.generatedFiles)) {
-    if (re.test(path) || re.test(content)) return true;
-  }
-  for (const path of diff.deletedFiles) {
-    if (re.test(path)) return true;
-  }
-  return false;
-}
+// ── 工作区 / 沙箱(断的是 agent 归因增量,见 docs/feature/sandbox/architecture.md)──
 
 export function fileChanged(path: string): Spec {
   return {
     name: `fileChanged(${path})`,
     severity: "gate",
-    evaluate: (ctx) =>
-      ctx.diff.generatedFiles[path] !== undefined
-        ? 1
-        : { score: 0, expected: "changed in diff", received: "not in diff" },
+    // 断「任一 send 窗口触及」(行为证据):净效果为 none(改完又改回)也算发生过。
+    evaluate: (ctx) => {
+      const summary = ctx.diff.files[path];
+      if (summary !== undefined && summary.net !== "deleted") return 1;
+      const windows = ctx.diff.windows.length;
+      return {
+        score: 0,
+        expected: "changed by agent in some send window",
+        received:
+          summary !== undefined
+            ? `net effect: ${summary.net} (touched in ${summary.windows.join(", ")})`
+            : `not changed in any of ${windows} send window${windows === 1 ? "" : "s"}`,
+      };
+    },
   };
 }
 
@@ -438,7 +438,9 @@ export function fileDeleted(path: string): Spec {
     name: `fileDeleted(${path})`,
     severity: "gate",
     evaluate: (ctx) =>
-      ctx.diff.deletedFiles.includes(path) ? 1 : { score: 0, expected: "deleted in diff", received: "not deleted" },
+      ctx.diff.files[path]?.net === "deleted"
+        ? 1
+        : { score: 0, expected: "deleted by agent", received: ctx.diff.files[path] ? `net effect: ${ctx.diff.files[path]!.net}` : "not touched by agent" },
   };
 }
 
@@ -447,9 +449,17 @@ export function notInDiff(re: RegExp): Spec {
     name: `notInDiff(${re})`,
     severity: "gate",
     evaluate: (ctx) => {
-      if (!diffMatchesRe(ctx.diff, re)) return 1;
-      const hit = Object.entries(ctx.diff.generatedFiles).find(([p, c]) => re.test(p) || re.test(c));
-      return { score: 0, received: hit ? `matched in ${hit[0]}` : "matched a deleted path" };
+      for (const path of Object.keys(ctx.diff.files)) {
+        if (re.test(path)) return { score: 0, received: `matched path ${path}` };
+      }
+      for (const window of ctx.diff.windows) {
+        for (const [path, change] of Object.entries(window.changes)) {
+          if (change.after !== undefined && re.test(change.after)) {
+            return { score: 0, received: `matched in ${path} (window ${window.window})` };
+          }
+        }
+      }
+      return 1;
     },
   };
 }
