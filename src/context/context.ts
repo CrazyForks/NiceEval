@@ -221,8 +221,10 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     };
 
     const handle: SessionHandle = {
-      send: async (text) => {
-        const turn = await manager.send(session, text);
+      send: async (input) => {
+        const text = typeof input === "string" ? input : input.text;
+        const files = typeof input === "string" ? undefined : input.files;
+        const turn = await manager.send(session, text, files);
         return makeTurnHandle(turn, collector, deps, text, manager.resolveTurnCoverage(turn));
       },
       sendFile: async (path, text) => {
@@ -608,7 +610,9 @@ function inputRequestMatches(request: InputRequest, filter?: InputRequestFilter)
   if (filter.display !== undefined && !stringMatches(request.display ?? "", filter.display)) return false;
   if (filter.action !== undefined && !stringMatches(request.action ?? "", filter.action)) return false;
   if (filter.optionIds !== undefined) {
+    // 「恰好提供这组选项」:集合完全一致(顺序无关),不是子集包含——写少一个选项不算命中。
     const optionIds = new Set((request.options ?? []).map((o) => o.id));
+    if (optionIds.size !== filter.optionIds.length) return false;
     if (!filter.optionIds.every((id) => optionIds.has(id))) return false;
   }
   if (filter.input !== undefined && !partialObjectMatches(request.input, filter.input)) return false;

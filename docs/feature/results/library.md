@@ -76,7 +76,7 @@ import { openResults } from "niceeval/results";
 const results = await openResults(".niceeval");
 
 results.experiments;           // Experiment[]:每个实验一项,挂着自己的全部历史(id 字典序)
-results.skipped;               // 读不了的落盘:{ dir, reason, schemaVersion?, producer? }[]
+results.skipped;               // 读不了的落盘:{ dir, reason, schemaVersion?, producer?, detail? }[](detail 是 malformed 的一句英文诊断)
 
 const exp = results.experiments.find((e) => e.id === "compare/bub-gpt-5.4")!;
 exp.snapshots;                 // Snapshot[]:历次快照,最新在前

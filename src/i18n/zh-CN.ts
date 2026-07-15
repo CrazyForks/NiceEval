@@ -75,7 +75,8 @@ export const zhCN = {
     "      --eval        该 attempt 运行时保存的 Eval 源码,断言标回源码行\n" +
     "      --execution   该 attempt 的执行事件流(消息/thinking/Skill/工具调用),\n" +
     "        有 OTel 时同一节点补时间\n" +
-    "      --diff[=文件] sandbox 工作区文件改动摘要;=文件 展开单个文件\n" +
+    "      --timing      整个 attempt 的统一时间树(阶段 + hook/命令/turn + 轮内 OTel)\n" +
+    "      --diff[=文件] agent 归因的文件改动摘要;=文件 按窗口展开单个文件\n" +
     "      --history   跨 run 时间轴(与 --report 互斥)\n" +
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --report <文件> 自定义报告\n" +
@@ -84,11 +85,12 @@ export const zhCN = {
     "      报告槽 + 证据室;--report <文件> 整槽换成自定义报告(与 show 同一文件)\n" +
     "      --run <目录> 钉死结果目录   --experiment <id> 只看该实验\n" +
     "      --out <目录> 静态导出:index.html 连同查看器 artifact,可直接静态托管\n" +
+    "  niceeval sandbox list|enter|history|diff|stop  查看与销毁 --keep-sandbox 留下的现场\n" +
     "  niceeval clean                           删除 .niceeval/ 历史 artifact\n" +
     "  niceeval init                            脚手架 config + evals/\n\n" +
     "标志:\n" +
     "  --runs n  --max-concurrency n  --timeout ms  --budget usd  --tag t\n" +
-    "  --early-exit / --no-early-exit  --strict  --force  --dry\n" +
+    "  --early-exit / --no-early-exit  --strict  --force  --dry  --keep-sandbox[=failed|all]\n" +
     "  --output auto|human|agent|ci\n" +
     "  --junit path  --json path  --out dir  --port n  --open / --no-open  -h, --help  -v, --version\n\n" +
     "位置参数只选「跑哪些 eval」(id 前缀);对着哪个 agent、怎么跑来自 experiments/ 与\n" +
@@ -108,7 +110,7 @@ export const zhCN = {
   "cli.eval.noMatch": "没有匹配的 eval:{{patterns}}。\n",
   "cli.eval.noMatchHintExperiment": "提示:\"{{pattern}}\" 是实验{{kind}},你大概想跑:niceeval exp {{pattern}}\n",
   "cli.eval.noMatchKnown": "已发现 {{count}} 个 eval:{{evals}}\n",
-  "cli.exp.agentModelFlagUnsupported": "`--agent` / `--model` 不能覆盖 experiment。请在 experiments/ 里新增或复制一个配置文件。\n",
+  "cli.exp.agentModelFlagUnsupported": "experiment 运行不支持 --agent / --model。请新增或复制一个 experiment 文件并修改 model。\n",
   "cli.exp.viewerFlagUnsupported": "`{{flag}}` 只适用于 niceeval {{command}},不能用于 niceeval exp。\n",
   "cli.experiment.noMatch": "没有匹配的实验:{{arg}}。已发现:{{experiments}}\n",
   "cli.experimentGroup": "组",

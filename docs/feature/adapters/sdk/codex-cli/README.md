@@ -16,6 +16,8 @@ const agent = codexAgent({
 });
 ```
 
+接入两个字段：`apiKey` 是代理 / OpenAI API key，省略时读 `CODEX_API_KEY` 环境变量；`baseUrl` 是 OpenAI 兼容代理端点（如 `https://s2a.example.com/v1`），省略时读 `CODEX_BASE_URL`。模型选择不在这里——它归 experiment 的 `model` 维度。
+
 `configFile` 是运行 niceeval 的机器上的本地路径，不是 Sandbox 内路径；它相对本地项目根解析，指向一份完整的 Codex `config.toml`：
 
 ```ts

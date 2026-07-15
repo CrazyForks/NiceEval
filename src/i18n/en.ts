@@ -79,6 +79,7 @@ export const en = {
     "        assertions mapped back to source lines\n" +
     "      --execution   this attempt's execution event stream (messages/thinking/\n" +
     "        Skill loads/tool calls); OTel adds timing to the same node when present\n" +
+    "      --timing      unified timing tree for the attempt (phases + hooks/commands/turns + per-turn OTel)\n" +
     "      --diff[=file] sandbox workspace file-change summary; =file expands one file\n" +
     "      --history   cross-run timeline (mutually exclusive with --report)\n" +
     "      --run <dir>   pin a results dir    --experiment <id>   one experiment\n" +
@@ -90,6 +91,7 @@ export const en = {
     "      --experiment <id> one experiment\n" +
     "      --out <dir> exports a static site: index.html plus the viewer\n" +
     "      artifacts, ready for any static host\n" +
+    "  niceeval sandbox list|enter|history|diff|stop  inspect & destroy sandboxes kept by --keep-sandbox\n" +
     "  niceeval clean                                      delete .niceeval/ artifacts\n" +
     "  niceeval init                                       scaffold config + evals/\n\n" +
     "Flags:\n" +
@@ -113,7 +115,7 @@ export const en = {
   "cli.eval.noMatch": "No eval matched: {{patterns}}.\n",
   "cli.eval.noMatchHintExperiment": "Hint: \"{{pattern}}\" is an experiment{{kind}}; you probably meant: niceeval exp {{pattern}}\n",
   "cli.eval.noMatchKnown": "Discovered {{count}} evals: {{evals}}\n",
-  "cli.exp.agentModelFlagUnsupported": "`--agent` / `--model` cannot override an experiment. Add or copy a config file under experiments/ instead.\n",
+  "cli.exp.agentModelFlagUnsupported": "experiment runs do not support --agent / --model. Add or copy an experiment file and change its model instead.\n",
   "cli.exp.viewerFlagUnsupported": "`{{flag}}` only applies to niceeval {{command}}, not niceeval exp.\n",
   "cli.experiment.noMatch": "No experiment matched: {{arg}}. Discovered: {{experiments}}\n",
   "cli.experimentGroup": " group",

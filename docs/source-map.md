@@ -34,6 +34,9 @@
 | SDK 原生事件流转换器(`fromClaudeSdkMessages` / `fromPiAgentEvents` / `fromCodexThreadEvents`) | `src/agents/sdk-streams.ts`(+ 同目录 `.test.ts`);逐 SDK 契约见 `docs/feature/adapters/sdk/` |
 | LangGraph 官方事件流转换器(`fromLangGraphEvents`) | `src/agents/langgraph.ts`;契约见 `docs/feature/adapters/sdk/langgraph/README.md` |
 | OpenClaw sandbox Agent(`openClawAgent`) | `src/agents/openclaw.ts` + `src/o11y/parsers/openclaw.ts`;契约见 `docs/feature/adapters/sdk/openclaw/README.md` |
+| OpenAI 兼容结果转换器(`fromChatCompletion` / `fromResponses`) | `src/agents/openai-compat.ts`;契约见 `docs/feature/adapters/sdk/openai-compat/README.md` |
+| 原生配置文件替换(`settingsFile` / `configFile`:项目根内路径校验、上传替换、保留键冲突检测、SHA-256 进 checkpoint key) | `src/agents/native-config.ts`(共享层)+ `src/agents/{claude-code,codex}.ts`(各自保留键表) |
+| Marketplace 注册名回读校验(`marketplace add` 后回读列表,配置名对不上立刻报错) | `src/agents/marketplace.ts`(claude-code / codex 共用,回读命令由 adapter 传入) |
 
 ## Coding Agent Skills / Plugins DX([用法](feature/adapters/library/coding-agent-extensions.md) / [架构](feature/adapters/architecture/coding-agent-extensions.md))
 
@@ -73,6 +76,9 @@
 | `defineSandbox`(自定义 provider 逃生舱:`create()` 直接产出 `Sandbox` 实例,`resolve.ts` 里 `r.create` 优先于内置 backend switch) | `src/define.ts`、`src/sandbox/resolve.ts`(`createBackend`) |
 | 沙箱编排固定段(变更分类账锚点 / 折叠 agent diff;起始文件上传是 `test()` 里的手工调用,不属于固定段) | `src/runner/sandbox-prep.ts` |
 | 沙箱生命周期钩子(`SandboxSpec.setup()` / `.teardown()` 链式方法、多钩子顺序、失败语义) | `src/sandbox/types.ts`(`SandboxHooks<Self>`,类型定义);`src/runner/attempt.ts`(按序调用 `sandboxSetupHooks` / 逆序调用 `sandboxTeardownHooks`) |
+| 留存(`--keep-sandbox`):suspend 路由、detached 生命周期(inspect / wake / suspend / destroy)、provider 原生 enter 命令 | `src/sandbox/keep.ts`(provider 名分支只在 sandbox/ 域内)+ 各 provider 的 `suspend()`(`src/sandbox/{docker,e2b,vercel}.ts`) |
+| 留存注册表(`.niceeval/sandboxes/` 逐条目原子文件、entry id 散列、向上发现 `.niceeval/`、条目级 lease) | `src/sandbox/keep-registry.ts`(+ 同目录 `.test.ts`) |
+| `niceeval sandbox list/enter/history/diff/stop` 命令组 | `src/sandbox/cli-commands.ts`(`runSandboxCommand`;dispatch 在 `src/cli.ts`) |
 
 ## Scoring([feature/scoring/](feature/scoring/README.md))
 
@@ -81,8 +87,10 @@
 | 值断言匹配器(includes / equals / matches / similarity / satisfies / makeAssertion) | `src/expect/index.ts` |
 | 作用域断言(succeeded / calledTool / event / fileChanged / notInDiff …) | `src/scoring/scoped.ts` |
 | 断言收集器(延迟评估 + 链式 gate/soft/atLeast) | `src/scoring/collector.ts` |
-| LLM-as-judge(OpenAI 兼容 /chat/completions) | `src/scoring/judge.ts` |
-| 判定规则(passed / failed / errored / skipped,无 `scored` 中间态) | `src/scoring/verdict.ts` |
+| LLM-as-judge(OpenAI 兼容 /chat/completions;model/key 解析不到时记 `unavailable` 断言而非静默) | `src/scoring/judge.ts` |
+| 判定规则(passed / failed / errored / skipped;非 optional 的 `unavailable` 断言 → errored) | `src/scoring/verdict.ts` |
+| 证据完整性(六通道 `EvidenceCoverage`、`completeCoverage`、轮级降档、worst 聚合、三值折叠) | `src/scoring/coverage.ts`(算法)+ `src/agents/types.ts`(声明类型)+ `src/scoring/scoped.ts`(`coverageGap` 折叠接线) |
+| diff 数据派生(`DiffArtifact = DiffWindow[]` → 文件汇总 / 匹配谓词) | `src/scoring/diff.ts` |
 
 ## `t` 上下文与会话([feature/eval/](feature/eval/README.md))
 
@@ -100,6 +108,8 @@
 | 发现(evals/ 的 *.eval.ts / *.eval.tsx,experiments/ 的实验,路径推导 id) | `src/runner/discover.ts` |
 | 有界并发调度 + 首过即停 + budget 已花费护栏(不做预测性预扣) | `src/runner/run.ts` |
 | 单 attempt 生命周期(沙箱 / OTLP 接收器 Scope、超时硬边界、沙箱编排固定段、LifecyclePhase 转换) | `src/runner/attempt.ts` |
+| 阶段计时树(`PhaseTiming` / `TimingNode`:enter / 失败标记 / 收尾段测量 / hook 与命令子节点) | `src/runner/timing.ts`(`TimingRecorder`;接线在 `src/runner/attempt.ts`) |
+| 变更分类账(workdir 外私有 git dir、锚点冻结排除清单、eval/agent 归因 commit、逐 send 窗口导出) | `src/runner/ledger.ts`(+ 同目录 `.test.ts`) |
 | 指纹缓存((eval 源码 + 运行配置) 哈希,跨 run 结果携入) | `src/runner/fingerprint.ts` |
 | reporter 编排 + 运行级汇总 + eval 级 reporter 作用域(scopeReporter / filterSummary)+ required/best-effort 兜错(runReporter) | `src/runner/report.ts` |
 | remote 占位 Sandbox / eval 级本地路径视图(Proxy) | `src/runner/remote-sandbox.ts` |
@@ -121,7 +131,9 @@
 | 布局与版本知识(attempt 目录规则、快照分类、完整 producer) | `src/results/format.ts` |
 | `results.latest()`(= `selectLatest`,每实验取最新一次快照 + 四种挑选警告)/ `selectCurrentResults`(现刻水位合成器:对每个 experiment × eval 跨该实验全部历史快照取最新判定,合成一份报告用 Snapshot,警告随范围重算;show 与 view 共用的报告槽 Selection 就出自这里)/ `Selection.filter` / `dedupeAttempts`(身份键去重)/ `ResultScope`(`{ experiment?, patterns? }` 范围输入) | `src/results/select.ts` |
 | `createResultsWriter`(快照目录独占创建、快照级元数据落盘、attempt 记录与 artifact 增量落盘、`finish()` 补 `completedAt`) | `src/results/writer.ts` |
-| `copySnapshots`(发布原语:瘦身复制 + knownEvalIds 补记) | `src/results/copy.ts` |
+| `copySnapshots`(发布原语:计划 → 预检 → 复制,`redact` 必选消毒、publish 标记补记、knownEvalIds 补记) | `src/results/copy.ts` |
+| 发布消毒(50 MiB 预检、结构键保留、events / spans / result 的值级 redact) | `src/results/publish.ts` |
+| 落盘截断(单值 256 KiB 上限,events / spans 写入前截断并标记) | `src/results/truncate.ts` |
 | 分层契约(Experiment / Snapshot / Eval / AttemptHandle / AttemptRef / Selection / 警告类型) | `src/results/types.ts` |
 | `defineMetric` 与内置指标(verdict 逐项表态) | `src/report/metrics.ts` |
 | `flag()`(experiment flags 当维度 / 轴) | `src/report/flag.ts` |
@@ -153,5 +165,4 @@
 - **能力归属**:`niceeval view` 是本地 web 查看器。运行器支持 remote `defineAgent` 的会话型 eval；文件写入、diff、验证命令只属于沙箱型 agent。
 - **TestContext 类型**:用一个宽接口承载全部动作(运行时按 capability 守卫),而非文档设想的 TS 条件类型 —— 因为被测项目经 `tsx` 运行(不做类型检查),宽接口更省心且不影响运行时正确性。
 - **接收者与评分 API**:作用域断言对齐 eve 的接收者模型(`t` = run 级聚合视图、`session` = 单 session snapshot、`turn` = 单 Turn snapshot,同一套作用域断言词汇);会话驱动 API 为 eve 形状(`t.send(input)` / `t.sendFile(path, text?)` / `t.requireInputRequest` / `t.respond` / `t.respondAll` / `t.newSession()`);结果读取字段按接收者分开;judge 按接收者决定默认材料;判定类型是单一 `Verdict`;链式断言是 `.atLeast(x)` / `.gate(x?)`;没有 `defineEval.workspace`;`t.sandbox` 是 eval 内唯一的沙箱操作接口且不暴露 `stop()`;验证命令写成 `t.sandbox.runCommand` + `t.check(result, commandSucceeded())`;judge 是固定的 `autoevals.{closedQA,factuality,summarizes}`;没有 `t.transcript` 命名空间。
-- **`RunCompletion.earlyExitUnstarted` 恒为 `0`**:`src/runner/run.ts` 的 budget 护栏对每个因预算到顶未派发的 attempt 各发一条反馈层的 `budget-exhausted`(`DurableFeedbackEvent`),`cli.ts` 的 `assembleRunCompletion()` 读取后折算进 `RunCompletion.unstarted`,`status` 能在预算耗尽时落到 `incomplete`。首过即停省下的次数没有对应事件携带「计划次数 vs 实际派发次数」的比较,`earlyExitUnstarted` 因此仍固定为 `0`。agent/ci 展示这个比较所需的 `planned=`/`attempts=`/`rate=` 字段(docs/feature/experiments/cli.md「runs 与首过即停怎样展示」)同样尚无 renderer 实现。
-- **`ReporterError.required` 的输入恒来自当次注册**:`src/runner/report.ts` 的 `runReporter()` 已经按 `ReporterRegistration.required` 正确分类失败诊断;`assembleRunCompletion()` 消费这份分类,不是写死值。
+- **agent/ci 尚无 eval 级聚合行**:`RunCompletion.earlyExitUnstarted` 已从反馈状态派生(`earlyExitSkipped` 减去 fail-fast 份额,见 `src/cli.ts` `assembleRunCompletion()`),但 docs/feature/experiments/cli.md「runs 与首过即停怎样展示」里的逐 eval 结论行(`NICEEVAL eval … attempts= planned= unstarted= reason=early_exit` / 跑满时的 `rate=`)在 `src/runner/feedback/{agent,ci}.ts` 还没有对应 renderer,当前只有 run 级 handoff 汇总。

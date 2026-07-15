@@ -7,6 +7,7 @@
 | 对象 | 入口 | 形态 |
 |---|---|---|
 | [AI SDK](ai-sdk/README.md) | `fromAiSdk`、`aiSdkAgent`、`uiMessageStreamAgent` | 结果转换器、进程内工厂、HTTP 协议 Adapter |
+| [OpenAI 兼容](openai-compat/README.md) | `fromChatCompletion`、`fromResponses` | 结果转换器（协议形状，不限 OpenAI 官方） |
 | [Claude Agent SDK](claude-agent-sdk/README.md) | `fromClaudeSdkMessages` | SDK 事件转换器 |
 | [Codex SDK](codex-sdk/README.md) | `fromCodexThreadEvents` | SDK 事件转换器 |
 | [pi-agent-core](pi-agent-core/README.md) | `fromPiAgentEvents` | SDK 事件转换器 |

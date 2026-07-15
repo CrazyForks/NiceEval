@@ -499,9 +499,12 @@ function assembleRunCompletion(state: RunFeedbackState): RunCompletion {
       unstarted += d.count;
       failFastSkipped += d.count;
     } else if (d.key.startsWith("reporter-error:")) {
+      // required 决定这条错误是否写进 RunCompletion.reporterErrors 并让 completion 非 complete
+      // (见 docs/cli.md「required reporter」);best-effort reporter 的失败只保留为 diagnostic。
+      if (d.data?.required !== true) continue;
       reporterErrors.push({
         reporter: typeof d.data?.reporter === "string" ? d.data.reporter : d.key.slice("reporter-error:".length),
-        required: d.data?.required === true,
+        required: true,
         message: d.message,
       });
     }
@@ -512,7 +515,11 @@ function assembleRunCompletion(state: RunFeedbackState): RunCompletion {
   // attempt:early-exit 计数含 fail-fast 的未派发(反馈层同一事件驱动计数守恒);
   // 「省下的重复验证」= 总数减去 fail-fast 那部分。
   const earlyExitUnstarted = Math.max(0, state.earlyExitSkipped - failFastSkipped);
-  const status: CompletionStatus = interrupted ? "interrupted" : unstarted > 0 ? "incomplete" : "complete";
+  const status: CompletionStatus = interrupted
+    ? "interrupted"
+    : unstarted > 0 || reporterErrors.length > 0
+      ? "incomplete"
+      : "complete";
   return { status, unstarted, earlyExitUnstarted, reporterErrors };
 }
 

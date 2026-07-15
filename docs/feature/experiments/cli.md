@@ -231,7 +231,7 @@ NICEEVAL progress elapsed=75s total=5 reused=1 running=1 queued=0 completed=3
 
 这些行是稳定的 ASCII `key=value` envelope;值需要空格时使用 JSON 字符串转义。它们用于判断进程是否存活,不是结果数据源。
 
-机器语法的词法规则全局一致:`NICEEVAL` 后跟**小写**词的是单行事件(`progress` / `failure` / `error` / `eval` / `kept` / `warning`),跟**大写**词的是多行 block 的首行(`PLAN` / `RESULT`)。解析器据此区分「一行读完」与「读到下一个 marker 为止」,不需要按词表逐个记形态。
+机器语法的词法规则全局一致:`NICEEVAL` 后跟**小写**词的是单行事件(`progress` / `failure` / `error` / `eval` / `kept` / `warning` / `budget_exhausted` / `reporter_error` / `interrupted`),跟**大写**词的是多行 block 的首行(`PLAN` / `RESULT`)。解析器据此区分「一行读完」与「读到下一个 marker 为止」,不需要按词表逐个记形态。
 
 结束时 `stdout` 只打印一个有界 handoff block。失败再多也限制条数,其余通过结果不逐条列出:
 

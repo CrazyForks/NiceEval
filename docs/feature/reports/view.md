@@ -10,10 +10,13 @@ niceeval view weather                  # eval id 前缀，只收窄报告槽
 niceeval view --experiment compare/bub
 niceeval view --run site-data/run
 niceeval view --no-open                # 只打印 URL
+niceeval view --port 4400              # 固定本地端口
 niceeval view --report reports/exam.tsx
 ```
 
 位置参数有两种含义：存在的文件表示只打开这一份 `snapshot.json`；其它字符串表示 eval id 前缀。存在的目录不能作为位置参数，结果根要用 `--run <dir>` 传入。
+
+本地 server 只监听 `127.0.0.1`。默认让操作系统随机分配端口；`--port <n>` 指定首选端口，被占用时从 n 起向上顺延最多 20 个，全被占用才报错。
 
 收窄作用于报告槽的 Selection。证据室始终保留结果根中的完整 attempt 集，因此报告中的 `#/attempt/@<locator>` 深链不会因为首页过滤而失效。
 

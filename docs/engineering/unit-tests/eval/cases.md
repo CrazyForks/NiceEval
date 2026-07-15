@@ -25,7 +25,7 @@
 | send 完成后 `t.reply` 是最后一条 assistant 消息，`t.events` 反映主 session 当前事件流，`t.sessionId` 为主会话 id | 正例：send 后三者更新；反例：第二轮后 reply 变化，不暴露旧快照 |
 | 多轮 `t.send` 沿用同一主 session | 正例：记录型 agent 收到正确续接；对照：newSession 的轮次不混入 |
 | `turn.status` 是 `completed` / `failed` / `waiting` 三值；`turn.usage` 可缺失（取决于 Adapter） | 三种 status 各一例；usage 缺失时为 undefined 而非报错 |
-| `t.sendFile(path, text?)` 把本地文件按扩展名推断 MIME 后作为 data URL 附加本轮输入 | 正例：png/txt 得不同 MIME；反例：文件不存在报明确错误；边界：无扩展名 |
+| `t.sendFile(path, text?)` 把本地文件按扩展名推断 MIME 后读成 `InputFile`（base64）附加本轮 `input.files` | 正例：png/txt 得不同 MIME；反例：文件不存在报明确错误；边界：无扩展名 |
 | turn 级断言失败只记一条断言，不中断 `test()` 执行 | 正例：失败断言后后续代码仍执行且结果记录 |
 
 示例——直接观察用户会读取的值，只断言 `agent.send` 被调用一次不够，因为那发现不了 Context 暴露旧快照的 bug：

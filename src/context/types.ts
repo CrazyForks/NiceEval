@@ -12,6 +12,9 @@ import type {
   SourceFiles,
 } from "../sandbox/types.ts";
 
+/** `t.send()` / `session.send()` 的入参:字符串,或带附件的结构化消息。 */
+export type SendInput = string | { text: string; files?: readonly import("../agents/types.ts").InputFile[] };
+
 /** t.send() 返回的句柄:从事件流派生便利字段 + expectOk。 */
 export interface TurnHandle {
   /** 本轮的原始事件流(工具调用、消息增量等);下面的派生字段都算自它。 */
@@ -94,7 +97,11 @@ export interface DiffView {
 
 /** 工具匹配小语言。 */
 export interface ToolMatch {
-  /** 只匹配入参包含这些键值的调用(浅层包含,非深度相等)。 */
+  /**
+   * 只匹配入参包含这些键值的调用:**深度部分匹配**——嵌套对象逐键下钻,数组按值比较;
+   * 值可以是 RegExp(对字符串字段测试,不命中时再对整个 input 的序列化串兜底测一次)
+   * 或谓词函数。不要求深度相等,多余的入参键不影响命中。
+   */
   input?: Record<string, unknown>;
   /** 精确匹配调用次数,省略则只要求「至少一次」。 */
   count?: number;
@@ -180,8 +187,8 @@ export interface SandboxHandle {
  * 只看最后一轮要用 `send()` 返回的 TurnHandle。
  */
 export interface SessionHandle {
-  /** 在这个会话里发一条消息,返回该轮的 TurnHandle。 */
-  send(text: string): Promise<TurnHandle>;
+  /** 在这个会话里发一条消息(字符串或结构化消息),返回该轮的 TurnHandle。 */
+  send(input: SendInput): Promise<TurnHandle>;
   /** 在这个会话里发一条带文件的消息,语义同 TestContext.sendFile。 */
   sendFile(path: string, text?: string): Promise<TurnHandle>;
   /** 取这个会话里等待中的 HITL 输入请求;拿不到就抛,语义同 TestContext.requireInputRequest。 */
@@ -242,8 +249,8 @@ export interface SessionHandle {
  */
 export interface TestContext {
   // 会话
-  /** 向默认会话发一条消息,返回该轮的 TurnHandle。事件同时累加进默认会话的累计事件流,供下面的作用域断言使用。 */
-  send(text: string): Promise<TurnHandle>;
+  /** 向默认会话发一条消息(字符串或结构化消息),返回该轮的 TurnHandle。事件同时累加进默认会话的累计事件流,供下面的作用域断言使用。 */
+  send(input: SendInput): Promise<TurnHandle>;
   /** 发一条带文件(图片等多模态输入)的消息。`path` 相对项目根;读出后 base64 随 TurnInput.files 交给 adapter。 */
   sendFile(path: string, text?: string): Promise<TurnHandle>;
   /** 取默认会话里等待中的 HITL 输入请求;不传 filter 要求恰好一条,拿不到就抛。 */

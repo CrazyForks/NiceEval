@@ -18,6 +18,8 @@ const agent = claudeCodeAgent({
 
 `skills`、`mcpServers` 和 Claude Code 原生 `plugins` 均在 setup 阶段安装。Marketplace 连接不代表启用其中所有插件，每项必须显式给出 Plugin 名。
 
+接入与成本三个字段：`apiKey` 是 Anthropic API key，省略时读 `ANTHROPIC_API_KEY` 环境变量；`baseUrl` 是自定义 API 端点（代理 / 内网网关），省略时读 `ANTHROPIC_BASE_URL`，两者都没有则用 Anthropic 官方端点；`maxTurns` 限制单次 send 最多跑几个 tool-use 轮次（透传 `--max-turns`），用于给 eval 成本设上限，省略时用 CLI 原生默认（无限制）。模型选择不在这里——它归 experiment 的 `model` 维度。
+
 `settingsFile` 是运行 niceeval 的机器上的本地路径，不是 Sandbox 内路径；它相对本地项目根解析，指向一份完整的 Claude Code `settings.json`：
 
 ```ts

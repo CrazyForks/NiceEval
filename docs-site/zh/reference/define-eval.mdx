@@ -128,10 +128,10 @@ eval 主体:拿到 TestContext,驱动对话 / 沙箱操作并就地断言。
 #### `send`
 
 ```ts
-send(text: string): Promise<TurnHandle>;
+send(input: SendInput): Promise<TurnHandle>;
 ```
 
-向默认会话发一条消息,返回该轮的 TurnHandle。事件同时累加进默认会话的累计事件流,供下面的作用域断言使用。
+向默认会话发一条消息(字符串或结构化消息),返回该轮的 TurnHandle。事件同时累加进默认会话的累计事件流,供下面的作用域断言使用。
 
 #### `sendFile`
 
