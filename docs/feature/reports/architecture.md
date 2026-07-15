@@ -31,6 +31,14 @@ Results 保存事实：判定、断言、runner 时间树、事件、trace、dif
 
 报告若需要历史趋势，可从 `ReportContext.results` 自行选择 `Snapshot[]`；不能把宿主注入的现刻水位 Selection 当成完整历史。
 
+## 可比组是默认报告的聚合边界
+
+Experiment 的路径同时声明身份与可比性。默认 `ExperimentComparison` 从 experiment id 派生可比组键：有 `/` 时取完整父路径，没有 `/` 时取完整 id 并形成单例组。这个派生只依赖身份字段，不解析 agent、model、flags 或文件名后缀，也不把共同字符串前缀当成组。
+
+分区发生在 Selection 已完成范围收窄和现刻水位选择之后、任何指标计算之前。每个组独立调用 `GroupSummary.data`、`MetricScatter.data` 与 `ExperimentList.data`；所以组外 attempt 不可能污染该组的坐标尺度、series 连线、成功率、成本、排序或缺数据计数。Selection warning 仍属于整份选择，宿主在组索引上方统一显示，不复制进每组。
+
+这条隔离是不传 `--report` 时的产品契约，不是所有报告组件的全局魔法。`MetricScatter`、`MetricTable` 和 `ExperimentList` 仍忠实消费作者传入的数据；自定义报告可以为了横跨项目的分析显式合并组。默认报告不能这样做，因为 Experiments 已用“同一文件夹才互相对比”建立了可归因边界。
+
 ## 计算与渲染分离
 
 组件的 `.data(...)` 是异步计算面，可以通过 `AttemptHandle` 懒加载 artifact。组件渲染面是同步纯函数，只接收计算完成的普通数据。
@@ -67,7 +75,7 @@ definition.build(ctx)
 | 层 | `show` | `view` |
 |---|---|---|
 | 报告槽 | text 面 | static HTML web 面 |
-| 默认填充 | `ExperimentComparison`：成本 × 端到端成功率散点 + `ExperimentList` 层级列表 | 同一 `ExperimentComparison`：成本 × 端到端成功率散点 + 可排序、可过滤的 `ExperimentList` 固定列表格 |
+| 默认填充 | `ExperimentComparison`：多组时只输出组索引与单组查看命令；单组时输出该组独立的成本 × 端到端成功率散点与 `ExperimentList` | 同一 `ExperimentComparison`：完整组索引 + 当前组独立的散点与可排序、可过滤 `ExperimentList` 固定列表格；切组不重新读取 Selection |
 | attempt 下钻 | `niceeval show @<locator>` | `#/attempt/@<locator>` |
 | 证据 | `--eval` / `--execution` / `--timing` / `--diff` | Runs / Traces / Attempt modal |
 | 自定义 | `--report <file>` | `--report <file>` |
@@ -88,7 +96,7 @@ definition.build(ctx)
 
 web 面先输出完整可读的静态 HTML。官方 CSS 使用稳定 `nre-*` 类名；`className` 和 `Style` 提供样式入口。增强脚本只增加临时排序、过滤和 tooltip，不改变计算口径或初始数据。
 
-组件的实体边界不限制其视觉形态。`ExperimentList` 仍然严格保持“一项一个 experiment、展开到 eval”的实体语义，但 web 面必须把顶层项渲染为带列头的固定比较表；不能因为组件名是 `List` 就退化成无列头的 flex 文本行。text 面可以采用紧凑列表，因为终端与网页的排版目标不同；两面共享的约束是数据、指标、排序基准和证据引用同源。
+组件的实体边界不限制其视觉形态。`ExperimentList` 仍然严格保持“一项一个 experiment、展开到 eval”的实体语义，但 web 面必须把顶层项渲染为带列头的固定比较表；不能因为组件名是 `List` 就退化成无列头的 flex 文本行。text 面可以采用紧凑列表，因为终端与网页的排版目标不同；两面共享的约束是组划分、数据、指标、排序基准和证据引用同源。web 的组选择器只是渐进增强：静态 HTML 必须保留每组完整内容，且任意时刻显示的图和表都只消费该组数据。
 
 `view --out` 把报告 HTML、证据室壳和前端会读取的 artifact 一起导出。报告 HTML 不是结果格式，`__NICEEVAL_VIEW_DATA__` 也不是编程读取契约；程序消费结果应使用 `niceeval/results`。
 

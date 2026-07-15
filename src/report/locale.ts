@@ -64,6 +64,14 @@ const en = {
   /** GroupSummary 的 KPI dt 标签(其余字段复用 verdict.* / overview.* 已有 key)。 */
   "groupSummary.experiments": "Experiments",
 
+  "experimentComparison.groups": "Experiment groups",
+  "experimentComparison.group": "Experiment group",
+  "experimentComparison.results": "Results",
+  "experimentComparison.lastRun": "Last run",
+  "experimentComparison.selectGroup": "Select experiment group {group}",
+  "experimentComparison.command": "Details: {command}",
+  "experimentComparison.empty": "No experiment groups",
+
   "composedFrom.one": "composed from {n} run",
   "composedFrom.other": "composed from {n} runs",
   "latestRun": "latest {run}",
@@ -151,6 +159,14 @@ const zhCN: Record<ReportMessageKey, string> = {
   "overview.attemptsCount": "{n} 次 attempt",
 
   "groupSummary.experiments": "实验数",
+
+  "experimentComparison.groups": "实验组",
+  "experimentComparison.group": "实验组",
+  "experimentComparison.results": "结果",
+  "experimentComparison.lastRun": "最后运行",
+  "experimentComparison.selectGroup": "选择实验组 {group}",
+  "experimentComparison.command": "查看：{command}",
+  "experimentComparison.empty": "没有实验组",
 
   "composedFrom.one": "合成自 {n} 个 run",
   "composedFrom.other": "合成自 {n} 个 run",

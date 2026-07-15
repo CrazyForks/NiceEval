@@ -57,7 +57,11 @@ export type { ColumnAlign } from "./text/layout.ts";
 // 内置报告兼组合件(show / view 裸跑时报告槽的出厂填充;也可作组件整体引用,
 // `<ExperimentComparison data={await ExperimentComparison.data(selection)} />`),无 renderer 特权
 export { ExperimentComparison } from "./built-ins/index.ts";
-export type { ExperimentComparisonData, ExperimentComparisonProps } from "./built-ins/index.ts";
+export type {
+  ExperimentComparisonData,
+  ExperimentComparisonGroupData,
+  ExperimentComparisonProps,
+} from "./built-ins/index.ts";
 
 // locale:官方组件 chrome 文案的语言(en / zh-CN);指标 label 可按 locale 给字典
 export { DEFAULT_REPORT_LOCALE, resolveMetricLabel } from "./locale.ts";

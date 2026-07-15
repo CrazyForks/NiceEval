@@ -210,7 +210,7 @@ Inspect: niceeval show @1bwcxxiy
 Eval:    niceeval show @1bwcxxiy --eval
 Trace:   niceeval show @1bwcxxiy --execution
 Diff:    niceeval show @1bwcxxiy --diff
-Compare: niceeval view compare
+Compare: niceeval view
 
 Results:
   .niceeval/compare/bub-e2b/<snapshot>
@@ -224,7 +224,7 @@ Results:
 PASSED  45 passed · 0 failed · 0 errored  (0 reused)
         3m 21s · 1.1M tok · $1.22
 
-Compare: niceeval view compare
+Compare: niceeval view
 Results: .niceeval/compare/<5 snapshots>
 ```
 
@@ -244,13 +244,13 @@ FAILURES  (17 total · terminal shows first 10)
           gate: Issue 15193: selected proposal matches the accepted proposal
                 equals(4) · expected 4 · received 1
 … 9 more failures shown, then:
-+7 more failures — niceeval view dev-e2b
++7 more failures — niceeval view
 
 Inspect: niceeval show @1bwcxxiy
 Eval:    niceeval show @1bwcxxiy --eval
 Trace:   niceeval show @1bwcxxiy --execution
 Diff:    niceeval show @1bwcxxiy --diff
-Compare: niceeval view dev-e2b
+Compare: niceeval view
 
 Results:
   .niceeval/dev-e2b/bub-e2b/<snapshot>
@@ -267,7 +267,7 @@ Reuse: 50 of 50 carried in from cache · 0 to run
 PASSED  50 passed · 0 failed · 0 errored   (all 50 reused)
         0s · 0 new tok · $0.00
 
-Compare: niceeval view dev-e2b
+Compare: niceeval view
 Results: .niceeval/dev-e2b/<5 snapshots>
 ```
 
@@ -331,7 +331,7 @@ next:
 failures: 12 total, showing 5
   - @17m2k9pq …
   - @14q8x1cz …
-  … 7 more; inspect the JSON result or run `niceeval view compare`
+  … 7 more; inspect the JSON result or run `niceeval view`
 ```
 
 Agent 反馈遵守以下边界:
@@ -516,6 +516,15 @@ niceeval exp compare --history
 ```text
 --history 只适用于 niceeval show,不能用于 niceeval exp。
 ```
+
+`show` 与 `view` 是顶层命令，不是 `exp` 的子命令。用户误写 `niceeval exp show` 或 `niceeval exp view`，且仓库里没有同名 experiment 时，CLI 保留“不存在的实验”错误，并追加可直接执行的纠错提示：
+
+```text
+No experiment matched: show. Discovered: compare/bub, compare/codex
+Did you mean: niceeval show
+```
+
+如果仓库确实声明了 id 为 `show` 或 `view` 的 experiment，`exp show` / `exp view` 仍按合法 experiment 选择执行，不被命令提示抢占。
 
 用法错误始终写 `stderr` 并非零退出;错误形态不随 profile 改变。`--help` / `--version` 只打印帮助或版本,不加载 experiment、不创建结果。
 

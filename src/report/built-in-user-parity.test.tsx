@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest";
 import type { EvalResult, Verdict } from "../types.ts";
 import type { AttemptHandle, Results, Selection, Snapshot } from "../results/index.ts";
 import type { ExperimentListItem, ScatterData } from "./types.ts";
+import type { ExperimentComparisonData } from "./built-ins/index.ts";
 import { encodeAttemptLocator } from "../results/locator.ts";
 import { Col, ExperimentList, defineReport } from "./index.ts";
 import { ExperimentComparison } from "./built-ins/index.ts";
@@ -253,6 +254,12 @@ function experimentListOf(tree: ReportNode): ExperimentListItem[] | undefined {
   return collect(tree).find((c) => c.label === "ExperimentList")?.props.items as ExperimentListItem[] | undefined;
 }
 
+function comparisonDataOf(tree: ReportNode): ExperimentComparisonData | undefined {
+  return collect(tree).find((c) => c.label === "ExperimentComparison")?.props.data as
+    | ExperimentComparisonData
+    | undefined;
+}
+
 /** HTML 里所有 attempt 深链,排序后便于集合比较。 */
 function hrefsOf(html: string): string[] {
   return [...html.matchAll(/href="(#\/attempt\/[^"]+)"/g)].map((m) => m[1]).sort();
@@ -291,17 +298,16 @@ describe("resolved 树结构化等价(built-in ≡ 包外 public-copy)", () => {
       const builtIn = await resolvedTreeOf(ExperimentComparison, c);
       const user = await resolvedTreeOf(publicCopy, ctx()); // 各用一份等价 ctx,证明不依赖共享状态
 
-      // 组件类型与顺序:<Col> 包 [MetricScatter, ExperimentList],别无它物。
+      // build 面只把预计算分组数据交给公开组合件，没有 renderer 私有节点。
       const labels = collect(builtIn).map((n) => n.label);
-      expect(labels).toEqual(["Col", "MetricScatter", "ExperimentList"]);
+      expect(labels).toEqual(["ExperimentComparison"]);
       expect(collect(user).map((n) => n.label)).toEqual(labels);
 
       // 逐节点结构化相等:组件类型、顺序、resolved data、props keys(pointHref/filter/…)全一致。
       expect(factify(user)).toEqual(factify(builtIn));
 
       // resolved data 本身也逐字段相等(不只是树同构)。
-      expect(scatterOf(user)).toEqual(scatterOf(builtIn));
-      expect(experimentListOf(user)).toEqual(experimentListOf(builtIn));
+      expect(comparisonDataOf(user)).toEqual(comparisonDataOf(builtIn));
     });
   }
 });
@@ -311,15 +317,19 @@ describe("resolved 树结构化等价(built-in ≡ 包外 public-copy)", () => {
 describe("必测场景:resolved data 事实", () => {
   it("场景 1+2:多 experiment/agent,成本与通过率都有值;缺成本的点如实 x=null,实验列表仍出项", async () => {
     const tree = await resolvedTreeOf(ExperimentComparison, richContext());
-    const scatter = scatterOf(tree)!;
-    const experiments = experimentListOf(tree)!;
+    const data = comparisonDataOf(tree)!;
+    expect(data.groups.map((group) => group.key)).toEqual(["compare", "solo"]);
+    const compare = data.groups[0]!;
+    const soloGroup = data.groups[1]!;
+    const scatter = compare.scatter;
+    const experiments = [...compare.experiments, ...soloGroup.experiments];
 
     // 散点:points=experiment、series=agent、x=cost、y=end-to-end-pass-rate
     expect(scatter.points).toBe("experiment");
     expect(scatter.series).toBe("agent");
     expect(scatter.x.key).toBe("cost");
     expect(scatter.y.key).toBe("end-to-end-pass-rate");
-    expect(scatter.rows.map((r) => r.key).sort()).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
+    expect(scatter.rows.map((r) => r.key).sort()).toEqual(["compare/bub-low", "compare/codex-mid"]);
 
     const bub = scatter.rows.find((r) => r.key === "compare/bub-low")!;
     expect(bub.series).toBe("bub");
@@ -333,7 +343,7 @@ describe("必测场景:resolved data 事实", () => {
     expect(codex.y.value).toBeCloseTo(0.5, 10);
 
     // 场景 2:solo/no-cost 缺成本 → x 为 null(点在,不可画),y 仍有值
-    const solo = scatter.rows.find((r) => r.key === "solo/no-cost")!;
+    const solo = soloGroup.scatter.rows.find((r) => r.key === "solo/no-cost")!;
     expect(solo.x.value).toBeNull();
     expect(solo.y.value).toBeCloseTo(0.5, 10);
     // ≥2 可画点
@@ -344,22 +354,23 @@ describe("必测场景:resolved data 事实", () => {
     expect(experiments.find((e) => e.experimentId === "solo/no-cost")!.cost.value).toBeNull();
   });
 
-  it("场景 4:空 Selection —— 散点无 rows、实验列表为空数组", async () => {
+  it("场景 4:空 Selection —— 没有可比组", async () => {
     const tree = await resolvedTreeOf(ExperimentComparison, emptyContext());
-    expect(scatterOf(tree)!.rows).toEqual([]);
-    expect(experimentListOf(tree)).toEqual([]);
+    expect(comparisonDataOf(tree)!.groups).toEqual([]);
   });
 
   it("场景 4 变体:全 skipped —— 每个点 x/y 都不可测,0 可画点", async () => {
     const tree = await resolvedTreeOf(ExperimentComparison, allSkippedContext());
-    const scatter = scatterOf(tree)!;
+    const scatter = comparisonDataOf(tree)!.groups[0]!.scatter;
     expect(scatter.rows.every((r) => r.x.value === null && r.y.value === null)).toBe(true);
     expect(scatter.rows.filter((r) => r.x.value !== null && r.y.value !== null)).toHaveLength(0);
   });
 
   it("场景 5:failed/errored/skipped 混合 —— ExperimentList 展开区结果摘要正确(eval 级折叠计票)", async () => {
     const tree = await resolvedTreeOf(ExperimentComparison, richContext());
-    const codex = experimentListOf(tree)!.find((e) => e.experimentId === "compare/codex-mid")!;
+    const codex = comparisonDataOf(tree)!.groups
+      .find((group) => group.key === "compare")!
+      .experiments.find((e) => e.experimentId === "compare/codex-mid")!;
     // algebra/x errored、algebra/y skipped、algebra/z passed → eval 级折叠 {passed:1, errored:1, skipped:1}
     expect(codex.verdicts).toEqual({ passed: 1, failed: 0, errored: 1, skipped: 1 });
     const errored = codex.evalRows.find((e) => e.evalId === "algebra/x")!;
@@ -416,14 +427,13 @@ describe("built-in 与 public-copy 渲染出的事实相同", () => {
 
 // ═════════════════════════ 4. 散点空 / 单点 / 多点行为(text + web 同一事实)═════════════════════════
 
-describe("散点空态 / 单点 / 多点行为", () => {
-  it("0 可画点(空 Selection):text 说 No data、web 走 nre-scatter-empty nre-missing", async () => {
+describe("分组空态 / 单点 / 多点行为", () => {
+  it("空 Selection:text / web 都显示没有实验组，不伪造空 scatter", async () => {
     const text = await renderReportToText(ExperimentComparison, emptyContext(), { width: 100 });
-    expect(text).toContain("No data to plot");
-    expect(text).not.toContain("better → upper right");
+    expect(text).toContain("No experiment groups");
     const html = await renderReportToStaticHtml(ExperimentComparison, emptyContext());
-    expect(html).toContain("nre-scatter-empty");
-    expect(html).toContain("nre-missing");
+    expect(html).toContain("nre-experiment-groups-empty");
+    expect(html).not.toContain("nre-metric-scatter");
   });
 
 });
@@ -438,8 +448,9 @@ describe("场景 7:en / zh-CN 数据 resolve 一次、chrome 分别本地化", (
     validateReportTree(resolved);
 
     // 同一棵 resolved 树 → data 只算了一次(下方 spy 版另证调用次数)。
-    const scatter = scatterOf(resolved)!;
-    const experiments = experimentListOf(resolved)!;
+    const comparison = comparisonDataOf(resolved)!;
+    const scatterRows = comparison.groups.flatMap((group) => group.scatter.rows);
+    const experiments = comparison.groups.flatMap((group) => group.experiments);
 
     const enText = renderNodeToText(resolved, createTextContext({ width: 100, locale: "en" }));
     const zhText = renderNodeToText(resolved, createTextContext({ width: 100, locale: "zh-CN" }));
@@ -463,8 +474,8 @@ describe("场景 7:en / zh-CN 数据 resolve 一次、chrome 分别本地化", (
     expect(scatterKeysOf(zhHtml)).toEqual(scatterKeysOf(enHtml));
     expect(hrefsOf(zhHtml)).toEqual(hrefsOf(enHtml));
     // 从同一棵 resolved 树取的 data,en/zh 渲染不改变它
-    expect(scatter.rows.map((r) => r.key)).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
-    const [bub, codex, solo] = scatter.rows;
+    expect(scatterRows.map((r) => r.key)).toEqual(["compare/bub-low", "compare/codex-mid", "solo/no-cost"]);
+    const [bub, codex, solo] = scatterRows;
     expect(bub.x.value).toBeCloseTo(0.1, 10);
     expect(bub.y.value).toBeCloseTo(0.75, 10);
     expect(codex.x.value).toBeCloseTo(0.225, 10);

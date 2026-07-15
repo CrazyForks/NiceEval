@@ -8,7 +8,7 @@
 | 在浏览器浏览历史、图表和完整证据 | [`niceeval view`](view.md) | 人工复盘、分享静态报告 |
 | 定义自己的成绩单、榜单或趋势图 | [`niceeval/report`](library.md) | 产品页面、benchmark 站、定制汇报 |
 
-`show` 和 `view` 读取同一份 Selection，也都接受 `--report <file>` 替换报告槽。不传 `--report` 时，两者选择同一份内置 `ExperimentComparison`：`show` 渲染 text 面，`view` 渲染 web 面。单 Eval、Attempt、history 与证据切面仍由各自宿主负责下钻。
+`show` 和 `view` 读取同一份 Selection，也都接受 `--report <file>` 替换报告槽。不传 `--report` 时，两者选择同一份内置 `ExperimentComparison`：它先按 experiment id 的父目录切成可比组，再在每组内部画成本 × 端到端成功率散点并列出配置；不同组的 experiment 永远不进入同一张图或同一张比较表。`view` 默认加载完整 Selection，由用户在组选择器里切换当前图表；`show` 若命中多个组只打印组索引与继续查看的命令，命中单组才展开散点与列表。单 Eval、Attempt、history 与证据切面仍由各自宿主负责下钻。
 
 报告只表达“怎么看”。原始判定、断言、事件、trace 和 diff 的事实归 [Results](../results/README.md)；运行过程中把事实写出去的回调叫 [Reporter](../../runner.md),不属于这里。
 

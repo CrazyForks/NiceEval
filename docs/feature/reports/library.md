@@ -7,6 +7,7 @@
 | 想回答的问题 | 组件 |
 |---|---|
 | 这批结果有多大、整体是否健康 | `RunOverview` |
+| 按可比组看当前水位，并只在组内比较 | `ExperimentComparison` |
 | 某一组 experiment 的整体情况 | `GroupSummary` |
 | 每个 experiment / eval / attempt 发生了什么 | `ExperimentList` / `EvalList` / `AttemptList` |
 | 谁整体更好，多个指标并排比较 | `MetricTable` |
@@ -106,11 +107,33 @@ export default async function EvalsPage() {
 
 #### `ExperimentComparison`
 
-裸 `niceeval show` 与 `niceeval view` 首页渲染的内置默认报告：先是成本 × 端到端成功率散点（`MetricScatter` 的口径），再是 `ExperimentList`。端到端成功率把每个 `failed` 与 `errored` attempt 都记为 0，只有 `skipped` 不进聚合；默认首页因此回答“这套配置实际交付成功结果的概率”，不会因排除执行错误而抬高排名。它是官方维护的组合件而非新的数据源——两个子块消费与单独使用时完全相同的 `.data()` 计算结果；只有一个可画 experiment 时散点照常显示单点。在自定义报告里可以整体引用它，也可以直接摆两个子组件得到同样的数据口径：
+裸 `niceeval show` 与 `niceeval view` 首页渲染的内置默认报告。它先把 Selection 按**可比组**分区，再为每组分别计算 `GroupSummary`、成本 × 端到端成功率散点（`MetricScatter` 的口径）和 `ExperimentList`。可比组键是 experiment id 的完整父路径：`compare/bub` 与 `compare/codex` 的键都是 `compare`，`bench/long/codex` 的键是 `bench/long`；没有父路径的 experiment 使用自己的完整 id 作为单例组键。不同组的数据不会进入同一个 scatter、series、排序或汇总。
+
+端到端成功率把每个 `failed` 与 `errored` attempt 都记为 0，只有 `skipped` 不进聚合；默认首页因此回答“这套配置实际交付成功结果的概率”，不会因排除执行错误而抬高排名。它是官方维护的组合件而非新的数据源——每个组的三个子块消费与单独使用时完全相同的 `.data()` 计算结果；某组只有一个可画 experiment 时散点照常显示单点。web 面持有完整组索引并一次聚焦一组，无 JS 时退化为各组独立的 `<details>`；text 面命中多个组时只显示组索引与可执行的单组查看命令，命中单组时才输出完整散点与列表，绝不生成跨组总榜。
+
+在自定义报告里可以整体引用它：
 
 ```tsx
 <ExperimentComparison data={await ExperimentComparison.data(selection)} />
 ```
+
+数据形状穷尽如下：
+
+```ts
+interface ExperimentComparisonData {
+  groups: ExperimentComparisonGroupData[];
+}
+
+interface ExperimentComparisonGroupData {
+  /** experiment id 的完整父路径；根目录 experiment 使用自己的完整 id。 */
+  key: string;
+  summary: GroupSummaryData;
+  scatter: ScatterData;
+  experiments: ExperimentListItem[];
+}
+```
+
+组按 `key` 字典序排列；组内 experiment 按端到端成功率从高到低预排。自定义报告若直接组合 `MetricScatter` / `ExperimentList`，就是在显式接管分区责任：通用组件忠实消费传入范围，不会自动把跨组 Selection 拆开。
 
 #### `RunOverview`
 
@@ -135,7 +158,7 @@ const group = selection.filter((snapshot) => snapshot.experimentId.startsWith("c
 
 #### `ExperimentList`
 
-每项显示 experiment 身份、agent / model、flags、判定构成、官方指标和其中的 eval。适合总览页的主列表。
+每项显示 experiment 身份、agent / model、flags、判定构成、官方指标和其中的 eval。适合一个可比组内的主列表。组件本身是通用实体列表，不推断组边界；默认 `ExperimentComparison` 每次只把一组 items 交给它，自定义报告若传入多组 items 就是在明确选择跨组列表。
 
 web 面是固定列的 experiment 比较表，而不是无表头的松散卡片列表。主表一行一个 experiment，列顺序固定为：
 
@@ -278,6 +301,8 @@ const data = await MetricScatter.data(selection, {
 ```
 
 x 或 y 缺失的点不绘制，并显示缺失数量。零个可画点时组件显示明确空态；只有一个可画点时照常画出该点，不把“比较”错误地当成至少两个实验的门槛。
+
+`MetricScatter` 是通用分析组件，不根据 experiment id 隐式分区。默认 `ExperimentComparison` 会先按可比组过滤后逐组调用它；自定义报告直接传入跨组 Selection 时，跨组同图是作者的显式选择。
 
 #### `MetricLine`
 

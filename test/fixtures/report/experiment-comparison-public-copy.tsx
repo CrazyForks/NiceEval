@@ -1,19 +1,13 @@
 // 包外用户报告的等价副本:一个普通用户会写的 --report 文件,只从 niceeval/report 的公开
 // barrel(这里按测试约定用相对源码路径 src/report/index.ts)import 积木,零内部路径、零数据装配。
 //
-// 它与 src/report/built-ins/experiment-comparison.tsx 的 build 函数除 import 路径与 export
-// 形式外必须逐节点同构(同一棵 <Col> / MetricScatter / ExperimentList、同一组 props、同一对指标)。
-// built-in-user-parity.test.tsx 以这份 fixture 证明「内置报告就是普通用户报告」——同一 Selection 下
-// 两者 resolve 出的树结构化相等,渲染出的事实相同,而不是靠注释声称。
+// 它使用公开的组合件与公开 `.data()`，与内置 definition 的 build 面逐节点同构。
+// built-in-user-parity.test.tsx 以此证明「内置报告就是普通用户报告」：同一 Selection 下
+// 两者都只把预计算好的分组数据交给同一个双面组件，没有 renderer 私有通道。
 
-import { Col, ExperimentList, MetricScatter, costUSD, defineReport, endToEndPassRate } from "../../../src/report/index.ts";
+import { ExperimentComparison, defineReport } from "../../../src/report/index.ts";
 
 export default defineReport(async ({ selection }) => {
-  const experiments = await ExperimentList.data(selection);
-  return (
-    <Col>
-      <MetricScatter selection={selection} points="experiment" series="agent" x={costUSD} y={endToEndPassRate} />
-      <ExperimentList items={experiments} filter />
-    </Col>
-  );
+  const data = await ExperimentComparison.data(selection);
+  return <ExperimentComparison data={data} />;
 });

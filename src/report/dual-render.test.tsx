@@ -927,8 +927,8 @@ function fakeContext(): { selection: Selection; results: Results } {
 }
 
 /**
- * 三份快照、三个 experiment("compare/bub"、"other/codex"、"solo"),全部通过、无成本——
- * 一个多实验 Selection 夹具:ExperimentList 出三项,MetricScatter 三个点都无成本
+ * 五份快照、两个双配置目录组 + 一个根目录单例组,全部通过、无成本——
+ * 一个多实验 Selection 夹具:ExperimentList 出五项,MetricScatter 五个点都无成本
  * (0 可画点,如实走空态)。`filter` 落实真实语义(不像 fakeContext 那样恒等返回自己)。
  */
 function fakeMultiGroupContext(): { selection: Selection; results: Results } {
@@ -971,7 +971,9 @@ function fakeMultiGroupContext(): { selection: Selection; results: Results } {
 
   const snapshots = [
     mkSnapshot("compare/bub", "bub", "compare_bub/snap-1"),
+    mkSnapshot("compare/codex", "codex", "compare_codex/snap-1"),
     mkSnapshot("other/codex", "codex", "other_codex/snap-1"),
+    mkSnapshot("other/bub", "bub", "other_bub/snap-1"),
     mkSnapshot("solo", "bub", "solo/snap-1"),
   ];
 
@@ -1108,7 +1110,7 @@ void metricScatterPropsTypeChecks;
 // ───────────────────────── ExperimentComparison(内置默认报告)─────────────────────────
 
 describe("ExperimentComparison", () => {
-  it("是普通 ReportDefinition;text 面 = 成本×端到端成功率散点 + 实验列表,别无它物", async () => {
+  it("是普通 ReportDefinition;单组 text 面 = 组摘要 + 成本×端到端成功率散点 + 实验列表", async () => {
     expect(isReportDefinition(ExperimentComparison)).toBe(true);
     const out = await renderReportToText(ExperimentComparison, fakeContext(), { width: 100 });
     // 散点:fakeContext 无成本数据 → 0 可画点,显式说明缺哪两个指标(而不是画一张空图)
@@ -1119,19 +1121,21 @@ describe("ExperimentComparison", () => {
     expect(out).toMatch(/1 passed[\s\S]*?\/ 1\s+failed/);
     expect(out).toContain("50%");
     expect(out).toMatch(/✗ failed\s+algebra\/y[\s\S]*└─ @[0-9a-z]+/);
-    // 只有两个直接业务组件:没有 RunOverview / GroupSummary / Section 分组
+    // 单组直接进入详情，不出现多组查看命令
     expect(out).not.toContain("Current verdicts");
+    expect(out).not.toContain("niceeval show --experiment");
   });
 
-  it("web 面:散点空态 + 实验列表 <details> 展开区,无 <script>,无 Section 分组", async () => {
+  it("web 面:完整组索引 + 首组 panel + 实验列表 <details> 展开区,无 <script>", async () => {
     const html = await renderReportToStaticHtml(ExperimentComparison, fakeContext());
+    expect(html).toContain("nre-experiment-group-tabs");
+    expect(html).toMatch(/<details[^>]*data-nre-experiment-group-panel="0"[^>]*\sopen=""/);
     expect(html).toContain("nre-metric-scatter");
     expect(html).toContain("nre-scatter-empty"); // 0 可画点的空态
     expect(html).toContain('<details class="nre-experiment-entry">');
     expect(html).toContain("nre-experiment-head");
     expect(html).toContain('data-nre-experiment-filter=""');
     expect(html).toContain("nre-experiment-evals");
-    expect(html).not.toContain("nre-section");
     expect(html).not.toContain("<script");
   });
 
@@ -1146,27 +1150,71 @@ describe("ExperimentComparison", () => {
     expect(enText).toContain("No data to plot");
   });
 
-  it("多实验 fixture:每个 experiment 一项,散点如实处理全部无成本", async () => {
+  it("多组 fixture:text 只给组索引与命令;web 保留全部独立 panel", async () => {
     const out = await renderReportToText(ExperimentComparison, fakeMultiGroupContext(), { width: 100 });
-    // 三个 experiment 的身份行都出现(experimentId · agent,不再截短成最后一段)
-    expect(out).toMatch(/compare\/bub\s+default\s+bub/);
-    expect(out).toMatch(/other\/codex\s+default\s+codex/);
-    expect(out).toMatch(/solo\s+default\s+bub/);
-    // 散点空态(三点都无成本)
-    expect(out).toContain("No data to plot");
-    // 没有组分 Section 标题(不再按目录前缀分组)
-    expect(out).not.toMatch(/^compare$/m);
+    expect(out).toContain("Experiment groups");
+    expect(out).toContain("niceeval show --experiment compare");
+    expect(out).toContain("niceeval show --experiment other");
+    expect(out).toContain("niceeval show --experiment solo");
+    expect(out).not.toMatch(/compare\/bub\s+default\s+bub/);
+    expect(out).not.toContain("No data to plot");
     const html = await renderReportToStaticHtml(ExperimentComparison, fakeMultiGroupContext());
-    expect(html).not.toContain("nre-section");
+    expect(html.match(/data-nre-experiment-group-panel=/g)).toHaveLength(3);
+    expect(html.match(/<details[^>]*nre-experiment-group-panel[^>]*\sopen=""/g)).toHaveLength(1);
+    expect(html).toContain("compare/bub");
+    expect(html).toContain("other/codex");
+    expect(html).toContain("solo");
   });
 
-  it(".data():两个子块 = 单独使用 MetricScatter.data / ExperimentList.data 时完全相同的计算结果", async () => {
+  it(".data():组内三个子块 = 对该组单独调用 GroupSummary / MetricScatter / ExperimentList", async () => {
     const { selection } = fakeContext();
     const data = await ExperimentComparison.data(selection);
-    expect(data.scatter).toEqual(
+    expect(data.groups).toHaveLength(1);
+    expect(data.groups[0]!.key).toBe("compare");
+    expect(data.groups[0]!.summary).toEqual(await GroupSummary.data(selection));
+    expect(data.groups[0]!.scatter).toEqual(
       await MetricScatter.data(selection, { points: "experiment", series: "agent", x: costUSD, y: endToEndPassRate }),
     );
-    expect(data.experiments).toEqual(await ExperimentList.data(selection));
+    expect(data.groups[0]!.experiments).toEqual(await ExperimentList.data(selection));
+  });
+
+  it(".data():计算前按完整父路径分区,两个目录组和根目录单例互不串数据或 refs", async () => {
+    const { selection } = fakeMultiGroupContext();
+    const data = await ExperimentComparison.data(selection);
+    expect(data.groups.map((group) => group.key)).toEqual(["compare", "other", "solo"]);
+
+    for (const group of data.groups) {
+      const groupSelection = selection.filter((snapshot) => {
+        const slash = snapshot.experimentId.lastIndexOf("/");
+        const key = slash === -1 ? snapshot.experimentId : snapshot.experimentId.slice(0, slash);
+        return key === group.key;
+      });
+      expect(group.summary).toEqual(await GroupSummary.data(groupSelection));
+      expect(group.scatter).toEqual(
+        await MetricScatter.data(groupSelection, {
+          points: "experiment",
+          series: "agent",
+          x: costUSD,
+          y: endToEndPassRate,
+        }),
+      );
+      expect(group.experiments).toEqual(await ExperimentList.data(groupSelection));
+      expect(group.scatter.rows.every((row) => group.experiments.some((item) => item.experimentId === row.key))).toBe(
+        true,
+      );
+    }
+
+    expect(data.groups.find((group) => group.key === "compare")!.experiments.map((item) => item.experimentId)).toEqual([
+      "compare/bub",
+      "compare/codex",
+    ]);
+    expect(data.groups.find((group) => group.key === "other")!.experiments.map((item) => item.experimentId)).toEqual([
+      "other/bub",
+      "other/codex",
+    ]);
+    expect(data.groups.find((group) => group.key === "solo")!.experiments.map((item) => item.experimentId)).toEqual([
+      "solo",
+    ]);
   });
 
   it("组合件形态:<ExperimentComparison data={await .data(selection)}/> 与裸跑(build 面)渲染同一事实", async () => {

@@ -7,7 +7,8 @@
 ```sh
 niceeval view
 niceeval view weather                  # eval id 前缀，只收窄报告槽
-niceeval view --experiment compare/bub
+niceeval view --experiment compare     # 只看 compare 可比组（按路径段匹配）
+niceeval view --experiment compare/bub # 只看一个 experiment
 niceeval view --run site-data/run
 niceeval view --no-open                # 只打印 URL
 niceeval view --port 4400              # 固定本地端口
@@ -18,11 +19,11 @@ niceeval view --report reports/exam.tsx
 
 本地 server 只监听 `127.0.0.1`。默认让操作系统随机分配端口；`--port <n>` 指定首选端口，被占用时从 n 起向上顺延最多 20 个，全被占用才报错。
 
-收窄作用于报告槽的 Selection。证据室始终保留结果根中的完整 attempt 集，因此报告中的 `#/attempt/@<locator>` 深链不会因为首页过滤而失效。
+裸 `niceeval view` 默认把结果根中的完整 Selection 交给报告槽；用户直接在页面的组选择器里选择当前可比组，不需要先猜 `--experiment`。`--experiment` 与位置参数只是可选的命令行快捷收窄。无论报告槽是否收窄，证据室始终保留结果根中的完整 attempt 集，因此报告中的 `#/attempt/@<locator>` 深链不会因为首页过滤而失效。
 
 ## 页面构成
 
-- **报告槽：** 默认先显示成本 × 端到端成功率散点，再显示 experiment 比较表。比较表由 `ExperimentList` 的 web 面渲染：一行一个 experiment，固定列出实验、模型、Agent、平均耗时、端到端成功率、Tokens、预估成本和结果摘要；表头可排序，默认按端到端成功率降序，表前可按 experiment、agent、model 或 eval 文本过滤。端到端成功率把 `failed` 与 `errored` 都记为 0，只有 `skipped` 不进分母；error 仍在结果摘要中单独列出。每行可展开查看该 experiment 的 eval 与 attempt 证据；attempt 行只显示 [Scoring 定义的主失败断言摘要](../scoring/library/display.md#主失败断言怎样选)，passed 行为 `—`，不能罗列全部 matcher。`--report` 用同一份自定义报告文件替换整个槽。
+- **报告槽：** 默认接收完整 Selection 并显示全部可比组的索引；选中一组后，只为这一组显示成本 × 端到端成功率散点和 experiment 比较表。切组是纯 UI 状态：不重新扫描结果、不重新计算指标，也不丢掉其它组或证据室数据。可比组由 experiment id 的父目录确定：`compare/bub` 与 `compare/codex` 属于 `compare`，`dev-e2b/bub` 属于 `dev-e2b`，两组绝不共享图、连线、排序或统计；多层 id 使用完整父路径，根目录下的 experiment 各自形成单例组。组卡复用 `GroupSummary` 的口径，显示组名、experiment / eval 数、eval 级通过率、判定构成、成本和最后运行时间；它不会拿组内 attempt 重新现场推导另一个比例。无 JS 时每组仍以独立 `<details>` 完整可读，第一组默认展开；渐进增强把它们变成单选组切换，不改变数据。组内比较表由 `ExperimentList` 的 web 面渲染：一行一个 experiment，固定列出实验、模型、Agent、平均耗时、端到端成功率、Tokens、预估成本和结果摘要；表头可排序，默认按端到端成功率降序，过滤只搜索当前组的 experiment、agent、model、flag 或 eval 文本。端到端成功率把 `failed` 与 `errored` 都记为 0，只有 `skipped` 不进分母；error 仍在结果摘要中单独列出。每行可展开查看该 experiment 的 eval 与 attempt 证据；attempt 行只显示 [Scoring 定义的主失败断言摘要](../scoring/library/display.md#主失败断言怎样选)，passed 行为 `—`，不能罗列全部 matcher。`--report` 用同一份自定义报告文件替换整个槽。
 - **Runs：** 把所有 attempt 展成可筛选列表。
 - **Traces：** 用 canonical OTel 字段显示执行瀑布图。
 - **Attempt 详情：** 判定、断言、统一时间树、结构化错误、按 lifecycle 分组的 diagnostics、usage、对话、trace 和 diff 的入口。断言区先展开 failed / unavailable 与影响判定的 soft，passed 按 group 收进默认折叠区并显示数量；每条失败直接显示 matcher、expected / received 或 reason，并提供源码锚，不能要求用户从 matcher 名猜实际值。时间区以 `result.json.phases` 画主链分解条与收尾段列表,每个 phase 可继续展开 runner 直接观察到的 hook、沙箱命令和 session/turn；turn 带 `traceId` 时再从 `trace.json` 挂接 agent/model/tool spans。因而 `sandbox.setup` 能一路展开到某个 hook 里的 `pnpm install`,`agent.setup` 能看到安装 CLI 与写配置的命令,`eval.run` 能从 `s1/t1` 展开到启动 Agent CLI 的命令和轮内 OTel。失败或被超时中断的最深节点带失败标记；并发或嵌套 children 不相加。独立的 Traces 页仍只画被测 agent 的原始 span,runner 节点不写进 trace；Attempt 时间区只是按显式 correlation 组合两类事实。即使 attempt 在 telemetry 建立前失败、没有 trace,错误、diagnostics 与已发生的 phase/hook/command/turn 时间仍从 `result.json` 正常显示。
@@ -73,7 +74,7 @@ niceeval view --report reports/exam.tsx
 
 报告文件同时可被 `niceeval show --report` 使用。官方组件都有 web 和 text 两个渲染面，所以同一份报告在浏览器与终端保持相同数据口径；浏览器宿主额外注入 attempt 深链。写法见 [Library](library.md#交给-show--view-渲染)。
 
-`ExperimentList` 的两个渲染面共享同一份实体与指标数据，但不强求相同排版：web 面使用适合人工横向比较的固定列表格，text 面使用适合终端读取的紧凑列表。两面中的端到端成功率、成本、耗时、Tokens、判定构成和证据引用必须来自同一份计算结果。
+`ExperimentComparison` 的两个渲染面共享同一份组划分、实体与指标数据，但不强求相同排版：web 面持有全部组并一次聚焦一个可比组；text 面遇到多个组时只输出组索引与可执行的单组查看命令，Selection 已经只有一个组时才输出散点与列表。任何一面都不能把多个组拍平成一张榜单。组内的 `ExperimentList` 在 web 面使用适合人工横向比较的固定列表格，text 面使用适合终端读取的紧凑列表。两面中的端到端成功率、成本、耗时、Tokens、判定构成和证据引用必须来自同一份计算结果。
 
 ## 相关阅读
 

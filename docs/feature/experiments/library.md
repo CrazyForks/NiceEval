@@ -118,7 +118,7 @@ experiments/
    └─ codex-gpt-5.4.ts
 ```
 
-- **文件夹 = 一组可对比的实验**;**同一文件夹下的文件才互相对比**。`niceeval exp compare` 跑整组,`niceeval view` 把同组并列。
+- **文件夹 = 一组可对比的实验**;**同一文件夹下的文件才互相对比**。`niceeval exp compare` 跑整组,默认 `niceeval show` / `view` 按文件夹分区后只把同组配置并列；不同文件夹不共享图、连线、排序或汇总。
 - **文件 = 单一配置**(一个 agent × 一个 model 是最干净的情形),文件名按 `<agent>-<model>[-<feature>]` 命名。同组钉住对比轴之外的一切(如同一 model),差异才干净归因到那一个轴(agent / 记忆机制 / flags)。
 - **路径即 id**:`experiments/compare/bub-gpt-5.4.ts` → `compare/bub-gpt-5.4`;目录段 `compare` 即组名。
 

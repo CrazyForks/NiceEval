@@ -171,11 +171,11 @@ const FLAG_OPTIONS = {
   diff: { type: "boolean" },
   /** `show` 命令专用:跨 run 时间轴,只列真实执行;与 `--report` 互斥。 */
   history: { type: "boolean" },
-  /** `show` / `view` 命令专用:Selection 只留该实验。 */
+  /** `show` / `view` 命令专用:按路径段前缀收窄 experiment;组名会选中组内全部配置。 */
   experiment: { type: "string" },
   /** `show` / `view` 命令专用:钉死看某一个结果目录(某次快照或 `copySnapshots` 产物)。 */
   run: { type: "string" },
-  /** `show` / `view` 命令专用:渲染你的报告文件(文件默认导出 `defineReport(...)`);show 用它替换 Attempt 索引,view 用它替换默认分析报告。 */
+  /** `show` / `view` 命令专用:用文件默认导出的 `defineReport(...)` 替换两者共用的默认报告。 */
   report: { type: "string" },
   /** 只打印本次会匹配到的 eval × 运行配置,不实际执行(按下面 `--output` 选中的 profile 给出预览)。 */
   dry: { type: "boolean" },
@@ -676,6 +676,13 @@ async function main(): Promise<void> {
         arg: expArg ?? t("cli.all"),
         experiments: experiments.map((e) => e.id).join(", ") || t("cli.none"),
       }));
+      // show / view 是顶层命令。只有同名 experiment 确实不存在时才纠错，不能抢占合法 id。
+      if (expArg === "show" || expArg === "view") {
+        process.stderr.write(t("cli.experiment.viewerCommandHint", {
+          command: expArg,
+          args: extraPatterns.length > 0 ? ` ${extraPatterns.join(" ")}` : "",
+        }));
+      }
       process.exit(1);
     }
     // 残留提醒:注册表里还有上次留下的沙箱时打一行(不阻塞、不清理)。

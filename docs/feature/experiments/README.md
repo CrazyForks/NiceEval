@@ -13,7 +13,7 @@ experiments/  # 怎么跑 —— 运行矩阵:agent × model × runs over 选定
 
 - **eval 不该知道被测的是谁。** 同一条 memory eval,既要测 claude-code 也要测 codex/bub。把 agent 写死进 eval 就废了复用。
 - **experiment 是可签入的运行配置。** 比一串临时 CLI flag 可复现:`niceeval exp compare` 永远跑同一组对照。
-- **跨 agent / 跨配置对比是一等公民。** 评 coding agent 最想要的就是"一条命令,几个配置并列出**质量 × 成本**"(见 [Observability](../../observability.md#结果可视化niceeval-view))。niceeval 用**文件夹**表达"这一组该并排比"(见 [Library · 实验怎么组织](library.md#实验怎么组织文件夹--一组可对比的实验));每个实验文件钉一个单一配置。
+- **跨 agent / 跨配置对比是一等公民。** 评 coding agent 最想要的就是"一条命令,几个配置并列出**质量 × 成本**"(见 [Observability](../../observability.md#结果可视化niceeval-view))。niceeval 用**文件夹**表达"这一组该并排比"(见 [Library · 实验怎么组织](library.md#实验怎么组织文件夹--一组可对比的实验));每个实验文件钉一个单一配置。默认 `niceeval show` / `view` 只在同一文件夹内部比较，不把不同组混进同一张图或榜单。
 
 ## `defineExperiment` 的形状
 

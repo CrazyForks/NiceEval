@@ -113,6 +113,7 @@ export const zhCN = {
   "cli.exp.agentModelFlagUnsupported": "experiment 运行不支持 --agent / --model。请新增或复制一个 experiment 文件并修改 model。\n",
   "cli.exp.viewerFlagUnsupported": "`{{flag}}` 只适用于 niceeval {{command}},不能用于 niceeval exp。\n",
   "cli.experiment.noMatch": "没有匹配的实验:{{arg}}。已发现:{{experiments}}\n",
+  "cli.experiment.viewerCommandHint": "你可能想运行:niceeval {{command}}{{args}}\n",
   "cli.experiment.noEvalsSelected": "未选择任何 eval:{{selection}} 匹配到 0 个 eval。可用实验:{{experiments}}。\n",
   "cli.experimentGroup": "组",
   "cli.fallbackCleanupTimeout": "\ngraceful 清理超时,强制清理沙箱…\n",

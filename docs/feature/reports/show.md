@@ -21,14 +21,28 @@ niceeval show memory/swelancer --history   # 这个 eval 的真实执行历史
 
 ## 裸 `show`：默认报告的 text 面
 
-裸 `niceeval show` 与显式渲染内置 `ExperimentComparison` 等价。报告先输出成本 × 端到端成功率散点图，再输出 `ExperimentList`。端到端成功率的分母包含 `failed` 与 `errored`，只有 `skipped` 不进入；因此执行错误会降低默认成功率，但仍在结果构成中单独显示，不与失败混成一种判定。只有一个可画 experiment 时也照常显示一个点，不要求至少两个实验。
+裸 `niceeval show` 与显式渲染内置 `ExperimentComparison` 等价。Selection 命中多个可比组时，报告只输出组索引和可直接复制执行的 `niceeval show --experiment <group>` 命令；Selection 已经只剩一个组时，才输出该组的成本 × 端到端成功率散点图与 `ExperimentList`。experiment id 的父目录是组边界：`compare/*` 与 `dev-e2b/*` 不能共享坐标系、连线、排序或汇总数字；根目录 experiment 各自形成单例组。端到端成功率的分母包含 `failed` 与 `errored`，只有 `skipped` 不进入；因此执行错误会降低默认成功率，但仍在结果构成中单独显示，不与失败混成一种判定。单组只有一个可画 experiment 时也照常显示一个点，不要求至少两个实验。
 
-`ExperimentList` 的 text 面保持实体层级：一个 experiment 下列 Eval，一个 Eval 下再列它的全部 Attempt。不能把 Eval 与 Attempt 压平成一张“每行一个 Attempt、重复 Eval id”的表。
+可比组索引一行一个组，显示 experiment / eval 数、`GroupSummary` 的 eval 级通过率、结果构成、成本与最后运行时间；不在 text face 里重算比例。多组 Selection 到此结束，不把所有组的详情一次性倾倒到终端。单组 `ExperimentList` 保持实体层级：一个 experiment 下列 Eval，一个 Eval 下再列它的全部 Attempt。不能把组拍平，也不能把 Eval 与 Attempt 压平成一张“每行一个 Attempt、重复 Eval id”的表。Selection 只剩一个组时省略索引，直接进入该组。
 
 ```sh
 $ niceeval show
 WARNING  snapshot dev-e2b/codex-e2b @ 2026-07-12T10:08:29.361Z is unfinished;
          8 completed attempts are shown, but the snapshot may be incomplete.
+
+实验组                  实验   Eval   Eval 通过率    结果              预估成本   最后运行
+compare                    2      6          75.0%   9 通过 / 3 失败      $1.42   2026-07-12 18:08
+dev-e2b                    3      6          61.1%   11 通过 / 5 失败     $0.31   2026-07-12 18:09
+
+查看组内详情：
+  niceeval show --experiment compare
+  niceeval show --experiment dev-e2b
+```
+
+```sh
+$ niceeval show --experiment dev-e2b
+
+实验组 dev-e2b
 
 平均每个 eval 成本（越低越好） × 端到端成功率
 ... A
@@ -343,12 +357,13 @@ M manager_decisions.json · touched in s1/t1, s1/t2
 
 ```sh
 niceeval show --run tmp/published-results
+niceeval show --experiment dev-e2b           # 整个可比组
 niceeval show --experiment dev-e2b/codex-e2b
 niceeval show memory/swelancer --experiment dev-e2b/codex-e2b
 niceeval show --report reports/exam.tsx
 ```
 
-`--run` 改变结果根，`--experiment` 和位置参数在其中收窄 Selection。`--report` 用自定义报告替换榜单，但 attempt locator 的下钻命令保持不变。`--history` 是内置时间轴，与 `--report` 互斥。
+`--run` 改变结果根，`--experiment` 和位置参数在其中收窄 Selection；`--experiment` 按路径段匹配 id 前缀，因此 `--experiment dev-e2b` 选中整个可比组但不会误中 `dev-e2b-next`。收窄完成后默认报告才按组分区，位置参数仍只表示 eval id 前缀。`--report` 用自定义报告替换榜单，但 attempt locator 的下钻命令保持不变。`--history` 是内置时间轴，与 `--report` 互斥。
 
 ## 无匹配与不可读结果
 

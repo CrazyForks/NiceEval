@@ -12,6 +12,7 @@
 | eval 文件默认导出数组时扇出，id 加零填充索引；单导出用文件 id | 正例：数组扇出 id 格式；边界：单元素数组仍带索引 |
 | 位置参数按 eval id 前缀过滤，实验 `evals` 字段（`"*"` / 数组 / 谓词）再筛，两层是交集 | 正例：前缀命中；反例：不命中为空；正例：谓词过滤；边界：evals 默认 `"*"` |
 | 实验 id 从路径推导（`experiments/compare/x.ts` → `compare/x`）；`exp <组>` 选目录段下全部实验，`exp <组/配置>` 选一个 | 正例：组选中多实验；正例：精确选中；反例：不存在的组 |
+| `exp show` / `exp view` 在没有同名 experiment 时仍按“不存在的实验”失败，但追加正确顶层命令提示；若真有同名 experiment 则正常选择，不抢占合法 id | 反例：无 `show` / `view` experiment 时分别提示 `niceeval show` / `niceeval view`；边界：存在同名 experiment 时不提示 |
 | 调度项覆盖优先级 CLI flag → experiment → config → 内置默认；agent/model/flags 只属于 experiment，CLI 不可覆盖 | 正例：`--runs` 覆盖实验 runs；正例：实验 timeoutMs 覆盖 config；反例：`exp --model` 报用法错误 |
 | 结果按发现顺序（相对路径排序）排列，与完成顺序无关 | 反例：后发现的先完成，输出顺序仍稳定 |
 | `model` / `reasoningEffort` / `flags` 由实验经 ctx 透传到 agent send 与 eval test；省略 model 时不传值 | 正例：透传值一致；边界：省略时 ctx.model 为 undefined |
