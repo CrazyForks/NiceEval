@@ -135,7 +135,9 @@ TTY 下 `auto` 选择 `human`。开始计划、缓存摘要和已经发生的失
 ```text
 Plan: 45 attempts · 9 evals × 5 configs · concurrency 19
 Reuse: 6 settled results from the latest matching snapshots
-✗ @17m2k9pq memory/commit0-cachetool [compare/bub-e2b] gate: cache tool not used
+✗ @1bwcxxiy memory/swelancer-manager-15193 [dev-e2b/claude-e2b]
+    gate: Issue 15193: selected proposal matches the accepted proposal
+          equals(4) · expected 4 · received 3
 
 niceeval exp compare                                      2m 14s
 45 total · 6 reused · 19 running · 12 queued · 8 completed  $0.84
@@ -156,6 +158,17 @@ Dashboard 只展示当前状态,不保存历史帧:
 - 终端变窄时先减少可见项,再截断消息,不能换行撑高 dashboard;
 - 没有真实状态变化时不重画;历史帧不得进入 scrollback;
 - 独立诊断出现时先撤下 dashboard,打印诊断,再在其下方重建。
+
+`exp` 的结果反馈按 verdict 穷尽处理：
+
+| Attempt verdict | 运行中永久行 | 最终 handoff |
+|---|---|---|
+| `passed` | 不逐条打印；只更新 dashboard 计数 | 只进 passed 汇总，不进入 failures |
+| `failed` | locator / eval / experiment + [Scoring 定义的主失败断言摘要](../scoring/library/display.md#契约一结果摘要) | failures 中重复同一摘要，并给 `show @locator` / `--eval` 下钻 |
+| `errored` | locator / eval / experiment + `error.phase` / code / message | failures 中给同一层错误摘要；cause / stack / diagnostics 下钻 |
+| `skipped` | 不冒充失败；只有需要用户行动的 skip 才以 diagnostic 留痕 | 只进 skipped / completion 汇总 |
+
+普通 assertion failure 的第一行给 locator / eval / experiment，后两行给语义标题与 matcher + expected / received。只展示一条主失败，其余写 `+N more failures`；不得把全部 assertion name 逐条拼进 scrollback。源码不在这里内联，最终 handoff 给 `show @locator --eval`。
 
 执行错误即时输出一层可行动摘要,不把 stack 或 provider SDK response 全部灌进 scrollback。摘要固定包含 locator、eval/experiment、正式 phase、稳定 code 和 message:
 
@@ -185,12 +198,14 @@ FAILED  44 passed · 1 failed · 0 errored  (6 reused)
         3m 48s · 1.2M tok · $1.37
 
 FAILURES
-@17m2k9pq  memory/commit0-cachetool  [compare/bub-e2b]
-          gate: cache tool not used
+@1bwcxxiy  memory/swelancer-manager-15193  [dev-e2b/claude-e2b]
+          gate: Issue 15193: selected proposal matches the accepted proposal
+                equals(4) · expected 4 · received 3
 
-Inspect: niceeval show @17m2k9pq
-Trace:   niceeval show @17m2k9pq --execution
-Diff:    niceeval show @17m2k9pq --diff
+Inspect: niceeval show @1bwcxxiy
+Eval:    niceeval show @1bwcxxiy --eval
+Trace:   niceeval show @1bwcxxiy --execution
+Diff:    niceeval show @1bwcxxiy --diff
 Compare: niceeval view compare
 
 Results:
@@ -247,12 +262,14 @@ snapshots:
   - .niceeval/compare/bub-e2b/<snapshot>
   - .niceeval/compare/codex/<snapshot>
 failures:
-  - @17m2k9pq memory/commit0-cachetool [compare/bub-e2b]
-    gate: cache tool not used
+  - @1bwcxxiy memory/swelancer-manager-15193 [dev-e2b/claude-e2b]
+    gate: Issue 15193: selected proposal matches the accepted proposal
+      equals(4) · expected 4 · received 3
 next:
-  niceeval show @17m2k9pq
-  niceeval show @17m2k9pq --execution
-  niceeval show @17m2k9pq --diff
+  niceeval show @1bwcxxiy
+  niceeval show @1bwcxxiy --eval
+  niceeval show @1bwcxxiy --execution
+  niceeval show @1bwcxxiy --diff
 ```
 
 如果失败超过 handoff 上限:
@@ -267,7 +284,7 @@ failures: 12 total, showing 5
 Agent 反馈遵守以下边界:
 
 - locator 是继续调查的主键,不能只给 eval id 或第几个 attempt;
-- handoff 只给一层失败原因,源码、execution、trace、diff 按需通过 `show` 下钻;
+- handoff 给一条主失败断言的语义标题、matcher 与有界 expected / received；完整 assertions、源码、execution、trace、diff 按需通过 `show` 下钻;
 - 快照与 attempt artifacts 是权威数据,checkpoint 和 handoff 不是另一份结果 schema;
 - 输出不含 ANSI,不依赖终端宽度,不因本地化改变字段名;
 - 进程退出码仍是第一层红绿信号,agent 不靠自然语言猜成功。
@@ -319,7 +336,7 @@ NICEEVAL_LANG=en niceeval exp ci \
 ```text
 niceeval: start total=24 configs=3 concurrency=10 reused=18
 niceeval: progress elapsed=60s reused=18 running=6 queued=0 completed=0
-niceeval: failed locator=@17m2k9pq eval=memory/commit0-cachetool experiment=ci/bub reason="gate: cache tool not used"
+niceeval: failed locator=@1bwcxxiy eval=memory/swelancer-manager-15193 experiment=ci/claude severity=gate assertion="Issue 15193: selected proposal matches the accepted proposal" matcher="equals(4)" expected=4 received=3
 niceeval: errored locator=@12h8m4k1 eval=memory/agent-029-use-cache experiment=ci/claude-e2b phase=sandbox.create reason="E2B sandbox allocation failed after 5 attempts"
 niceeval: progress elapsed=120s reused=18 running=2 queued=0 completed=4
 niceeval: result=failed passed=23 failed=1 errored=0 reused=18 duration=128s

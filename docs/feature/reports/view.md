@@ -22,10 +22,10 @@ niceeval view --report reports/exam.tsx
 
 ## 页面构成
 
-- **报告槽：** 默认先显示成本 × 通过率散点，再显示 experiment 比较表。比较表由 `ExperimentList` 的 web 面渲染：一行一个 experiment，固定列出实验、模型、Agent、平均耗时、成功率、Tokens、预估成本和结果摘要；表头可排序，表前可按 experiment、agent、model 或 eval 文本过滤。每行可展开查看该 experiment 的 eval 与 attempt 证据。`--report` 用同一份自定义报告文件替换整个槽。
+- **报告槽：** 默认先显示成本 × 通过率散点，再显示 experiment 比较表。比较表由 `ExperimentList` 的 web 面渲染：一行一个 experiment，固定列出实验、模型、Agent、平均耗时、成功率、Tokens、预估成本和结果摘要；表头可排序，表前可按 experiment、agent、model 或 eval 文本过滤。每行可展开查看该 experiment 的 eval 与 attempt 证据；attempt 行只显示 [Scoring 定义的主失败断言摘要](../scoring/library/display.md#主失败断言怎样选)，passed 行为 `—`，不能罗列全部 matcher。`--report` 用同一份自定义报告文件替换整个槽。
 - **Runs：** 把所有 attempt 展成可筛选列表。
 - **Traces：** 用 canonical OTel 字段显示执行瀑布图。
-- **Attempt 详情：** 判定、断言、统一时间树、结构化错误、按 lifecycle 分组的 diagnostics、usage、对话、trace 和 diff 的入口。时间区以 `result.json.phases` 画主链分解条与收尾段列表,每个 phase 可继续展开 runner 直接观察到的 hook、沙箱命令和 session/turn；turn 带 `traceId` 时再从 `trace.json` 挂接 agent/model/tool spans。因而 `sandbox.setup` 能一路展开到某个 hook 里的 `pnpm install`,`agent.setup` 能看到安装 CLI 与写配置的命令,`eval.run` 能从 `s1/t1` 展开到启动 Agent CLI 的命令和轮内 OTel。失败或被超时中断的最深节点带失败标记；并发或嵌套 children 不相加。独立的 Traces 页仍只画被测 agent 的原始 span,runner 节点不写进 trace；Attempt 时间区只是按显式 correlation 组合两类事实。即使 attempt 在 telemetry 建立前失败、没有 trace,错误、diagnostics 与已发生的 phase/hook/command/turn 时间仍从 `result.json` 正常显示。
+- **Attempt 详情：** 判定、断言、统一时间树、结构化错误、按 lifecycle 分组的 diagnostics、usage、对话、trace 和 diff 的入口。断言区先展开 failed / unavailable 与影响判定的 soft，passed 按 group 收进默认折叠区并显示数量；每条失败直接显示 matcher、expected / received 或 reason，并提供源码锚，不能要求用户从 matcher 名猜实际值。时间区以 `result.json.phases` 画主链分解条与收尾段列表,每个 phase 可继续展开 runner 直接观察到的 hook、沙箱命令和 session/turn；turn 带 `traceId` 时再从 `trace.json` 挂接 agent/model/tool spans。因而 `sandbox.setup` 能一路展开到某个 hook 里的 `pnpm install`,`agent.setup` 能看到安装 CLI 与写配置的命令,`eval.run` 能从 `s1/t1` 展开到启动 Agent CLI 的命令和轮内 OTel。失败或被超时中断的最深节点带失败标记；并发或嵌套 children 不相加。独立的 Traces 页仍只画被测 agent 的原始 span,runner 节点不写进 trace；Attempt 时间区只是按显式 correlation 组合两类事实。即使 attempt 在 telemetry 建立前失败、没有 trace,错误、diagnostics 与已发生的 phase/hook/command/turn 时间仍从 `result.json` 正常显示。
 - **Copy fix prompt：** 把单条或全部失败整理成可交给 coding agent 的修复 prompt。
 
 ## 静态导出

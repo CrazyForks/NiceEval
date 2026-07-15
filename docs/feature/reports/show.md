@@ -46,7 +46,7 @@ dev-e2b/codex-e2b
 ✓ 通过    memory/repomod-hello-world-api
   ✓       └─ @1sxmo0m1                            —                                         2m 58s    $0.57
 ✗ 失败    memory/swelancer-manager-proposals
-  ✗       └─ @1qrdcfq8                            expected 4, received 1 · equals(4)          50.0s     $0.05
+  ✗       └─ @1qrdcfq8                            equals(4) · expected 4, received 3          50.0s     $0.05
 ✓ 通过    memory/terminal-cancel-async-tasks
   ✓       └─ @1pcdj0az                            —                                         2m 48s    $0.13
 ✗ 失败    memory/terminal-pypi-server
@@ -63,7 +63,7 @@ dev-e2b/codex-e2b
   ✓       └─ @1second2                            —                                           21.4s     $0.03
 ```
 
-locator 只打印 `@<id>` 与 verdict，不追加证据能力缩写。locator 本身就是证据入口；打开 Attempt 后再列实际可执行的证据命令。
+locator 只打印 `@<id>` 与 verdict，不追加证据能力缩写。Result 单元格使用 [Scoring 定义的主失败断言摘要](../scoring/library/display.md#主失败断言怎样选)：passed attempt 固定为 `—`；failed attempt 只显示一条主失败及可选的 `+N more failures`；errored 显示结构化 error 的一层摘要。绝不把该 attempt 的全部 assertion name 拼进表格——即使有几十条 assertions，一条 Attempt 子行也最多占两行。locator 本身就是证据入口；打开 Attempt 后再列完整断言与实际可执行的证据命令。
 
 ## 失败诊断首页
 
@@ -78,10 +78,10 @@ assertions: 3 passed · 1 gate failed
 eval source: evals/memory/swelancer-manager-proposals.eval.ts · sha256:ee33b9c4…
 
 failures:
-  gate · Issue 15193: selected proposal matches the one maintainers accepted
+  gate · Issue 15193: selected proposal matches the accepted proposal
     assertion: equals(4)
     expected: 4
-    received: 1
+    received: 3
     source: evals/memory/swelancer-manager-proposals.eval.ts:40:11
 
 execution: 12 events · 0 skill loads · 7 tool calls · 4 AI messages
@@ -130,10 +130,10 @@ diagnostic 的 level 不等于 verdict:一个 passed/failed attempt 也可以带
 
 ```text
 38      for (const [issue, label] of Object.entries(expected)) {
-39        await t.group(`Issue ${issue}: selected proposal matches the one maintainers accepted`, async () => {
+39        await t.group(`Issue ${issue}: selected proposal matches the accepted proposal`, async () => {
 40✗         t.check(Number(decisions[issue]?.selected_proposal_id), equals(label.selected_proposal_id));
-    gate · Issue 15193: selected proposal matches the one maintainers accepted ·
-    equals(4) · expected 4 · received 1
+    gate · Issue 15193: selected proposal matches the accepted proposal ·
+    equals(4) · expected 4 · received 3
 41        });
 42      }
 ```

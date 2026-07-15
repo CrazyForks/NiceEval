@@ -1,12 +1,64 @@
-# 断言与 Turn 的展示 —— show 与 view 各显示什么
+# 断言与 Turn 的展示 —— exp、show 与 view 各显示什么
 
-每条断言评估完都是一条 `AssertionResult`（字段全集见 [Scoring 架构 · 断言记录](../architecture.md#断言记录assertionresult)）；`niceeval show` 与 `niceeval view` 渲染的是同一条记录，不各自发明字段。本页按断言家族给出「记录什么字段 → 显示成什么」的对照示例，并给出 `t.send()` 产生的 Turn 在各个证据面的展示。示例以失败态为主——通过的断言在 show 首页只进计数，在 view 里折叠成一行。
+每条断言评估完都是一条 `AssertionResult`（字段全集见 [Scoring 架构 · 断言记录](../architecture.md#断言记录assertionresult)）；`niceeval exp` 的失败反馈、报告列表、`niceeval show` 与 `niceeval view` 都投影同一条记录，不各自发明字段。本页先定义不同信息密度下该显示多少，再按断言家族给出「记录什么字段 → 显示成什么」的对照示例。
+
+## 两套展示契约
+
+同一批 assertions 只有两种公开投影。二者是不同产品契约，不是同一个组件在窄屏下随意隐藏字段：
+
+| 契约 | 入口 | 目的 | passed attempt | failed / assertion-unavailable attempt |
+|---|---|---|---|---|
+| **结果摘要** | `exp` 的 Human 永久行与最终 handoff、Agent handoff、CI failure 行；`show` / `view` 的 `ExperimentList`、`EvalList`、`AttemptList` 比较列表 | 先定位哪条 attempt 红、最主要为什么红 | 不逐条输出；比较列表 Result 显示 `—` | 只输出一条**主失败断言摘要**，其余失败只报 `+N more failures` |
+| **具体诊断与源码** | `show @locator`、view Attempt 详情；`show @locator --eval`、view source 模式 | 完整解释全部断言，并把它们放回运行时源码 | Attempt 首页显示 `N passed`，通过项在 view 默认折叠；源码行标 `✓` | failed / soft / unavailable 分节完整展开；源码行标 `✗` 并紧跟标题、matcher、expected / received 或 reason |
+
+结果摘要里的 `—` 表示“这条 attempt 没有需要解释的失败摘要”，不表示没有 assertions。任何摘要面都不得把 `assertions.map(a => a.name)` 拼进 Result 单元格：这会让通过项比失败项更吵，也会把几十条 matcher 挤成不可读的多行文本。
+
+### 契约一：结果摘要
+
+#### 主失败断言怎样选
+
+“主失败”只是展示投影，不改变 verdict，也不丢弃 `result.json.assertions`：
+
+1. `failed` attempt 先在记录顺序中取第一条 `outcome: "failed"` 的 gate；`--strict` 仅由 soft 失败造成 verdict 时，取第一条促成判定的 soft。
+2. assertion unavailable 造成 `errored` 且没有结构化执行 error 时，取第一条非 optional unavailable。
+3. 结构化执行 error 优先显示 error 摘要，不拿某条 assertion 冒充根因。
+4. 其余同类失败计数为 `+N more failures`；只能在 Attempt 详情展开，不能继续塞进比较列表。
+
+#### 一条摘要怎样排版
+
+标题取 `groupPath.join(" > ")`；没有 group 时回退到 `name`。检查方式取 `detail ?? name`，与标题相同时不重复。事实字段按 `expected`、`received`、`score / threshold`、`reason` 的适用子集输出，字段缺失就省略，绝不从 `name` 文本反解析。
+
+Human 永久反馈与 handoff 使用至多两层文本：
+
+```text
+gate: Issue 15193: selected proposal matches the accepted proposal
+    equals(4) · expected 4 · received 3
+```
+
+这里的领域标题必须由 eval 作者通过 `t.group("Issue 15193: …", fn)`（或断言自身的语义 name）明确提供；renderer 不读取变量名、源码表达式或 prompt 猜标题。没有 group 的原始 `t.check(value, equals(4))` 仍能可靠显示 `equals(4) · expected 4 · received 3`，只是没有足够事实生成 “selected proposal” 这层语义。
+
+比较列表把同一摘要压成有界单元格；无 group 时可以直接写 `equals(4) · expected 4 · received 3`。空间不足时先截断语义标题，再截断 matcher，`expected / received` 与 `+N more failures` 最后截断，因为它们直接解释为什么红。单个 attempt 的 Result 最多占两行，不能靠无限换行保留全部 assertions。
+
+CI 单行反馈使用独立结构化字段 `severity=` / `assertion=` / `matcher=` / `expected=` / `received=` / `score=` / `threshold=` / `reason=`；存在什么发什么。Agent checkpoint 只报告 locator 与 verdict，最终 handoff 再使用上面的两层文本。机器消费者因此不需要解析 `gate: ...` 这句 Human 文案。
+
+结果摘要不内联源码。源码回答“这条检查写在哪里、周围代码是什么”，不能替代 expected / received；并发失败时内联还会淹没 scrollback。摘要保留 locator，并在最终 handoff 给出 `niceeval show @locator --eval`。
+
+### 契约二：具体诊断与源码
+
+`show @locator` 与 view Attempt 详情消费完整 `AssertionResult[]`，而不是结果摘要里挑出的那一条。它们必须同时提供：
+
+- 顶部计数：passed、gate failed、soft below threshold、unavailable 各多少；
+- 失败优先的完整分节：每条保留 group、matcher、expected / received、score / threshold、reason 与 `source: file:line:column`；
+- passed 收纳：show 只保留计数，view 按 group 默认折叠但可展开全部；
+- 源码入口：`show @locator --eval` 与 view source 使用运行时保存的 eval source，在断言调用行标 `✓` / `✗`，行后只附属于该行的断言详情。
+
+源码模式不负责重新判定，也不从源码反推字段；行内标注仍然来自 `AssertionResult.loc` 与同一条结构化记录。没有 source artifact 或 loc 时，Attempt 详情照常显示完整断言，只把源码入口标为 unavailable。
 
 ## 通用渲染规则
 
 - **show 的 attempt 首页**按结果分节，只逐条列出需要看的：`failures:`（gate 失败，含 `--strict` 下改判的 soft）、`soft below threshold:`（soft 未达标但不影响 verdict）、`scores:`（无阈值 judge 的纯打分）、`unavailable:`（证据评不了的，带 reason）。全部通过时这些节整体省略，只留 `assertions: N passed` 计数行。
 - **每条的行格式**：首行 `severity · <标题>`——有 `group` 时标题是分组路径（嵌套用 " > " 拼接），随后 `assertion: <detail>` 行给检查方式；没有分组时标题就是 `name`（即 matcher / judge 摘要），`assertion:` 行与标题重复时省略。之后按有则显示的顺序列 `expected:` / `received:` / `score`（judge 与 soft 带阈值时含 `threshold`）/ `reason:`（仅 unavailable），最后 `source: <loc>`。
-- **view 的 Attempt 详情**列**全量**断言：每条一行（状态图标 + 分组路径 + name + detail + 分数），展开显示 expected / received / `evidence`（这条分数看的材料预览，默认折叠）与源码位置锚（点击跳 `--eval` 同款源码视图）；judge 额外画分数条与阈值线；`unavailable` 用独立的第三态样式（非红非绿）标 reason。
+- **view 的 Attempt 详情**保留**全量**断言，但默认先展开 failed / unavailable 与影响判定的 soft，passed 收进按 group 组织的折叠区并在区头显示数量；每条一行（状态图标 + 分组路径 + name + detail + 分数），展开显示 expected / received / `evidence`（这条分数看的材料预览，默认折叠）与源码位置锚（点击跳 `--eval` 同款源码视图）；judge 额外画分数条与阈值线；`unavailable` 用独立的第三态样式（非红非绿）标 reason。
 - **作用域前缀**：挂在 turn / session 上的断言，`name` 带接收者前缀（`s1/t2 · calledTool(...)`、`s2 · succeeded()`）；挂在 `t` 上的 attempt 级断言无前缀。
 - 所有值都是有界预览（截断规则见 [Results · 大值截断](../../results/architecture.md#大值截断)），完整证据在 `events.json` / `diff.json` 等 artifact。
 
@@ -22,7 +74,7 @@ failures:
     source: evals/weather.eval.ts:12:5
 ```
 
-`equals(expected)` 给两侧值预览（`expected: 4` / `received: 1`）；`matches(schema)` 的 `received` 是第一条校验错误的路径摘要：
+`equals(expected)` 给两侧值预览（`expected: 4` / `received: 3`）；`matches(schema)` 的 `received` 是第一条校验错误的路径摘要：
 
 ```text
   gate · matches(WeatherSchema)
