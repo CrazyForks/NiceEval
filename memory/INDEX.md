@@ -63,6 +63,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## o11y 采集与 view
 
+- 已修 [react19-dangerously-set-inner-html-identity](react19-dangerously-set-inner-html-identity.md) — React 19 对 dangerouslySetInnerHTML 只比 `{__html}` 对象身份,内联字面量让任何重渲染都整树重建报告槽(开关 attempt 弹窗丢 details/排序/过滤状态);修为 useMemo 包 `{__html}`(`src/view/app/App.tsx` 的 ReportSlot)
 - [details-ua-slot-breaks-display-contents-tabs](details-ua-slot-breaks-display-contents-tabs.md) — `<details>` 的 UA shadow slot 让 display:contents 布局失效(Chrome 下 order 失效、残留 0 宽盒);Tabs 增强改用 flex 换行方案(styles.css)
 - [publish-redaction-copysnapshots-not-report](publish-redaction-copysnapshots-not-report.md) — 设计裁决:发布消毒移到 copySnapshots({ redact }),AttemptList.redact 降为展示层(2026-07-14),推翻「消毒归报告」——view --out 原样发布 artifact,列表脱敏挡不住深链
 - [ai-sdk-otel-needsapproval-no-execute-tool-span](ai-sdk-otel-needsapproval-no-execute-tool-span.md) — @ai-sdk/otel 不给 `needsApproval:true` 的工具产 execute_tool span,action 断言派生不出

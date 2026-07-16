@@ -1052,8 +1052,30 @@ a.brand:hover { opacity: 0.75; }
 .asserts-passed-group { margin: 6px 0 0 14px; }
 .asserts-passed-group > .assert-detail { margin-top: 4px; }
 
-/* ── Attempt 详情:统一时间树(主链分解条 + 默认收合的 children) ── */
+/* ── Attempt 详情:统一时间树(整区默认收合;展开后主链分解条 + 默认收合的 children) ── */
 .attempt-timing { margin: 14px 0; }
+summary.timing-sum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+summary.timing-sum::-webkit-details-marker { display: none; }
+summary.timing-sum::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid var(--soft);
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  flex-shrink: 0;
+  transition: transform 0.12s;
+}
+details[open] > summary.timing-sum::before { transform: rotate(90deg); }
+summary.timing-sum:hover .modal-sect { color: var(--text); }
+.timing-sum .modal-sect { margin-bottom: 0; }
 .phase-bar {
   display: flex;
   height: 8px;
@@ -1162,6 +1184,8 @@ li.tnode-row::before { content: ""; width: 4px; flex-shrink: 0; }
   color: var(--soft);
   font-size: 12px;
 }
-.site-footer .powered-by a { color: var(--soft); text-decoration: none; }
-.site-footer .powered-by a:hover { color: var(--text); text-decoration: underline; }
+/* 品牌行:hero 之下、品牌蓝,恒带官网链接(shell.md「行为约束」)。 */
+.hero .powered-by { display: block; margin-top: 16px; font-size: 12px; }
+.hero .powered-by a { color: var(--blue); text-decoration: none; }
+.hero .powered-by a:hover { text-decoration: underline; }
 .nre-page-error pre { white-space: pre-wrap; }

@@ -20,7 +20,7 @@ const EVIDENCE_TABS: { id: Tab; label: "nav.attempts" | "nav.traces" }[] = [
   { id: "traces", label: "nav.traces" },
 ];
 
-/** niceeval 官网;web 面页脚恒含指向它的 `Powered by niceeval` 一行,无关闭配置。 */
+/** niceeval 官网;web 面 hero 下方恒含指向它的 `Powered by NiceEval` 一行,无关闭配置。 */
 const NICEEVAL_SITE_URL = "https://niceeval.com";
 
 /**
@@ -49,6 +49,16 @@ function modalResultFromLocation(snapshots: ViewData["snapshots"]): ViewResult |
     return null;
   }
   return resultFromUrl(snapshots);
+}
+
+/**
+ * 报告槽:React 19 对 dangerouslySetInnerHTML 只比较对象身份,身份一变就无条件重设
+ * innerHTML(不再比对 __html 字符串值)。{__html} 必须 memo 住,否则 App 任意一次重渲染
+ * (开关 attempt 弹窗、切语言)都会重建槽内 DOM,丢掉用户展开的 <details>、排序和过滤状态。
+ */
+function ReportSlot({ html }: { html: string }) {
+  const markup = useMemo(() => ({ __html: html }), [html]);
+  return <div className="report-slot" dangerouslySetInnerHTML={markup} />;
 }
 
 /** `#/page/<id>` / `#/attempts` / `#/traces` → tab 值;认不出返回 null(交给初始页兜底)。 */
@@ -211,6 +221,13 @@ export function App({ data, reportPages }: { data: ViewData; reportPages: Record
               <span>{t("hero.composedFrom", { count: data.composedRuns })}</span>
             ) : null}
           </div>
+          {/* 品牌行:恒在 hero 之下、恒带官网链接,不占 footer 的语义位、没有关闭配置
+              (shell.md「行为约束」)。 */}
+          <span className="powered-by">
+            <a href={NICEEVAL_SITE_URL} target="_blank" rel="noreferrer">
+              Powered by NiceEval
+            </a>
+          </span>
         </section>
 
         <SkippedRunsBanner skippedRuns={data.skippedRuns ?? []} t={t} />
@@ -228,10 +245,7 @@ export function App({ data, reportPages }: { data: ViewData; reportPages: Record
             {/* 报告槽:server 侧逐页渲染好的静态 HTML(含 <Style> 产物),按当前页与界面语言
                 摆放对应块;Scope 警告由报告页内呈现,壳不设第二条通道。
                 attempt 深链是普通 <a href="#/attempt/…">,经 hashchange 打开证据室弹窗。 */}
-            <div
-              className="report-slot"
-              dangerouslySetInnerHTML={{ __html: reportPages[page.id]?.[locale] || reportPages[page.id]?.en || "" }}
-            />
+            <ReportSlot html={reportPages[page.id]?.[locale] || reportPages[page.id]?.en || ""} />
           </TabsContent>
         ))}
 
@@ -242,15 +256,11 @@ export function App({ data, reportPages }: { data: ViewData; reportPages: Record
           <TracesView attempts={attempts} t={t} />
         </TabsContent>
       </main>
-      <footer className="site-footer">
-        {footerText ? <span className="site-footer-text">{footerText}</span> : null}
-        {/* 品牌行:恒在、恒带官网链接,不占 footer 的语义位、没有关闭配置(shell.md「行为约束」)。 */}
-        <span className="powered-by">
-          <a href={NICEEVAL_SITE_URL} target="_blank" rel="noreferrer">
-            Powered by niceeval
-          </a>
-        </span>
-      </footer>
+      {footerText ? (
+        <footer className="site-footer">
+          <span className="site-footer-text">{footerText}</span>
+        </footer>
+      ) : null}
       {modalResult && <AttemptModal result={modalResult} onClose={closeModal} t={t} />}
     </Tabs>
   );

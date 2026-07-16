@@ -84,7 +84,7 @@ $ niceeval show @1qrdcfq8 --diff                         # 证据切面照常可
 
 ## 外壳字段在终端
 
-配置对象形态的外壳里，`show` 只消费 `title`（页索引的标题行）与 `pages`；`links`、`footer`、`scripts`、`styles` 是 web 面属性，`Powered by niceeval` 行同样只属于 web 面页脚，`show` 不打印。页内的 `Tabs` 在 text 面按声明序全量输出、不折成索引——tab 没有选择器，索引是死路；内容长到终端读不动，是把 tab 升级成页的信号（见 [Library · Tabs](../library/layout.md#tabs)）。
+配置对象形态的外壳里，`show` 只消费 `title`（页索引的标题行）与 `pages`；`links`、`footer`、`scripts`、`styles` 是 web 面属性，`Powered by NiceEval` 品牌行同样只属于 web 面外壳，`show` 不打印。页内的 `Tabs` 在 text 面按声明序全量输出、不折成索引——tab 没有选择器，索引是死路；内容长到终端读不动，是把 tab 升级成页的信号（见 [Library · Tabs](../library/layout.md#tabs)）。
 
 ## 相关阅读
 

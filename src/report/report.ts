@@ -45,7 +45,7 @@ export interface ReportShell {
   title?: LocalizedText;
   /** 页头右侧的外部链接,如 GitHub、文档、CI。 */
   links?: ReportLink[];
-  /** 每页页脚的一段文字;省略时页脚只有 Powered by 行。 */
+  /** 每页页脚的一段文字;省略时不渲染页脚(品牌行恒在 hero 下方,不占页脚)。 */
   footer?: LocalizedText;
   /** 注入每个页面的脚本,在官方增强脚本之后、按声明顺序于 </body> 前加载。 */
   scripts?: ReportAsset[];

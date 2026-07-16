@@ -41,7 +41,7 @@ export function AttemptModal({ result, onClose, t }: { result: ViewResult; onClo
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent aria-describedby={undefined}>
-        <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-line px-[18px] pb-[11px] pt-[13px]">
+        <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-line px-7 pb-3 pt-4">
           <div className="flex min-w-0 flex-col gap-[3px]">
             <Badge tone={verdictClass(verdict)}>{verdictLabel(verdict, t)}</Badge>
             <DialogTitle asChild>
@@ -57,7 +57,7 @@ export function AttemptModal({ result, onClose, t }: { result: ViewResult; onClo
             x
           </DialogClose>
         </div>
-        <div className="flex-1 overflow-y-auto px-[18px] pb-[18px] pt-[14px]">
+        <div className="flex-1 overflow-y-auto px-7 pb-7 pt-5">
           {data.status !== "loading" && !hasCode ? <AssertionSection assertions={allAssertions} t={t} /> : null}
           {result.error ? (
             <div className="modal-error">
@@ -306,45 +306,56 @@ function useTraceSpans(base: string | undefined, hasTrace: boolean | undefined):
 const seriesClass = (i: number, failed?: true): string => (failed ? "phase-seg-bad" : `phase-seg-${(i % 6) + 1}`);
 
 /**
- * 统一时间树(见 docs/feature/reports/view.md「Attempt 详情」):主链先画一条分解条,列表里
- * 每个 phase 的 children(hook / 沙箱命令 / session/turn)默认收合、可逐个展开;首屏只占主链
- * 几行,不挤占断言区与源码。收尾段单列,不计入总耗时。
+ * 统一时间树(见 docs/feature/reports/view.md「Attempt 详情」):整区一个折叠块,收合时只占
+ * 一行(标题 + 总耗时),有失败 phase 的 attempt 默认展开;展开后主链先画一条分解条,列表里
+ * 每个 phase 的 children(hook / 沙箱命令 / session/turn)默认收合、可逐个展开。
+ * 收尾段单列,不计入总耗时。
  */
 function PhaseTimingBlock({ phases, trace, t }: { phases: NonNullable<ViewResult["phases"]>; trace: TraceHook; t: T }) {
   const main = phases.filter((p) => !CLOSING_PHASES.has(p.name));
   const closing = phases.filter((p) => CLOSING_PHASES.has(p.name));
   const total = main.reduce((sum, p) => sum + p.durationMs, 0);
+  const anyFailed = phases.some((p) => p.failed);
+  const [open, setOpen] = useState(anyFailed);
   return (
-    <div className="attempt-timing">
-      <div className="modal-sect">{t("attempt.timing")}</div>
-      {total > 0 ? (
-        <div className="phase-bar" aria-hidden="true">
-          {main.map((p, i) => (
-            <div
-              key={i}
-              className={`phase-seg ${seriesClass(i, p.failed)}`}
-              style={{ flexGrow: Math.max(p.durationMs, total / 200) }}
-              title={`${p.name} ${fmtMs(p.durationMs)}`}
-            />
-          ))}
-        </div>
-      ) : null}
-      <ul className="phase-list">
-        {main.map((p, i) => (
-          <PhaseRow key={i} phase={p} dotClass={seriesClass(i, p.failed)} trace={trace} t={t} />
-        ))}
-      </ul>
-      {closing.length > 0 ? (
-        <div className="phase-closing">
-          <div className="phase-closing-head">{t("attempt.teardown")}</div>
+    <details className="attempt-timing" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="timing-sum">
+        <span className="modal-sect">{t("attempt.timing")}</span>
+        <span className="phase-dur num">{fmtMs(total)}</span>
+        {anyFailed ? <span className="phase-fail">✗</span> : null}
+      </summary>
+      {open ? (
+        <>
+          {total > 0 ? (
+            <div className="phase-bar" aria-hidden="true">
+              {main.map((p, i) => (
+                <div
+                  key={i}
+                  className={`phase-seg ${seriesClass(i, p.failed)}`}
+                  style={{ flexGrow: Math.max(p.durationMs, total / 200) }}
+                  title={`${p.name} ${fmtMs(p.durationMs)}`}
+                />
+              ))}
+            </div>
+          ) : null}
           <ul className="phase-list">
-            {closing.map((p, i) => (
-              <PhaseRow key={i} phase={p} trace={trace} t={t} />
+            {main.map((p, i) => (
+              <PhaseRow key={i} phase={p} dotClass={seriesClass(i, p.failed)} trace={trace} t={t} />
             ))}
           </ul>
-        </div>
+          {closing.length > 0 ? (
+            <div className="phase-closing">
+              <div className="phase-closing-head">{t("attempt.teardown")}</div>
+              <ul className="phase-list">
+                {closing.map((p, i) => (
+                  <PhaseRow key={i} phase={p} trace={trace} t={t} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </>
       ) : null}
-    </div>
+    </details>
   );
 }
 
