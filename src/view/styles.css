@@ -62,6 +62,10 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* space-between 只在有富余空间时才撑开相邻项;.shell-links 的 margin-left:auto 会把富余
+     空间全部吸收到它左侧,导致品牌与导航贴脸、shell-links 与语言切换贴脸。显式 gap 保证
+     每一对相邻项(品牌—导航、shell-links—语言切换)恒有最小间距,不依赖富余空间。 */
+  gap: 28px;
   padding: 0 clamp(20px, 5vw, 80px);
   background: color-mix(in oklch, var(--bg), transparent 4%);
   position: sticky;
@@ -967,8 +971,10 @@ a.brand:hover { opacity: 0.75; }
 .tok-fn { color: light-dark(#0b62d6, #82aaff); }
 
 /* ── 外壳:导航右侧外部链接与页脚(docs/feature/reports/library/shell.md) ── */
-.shell-links { display: flex; gap: 14px; align-items: center; margin-left: auto; }
-.shell-links a { color: var(--soft); text-decoration: none; font-size: 13px; }
+.shell-links { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+/* 链接自带 padding 撑大可点击区域(而非仅靠文字宽度);.shell-links 的 gap 相应收窄,
+   两条链接之间的视觉间距(padding + gap + padding)与改前基本持平。 */
+.shell-links a { color: var(--soft); text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px; }
 .shell-links a:hover { color: var(--text); }
 .site-footer {
   display: flex;
@@ -983,3 +989,6 @@ a.brand:hover { opacity: 0.75; }
 .site-footer .powered-by a { color: var(--soft); text-decoration: none; }
 .site-footer .powered-by a:hover { color: var(--text); text-decoration: underline; }
 .nre-page-error pre { white-space: pre-wrap; }
+/* ReportLink.icon:内联 SVG 字标,渲染在 label 前(shell.md「字段穷尽」)。 */
+.shell-link-icon { display: inline-flex; align-items: center; }
+.shell-link-icon svg { width: 14px; height: 14px; display: block; fill: currentColor; }
