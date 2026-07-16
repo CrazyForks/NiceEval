@@ -23,6 +23,8 @@ import dynamic from "next/dynamic";
 // Setup 是首页最重的区块(prism 高亮 + 示例数据),拆成独立 chunk 异步 hydrate,
 // 把它的 JS 挪出 LCP 关键路径;SSR 照常输出,不影响 SEO 文本。
 const Setup = dynamic(() => import("./site-home-setup"));
+// AgentLoop 同样在首屏之外,跟着 Setup 的思路拆出关键路径。
+const AgentLoop = dynamic(() => import("./site-home-agent-loop"));
 
 type AudienceMode = "humans" | "agents";
 
@@ -48,6 +50,7 @@ export default function HomeClient({ t, locale }: { t: Dictionary; locale: Local
         <Hero t={t} locale={locale} />
         <Strip t={t} />
         <Setup t={t} locale={locale} />
+        <AgentLoop t={t} locale={locale} />
       </main>
     </>
   );

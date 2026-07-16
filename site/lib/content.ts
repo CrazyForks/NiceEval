@@ -105,6 +105,19 @@ export const copy = {
     setupTitle: "eval chats, tool calls, and coding agents",
     setupCaption: "Each card is a runnable defineEval file. Click a highlighted line to peek at replies and assertion notes.",
     timingLabel: "Timing trace",
+    loopEyebrow: "Agents are users too",
+    loopTitle: "turn evals into a loop",
+    loopCaption:
+      "The NiceEval CLI is designed for agents as much as for humans — not just an evaluation tool, but a framework that loops: build evals, run them, improve the agent system. Every output has an agent-readable face, so a coding agent drives the whole loop over bash.",
+    loopTerminalLabel: "terminal",
+    // 环上四段弧线箭头:[标题, 对应的 CLI 命令]。标题一个词,命令用缩略形态,
+    // 两者都必须极短——写在弧带内部,长了会撑出弧带。重跑不单列:环回到 eval 就是重跑。
+    loopSteps: [
+      ["eval", "exp local"],
+      ["triage", "show @id"],
+      ["trace", "show --source"],
+      ["refine", "claude"],
+    ],
     blogPage: {
       meta: "The NiceEval team's product and engineering blog. How to build evals for your agent with NiceEval.",
       eyebrow: "NiceEval Blog",
@@ -160,6 +173,17 @@ export const copy = {
     setupTitle: "Eval 对话、工具调用与 coding agent",
     setupCaption: "每张卡都是一个可直接运行的 defineEval 文件。点击高亮行,展开助手回复和断言说明。",
     timingLabel: "耗时追踪",
+    loopEyebrow: "Agent 也是用户",
+    loopTitle: "把评估变成循环",
+    loopCaption:
+      "NiceEval 的 CLI 把 Agent 也当成用户来设计——它不只是评估工具，而是构建评估、执行评估、优化 Agent 系统的循环框架。每个输出都有给 agent 读的一面，coding agent 靠 bash 就能跑完整个循环。",
+    loopTerminalLabel: "终端",
+    loopSteps: [
+      ["评估", "exp local"],
+      ["诊断", "show @id"],
+      ["归因", "show --source"],
+      ["优化", "claude"],
+    ],
     blogPage: {
       meta: "NiceEval 团队的产品和工程博客。如何使用 NiceEval 为你的 Agent 构建评估",
       eyebrow: "NiceEval 博客",
