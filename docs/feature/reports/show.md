@@ -8,7 +8,7 @@
 niceeval show                              # 当前结果的默认 ExperimentComparison
 niceeval show memory/swelancer             # 按 eval id 前缀收窄
 niceeval show @1qrdcfq8                    # 打开一个 attempt 的诊断首页
-niceeval show @1qrdcfq8 --eval             # 断言标回 eval 源码
+niceeval show @1qrdcfq8 --source           # 断言标回 eval 源码
 niceeval show @1qrdcfq8 --execution        # 对话与工具调用；可关联时附 OTel 时间
 niceeval show @1qrdcfq8 --timing           # 有界诊断时间树：生命周期、hook、命令、轮次与 OTel
 niceeval show @1qrdcfq8 --timing=full      # 逐节点展开同一棵完整时间树
@@ -25,7 +25,7 @@ niceeval show memory/swelancer --history   # 这个 eval 的真实执行历史
 |---|---|
 | 读裸 `show` 的默认榜单：组索引、单组详情、Result 摘要口径 | [默认报告的 text 面](show/default-report.md) |
 | 从 locator 打开失败诊断首页（含 errored 的基础设施错误） | [失败诊断首页](show/attempt.md) |
-| 把断言与轮次标回 eval 源码 | [`--eval`](show/eval-source.md) |
+| 把断言与轮次标回 eval 源码 | [`--source`](show/eval-source.md) |
 | 看 agent 每轮说了什么、调了什么工具 | [`--execution`](show/execution.md) |
 | 分析整个 attempt 的时间花在哪 | [`--timing`](show/timing.md) |
 | 核对 agent 实际改了哪些文件 | [`--diff`](show/diff.md) |

@@ -2,7 +2,7 @@
 
 裸 `niceeval show` 装载[内建报告](../library/built-in.md)，与显式渲染内置 `ExperimentComparison` 等价。Scope 命中多个可比组时，报告只输出组索引和可直接复制执行的 `niceeval show --experiment <group>` 命令；Scope 已经只剩一个组时，才输出该组的成本 × 端到端成功率散点图与 `ExperimentList`。experiment id 的父目录是组边界：`compare/*` 与 `dev-e2b/*` 不能共享坐标系、连线、排序或汇总数字；根目录 experiment 各自形成单例组。端到端成功率的分母包含 `failed` 与 `errored`，只有 `skipped` 不进入；因此执行错误会降低默认成功率，但仍在结果构成中单独显示，不与失败混成一种判定。单组只有一个可画 experiment 时也照常显示一个点，不要求至少两个实验。
 
-可比组索引一行一个组，显示 experiment / eval 数、`GroupSummary` 的端到端成功率、Eval 最终 verdict 构成、成本与最后运行时间；成功率直接取官方 `endToEndPassRate` 格子，不从 verdict 计数重算。多组 Scope 到此结束，不把所有组的详情一次性倾倒到终端。单组 `ExperimentList` 保持实体层级：一个 experiment 下列 Eval，一个 Eval 下再列它的全部 Attempt。不能把组拍平，也不能把 Eval 与 Attempt 压平成一张“每行一个 Attempt、重复 Eval id”的表。Scope 只剩一个组时省略索引，直接进入该组。
+可比组索引一行一个组，显示 experiment / eval 数、`ScopeSummary` 的端到端成功率、Eval 最终 verdict 构成、成本与最后运行时间；成功率直接取官方 `endToEndPassRate` 格子，不从 verdict 计数重算。多组 Scope 到此结束，不把所有组的详情一次性倾倒到终端。单组 `ExperimentList` 保持实体层级：一个 experiment 下列 Eval，一个 Eval 下再列它的全部 Attempt。不能把组拍平，也不能把 Eval 与 Attempt 压平成一张“每行一个 Attempt、重复 Eval id”的表。Scope 只剩一个组时省略索引，直接进入该组。
 
 ```sh
 $ niceeval show
@@ -24,9 +24,9 @@ $ niceeval show --experiment dev-e2b
 实验组 dev-e2b
 
 平均每个 eval 成本（越低越好） × 端到端成功率
-... A
+A ...
 
-越靠右上越好
+越靠左上越好
 A dev-e2b/codex-e2b
 
 实验                    模型            Agent   平均耗时   端到端成功率   结果               Tokens    预估成本

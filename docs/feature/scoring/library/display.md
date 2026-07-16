@@ -9,7 +9,7 @@
 | 契约 | 入口 | 目的 | passed attempt | failed / assertion-unavailable attempt |
 |---|---|---|---|---|
 | **结果摘要** | `exp` 的 Human 永久行与最终 handoff、Agent handoff、CI failure 行；`show` / `view` 的 `ExperimentList`、`EvalList`、`AttemptList` 比较列表 | 先定位哪条 attempt 红、最主要为什么红 | 不逐条输出；比较列表 Result 显示 `—` | 只输出一条**主失败断言摘要**，其余失败只报 `+N more failures` |
-| **具体诊断与源码** | `show @locator`、view Attempt 详情；`show @locator --eval`、view source 模式 | 完整解释全部断言，并把它们放回运行时源码 | Attempt 首页显示 `N passed`，通过项在 view 默认折叠；源码行标 `✓` | failed / soft / unavailable 分节完整展开；源码行标 `✗` 并紧跟标题、matcher、expected / received 或 reason |
+| **具体诊断与源码** | `show @locator`、view Attempt 详情；`show @locator --source`、view source 模式 | 完整解释全部断言，并把它们放回运行时源码 | Attempt 首页显示 `N passed`，通过项在 view 默认折叠；源码行标 `✓` | failed / soft / unavailable 分节完整展开；源码行标 `✗` 并紧跟标题、matcher、expected / received 或 reason |
 
 结果摘要里的 `—` 表示“这条 attempt 没有需要解释的失败摘要”，不表示没有 assertions。任何摘要面都不得把 `assertions.map(a => a.name)` 拼进 Result 单元格：这会让通过项比失败项更吵，也会把几十条 matcher 挤成不可读的多行文本。
 
@@ -46,7 +46,7 @@ gate: Issue 15193: selected proposal matches the accepted proposal
 
 CI 单行反馈使用独立结构化字段 `severity=` / `assertion=` / `matcher=` / `expected=` / `received=` / `score=` / `threshold=` / `reason=`；存在什么发什么。Agent checkpoint 只报告 locator 与 verdict，最终 handoff 再使用上面的两层文本。机器消费者因此不需要解析 `gate: ...` 这句 Human 文案。
 
-结果摘要不内联源码。源码回答“这条检查写在哪里、周围代码是什么”，不能替代 expected / received；并发失败时内联还会淹没 scrollback。摘要保留 locator，并在最终 handoff 给出 `niceeval show @locator --eval`。
+结果摘要不内联源码。源码回答“这条检查写在哪里、周围代码是什么”，不能替代 expected / received；并发失败时内联还会淹没 scrollback。摘要保留 locator，并在最终 handoff 给出 `niceeval show @locator --source`。
 
 ### 契约二：具体诊断与源码
 
@@ -55,7 +55,7 @@ CI 单行反馈使用独立结构化字段 `severity=` / `assertion=` / `matcher
 - 顶部计数：passed、gate failed、soft below threshold、unavailable 各多少；
 - 失败优先的完整分节：每条保留 group、matcher、expected / received、score / threshold、reason 与 `source: file:line:column`；
 - passed 收纳：show 只保留计数，view 按 group 默认折叠但可展开全部；
-- 源码入口：`show @locator --eval` 与 view source 使用运行时保存的 eval source，在断言调用行标 `✓` / `✗`，行后只附属于该行的断言详情。
+- 源码入口：`show @locator --source` 与 view source 使用运行时保存的 eval source，在断言调用行标 `✓` / `✗`，行后只附属于该行的断言详情。
 
 源码模式不负责重新判定，也不从源码反推字段；行内标注仍然来自 `AssertionResult.loc` 与同一条结构化记录。没有 source artifact 或 loc 时，Attempt 详情照常显示完整断言，只把源码入口标为 unavailable。
 
@@ -63,7 +63,7 @@ CI 单行反馈使用独立结构化字段 `severity=` / `assertion=` / `matcher
 
 - **show 的 attempt 首页**按结果分节，只逐条列出需要看的：`failures:`（gate 失败，含 `--strict` 下改判的 soft）、`soft below threshold:`（soft 未达标但不影响 verdict）、`scores:`（无阈值 judge 的纯打分）、`unavailable:`（证据评不了的，带 reason）。全部通过时这些节整体省略，只留 `assertions: N passed` 计数行。
 - **每条的行格式**：首行 `severity · <标题>`——有 `group` 时标题是分组路径（嵌套用 " > " 拼接），随后 `assertion: <detail>` 行给检查方式；没有分组时标题就是 `name`（即 matcher / judge 摘要），`assertion:` 行与标题重复时省略。之后按有则显示的顺序列 `expected:` / `received:` / `score`（judge 与 soft 带阈值时含 `threshold`）/ `reason:`（仅 unavailable），最后 `source: <loc>`。
-- **view 的 Attempt 详情**保留**全量**断言，但默认先展开 failed / unavailable 与影响判定的 soft，passed 收进按 group 组织的折叠区并在区头显示数量；每条一行（状态图标 + 分组路径 + name + detail + 分数），展开显示 expected / received / `evidence`（这条分数看的材料预览，默认折叠）与源码位置锚（点击跳 `--eval` 同款源码视图）；judge 额外画分数条与阈值线；`unavailable` 用独立的第三态样式（非红非绿）标 reason。
+- **view 的 Attempt 详情**保留**全量**断言，但默认先展开 failed / unavailable 与影响判定的 soft，passed 收进按 group 组织的折叠区并在区头显示数量；每条一行（状态图标 + 分组路径 + name + detail + 分数），展开显示 expected / received / `evidence`（这条分数看的材料预览，默认折叠）与源码位置锚（点击跳 `--source` 同款源码视图）；judge 额外画分数条与阈值线；`unavailable` 用独立的第三态样式（非红非绿）标 reason。
 - **作用域前缀**：挂在 turn / session 上的断言，`name` 带接收者前缀（`s1/t2 · calledTool(...)`、`s2 · succeeded()`）；挂在 `t` 上的 attempt 级断言无前缀。
 - 所有值都是有界预览（截断规则见 [Results · 大值截断](../../results/architecture.md#大值截断)），完整证据在 `events.json` / `diff.json` 等 artifact。
 
@@ -102,7 +102,7 @@ soft below threshold:
     received: [8 items] [{"id":1,…}, …]
 ```
 
-`t.check(cmd, commandSucceeded())` 的 `evidence` 是命令行本身，`received` 分两层：首行是退出码加折成单行的输出尾部摘要——stdout 与 stderr 合并后的末尾，因为测试 runner（pytest / vitest）的失败计数都收在最后几行；随后附原样保留换行的更长尾部（`output tail:` 段）。摘要面（比较列表、`--eval` 标注）只保留首行；attempt 首页把尾部按原始换行展开。分层的理由：runner 不另存 eval 侧命令的输出，这条记录就是它唯一的家——只存单行摘要等于把「测试到底怎么挂的」这份证据丢掉：
+`t.check(cmd, commandSucceeded())` 的 `evidence` 是命令行本身，`received` 分两层：首行是退出码加折成单行的输出尾部摘要——stdout 与 stderr 合并后的末尾，因为测试 runner（pytest / vitest）的失败计数都收在最后几行；随后附原样保留换行的更长尾部（`output tail:` 段）。摘要面（比较列表、`--source` 标注）只保留首行；attempt 首页把尾部按原始换行展开。分层的理由：runner 不另存 eval 侧命令的输出，这条记录就是它唯一的家——只存单行摘要等于把「测试到底怎么挂的」这份证据丢掉：
 
 ```text
   gate · commandSucceeded()
@@ -268,7 +268,7 @@ eval.run              26.3s
   └─ turn s1/t2            3.1s
 ```
 
-**`show --eval`**——`t.send(...)` 的调用行标注该轮的头行事实（身份、status、墙钟与 usage——有记录才出现），失败轮标 `✗`；不内联回复与工具卡片，语法契约见 [Show · --eval](../../reports/show/eval-source.md)：
+**`show --source`**——`t.send(...)` 的调用行标注该轮的头行事实（身份、status、墙钟与 usage——有记录才出现），失败轮标 `✗`；不内联回复与工具卡片，语法契约见 [Show · --source](../../reports/show/eval-source.md)：
 
 ```text
 27✓       .send("Implement `run_tasks` in `run.py`. …")

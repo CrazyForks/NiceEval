@@ -12,7 +12,7 @@
 | 无限定词的成功率与默认组件使用 `endToEndPassRate`：errored = 0；`taskPassRate` 排除 errored，只能作为带限定名称的诊断指标 | 正例：2 passed + 5 errored 的默认成功率是 2/7，不是 100%；正例：并排展示三个指标可区分任务质量与执行可靠性 |
 | `skipped` attempt 对全部内置指标返回 `null`，不进有效样本但保留在 total | 正例：samples < total 且 value 不受影响；反例：skipped 未被算成 0 分 |
 | `null` 表示测不了不参与聚合；`0` 正常参与，二者聚合结果必须不同 | 边界：`[null, 0, 1]` 的 mean 是 0.5 而非 1/3 |
-| `Scoreboard` 使用固定题集分母：未跑到的题按 0 分计入分母并计入 missing | 正例：题集 4 只跑 2 分母仍 4；反例：与"只统计有样本"口径区分 |
+| `Scoreboard` 使用固定题集分母：未跑到的题按 0 分计入分母并计入 `notRun`；跑了但指标为 null 的题同样按 0 分但计入 `unscorable`，两个计数不合并 | 正例：题集 4 只跑 2 分母仍 4 且 notRun=2；正例：跑了但 null 的题 unscorable+1 而 notRun 不变；反例：与"只统计有样本"口径区分 |
 | `Scoreboard` 权重按 eval id 前缀匹配，多前缀命中取最长 | 正例：`security/` 与 `security/auth/` 同时命中取后者；边界：无命中 |
 | 跨快照计算先按 attempt 身份键去重，同一 attempt 出现在多快照不重复计数 | 正例：局部补跑重叠快照下 samples 不虚增 |
 | 宿主 Scope 为每个 experiment × eval 选择跨历史最新判定 | 正例：先 failed 后 passed 的两快照只用最新判定 |
@@ -23,10 +23,10 @@
 
 ```tsx
 import { expect, it } from "vitest"
-import { runOverviewData } from "../../report/index.ts"
+import { scopeOverviewData } from "../../report/index.ts"
 
-it("runOverviewData 使用端到端两级聚合并保留覆盖率", async () => {
-  const data = await runOverviewData(scope)
+it("scopeOverviewData 使用端到端两级聚合并保留覆盖率", async () => {
+  const data = await scopeOverviewData(scope)
 
   expect(data.endToEndPassRate.value).toBeCloseTo(5 / 9)
   expect(data.endToEndPassRate.display).toBe("55.6%")
@@ -43,6 +43,7 @@ it("runOverviewData 使用端到端两级聚合并保留覆盖率", async () => 
 |---|---|
 | MetricCell 携带 value/display/samples/total/refs；缺数据格子 value 为 null 且不渲染成 0 | 三格 fixture：measuredZero、partial、missing 互不混淆 |
 | 覆盖率与 refs 不因渲染或 JSON 序列化丢失 | 正例：serialize round-trip 后 refs 完整 |
+| 组件消费 `data` 时校验结构：不符合当前版本形状按完整用户反馈报错并提示可能的版本漂移，不静默错渲染 | 反例：字段改名前的旧 JSON 传入 data 形态报错且文案含版本漂移提示；正例：round-trip 的同版本 JSON 照常渲染 |
 | 缺 artifact 时指标返回 null，渲染层不猜值；`turns` 缺 `o11y.json` 显示缺失不冒充 0 | 正例：删 o11y.json 后 turns 为 missing；反例：来自 result.json 的指标不受影响 |
 | value 与 display 分别可断言；display 由 unit 或自定义 display(value) 驱动 | 正例：value≈5/6 与 display="83.3%" 独立断言 |
 
@@ -52,13 +53,17 @@ it("runOverviewData 使用端到端两级聚合并保留覆盖率", async () => 
 
 | 契约 | 场景 |
 |---|---|
-| `experimentComparisonData()` 在计算前按 experiment id 的完整父路径分区，根目录 experiment 各自形成单例组；每组子块与对该组独立调用 `groupSummaryData` / `metricScatterData` / `experimentListData` 完全相同 | 正例：两个多配置目录组 + 一个根目录单例组；逐组 deepEqual 对账并断言 scatter / list refs 不跨组 |
+| `experimentComparisonData()` 在计算前按 experiment id 的完整父路径分区，根目录 experiment 各自形成单例组；每组子块与对该组独立调用 `scopeSummaryData` / `metricScatterData` / `experimentListData` 完全相同 | 正例：两个多配置目录组 + 一个根目录单例组；逐组 deepEqual 对账并断言 scatter / list refs 不跨组 |
 | `ExperimentComparison` 的 web 面接收全部组并输出组选择器与相互隔离的完整 panel，第一组默认展开且无 JS 仍可读；text 面多组时只给索引和单组查看命令，单组时才输出散点与实验列表 | 正例：双组 web 静态 HTML 含两个 panel 且仅首组 open；text 多组无 experiment 明细、单组有明细 |
 | `MetricScatter` 对缺 x 或 y 的点不绘制并报告缺失数；零点显示明确空态；单点照常绘制 | 边界：0 点 / 1 点 / 部分缺 x；反例：单点不被拒绝 |
 | `MetricLine` 对未声明数值 flag 的 experiment 不伪造 x 值并报告未绘制数 | 正例：flag 缺失与 flag="high" 两种；反例：不落到 x=0 |
 | `DeltaTable` 任一侧缺数据时 delta 保持缺失；方向按指标 `better` 判断改善/退化 | 正例：better:"lower" 的 costUSD 下降判改善；边界：一侧缺时 delta 为 null |
 | `MetricMatrix` 是稀疏矩阵：无 attempt 的行列组合不生成格子；`MetricBars` 消费同一份矩阵数据 | 正例：缺组合无格子（而非 value:0）；正例：Bars 与 Matrix data 同源 |
-| `AttemptList` 的 `redact` 只改写 message/cause/stack、diagnostic、断言 detail 和 evidence；身份字段与 code、lifecycle operation 不被改写 | 正例：全替换函数下身份字段原样；反例：evidence 中的 secret 被替换 |
+| `AttemptListItem` 只携带算好的单行摘要：`failureSummary`（failed 取主失败断言摘要、errored 取 error 一层摘要、passed/skipped 为 null）与 `moreFailures` 计数；序列化 JSON 不含 assertions、stack、evidence 或 diagnostics | 正例：failed/errored/passed 三态的 failureSummary 各自正确；反例：多失败 attempt 的 JSON.stringify 结果不含第二条断言文本与 stack |
+| `AttemptList` 的 `redact` 只改写 `failureSummary`；身份字段、locator 与数值指标不被改写 | 正例：全替换函数下身份字段原样；反例：failureSummary 中的 secret 被替换 |
+| `experimentListData` 对同一 experiment 的输入含不一致可比性配置时按完整用户反馈失败，指引 snapshot 维度 / MetricLine；宿主注入的 `current()` Scope 天然满足单义 | 反例：手工拼两份 model 不同的快照数组报错且文案含下一步；正例：current() Scope 照常计算 |
+| `DeltaData.rows` 携带作者声明的 pair `label` 原样透传，renderer 据此显示行名 | 正例：LocalizedText label 经 data round-trip 后两面显示一致 |
+| `MetricLine` 点身份为 `(series, x)`：同桶多 experiment 按 (series, x, experiment, eval) 顺序聚合成一个点；自定义 `NumericAxis.of` 在同一 experiment × eval 内返回不同值时计算以完整用户反馈失败 | 正例：两 experiment 同 x 合成一点且 y 为跨题聚合；反例：逐 attempt 变化的 of 报错不静默取首值 |
 | 分组维度上未声明的 flag 归 `(unset)` 组，不丢行 | 正例：部分 experiment 无该 flag 时 (unset) 计数正确 |
 | `MetricTable` 的 `sort` 决定初始行序，方向由指标 `better` 决定（好在前） | 正例：sort=endToEndPassRate 高在前、sort=costUSD 低在前 |
 
@@ -69,8 +74,9 @@ it("runOverviewData 使用端到端两级聚合并保留覆盖率", async () => 
 | 契约 | 场景 |
 |---|---|
 | spec 形态与「先手工调 `*Data` 再传 `data`」严格等价：同一 spec 经管线 resolve 与手工计算渲染出相同终值、覆盖率与 refs | 正例：`MetricScatter` spec 形态与 data 形态两棵树渲染深等；反例：同一组件同时给 `data` 与 spec 字段报完整用户反馈 |
-| spec 形态 `input` 省略时取宿主注入的 Scope，显式 `input` 覆盖数据来源 | 正例：`GroupSummary input={scope.filter(...)}` 只统计收窄后快照；正例：`MetricTable input={exp.snapshots}` 按快照出行 |
-| resolve 记忆化：一次页渲染内同引用 `input` + 深相等 spec 只计算一次 | 正例：Matrix 与 Bars 同 spec 时计算函数只被调一次；反例：不同 spec 或不同 `input` 各自计算 |
+| spec 形态 `input` 省略时取宿主注入的 Scope，显式 `input` 覆盖数据来源 | 正例：`ScopeSummary input={scope.filter(...)}` 只统计收窄后快照；正例：`MetricTable input={exp.snapshots}` 按快照出行 |
+| resolve 记忆化：一次页渲染内同引用 `input` + 深相等 spec 只计算一次；深相等中函数与 Metric / Dimension / NumericAxis 实例按引用比较 | 正例：Matrix 与 Bars 同 spec 时计算函数只被调一次；反例：不同 spec 或不同 `input` 各自计算；边界：两个字段相同但实例不同的 Metric 各自计算、不报错 |
+| `ReportNode` 全集：元素、数组 / Fragment（展平保序）、null / undefined / boolean（渲染为空）；裸字符串与数字在树校验时按完整用户反馈拒绝并指引包 `Text` | 正例：`groups.map(...)` 数组与 `cond && <X />` 两面渲染正确；反例：树中放裸字符串报错文案含 Text 指引 |
 | 组合组件在 resolve 阶段以 `(props, ctx)` 调用并递归展开返回树；`ctx` 携带 `scope`、`results` 与规范化声明 `report`；async 组合可用 | 正例：组合组件树与手写等价树渲染相同；正例：`ctx.results` 取历史快照喂 `input`；正例：`ctx.report.title` 是走完回退链的标题、`ctx.report.page` 是当前页 id |
 | 同层 sibling 并行取数与展开，输出保持声明顺序 | 正例：慢 resolve 在前、快 resolve 在后时输出顺序不变 |
 | 非法节点在展开遇到时以完整用户反馈拒绝且不为其取数：React 组件、未经 `defineComponent` 的普通函数、任意 HTML intrinsic | 反例：树中放裸函数组件报错文案可 snapshot；反例：`<div>` 同样拒绝 |
@@ -102,7 +108,7 @@ it("runOverviewData 使用端到端两级聚合并保留覆盖率", async () => 
 ```tsx
 import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
-import { RunOverview } from "../../report/index.ts"
+import { ScopeOverview } from "../../report/index.ts"
 import { createTextContext, renderNodeToText } from "../../report/tree.ts"
 
 it("text 与 web 显示同一个 MetricCell 终值和 warning", () => {
@@ -111,9 +117,9 @@ it("text 与 web 显示同一个 MetricCell 终值和 warning", () => {
     warnings: ["snapshot is incomplete"],
   })
 
-  const html = renderToStaticMarkup(<RunOverview data={data} />)
+  const html = renderToStaticMarkup(<ScopeOverview data={data} />)
   const text = renderNodeToText(
-    <RunOverview data={data} />,
+    <ScopeOverview data={data} />,
     createTextContext({ width: 80 }),
   )
 
@@ -159,7 +165,7 @@ it("text 与 web 显示同一个 MetricCell 终值和 warning", () => {
 | TTY、pipe、CI 对同一 timing mode 选择相同节点且不自动启动 pager | 正例：stdout capture 与 TTY fixture 的节点集合相同；反例：非交互命令不读 stdin、不挂起 |
 | 扫描结果根时单个不可读快照不阻塞其余：忽略/incompatible/malformed/incomplete 各带原因 | 四种坏快照各一 fixture，好快照照常计入 |
 | 零可读结果时命令失败：show 非零退出（旧格式建议 `npx niceeval@<version>`）；view 不启动 server、`--out` 不生成空站 | 边界：空结果根与仅含旧格式两种 |
-| `--out` 无档位：根里存在且前端会读取的证据文件（sources / events / trace / diff）全部复制，缺的在证据位置显示缺失；`o11y.json` 永不复制 | 正例：带 diff.json 的根导出后 diff 可下钻；边界：无 diff.json 的根导出后 diff 位置显示缺失原因；反例：o11y.json 不进 `artifact/` |
+| `--out` 无档位：根里存在且前端会读取的证据文件（sources 引用及其快照级 `sources/<sha256>.json` 正文 / events / trace / diff）全部复制，缺的在证据位置显示缺失；`o11y.json` 永不复制 | 正例：带 diff.json 的根导出后 diff 可下钻；正例：导出站离线打开源码视图可取到正文；边界：携带条目（artifactBase 指向原快照）的源码正文被归拢进本快照 `sources/`，删除原快照后导出站源码仍可读；边界：无 diff.json 的根导出后 diff 位置显示缺失原因；反例：o11y.json 不进 `artifact/` |
 | 发布防呆二分：全部快照 `redaction: "applied"` 的根直接导出；`"none"`、无标记或本地事实根要求 `--allow-sensitive-artifacts`，否则报错并指引 `copySnapshots({ redact })` | 正例：发布根直接导出；反例：事实根缺 flag 时非零退出且文案含下一步；边界：混合根（部分快照无标记）按需确认 |
 | `--out` 与位置参数 / `--experiment` 互斥：按实验收窄发布走「换根」，报错文案含 `copySnapshots` + `filter` 下一步 | 反例：`--experiment compare --out site` 按用法错误非零退出且文案含 copySnapshots；正例：同参数不带 `--out` 时照常收窄报告槽 |
 | 明确指定单个 snapshot.json 时该文件不可读令 view 失败（与扫描模式的跳过相反） | 反例：损坏文件作位置参数报错退出；正例：同文件在扫描模式仅被跳过 |
@@ -207,7 +213,7 @@ it("show 与 view 的默认报告槽消费同一 Scope", async () => {
 | `show` 输出的页索引与组索引命令保留当前 `--run` / `--report` / `--page` 与位置参数上下文，复制即可复现下一层视图 | 正例：`--report` 下多组时组索引命令含 `--report` 与 `--page`；正例：`--run` 下页索引命令含 `--run` |
 | 全部页共享宿主注入的同一 Scope，位置参数与 `--experiment` 收窄对全部页生效；页不承担数据过滤 | 正例：两页的解析 refs 来自同一收窄后 Scope |
 | 本地宿主只 resolve 被打开的页；静态导出 resolve 并校验全部页，任一页失败则导出整体失败 | 正例：打开 A 页时 B 页的取数未执行；反例：B 页含 `<div>` 时 `--out` 非零退出、不产出半套站点 |
-| 标题取值链 def.title → 快照 name → `NiceEval`；`links` / `footer` 渲染进导航壳，text 面不含这些字段 | 正例：三级 fallback 各一 fixture；反例：show 输出不含 links href |
+| 标题取值链 def.title → Scope 中唯一且相同（LocalizedText 深相等）的快照 name → `NiceEval`；`links` / `footer` 渲染进导航壳，text 面不含这些字段 | 正例：三级 fallback 各一 fixture；边界：两快照 name 的 en 相同、zh-CN 不同时任何 locale 下都回退 `NiceEval`；反例：show 输出不含 links href |
 | web 面外壳页脚恒含指向 niceeval 官网的 `Powered by niceeval`，位于自定义 `footer` 文案之后，无关闭配置；text 面与 `niceeval/report/react` 嵌入组件不含 | 正例：有 / 无 `footer` 两种 fixture 页脚都含该行且次序正确；反例：show 输出与 react 嵌入渲染不含该行 |
 | view 导航组成固定：报告页按声明序在前，内置 Runs、Traces 证据页恒排其后；报告定义不能移除或重排证据页 | 正例：双页定义导航序为 页A · 页B · Runs · Traces；边界：树形态定义导航仍含证据页 |
 | `scripts` / `styles` 按声明序注入：styles 在官方样式后，scripts 在官方增强脚本后 `</body>` 前；初始静态 HTML 的数值不因注入改变 | 正例：注入前后初始 HTML 数据节点相同、注入顺序可断言 |

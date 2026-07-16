@@ -128,6 +128,7 @@ it("latest 取实验最新快照，覆盖缺口以 partial-coverage 警告表达
 | 契约 | 场景 |
 |---|---|
 | 每个 experiment × eval 取"包含该 eval 的最新快照"里的全部 attempt；同一 eval 的多个 attempt 整批来自同一快照，不跨快照拼装 | 正例：单 experiment 单快照单 attempt；正例：局部补跑时 q1 取最新快照、q2 从旧快照补齐补全；正例：同 eval 多 attempt 整批取自最新快照，旧快照的同 eval attempt 不掺入 |
+| 跨快照拼接有可比性前提：以该 experiment 最新快照的可比性配置（agent、model、reasoningEffort、flags、budget、timeoutMs、sandbox）为基准，配置不一致的旧快照不贡献 attempt，其覆盖缺口按 partial-coverage 告警；编排与选题字段（runs、earlyExit、maxConcurrency、selectedEvalIds、evalFilterFingerprint、description）不参与比较 | 正例：改 model 后局部补跑，未补跑的题不从旧 model 快照拼入且触发 partial-coverage；正例：只改 runs / maxConcurrency 的旧快照照常参与拼接；边界：flags 深相等比较，键序不同不算改配置 |
 | 历史已知 eval（跨快照并集 ∪ knownEvalIds）在现刻水位中缺失时产出 `partial-coverage` 警告，覆盖齐全不产出；eval id 前缀过滤与 `--experiment` 分段前缀过滤都相应收窄分母 | 正例：knownEvalIds 声明但从未落盘 → partial-coverage；反例：覆盖齐全无警告；边界：位置前缀过滤后分母同步收窄，范围外缺口不触发 |
 | 多 experiment 更新时间不同时较早者触发 `stale-snapshot`；未完成快照（缺 completedAt）触发 `unfinished-snapshot`；`--run` 只看该结果根，不跨根 | 正例：两 experiment 时间差触发 stale；正例：中断快照被选中时触发 unfinished 且 attempts 仍可读；正例：两个独立结果根互不可见 |
 | resume 携带的复印件不重复计票：同一 eval 若"当前活着"的快照恰好是复印件所在快照，只计一次，证据 ref 仍可读 | 正例：复印件整批只出现一次且 `events()` 非 null |
@@ -178,7 +179,7 @@ it.each([
 
 ## 标注 Eval 源码（AnnotatedEvalSource）
 
-契约来源：[concepts · 标注 Eval 源码](../../../concepts.md)、[Show · --eval](../../../feature/reports/show.md)。
+契约来源：[concepts · 标注 Eval 源码](../../../concepts.md)、[Show · --source](../../../feature/reports/show.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -193,7 +194,7 @@ it.each([
 
 | 契约 | 场景 |
 |---|---|
-| 四个能力位（eval/execution/timing/diff）各自只在"数据真的存在且非空"时为真，不是"artifact 文件存在"；四位全具备、全缺失、部分具备（有 events 无 phases、有 diff 文件但两数组皆空）都要能分辨 | 正例：四位全真；正例：四位全假不崩溃；边界：无 phases 时 execution 真、timing 假；边界：diff 文件存在但两数组皆空时 `capabilities.diff` 为假 |
+| 四个能力位（source/execution/timing/diff）各自只在"数据真的存在且非空"时为真，不是"artifact 文件存在"；四位全具备、全缺失、部分具备（有 events 无 phases、有 diff 文件但两数组皆空）都要能分辨 | 正例：四位全真；正例：四位全假不崩溃；边界：无 phases 时 execution 真、timing 假；边界：diff 文件存在但两数组皆空时 `capabilities.diff` 为假 |
 | execution 节点与 trace span 按 call id 精确关联，不按名字/文本猜；identity 与源 attempt 的 experimentId/snapshotStartedAt/evalId/attempt 完全一致，`locator` 恒有值且与源 attempt 的 `locator` 原样一致（不重算） | 正例：action 节点关联上对应 span；正例：identity 四字段与 `attempt.locator` 逐一核对相等 |
 | `artifactPaths.dir` 是该 attempt 落盘目录的绝对路径 | 正例：等于 `join(snapshot.dir, ref.attempt)` |
 

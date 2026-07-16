@@ -154,7 +154,10 @@ interface ScoreboardData {
       /** fullMarks × earned / possible。 */
       value: number;
       display: LocalizedText;
-      missing: number;
+      /** 题集中该行完全没有 attempt 的题数。 */
+      notRun: number;
+      /** 有 attempt 但指标为 null（测不了）的题数。 */
+      unscorable: number;
       refs: AttemptLocator[];
     };
     subjects: Array<{
@@ -164,7 +167,8 @@ interface ScoreboardData {
       /** 本分科题目的权重之和。 */
       possible: number;
       questions: number;
-      missing: number;
+      notRun: number;
+      unscorable: number;
       display: LocalizedText;
       refs: AttemptLocator[];
     }>;
@@ -197,7 +201,7 @@ type ScoreboardProps = DataProps<ScoreboardData, ScoreboardOptions, {
 />
 ```
 
-`score` 默认是 `examScore`，每道题必须产出 `[0, 1]`；同一行中同一个 experiment × eval 的多轮先用该 Metric 的 `perEval` 聚合，同题横跨多个 experiment 时再用 `across` 聚合。`null` 与完全未运行都按该题 0 分并增加 `missing`。题目得分乘最长前缀命中的权重，未命中权重为 1；总分是 `fullMarks × earned / possible`，`fullMarks` 默认 100，分科显示 `earned / possible` 与同尺度百分比。
+`score` 默认是 `examScore`，每道题必须产出 `[0, 1]`；同一行中同一个 experiment × eval 的多轮先用该 Metric 的 `perEval` 聚合，同题横跨多个 experiment 时再用 `across` 聚合。分数口径上，指标为 `null`（跑了但测不了）与完全未运行都按该题 0 分——固定题集的分母不缩水；但两者分开计数为 `unscorable` 与 `notRun`，成绩单能回答「这 0 分是没去考还是考了判不了」，渲染面把两个计数连同 `refs` 一起显示，不合并成一个笼统的缺失数。题目得分乘最长前缀命中的权重，未命中权重为 1；总分是 `fullMarks × earned / possible`，`fullMarks` 默认 100，分科显示 `earned / possible` 与同尺度百分比。
 
 Scope 中存在题集之外的 eval 时，Scoreboard 忽略它们，把数量写进 `ignoredEvals` 并在注脚显示；`questions` 重复、空数组、空权重前缀、`fullMarks <= 0`、非正或非有限权重、score 超出 `[0, 1]`，或 `subject()` 返回空字符串时，计算以完整用户反馈失败，不产出歧义成绩单。
 
@@ -253,6 +257,7 @@ interface LineData {
   series?: string;
   y: MetricColumn;
   rows: Array<{
+    /** 点身份 = (series, x)：x 值的稳定十进制字符串，同一 series 内唯一。 */
     key: string;
     series?: string;
     x: number | null;
@@ -278,7 +283,7 @@ const budget = numericFlag("budget", { label: "Token budget", unit: "tokens" });
 <MetricLine x={budget} series="agent" y={endToEndPassRate} />
 ```
 
-`x.of()` 返回 `null` 的 attempt 不伪造 x 值，组件报告未绘制数量。同一 series 中 x 值重复时，先按同一 experiment × eval 的两级指标口径合并为一个点，不画垂直来回线。
+点的身份模型是确定的：**一个点 = 一个 `(series, x)` 组合**。落进同一 `(series, x)` 桶的全部 attempt 先在各自 experiment × eval 内用 y 指标的 `perEval` 聚合，再用 `across` 跨题折成该点唯一的 y 值——聚合顺序是 `(series, x, experiment, eval)`，同一桶里有多个 experiment 时它们合成一个点，不画垂直来回线。前提是 x 在同一 experiment × eval 内恒定：`numericFlag()` / `numericRunConfig()` 读 experiment 级配置，天然满足；自定义 `NumericAxis.of()` 若对同一 experiment × eval 的不同 attempt 返回不同值，计算以完整用户反馈失败——逐 attempt 变化的量是 y 指标的素材，不是参数轴。`x.of()` 返回 `null` 的 attempt 不伪造 x 值，组件报告未绘制数量。
 
 ## `DeltaTable`
 
@@ -303,6 +308,8 @@ interface DeltaData {
   columns: MetricColumn[];
   rows: Array<{
     key: string;
+    /** 作者在 DeltaPair 里声明的 label，原样透传；renderer 据此显示行名。 */
+    label: LocalizedText;
     a: { key: string };
     b: { key: string };
     cells: Record<string, {

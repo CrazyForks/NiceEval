@@ -16,6 +16,27 @@
 8. **组件 `.data` 静态属性形态废除**:计算函数只以具名 `*Data` 导出(`metricTableData` 等);`niceeval/report/react` 仍只导出 data 形态纯组件。
 9. **`view --out` 无档位**(`src/view/`):根里存在且前端会读取的证据文件全部复制——`diff.json` 有就带(旧行为「一律不复制 diff」废除),`o11y.json` 永不复制;发布防呆(redaction 标记 / `--allow-sensitive-artifacts`)行为不变,报错文案措辞从「数据等级」改「发布防呆」、「消毒」改「脱敏」(错误信息与注释同步,API 名 `redact`/`publish.redaction` 不动)。`--out` 与位置参数 / `--experiment` 互斥,报错下一步是 `copySnapshots` + `filter` 换根。见 `docs/feature/reports/view.md#静态导出`。
 
+## 2026-07-16 外部评审修订（第二轮，docs 已全部改完）
+
+外部设计评审后的契约修订已落进 `docs/feature/reports/`、`docs/feature/results/library.md` 与两份 cases.md（裁决台账见 `memory/reports-external-review-rulings.md`）。实现时在上面清单之外**再对照这批**：
+
+10. **`current()` 可比性前提**（results 选择层）：每个 experiment 以最新快照的可比性配置（agent、model、reasoningEffort、flags、budget、timeoutMs、sandbox）为基准，配置不一致的旧快照不贡献 attempt，缺口走 partial-coverage；编排字段（runs、earlyExit、maxConcurrency、selectedEvalIds、evalFilterFingerprint、description）不参与比较。见 `docs/feature/results/library.md#官方现刻水位resultscurrent`。
+11. **改名清单**（破坏性，不留别名）：`RunOverview`→`ScopeOverview`（`runOverviewData`→`scopeOverviewData`、`RunOverviewData`→`ScopeOverviewData`）；`GroupSummary`→`ScopeSummary`（同规律）；`RunOverviewData.verdicts`→`attemptVerdicts`、`ScopeSummaryData.verdicts`→`evalVerdicts`、`ExperimentListItem.verdicts`→`evalVerdicts`；实体列表 `score`→`examScore`、`cost`→`costUSD`、`duration`→`durationMs`；`config()`→`runConfig()`、`numericConfig()`→`numericRunConfig()`、`DimensionRef.kind: "config"`→`"runConfig"`、键收 `RunConfigKey` union；CLI flag `--eval`→`--source`（AttemptEvidence 能力位 `eval`→`source` 同步）。
+12. **`AttemptListItem` 瘦身**：删 `assertions` / `error` / `diagnostics`，改携带 `failureSummary: string | null`（Scoring display 契约算好）与 `moreFailures: number`；`redact` 只作用于 `failureSummary`。
+13. **`ReportNode` 穷尽定义**：元素 | 数组/Fragment | null/undefined/boolean；裸字符串与数字树校验拒绝并指引包 `Text`。见 `docs/feature/reports/library/layout.md#树的节点reportnode`。
+14. **data 结构校验**：组件消费 `data` 时校验形状，不符按完整用户反馈报错并提示版本漂移。
+15. **`DeltaData.rows` 补 `label`**（pair label 原样透传）。
+16. **Scoreboard 缺失拆分**：`missing`→`notRun` + `unscorable`，计分口径不变（都按 0）。
+17. **`MetricLine` 点身份**：点 = `(series, x)`，聚合顺序 `(series, x, experiment, eval)`；自定义 `NumericAxis.of` 在同一 experiment × eval 内不恒定时报错；`LineData.rows[].key` 是 x 的稳定十进制串。
+18. **`experimentListData` 配置单义**：同一 experiment 的输入混不一致可比性配置时按完整用户反馈失败。
+19. **静态导出源码自包含**：`artifact/<snapshot-path>/sources/<sha256>.json` 正文随站复制，携带条目归拢进本快照 `sources/`。见 `docs/feature/reports/view.md#静态导出`。
+20. **记忆化比较规则**：深相等中函数与 Metric / Dimension / NumericAxis 实例按引用比较。
+21. **`ReportLocale = string`**（开放）：官方内置文案与 `MetricCell.display` 生成面当前覆盖 en / zh-CN，其它 locale 走 LocalizedText 回退。
+22. **标题回退单点**：view 与 shell 统一为「def.title → Scope 中唯一且相同（深相等）的快照 name → NiceEval」。
+23. **默认报告散点方向文案**：成本 × 成功率下是「越靠左上越好」。
+
+明确否决（不要实现）：`ExperimentComparison` 不加 `groupBy`（路径即分组 API，自定义分组走组合组件）；`*Data` 不加 `locales` 选项；`redact` / `Col` / `relativeTo` / `DeltaTable.by` 不改名；`Powered by niceeval` 行、证据页归宿主、`TableRow.locator` 维持原契约。`Reporter` 改名（`RunObserver`）不在本轮范围，未裁决。
+
 ## 步骤建议
 
 1. 类型层:Scope 改名 + 新 `defineComponent`/`defineReport` 签名(`src/types.ts`、`src/report/report.ts`、`src/define.ts` 如涉及)。

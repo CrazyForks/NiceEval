@@ -6,9 +6,9 @@
 
 | 想回答的问题 | 组件 |
 |---|---|
-| 这批结果有多大、整体是否健康 | [`RunOverview`](library/summaries.md#runoverview) |
+| 这批结果有多大、整体是否健康 | [`ScopeOverview`](library/summaries.md#scopeoverview) |
 | 按可比组看当前水位，并只在组内比较 | [`ExperimentComparison`](library/summaries.md#experimentcomparison) |
-| 某一组 experiment 的整体情况 | [`GroupSummary`](library/summaries.md#groupsummary) |
+| 某一个范围的整体情况 | [`ScopeSummary`](library/summaries.md#scopesummary) |
 | 每个 experiment / eval / attempt 发生了什么 | [`ExperimentList` / `EvalList` / `AttemptList`](library/entity-lists.md) |
 | 谁整体更好，多个指标并排比较 | [`MetricTable`](library/metric-views.md#metrictable) |
 | 哪道题在哪个配置上失败 | [`MetricMatrix` 或 `MetricBars`](library/metric-views.md#metricmatrix-与-metricbars) |
@@ -55,7 +55,7 @@ niceeval show --report reports/quality-cost.tsx
 niceeval view --report reports/quality-cost.tsx
 ```
 
-宿主先按位置参数、`--run` 和 `--experiment` 选择数据，再把 Scope 注入报告；管线在 [resolve 阶段](architecture.md#报告树与两个宿主)并行完成所有组件的取数，作者不写任何取数管道。覆盖不完整、快照过旧或未完成等警告由宿主在报告树外统一显示，报告不自己补警告组件，`RunOverviewData` 也不携带它们。显示时下一步随行：text 面原样打印 `message`（[三段式](../../error-feedback.md#消息三段式)，已含下一步），web 面额外把 `command` 渲染为可复制的命令。
+宿主先按位置参数、`--run` 和 `--experiment` 选择数据，再把 Scope 注入报告；管线在 [resolve 阶段](architecture.md#报告树与两个宿主)并行完成所有组件的取数，作者不写任何取数管道。覆盖不完整、快照过旧或未完成等警告由宿主在报告树外统一显示，报告不自己补警告组件，`ScopeOverviewData` 也不携带它们。显示时下一步随行：text 面原样打印 `message`（[三段式](../../error-feedback.md#消息三段式)，已含下一步），web 面额外把 `command` 渲染为可复制的命令。
 
 取数之后要用普通 JavaScript 加工（filter / slice / 自定义排序）时，写一个[组合组件](library/layout.md#自定义组件)：在里面调 `*Data` 函数、加工数组，再以 **data 形态** 把结果递给组件：
 
@@ -78,10 +78,10 @@ spec 形态与 data 形态的完整契约在 [Architecture · 组件模型](arch
 
 ```tsx
 import { openResults } from "niceeval/results";
-import { MetricTable, RunOverview } from "niceeval/report/react";
+import { MetricTable, ScopeOverview } from "niceeval/report/react";
 import {
   costUSD, durationMs, endToEndPassRate,
-  metricTableData, runOverviewData,
+  metricTableData, scopeOverviewData,
 } from "niceeval/report";
 
 export default async function EvalsPage() {
@@ -89,7 +89,7 @@ export default async function EvalsPage() {
   const scope = results.current({ experiments: "compare/" });
 
   const [overview, table] = await Promise.all([
-    runOverviewData(scope),
+    scopeOverviewData(scope),
     metricTableData(scope, {
       rows: "experiment",
       columns: [endToEndPassRate, costUSD, durationMs],
@@ -102,7 +102,7 @@ export default async function EvalsPage() {
       {scope.warnings.map((warning) => (
         <p key={`${warning.kind}:${warning.message}`}>{warning.message}</p>
       ))}
-      <RunOverview data={overview} />
+      <ScopeOverview data={overview} />
       <MetricTable
         data={table}
         filter
@@ -131,7 +131,7 @@ await writeFile("public/evals.json", JSON.stringify(table));
 
 计算产物只代表当时的 Scope。结果根变化后要重新调用对应 `*Data(...)`；纯 React 组件渲染同一份 data 时不再读取磁盘。报告树内的并行由管线保证：同层 spec 形态组件并行取数，同引用 `input` + 深相等 spec 只算一次；自有页面里的多个 `*Data` 调用用 `Promise.all` 并行。
 
-所有指标格子都携带 `samples`、`total` 和完整 attempt `refs`。缺数据不会被填成 0，覆盖率与证据引用也不会因序列化而丢失。用于持久化的组件 data 不带独立 schemaVersion；计算端与渲染端必须使用完全相同的 niceeval 版本。
+所有指标格子都携带 `samples`、`total` 和完整 attempt `refs`。缺数据不会被填成 0，覆盖率与证据引用也不会因序列化而丢失。用于持久化的组件 data 不带独立 schemaVersion，支持口径是同一 niceeval 版本写读；组件消费 `data` 时校验结构，不符合当前形状按完整用户反馈报错并提示可能的版本漂移——漂移以显式错误浮出，不静默错渲染。
 
 ## 相关阅读
 

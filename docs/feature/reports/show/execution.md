@@ -33,4 +33,4 @@ full OTel trace: .niceeval/.../trace.json
 ## 相关阅读
 
 - [`--timing`](timing.md) —— 时间分析入口。
-- [`--eval`](eval-source.md) —— 从轮次回到源码行。
+- [`--source`](eval-source.md) —— 从轮次回到源码行。

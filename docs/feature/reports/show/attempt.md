@@ -25,13 +25,13 @@ changes: 2 files changed by agent · M manager_decisions.json · A notes/decisio
 
 artifacts: .niceeval/dev-e2b_codex-e2b/<snapshot>/memory/swelancer-manager-proposals/a0/
 available:
-  niceeval show @1qrdcfq8 --eval
+  niceeval show @1qrdcfq8 --source
   niceeval show @1qrdcfq8 --execution
   niceeval show @1qrdcfq8 --timing
   niceeval show @1qrdcfq8 --diff
 ```
 
-这页应当足以判断“为什么失败”。只有实际可用的命令才出现在 `available`；没有捕获某类证据时省略对应命令。只有在需要理解断言上下文、agent 为什么给出这个结果、或具体改了什么时，才继续打开证据切面：[`--eval`](eval-source.md)、[`--execution`](execution.md)、[`--timing`](timing.md)、[`--diff`](diff.md)。
+这页应当足以判断“为什么失败”。只有实际可用的命令才出现在 `available`；没有捕获某类证据时省略对应命令。只有在需要理解断言上下文、agent 为什么给出这个结果、或具体改了什么时，才继续打开证据切面：[`--source`](eval-source.md)、[`--execution`](execution.md)、[`--timing`](timing.md)、[`--diff`](diff.md)。
 
 `timing:` 行是 `result.json` 里 `phases` 的一行摘要，阶段名就是 `LifecyclePhase` 闭集里的名字：主链阶段按执行序列出，为保持一行可读只列耗时可见的大头（`workspace.baseline`、`telemetry.*` 这类极短阶段并入 [`--timing`](timing.md) 的完整分解）；收尾段合计成一个 `teardown +N` 尾项——收尾不计入 attempt 总耗时，所以用 `+` 与主链区分。落盘没有 `phases`（旧结果或第三方 harness 写入）时这一行如实输出 `phase timing unavailable`，不猜。
 
@@ -59,5 +59,5 @@ diagnostic 的 level 不等于 verdict:一个 passed/failed attempt 也可以带
 
 ## 相关阅读
 
-- [`--eval`](eval-source.md) / [`--execution`](execution.md) / [`--timing`](timing.md) / [`--diff`](diff.md) —— 四个证据切面。
+- [`--source`](eval-source.md) / [`--execution`](execution.md) / [`--timing`](timing.md) / [`--diff`](diff.md) —— 四个证据切面。
 - [裸 `show` 的默认榜单](default-report.md) —— locator 从哪里来。

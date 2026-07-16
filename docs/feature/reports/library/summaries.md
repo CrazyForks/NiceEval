@@ -4,7 +4,7 @@
 
 ## `ExperimentComparison`
 
-裸 `niceeval show` 与 `niceeval view` 首页经由[内建报告](built-in.md)渲染的默认组合件。它先把 `input` 按**可比组**分区，再为每组分别计算 `GroupSummary`、成本 × 端到端成功率散点和 `ExperimentList`。可比组键是 experiment id 的完整父路径：`compare/bub` 与 `compare/codex` 的键都是 `compare`，`bench/long/codex` 的键是 `bench/long`；没有父路径的 experiment 使用自己的完整 id 作为单例组键。不同组的数据不会进入同一个 scatter、series、排序或汇总。
+裸 `niceeval show` 与 `niceeval view` 首页经由[内建报告](built-in.md)渲染的默认组合件。它先把 `input` 按**可比组**分区，再为每组分别计算 `ScopeSummary`、成本 × 端到端成功率散点和 `ExperimentList`。可比组键是 experiment id 的完整父路径：`compare/bub` 与 `compare/codex` 的键都是 `compare`，`bench/long/codex` 的键是 `bench/long`；没有父路径的 experiment 使用自己的完整 id 作为单例组键。不同组的数据不会进入同一个 scatter、series、排序或汇总。experiment id 的路径就是分组 API——要别的分组语义，不是给这个组件加配置，而是在[组合组件](layout.md#自定义组件)里自行分区、逐组组合 `ScopeSummary` / `MetricScatter` / `ExperimentList`，显式接管分区责任。
 
 端到端成功率对同一 experiment × eval 的多轮 attempt 先求均值，再跨 experiment × eval 求均值；`failed` 与 `errored` 为 0，`skipped` 为 `null`。组卡中的 verdict 构成另按 Eval 最终 verdict 计票：任一轮 passed 则 Eval passed，否则按 `failed > errored > skipped` 折叠。两者有意回答不同问题，渲染面不得从 verdict 计数反推成功率。
 
@@ -18,7 +18,7 @@ interface ExperimentComparisonData {
 interface ExperimentComparisonGroupData {
   /** experiment id 的完整父路径；根目录 experiment 使用完整 id。 */
   key: string;
-  summary: GroupSummaryData;
+  summary: ScopeSummaryData;
   scatter: ScatterData;
   experiments: ExperimentListItem[];
 }
@@ -37,65 +37,66 @@ type ExperimentComparisonProps = DataProps<ExperimentComparisonData, {}, {
 
 组按 `key` 字典序排列；组内 experiment 按端到端成功率从高到低预排。自定义报告若直接组合 [`MetricScatter`](metric-views.md#metricscatter) / [`ExperimentList`](entity-lists.md#experimentlist)，就是在显式接管分区责任。
 
-## `RunOverview`
+## `ScopeOverview`
 
 显示贡献当前数据的快照时间范围、experiment / eval / attempt 数、端到端成功率和总成本。Scope warning 不进组件 data：`show` / `view` 宿主已在报告树外统一显示，自有 React 页面则直接渲染 `scope.warnings`，不用内容匹配做去重。
 
 ```ts
-interface RunOverviewData {
+interface ScopeOverviewData {
   range: { earliestStartedAt: string | null; latestStartedAt: string | null };
   experiments: number;
   /** experimentId + evalId 的去重计数。 */
   evals: number;
   attempts: number;
-  verdicts: { passed: number; failed: number; errored: number; skipped: number };
+  /** attempt 原始计票，不折叠。 */
+  attemptVerdicts: { passed: number; failed: number; errored: number; skipped: number };
   endToEndPassRate: MetricCell;
   /** costUSD 按 attempt 求和；缺失成本不伪造为 0。 */
   totalCostUSD: MetricCell;
 }
 
-function runOverviewData(input: ReportInput): Promise<RunOverviewData>;
+function scopeOverviewData(input: ReportInput): Promise<ScopeOverviewData>;
 
-type RunOverviewProps = DataProps<RunOverviewData, {}, {
+type ScopeOverviewProps = DataProps<ScopeOverviewData, {}, {
   locale?: ReportLocale;
   className?: string;
 }>;
 ```
 
 ```tsx
-<RunOverview />
+<ScopeOverview />
 ```
 
-`verdicts` 是 attempt 原始计票，`endToEndPassRate` 来自官方两级指标引擎；两者不互相反推。空范围的时间窗、成功率和总成本值都为 `null`，不编造当前时间或 0%。
+`attemptVerdicts` 是 attempt 原始计票，`endToEndPassRate` 来自官方两级指标引擎；两者不互相反推。字段名带 `attempt` 前缀正是为了与 [`ScopeSummary`](#scopesummary) 的 eval 级计票区分——两份序列化 JSON 摆在一起时口径自明。空范围的时间窗、成功率和总成本值都为 `null`，不编造当前时间或 0%。
 
-## `GroupSummary`
+## `ScopeSummary`
 
-显示一个范围内的 experiment / eval / attempt 数、Eval 最终 verdict 构成、端到端成功率、总成本和最后运行时间。一个 eval 在不同 experiment 中运行时是两道独立题，身份键为 `experimentId + evalId`。
+显示一个范围内的 experiment / eval / attempt 数、Eval 最终 verdict 构成、端到端成功率、总成本和最后运行时间。一个 eval 在不同 experiment 中运行时是两道独立题，身份键为 `experimentId + evalId`。`ExperimentComparison` 的组卡就是逐组调用它。
 
 ```ts
-interface GroupSummaryData {
+interface ScopeSummaryData {
   experiments: number;
   evals: number;
   attempts: number;
   /** 每个 experimentId + evalId 先折成最终 verdict 后计票。 */
-  verdicts: { passed: number; failed: number; errored: number; skipped: number };
-  /** 官方两级 endToEndPassRate，不从 verdicts 重算。 */
+  evalVerdicts: { passed: number; failed: number; errored: number; skipped: number };
+  /** 官方两级 endToEndPassRate，不从 evalVerdicts 重算。 */
   endToEndPassRate: MetricCell;
   /** costUSD 按 attempt 求和；完整 refs 允许下钻。 */
   totalCostUSD: MetricCell;
   lastRunAt: string | null;
 }
 
-function groupSummaryData(input: ReportInput): Promise<GroupSummaryData>;
+function scopeSummaryData(input: ReportInput): Promise<ScopeSummaryData>;
 
-type GroupSummaryProps = DataProps<GroupSummaryData, {}, {
+type ScopeSummaryProps = DataProps<ScopeSummaryData, {}, {
   locale?: ReportLocale;
   className?: string;
 }>;
 ```
 
 ```tsx
-<GroupSummary input={scope.filter((snapshot) => snapshot.experimentId.startsWith("compare/"))} />
+<ScopeSummary input={scope.filter((snapshot) => snapshot.experimentId.startsWith("compare/"))} />
 ```
 
 ## 相关阅读

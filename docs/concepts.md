@@ -82,8 +82,8 @@
 | 结果快照 | Snapshot | 结果读取面的单位:一个 experiment 在一次 run 里的结果(experiment × run,不是 run);与快照测试无关;沙箱侧的 microVM 快照一律写"沙箱快照(`snapshotId`)" |
 | Scope(范围) | Scope | `results.latest()` / `results.current()` 的返回物:挑好的快照 + 结构化挑选警告;唯一方法 `filter`(只删不换) |
 | Attempt 定位符 | AttemptLocator | attempt 的稳定引用,由 `{experimentId, 快照 startedAt, evalId, attempt}` 不可变元组派生的带版本、`@` 前缀短确定性字符串;不是数组下标也不是目录路径。reader 打开结果根时建一份 locator → AttemptHandle 索引,缺失 / 损坏 / 碰撞一律结构化报错,不回退"最新失败";报告页与 `niceeval view` 证据室的 attempt 深链(`#/attempt/@<locator>` 单段格式)共用同一个 locator 身份契约,见 [View](feature/reports/view.md) |
-| Attempt 证据 | AttemptEvidence | 每个 Attempt 只装配一次的中性证据聚合:locator、身份、`EvalResult`、`AnnotatedEvalSource`、`ExecutionTree`、diff、artifact 路径与能力位(`eval` / `execution` / `timing` / `diff`);`show` / `view` / 静态导出 / 报告列表共用同一份,不各自重读 artifact |
-| 标注 Eval 源码 | AnnotatedEvalSource | 发现时捕获、按快照去重一份、SHA-256 归一化的运行时 Eval 源码;每条断言按 `SourceLoc` 标回源码行(状态 / 严重度 / 分数 / detail / evidence),没有 `SourceLoc` 的断言进"未映射断言"桶,不静默丢弃;`t.send(...)` 的调用行另标该轮 turn 头行事实(身份 / status / 墙钟,定位不到行的轮不进兜底桶——轮次全量面是 `--execution`);网页 CodeView 与 `show --eval` 共用同一份 model |
+| Attempt 证据 | AttemptEvidence | 每个 Attempt 只装配一次的中性证据聚合:locator、身份、`EvalResult`、`AnnotatedEvalSource`、`ExecutionTree`、diff、artifact 路径与能力位(`source` / `execution` / `timing` / `diff`);`show` / `view` / 静态导出 / 报告列表共用同一份,不各自重读 artifact |
+| 标注 Eval 源码 | AnnotatedEvalSource | 发现时捕获、按快照去重一份、SHA-256 归一化的运行时 Eval 源码;每条断言按 `SourceLoc` 标回源码行(状态 / 严重度 / 分数 / detail / evidence),没有 `SourceLoc` 的断言进"未映射断言"桶,不静默丢弃;`t.send(...)` 的调用行另标该轮 turn 头行事实(身份 / status / 墙钟,定位不到行的轮不进兜底桶——轮次全量面是 `--execution`);网页 CodeView 与 `show --source` 共用同一份 model |
 | 指标 | Metric | 「一个 attempt 算出一个值」的计算单元,经「attempt → 题,题 → 组」两级聚合;缺数据算 `null` 不算 0 |
 | 维度 | Dimension | 决定 attempt 分到哪一组的分组键(agent / experiment / evalGroup / snapshot …) |
 | 报告 | Report | `defineReport(外壳 + 内容)` 的产物:`.tsx` 报告文件的默认导出,唯一可被 `--report` 装载的单位;内容是一棵组件树或多页 |
@@ -100,8 +100,8 @@
 
 | 分类 | 中文 | English | API | 主展示单位 |
 |---|---|---|---|---|
-| 汇总 | 运行总览 | Run overview | `RunOverview` | 一批 Scope;汇总其中的 experiment、Eval 和 Attempt |
-| 汇总 | 组摘要 | Group summary | `GroupSummary` | 收窄后的一批 Scope;汇总一组 experiment 和 Eval |
+| 汇总 | 范围总览 | Scope overview | `ScopeOverview` | 一批 Scope;汇总其中的 experiment、Eval 和 Attempt(attempt 级计票) |
+| 汇总 | 范围摘要 | Scope summary | `ScopeSummary` | 收窄后的一批 Scope;汇总一组 experiment 和 Eval(eval 级计票) |
 | 实体列表 | 实验列表 | Experiment list | `ExperimentList` | 每项一个 experiment;展开到该 experiment 的 Eval |
 | 实体列表 | Eval 列表 | Eval list | `EvalList` | 每项一个 experiment × Eval;展开到该 Eval 的 Attempt |
 | 实体列表 | Attempt 列表 | Attempt list | `AttemptList` | 每项一个 Attempt;展示断言、错误、Judge 评语与证据 |

@@ -209,7 +209,7 @@ latest.warnings[0];
 
 **Scope 有且只有一个方法:`filter(predicate)`。** 最常见的自定义不是另起口径,而是微调官方口径——「latest 减掉一个已知坏掉的实验」「排除 partial 的快照」。若一 `.filter()` 就降级成裸 `Snapshot[]`,幸存快照本该有的警告全丢。`scope.filter((s) => …)` 返回新 Scope:快照删减,warnings 按规则修剪——**experimentId 不在幸存快照中的警告丢弃,非实验作用域的警告保留**(为将来非 per-experiment 的 kind 留位置)。边界同样明确:`filter` 只做删减;「换成该实验上一个完整快照」这类**替换式**重挑不给方法(那才是 DSL 的开端),回 `exp.snapshots` 自己挑,挑出来的裸数组没有挑选过程、没有 warnings,也如实——这是显式立场,不是漏做。
 
-**Scope 是下游的通用输入**:Reports 的计算函数与 `copySnapshots` 都收 `Scope | readonly Snapshot[]`。收 Scope 时 warnings 始终保留在 Scope 上；`show` / `view` 宿主在报告树外无条件渲染，所以自定义报告不会因没放 `RunOverview` 而静默丢失警告，也不会因放了它而重复。自有 React 页面不是官方宿主，应显式渲染 `scope.warnings`；手工挑的 `Snapshot[]` 没有挑选过程,自然没有 warnings 可带,也如实。
+**Scope 是下游的通用输入**:Reports 的计算函数与 `copySnapshots` 都收 `Scope | readonly Snapshot[]`。收 Scope 时 warnings 始终保留在 Scope 上；`show` / `view` 宿主在报告树外无条件渲染，所以自定义报告不会因没放 `ScopeOverview` 而静默丢失警告，也不会因放了它而重复。自有 React 页面不是官方宿主，应显式渲染 `scope.warnings`；手工挑的 `Snapshot[]` 没有挑选过程,自然没有 warnings 可带,也如实。
 
 ### 警告 kind 全集
 
@@ -227,6 +227,8 @@ latest.warnings[0];
 ## 官方现刻水位:results.current()
 
 `latest()` 以**快照**为单位,是发布与归档的口径。回答「现在什么水平」还有一个更细的官方口径:**每个 experiment × eval 取「包含该 eval 的最新快照」里的全部 attempt**,跨历史拼出当前判定水位。`niceeval show` / `view` 的默认首页用的就是它(见 [Reports · Scope 是计算入口](../reports/architecture.md#scope-是计算入口)),自定义报告要与官方入口对上数字,也从 `current()` 出发:
+
+**跨快照拼接有可比性前提**:每个 experiment 以其最新快照的**可比性配置**为基准,只有可比性配置与基准一致的历史快照才参与该实验的逐题选择。可比性配置指会改变单题被测行为或判定的字段——`agent`、`model` 与 `ExperimentRunInfo` 里的 `reasoningEffort`、`flags`、`budget`、`timeoutMs`、`sandbox`;`runs`、`earlyExit`、`maxConcurrency`、`selectedEvalIds`、`evalFilterFingerprint`、`description` 是编排与选题字段,不参与比较([字段全集](architecture.md#snapshotjson)新增公开配置字段时同批声明归属哪一类)。改过 model、flags 或 sandbox 后只补跑部分 eval 时,旧配置快照覆盖的其余题**不冒充**新配置的水位——它们按既有 `partial-coverage` 如实告警,下一步就是重跑补全。这条前提保证 `current()` 产出的每个 experiment 只对应一套配置,报表把一行标成单一 agent / model / flags 永远不是谎言。
 
 ```typescript
 const current = results.current({ experiments: "compare/" });   // 前缀过滤与 latest() 同一套

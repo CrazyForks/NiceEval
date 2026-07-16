@@ -239,7 +239,7 @@ export default defineReport(
 
 ```tsx
 // reports/groups.tsx
-import { Col, GroupSummary, Section, defineComponent, defineReport } from "niceeval/report";
+import { Col, ScopeSummary, Section, defineComponent, defineReport } from "niceeval/report";
 import type { Snapshot } from "niceeval/report";
 
 function groupOf(snapshot: Snapshot): string {
@@ -254,7 +254,7 @@ const GroupBlocks = defineComponent((_props: {}, ctx) => {
     <Col>
       {groups.map((key) => (
         <Section key={key} title={key}>
-          <GroupSummary input={ctx.scope.filter((s) => groupOf(s) === key)} />
+          <ScopeSummary input={ctx.scope.filter((s) => groupOf(s) === key)} />
         </Section>
       ))}
     </Col>

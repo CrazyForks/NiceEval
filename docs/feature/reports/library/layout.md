@@ -1,6 +1,27 @@
 # 排版原语与自定义组件
 
-`Row`、`Col`、`Section`、`Text`、`Style`、`Tabs`、`Tab` 和 `Table` 是八个内置双面排版组件，用于组织报告树。公开形状是：
+`Row`、`Col`、`Section`、`Text`、`Style`、`Tabs`、`Tab` 和 `Table` 是八个内置双面排版组件，用于组织报告树。
+
+## 树的节点：`ReportNode`
+
+报告树里每个可放内容的位置——排版原语的 `children`、页的 `content`、组合组件的返回值——类型都是 `ReportNode`，形状穷尽如下：
+
+```ts
+type ReportNode =
+  | ReportElement                 // 双面组件、组合组件或排版原语经 JSX 产生的元素
+  | readonly ReportNode[]         // 节点列表；Fragment（<>…</>）等价于列表
+  | null | undefined | boolean;   // 条件渲染的空分支，渲染为空
+```
+
+- **元素**只有一类来源：`defineComponent` 产物或内置原语。React 组件、未经 `defineComponent` 的普通函数、任意 HTML intrinsic 都不是节点，resolve 展开遇到时按完整用户反馈拒绝。
+- **数组与 Fragment** 展平后按声明顺序渲染，两个渲染面一致；`groups.map(...)` 这类列表产物因此直接可用。
+- **`null` / `undefined` / `boolean` 渲染为空**，让 `cond && <X />` 的条件渲染习惯直接可用。
+- **裸字符串与数字不是节点**：自由文本必须经 `Text` 携带——text 面的折行宽度与 web 面的转义都需要显式载体。树校验遇到裸字符串或数字时按完整用户反馈拒绝，并指引包 `Text`。
+- **`ReportDefinition` 不是节点**（见[外壳与多页](shell.md)）：外壳不可嵌套由类型保证。
+
+## 排版原语
+
+八个原语的公开形状是：
 
 ```ts
 interface LayoutProps {

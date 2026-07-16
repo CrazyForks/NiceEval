@@ -11,12 +11,16 @@ interface AttemptListItem {
   attempt: number;
   agent: string;
   verdict: "passed" | "failed" | "errored" | "skipped";
-  /** 列表只显示一层摘要；完整结构供展示层做遮蔽与下钻。 */
-  error?: AttemptError;
-  diagnostics?: DiagnosticRecord[];
-  assertions: AssertionResult[];
+  /**
+   * 该轮的单行结果摘要，已按 Scoring display 契约折好：failed 取主失败断言摘要，
+   * errored 取结构化 error 的一层摘要（phase · code · message），passed / skipped 为 null。
+   * 渲染面只做宽度截断，不重算摘要。
+   */
+  failureSummary: string | null;
+  /** 主失败之外还有几条失败断言（"+N more failures" 的 N）；无失败为 0。 */
+  moreFailures: number;
   /** 当前 attempt 的 examScore 与证据引用。 */
-  score: MetricCell;
+  examScore: MetricCell;
   durationMs: number;
   costUSD?: number;
   locator: AttemptLocator;
@@ -27,17 +31,17 @@ interface EvalListItem {
   evalId: string;
   /** 任一轮 passed 即 passed，否则 failed > errored > skipped。 */
   verdict: "passed" | "failed" | "errored" | "skipped";
-  score: MetricCell;
-  duration: MetricCell;
-  cost: MetricCell;
+  examScore: MetricCell;
+  durationMs: MetricCell;
+  costUSD: MetricCell;
   attempts: AttemptListItem[];
 }
 
 interface ExperimentListEvalRow {
   evalId: string;
   verdict: "passed" | "failed" | "errored" | "skipped";
-  duration: MetricCell;
-  cost: MetricCell;
+  durationMs: MetricCell;
+  costUSD: MetricCell;
   attempts: AttemptListItem[];
 }
 
@@ -46,10 +50,11 @@ interface ExperimentListItem {
   agent: string;
   model?: string;
   flags?: Record<string, JsonValue>;
-  verdicts: { passed: number; failed: number; errored: number; skipped: number };
+  /** eval 级最终 verdict 计票（Result 列的构成）。 */
+  evalVerdicts: { passed: number; failed: number; errored: number; skipped: number };
   endToEndPassRate: MetricCell;
-  cost: MetricCell;
-  duration: MetricCell;
+  costUSD: MetricCell;
+  durationMs: MetricCell;
   tokens: MetricCell;
   evals: number;
   attempts: number;
@@ -96,6 +101,8 @@ type AttemptListProps = DataProps<readonly AttemptListItem[], AttemptListDataOpt
 ## `ExperimentList`
 
 每项显示 experiment 身份、agent / model、flags、判定构成、官方指标和其中的 eval。适合一个可比组内的主列表。组件本身是通用实体列表，不推断组边界；默认 `ExperimentComparison` 每次只把一组 items 交给它，自定义报告若给出多组 items 就是在明确选择跨组列表。
+
+一行只有一套 `agent / model / flags`，这不是显示上的取舍而是输入约束：宿主注入的 [`current()` Scope 保证每个 experiment 只由可比性配置一致的快照拼成](../../results/library.md#官方现刻水位resultscurrent)；作者自选 `Snapshot[]` 时若同一 experiment 混入不一致的可比性配置，`experimentListData` 按完整用户反馈失败并指引——看跨配置演化用 `snapshot` 维度或 [`MetricLine`](metric-views.md#metricline)，不把两套配置拼成一行冒充单一配置。
 
 web 面是固定列的 experiment 比较表，而不是无表头的松散卡片列表。主表一行一个 experiment，列顺序固定为：
 
@@ -155,7 +162,7 @@ const items = await evalListData(ctx.scope);
 
 ## `AttemptList`
 
-每项显示一次 attempt 的判定、主失败断言摘要或结构化错误的一层摘要、Judge 分数和 locator。完整 assertions、Judge evidence、diagnostics、cause 与 stack 属于 locator 下钻详情，不塞进比较列表。适合做“最近失败”或“待处理失败”区块。
+每项显示一次 attempt 的判定、单行结果摘要（`failureSummary`）、Judge 分数和 locator。完整 assertions、Judge evidence、diagnostics、cause 与 stack 不进 `AttemptListItem`——列表 data 只携带按 [Scoring display 契约](../../scoring/library/display.md#主失败断言怎样选)算好的摘要；需要完整结构时经 locator 回读取面（[`resolveLocator`](../../results/library.md#按-locator-寻址一个-attemptresolvelocator) → `AttemptHandle`），列表 JSON 因此不会携带 stack、evidence 或自由文本证据。适合做“最近失败”或“待处理失败”区块。
 
 ```tsx
 const all = await attemptListData(ctx.scope, {
@@ -166,7 +173,7 @@ const failed = all.filter((x) => x.verdict === "failed" || x.verdict === "errore
 <AttemptList data={failed.slice(0, 20)} total={failed.length} />
 ```
 
-`redact` 处理 error 的 message/cause/stack、diagnostic message/data、断言 detail 和 evidence；experimentId、evalId、locator、error/diagnostic code 与 lifecycle operation 等身份和分类字段不会被改写。它是**展示层遮蔽**——只作用于这次计算产出的组件数据，不改变盘上或任何导出目录里的 artifact；发布 artifact 的脱敏用 [`copySnapshots({ redact })`](../../results/library.md#复制与瘦身copysnapshots)，两者的改写范围约定一致。spec 形态的 `<AttemptList redact={...} />` 与上面手工取数等价，区别只在不加工数组。
+`redact` 只处理 `failureSummary` 这一处自由文本——item 里其余字段（experimentId、evalId、locator、数值指标）都是身份与分类字段，不会被改写。它是**展示层遮蔽**——只作用于这次计算产出的组件数据，不改变盘上或任何导出目录里的 artifact；发布 artifact 的脱敏用 [`copySnapshots({ redact })`](../../results/library.md#复制与瘦身copysnapshots)，两者的改写范围约定一致。spec 形态的 `<AttemptList redact={...} />` 与上面手工取数等价，区别只在不加工数组。
 
 ## 相关阅读
 

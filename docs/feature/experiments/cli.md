@@ -166,11 +166,11 @@ Dashboard 只展示当前状态,不保存历史帧:
 | Attempt verdict | 运行中永久行 | 最终 handoff |
 |---|---|---|
 | `passed` | 不逐条打印；只更新 dashboard 计数 | 只进 passed 汇总，不进入 failures |
-| `failed` | locator / eval / experiment + [Scoring 定义的主失败断言摘要](../scoring/library/display.md#契约一结果摘要) | failures 中重复同一摘要，并给 `show @locator` / `--eval` 下钻 |
+| `failed` | locator / eval / experiment + [Scoring 定义的主失败断言摘要](../scoring/library/display.md#契约一结果摘要) | failures 中重复同一摘要，并给 `show @locator` / `--source` 下钻 |
 | `errored` | locator / eval / experiment + `error.phase` / code / message | failures 中给同一层错误摘要；cause / stack / diagnostics 下钻 |
 | `skipped` | 不冒充失败；只有需要用户行动的 skip 才以 diagnostic 留痕 | 只进 skipped / completion 汇总 |
 
-普通 assertion failure 的第一行给 locator / eval / experiment，后两行给语义标题与 matcher + expected / received。只展示一条主失败，其余写 `+N more failures`；不得把全部 assertion name 逐条拼进 scrollback。源码不在这里内联，最终 handoff 给 `show @locator --eval`。
+普通 assertion failure 的第一行给 locator / eval / experiment，后两行给语义标题与 matcher + expected / received。只展示一条主失败，其余写 `+N more failures`；不得把全部 assertion name 逐条拼进 scrollback。源码不在这里内联，最终 handoff 给 `show @locator --source`。
 
 执行错误即时输出一层可行动摘要,不把 stack 或 provider SDK response 全部灌进 scrollback。摘要固定包含 locator、eval/experiment、正式 phase、稳定 code 和 message:
 
@@ -207,7 +207,7 @@ FAILURES
                 equals(4) · expected 4 · received 3
 
 Inspect: niceeval show @1bwcxxiy
-Eval:    niceeval show @1bwcxxiy --eval
+Source:  niceeval show @1bwcxxiy --source
 Trace:   niceeval show @1bwcxxiy --execution
 Diff:    niceeval show @1bwcxxiy --diff
 Compare: niceeval view
@@ -247,7 +247,7 @@ FAILURES  (17 total · terminal shows first 10)
 +7 more failures — niceeval view
 
 Inspect: niceeval show @1bwcxxiy
-Eval:    niceeval show @1bwcxxiy --eval
+Source:  niceeval show @1bwcxxiy --source
 Trace:   niceeval show @1bwcxxiy --execution
 Diff:    niceeval show @1bwcxxiy --diff
 Compare: niceeval view
@@ -320,7 +320,7 @@ failures:
       equals(4) · expected 4 · received 3
 next:
   niceeval show @1bwcxxiy
-  niceeval show @1bwcxxiy --eval
+  niceeval show @1bwcxxiy --source
   niceeval show @1bwcxxiy --execution
   niceeval show @1bwcxxiy --diff
 ```
