@@ -84,7 +84,7 @@ interface PhaseTiming {
 
 普通 `niceeval exp` 由 runner 写入 `phases`，`niceeval/results` 读取面原样透传。消费面有四个:
 
-- **`niceeval show`**:attempt 首页的 `timing:` 行给主链分解与收尾合计;`--timing` 切面给 phase → hook/turn → command → OTel 的统一时间树。契约见 [Show](../../feature/reports/show.md#--timing整个-attempt-的统一时间树)。
+- **`niceeval show`**:attempt 首页的 `timing:` 行给主链分解与收尾合计;`--timing` 切面给 phase → hook/turn → command → OTel 的统一时间树。契约见 [Show `--timing`](../../feature/reports/show/timing.md)。
 - **`niceeval view`**:Attempt 详情的阶段耗时区,同一份 phases 的图形面。契约见 [View](../../feature/reports/view.md)。
 - **结果读取 API**:`niceeval/results` 原样透传,聚合脚本按 `name` 分组。
 - **`bench/`**:不经过 CLI,也不写 `.niceeval/result.json`;它直接调用 runner 的单次 Attempt 引擎,从内存返回值读取同一份 `phases`。与 CLI 路径共享阶段名和计时语义,只在是否经过 discover、是否持久化上不同。

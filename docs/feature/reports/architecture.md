@@ -63,27 +63,38 @@ definition.build(ctx)
 
 - **build：** 报告作者可 `await` 数据、过滤数组、组合组件。
 - **resolve：** 框架把 selection-form 组件解析成 data-form。当前 `MetricScatter` 可直接接 `selection`；实体列表需由作者显式调用 `.data()`，以便用普通数组 API 过滤。
-- **validate：** 确保树中每个报告组件都有 text 和 web 两面，不接受任意 HTML intrinsic。
+- **validate：** 确保树中每个报告组件都有 text 和 web 两面，不接受任意 HTML intrinsic。校验只看节点资格，不限定树形：根节点可以是单个组件、`Col` 或 `Tabs`，宿主不强制任何最外层容器。
 - **render：** 纯同步输出终端文本或静态 HTML。
 
 `defineComponent` 要求同时定义 `text` 与 `web`。因此任何可放入 `--report` 的组件都能被两个官方宿主判读；只用于用户网站的普通 React 组件不受这项约束。
 
-## 站点：页之上的宿主外壳
+## 外壳与页：装载规范化
 
-`--report` 文件的默认导出有两种形状，宿主按导出类型分派，共用同一个 flag：
+`--report` 文件的默认导出恒为 `defineReport` 产物。装载规范化的唯一产物是一层外壳（标题、外链、页脚、脚本、样式）加**非空页列表**——单页与多页不是两种机制，页数只是列表长度。入参有两级缩写，各有精确展开：
 
-- `defineReport(...)`：一棵报告树，填进宿主默认外壳的报告槽。
-- `defineSite(...)`：若干个页（每页一个 `ReportDefinition`）加导航外壳元数据（标题、外链、页脚、脚本、样式）。字段形状见 [Library · 站点](library.md#站点多页与导航外壳)。
+- 函数入参是 `defineReport({ report: build })` 的缩写。
+- `report: X` 是 `pages: [{ id: "report", title: 内置页名「报告 / Report」, report: X }]` 的缩写。
+- `report` 与 `pages` 恰好声明一个：同时声明或都省略，装载按完整用户反馈报错——省略不是一种有含义的取值，缩写的展开则完全由写下的值决定。
 
-站点层的边界规则：
+裸 `show` 与裸 `view` 不是第二条路径：宿主默认装载的就是 `niceeval/report/built-in` 导出的 `comparisonReport`——一份按内容命名的普通 `defineReport`（见 [Library · 内建报告](library/built-in.md)；`niceeval/report` 是工具箱，内建报告是用它写成的成品，住在自己的入口），与任何 `--report` 文件走同一条 `装载 → build → resolve → validate → render` 管线。「builtin」不是装载逻辑里的类别，只是宿主默认拿哪个值的事实；标题取值链与 `Powered by niceeval` 页脚行因此对默认视图和自定义报告一致生效。字段穷尽见 [Library · 外壳与多页](library/shell.md)。
+
+页层的边界规则：
 
 - **页是宿主寻址单位。** 每页有唯一 id：`show --page <id>`、view 的 `#/page/<id>` 路由和导航项都用它。`Tabs` 是页内浏览状态，没有 id、路由或 CLI 选择器。这条分工决定内容放哪层：要能被单独打开、深链、在终端独立渲染的内容成为页；同页内的并列视图用 tab。
 - **所有页共享同一 Selection。** 宿主完成范围收窄与现刻水位选择后，把同一份 Selection 注入每一页的 build。页是对同一批数据的不同看法，不承担数据过滤职责。
 - **管线以页为单位执行。** `build → resolveReportTree → validateReportTree → render` 逐页跑：本地宿主只 build 被打开的页，静态导出 build 全部页。本地某页 build 或校验失败时，该页显示完整错误反馈，其它页照常可读；静态导出遇到任何一页失败则整体失败，不产出半套站点。
 - **外壳是 web 面元数据，`title` 例外。** 双面同源约束只作用于页内报告树；外壳不携带数据。`show` 只把 `title` 用作页索引标题，`links`、`footer`、`scripts`、`styles` 不进 text 面。
-- **自定义脚本属于增强层。** 与官方增强脚本同一不变量：初始静态 HTML 无 JS 完整可读，脚本只添加浏览行为，不改变计算口径或初始数据。注入顺序固定：官方样式 → 站点 `styles`（声明序）→ 页面内容 → 官方增强脚本 → 站点 `scripts`（声明序）。
+- **自定义脚本属于增强层。** 与官方增强脚本同一不变量：初始静态 HTML 无 JS 完整可读，脚本只添加浏览行为，不改变计算口径或初始数据。注入顺序固定：官方样式 → 外壳 `styles`（声明序）→ 页面内容 → 官方增强脚本 → 外壳 `scripts`（声明序）。
 
-外壳配置住在报告文件而不是 `niceeval.config.ts` 或快照里，因为它是「怎么看」的看法而非运行事实：改一个 GitHub 链接不应该要求重跑，也不应该改写任何落盘结果。快照里的 `name`（来自 `config.name`）仍是零配置时的身份兜底，`site.title` 覆盖它。
+外壳配置住在报告文件而不是 `niceeval.config.ts` 或快照里，因为它是「怎么看」的看法而非运行事实：改一个 GitHub 链接不应该要求重跑，也不应该改写任何落盘结果。快照里的 `name`（来自 `config.name`）仍是零配置时的身份兜底，定义的 `title` 覆盖它。
+
+### 证据页不属于报告定义
+
+view 的导航由两类项组成：报告页按声明序在前，内置 Runs、Traces 证据页恒排其后。证据页由宿主拥有——不进 `pages`、不可移除、不可重排。三条既有不变量决定这个归属：证据室始终保留结果根的完整 attempt 集，而报告页共享的是收窄后的 Selection，若证据页是普通页，`#/attempt/@<locator>` 深链就会因首页收窄失效；页内组件受双面约束，而 Traces 瀑布没有独立成立的 text 面——终端侧对应能力由 `show` 以 attempt 为单位的证据切面提供；报告里每个数字能下钻到证据，依赖证据室恒在，这不交给报告作者配置。要在自定义页里做「最近失败」一类列表，用 `AttemptList` 等双面组件，不需要证据页组件化。
+
+### text 面的省略规则
+
+两面同源不等于两面同长。数据组件在两个面输出同一份终值；web 的浏览增强（tab 切换、排序、过滤）在 text 面没有交互，但其覆盖的内容全量可读；纯视觉件（`Style`、`className`）与外壳的 web 字段（`links`、`footer`、`scripts`、`styles`、`Powered by niceeval` 行）在 text 面零输出。text 面折叠成索引的只有带可复制下钻命令的结构——可比组和页；tab 没有选择器，索引只能是死路，所以既不索引也不省略。
 
 ## `show` 与 `view` 的职责
 
@@ -95,8 +106,8 @@ definition.build(ctx)
 | 默认填充 | `ExperimentComparison`：多组时只输出组索引与单组查看命令；单组时输出该组独立的成本 × 端到端成功率散点与 `ExperimentList` | 同一 `ExperimentComparison`：完整组索引 + 当前组独立的散点与可排序、可过滤 `ExperimentList` 固定列表格；切组不重新读取 Selection |
 | attempt 下钻 | `niceeval show @<locator>` | `#/attempt/@<locator>` |
 | 证据 | `--eval` / `--execution` / `--timing` / `--diff` | Runs / Traces / Attempt modal |
-| 自定义 | `--report <file>`（报告树或站点） | `--report <file>`（报告树或站点） |
-| 站点页选择 | `--page <id>`；多页站点默认只输出页索引与单页命令 | `#/page/<id>` 路由；`--page <id>` 定初始页 |
+| 自定义 | `--report <file>`（单页或多页定义） | `--report <file>`（单页或多页定义） |
+| 页选择 | `--page <id>`；多页定义默认只输出页索引与单页命令 | `#/page/<id>` 路由；`--page <id>` 定初始页 |
 
 裸 `show` 与裸 `view` 只是在同一默认 definition 上选择不同渲染面；显式 `--report` 也替换同一个报告槽。`view` 的导航壳与证据室不属于报告树；attempt locator 仍由宿主注入，组件中的证据引用继续通向证据室。
 

@@ -51,13 +51,13 @@ await copySnapshots(results.latest(), "site/data/run", {
       // 所有待发布文件还会经过 50 MiB 单文件预检
 ```
 
-`o11y` 在缺省携带之列。「查看器不读所以不带」是循环论证——因为没消费者所以不带,因为不带所以做不了消费它的内置指标;`turns`(见 [Reports 的内置指标](../reports/library.md#内置指标))就是它的消费者,且 `o11y.json` 实测几 KB 一个,没有不带的理由。
+`o11y` 在缺省携带之列。「查看器不读所以不带」是循环论证——因为没消费者所以不带,因为不带所以做不了消费它的内置指标;`turns`(见 [Reports 的内置指标](../reports/library/metrics.md#内置指标))就是它的消费者,且 `o11y.json` 实测几 KB 一个,没有不带的理由。
 
 逐值[截断](architecture.md#大值截断)与整文件发布预算解决不同问题:`events` / `trace` 的 256 KiB 上限会切断一条失控工具输出被重复落盘的常见爆炸链,但一个文件可以含很多正常值,不能据此宣称文件大小有界。`diff`、源码 blob 与历史版本的 events / trace 也可能超过 Git host 的单文件限制。因此 `.niceeval/` 是本地事实根,不是默认可提交目录;进 Git / 静态托管的结果集先经过 `copySnapshots`。
 
 动机来自真实消费者:coding-agent-memory-evals 把最新快照进仓库供静态托管——没有这个原语,消费方只能手写几十行脚本:按落盘 mtime 挑「最新」(口径还是错的:该挑快照),再按白名单拷贝 artifact 文件(布局知识泄漏)。`copySnapshots` 把这段收敛成上面几行,挑选交给 `results.latest()`(见[静态导出](../reports/view.md#静态导出))。
 
-结果数据分**两个等级**:`.niceeval/` 是**本地事实根**——未消毒,prompt、工具参数、完整输出、源码全在里面;任何要离开本机的拷贝是**发布拷贝**,只能经 `copySnapshots` 这一条管线产出(`niceeval view --out` 的 artifact 复制走同一管线)。发布消毒因此也在这里做,而且**没有隐式默认**:`redact` 是必填项,取值 `(text: string) => string`(消毒函数)或字面量 `false`(显式声明原文发布)——省略直接报错。什么算敏感只有作者能判断,但「不消毒」必须是写在代码里的选择,不是忘了传参数的副作用。Reports 的 [`AttemptList.data({ redact })`](../reports/library.md#数据计算与缓存边界) 只是展示层遮蔽,不改变盘上或发布目录里的任何 artifact,不能当发布消毒用。契约细节:
+结果数据分**两个等级**:`.niceeval/` 是**本地事实根**——未消毒,prompt、工具参数、完整输出、源码全在里面;任何要离开本机的拷贝是**发布拷贝**,只能经 `copySnapshots` 这一条管线产出(`niceeval view --out` 的 artifact 复制走同一管线)。发布消毒因此也在这里做,而且**没有隐式默认**:`redact` 是必填项,取值 `(text: string) => string`(消毒函数)或字面量 `false`(显式声明原文发布)——省略直接报错。什么算敏感只有作者能判断,但「不消毒」必须是写在代码里的选择,不是忘了传参数的副作用。Reports 的 [`AttemptList.data({ redact })`](../reports/library/entity-lists.md#attemptlist) 只是展示层遮蔽,不改变盘上或发布目录里的任何 artifact,不能当发布消毒用。契约细节:
 
 - **覆盖事实随数据走(`knownEvalIds`)。** `partial-coverage` 的分母是实验的历史并集,而发布目录没有历史——只复制选中快照,发布目录上重新 `openResults().latest()`,警告会静默消失,「缺口永远被算出来」在官方教的发布路径上断掉。解法不是持久化警告(那违反「reader 派生物删了可重算」),而是让警告的**依据**随数据走:`copySnapshots` 给每个复制出的快照补记 `knownEvalIds`(复制时刻该实验的 `exp.evalIds`);reader 端 `exp.evalIds` 的定义是**并集(本地历史, 各快照携带的 knownEvalIds)**——不是「优先字段」:把快照复制进已有历史的目录时,本地并集可能更大,优先字段会让分母缩水。字段是格式的一部分,`writer.snapshot()` 同样可声明(第三方转换器交代已知覆盖);可选新增字段不破坏兼容,按 [Architecture · 版本与升级设计](architecture.md#版本与升级设计)不递增 schemaVersion。「复制忠实于源」的精确含义:不改 artifact 内容,但随行补记挑选时的覆盖事实(落在复制出的 `snapshot.json` 上)。
 - **目标目录非空即报错**,不静默覆盖、不合并——发布脚本要幂等就自己先清目录;盘上不该出现「我没写的东西被动过」的惊讶。
@@ -146,7 +146,7 @@ for (const snap of current.snapshots) {
 console.table([...touched.entries()].sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 10));
 ```
 
-`diff.files[path].windows`(如 `["s1/t1", "s1/t2"]`)进一步回答「第几轮改的」,`diff.windows` 保有逐窗口的完整 before/after——与 `show --timing` 的 turn 节点、`--execution` 的轮次同一套标签,可以把「改动发生在哪轮」与「那轮说了什么、调了什么工具」对上。要把这类分析做成可复用报告,写成[自定义指标](../reports/library.md#自定义指标)交给报告组件聚合;一次性核对用 [`show --diff`](../reports/show.md#--diff核对-agent-实际改动)。
+`diff.files[path].windows`(如 `["s1/t1", "s1/t2"]`)进一步回答「第几轮改的」,`diff.windows` 保有逐窗口的完整 before/after——与 `show --timing` 的 turn 节点、`--execution` 的轮次同一套标签,可以把「改动发生在哪轮」与「那轮说了什么、调了什么工具」对上。要把这类分析做成可复用报告,写成[自定义指标](../reports/library/metrics.md#自定义指标)交给报告组件聚合;一次性核对用 [`show --diff`](../reports/show/diff.md)。
 
 ## 快照:experiment × 一次运行
 

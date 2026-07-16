@@ -4,7 +4,7 @@
 
 ## 指标聚合口径
 
-契约来源：[Architecture](../../../feature/reports/architecture.md)、[Library](../../../feature/reports/library.md)。
+契约来源：[Architecture](../../../feature/reports/architecture.md)、[Library · 指标与维度](../../../feature/reports/library/metrics.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -37,7 +37,7 @@ it("RunOverview 使用端到端两级聚合并保留覆盖率", async () => {
 
 ## MetricCell 与缺数据行为
 
-契约来源：[Architecture](../../../feature/reports/architecture.md)、[Library](../../../feature/reports/library.md)。
+契约来源：[Architecture](../../../feature/reports/architecture.md)、[Library 总览](../../../feature/reports/library.md)、[Library · 指标与维度](../../../feature/reports/library/metrics.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -48,7 +48,7 @@ it("RunOverview 使用端到端两级聚合并保留覆盖率", async () => {
 
 ## 组件 `.data()` 行为
 
-契约来源：[Library](../../../feature/reports/library.md)、[Show](../../../feature/reports/show.md)。
+契约来源：[Library · 概览组件](../../../feature/reports/library/summaries.md)、[Library · 实体列表](../../../feature/reports/library/entity-lists.md)、[Library · 指标组件](../../../feature/reports/library/metric-views.md)、[Show](../../../feature/reports/show.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -64,7 +64,7 @@ it("RunOverview 使用端到端两级聚合并保留覆盖率", async () => {
 
 ## MetricScatter 点标签布局（web 面）
 
-契约来源：[Library](../../../feature/reports/library.md)「MetricScatter」。布局是 `chart-math` 的纯几何函数，场景直接对函数断言标签框与点框的几何关系，不经 HTML。
+契约来源：[Library · 指标组件](../../../feature/reports/library/metric-views.md)「MetricScatter」。布局是 `chart-math` 的纯几何函数，场景直接对函数断言标签框与点框的几何关系，不经 HTML。
 
 | 契约 | 场景 |
 |---|---|
@@ -73,7 +73,7 @@ it("RunOverview 使用端到端两级聚合并保留覆盖率", async () => {
 
 ## text/web 双面同源
 
-契约来源：[Architecture](../../../feature/reports/architecture.md)、[View](../../../feature/reports/view.md)、[Show](../../../feature/reports/show.md)、[Library](../../../feature/reports/library.md)。
+契约来源：[Architecture](../../../feature/reports/architecture.md)、[View](../../../feature/reports/view.md)、[Show](../../../feature/reports/show.md)、[Library · 实体列表](../../../feature/reports/library/entity-lists.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -113,7 +113,7 @@ it("text 与 web 显示同一个 MetricCell 终值和 warning", () => {
 
 ## Table 与文本排版原语
 
-契约来源：[Library](../../../feature/reports/library.md)。
+契约来源：[Library · 排版原语与自定义组件](../../../feature/reports/library/layout.md)。
 
 | 契约 | 场景 |
 |---|---|
@@ -127,11 +127,11 @@ it("text 与 web 显示同一个 MetricCell 终值和 warning", () => {
 
 ## show/view 宿主等价与选择
 
-契约来源：[README](../../../feature/reports/README.md)、[Architecture](../../../feature/reports/architecture.md)、[Show](../../../feature/reports/show.md)、[View](../../../feature/reports/view.md)。
+契约来源：[README](../../../feature/reports/README.md)、[Architecture](../../../feature/reports/architecture.md)、[Show](../../../feature/reports/show.md)（分篇：[`--timing`](../../../feature/reports/show/timing.md)、[`--report`](../../../feature/reports/show/reports.md)、[默认报告](../../../feature/reports/show/default-report.md)）、[View](../../../feature/reports/view.md)。
 
 | 契约 | 场景 |
 |---|---|
-| 裸 `show` 与裸 `view` 把同一 Selection 交给同一内置 `ExperimentComparison` definition；`--report` 替换同一报告槽 | 正例：装载边界捕获两宿主的 definition 同引用、selection 深等 |
+| 裸 `show` 与裸 `view` 把同一 Selection 交给同一份 `comparisonReport` definition；`--report` 替换同一报告槽 | 正例：装载边界捕获两宿主的 definition 同引用、selection 深等 |
 | 两宿主对 `--run` / `--experiment` / 位置参数用同一套选择规则；局部补跑/过旧/未完成快照形成结构化 warning 随 Selection 携带 | 正例：未完成快照在两宿主产出相同 warning 集 |
 | 宿主显示警告时下一步随行：text 面原样打印 `message`（已以下一步收尾，不截断掉尾段）；web 面把警告的 `command` 渲染为可复制命令，无 `command` 的警告只显示 message 不硬造动作 | 正例：stale-snapshot 在 web 面出现复制动作且值为 `niceeval exp <真实 id>`；正例：text 面输出以忽略条件/命令收尾；反例：missing-startedAt 在 web 面无复制动作 |
 | `view` 位置参数收窄只作用于报告槽，证据室保留完整 attempt 集，深链不因首页过滤失效 | 正例：收窄后被滤掉的 attempt 仍可从证据室取到 |
@@ -156,8 +156,8 @@ it("show 与 view 的默认报告槽消费同一 Selection", async () => {
   const show = await captureShowReportInput(results)
   const view = await captureViewReportInput(results)
 
-  expect(show.definition).toBe(ExperimentComparison)
-  expect(view.definition).toBe(ExperimentComparison)
+  expect(show.definition).toBe(comparisonReport)
+  expect(view.definition).toBe(comparisonReport)
   expect(show.selection).toEqual(view.selection)
 })
 ```
@@ -173,22 +173,28 @@ it("show 与 view 的默认报告槽消费同一 Selection", async () => {
 | 每条失败直接显示 matcher、expected / received 或 reason，并提供源码锚——不能要求用户从 matcher 名猜实际值 | 正例：失败条目静态渲染即含 expected 与 received 的值，且锚指向该断言的源码行；反例：无 expected / received 的失败（如 unavailable）显示 reason，不渲染空字段 |
 | 时间区默认只显示 phase 主链与收尾段；children（hook / 命令 / turn）收合在可展开结构里，失败最深节点带失败标记 | 正例：默认标记下 children 不可见，展开单个 phase 后逐层可见；边界：errored attempt 只有最深失败节点带 ✗，祖先不重复标记 |
 
-## 站点、页面与 Tabs
+## 外壳、页面与 Tabs
 
-契约来源：[Library](../../../feature/reports/library.md)「站点：多页与导航外壳」「Tabs」、[Architecture](../../../feature/reports/architecture.md)「站点：页之上的宿主外壳」、[Show](../../../feature/reports/show.md)、[View](../../../feature/reports/view.md)。
+契约来源：[Library · 外壳与多页](../../../feature/reports/library/shell.md)、[Library · 内建报告](../../../feature/reports/library/built-in.md)、[Library · Tabs](../../../feature/reports/library/layout.md)、[Architecture](../../../feature/reports/architecture.md)「外壳与页：装载规范化」、[Show](../../../feature/reports/show.md)、[View](../../../feature/reports/view.md)。
 
 | 契约 | 场景 |
 |---|---|
-| `--report` 按默认导出类型分派：`defineReport` 填默认外壳的报告槽，`defineSite` 渲染站点；同一 flag 无第二入口 | 正例：两种导出各走一条路径；反例：既非报告树也非站点的默认导出报完整用户反馈 |
-| show 对多页站点只输出站点标题、页索引与可复制的 `--page` 命令，不倾倒页内容；单页站点或 `--page` 命中时直接渲染该页 text 面 | 正例：双页站点索引含两条命令且无 experiment 明细；边界：单页站点直接渲染 |
-| `--page` 未命中页 id 或用于非站点报告文件时按用法错误非零退出并列出可用页 id | 反例：`--page typo` 报错附 overview / exam；反例：对 `defineReport` 文件传 `--page` 报用法错误 |
-| 全部页共享宿主注入的同一 Selection，位置参数与 `--experiment` 收窄对全站生效；页不承担数据过滤 | 正例：两页的 `.data()` refs 来自同一收窄后 Selection |
+| `--report` 文件默认导出恒为 `defineReport` 产物；装载规范化唯一产物是「外壳 + 非空页列表」：`defineReport(build)` ≡ `{ report: build }` ≡ `pages: [{ id: "report", title: 内置页名, report: build }]`，任何形态走同一条装载管线；非 `defineReport` 产物的默认导出报完整用户反馈 | 正例：三种写法装载出等价的规范化结果（唯一页 id 为 `report`）；反例：默认导出普通对象或 React 组件时报完整用户反馈 |
+| `report` 与 `pages` 恰好声明一个：同时声明或都省略装载报错，报错文案给出 `niceeval/report/built-in` 的 import 与 `report: comparisonReport` 下一步 | 反例：同时声明报完整用户反馈；反例：都省略报错且文案含 `niceeval/report/built-in`；正例：`defineReport({ title, links, report: comparisonReport })` 渲染内建报告并带自定义外壳 |
+| 页不嵌套外壳：`report` / `page.report` 接受 build 函数或单页、无外壳字段的定义，带外壳字段或 `pages` 的产物装载报错 | 正例：build 函数与 `defineReport(build)` 产物都可直接作 `page.report`；反例：页里放带 `pages` 的定义装载报错 |
+| 裸 `show` / 裸 `view` 装载公开导出的 `comparisonReport`，与 `--report` 同一条 `装载 → build → resolve → validate → render` 管线 | 正例：裸宿主装载的 definition 与 `comparisonReport` 同引用 |
+| show 对多页定义只输出标题、页索引与可复制的 `--page` 命令，不倾倒页内容；单页定义或 `--page` 命中时直接渲染该页 text 面 | 正例：双页定义索引含两条命令且无 experiment 明细；边界：单页定义直接渲染 |
+| `--page` 未命中页 id 时按用法错误非零退出并列出可用页 id；单页定义的唯一页 id 是缩写展开出的 `report` | 反例：`--page typo` 报错附 overview / exam；边界：对函数形态文件 `--page report` 命中唯一页，`--page typo` 报错列出 `report` |
+| `show` 输出的页索引与组索引命令保留当前 `--run` / `--report` / `--page` 与位置参数上下文，复制即可复现下一层视图 | 正例：`--report` 下多组时组索引命令含 `--report` 与 `--page`；正例：`--run` 下页索引命令含 `--run` |
+| 全部页共享宿主注入的同一 Selection，位置参数与 `--experiment` 收窄对全部页生效；页不承担数据过滤 | 正例：两页的 `.data()` refs 来自同一收窄后 Selection |
 | 本地宿主只 build 被打开的页；静态导出 build 全部页，任一页校验失败则导出整体失败 | 正例：打开 A 页时 B 页 build 未执行；反例：B 页含 `<div>` 时 `--out` 非零退出、不产出半套站点 |
-| 标题取值链 site.title → 快照 name → `NiceEval`；`links` / `footer` 渲染进导航壳，text 面不含这些字段 | 正例：三级 fallback 各一 fixture；反例：show 输出不含 links href |
+| 标题取值链 def.title → 快照 name → `NiceEval`；`links` / `footer` 渲染进导航壳，text 面不含这些字段 | 正例：三级 fallback 各一 fixture；反例：show 输出不含 links href |
+| web 面外壳页脚恒含指向 niceeval 官网的 `Powered by niceeval`，位于自定义 `footer` 文案之后，无关闭配置；text 面与 `niceeval/report/react` 嵌入组件不含 | 正例：有 / 无 `footer` 两种 fixture 页脚都含该行且次序正确；反例：show 输出与 react 嵌入渲染不含该行 |
+| view 导航组成固定：报告页按声明序在前，内置 Runs、Traces 证据页恒排其后；报告定义不能移除或重排证据页 | 正例：双页定义导航序为 页A · 页B · Runs · Traces；边界：函数形态定义导航仍含证据页 |
 | `scripts` / `styles` 按声明序注入：styles 在官方样式后，scripts 在官方增强脚本后 `</body>` 前；初始静态 HTML 的数值不因注入改变 | 正例：注入前后初始 HTML 数据节点相同、注入顺序可断言 |
-| `{src}` 资产相对站点文件解析，拒绝 `..` 路径段、绝对路径与 `~`；静态导出复制进 `assets/` 保持相对路径，缺失文件报错并给出解析后路径 | 正例：`./assets/a.js` 被复制；反例：`../x.js` 装载报错；边界：缺失文件在导出时报错 |
+| `{src}` 资产相对报告文件解析，拒绝 `..` 路径段、绝对路径与 `~`；静态导出复制进 `assets/` 保持相对路径，缺失文件报错并给出解析后路径 | 正例：`./assets/a.js` 被复制；反例：`../x.js` 装载报错；边界：缺失文件在导出时报错 |
 | 重复或非法 page id 在装载时校验失败，报错列出冲突 id | 反例：两页同 id `exam`；反例：id 含大写或斜杠 |
-| `Tabs` 两面都输出全部 tab 完整内容：web 静态 HTML 每 tab 一个 `<details>` 且仅首个 open，text 面按声明序输出带标题分节；切换不改变数据 | 正例：双 tab 两面各含两块完整内容且仅首个 open；反例：text 面不丢第二个 tab |
+| `Tabs` 两面都输出全部 tab 完整内容：web 静态 HTML 每 tab 一个 `<details>` 且仅首个 open，text 面按声明序输出带标题分节、不折成索引也不省略；切换不改变数据 | 正例：双 tab 两面各含两块完整内容且仅首个 open；反例：text 面不丢第二个 tab |
 
 ## Snapshot 的使用边界
 

@@ -268,7 +268,7 @@ eval.run              26.3s
   └─ turn s1/t2            3.1s
 ```
 
-**`show --eval`**——`t.send(...)` 的调用行标注该轮的头行事实（身份、status、墙钟与 usage——有记录才出现），失败轮标 `✗`；不内联回复与工具卡片，语法契约见 [Show · --eval](../../reports/show.md#--eval把断言放回源码)：
+**`show --eval`**——`t.send(...)` 的调用行标注该轮的头行事实（身份、status、墙钟与 usage——有记录才出现），失败轮标 `✗`；不内联回复与工具卡片，语法契约见 [Show · --eval](../../reports/show/eval-source.md)：
 
 ```text
 27✓       .send("Implement `run_tasks` in `run.py`. …")

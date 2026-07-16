@@ -140,7 +140,7 @@ interface ExperimentRunInfo {
 
 三条纪律:
 
-- **`model` 与 `agent` 只在快照顶层存在**(`snapshot.model` / `snapshot.agent`),`ExperimentRunInfo` 不复制——同一事实两处落盘不是冗余就是漂移;报告的 `config()` 对 `model` / `agent` 两个键桥接到顶层字段,消费方无感(见 [Reports · 维度与 flags](../reports/library.md#维度与-flags))。
+- **`model` 与 `agent` 只在快照顶层存在**(`snapshot.model` / `snapshot.agent`),`ExperimentRunInfo` 不复制——同一事实两处落盘不是冗余就是漂移;报告的 `config()` 对 `model` / `agent` 两个键桥接到顶层字段,消费方无感(见 [Reports · 维度与 flags](../reports/library/metrics.md#维度与-flags))。
 - **sandbox 参数只经 provider 的 `publicConfig()` 投影落盘**:每个内置 provider 显式实现「哪些参数可发布」的投影(镜像名、模板名、runtime 可以;token、凭据路径永远不可以),`defineSandbox` 自定义 provider 未实现投影时只落 provider 名。「params 不含 secret」由投影保证,不靠注释承诺。
 - 新增公开运行配置字段时必须同步进这张投影,不允许「快照里有一半配置」。
 
@@ -305,7 +305,7 @@ interface DiagnosticRecord {
 
 `sandbox.create` 早于 Sandbox 对象存在，不能由 `runCommand` / `runShell` 包装捕获。内置 provider 可以把真实的 SDK 请求、宿主命令或创建步骤写成 `provider` children；第三方 provider 没有提供细分时只保留 `sandbox.create` 合计，不能把 API 调用伪装成 shell 命令。Agent CLI 内部执行的 shell 工具同样不经过 Sandbox 包装，它们来自 `events.json`，耗时只在 OTel span 能唯一关联时提供。
 
-所有 runner duration 使用单调时钟；`startedAt` 单独保留 ISO 墙钟。`startOffsetMs` 只用于同一 attempt 内恢复顺序和重叠，不能拿远端 OTel 的绝对时间与 runner 墙钟硬对齐。父子节点允许嵌套与并发，子节点 duration 不可直接求和后与父节点比较。`result.json` 永远保存完整 runner 时间树；终端默认视图的节点预算只是读取投影，不得回写、裁剪或聚合 artifact。阶段边界、主链 / 收尾两段的 failed 语义、时间树以及安装基准消费方式见 [Phase Timings 与安装基准](../../engineering/benchmark/README.md)；终端的有界/full 两档见 [Show `--timing`](../reports/show.md#--timing整个-attempt-的统一时间树)，网页入口见 [View](../reports/view.md) 的 Attempt 详情。
+所有 runner duration 使用单调时钟；`startedAt` 单独保留 ISO 墙钟。`startOffsetMs` 只用于同一 attempt 内恢复顺序和重叠，不能拿远端 OTel 的绝对时间与 runner 墙钟硬对齐。父子节点允许嵌套与并发，子节点 duration 不可直接求和后与父节点比较。`result.json` 永远保存完整 runner 时间树；终端默认视图的节点预算只是读取投影，不得回写、裁剪或聚合 artifact。阶段边界、主链 / 收尾两段的 failed 语义、时间树以及安装基准消费方式见 [Phase Timings 与安装基准](../../engineering/benchmark/README.md)；终端的有界/full 两档见 [Show `--timing`](../reports/show/timing.md)，网页入口见 [View](../reports/view.md) 的 Attempt 详情。
 
 `error` 与 `diagnostics` 的 `phase` 都由 runner 在错误 / 诊断发生时按已打开的生命周期阶段绑定,调用方不能自行填写。两者的区别是结果语义:`error` 是让 attempt 进入 `errored` 的致命原因,至多一个;`diagnostics` 是运行仍可继续或收尾时发现的问题,可以与 passed/failed/errored 任一 verdict 共存。`diagnostic.level` 表达消息严重度,不是 verdict 的别名。diagnostic 是 niceeval 的操作性反馈,`message` 与 `command` 遵循[错误与警告反馈](../../error-feedback.md)——message 以下一步收尾,单命令可推进时 `command` 携带该命令;`error` 是被测对象的失败事实,不受该契约约束。
 
