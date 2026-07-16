@@ -22,6 +22,16 @@ export function indexTurns(events: TranscriptEvent[]): IndexedTurns {
   let cur: SourceTurn | null = null;
   for (const ev of events || []) {
     if (ev.type === "message" && ev.role === "user") {
+      // 同一条 send 会在流里出现两次:runner 在 send 时记带 loc 的一条,agent 原生
+      // transcript 又回显同文本、无 loc 的一条。无 loc 的 user 消息不开新轮——回显
+      // (与当前轮 sent 同文本且回复还没开始)直接吃掉,其它(stop-hook 反馈、skill
+      // 注入等轮内注入)作为回复条目留在当前轮;否则回复全被回显轮抢走,
+      // 带 loc 的 send 行只剩「(无回复)」。
+      if (!ev.loc && cur) {
+        if (cur.replies.length === 0 && (ev.text || "") === cur.sent) continue;
+        cur.replies.push({ kind: "user", text: ev.text || "" });
+        continue;
+      }
       cur = { loc: ev.loc, sent: ev.text || "", replies: [] };
       if (ev.loc) byKey.set(locKey(ev.loc.file, ev.loc.line), cur);
       else noloc.push(cur);
@@ -38,6 +48,8 @@ export function indexTurns(events: TranscriptEvent[]): IndexedTurns {
     } else if (ev.type === "action.result") {
       const tool = toolByCallId.get(ev.callId);
       if (tool) tool.result = ev;
+    } else if (ev.type === "skill.loaded") {
+      cur.replies.push({ kind: "skill", skill: ev.skill });
     } else if (ev.type === "input.requested") {
       cur.replies.push({ kind: "input", ev });
     } else if (ev.type === "error") {

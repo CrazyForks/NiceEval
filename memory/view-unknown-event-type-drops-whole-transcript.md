@@ -1,0 +1,49 @@
+# view 源码视图 send 行「无回复」:guard 全有全无判空 + 原生回显抢走整轮回复
+
+## 现象
+
+Attempt 详情的源码视图里,带 `loc` 的 `.send(` 行看不到回复,两种形态:
+
+1. send 行连对话图标和「回复」入口都没有,点不开(coding-agent-memory-evals 的 `@1wmuk390`);
+2. send 行能展开,但内容只有「(无回复)」(同 repo 的 `@11x69uie`)。
+
+两种情况下盘上 `events.json` 都完整:user message(带 loc)、thinking、assistant message、
+几十条 action.called/result 都在,artifact 经 HTTP 也全部 200。是前端两个独立 bug,不是采集丢数据。
+
+## 根因
+
+**其一(入口消失):guard 全有全无。** `src/view/app/lib/guards.ts` 的 `asEvents()` 用
+`value.every(isTranscriptEvent) ? value : null` 做全有全无校验,而 `isTranscriptEvent` 的
+switch 落到 `default: return false`。事件词汇加了 `skill.loaded`(一等事件,`src/o11y/types.ts`
+的 StreamEvent 和 docs 都已声明,`show` 的渲染也已支持),但 view 前端这份 guard 漏同步——
+于是**一条**不认识的事件把**整份** transcript 判成 null,`indexTurns` 聚不出任何轮。
+
+**其二(展开无回复):原生回显开新轮。** 同一条 send 在事件流里出现两次:runner 的
+`SessionManager.send()` 记带 `loc` 的一条,claude-code 原生 transcript 又回显同文本、无 `loc`
+的一条(见 `events-user-message-and-source-loc.md`——user message 必须留在流里)。旧
+`indexTurns` 把**每条** user message 都当新轮的开始,回显轮把后续全部回复抢走,而 noloc 轮
+在 CodeView 里根本不渲染——带 `loc` 的 send 行于是只剩「(无回复)」。轮中段注入的 user
+消息(stop-hook 反馈、skill 注入)同理会把其后回复挂空。
+
+深层教训与 `view-sources-artifact-serving-not-dereferenced.md` 同类:StreamEvent 词汇/形状在
+core(types/docs/show)演进时,view 前端的手写 guard 与聚合是独立的「读取面」,不改就静默
+断链;且失败模式都是「整体判空/挂空」而非「逐条降级」,把局部不认识放大成全局丢失。
+
+## 修法
+
+三层,落在同一次提交:
+
+- **容错语义**(治本):`asEvents()` 从全有全无改为逐条过滤(`value.filter(isTranscriptEvent)`),
+  未识别的事件类型丢弃、其余照常呈现;非数组载荷仍整体拒绝。以后词汇再演进,旧前端最多
+  少显示新事件,不会再黑掉整个对话面。
+- **词汇同步**:`isTranscriptEvent` 补 `skill.loaded` 分支;`indexTurns` 聚成
+  `kind: "skill"` 回复;`ReplyPanel` / `Transcript` 以一等条目显示 Skill 名(与 `show` 的
+  `SKILL · <name>` 对齐),i18n 补 `transcript.skillLoaded`。
+- **轮归属按 loc 判定**(`src/view/app/lib/transcript-data.tsx` 的 `indexTurns`):无 `loc`
+  的 user 消息不再开新轮——与当前轮 sent 同文本且回复未开始的是回显,直接吃掉;其它作为
+  `kind: "user"` 回复留在当前轮。流首无 loc 的 user 消息(旧工件)仍开 noloc 轮,不回归。
+
+契约落 `docs/feature/reports/view.md`「Attempt 详情」(按条目校验、按条目容错 + 轮归属规则);
+场景行登记在 `docs/engineering/unit-tests/reports/cases.md`,测试在
+`src/view/app/lib/guards.test.ts`。改完记得 `pnpm run view:build` 重建 client-dist,否则本地
+server 仍吐旧 bundle。

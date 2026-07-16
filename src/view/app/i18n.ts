@@ -88,6 +88,7 @@ export type MessageKey =
   | "transcript.inputRequested"
   | "transcript.awaitingInput"
   | "transcript.contextCompacted"
+  | "transcript.skillLoaded"
   | "transcript.running"
   | "transcript.input"
   | "transcript.output"
@@ -218,6 +219,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     "transcript.inputRequested": "input requested",
     "transcript.awaitingInput": "(awaiting input)",
     "transcript.contextCompacted": "context compacted",
+    "transcript.skillLoaded": "skill loaded",
     "transcript.running": "running...",
     "transcript.input": "input",
     "transcript.output": "output",
@@ -343,6 +345,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     "transcript.inputRequested": "请求输入",
     "transcript.awaitingInput": "(等待输入)",
     "transcript.contextCompacted": "上下文已压缩",
+    "transcript.skillLoaded": "已加载 Skill",
     "transcript.running": "运行中...",
     "transcript.input": "输入",
     "transcript.output": "输出",

@@ -41,8 +41,10 @@ export interface SourceTurn {
 
 export type Reply =
   | { kind: "text"; text: string }
+  | { kind: "user"; text: string }
   | { kind: "thinking"; text: string }
   | { kind: "error"; text: string }
+  | { kind: "skill"; skill: string }
   | { kind: "tool"; ev: ActionCalledEvent; result?: ActionResultEvent }
   | { kind: "input"; ev: InputRequestedEvent };
 

@@ -11,7 +11,9 @@ export function isCodeSource(value: unknown): value is CodeSource {
 
 export function asEvents(value: unknown): TranscriptEvent[] | null {
   if (!Array.isArray(value)) return null;
-  return value.every(isTranscriptEvent) ? value : null;
+  // 事件词汇会演进(skill.loaded 就是先例):未识别或缺字段的条目逐条丢弃,
+  // 不能因一条新事件把整份 transcript 判空——那会让源码视图的 send 行连回复入口都消失。
+  return value.filter(isTranscriptEvent);
 }
 
 export function asSpans(value: unknown): Span[] | null {
@@ -32,6 +34,8 @@ export function isTranscriptEvent(value: unknown): value is TranscriptEvent {
       return typeof value.callId === "string" && typeof value.name === "string";
     case "subagent.completed":
       return typeof value.callId === "string";
+    case "skill.loaded":
+      return typeof value.skill === "string";
     case "input.requested":
       return isObjectRecord(value.request);
     case "thinking":

@@ -42,6 +42,13 @@ export function Transcript({ events, t }: { events: TranscriptEvent[]; t: T }) {
             );
           case "input.requested":
             return <InputBlock event={event} t={t} key={index} />;
+          case "skill.loaded":
+            return (
+              <div className="ts-skill" key={index}>
+                <span className="ts-role">{t("transcript.skillLoaded")}</span>
+                <div className="ts-text">{event.skill}</div>
+              </div>
+            );
           case "compaction":
             return (
               <div className="ts-compaction" key={index}>

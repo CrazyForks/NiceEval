@@ -209,6 +209,13 @@ export function ReplyPanel({ turn, t }: { turn: SourceTurn; t: T }) {
               <div className="reply-text">{r.text}</div>
             </div>
           );
+        if (r.kind === "user")
+          return (
+            <div key={j} className="reply-user">
+              <span className="reply-role">{t("transcript.user")}</span>
+              <div className="reply-text">{r.text}</div>
+            </div>
+          );
         if (r.kind === "thinking")
           return (
             <details key={j} className="reply-think">
@@ -218,6 +225,12 @@ export function ReplyPanel({ turn, t }: { turn: SourceTurn; t: T }) {
           );
         if (r.kind === "error")
           return <div key={j} className="reply-err">! {r.text}</div>;
+        if (r.kind === "skill")
+          return (
+            <div key={j} className="reply-skill">
+              <span className="reply-role">{t("transcript.skillLoaded")}</span> {r.skill}
+            </div>
+          );
         if (r.kind === "tool")
           // 和 Transcript 同一个组件:摘要行显示工具名(入参)→ 出参预览,展开看完整出入参。
           return <ToolBlock key={j} call={r.ev} result={r.result} t={t} />;
