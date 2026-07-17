@@ -80,6 +80,8 @@ it("scopeSummaryData 使用端到端两级聚合并保留覆盖率", async () =>
 | 契约 | 场景 |
 |---|---|
 | 内建报告是三页普通 `defineReport`（`report` / `attempts` / `traces`），页内容全部由公开组件组成，与 `--report` 同内容文件完全等价 | 正例：裸宿主装载的 definition 与内建入口默认导出同引用；正例：内建定义的页 id、页名与逐页组件构成和 built-in.md 全文一致 |
+| 内建入口是视图集合：每个内建视图按名字具名导出（当前只有 `standard`），默认导出恒等于 `standard` | 正例：默认导出与 `standard` 同引用 |
+| `defineReport({ extends: base, … })` 在整份报告上叠外壳：页列表取 base 的页列表（同引用）；外壳字段声明即整字段覆盖、未声明沿用 base；产物是普通 `ReportDefinition`，可再被 extends | 正例：无外壳字段的 `defineReport({ extends: standard })` 逐页两面渲染与内建逐字节相同；正例：`defineReport({ extends: standard, title, links })` 页列表与 `standard` 逐项同引用、`ctx.report.title` 取自定义 `title` 且 links 生效；正例：二级 extends 链的页列表仍与 `standard` 同引用且外壳按最近声明取值（声明整字段覆盖、未声明沿用） |
 | `Hero` 组合组件缺省取 `ctx.report.title`（回退链后的站点标题），显式 `title` prop 覆盖；与手写 `<HeroCard title={…} data={await heroData(ctx.scope)} />` 严格等价 | 正例：声明 `title` 后 `<Hero />` 两面输出含该标题且与浏览器标题同源；正例：显式 `title` prop 覆盖声明；正例：与手写组合渲染深等 |
 | `heroData`：`latestStartedAt` 取范围内最新快照开始时间（空范围为 null，不编造当前时间）、`snapshots` 计贡献快照数；`HeroCard` 在 snapshots > 1 时 web 面标注合成来源 | 正例：多快照 fixture 标注「由 N 次运行合成」；边界：空 Scope 显示「暂无运行」且 `latestStartedAt` 为 null |
 | `CopyFixPrompt`：prompt 在 resolve 阶段算好并烘进静态 HTML，无 JS 时折叠块内完整可读，复制是增强层行为；`failures` 为 0 时两面零输出；text 面恒零输出 | 正例：两失败 fixture 的 prompt 含 eval id、主失败摘要与 attempt 下钻命令；边界：全 passed 时无任何节点；反例：show 输出不含 prompt 文本 |
@@ -238,7 +240,8 @@ it("show 与 view 的默认报告槽消费同一 Scope", async () => {
 | 契约 | 场景 |
 |---|---|
 | `--report` 文件默认导出恒为 `defineReport` 产物；装载规范化唯一产物是「外壳 + 非空页列表」：`defineReport(树)` ≡ `{ content: 树 }` ≡ `pages: [{ id: "report", title: 内置页名, content: 树 }]`，任何形态走同一条装载管线；非 `defineReport` 产物的默认导出报完整用户反馈 | 正例：三种写法装载出等价的规范化结果（唯一页 id 为 `report`）；反例：默认导出普通对象或 React 组件时报完整用户反馈 |
-| `content` 与 `pages` 恰好声明一个：同时声明或都省略装载报错，报错文案给出 `content: <ExperimentComparison />` 下一步 | 反例：同时声明报完整用户反馈；反例：都省略报错且文案含 `<ExperimentComparison />`；正例：`defineReport({ title, links, content: <ExperimentComparison /> })` 渲染内建内容并带自定义外壳 |
+| `content` / `pages` / `extends` 恰好声明一个：多选或都省略装载报错，报错文案给出下一步——要内建报告写 `extends: standard`（`import { standard } from "niceeval/report/built-in"`） | 反例：`content` 与 `pages` 同时声明报完整用户反馈；反例：`extends` 与 `pages` 同时声明报完整用户反馈；反例：都省略报错且文案含 `niceeval/report/built-in`；正例：`defineReport({ title, links, content: <ExperimentComparison /> })` 渲染内建首页内容并带自定义外壳 |
+| `extends` 只收 `defineReport` 产物：普通对象、React 组件或报告树装载报错（TS 编译期拒绝，无类型 JS 输入装载期同样校验） | 反例：`extends: {}` 与 `extends: <ExperimentComparison />` 各报完整用户反馈 |
 | 页不嵌套外壳：`content` / `page.content` 只接受报告树节点，`defineReport` 产物放进任何 content 或树中装载报错（TS 编译期拒绝，无类型 JS 输入装载期同样校验） | 正例：具名导出的树与组合组件节点都可直接作 `page.content`；反例：页里放 `defineReport` 产物装载报错 |
 | 裸 `show` / 裸 `view` 装载 `niceeval/report/built-in` 的默认导出，与 `--report` 同一条 `装载 → resolve → validate → render` 管线 | 正例：裸宿主装载的 definition 与该默认导出同引用 |
 | show 渲染初始页（`--page` 或第一页）的 text 面，页数大于一时在页输出之后附其余页的索引与可复制 `--page` 命令，不倾倒其余页内容；单页定义无索引段 | 正例：双页定义输出含第一页内容与另一页的索引命令、不含另一页内容；边界：单页定义直接渲染且无「其余页」段 |

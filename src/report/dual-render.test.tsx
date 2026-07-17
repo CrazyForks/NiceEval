@@ -47,7 +47,7 @@ import {
 import { Col, Row, Section, Style, Tab, Table, Tabs, Text } from "./primitives.tsx";
 import { attemptListData, metricScatterData } from "./compute.ts";
 import { costUSD, defineMetric, endToEndPassRate } from "./metrics.ts";
-import builtInReport from "./built-in/index.tsx";
+import builtInReport, { standard } from "./built-in/index.tsx";
 
 // ───────────────────────── fake 数据 ─────────────────────────
 
@@ -726,9 +726,11 @@ describe("defineReport 装载规范化", () => {
     expect(fromTree.pages[0]!.title).toEqual(fromContent.pages[0]!.title);
   });
 
-  it("content 与 pages 同时声明或都省略,装载报错且文案含 <ExperimentComparison /> 下一步", () => {
-    expect(() => defineReport({ content: <ScopeSummary />, pages: [] } as never)).toThrow(/both "content" and "pages"/);
-    expect(() => defineReport({ title: "X" } as never)).toThrow(/<ExperimentComparison \/>/);
+  it("content 与 pages 同时声明或都省略,装载报错且文案给出 extends: standard 下一步", () => {
+    expect(() => defineReport({ content: <ScopeSummary />, pages: [] } as never)).toThrow(
+      /"content" and "pages" — declare exactly one/,
+    );
+    expect(() => defineReport({ title: "X" } as never)).toThrow(/niceeval\/report\/built-in/);
   });
 
   it("defineReport 产物不是 ReportNode:页里放产物装载报错;树校验同样拒绝", () => {
@@ -913,5 +915,59 @@ describe("内建报告", () => {
     expect(single).toContain("Eval / Attempt"); // 单组直接进入组内详情
     // 成本轴(better: lower)反向渲染,「更好」恒指向右上;两轴都声明 better → 提示在场
     expect(single).toContain("better → upper right");
+  });
+});
+
+// ───────────────────────── extends 与内建视图集合 ─────────────────────────
+
+describe("extends 与内建视图集合", () => {
+  it("内建入口是视图集合:默认导出与具名导出 standard 同引用", () => {
+    expect(builtInReport).toBe(standard);
+  });
+
+  it("extends 叠外壳:页列表与 base 逐项同引用,声明整字段覆盖、未声明沿用 base", () => {
+    const branded = defineReport({
+      extends: standard,
+      title: "Memory Evals",
+      links: [{ label: "GitHub", href: "https://github.com/you/repo" }],
+    });
+    branded.pages.forEach((page, i) => expect(page).toBe(standard.pages[i]));
+    expect(branded.title).toBe("Memory Evals");
+    expect(branded.links).toEqual([{ label: "GitHub", href: "https://github.com/you/repo" }]);
+    expect(branded.head).toEqual([...standard.head]); // 未声明沿用 base
+
+    // 二级 extends 链:上一次折叠的产物就是下一次的 base
+    const chained = defineReport({ extends: branded, links: [] });
+    chained.pages.forEach((page, i) => expect(page).toBe(standard.pages[i]));
+    expect(chained.title).toBe("Memory Evals"); // 未声明沿用最近声明
+    expect(chained.links).toEqual([]); // 声明即整字段覆盖,不拼接
+
+    // ctx.report.title 取 extends 上声明的 title
+    const s = snap({ experimentId: "compare/a", results: [res("q", "passed")] });
+    expect(buildReportMeta(branded, scopeOf([s]), "report").title).toBe("Memory Evals");
+  });
+
+  it("无外壳字段的 extends 与内建逐页两面渲染逐字节相同", async () => {
+    const s1 = snap({ experimentId: "compare/a", agent: "bub", results: [res("q", "passed")] });
+    const s2 = snap({ experimentId: "compare/b", agent: "codex", results: [res("q", "failed")] });
+    const ctx = { scope: scopeOf([s1, s2]), results: resultsOf([s1, s2]) };
+    const alias = defineReport({ extends: standard });
+    for (const pageId of ["report", "attempts", "traces"]) {
+      expect(await renderReportToText(alias, ctx, { width: 120, pageId })).toBe(
+        await renderReportToText(builtInReport, ctx, { width: 120, pageId }),
+      );
+      expect(await renderReportToStaticHtml(alias, ctx, { pageId })).toBe(
+        await renderReportToStaticHtml(builtInReport, ctx, { pageId }),
+      );
+    }
+  });
+
+  it("extends 只收 defineReport 产物;与 content/pages 多选或全省略按完整用户反馈报错", () => {
+    // @ts-expect-error 非 defineReport 产物,类型层已拒绝;这里模拟无类型 JS 输入
+    expect(() => defineReport({ extends: {} })).toThrow(/must be a defineReport\(\.\.\.\) product/);
+    // @ts-expect-error extends 与 pages 互斥
+    expect(() => defineReport({ extends: standard, pages: standard.pages })).toThrow(/declare exactly one/);
+    // @ts-expect-error content / pages / extends 至少声明一个
+    expect(() => defineReport({ title: "x" })).toThrow(/niceeval\/report\/built-in/);
   });
 });

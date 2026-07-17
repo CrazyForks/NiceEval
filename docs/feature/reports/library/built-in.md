@@ -1,15 +1,26 @@
 # 内建报告
 
-裸 `niceeval show` 与 `niceeval view` 不带 `--report` 时装载的默认报告，不是私有实现，也不是省略字段时被召唤的隐式默认——它是独立入口 `niceeval/report/built-in` 的**默认导出**，一份普通 `defineReport`，全文如下：
+`niceeval/report/built-in` 是内建视图的家：每个内建视图是一份普通 `defineReport` 成品，有自己的名字，按名字具名导出、一视图一个源文件；入口的**默认导出**恒等于 `standard`——裸 `niceeval show` 与 `niceeval view` 不带 `--report` 时装载的那份。默认报告不是私有实现，也不是省略字段时被召唤的隐式默认，只是「宿主默认拿哪个值」的事实。
+
+```ts
+import builtIn, { standard } from "niceeval/report/built-in";
+
+standard; // ReportDefinition：报告 / Attempts / 追踪三页的通用结果站
+builtIn;  // 默认导出 === standard，宿主装载取这个值
+```
+
+当前视图只有 `standard`。新增内建视图的形态已经由这个入口定死：一份新的 `defineReport` 成品、一个新名字、一个新文件、一条新的具名导出——不需要注册表，也不改变装载管线。
+
+`standard` 的全文如下：
 
 ```tsx
-// niceeval/report/built-in —— 包里自带的一个报告文件，没有任何私有钩子
+// niceeval/report/built-in 的 standard 视图，没有任何私有钩子
 import {
   AttemptList, Col, CopyFixPrompt, ExperimentComparison,
   Hero, ScopeWarnings, TraceWaterfall, defineReport,
 } from "niceeval/report";
 
-export default defineReport({
+export const standard = defineReport({
   pages: [
     {
       id: "report",
@@ -49,9 +60,16 @@ export default defineReport({
 });
 ```
 
-它不住在 `niceeval/report` 里：那是工具箱（`defineReport`、组件、指标、排版原语），内建报告是用这套工具写成的**成品**，与用户的报告文件同层。这是契约，不是实现巧合：裸宿主与 `--report` 一个内容如上的文件完全等价，走同一条 `装载 → resolve → validate → render` 管线。「builtin」不是类型系统或装载逻辑里的类别，只是「宿主默认拿哪个值」的事实。
+它不住在 `niceeval/report` 里：那是工具箱（`defineReport`、组件、指标、排版原语），内建视图是用这套工具写成的**成品**，与用户的报告文件同层。这是契约，不是实现巧合：裸宿主与 `--report` 一个内容如上的文件完全等价，走同一条 `装载 → resolve → validate → render` 管线。「builtin」不是类型系统或装载逻辑里的类别。
 
-裸 `view` 页面上能看到的一切内容都在这份定义里：三个导航 tab 是三个普通页；hero 标题区、选择警告、批量修复 prompt 是页内组件。宿主自己渲染的只有机器——导航条与路由、attempt 详情路由、浏览器标题等文档单例、语言切换（[边界清单](../architecture.md#宿主保留的只有机器)）。因此**任何用户报告都能达到内建报告的全部能力，也能丢弃它的任何部分**：复用不需要 import 内建入口，直接写同名组件；不想要 Traces 页就不写那一页，不想要品牌行就不用 `Hero`（[品牌契约](site-components.md#poweredby)）。反过来，报告 API 的验收标准之一就是内建自己必须写得顺——内建写不出来或写着别扭，说明 API 缺了东西；「默认站点整站是一份普通报告文件」正是这条标准的落点。
+裸 `view` 页面上能看到的一切内容都在这份定义里：三个导航 tab 是三个普通页；hero 标题区、选择警告、批量修复 prompt 是页内组件。宿主自己渲染的只有机器——导航条与路由、attempt 详情路由、浏览器标题等文档单例、语言切换（[边界清单](../architecture.md#宿主保留的只有机器)）。因此**任何用户报告都能达到内建报告的全部能力，也能丢弃它的任何部分**。反过来，报告 API 的验收标准之一就是内建自己必须写得顺——内建写不出来或写着别扭，说明 API 缺了东西；「默认站点整站是一份普通报告文件」正是这条标准的落点。
+
+## 复用有两条路，语义不同、都显式
+
+- **引用**：`defineReport({ extends: standard, … })` 在整份内建视图上叠自己的外壳（[extends 契约](shell.md#行为约束)）。这是在声明「跟随内建」——页面归 niceeval 所有，升级带来的页面演进随之生效，自己只声明标题、链接、head 这些站点身份。
+- **照抄**：按上面的全文写同名组件。这是在钉死当前形态——内建怎么变都不跟，页面完全归自己所有，可以逐页改造。
+
+两条路读文件的人都能看出会渲染什么：`extends: standard` 是一个显式 import 的具名引用，照抄是逐行写出的声明。页内容仍不接受 `defineReport` 产物——`ReportDefinition` 不是 `ReportNode`，报告级复用只有 `extends` 这一个位置。
 
 ## 从内建出发的升级路径
 
@@ -72,29 +90,22 @@ export default defineReport(
 );
 ```
 
-树入参渲染的就是那棵树：没有附赠的 hero、警告区或证据页——读文件的人必须能看出会渲染什么，宿主不给任何页面加料。要这些能力，像下面两档一样显式写出来。
+树入参渲染的就是那棵树：没有附赠的 hero、警告区或证据页——读文件的人必须能看出会渲染什么，宿主不给任何页面加料。
 
 ```tsx
-// reports/branded.tsx —— ② 内建首页内容 + 品牌外壳：显式写出组件，不靠省略
-import {
-  Col, ExperimentComparison, Hero, ScopeWarnings, defineReport,
-} from "niceeval/report";
+// reports/branded.tsx —— ② 内建整站 + 品牌外壳：extends 引用
+import { defineReport } from "niceeval/report";
+import { standard } from "niceeval/report/built-in";
 
 export default defineReport({
+  extends: standard,
   title: "Memory Evals",
   links: [{ label: "GitHub", href: "https://github.com/you/repo" }],
-  content: (
-    <Col>
-      <Hero />
-      <ScopeWarnings />
-      <ExperimentComparison />
-    </Col>
-  ),
 });
 ```
 
 ```tsx
-// reports/site.tsx —— ③ 拆页：抄内建的页，再加自己的页
+// reports/site.tsx —— ③ 拆页：照抄内建的页，再加自己的页
 import {
   AttemptList, Col, ExperimentComparison, Hero, ScopeWarnings,
   Scoreboard, defineReport, examScore,
@@ -126,7 +137,7 @@ export default defineReport({
 });
 ```
 
-② 是最小品牌化形态：`title` 进浏览器标题与 `ctx.report.title`，页内 `<Hero />` 跟随同一标题并带品牌行。`content` 与 `pages` 必须恰好声明一个（见[外壳与多页](shell.md)）——「都不写就默认内建」这种隐式取值不存在，读文件的人必须能看出会渲染什么。
+② 是最小品牌化形态：`title` 进浏览器标题与 `ctx.report.title`，内建页自带的 `<Hero />` 跟随同一标题并带品牌行。③ 从引用切换到照抄，页面归自己所有。`content` / `pages` / `extends` 必须恰好声明一个（见[外壳与多页](shell.md)）——「都不写就默认内建」这种隐式取值不存在，要内建内容就显式 `extends` 它。
 
 ## 内建报告显示什么
 
@@ -134,7 +145,7 @@ export default defineReport({
 
 ## 相关阅读
 
-- [外壳与多页](shell.md) —— 配置对象的字段穷尽与行为约束。
+- [外壳与多页](shell.md) —— 配置对象的字段穷尽、`extends` 合并语义与行为约束。
 - [站点组件](site-components.md) —— hero、品牌、警告与瀑布的组件契约。
 - [概览组件](summaries.md) —— `ExperimentComparison` 的契约。
 - [Architecture](../architecture.md) —— 装载规范化：内建与 `--report` 的同一条管线。

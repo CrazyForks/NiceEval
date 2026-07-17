@@ -61,13 +61,13 @@ describe("装载规范化:外壳 + 非空页列表", () => {
     expect(report.footer).toBe("Published nightly.");
   });
 
-  it("content 与 pages 恰好声明一个:同给 / 同缺都报错,文案给出 <ExperimentComparison /> 下一步", () => {
+  it("content 与 pages 恰好声明一个:同给 / 同缺都报错,文案给出 extends: standard 下一步", () => {
     for (const bad of [
       { kind: "report", content: tree, pages: [{ id: "a", title: "A", content: tree }] },
       { kind: "report", title: "T" },
     ]) {
       expect(() => normalizeHostReport(bad, "reports/site.tsx")).toThrow(HostReportError);
-      expect(() => normalizeHostReport(bad, "reports/site.tsx")).toThrow(/<ExperimentComparison \/>/);
+      expect(() => normalizeHostReport(bad, "reports/site.tsx")).toThrow(/niceeval\/report\/built-in/);
     }
   });
 

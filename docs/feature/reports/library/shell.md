@@ -1,6 +1,6 @@
 # 外壳与多页
 
-`defineReport` 接受两种入参：传一棵报告树，填进宿主默认外壳的报告槽；传配置对象则在内容之外声明导航外壳——标题、GitHub 等外部链接、页脚、head 标签注入、自定义脚本与样式——并可把内容拆成多页。给报告加品牌、发布 benchmark 站、把成绩单与趋势分成独立页面，是同一个 API 的递进用法，形状不换轨：
+`defineReport` 接受两种入参：传一棵报告树，填进宿主默认外壳的报告槽；传配置对象则在内容之外声明导航外壳——标题、GitHub 等外部链接、页脚、head 标签注入、自定义脚本与样式——并可把内容拆成多页，或用 `extends` 把另一份报告整站接过来、只声明自己的外壳。给报告加品牌、发布 benchmark 站、把成绩单与趋势分成独立页面，是同一个 API 的递进用法，形状不换轨：
 
 ```tsx
 // reports/frontier.tsx —— ① 一棵树：树入参，等价于 { content: 树 }
@@ -20,7 +20,19 @@ export default defineReport({
 });
 ```
 
-多页用 `pages`，每页装一棵树；可复用的页内容是组件或树的具名导出，从别的文件 import 进来即可：
+多页用 `pages`，每页装一棵树；可复用的页内容是组件或树的具名导出，从别的文件 import 进来即可。整站复用另一份报告不走 `pages`——用 `extends` 在那份报告上叠外壳（字段与合并语义见下），最常见的用法是给[内建视图](built-in.md)加标题、链接和 head：
+
+```tsx
+// reports/branded.tsx —— extends:内建整站 + 自己的外壳
+import { defineReport } from "niceeval/report";
+import { standard } from "niceeval/report/built-in";
+
+export default defineReport({
+  extends: standard,
+  title: { en: "Memory Evals", "zh-CN": "记忆能力评测" },
+  links: [{ label: "GitHub", href: "https://github.com/you/coding-agent-memory-evals" }],
+});
+```
 
 ```tsx
 // reports/site.tsx —— ③ 多页：页是字面量，content 装树
@@ -114,18 +126,31 @@ type HeadTag =
   | { tag: "meta" | "link"; attrs: Record<string, string | true>; children?: never }
   | { tag: "script" | "style"; attrs?: Record<string, string | true>; children?: string };
 
-/** content / pages 互斥由类型表达，不把非法状态留到运行期。 */
+/** content / pages / extends 三选一由类型表达，不把非法状态留到运行期。 */
 type ReportDef = ReportShell &
   (
     | {
         /** 单页缩写，等价于只含 id `report` 的页列表。 */
         content: ReportNode;
         pages?: never;
+        extends?: never;
       }
     | {
         /** 非空页列表；导航按数组顺序显示。 */
         pages: NonEmptyArray<ReportPage>;
         content?: never;
+        extends?: never;
+      }
+    | {
+        /**
+         * 在另一份报告上叠外壳：页列表取 base 的页列表；本对象声明的外壳字段
+         * 整字段覆盖 base 的同名字段，未声明的沿用 base。base 是任何 `defineReport`
+         * 产物——内建视图或自己别的报告文件的具名导出。合并在 `defineReport` 调用时
+         * 完成，产物仍是普通 ReportDefinition，因此可以再被 extends。
+         */
+        extends: ReportDefinition;
+        content?: never;
+        pages?: never;
       }
   );
 
@@ -158,8 +183,9 @@ type ReportAsset =
 ## 行为约束
 
 - **单页与多页在宿主内都规范化成页列表。** 树入参规范化为 `{ content: 树 }`，`content: 树` 再展开为 `pages: [{ id: "report", title: 内置页名「报告 / Report」, content: 树 }]`。缩写不是隐式默认——展开完全由写下的值决定。因此单页文件同样有页身份：路由 `#/page/report` 与 `--page report` 都成立，导航项显示内置页名。`show` 渲染初始页（`--page` 指定的页，缺省第一页），页数大于一时在页输出之后附其余页的索引与可复制的 `--page` 命令——与 `view` 打开初始页同一语义，索引只列未渲染的页，不倾倒它们的内容。裸 `show` / `view` 装载的[内建报告](built-in.md)走同一条装载管线。
-- **`content` 与 `pages` 恰好声明一个，没有隐式默认。** 同时声明或都省略，装载时以完整用户反馈报错，报错指出下一步：要渲染内建报告的内容，写 `content: <ExperimentComparison />`。省略不是一种有含义的取值——读报告文件的人必须能看出会渲染什么。
-- **`defineReport` 产物只作默认导出，页内复用具名导出。** `ReportDefinition` 是普通值——可赋给变量、可直接断言测试、可从别的模块 re-export；「默认导出」只是宿主装载 convention，不是值本身的限制。它不在 `ReportNode` 类型里：把它放进 `content`、`pages[].content` 或任何报告树，TypeScript 在编译期拒绝，无类型 JavaScript 输入在装载期以完整用户反馈拒绝。要在多个站点间复用一页内容，具名导出那棵树或那个组件——复用从不消费默认导出，所以给一个报告文件加外壳永远不会破坏别处对它内容的 import。
+- **`content` / `pages` / `extends` 恰好声明一个，没有隐式默认。** 多选或都省略，装载时以完整用户反馈报错，报错指出下一步：要渲染内建报告，写 `extends: standard`（`import { standard } from "niceeval/report/built-in"`）。省略不是一种有含义的取值——读报告文件的人必须能看出会渲染什么。
+- **`extends` 的合并语义是「页归 base、外壳逐字段覆盖」，且在 `defineReport` 调用时折叠完成。** 页列表取 base 规范化后的页列表；本对象声明的外壳字段（`title` / `links` / `footer` / `head` / `scripts` / `styles`）整字段替换 base 的同名字段，未声明的沿用 base——没有数组拼接、没有深合并，要拼接就在自己字段里用 JS 写出想要的完整值。产物是普通 `ReportDefinition`：base 不被修改，链式 extends 天然成立（上一次折叠的产物就是下一次的 base），宿主装载看到的永远是已折叠的页列表与外壳，没有运行期继承。`extends` 只收 `defineReport` 产物，其它值（普通对象、React 组件、报告树）装载报错。
+- **`defineReport` 产物只有两个去处：默认导出交宿主装载，或作 `extends` 的 base。** `ReportDefinition` 是普通值——可赋给变量、可直接断言测试、可从别的模块 re-export；「默认导出」只是宿主装载 convention，不是值本身的限制。它不在 `ReportNode` 类型里：把它放进 `content`、`pages[].content` 或任何报告树，TypeScript 在编译期拒绝，无类型 JavaScript 输入在装载期以完整用户反馈拒绝——报告级复用只有 `extends` 这一个位置。要在多个站点间复用一页内容，具名导出那棵树或那个组件；`extends` 产物是新值、base 不被修改，所以给一个报告加外壳永远不会破坏别处对 base 的引用。
 - **页是宿主寻址单位，tab 是页内浏览状态。** 页有 id、路由、导航项和 `--page` 选择器；[`Tabs`](layout.md#tabs) 没有。需要单独打开、深链或在终端独立渲染的内容做成页，同页内的并列视图用 tab。
 - **所有页共享同一份 Scope。** 位置参数与 `--experiment` 收窄对全部页生效；页是对同一批数据的不同看法，不承担数据过滤职责。要看不同数据范围，用命令行收窄或在页内组件上显式传 `input`。attempt 详情不是页——它是宿主路由（`#/attempt/@<locator>` / `show @<locator>`），对完整结果根解析，任何页里的深链都不因收窄失效（见 [View · 页面构成](../view.md#页面构成)）。
 - **规范化声明经 `ctx.report` 只读可见，宿主没有保留内容。** 组合组件的 ctx 携带 [`report`](layout.md#自定义组件)——规范化后的报告声明：走完回退链的 `title`、`links`、`footer`、页列表与当前页 id。宿主 chrome 消费的每一份声明组件都能读，没有数据秘密，也没有保留内容——hero、警告区、attempt 列表、trace 瀑布都是工具箱里的普通组件（[站点组件](site-components.md)、[实体列表](entity-lists.md)），宿主保留的只有机器：装载与 resolve 管线、路由与导航渲染、attempt 详情路由、文档单例、语言切换。它只进组合组件：解析面与渲染面不依赖站点声明——数据不依赖声明才可序列化、跨站复用，渲染面只吃 props 才保证两面同源；`head` / `scripts` / `styles` 是注入资产而非展示声明，不进 `ctx.report`。读 `ctx.report` 的组件是在声明「输出跟随站点」；要站点无关的组件就不读它。`defineReport` 不收自定义参数字段：宿主不消费的值不属于声明，自定义值走语言自带的类型通道——同文件用变量、跨文件用模块导入或装配处的 props；报告树只有两三层，不存在需要 context 兜底的深透传。

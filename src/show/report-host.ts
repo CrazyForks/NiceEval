@@ -212,11 +212,12 @@ export function normalizeHostReport(definition: unknown, sourceLabel: string): H
     const hasContent = def.content !== undefined;
     const hasPages = def.pages !== undefined;
     if (hasContent === hasPages) {
-      // content / pages 同缺或同给:装载期完整用户反馈,下一步是 content: <ExperimentComparison />。
+      // content / pages 同缺或同给:装载期完整用户反馈(defineReport 产物恒已折叠,这里只拦
+      // 手搓 kind:"report" 的无类型输入),下一步指向内建视图的 extends 复用。
       throw new HostReportError(
         `${sourceLabel}: a report declares exactly one of "content" or "pages" — ` +
           (hasContent ? "it declares both. " : "it declares neither. ") +
-          `To render the built-in report content, write: content: <ExperimentComparison />.`,
+          `To render the built-in report, write extends: standard (import { standard } from "niceeval/report/built-in").`,
       );
     }
     const pages: HostReportPage[] = hasPages

@@ -10,7 +10,23 @@ description: "一份报告就是一个报告文件：官方宿主打开结果、
 
 ## show / view 的默认报告也是一份报告文件
 
-`niceeval show` / `view` 不传 `--report` 时渲染的默认报告不是私有实现，而是包里自带的一个普通报告文件：三个页面（报告、Attempts、追踪），每页由 `niceeval/report` 公开导出的组件搭成——页首的标题区（`Hero`）、选择警告（`ScopeWarnings`），首页的比较组件 `ExperimentComparison`，Attempts 页的 Attempt 列表（`AttemptList`），追踪页的追踪瀑布（`TraceWaterfall`）。你的报告文件能逐字写出同样的页面，也能只留自己要的部分：
+`niceeval show` / `view` 不传 `--report` 时渲染的默认报告不是私有实现，而是包里自带的一个普通报告文件：三个页面（报告、Attempts、追踪），每页由 `niceeval/report` 公开导出的组件搭成——页首的标题区（`Hero`）、选择警告（`ScopeWarnings`），首页的比较组件 `ExperimentComparison`，Attempts 页的 Attempt 列表（`AttemptList`），追踪页的追踪瀑布（`TraceWaterfall`）。
+
+这份默认报告本身以 `standard` 为名从 `niceeval/report/built-in` 导出。只想在默认报告上加站点标题、GitHub 链接或统计脚本时，用 `extends` 在它上面叠自己的外壳，页面内容一行不用写；NiceEval 升级带来的页面改进也会自动跟过来：
+
+```tsx
+// reports/branded.tsx —— 默认报告整站 + 自己的标题和链接
+import { defineReport } from "niceeval/report";
+import { standard } from "niceeval/report/built-in";
+
+export default defineReport({
+  extends: standard,
+  title: "Memory Evals",
+  links: [{ label: "GitHub", href: "https://github.com/you/repo" }],
+});
+```
+
+`niceeval/report/built-in` 是内置报告的集合，每份一个名字；今天只有 `standard`，以后新增的内置报告也从这里按名字导入。想改页面内容本身，用同一批公开组件自己搭——你的报告文件能逐字写出同样的页面，也能只留自己要的部分：
 
 ```ts
 import { ExperimentComparison, Hero, ScopeWarnings } from "niceeval/report";
@@ -395,4 +411,4 @@ niceeval view --report reports/exam.tsx --out site
 
 ## 界线：内置命令不长配置
 
-一次只渲染一份报告，`--report` 收显式文件路径——没有 `reports/` 目录自动发现、没有插件注册表、没有配置文件。自定义指标和自定义组件都住在你的报告文件里，随文件一起递入，宿主不为它们长任何注册面。不传 `--report` 时渲染的就是内置的 `ExperimentComparison`，你的报告和它是同级实现。
+一次只渲染一份报告，`--report` 收显式文件路径——没有 `reports/` 目录自动发现、没有插件注册表、没有配置文件。自定义指标和自定义组件都住在你的报告文件里，随文件一起递入，宿主不为它们长任何注册面。不传 `--report` 时渲染的就是默认报告，你的报告和它是同级实现。
