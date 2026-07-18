@@ -18,4 +18,4 @@
 
 - 验收脚本核对 CLI 退出码与实际运行的 Eval 集合。
 - **CLI 读回**：`show` 榜单列出本仓库 Eval 与 verdict；对通过 attempt 的 `show --execution` 执行树出现命令与文件工具调用节点，节点带 span 时间注释。
-- **OTel**：adapter 的 `tracing.configure` 写入 `config.toml` 的 `[otel]` 块，执行树的时间注释就是记录成立的展示证明；`openResults()` 抽查 span 经专属 mapper 归一到 canonical GenAI 语义约定——工具 span 带 `gen_ai.operation.name: execute_tool` 与显式 call ID，与事件流的对应关系靠 correlation 属性成立，不靠名字猜。
+- **OTel**：adapter 的 `tracing.configure` 写入 `config.toml` 的 `[otel]` 块，执行树的时间注释就是记录成立的展示证明；`show --timing` 的 OTel 子树以 tool / model 角色挂出 span——专属 mapper 归一到 canonical GenAI 语义约定的展示结果，与事件的对应靠显式 call ID correlation 成立，不靠名字猜。

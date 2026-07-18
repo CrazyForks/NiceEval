@@ -24,4 +24,4 @@
 
 - 验收脚本核对 CLI 退出码、实际运行的 Eval 集合与逐轮 usage 非空。
 - **CLI 读回**：`show` 榜单列出本仓库 Eval 与 verdict；对通过 attempt 的 `show --execution` 执行树出现裸工具名调用节点，节点带 span 时间注释。
-- **OTel**：被测应用接入 `aiSdkOtel()`（`niceeval/adapter/otel`），执行树的时间注释就是记录成立的展示证明；`openResults()` 抽查 span 经显式 correlation 与工具事件对应——本仓库承担矩阵中 remote-agent telemetry 路径的证明。OTel 只生成 trace，不成为事件来源；判分断言仍只读事件流。
+- **OTel**：被测应用接入 `aiSdkOtel()`（`niceeval/adapter/otel`），执行树的时间注释就是记录成立的展示证明；`show --timing` 挂出 OTel 子树，工具 span 与执行树对同一次调用给出一致的时间事实——本仓库承担矩阵中 remote-agent telemetry 路径的证明。OTel 只生成 trace，不成为事件来源；判分断言仍只读事件流。

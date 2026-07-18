@@ -16,4 +16,4 @@
 
 - 验收脚本核对 CLI 退出码与实际运行的 Eval 集合。
 - **CLI 读回**：`show` 榜单列出本仓库 Eval 与 verdict；对通过 attempt 的 `show --execution` 执行树出现工具调用节点，节点带 span 时间注释。
-- **OTel**：adapter 的 `tracing.env` 注入标准 `OTEL_*` 环境变量（OTLP/protobuf），执行树的时间注释就是记录成立的展示证明；`openResults()` 抽查 span 经 mapper 归一到 canonical GenAI 语义约定。span mapper 只影响瀑布图——判分断言仍只读 tape 归一的事件流。
+- **OTel**：adapter 的 `tracing.env` 注入标准 `OTEL_*` 环境变量（OTLP/protobuf），执行树的时间注释就是记录成立的展示证明；`show --timing` 的 OTel 子树挂出经 mapper 归一的 model / tool span。span mapper 只影响瀑布图——判分断言仍只读 tape 归一的事件流。

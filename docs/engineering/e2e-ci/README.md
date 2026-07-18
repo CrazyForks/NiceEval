@@ -163,23 +163,25 @@ Eval 是被测输入，不等于仓库级测试结论。仓库自己的验收脚
 
 ### 4.2 Results 读取边界
 
-仓库验收脚本不得递归扫描 `.niceeval/`、猜 `summary.json` / `snapshot.json` 名称或手工拼 attempt 路径。读取结果只使用 niceeval 的公开读取面：
+仓库验收脚本是 **CLI 黑盒**：它起 `niceeval` 子进程、断言退出码与输出，不 import niceeval 库代码，也不得递归扫描 `.niceeval/`、猜 `snapshot.json` 名称或手工拼 attempt 路径。读取结果只用 CLI 出口：
 
-- 需要稳定机器摘要时，使用 CLI 的 `--json` 输出；
-- 需要遍历快照和 attempt 时，使用 `openResults()` 返回的句柄；
-- 需要验证 JUnit 时，解析显式指定的 `--junit` 文件；
-- 只有[报告域](report.md)的 `results-contract` 仓库可以断言公开落盘格式，其它仓库不复制格式知识。
+- 稳定机器摘要：`--json` 输出文件；
+- 榜单与逐 attempt 时间线（verdict、耗时、成本、locator）：`niceeval show` / `show --history`；
+- 证据切面：`show @<locator> --execution` / `--timing` / `--source` / `--diff`；
+- CI 出口：显式指定的 `--junit` 文件。
+
+`openResults()` 读取库是公开使用面的一部分，它的 E2E 验收归[报告域](report.md)的 `results-contract` 仓库——只有那里可以断言落盘格式与读取库，其它仓库不复制格式知识、不经库面读结果。
 
 ### 4.3 CLI 读回
 
 每个仓库的验收链在 Experiment 结束后接读面 CLI：同一份新产出的快照直接交给 `niceeval show`（及仓库关心的证据切面，如 `show --execution`）。一次真实运行因此同时验收两个域——协议路径本身，和 CLI 读面在真实数据上的表现；模型成本只花一次。
 
-读回是仓库机制验收的**首选断言面**：「适配器是否正常接收到各种信息」以 CLI 展示输出为准——展示里出现，就证明归一、落盘、读取面、渲染整条链都通了；`openResults()` 只兜展示读不出的机制事实（如断言「attempt 不产生 trace」）。
+读回是仓库机制验收的**断言面**：「适配器是否正常接收到各种信息」以 CLI 展示输出为准——展示里出现，就证明归一、落盘、读取面、渲染整条链都通了。机制事实同样以展示形态断言——「没记录 trace」的可见形态就是 timing unavailable 与不挂 OTel 子树的 `--timing`。
 
 读回断言有界，只断言三类事实：
 
 - 进程退出码为 0——读面在真实结果上不崩；
-- 本仓库拥有的事实出现在输出里（Eval id、verdict、断言过的调用节点），且与 `--json` / `openResults()` 口径一致；
+- 本仓库拥有的事实出现在输出里（Eval id、verdict、断言过的调用节点），且与 `--json` 口径一致；
 - 证据面与该仓库的 tracing 期望一致——声明 tracing 的仓库，执行树节点带 span 时间注释；未声明的显示 timing unavailable。
 
 读回不断言终端布局、列格式或文案——渲染语义归[单元测试 Reports](../unit-tests/reports/README.md)；也不断言完整落盘与出口格式——那是[报告域](report.md)`results-contract` 的责任。这条边界让读回的维护成本停留在「自有事实的子串级检查」，矩阵修复成本不随格式微调放大。

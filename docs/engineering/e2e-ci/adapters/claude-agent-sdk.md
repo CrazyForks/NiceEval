@@ -15,4 +15,4 @@
 
 - 验收脚本核对 CLI 退出码与实际运行的 Eval 集合。
 - **CLI 读回**：`show` 榜单列出本仓库 Eval 与 verdict；对通过 attempt 的 `show --execution` 执行树出现 `mcp__demo-tools__get_weather` 调用节点，时间注释显示 timing unavailable。
-- **OTel**：本适配器不声明 tracing 面，验收脚本经 `openResults()` 断言 attempt 不产生 trace。
+- **OTel**：本适配器不声明 tracing 面——`show --execution` 时间注释显示 timing unavailable，`show --timing` 不挂 OTel 子树。
