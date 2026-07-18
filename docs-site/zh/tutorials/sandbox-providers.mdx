@@ -1,7 +1,7 @@
 ---
 title: "Sandbox provider：Docker、Vercel 与第三方"
 sidebarTitle: "沙箱 provider"
-description: "NiceEval 在 Docker 或 Vercel sandbox 中运行 coding agents。了解如何选择 provider、配置权限，并通过 warm pools 改善性能。"
+description: "选择 Docker、Vercel 或 E2B Provider，配置权限，并通过预制环境改善 Coding Agent 的运行性能。"
 ---
 
 Sandbox Provider 是创建和管理隔离运行环境的基础设施。[NiceEval](https://niceeval.com/) 把它们包装成同一个 `Sandbox` 接口，所以 Adapter 不需要知道当前用的是本地 Docker、Vercel micro-VM、E2B 还是第三方云服务。
@@ -109,7 +109,7 @@ const sandbox = e2bSandbox({ template: "niceeval-agents" })
 
 `progress` 和 `diagnostic` 都不能指定全局阶段、颜色或输出流。Runner 知道当前回调属于 `sandbox.setup`，会把 Human 终端中的阶段显示为 sandbox setup。`diagnostic` 会随 Attempt 写入 `result.json`，之后可用 `niceeval show @<locator>` 回顾；它本身不会改变判定。环境无法继续时直接抛出异常。
 
-和另外两处 setup 的分工：Adapter 的 `setup` 管"怎么连被测 agent"（装 CLI、写鉴权配置）；eval 里 `test(t)` 开头的代码管"这道题需要哪些起始文件"；sandbox 的 `.setup()` 管"这次实验的环境里要多装什么"。三层各写各的，互相不知道对方的内容。MCP server、Skill、model 这些被测 agent 的配置仍然只从 Adapter 工厂参数进——环境钩子不做 Adapter 的事。
+三种 setup 各有职责。Adapter 的 `setup` 负责连接被测 Agent，例如安装 CLI 和写入鉴权配置；Eval 中 `test(t)` 开头的代码负责准备任务起始文件；Sandbox 的 `.setup()` 负责当前实验的额外环境准备。MCP server、Skill 和 model 等被测 Agent 配置仍然只从 Adapter 工厂参数传入。
 
 ## 预制环境与运行时 checkpoint
 

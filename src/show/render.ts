@@ -1,5 +1,5 @@
 // show 的文本渲染:单 eval 详情、--history 时间轴、三个证据切面(transcript / trace / diff)。
-// 输出形态照 docs-site/zh/how-to/viewing-results.mdx 的示例块;长内容一律截断,
+// 输出形态照 docs-site/zh/tutorials/viewing-results.mdx 的示例块;长内容一律截断,
 // 但截断永远如实标注剩余数量和原始 artifact 路径 —— 输出对上下文窗口友好,事实源留在盘上。
 // 全部纯函数(时间经 now 显式传入),证据数据由调用方 await 好了递进来。
 
@@ -619,7 +619,7 @@ function execBody(
 /**
  * action / subagent 节点渲染成两行(call + result)——节点模型把 call+result 合并成一个
  * ExecutionNode(按 callId),但分两行读更符合「先看调用、再看结果」的阅读顺序,
- * 与 docs-site/zh/how-to/agent-feedback-loop.mdx 的示例一致。
+ * 与 docs-site/zh/tutorials/agent-feedback-loop.mdx 的示例一致。
  */
 function executionNodeLines(node: ExecutionNode, originMs: number, timingAvailable: boolean, width: number): string[] {
   const time = node.kind !== "telemetry" && node.span ? relSeconds(node.span.startMs, originMs) : undefined;

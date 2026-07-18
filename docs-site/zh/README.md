@@ -2,26 +2,27 @@
 
 `zh/` 按读者此刻的需求组织，不按 NiceEval 的内部模块组织。判断一页放在哪里时，先问读者是在学习、完成任务、查事实、理解原理，还是修复问题。
 
-## 五个正文分区
+## 五种正文类型
 
 | 目录 | 页面类型 | 读者要什么 | 本站边界 |
 | --- | --- | --- | --- |
-| `tutorials/` | Tutorial | 跟着一条安全路径拿到第一次成功 | 当前只有 `quickstart.mdx`。不为凑齐目录增加第二条入门路径 |
-| `how-to/` | How-to | 完成一个现实任务 | 标题用任务表述；步骤、验证方式和失败后的下一步要清楚 |
+| `tutorials/` | Tutorial / How-to | 拿到第一次成功，或完成一个现实任务 | `quickstart.mdx` 负责最短成功路径；其余页面按具体任务组织，步骤、验证方式和失败后的下一步要清楚 |
 | `explanation/` | Explanation | 理解概念、边界和运行原理 | 不承担完整操作步骤或字段罗列 |
 | `reference/` | Technical Reference | 快速查准确、完整的事实 | API 签名、字段、类型和 CLI flags 以源码为权威来源 |
 | `troubleshooting/` | Troubleshooting | 从可见症状定位并修复问题 | 按症状组织，不按内部模块组织 |
 
 `index.mdx` 和 `introduction.mdx` 是站点入口，不硬归入正文类型。`examples/` 是独立资源入口，不属于 Diátaxis 的四种正文类型。
 
+Tutorial 和 How-to 都属于用户完成任务时阅读的教程，因此统一放进 `tutorials/`，并在导航中合并到 `Tutorials` 标签。`quickstart.mdx` 负责第一次成功，其余页面负责已有基础后的具体任务。目录合并不改变两种页面的写作边界，也不把 Reference 或 Explanation 内容混进教程。
+
 ## Examples 的收录标准
 
-`examples/` 只收录有真实可运行源码的项目。一个案例页只回答四件事：被测对象是什么、这个项目证明什么、源码在哪里、怎么运行。操作步骤的通用版本链接 How-to，字段和配置全集链接 Reference，不在案例页复制。
+`examples/` 只收录有真实可运行源码的项目。一个案例页只说明被测对象、验证目标、源码位置和运行方式。操作步骤的通用版本链接对应任务教程，字段和配置全集链接 Reference，不在案例页复制。
 
 - 接入前后能从仓库源码计算时，由生成器产出 diff 页面，不手抄代码。
 - 同一个可运行项目只保留一张案例页。Skill、Plugin 等相邻主题共享实验设计时合并，不复制两份近似正文。
 - 只有一个条目的 Showcase 不单独成页，真实项目直接列在 `examples/index.mdx`。
-- 没有可运行源码、只有片段或设想的内容不进 Examples。片段进入对应 How-to，未实现方向留在 Roadmap。
+- 没有可运行源码、只有片段或设想的内容不进 Examples。片段进入对应任务教程，未实现方向留在 Roadmap。
 
 ## Reference 的生成边界
 
@@ -38,7 +39,7 @@ Technical Reference 不等于整页都由生成器拼出来。页面仍可手写
 
 - `explanation/runner.mdx` 解释执行引擎如何发现、调度、缓存和产出结果，不是一步一任务的操作指南。
 - `reference/official-adapters.mdx`、`reference/report-components.mdx` 和 `reference/results-data.mdx` 用于查能力、组件或数据 API，不能留在 How-to。
-- `troubleshooting/debugging.mdx` 与 `troubleshooting/debug-sandbox.mdx` 从失败症状出发，目录独立，在导航中归入 How-to Guides。
-- `how-to/sandbox-providers.mdx` 目前保留在 How-to，因为主问题是选择并配置 Provider；若以后字段表继续增长，再拆出独立 Provider Reference。
+- `troubleshooting/debugging.mdx` 与 `troubleshooting/debug-sandbox.mdx` 从失败症状出发，目录独立，在导航中归入 `Tutorials` 标签下的“问题排查”。
+- `tutorials/sandbox-providers.mdx` 按 How-to 写，因为主任务是选择并配置 Provider；若以后字段表继续增长，再拆出独立 Provider Reference。
 
 新增或移动页面时，同时更新 `docs-site/docs.json` 和旧路径 redirect。校验命令以 [`../AGENTS.md`](../AGENTS.md) 为准。

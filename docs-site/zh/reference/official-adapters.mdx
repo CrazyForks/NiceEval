@@ -4,11 +4,11 @@ sidebarTitle: "官方适配器"
 description: "NiceEval 内置的 Sandbox 和非 Sandbox 适配器分别是什么、怎么鉴权，Sandbox 型里怎么装 MCP server、Skill、插件，怎么使用 Agent 官方配置文件。"
 ---
 
-[NiceEval](https://niceeval.com/) 随包带几个官方 Adapter（`niceeval/adapter` 导出的工厂函数），按被测对象要不要隔离工作区分两类：**Sandbox 型**（`claude-code` / `codex` / `bub`）在 Docker 或云端沙箱里跑 coding-agent CLI，能装 MCP server、Skill、Python 插件；**非 Sandbox 型**无侵入连一个已经在跑的 HTTP 服务，或者帮你手写 adapter 时省掉事件流映射。这篇按类型和具体 Adapter 分节，重点是每个 Adapter 的配置项——怎么选、怎么跑通第一条 eval，见[接入你的 Agent](/zh/how-to/connect-your-agent)。
+[NiceEval](https://niceeval.com/) 随包带几个官方 Adapter（`niceeval/adapter` 导出的工厂函数），按被测对象要不要隔离工作区分两类：**Sandbox 型**（`claude-code` / `codex` / `bub`）在 Docker 或云端沙箱里跑 coding-agent CLI，能装 MCP server、Skill、Python 插件；**非 Sandbox 型**无侵入连一个已经在跑的 HTTP 服务，或者帮你手写 adapter 时省掉事件流映射。这篇按类型和具体 Adapter 分节，重点是每个 Adapter 的配置项——怎么选、怎么跑通第一条 eval，见[接入你的 Agent](/zh/tutorials/connect-your-agent)。
 
 ## Sandbox 适配器
 
-三个内置 Sandbox agent 都用 `defineSandboxAgent` 构造，鉴权走环境变量（可用工厂参数覆盖），并且都支持在沙箱 `setup` 阶段装扩展。怎么运行内置 Sandbox agent、目录结构和自定义 Sandbox adapter，见 [Sandbox Agent](/zh/how-to/sandbox-agent)；这里只讲每个 Adapter 能装什么、配置项怎么写。
+三个内置 Sandbox agent 都用 `defineSandboxAgent` 构造，鉴权走环境变量（可用工厂参数覆盖），并且都支持在沙箱 `setup` 阶段装扩展。怎么运行内置 Sandbox agent、目录结构和自定义 Sandbox adapter，见 [Sandbox Agent](/zh/tutorials/sandbox-agent)；这里只讲每个 Adapter 能装什么、配置项怎么写。
 
 本页的 `settingsFile` / `configFile` 都相对 NiceEval 项目根解析。项目根是执行 `niceeval` 时的当前工作目录，也就是包含 `niceeval.config.ts` 的目录，不是 Eval 或 Experiment 文件所在目录。例如 Experiment 在 `experiments/web/no-search.ts`、配置在 `configs/codex/no-web.toml` 时，仍写 `configFile: "configs/codex/no-web.toml"`。
 
@@ -20,7 +20,7 @@ description: "NiceEval 内置的 Sandbox 和非 Sandbox 适配器分别是什么
 - **装原生 Plugin**：`plugins: ClaudeCodePluginSpec[]`，每一项声明 Marketplace 连接（`name` / `source` / 可选 `ref`）和其中的 Plugin 名。这个类型只属于 claude-code，传不进 codex。
 - **官方配置文件**：`settingsFile` 是运行 NiceEval 的机器上的本地项目路径，不是 Sandbox 内路径；它指向一份完整的 Claude Code `settings.json`。路径相对项目根，只允许普通相对路径或 `./` 前缀；`..`、绝对路径、`~` 和解析后逃出项目根的符号链接都会报错。Adapter 从本地读取后上传文件，原样替换 Sandbox 中原本为空的用户级 `~/.claude/settings.json`；不继承宿主机配置，也不 deep merge 或重新序列化。`model` 和 `env` 归 Experiment 和 Adapter 管，出现在文件里会在 `setup` 阶段报错并点名冲突键。Secret 走环境变量，别写进配置文件。
 - **安装后脚本**：`postSetup: SandboxHook[]`，在写 settings、挂 MCP、装 Skill 与 Plugin 全部完成后，按数组顺序在沙箱里跑你的钩子函数。典型用途是运行插件自带的 setup 脚本（比如它要往全局配置里登记 hook）——这类脚本必须等安装产物就位才能跑。钩子抛错算基础设施错误（Attempt 记 errored），不算 agent 答题失败。
-- **tracing**：claude CLI 的 beta 原生遥测（`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`），span 只有结构和计时，细节见 [OTel 接入](/zh/how-to/connect-otel)。
+- **tracing**：claude CLI 的 beta 原生遥测（`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA`），span 只有结构和计时，细节见 [OTel 接入](/zh/tutorials/connect-otel)。
 
 例如，用 `configs/claude-code/no-web.json` 关闭内置联网检索：
 
@@ -110,7 +110,7 @@ export default defineExperiment({
 - **鉴权**：`BUB_API_KEY` + `BUB_API_BASE`（OpenAI 兼容代理），工厂参数 `apiKey` / `apiBase` 可覆盖。
 - **装 Skill**：`skills: SkillSpec[]`，与另外两个 Adapter 同一个类型。装进 `.agents/skills/<name>/`，发现指引写进 AGENTS.md。
 - **装插件**：`pythonPlugins: PythonPluginSpec[]`（`{ package }`：PyPI 包、版本约束或 git URL），`setup` 阶段进 `uv tool install … --with <package>`。这个类型只属于 bub；package 集合进安装 checkpoint key，插件不同的两个变体不会复用同一份安装缓存。
-- **预制 Bub**：NiceEval 的 E2B 配方会把 Bub、OTel 插件和 Python 插件集合算成安装指纹。Adapter 只复用指纹完全一致的环境；仅在 PATH 里放一个 `bub` 不足以证明兼容。构建入口见 [沙箱 provider · 从官方基线继续构建以提速](/zh/how-to/sandbox-providers#从官方基线继续构建以提速)。
+- **预制 Bub**：NiceEval 的 E2B 配方会把 Bub、OTel 插件和 Python 插件集合算成安装指纹。Adapter 只复用指纹完全一致的环境；仅在 PATH 里放一个 `bub` 不足以证明兼容。构建入口见 [沙箱 provider · 从官方基线继续构建以提速](/zh/tutorials/sandbox-providers#从官方基线继续构建以提速)。
 - bub 没有 `mcpServers`——MCP 只属于支持它的 Adapter，Config 上压根没有这个字段。
 - **安装后脚本**：`postSetup: SandboxHook[]`，语义与另外两个 Adapter 相同：全部安装步骤完成后按序在沙箱里跑你的钩子函数。
 - **安装方式**：走 `uv tool install`（PyPI 包，不是 npm 包），首次安装会建 checkpoint 缓存加速后续沙箱。
@@ -176,8 +176,8 @@ export default defineExperiment({
 
 ## 相关阅读
 
-- [接入你的 Agent](/zh/how-to/connect-your-agent) — 全景：experiment 怎么配、eval 怎么写。
-- [Sandbox Agent](/zh/how-to/sandbox-agent) — 怎么运行内置 Sandbox agent，以及怎么写自己的。
+- [接入你的 Agent](/zh/tutorials/connect-your-agent) — 全景：experiment 怎么配、eval 怎么写。
+- [Sandbox Agent](/zh/tutorials/sandbox-agent) — 怎么运行内置 Sandbox agent，以及怎么写自己的。
 - [内置 Agent 能力参考](/zh/reference/builtin-agents) — 每个适配器逐能力盘点、非 Sandbox 适配器的完整代码示例。
-- [OTel 接入](/zh/how-to/connect-otel) — 把 span 发给 [NiceEval](https://niceeval.com/)，换 `niceeval view` 的调用瀑布图。
+- [OTel 接入](/zh/tutorials/connect-otel) — 把 span 发给 [NiceEval](https://niceeval.com/)，换 `niceeval view` 的调用瀑布图。
 - [defineAgent 参考](/zh/reference/define-agent) — `defineAgent` / `defineSandboxAgent` 完整参数。

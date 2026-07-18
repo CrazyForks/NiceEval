@@ -155,7 +155,7 @@ const FLAG_OPTIONS = {
   out: { type: "string" },
   /** `view` 命令专用:指定本地服务器监听端口。 */
   port: { type: "string" },
-  // show 的证据切面 / 时间轴 / 报告装载(docs-site/zh/how-to/viewing-results.mdx)。
+  // show 的证据切面 / 时间轴 / 报告装载(docs-site/zh/tutorials/viewing-results.mdx)。
   // 证据切面只认 `@<locator>`(或收窄到单个 eval 的前缀)选出的那一个 attempt——不再有
   // 数字 `--attempt`,选哪个 attempt 由 locator 精确指名,不是「先选 eval 再挑第几次」。
   /** `show` 命令专用:该 attempt 运行时保存的 Eval 源码,gate/soft 断言标回源码行(证据切面)。 */

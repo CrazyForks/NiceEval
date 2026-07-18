@@ -1,12 +1,12 @@
 ---
-title: "用报告积木搭自己的口径"
+title: "编写自定义报告"
 sidebarTitle: "自定义报告"
-description: "一份报告就是一个报告文件：官方宿主打开结果、注入数据，双面组件让同一份自定义报告同时用于 niceeval show 与 niceeval view。"
+description: "用 defineReport、内置报告组件和双面组件编写一份同时用于 niceeval show 与 niceeval view 的自定义报告。"
 ---
 
-[查看结果](/zh/how-to/viewing-results)讲「用」：官方两扇门 `niceeval show`（终端）和 `niceeval view`（网页）怎么看。本页讲「写」：官方摆法不够时，怎么写一份自己的报告——考试成绩单、代码行数榜、质量 × 成本 frontier。
+[查看结果](/zh/tutorials/viewing-results)介绍 `niceeval show` 的终端输出和 `niceeval view` 的网页输出。本教程使用相同结果数据编写考试成绩单、代码行数表和质量 × 成本图等自定义报告。
 
-一份报告就是一个报告文件。你不用打开结果目录、不用写渲染代码、不用起自己的应用：`niceeval show` / `niceeval view` 本体就是宿主——替你打开结果、把数据注入进来，你用官方组件和 `Row` / `Col` 摆版面，写完把文件路径递给 `--report`，终端和网页两扇门就都认它——官方的证据深链、`--results` 换根、静态导出，自定义报告全部原样享有。
+一份报告对应一个报告文件。`niceeval show` 和 `niceeval view` 会打开结果并向报告函数注入数据。使用内置组件和 `Row` / `Col` 排列版面后，把文件路径传给 `--report`，即可在终端和网页中渲染同一份报告。自定义报告同样支持 Attempt 证据链接、`--results` 指定结果根和静态导出。
 
 ## show / view 的默认报告也是一份报告文件
 
@@ -37,22 +37,22 @@ import { ExperimentComparison, Hero, ScopeWarnings } from "niceeval/report";
 |  | 网页（人看） | 终端（agent 和你看） |
 | --- | --- | --- |
 | 官方默认 | 分组比较报告（网页面） | 同一分组比较报告（文本面） |
-| 自定义摆法 | `niceeval view --report reports/exam.tsx` | `niceeval show --report reports/exam.tsx` |
+| 自定义报告 | `niceeval view --report reports/exam.tsx` | `niceeval show --report reports/exam.tsx` |
 
-四个格子是同一个宿主。自定义只有三个层次，逐层深入：
+自定义报告分为三个层次：
 
-1. **换摆法**：用官方组件和 `Row` / `Col` 重摆版面——大多数「要自己的口径」到这层就够了。
+1. **调整布局**：用内置组件和 `Row` / `Col` 重新排列版面。
 2. **换口径**：`defineMetric` 定义自己的指标，自定义维度和 `flag()` 定义自己的分组。
-3. **换形态**：官方组件摆不出的展示——是表就用 `<Table>` 自定义列，不是表就用 `defineComponent` 写自己的组件，网页怎么渲染、终端字符怎么排，两个面你都说了算。
+3. **自定义组件**：表格使用 `<Table>` 自定义列，其它展示使用 `defineComponent` 分别实现网页和终端渲染。
 
-## 一份报告 = 一个报告文件
+## 创建报告文件
 
 先交代唯一的前置：报告文件是 `.tsx`，写它的项目要装 `react`（写自定义组件的 web 面还要 `@types/react`），tsconfig 里 `compilerOptions.jsx` 设为 `"react-jsx"`。裸跑 `niceeval show` / `niceeval view` 不需要这些——只有自己写报告文件才需要。
 
-报告基座是 `defineReport`：宿主打开结果目录（含 `--results` 指定的结果根）、按官方口径挑好结果快照，注入给你的函数；你只负责折数据和摆积木：
+使用 `defineReport` 创建报告。宿主打开结果目录（包括 `--results` 指定的结果根），按默认规则选择结果快照，再把数据注入报告函数。报告函数负责计算数据并组合组件：
 
 ```tsx
-// reports/exam.tsx —— 一份定义，两扇门共用
+// reports/exam.tsx —— 终端和网页共用一份定义
 import {
   defineReport, Col, Section,
   ExperimentComparison, Scoreboard,
@@ -72,24 +72,24 @@ export default defineReport(async ({ selection }) => {
 
 ```bash
 niceeval show --report reports/exam.tsx    # 终端：同一棵树走文本面
-niceeval view --report reports/exam.tsx    # 网页：同一棵树走网页面，attempt 深链直达证据室
+niceeval view --report reports/exam.tsx    # 网页：渲染网页面，Attempt 链接进入证据页
 ```
 
 注入的上下文只有两样，全部是[结果数据 API](/zh/reference/results-data) 的原语，宿主没有私有通道：`results` 就是 `openResults(".niceeval")` 的返回（实验、历次快照、attempt 级 `diff()`、`trace()` 都在上面）；`selection` 是宿主替你挑好的那份结果。挑选规则是：对每个实验、每道 eval，取该实验历史运行里最新的那次判定——只按前缀重跑了一部分 eval，其余 eval 的判定从更早的运行补齐，不会因为一次局部重跑就整体退回某一份残缺快照。默认报告吃的就是这份 `selection`，快照在 `selection.snapshots`，挑选提醒在 `selection.warnings`。默认挑法不合口径时，拿 `results` 自己挑，手工挑的 `Snapshot[]` 数组同样能喂给每个组件。
 
 报告文件里有两种数据形态。实体列表的 `.data(selection)` 返回普通数组：`ExperimentListItem[]`、`EvalListItem[]`、`AttemptListItem[]`。报告作者用 JavaScript `.filter()` / `.slice()` 决定展示哪些实体，再把数组作为 `items` 传给列表；组件不藏另一套过滤 DSL。指标图形和汇总组件收算好的 `data`；其中 `MetricScatter` 也提供 `selection` 简写，由宿主在渲染前计算。计算后的组件只渲染传入数据，不碰结果目录。
 
-挑选提醒（覆盖不全、快照过期、有没跑完的运行、读不出来的快照）由选择警告（`ScopeWarnings`）组件显示：提醒按实验归组，组头列出实验名、问题标签和一条可复制的重跑命令，每条提醒的原文收在组内可展开的折叠块里（提醒少时默认展开），读不出来的快照单独归成一组。默认报告每一页都摆了它；自己的报告想显示提醒，就在页首摆一个 `<ScopeWarnings />`——不摆就不显示，数字是否附带完整性提醒由你对读者负责。
+选择警告（`ScopeWarnings`）组件显示覆盖不全、快照过期、运行未完成和快照读取失败等提醒。提醒按 Experiment 分组，组头列出实验名、问题标签和可复制的重跑命令；每条原文位于可展开区域中。默认报告的每一页都包含该组件。自定义报告需要显示提醒时，在页首添加 `<ScopeWarnings />`。
 
-命令行的范围先作用在挑选上，报告拿到的就是收窄到这个范围后的 `selection`：位置参数的 eval id 前缀收窄 Selection 覆盖的 eval（覆盖提醒的分母同样收窄到范围内），`--results` 把结果根换成指定目录，`--exp` 让 Selection 只留该实验。`--history` 与 `--report` 互斥——趋势在报告里用 `exp.snapshots` 自己摆；证据切面（`--eval` / `--execution` / `--diff`）只看证据，不渲染报告。
+命令行的范围先作用在挑选上，报告拿到的就是收窄到这个范围后的 `selection`：位置参数的 eval id 前缀收窄 Selection 覆盖的 eval（覆盖提醒的分母同样收窄到范围内），`--results` 把结果根换成指定目录，`--exp` 让 Selection 只留该实验。`--history` 与 `--report` 互斥——趋势在报告里用 `exp.snapshots` 自行组织；证据视图（`--eval` / `--execution` / `--diff`）只看证据，不渲染报告。
 
 页面里的每个组件都是**双面**的：网页面是 React 渲染，终端面是字符渲染，两面吃同一份算好的数据。实体列表按 experiment → Eval → Attempt 展示事实；指标表、矩阵、条形图、成绩单、散点图、趋势图和差异表展示聚合值。完整清单见[报告组件](/zh/reference/report-components)。网页面的实体、格子和点深链到 Attempt 详情，终端面印出对应的 `niceeval show <eval id>` 下钻命令。
 
-默认报告没有特权：它的三个页面全部由公开组件搭成，你的报告和它同级。需要同样的“按目录分组、组内比较”摆法就直接写 `<ExperimentComparison />`，需要 Attempts 页就写带过滤的 `<AttemptList />`，不需要就不摆——包括页首标题区和 `Powered by NiceEval` 品牌行：它们分别是 `Hero` 和 `PoweredBy` 组件，用了就带、不用就没有，组件本身不提供开关。自己直接组合 `MetricScatter` / `ExperimentList` 时，通用组件只消费你传入的数据，不会自动分组；把跨组数据传进去就表示你明确要做跨组分析。
+默认报告没有特权：它的三个页面全部由公开组件搭成，你的报告和它同级。需要同样的“按目录分组、组内比较”布局就直接写 `<ExperimentComparison />`，需要 Attempts 页就写带过滤的 `<AttemptList />`，不需要就不添加——包括页首标题区和 `Powered by NiceEval` 品牌行：它们分别是 `Hero` 和 `PoweredBy` 组件，用了就带、不用就没有，组件本身不提供开关。自己直接组合 `MetricScatter` / `ExperimentList` 时，通用组件只消费你传入的数据，不会自动分组；把跨组数据传进去就表示你明确要做跨组分析。
 
 ## 排版：Row 与 Col 在两个面都成立
 
-排版原语也是双面组件，一次摆放，两个面各自成立：
+排版原语也是双面组件，同一份布局会分别渲染到网页和终端：
 
 - **`<Col>`**：纵向依次排列——网页是块级堆叠，终端是逐块输出。
 - **`<Row>`**：并排——网页是横向排布，终端是字符分栏；终端宽度不够时自动降级为纵向，不硬挤。
@@ -116,12 +116,12 @@ codex  78.0/100   40/50    38/50    │  codex  80%   $0.51
 
 ## 按组摘要：GroupSummary
 
-想把实验按目录前缀分组、每组顶部摆一块紧凑统计（通过率、experiment/eval 数、failed/errored、总成本、最后运行时间），用官方组件 `GroupSummary`。它的计算函数 `GroupSummary.data` 只吃一份已经收窄好的 Selection——不管你怎么分组，把对应组的 Selection 传进去，就是同一套折叠口径（eval 级折叠计票、null-safe 总成本、组内最后运行时间的最大值），不是另一套近似公式。
+使用 `GroupSummary` 可以按目录前缀为每组 Experiment 添加紧凑统计，包括通过率、Experiment/Eval 数、failed/errored、总成本和最后运行时间。`GroupSummary.data` 接收一份已经收窄的 Selection，并使用固定的 Eval 级折叠、null-safe 总成本和组内最后运行时间计算规则。
 
-常见的分法是按 experiment id 的目录前缀（`compare/bub-low` 属于组 `compare`，顶层实验以自己的完整 id 形成单例组）；用 `Selection.filter` 收窄出每组的 Selection，就能一组摆一块：
+常见的分法是按 experiment id 的目录前缀（`compare/bub-low` 属于组 `compare`，顶层实验以自己的完整 id 形成单例组）；用 `Selection.filter` 收窄出每组的 Selection，就能一组添加一块：
 
 ```tsx
-// reports/groups.tsx —— 按 experiment id 前缀分组，每组顶部摆一块统计
+// reports/groups.tsx —— 按 experiment id 前缀分组，每组顶部添加一块统计
 import { defineReport, Col, Section, GroupSummary } from "niceeval/report";
 import type { Snapshot } from "niceeval/report";
 
@@ -154,7 +154,7 @@ Pass rate 60% · 2 experiments · 6 evals · failed 1 · errored 1 · $1.50
 latest 2026-07-01T11:30:00Z
 ```
 
-`GroupSummary` 之后想接着摆散点图或实验列表，把同一份 `scoped` Selection 传给散点图，再用 `await ExperimentList.data(scoped)` 得到可自行过滤的 experiment 数组。想自由换行维度和指标列，再用下面的通用 `MetricTable`。
+在 `GroupSummary` 后添加散点图或 Experiment 列表时，把同一份 `scoped` Selection 传给散点图，再用 `await ExperimentList.data(scoped)` 得到可自行过滤的 Experiment 数组。需要自定义行维度和指标列时，使用下文的通用 `MetricTable`。
 
 ## 换口径：自定义指标
 
@@ -216,7 +216,7 @@ codex   80%         355 lines    $0.51
 - **自定义维度**：`{ name, of }`，一个纯函数吃 attempt、吐组名。定义只住在报告文件里，不用改任何 experiment 文件。
 - **`flag()`**：引用 experiment 用 `flags` 声明的变量。
 
-选哪种看变量住在哪：分组能从结果已有数据**算**出来的，用自定义维度——报告只管「怎么摆」，不反过来要求 experiment 为一种摆法改配置；变量是 experiment 本身的**配置**——scaling 档位、要当数值轴用、要在 experiment 定义处一眼看到的——才声明成 `flags`，报告用 `flag()` 引用。数值轴（`MetricLine` 的 `x`）只收 `flag()`：刻度必须来自声明的数值，函数派生的组名当不了刻度。
+分组可从现有结果数据**计算**时，使用自定义维度；报告布局不要求 Experiment 为展示方式增加配置。变量属于 Experiment 配置时，例如 scaling 档位或数值轴数据，才声明为 `flags`，并在报告中用 `flag()` 引用。`MetricLine` 的 `x` 轴只接收 `flag()`，因为刻度必须来自声明的数值。
 
 ### 自定义维度：从已有数据派生分组
 
@@ -263,11 +263,11 @@ export default defineExperiment({
 })} />
 ```
 
-`flag()` 用在维度槽（`series` / `rows` / `columns` / `points`）就按声明值分组，用在轴槽（`x`）就要求数值并驱动刻度。没有声明该 flag 的 experiment 不猜：分组时如实归入「未配置」一组，作轴时该点不画、注脚报数。flags 随快照落盘，所以历史 run 也能按当时声明的变量重摆——报告读的是配置的事实，不是命名的巧合。
+`flag()` 用在维度槽（`series` / `rows` / `columns` / `points`）时按声明值分组，用在轴槽（`x`）时要求数值并驱动刻度。未声明该 flag 的 Experiment 在分组时归入「未配置」，用作坐标轴时不绘制该点并在注脚中计数。Flags 随快照落盘，因此历史 run 也能按当时声明的变量重新分组。
 
 ## 换形态：表格用 Table，其余自己画
 
-官方组件摆不出来的展示分两种，各走一条路：是一张表，用排版原语 `<Table>`；不是表（通过率条形、预算燃尽、项目自己的徽章），用 `defineComponent` 写自己的双面组件。
+内置组件未覆盖的展示分为两类：表格使用排版原语 `<Table>`；通过率条形图、预算燃尽图和项目徽章等其它展示使用 `defineComponent` 编写双面组件。
 
 ### 一张表：`<Table>`
 
@@ -313,13 +313,13 @@ codex       80%   $0.51
 克劳德        —       —
 ```
 
-列宽按**终端显示宽度**算：一个汉字占 2 列，所以中文 agent 名、中文题目名都不会把表撕歪。`align: "right"` 让数字列右对齐。格子给 `null` 就渲染 `—`，不补 0。行上带 `locator` 就多出一列 attempt，网页面点进证据室、终端面把 locator 交给 `niceeval show`。完整字段见[报告组件](/zh/reference/report-components)的「表格」一节。
+列宽按**终端显示宽度**计算，一个汉字占 2 列。`align: "right"` 让数字列右对齐。单元格值为 `null` 时渲染 `—`，不补 0。行上包含 `locator` 时会增加 Attempt 列；网页链接进入 Attempt 证据页，终端把 locator 交给 `niceeval show`。完整字段见[报告组件](/zh/reference/report-components)的「表格」一节。
 
 ### 不是表：`defineComponent` 加文本排版函数
 
 `defineComponent` 声明两个渲染面，和 `defineExperiment` / `defineMetric` / `defineReport` 同一个家族。终端面要自己排字符，用 `niceeval/report` 导出的这组函数——官方组件排的就是这几把尺子：
 
-| 函数 | 干什么 |
+| 函数 | 用途 |
 | --- | --- |
 | `stringWidth(text)` | 显示宽度：CJK 和全角字符记 2 列，其余记 1 列 |
 | `padEnd(text, width)` | 按显示宽度在右侧补齐（左对齐） |
@@ -392,7 +392,7 @@ codex   ████████████████░░░░  80%
 组件的契约：
 
 - **计算在报告函数体里，渲染面是纯函数。** 读 attempt 句柄、`await` 折数据都发生在 `defineReport` 的函数体里；`web` 和 `text` 只认算好的数据，零 IO、同步——这条边界让同一棵树能被烘进静态导出。
-- **面收第二参上下文。** `text(props, ctx)` 的 `ctx.width` 是可用列宽（`Row` 分栏后会变窄），`ctx.attemptCommand(ref)` 生成下钻命令；`web(props, ctx)` 的 `ctx.attemptHref(ref)` 生成证据室深链——自定义组件和官方组件通到同一间证据室。
+- **渲染面接收上下文参数。** `text(props, ctx)` 的 `ctx.width` 是可用列宽（`Row` 分栏后会变窄），`ctx.attemptCommand(ref)` 生成查看命令；`web(props, ctx)` 的 `ctx.attemptHref(ref)` 生成 Attempt 证据链接。自定义组件与内置组件使用相同证据页。
 - **网页面静态渲染，不 hydrate。** 宿主在计算侧把 `web` 面渲染成静态 HTML，不打包你的代码进查看器：交互用普通链接和 `<details>`，与官方组件同一条静态契约。
 - **样式随树带走。** 静态导出不打包你的代码，`className` 引用的 CSS 用内置原语 `<Style>{css}</Style>` 放进页面树——web 面吐 `<style>` 标签，text 面渲染为空，上面的例子就是这么给 `.passbars` 上样式的。
 - **诚实契约同样适用。** 缺数据渲染 `—` 不补 0，截断如实标注剩余数量——上面例子里 `claude` 没有样本就是 `—`。
@@ -405,10 +405,10 @@ codex   ████████████████░░░░  80%
 niceeval view --report reports/exam.tsx --out site
 ```
 
-产物是纯静态文件：你的报告页是首页，证据室（transcript、trace、代码视图）在同一站内，报告里的每个数字点进去就是证据。组件不 hydrate；页面内联一小段官方脚本，提供表头排序、行过滤、图表悬停这些浏览操作，浏览器禁用 JS 时页面仍完整可读。交给任何静态托管即可。CI 上没有 `.niceeval/` 时，先用 `copySnapshots` 把快照瘦身进仓库再导出，流程见[查看结果](/zh/how-to/viewing-results#导出与静态托管)。
+产物是纯静态文件。报告页是首页，transcript、trace 和代码等 Attempt 证据位于同一站点，报告中的数值可以链接到对应证据。组件不 hydrate；页面内联脚本提供表头排序、行过滤和图表悬停。浏览器禁用 JavaScript 时页面仍完整可读。CI 上没有 `.niceeval/` 时，先用 `copySnapshots` 生成经过大小检查的结果目录，再执行导出，流程见[查看结果](/zh/tutorials/viewing-results#导出与静态托管)。
 
-双面组件的网页面就是普通 React 组件，`data` 函数就是普通 TS 函数——想把某一块指标表嵌进已有的内部面板，import 组件喂数据就行。那是零件的复用，不是另一套报告系统：报告的家在官方宿主。算数据与渲染分离部署时（CI 落 JSON、另一个应用 fetch），两侧锁同一个 niceeval 版本是硬要求——组件数据不带版本戳，兼容性跟随包版本。
+双面组件的网页面是普通 React 组件，`data` 函数是普通 TypeScript 函数。需要在现有内部面板中复用指标表时，可以 import 组件并传入数据。计算与渲染分开部署时（例如 CI 生成 JSON、另一个应用 fetch），两侧必须使用相同 NiceEval 版本；组件数据不带版本信息，兼容性跟随包版本。
 
-## 界线：内置命令不长配置
+## 自定义报告的边界
 
 一次只渲染一份报告，`--report` 收显式文件路径——没有 `reports/` 目录自动发现、没有插件注册表、没有配置文件。自定义指标和自定义组件都住在你的报告文件里，随文件一起递入，宿主不为它们长任何注册面。不传 `--report` 时渲染的就是默认报告，你的报告和它是同级实现。

@@ -4,9 +4,9 @@ sidebarTitle: "快速开始"
 description: "安装 NiceEval，写三个文件，10 分钟内对你自己的应用跑通第一条 eval。"
 ---
 
-接入你自己的应用只需要三个文件：一个 **adapter**（怎么调你的应用）、一个 **experiment**（评谁、跑几次）、一条 **eval**（断言什么）。下面是完整的最短路径；写给 coding agent 的一键接入和场景示例在后面。
+接入应用需要三个文件：一个 **Adapter** 负责调用应用，一个 **Experiment** 固定被测对象和运行次数，一条 **Eval** 定义断言。以下步骤提供完整的最短路径，并分别覆盖 Coding Agent 自动接入和人工接入。
 
-## 让 AI 帮你接入 (推荐)
+## 使用 Coding Agent 接入（推荐）
 <Steps>
   <Step title="安装">
     ```text
@@ -21,7 +21,7 @@ description: "安装 NiceEval，写三个文件，10 分钟内对你自己的应
   </Step>
   <Step title="查看结果">
     ```bash
-    pnpm exec niceeval show         # 终端摘要，适合直接交给 AI 阅读
+    pnpm exec niceeval show         # 终端摘要，适合 Coding Agent 读取
     pnpm exec niceeval view         # 网页查看器，适合人浏览证据
     ```
   </Step>
@@ -36,7 +36,7 @@ pnpm exec niceeval init
 ```
 
 ### Adapter
-Adapter 是连接 Agent 与 [NiceEval](https://niceeval.com/) 的中间层。有三种不同程序的接入方式，从无侵入式到部分修改你的 Agent 代码，来解锁更有用的评估功能。 见[Tier](/zh/explanation/tier)。
+Adapter 连接 Agent 与 [NiceEval](https://niceeval.com/)。三种接入等级从无侵入连接到修改 Agent 配置，分别提供不同的评估能力，见 [Tier](/zh/explanation/tier)。
 
 ```ts
 // agents/my-bot.ts
@@ -101,11 +101,11 @@ pnpm exec niceeval view         # 需要交互浏览时打开本地查看器
 
 到这里第一条 eval 已经跑通。
 
-这个最小 adapter 是**单轮**的——第二轮不会记得第一轮说了什么，因为还没告诉应用怎么接上历史。多轮会话和工具调用事件（解锁 `t.calledTool()`）、HITL、tracing 一样，都是之后给 adapter 加的可选增量：顺着[接入你的 Agent](/zh/how-to/connect-your-agent)逐层往下走即可，已写的 eval 不用改。
+这个最小 Adapter 只支持**单轮**调用，第二轮不会携带第一轮的历史。多轮会话、工具调用事件（供 `t.calledTool()` 使用）、HITL 和 tracing 都是后续可选能力。按[接入你的 Agent](/zh/tutorials/connect-your-agent)继续扩展时，已有 Eval 不需要修改。
 
 ## 对照完整项目
 
-第一条 Eval 跑通后，再到 [Examples](/zh/examples) 按被测对象选择完整项目。那里提供可运行源码；通用操作步骤仍以 How-to Guides 为准。
+第一条 Eval 跑通后，再到 [Examples](/zh/examples) 按被测对象选择完整项目。那里提供可运行源码；通用操作步骤在 Tutorials 的对应任务页中。
 
 ## 放进 CI
 
@@ -123,5 +123,5 @@ jobs:
 ```
 
 <Tip>
-  接下来读 [编写 eval](/zh/how-to/authoring) 和 [评分指南](/zh/how-to/scoring-guide)，把示例替换成你的真实场景。
+  阅读 [编写 Eval](/zh/tutorials/authoring) 和 [评分指南](/zh/tutorials/scoring-guide)，再把示例替换成真实场景。
 </Tip>

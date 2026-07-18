@@ -13,4 +13,4 @@
 
 ## 落点
 
-docs:`docs/feature/reports/library/built-in.md`(重写)、`shell.md`(ReportDef 三选一 + extends 合并语义)、`README.md` / `concepts.md` / `source-map.md`;docs-site:`zh/how-to/custom-reports.mdx`、`zh/how-to/publish-report.mdx`。代码:`src/report/report.ts`(defineReport extends 折叠)、`src/report/built-in/standard.tsx` + `index.tsx`(视图集合)、`src/show/report-host.ts`(报错下一步文案)。测试:`src/report/dual-render.test.tsx`「extends 与内建视图集合」。注意 `./report/built-in` 的 exports 指向 dist——改 src 后必须 `pnpm run build:report`,否则外部 repo 报「does not provide an export named 'standard'」。
+docs:`docs/feature/reports/library/built-in.md`(重写)、`shell.md`(ReportDef 三选一 + extends 合并语义)、`README.md` / `concepts.md` / `source-map.md`;docs-site:`zh/tutorials/custom-reports.mdx`、`zh/tutorials/publish-report.mdx`。代码:`src/report/report.ts`(defineReport extends 折叠)、`src/report/built-in/standard.tsx` + `index.tsx`(视图集合)、`src/show/report-host.ts`(报错下一步文案)。测试:`src/report/dual-render.test.tsx`「extends 与内建视图集合」。注意 `./report/built-in` 的 exports 指向 dist——改 src 后必须 `pnpm run build:report`,否则外部 repo 报「does not provide an export named 'standard'」。

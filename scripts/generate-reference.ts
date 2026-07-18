@@ -571,14 +571,14 @@ export function regenerateReferenceDoc(file: string, mdxContent: string, sources
 /** 包根 INDEX.md 里生成树的 region id;Markdown 文件用 HTML 注释标记(见 replaceMdRegion)。 */
 export const BUNDLED_INDEX_REGION = "bundled-docs-tree";
 
-/** 一个随包正文页:路径相对仓库根(如 `docs-site/zh/how-to/fixtures.mdx`)+ 文件内容。 */
+/** 一个随包正文页:路径相对仓库根(如 `docs-site/zh/tutorials/fixtures.mdx`)+ 文件内容。 */
 export interface ZhPage {
   path: string;
   content: string;
 }
 
 /** 树的顶层目录顺序,按 agent 的使用顺序排;清单外的新目录自动排在其后(字典序),不需要改生成器。 */
-const ZH_DIR_ORDER = ["tutorials", "explanation", "how-to", "reference", "troubleshooting", "examples"];
+const ZH_DIR_ORDER = ["tutorials", "explanation", "reference", "troubleshooting", "examples"];
 
 /** 站点导航入口不进树:它们服务网站导航,对包内读者没有路由价值。 */
 function isNavEntryPage(relPath: string): boolean {

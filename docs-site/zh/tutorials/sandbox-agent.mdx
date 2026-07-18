@@ -63,7 +63,7 @@ export default defineExperiment({
 });
 ```
 
-Claude Code 使用 `correctroads-default-team/niceeval-claude-code:v0.6.1`，Bub 使用 `correctroads-default-team/niceeval-bub:v0.6.1`。版本 tag 适合 CI；省略 tag 会跟随当前稳定构建。如何继续增加系统包、二进制或模型缓存，见 [沙箱 provider · 从官方基线继续构建以提速](/zh/how-to/sandbox-providers#从官方基线继续构建以提速)。
+Claude Code 使用 `correctroads-default-team/niceeval-claude-code:v0.6.1`，Bub 使用 `correctroads-default-team/niceeval-bub:v0.6.1`。版本 tag 适合 CI；省略 tag 会跟随当前稳定构建。添加系统包、二进制或模型缓存的步骤见 [Sandbox Provider · 从官方基线继续构建以提速](/zh/tutorials/sandbox-providers#从官方基线继续构建以提速)。
 
 内置 agent 从 `niceeval/adapter` 导出的是工厂函数。需要配置鉴权、代理、MCP 或 GitHub skill 时，把这些写进工厂参数；模型仍然写在 experiment 的 `model` 字段，sandbox provider 仍然写在 `sandbox` 字段：
 
@@ -120,7 +120,7 @@ createSandbox
 
 `t.sandbox.diff` 与 `t.sandbox.fileChanged()` 只包含 **agent 在 `t.send()` 期间改动的文件**：NiceEval 在每次 `t.send()` 前后记录一次工作区状态，把中间的变化记在 agent 名下。你上传的起始文件、`t.send()` 之后写入的验证材料都不会混进来，所以 `fileChanged("src/app.ts")` 只在 agent 真的动过这个文件时通过。
 
-环境钩子（`.setup()` / `.teardown()`）挂在 experiment `sandbox` 字段的 spec 上，用来做"按实验变化的环境准备"——装某个实验专属的二进制、预热、跨 attempt 载入和回存状态。它写下的文件属于环境，不会被算进 agent 产出的 diff。写法和规则见 [沙箱 provider · 环境钩子](/zh/how-to/sandbox-providers#环境钩子)。
+环境钩子（`.setup()` / `.teardown()`）挂在 experiment `sandbox` 字段的 spec 上，用来做"按实验变化的环境准备"——装某个实验专属的二进制、预热、跨 attempt 载入和回存状态。它写下的文件属于环境，不会被算进 agent 产出的 diff。写法和规则见 [沙箱 provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
 
 ## 自定义 sandbox agent
 
@@ -172,7 +172,7 @@ export default defineSandboxAgent({
 
 ## `ctx.model` 与 `ctx.flags`
 
-experiment 声明的 model 和 flags 会出现在 adapter context 中。adapter 可以决定如何把它们转成 CLI 参数或 HTTP payload。
+Experiment 声明的 model 和 flags 会出现在 Adapter context 中。Adapter 可以把它们转换成 CLI 参数或 HTTP payload。
 
 ## 在 experiment 中使用自定义 agent
 

@@ -133,7 +133,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     "trace.clickDetails": "点击行查看详情",
     "trace.enableHint": "这次运行没有 trace。接入 OTel 才有调用瀑布图——看",
     "trace.enableHintLink": "OTel 接入指南",
-    "trace.enableHintUrl": "https://niceeval.com/docs/zh/how-to/connect-otel",
+    "trace.enableHintUrl": "https://niceeval.com/docs/zh/tutorials/connect-otel",
     "transcript.noEvents": "没有事件",
     "transcript.user": "user",
     "transcript.assistant": "assistant",

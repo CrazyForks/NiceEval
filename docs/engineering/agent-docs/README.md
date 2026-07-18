@@ -1,6 +1,6 @@
 # 随包 AI 文档（agent-docs）
 
-Coding agent 在用户项目里接入 niceeval、编写配置和 Eval 时，如果依赖训练数据或官网，读到的可能是另一个版本的 API。本机制把中文文档随 npm 包发布，让 agent 永远读「与当前安装版本一起发布」的文档：官网服务人，`node_modules/niceeval/` 里的文档服务 AI。用户面契约（AI 应该怎么读、init 写什么）单源在 [`docs-site/zh/how-to/agent-feedback-loop.mdx`](../../../docs-site/zh/how-to/agent-feedback-loop.mdx) 与 [`docs-site/zh/reference/cli.mdx`](../../../docs-site/zh/reference/cli.mdx)；本篇只定义仓库侧的打包、发现与守护机制。
+Coding agent 在用户项目里接入 niceeval、编写配置和 Eval 时，如果依赖训练数据或官网，读到的可能是另一个版本的 API。本机制把中文文档随 npm 包发布，让 agent 永远读「与当前安装版本一起发布」的文档：官网服务人，`node_modules/niceeval/` 里的文档服务 AI。用户面契约（AI 应该怎么读、init 写什么）单源在 [`docs-site/zh/tutorials/agent-feedback-loop.mdx`](../../../docs-site/zh/tutorials/agent-feedback-loop.mdx) 与 [`docs-site/zh/reference/cli.mdx`](../../../docs-site/zh/reference/cli.mdx)；本篇只定义仓库侧的打包、发现与守护机制。
 
 ## 打包方案：原样发布，不转换
 

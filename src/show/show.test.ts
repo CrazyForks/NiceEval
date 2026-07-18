@@ -1,5 +1,5 @@
 // cases: docs/engineering/unit-tests/reports/cases.md
-// niceeval show 终端宿主的测试(行为规范:docs-site/zh/how-to/viewing-results.mdx;
+// niceeval show 终端宿主的测试(行为规范:docs-site/zh/tutorials/viewing-results.mdx;
 // 组合语义:docs/feature/reports/architecture.md「Selection 是计算入口」)。覆盖:
 // - 榜单合成口径:每 experiment × eval 取最新判定,局部重跑从更早快照补齐,头部标注合成自几个快照;
 // - 前缀过滤收窄 Selection,覆盖警告分母 = 已知并集 ∩ 范围;

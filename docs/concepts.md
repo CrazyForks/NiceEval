@@ -127,7 +127,7 @@
 
 **Task** —— 要让被测对象完成的"那件事"。不管会话型还是沙箱型,都是一串 `t.send(...)` 的输入——沙箱型只是 `t` 多了 `t.sandbox`,任务本身照样写在 `t.send(...)` 里。Task 描述意图,不描述如何判分。
 
-**Agent** —— "一条连到 AI 的连接"的抽象,由 experiment 引用。`Agent.kind` 只有两类:`"remote"`(按你自己服务的协议发请求,`defineAgent` 产出)、`"sandbox"`(在 [Sandbox](#sandbox) 里 spawn coding agent 的 CLI,`defineSandboxAgent` 产出)。进程内直调你的函数不是独立的第三类——它只是 `kind: "remote"` 的 `send` 里选择怎么实现的一种写法,而且不是推荐写法(测函数不等于测生产路径,详见[接入你的 Agent · 为什么不直调](../docs-site/zh/how-to/connect-your-agent.mdx))。运行器只认统一动词 `send`,`t` 上暴露哪些动作由 Agent 的[能力](#capability)决定——能力不是声明出来的,是 `send` 实际做到了什么的构造证据。niceeval 不定义任何 agent 协议,所以没有 `--url`、没有通用 http target —— 连你自己的服务也是写一个 agent,URL 是它的内部配置。详见 [Agents 与 Adapters](feature/adapters/README.md)。
+**Agent** —— "一条连到 AI 的连接"的抽象,由 experiment 引用。`Agent.kind` 只有两类:`"remote"`(按你自己服务的协议发请求,`defineAgent` 产出)、`"sandbox"`(在 [Sandbox](#sandbox) 里 spawn coding agent 的 CLI,`defineSandboxAgent` 产出)。进程内直调你的函数不是独立的第三类——它只是 `kind: "remote"` 的 `send` 里选择怎么实现的一种写法,而且不是推荐写法(测函数不等于测生产路径,详见[接入你的 Agent · 为什么不直调](../docs-site/zh/tutorials/connect-your-agent.mdx))。运行器只认统一动词 `send`,`t` 上暴露哪些动作由 Agent 的[能力](#capability)决定——能力不是声明出来的,是 `send` 实际做到了什么的构造证据。niceeval 不定义任何 agent 协议,所以没有 `--url`、没有通用 http target —— 连你自己的服务也是写一个 agent,URL 是它的内部配置。详见 [Agents 与 Adapters](feature/adapters/README.md)。
 
 **Scorer** / **评分器** —— 把"结果"映射成分数的东西。三类:**值断言**(`expect` 里的 `includes`/`equals`/`matches`…;`check` 记录并继续,`require` 作为前置条件立即等待并失败中止)、**作用域断言**(`t.succeeded()`/`t.calledTool()`…,在 `test` 结束后对本次 eval run 聚合评估;同一套断言挂在 [Session](#运行与结果) 上则只看这条 session,挂在 [Turn](#运行与结果) 上则只看这一个 Turn)、**LLM-as-judge**(用一个大模型当裁判给开放式回答打分)。沙箱型里,手工在沙箱内跑验证命令,再用 `t.check(result, commandSucceeded())` 判定,本身也是一种 Scorer。
 

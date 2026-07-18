@@ -63,4 +63,4 @@ No results matched: 1qrdcfq8. Evals with results: memory/agent-037-updatetag-cac
 
 - [Reports Library](library.md) —— `--report` 文件怎样写。
 - [Results](../results/README.md) —— show 读取的文件和 artifact。
-- [Agent 反馈闭环](../../../docs-site/zh/how-to/agent-feedback-loop.mdx) —— 在 AI 自迭代中组合这些命令。
+- [Agent 反馈闭环](../../../docs-site/zh/tutorials/agent-feedback-loop.mdx) —— 在 AI 自迭代中组合这些命令。

@@ -135,7 +135,7 @@ export const zhCN = {
   "cli.resultsPath": "结构化结果:{{path}}(snapshot.json + 每 attempt 的 result.json / events.json / trace.json / diff.json)\n",
   "cli.run.experimentRequired":
     "运行 eval 必须通过 experiment:用 `niceeval exp [实验组|配置] [eval id 前缀]`。\n" +
-    "  文档:node_modules/niceeval/docs-site/zh/how-to/write-experiment.mdx\n",
+    "  文档:node_modules/niceeval/docs-site/zh/tutorials/write-experiment.mdx\n",
   "cli.run.experimentRequiredHint": "提示:\"{{pattern}}\" 是实验{{kind}},你大概想跑:niceeval exp {{pattern}}\n",
   "cli.run.experimentRequiredKnown": "已发现实验:{{experiments}}\n",
   "cli.unimplemented": "命令 \"{{command}}\" 暂未实现(MVP)。\n",
@@ -146,7 +146,7 @@ export const zhCN = {
   "cli.view.url": "niceeval view: {{url}}\n",
   "context.capabilityMissing":
     "agent \"{{agent}}\" 不是沙箱型(defineSandboxAgent 构造),t.{{method}} 这类断言只有沙箱型 agent 可用。换用 defineSandboxAgent 构造的 agent,或去掉这条断言。\n" +
-    "  文档:node_modules/niceeval/docs-site/zh/how-to/sandbox-agent.mdx",
+    "  文档:node_modules/niceeval/docs-site/zh/tutorials/sandbox-agent.mdx",
   "context.skipEmpty": "skip() 需要一个非空理由。",
   "context.turnFailed": "本轮 send 返回 failed(turn status = failed):{{message}}",
   "context.turnFailedDefault": "本轮 send 返回 failed(turn status = failed)",
@@ -280,7 +280,7 @@ export const zhCN = {
   "sandbox.providerNotImplemented": "{{provider}} sandbox provider not implemented; use docker, vercel, or e2b",
   "sandbox.missingSpec":
     "沙箱型 agent 需要一个 sandbox,但没有提供。niceeval 不再自动选默认 provider——请在 defineExperiment()/defineConfig() 里把 sandbox 设成 dockerSandbox() / vercelSandbox() / e2bSandbox()(从 \"niceeval/sandbox\" 导入)。\n" +
-    "  文档:node_modules/niceeval/docs-site/zh/how-to/sandbox-providers.mdx",
+    "  文档:node_modules/niceeval/docs-site/zh/tutorials/sandbox-providers.mdx",
   "sandbox.dependencyMissing.docker": "Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode",
   "sandbox.dependencyMissing.e2b": "E2B sandbox requires 'e2b'. Install it with: pnpm add e2b",
   "sandbox.dependencyMissing.vercel": "Vercel sandbox requires '@vercel/sandbox'. Install it with: pnpm add @vercel/sandbox",

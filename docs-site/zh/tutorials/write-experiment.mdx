@@ -1,7 +1,7 @@
 ---
 title: "写实验：用 defineExperiment 固定运行配置"
 sidebarTitle: "写实验"
-description: "学习如何在 experiments/ 里用 defineExperiment 选择 agent、传 model 和 flags、设置 runs、预算、并发与 sandbox。"
+description: "在 experiments/ 中用 defineExperiment 选择 Agent、传递 model 和 flags，并设置 runs、预算、并发与 sandbox。"
 ---
 
 Experiment 是可签入的运行配置：同一批 eval 对着哪个 adapter、哪个模型、开哪些 flags、跑几次、预算多少，都写在 `experiments/` 里。CLI 的位置参数只负责筛 eval，不负责临时改 agent 或运行配置。
@@ -64,7 +64,7 @@ async send(input, ctx) {
 }
 ```
 
-## 一组实验怎么写
+## 编写一组实验
 
 一个实验文件是一格配置。要比较多个模型、agent 或 flag 取值，就把多个文件放进同一个文件夹：
 
@@ -105,8 +105,30 @@ npx niceeval exp prompt-variants/concise
 | `budget` | 这一格配置的预算上限 |
 | `maxConcurrency` | 这一格配置的并发上限 |
 | `sandbox` | sandbox agent 使用的固定 spec；spec 可带 `environments` 表按 eval 的环境 profile 换预制产物，也可以链 `.setup()` / `.teardown()` 挂环境钩子 |
+| `setup` | 实验级钩子：整个实验只跑一次、在你自己的机器上执行，启动全部 Attempt 共享的服务；返回的清理函数在实验结束后执行（见下） |
 
-Experiment 本身是纯配置数据，没有 `setup` / `teardown` 这类字段。要在跑 agent 前按实验准备环境（装二进制、预热、跨 attempt 载入和回存状态），挂在 `sandbox` 字段的 spec 上：
+## 启动 Experiment 共享服务
+
+有些资源是「一个实验一份、所有 Attempt 共用」的：一条到内网记忆服务的隧道、一个实验专用的 mock server、一个 license 租约。把它写进 `setup`——NiceEval 在这个实验第一个 Attempt 派发前调用它一次，`setup` 返回的函数在全部 Attempt 结束后执行（运行被中断也执行）：
+
+```ts
+// setup 拿到的地址、密钥放模块变量：同文件的 agent 每个 Attempt 都会执行，直接读它。
+let tunnel: { url: string; apiKey: string; stop(): Promise<void> };
+
+export default defineExperiment({
+  agent: nowledgeAgent(() => ({ url: tunnel.url, apiKey: tunnel.apiKey })),
+  evals: ["memory/"],
+  async setup(ctx) {
+    ctx.progress({ message: "starting nowledge tunnel" });
+    tunnel = await nowledgeTunnel({ signal: ctx.signal });
+    return () => tunnel.stop();
+  },
+});
+```
+
+`setup` 抛错时，这个实验的每条 Attempt 都记为 `errored`（错误码 `experiment-setup-failed`）、逐条进报告；同一批的其它实验照常跑。上一次的结果全部被复用、一个 Attempt 都不需要真正运行时，`setup` 不会执行。
+
+`setup` 只管「在你机器上、一个实验一份」的服务。要在跑 agent 前按实验在**沙箱里**准备环境（装二进制、预热、跨 attempt 载入和回存状态），挂在 `sandbox` 字段的 spec 上：
 
 ```ts
 export default defineExperiment({
@@ -118,9 +140,9 @@ export default defineExperiment({
 });
 ```
 
-固定的 Agent CLI、系统包和大模型缓存应先做进 image/template/snapshot；`.setup()` 不应在每个 Attempt 重建同一套环境。如何从官方 Docker 镜像、E2B 模板或 Vercel runtime 继续派生来提速，见 [沙箱 provider · 从官方基线继续构建以提速](/zh/how-to/sandbox-providers#从官方基线继续构建以提速)。
+固定的 Agent CLI、系统包和大模型缓存应先做进 image/template/snapshot；`.setup()` 不应在每个 Attempt 重建同一套环境。从官方 Docker 镜像、E2B 模板或 Vercel runtime 派生预制环境的步骤见 [Sandbox Provider · 从官方基线继续构建以提速](/zh/tutorials/sandbox-providers#从官方基线继续构建以提速)。
 
-钩子的执行时机、多钩子顺序和失败语义见 [沙箱 provider · 环境钩子](/zh/how-to/sandbox-providers#环境钩子)。
+钩子的执行时机、多钩子顺序和失败语义见 [沙箱 provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
 
 ## 让不同 eval 使用不同预制环境
 
@@ -161,4 +183,4 @@ export default defineExperiment({
 
 `environment` 是非空的稳定字符串，不是包版本约束。`environments` 表的值就是该 provider 预制产物字段的覆盖（Docker 的 `image`、E2B 的 `template`、Vercel 的 `snapshotId`）。NiceEval 在启动任何 Sandbox 前对所有选中的 eval 完成查表；某条 eval 声明的 profile 缺表项会在启动时一次性报出全部缺项。remote Agent 不创建 Sandbox，不参与查表。因为映射是随 spec 复用的数据，同一个实验能覆盖全部 eval——分数和对比表不会因为环境不同被拆成多个实验。
 
-跨配置比较的设计建议见[实验矩阵](/zh/how-to/experiments)。adapter 如何消费 `ctx.model` 和 `ctx.flags` 见[Adapter](/zh/explanation/adapter)。
+跨配置比较的设计建议见[实验矩阵](/zh/tutorials/experiments)。Adapter 对 `ctx.model` 和 `ctx.flags` 的用法见 [Adapter](/zh/explanation/adapter)。

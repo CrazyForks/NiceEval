@@ -30,7 +30,7 @@ experiments/
 └─ with-skill.ts
 ```
 
-`workspaces/` 放 agent 可见的初始项目。`.eval.ts` 控制什么时候上传 workspace、发什么 prompt、检查什么结果。`experiments/` 决定用哪个 agent、哪个模型、是否注入 Skill 或插件。
+`workspaces/` 存放 Agent 可见的初始项目。`.eval.ts` 控制 Workspace 上传时机、任务 prompt 和结果检查。`experiments/` 选择 Agent、模型，以及是否注入 Skill 或插件。
 
 ## 准备 workspace
 
@@ -125,7 +125,7 @@ t.check(result, commandSucceeded());
 
 ## 用 experiment 做对照组
 
-不要把 agent 名、插件名或 URL 放进位置参数。experiment 决定“对着哪个 agent、怎么跑”；CLI 的 eval 位置参数只过滤 eval ID。
+不要把 Agent 名、插件名或 URL 放进位置参数。Experiment 选择 Agent 并固定运行配置；CLI 的 Eval 位置参数只过滤 Eval ID。
 
 ```bash
 pnpm exec niceeval exp compare
@@ -138,7 +138,7 @@ pnpm exec niceeval exp compare api-validation
 - `experiments/with-skill.ts`：同一 agent + setup hook 注入 `CLAUDE.md`。
 - 两组使用同一批 eval、同一模型、同一 runs 和预算。
 
-## 何时用 sandbox fixture
+## Sandbox Fixture 的适用场景
 
 - 需要 agent 修改真实文件。
 - 需要运行项目测试、构建或 lint。

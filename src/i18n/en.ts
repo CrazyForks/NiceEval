@@ -140,7 +140,7 @@ export const en = {
   "cli.resultsPath": "Structured results: {{path}} (snapshot.json + per-attempt result.json / events.json / trace.json / diff.json)\n",
   "cli.run.experimentRequired":
     "Run evals through an experiment: use `niceeval exp [group|config] [eval id prefix]`.\n" +
-    "  Docs: node_modules/niceeval/docs-site/zh/how-to/write-experiment.mdx\n",
+    "  Docs: node_modules/niceeval/docs-site/zh/tutorials/write-experiment.mdx\n",
   "cli.run.experimentRequiredHint": "Hint: \"{{pattern}}\" is an experiment{{kind}}; you probably meant: niceeval exp {{pattern}}\n",
   "cli.run.experimentRequiredKnown": "Discovered experiments: {{experiments}}\n",
   "cli.unimplemented": "Command \"{{command}}\" is not implemented yet (MVP).\n",
@@ -151,7 +151,7 @@ export const en = {
   "cli.view.url": "niceeval view: {{url}}\n",
   "context.capabilityMissing":
     "Agent \"{{agent}}\" is not sandbox-backed (built with defineSandboxAgent), so t.{{method}} is unavailable. Use an agent built with defineSandboxAgent, or drop this assertion.\n" +
-    "  Docs: node_modules/niceeval/docs-site/zh/how-to/sandbox-agent.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/tutorials/sandbox-agent.mdx",
   "context.skipEmpty": "skip() requires a non-empty reason.",
   "context.turnFailed": "This send returned failed (turn status = failed): {{message}}",
   "context.turnFailedDefault": "This send returned failed (turn status = failed)",
@@ -285,7 +285,7 @@ export const en = {
   "sandbox.providerNotImplemented": "{{provider}} sandbox provider is not implemented; use docker, vercel, or e2b",
   "sandbox.missingSpec":
     "sandbox agent needs a sandbox, but none was given. niceeval no longer picks a default — set `sandbox` in defineExperiment()/defineConfig() to dockerSandbox() / vercelSandbox() / e2bSandbox() (import from \"niceeval/sandbox\").\n" +
-    "  Docs: node_modules/niceeval/docs-site/zh/how-to/sandbox-providers.mdx",
+    "  Docs: node_modules/niceeval/docs-site/zh/tutorials/sandbox-providers.mdx",
   "sandbox.dependencyMissing.docker": "Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode",
   "sandbox.dependencyMissing.e2b": "E2B sandbox requires 'e2b'. Install it with: pnpm add e2b",
   "sandbox.dependencyMissing.vercel": "Vercel sandbox requires '@vercel/sandbox'. Install it with: pnpm add @vercel/sandbox",

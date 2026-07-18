@@ -4,9 +4,9 @@
 
 以下路径都相对于包根 `node_modules/niceeval/`。文档位于 `docs-site/zh/`，与当前安装的 NiceEval 版本一起发布。下面的树列出全部随包页面，每行是「路径 — 标题:一句话自述」。分区含义：
 
-- `tutorials/` 第一次跑通；`explanation/` 概念、边界与原理；`how-to/` 按任务的操作步骤；`reference/` API、CLI 与数据形状的精确事实；`troubleshooting/` 按症状排查失败；`examples/` 真实项目的接入案例。
+- `tutorials/` 第一次跑通和按任务操作；`explanation/` 概念、边界与原理；`reference/` API、CLI 与数据形状的精确事实；`troubleshooting/` 按症状排查失败；`examples/` 真实项目的接入案例。
 
-按当前任务从树里挑 1–3 页读取（通常是一页 how-to 或 explanation 搭一页 reference）；页面再引用其它概念或参考时，继续读取包内文件。
+按当前任务从树里挑 1–3 页读取（通常是一页 tutorial 或 explanation 搭一页 reference）；页面再引用其它概念或参考时，继续读取包内文件。
 
 <!-- GENERATED:BEGIN bundled-docs-tree -->
 <!-- GENERATED:END bundled-docs-tree -->

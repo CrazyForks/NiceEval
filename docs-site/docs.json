@@ -30,7 +30,7 @@
     },
     {
       "source": "/zh/guides/sandbox-backends",
-      "destination": "/zh/how-to/sandbox-providers"
+      "destination": "/zh/tutorials/sandbox-providers"
     },
     {
       "source": "/concepts/scoring",
@@ -58,7 +58,7 @@
     },
     {
       "source": "/zh/concepts/write-send",
-      "destination": "/zh/how-to/write-send"
+      "destination": "/zh/tutorials/write-send"
     },
     {
       "source": "/reference/configuration",
@@ -75,6 +75,74 @@
     {
       "source": "/zh/quickstart",
       "destination": "/zh/tutorials/quickstart"
+    },
+    {
+      "source": "/zh/how-to/connect-your-agent",
+      "destination": "/zh/tutorials/connect-your-agent"
+    },
+    {
+      "source": "/zh/how-to/write-send",
+      "destination": "/zh/tutorials/write-send"
+    },
+    {
+      "source": "/zh/how-to/connect-otel",
+      "destination": "/zh/tutorials/connect-otel"
+    },
+    {
+      "source": "/zh/how-to/sandbox-agent",
+      "destination": "/zh/tutorials/sandbox-agent"
+    },
+    {
+      "source": "/zh/how-to/sandbox-providers",
+      "destination": "/zh/tutorials/sandbox-providers"
+    },
+    {
+      "source": "/zh/how-to/authoring",
+      "destination": "/zh/tutorials/authoring"
+    },
+    {
+      "source": "/zh/how-to/write-experiment",
+      "destination": "/zh/tutorials/write-experiment"
+    },
+    {
+      "source": "/zh/how-to/experiments",
+      "destination": "/zh/tutorials/experiments"
+    },
+    {
+      "source": "/zh/how-to/fixtures",
+      "destination": "/zh/tutorials/fixtures"
+    },
+    {
+      "source": "/zh/how-to/dataset-fanout",
+      "destination": "/zh/tutorials/dataset-fanout"
+    },
+    {
+      "source": "/zh/how-to/scoring-guide",
+      "destination": "/zh/tutorials/scoring-guide"
+    },
+    {
+      "source": "/zh/how-to/ci-integration",
+      "destination": "/zh/tutorials/ci-integration"
+    },
+    {
+      "source": "/zh/how-to/reporters",
+      "destination": "/zh/tutorials/reporters"
+    },
+    {
+      "source": "/zh/how-to/viewing-results",
+      "destination": "/zh/tutorials/viewing-results"
+    },
+    {
+      "source": "/zh/how-to/publish-report",
+      "destination": "/zh/tutorials/publish-report"
+    },
+    {
+      "source": "/zh/how-to/custom-reports",
+      "destination": "/zh/tutorials/custom-reports"
+    },
+    {
+      "source": "/zh/how-to/agent-feedback-loop",
+      "destination": "/zh/tutorials/agent-feedback-loop"
     },
     {
       "source": "/zh/concepts/overview",
@@ -114,7 +182,7 @@
     },
     {
       "source": "/zh/guides/connect-your-agent",
-      "destination": "/zh/how-to/connect-your-agent"
+      "destination": "/zh/tutorials/connect-your-agent"
     },
     {
       "source": "/zh/guides/official-adapters",
@@ -122,43 +190,43 @@
     },
     {
       "source": "/zh/guides/write-send",
-      "destination": "/zh/how-to/write-send"
+      "destination": "/zh/tutorials/write-send"
     },
     {
       "source": "/zh/guides/connect-otel",
-      "destination": "/zh/how-to/connect-otel"
+      "destination": "/zh/tutorials/connect-otel"
     },
     {
       "source": "/zh/guides/sandbox-agent",
-      "destination": "/zh/how-to/sandbox-agent"
+      "destination": "/zh/tutorials/sandbox-agent"
     },
     {
       "source": "/zh/guides/sandbox-providers",
-      "destination": "/zh/how-to/sandbox-providers"
+      "destination": "/zh/tutorials/sandbox-providers"
     },
     {
       "source": "/zh/guides/authoring",
-      "destination": "/zh/how-to/authoring"
+      "destination": "/zh/tutorials/authoring"
     },
     {
       "source": "/zh/guides/write-experiment",
-      "destination": "/zh/how-to/write-experiment"
+      "destination": "/zh/tutorials/write-experiment"
     },
     {
       "source": "/zh/guides/experiments",
-      "destination": "/zh/how-to/experiments"
+      "destination": "/zh/tutorials/experiments"
     },
     {
       "source": "/zh/guides/fixtures",
-      "destination": "/zh/how-to/fixtures"
+      "destination": "/zh/tutorials/fixtures"
     },
     {
       "source": "/zh/guides/dataset-fanout",
-      "destination": "/zh/how-to/dataset-fanout"
+      "destination": "/zh/tutorials/dataset-fanout"
     },
     {
       "source": "/zh/guides/scoring-guide",
-      "destination": "/zh/how-to/scoring-guide"
+      "destination": "/zh/tutorials/scoring-guide"
     },
     {
       "source": "/zh/guides/runner",
@@ -166,15 +234,15 @@
     },
     {
       "source": "/zh/guides/ci-integration",
-      "destination": "/zh/how-to/ci-integration"
+      "destination": "/zh/tutorials/ci-integration"
     },
     {
       "source": "/zh/guides/reporters",
-      "destination": "/zh/how-to/reporters"
+      "destination": "/zh/tutorials/reporters"
     },
     {
       "source": "/zh/guides/viewing-results",
-      "destination": "/zh/how-to/viewing-results"
+      "destination": "/zh/tutorials/viewing-results"
     },
     {
       "source": "/zh/guides/debugging",
@@ -186,11 +254,11 @@
     },
     {
       "source": "/zh/guides/publish-report",
-      "destination": "/zh/how-to/publish-report"
+      "destination": "/zh/tutorials/publish-report"
     },
     {
       "source": "/zh/guides/custom-reports",
-      "destination": "/zh/how-to/custom-reports"
+      "destination": "/zh/tutorials/custom-reports"
     },
     {
       "source": "/zh/guides/report-components",
@@ -202,7 +270,7 @@
     },
     {
       "source": "/zh/guides/agent-feedback-loop",
-      "destination": "/zh/how-to/agent-feedback-loop"
+      "destination": "/zh/tutorials/agent-feedback-loop"
     },
     {
       "source": "/zh/example/ai-agent-application",
@@ -355,42 +423,37 @@
                   "zh/introduction",
                   "zh/tutorials/quickstart"
                 ]
-              }
-            ]
-          },
-          {
-            "tab": "How-to Guides",
-            "groups": [
+              },
               {
                 "group": "连接 Agent",
                 "pages": [
-                  "zh/how-to/connect-your-agent",
-                  "zh/how-to/write-send",
-                  "zh/how-to/connect-otel",
-                  "zh/how-to/sandbox-agent",
-                  "zh/how-to/sandbox-providers"
+                  "zh/tutorials/connect-your-agent",
+                  "zh/tutorials/write-send",
+                  "zh/tutorials/connect-otel",
+                  "zh/tutorials/sandbox-agent",
+                  "zh/tutorials/sandbox-providers"
                 ]
               },
               {
                 "group": "编写评估",
                 "pages": [
-                  "zh/how-to/authoring",
-                  "zh/how-to/write-experiment",
-                  "zh/how-to/experiments",
-                  "zh/how-to/fixtures",
-                  "zh/how-to/dataset-fanout",
-                  "zh/how-to/scoring-guide"
+                  "zh/tutorials/authoring",
+                  "zh/tutorials/write-experiment",
+                  "zh/tutorials/experiments",
+                  "zh/tutorials/fixtures",
+                  "zh/tutorials/dataset-fanout",
+                  "zh/tutorials/scoring-guide"
                 ]
               },
               {
                 "group": "运行、观察与发布",
                 "pages": [
-                  "zh/how-to/ci-integration",
-                  "zh/how-to/reporters",
-                  "zh/how-to/viewing-results",
-                  "zh/how-to/publish-report",
-                  "zh/how-to/custom-reports",
-                  "zh/how-to/agent-feedback-loop"
+                  "zh/tutorials/ci-integration",
+                  "zh/tutorials/reporters",
+                  "zh/tutorials/viewing-results",
+                  "zh/tutorials/publish-report",
+                  "zh/tutorials/custom-reports",
+                  "zh/tutorials/agent-feedback-loop"
                 ]
               },
               {

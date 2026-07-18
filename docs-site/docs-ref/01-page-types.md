@@ -18,12 +18,13 @@
 
 ## NiceEval 中文目录映射
 
-- `zh/tutorials/*`:Tutorial。当前只保留一条最短成功路径，不为凑结构增加教程。
-- `zh/how-to/*`:How-to。一个页面解决一个现实任务。
+- `zh/tutorials/*`:Tutorial 与 How-to 的统一目录。`quickstart.mdx` 保留最短成功路径；其余页面一个页面解决一个现实任务。
 - `zh/explanation/*`:Explanation。解释核心心智模型、概念边界和运行原理。
 - `zh/reference/*`:Reference。只列当前实现支持的事实；API 签名、字段和 CLI flags 从源码生成。
 - `zh/troubleshooting/*`:Troubleshooting。按用户可见症状组织排错。
 - `zh/examples/*`:真实可运行案例。它是独立资源入口，不冒充 Tutorial，也不承担完整 How-to 或 Reference。
+
+Tutorial 和 How-to 在中文站统一放进 `zh/tutorials/`，并共用 `Tutorials` 标签。目录合并不改变两种页面的写作边界。
 
 英文目录仍使用 `quickstart`、`guides/*` 和 `concepts/*`。中文是公开叙事的准绳，英文后续按中文结构翻译和同步。
 
