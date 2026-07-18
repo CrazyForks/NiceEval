@@ -38,19 +38,18 @@ const SESSION_TIMEOUT_MS = 1_800_000;
  */
 export async function reconcileProvision(token: string): Promise<void> {
   const apiKey = process.env.E2B_API_KEY;
-  const list = (E2BSdkSandbox as unknown as {
-    list?: (opts?: Record<string, unknown>) => Promise<Array<{ sandboxId: string; metadata?: Record<string, string> }>>;
-  }).list;
-  if (typeof list !== "function") throw new Error("this e2b SDK version has no Sandbox.list; cannot reconcile provision token");
-  const sandboxes = await list({ apiKey });
-  for (const info of sandboxes) {
-    if (info.metadata?.["niceeval-provision-token"] !== token) continue;
-    const kill = (E2BSdkSandbox as unknown as { kill?: (id: string, opts?: Record<string, unknown>) => Promise<unknown> }).kill;
-    if (typeof kill !== "function") throw new Error("this e2b SDK version has no Sandbox.kill; cannot reconcile provision token");
-    try {
-      await kill(info.sandboxId, { apiKey });
-    } catch (e) {
-      if (!(e instanceof NotFoundError)) throw e;
+  // Sandbox.list() 是同步方法,返回分页器(SandboxPaginator),不是 Promise<数组>——用
+  // hasNext/nextItems() 翻页,不能直接 for...of。metadata 过滤走服务端 query,一次 token
+  // 命中的实例数极少,通常一页打完。
+  const paginator = E2BSdkSandbox.list({ apiKey, query: { metadata: { "niceeval-provision-token": token } } });
+  while (paginator.hasNext) {
+    const sandboxes = await paginator.nextItems();
+    for (const info of sandboxes) {
+      try {
+        await E2BSdkSandbox.kill(info.sandboxId, { apiKey });
+      } catch (e) {
+        if (!(e instanceof NotFoundError)) throw e;
+      }
     }
   }
 }

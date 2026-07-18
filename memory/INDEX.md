@@ -43,6 +43,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - 已修 [ledger-gitignore-pathspec-and-gitlinks](ledger-gitignore-pathspec-and-gitlinks.md) — ledger 裸 pathspec 只排根级缓存，嵌套 repo 又静默记成 gitlink 吞掉内部 diff；修为 gitignore glob 编译 + mode 160000 fail fast
 - [keep-dormancy-provider-forms](keep-dormancy-provider-forms.md) — 设计裁决:留存现场转入 provider 休眠形态(docker stop 停驻 / e2b pause 可 resume;2026-07-14),推翻「keep = 保持运行」;docker pause 与 commit 转镜像同场否决
 - 已修 [provision-retry-holds-concurrency-slot](provision-retry-holds-concurrency-slot.md) — provisioning 退避重试期间攥着 sandboxSem 并发名额陪跑 setTimeout,一批 429 能把实际并发拖到远低于 --max-concurrency 声明值(个位数);修为 ProvisionSlot 退避前 release、睡醒后 reacquire(`src/sandbox/retry.ts` + `resolve.ts` + `runner/attempt.ts`)
+- 已修 [e2b-list-returns-paginator-not-array](e2b-list-returns-paginator-not-array.md) — reconcileProvision 用 `as unknown as` 猜了个 e2b `Sandbox.list()` 从未真实存在过的签名(真实是同步返回 `SandboxPaginator`,不是 `Promise<数组>`),for...of 直接 `TypeError: sandboxes is not iterable`,对账硬失败、重试被 abort;修为改用真实类型 + `hasNext`/`nextItems()` 翻页 + 服务端 metadata 过滤(`src/sandbox/e2b.ts`)
 
 ## judge
 
