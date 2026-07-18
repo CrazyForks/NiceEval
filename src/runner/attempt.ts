@@ -1041,6 +1041,7 @@ export function experimentRunInfo(run: AgentRun, configSandbox?: Config["sandbox
     ...(run.description !== undefined ? { description: run.description } : {}),
     ...(run.reasoningEffort !== undefined ? { reasoningEffort: run.reasoningEffort } : {}),
     ...(Object.keys(run.flags).length > 0 ? { flags: run.flags } : {}),
+    ...(run.labels !== undefined && Object.keys(run.labels).length > 0 ? { labels: run.labels } : {}),
     runs: run.runs,
     earlyExit: run.earlyExit,
     ...(run.timeoutMs !== undefined ? { timeoutMs: run.timeoutMs } : {}),

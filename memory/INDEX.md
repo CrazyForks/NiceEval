@@ -65,6 +65,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## o11y 采集与 view
 
+- 已修 [scatter-series-color-collision](scatter-series-color-collision.md) — 散点两个不同 series(bub/codex)散列进同一色格显示同色不可辨;修为同图键集合按图例顺序线性探测消解冲突,跨图稳定让位图内可辨(`src/report/react/colors.ts` 的 colorIndicesForKeys)
 - 已修 [react19-dangerously-set-inner-html-identity](react19-dangerously-set-inner-html-identity.md) — React 19 对 dangerouslySetInnerHTML 只比 `{__html}` 对象身份,内联字面量让任何重渲染都整树重建报告槽(开关 attempt 弹窗丢 details/排序/过滤状态);修为 useMemo 包 `{__html}`(`src/view/app/App.tsx` 的 ReportSlot)
 - [details-ua-slot-breaks-display-contents-tabs](details-ua-slot-breaks-display-contents-tabs.md) — `<details>` 的 UA shadow slot 让 display:contents 布局失效(Chrome 下 order 失效、残留 0 宽盒);Tabs 增强改用 flex 换行方案(styles.css)
 - [publish-redaction-copysnapshots-not-report](publish-redaction-copysnapshots-not-report.md) — 设计裁决:发布消毒移到 copySnapshots({ redact }),AttemptList.redact 降为展示层(2026-07-14),推翻「消毒归报告」——view --out 原样发布 artifact,列表脱敏挡不住深链

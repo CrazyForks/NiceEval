@@ -74,19 +74,26 @@ export interface CustomDimension {
 }
 
 /**
- * flag() / runConfig() 的产物:把 experiment 声明的 flag 或顶层运行配置当分组维度。
- * 读取的 JSON 值可能是任意形状,分组显示键按稳定 JSON 规则生成;缺失值显示内置文案
- * `(missing)`,不同原始值撞出同一显示键时计算报错并要求改用 CustomDimension。
+ * flag() / label() / runConfig() 的产物:把 experiment 声明的 flag、报告标注 label 或
+ * 顶层运行配置当分组维度。读取的落盘值可能是任意形状,分组显示键按稳定 JSON 规则生成;
+ * 缺失值显示内置文案 `(missing)`,不同原始值撞出同一显示键时计算报错并要求改用 CustomDimension。
  */
 export interface DimensionRef {
-  readonly kind: "flag" | "runConfig";
+  readonly kind: "flag" | "runConfig" | "label";
   readonly name: string;
   readonly label?: LocalizedText;
   readonly unit?: string;
 }
 
-/** 维度槽的输入:内置维度、自定义维度,或 flag() / runConfig() 的产物。 */
+/** 维度槽的输入:内置维度、自定义维度,或 flag() / label() / runConfig() 的产物。 */
 export type DimensionInput = BuiltInDimension | CustomDimension | DimensionRef;
+
+/**
+ * series 类选项(MetricScatter / MetricLine / ExperimentComparison)的输入:单维度,或
+ * 非空数组解析为复合维度——name 依声明顺序以 ` × ` 连接,每个 attempt 的值为各成员显示键
+ * 以 ` · ` 连接,任一成员缺失沿用 `(missing)` 显示键参与连接(docs/feature/reports/library/metrics.md)。
+ */
+export type SeriesInput = DimensionInput | readonly [DimensionInput, ...DimensionInput[]];
 
 /** MetricLine 的 x 轴:必须是数值;字符串配置显式映射,组件不猜 low < medium < high。 */
 export interface NumericAxis {

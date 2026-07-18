@@ -3,17 +3,19 @@
 // 「越靠右上越好」且仅当两轴都声明 better 时显示;刻度显示真实值。
 // niceTicks 刻度 + 网格线;每个点直接标注(placePointLabels 候选位择优:避开其它标签、
 // 数据点与画布边界,离开左右紧邻位时补 leader line);
-// 同系列的点按 x 值排序连线,系列图例列在图下。x 或 y 为 null 的点不画,
+// 默认不连线,`connect` 显式开启时同系列的点按 x 升序连折线(lineage series),
+// 系列图例按显示键字典序列在图下。x 或 y 为 null 的点不画,
 // 底部注脚如实报「n 个点缺数据」;hover 信息退化为 SVG <title>,不 hydrate 也在
 // (enhance.js 在场时升级为样式化 tooltip)。配色走类名(nre-series-cN)由 CSS 上色,
-// 深色主题下图表随令牌切换,不留内联 hex。
+// 深色主题下图表随令牌切换,不留内联 hex;同图 series 撞色按图例顺序线性探测消解
+// (colorIndicesForKeys),跨图稳定让位给图内可辨。
 
 import type { ReactElement } from "react";
 import type { MetricColumn, ScatterData } from "../types.ts";
 import { formatMetricValue } from "../format.ts";
 import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
 import { niceTicks, placePointLabels } from "./chart-math.ts";
-import { colorClassForKey, seriesClassForKey } from "./colors.ts";
+import { colorIndicesForKeys } from "./colors.ts";
 import { cx } from "./format.ts";
 
 const WIDTH = 760;
@@ -89,11 +91,14 @@ function axisScale(values: number[], pixelLo: number, pixelHi: number, invert: b
 
 export function MetricScatter({
   data,
+  connect = false,
   pointHref,
   className,
   locale = DEFAULT_REPORT_LOCALE,
 }: {
   data: ScatterData;
+  /** series 内按 x 升序连折线;默认 false,只给「线 = 同族变体」的 lineage series 用。 */
+  connect?: boolean;
   pointHref?: (row: ScatterData["rows"][number]) => string;
   className?: string;
   locale?: ReportLocale;
@@ -159,18 +164,20 @@ export function MetricScatter({
     };
   });
 
-  // 同系列的点按 x 值排序连线;无系列的点只画点不连线
-  const seriesOrder: string[] = [];
+  // 系列分组:图例与配色按显示键字典序;connect 时 series 内按 x 升序连折线
   const bySeries = new Map<string, DrawablePoint[]>();
   for (const p of points) {
     if (p.series === undefined) continue;
-    if (!bySeries.has(p.series)) {
-      bySeries.set(p.series, []);
-      seriesOrder.push(p.series);
-    }
-    bySeries.get(p.series)!.push(p);
+    const list = bySeries.get(p.series) ?? [];
+    list.push(p);
+    bySeries.set(p.series, list);
   }
+  const seriesOrder = [...bySeries.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   for (const list of bySeries.values()) list.sort((a, b) => a.xValue - b.xValue);
+  // 同图撞色消解:散列格作起点,按图例顺序线性探测空格(colors.ts 的契约注释)
+  const colorIdx = colorIndicesForKeys(seriesOrder);
+  const seriesClassOf = (series: string) => `nre-series-c${colorIdx.get(series) ?? 0}`;
+  const keyClassOf = (series: string) => `nre-c${colorIdx.get(series) ?? 0}`;
 
   // 直接标签的候选位择优布局:锚向、避让方向都由布局按空间决定,画布边界含边距
   const labels = placePointLabels(
@@ -238,20 +245,21 @@ export function MetricScatter({
           {axisLabel(yLabel, data.y)}
         </text>
 
-        {/* 系列连线:类名上色(nre-series-cN),深色主题跟随 */}
-        {seriesOrder.map((series) => {
-          const list = bySeries.get(series)!;
-          if (list.length < 2) return null;
-          return (
-            <polyline
-              key={series}
-              className={cx("nre-scatter-line", seriesClassForKey(series))}
-              data-series={series}
-              points={list.map((p) => `${p.px},${p.py}`).join(" ")}
-              fill="none"
-            />
-          );
-        })}
+        {/* 系列折线:仅 connect 显式开启时画(lineage series 的位移),按 x 升序;类名上色,深色主题跟随 */}
+        {connect &&
+          seriesOrder.map((series) => {
+            const list = bySeries.get(series)!;
+            if (list.length < 2) return null;
+            return (
+              <polyline
+                key={series}
+                className={cx("nre-scatter-line", seriesClassOf(series))}
+                data-series={series}
+                points={list.map((p) => `${p.px},${p.py}`).join(" ")}
+                fill="none"
+              />
+            );
+          })}
 
         {/* 点:g 内带 <title>(无 JS 的原生 hover)、直接标签与 leader line;
             pointHref 时包普通 <a>,静态导出也能下钻 */}
@@ -259,7 +267,7 @@ export function MetricScatter({
           const label = labels[i];
           const group = (
             <g
-              className={cx("nre-scatter-point", p.series !== undefined ? seriesClassForKey(p.series) : "nre-series-none")}
+              className={cx("nre-scatter-point", p.series !== undefined ? seriesClassOf(p.series) : "nre-series-none")}
               data-key={p.key}
             >
               <title>{p.title}</title>
@@ -287,7 +295,7 @@ export function MetricScatter({
       {seriesOrder.length > 0 && (
         <figcaption className="nre-scatter-legend">
           {seriesOrder.map((series) => (
-            <span key={series} className={cx("nre-legend-key", "nre-key", colorClassForKey(series))}>
+            <span key={series} className={cx("nre-legend-key", "nre-key", keyClassOf(series))}>
               {series}
             </span>
           ))}

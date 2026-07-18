@@ -24,7 +24,10 @@ import {
   repeatedFailedCommands,
   taskPassRate,
 } from "./metrics.ts";
-import { flag, numericFlag } from "./flag.ts";
+import { flag, label, numericFlag, numericLabel } from "./flag.ts";
+import { scatterText } from "./text/faces.ts";
+import { createTextContext } from "./tree.ts";
+import { colorIndexForKey, colorIndicesForKeys } from "./react/colors.ts";
 import {
   attemptListData,
   deltaTableData,
@@ -1007,5 +1010,135 @@ describe("examScore", () => {
     expect(cellOf("allgate").value).toBe(1);
     expect(cellOf("crashed").value).toBe(0);
     expect(cellOf("crashed").samples).toBe(1); // 0 分是测得的事实,不是缺数据
+  });
+});
+
+// ───────────────────────── labels 维度、series 归类与 connect ─────────────────────────
+
+describe("labels 维度、series 归类与 connect", () => {
+  const labeled = (
+    experimentId: string,
+    labels: Record<string, string | number> | undefined,
+    verdicts: Verdict[],
+    agent = "agent-x",
+  ) =>
+    snap({
+      experimentId,
+      agent,
+      results: verdicts.map((v, i) => res(`q${i}`, v, { agent })),
+      experiment: { runs: 1, earlyExit: false, selectedEvalIds: [], ...(labels ? { labels } : {}) },
+    });
+
+  it("label() 按声明值分组、未声明归 (missing);numericLabel 对字符串值返回 null 不猜序", async () => {
+    const table = await metricTableData(
+      [labeled("m/one", { memory: "mempal" }, ["passed"]), labeled("m/two", undefined, ["failed"])],
+      { rows: label("memory"), columns: [endToEndPassRate] },
+    );
+    expect(table.rows.map((r) => r.key).sort()).toEqual(["(missing)", "mempal"]);
+
+    const line = await metricLineData(
+      [labeled("m/num", { contextK: 32 }, ["passed"]), labeled("m/str", { contextK: "big" }, ["passed"])],
+      { x: numericLabel("contextK"), y: endToEndPassRate },
+    );
+    expect(line.rows.filter((r) => r.x === null)).toHaveLength(1);
+    expect(line.rows.some((r) => r.x === 32)).toBe(true);
+    expect(line.rows.some((r) => r.x === 0)).toBe(false);
+  });
+
+  it("series 数组解析为复合维度:name 以 × 连接、值以 · 连接,缺失成员沿用 (missing)", async () => {
+    const a = labeled("c/one", { memory: "mempal" }, ["passed"], "codex");
+    const b = labeled("c/two", undefined, ["failed"], "codex");
+    const data = await metricScatterData([a, b], {
+      points: "experiment",
+      series: ["agent", label("memory")],
+      x: costUSD,
+      y: endToEndPassRate,
+    });
+    expect(data.seriesDimension).toBe("agent × memory");
+    const byKey = new Map(data.rows.map((r) => [r.key, r.series]));
+    expect(byKey.get("c/one")).toBe("codex · mempal");
+    expect(byKey.get("c/two")).toBe("codex · (missing)");
+    // 单成员数组等价于单维度
+    const single = await metricScatterData([a], { points: "experiment", series: ["agent"], x: costUSD, y: endToEndPassRate });
+    expect(single.seriesDimension).toBe("agent");
+    expect(single.rows[0]!.series).toBe("codex");
+  });
+
+  it('ExperimentComparison series 缺省逐组解析:有 line → "line",无 → "agent";显式 series 统一覆盖', async () => {
+    const lineGroup = [
+      labeled("mem/codex-baseline", { line: "codex", memory: "baseline" }, ["passed"], "codex"),
+      labeled("mem/codex-mempal", { line: "codex", memory: "mempal" }, ["failed"], "codex"),
+    ];
+    const agentGroup = [labeled("dev/one", undefined, ["passed"], "codex")];
+    const data = await experimentComparisonData([...lineGroup, ...agentGroup]);
+    const byKey = new Map(data.groups.map((g) => [g.key, g]));
+    expect(byKey.get("mem")!.scatter.seriesDimension).toBe("line");
+    expect(byKey.get("mem")!.scatter.rows.every((r) => r.series === "codex")).toBe(true);
+    expect(byKey.get("dev")!.scatter.seriesDimension).toBe("agent");
+
+    const explicit = await experimentComparisonData([...lineGroup, ...agentGroup], { series: label("memory") });
+    expect(explicit.groups.every((g) => g.scatter.seriesDimension === "memory")).toBe(true);
+  });
+
+  const cell = (value: number, display: string): import("./types.ts").MetricCell => ({
+    value,
+    display,
+    samples: 1,
+    total: 1,
+    refs: [],
+  });
+  const lineScatter = (): import("./types.ts").ScatterData => ({
+    pointDimension: "experiment",
+    seriesDimension: "line",
+    x: { key: "costUSD", label: "Cost", unit: "$", better: "lower" },
+    y: { key: "endToEndPassRate", label: "Pass rate", unit: "%", better: "higher" },
+    rows: [
+      { key: "mem/claude-mempal", series: "claude", x: cell(0.55, "$0.55"), y: cell(0.75, "75%") },
+      { key: "mem/claude-baseline", series: "claude", x: cell(0.35, "$0.35"), y: cell(0.5, "50%") },
+      { key: "mem/bub", series: "bub", x: cell(0.09, "$0.09"), y: cell(0.875, "87.5%") },
+    ],
+  });
+
+  it("scatterText:标记按图例顺序分配(series 字典序、series 内 x 升序),标题标注归类维度;默认无箭头", () => {
+    const text = scatterText(lineScatter(), createTextContext({ width: 80 }));
+    expect(text).toContain("grouped by line");
+    // bub < claude:A 给 bub;claude 内按成本升序 baseline(B) → mempal(C)
+    expect(text).toContain("bub     A mem/bub");
+    expect(text).toContain("B mem/claude-baseline");
+    expect(text).toContain("C mem/claude-mempal");
+    expect(text).not.toContain("→ C mem/claude-mempal");
+    expect(text).not.toContain("└ Pass rate");
+  });
+
+  it("scatterText connect:图例按 x 升序 → 串联并给逐段位移摘要;单点 series 无箭头无摘要;坐标图内不画折线", () => {
+    const text = scatterText(lineScatter(), createTextContext({ width: 80 }), { connect: true });
+    expect(text).toContain("B mem/claude-baseline → C mem/claude-mempal");
+    expect(text).toContain("└ Pass rate +25pt · Cost +$0.20");
+    expect(text).toContain("A mem/bub");
+    expect(text).not.toContain("A mem/bub →");
+    // 坐标图折线用 · 描画;connect 的 text 投影是图例的位移摘要,网格行(│ 开头)不出现折线点
+    const plotRows = text.split("\n").filter((l) => l.includes("│"));
+    expect(plotRows.length).toBeGreaterThan(0);
+    expect(plotRows.every((l) => !l.includes("·"))).toBe(true);
+  });
+
+  it("同图撞色按图例顺序线性探测空格;无冲突键仍取散列格;超过色板才复用", () => {
+    // 真实回归现场:bub / claude-code / codex 在同一张图里必须三色互异
+    const real = colorIndicesForKeys(["bub", "claude-code", "codex"]);
+    expect(new Set(real.values()).size).toBe(3);
+    // 构造性冲突:找两个散列同格的键,后到者让位,先到者保持散列格(跨图稳定)
+    const pool = Array.from({ length: 40 }, (_, i) => `k${i}`);
+    const byIdx = new Map<number, string[]>();
+    for (const k of pool) {
+      const idx = colorIndexForKey(k);
+      byIdx.set(idx, [...(byIdx.get(idx) ?? []), k]);
+    }
+    const [first, second] = [...byIdx.values()].find((keys) => keys.length >= 2)!;
+    const resolved = colorIndicesForKeys([first, second]);
+    expect(resolved.get(first)).toBe(colorIndexForKey(first));
+    expect(resolved.get(second)).not.toBe(resolved.get(first));
+    // 前 6 个键占满 6 色;第 7 个开始只能复用
+    const seven = colorIndicesForKeys(["s0", "s1", "s2", "s3", "s4", "s5", "s6"]);
+    expect(new Set([...seven.values()].slice(0, 6)).size).toBe(6);
   });
 });

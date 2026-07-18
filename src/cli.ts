@@ -722,6 +722,7 @@ async function main(): Promise<void> {
         evalFilter: evalsFilterFromExperiment(exp.evals, extraPatterns),
         experimentId: exp.id,
         description: exp.description,
+        labels: exp.labels,
         evalFilterFingerprint: fingerprintEvalsFilter(exp.evals, extraPatterns),
         strict: flags.strict,
         // 实验级并发上限:随 AgentRun 进调度器按实验单独限流(runner 两级信号量),

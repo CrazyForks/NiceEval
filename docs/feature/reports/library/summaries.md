@@ -1,10 +1,12 @@
 # 概览组件
 
-回答“这批结果有多大、整体是否健康、当前水位在哪”的两个组件：`ExperimentComparison` 是内建报告的默认组合件，`ScopeSummary` 是它逐组复用的汇总卡，也可单独使用。两者都没有计算选项：spec 形态只有可选的 `input`（默认宿主注入的 Scope），data 形态接收配套 `*Data` 函数的返回值；props 组合规则 `DataProps` 见[指标组件](metric-views.md)。
+回答“这批结果有多大、整体是否健康、当前水位在哪”的两个组件：`ExperimentComparison` 是内建报告的默认组合件，`ScopeSummary` 是它逐组复用的汇总卡，也可单独使用。`ScopeSummary` 没有计算选项；`ExperimentComparison` 只有一个：`series`，逐组散点的归类维度。spec 形态在此之外只有可选的 `input`（默认宿主注入的 Scope），data 形态接收配套 `*Data` 函数的返回值；props 组合规则 `DataProps` 见[指标组件](metric-views.md)。
 
 ## `ExperimentComparison`
 
 裸 `niceeval show` 与 `niceeval view` 首页经由[内建报告](built-in.md)渲染的默认组合件。它先把 `input` 按**可比组**分区，再为每组分别计算 `ScopeSummary`、成本 × 端到端通过率散点和 `ExperimentList`。可比组键是 experiment id 的完整父路径：`compare/bub` 与 `compare/codex` 的键都是 `compare`，`bench/long/codex` 的键是 `bench/long`；没有父路径的 experiment 使用自己的完整 id 作为单例组键。不同组的数据不会进入同一个 scatter、series、排序或汇总。experiment id 的路径就是分组 API——要别的分组语义，不是给这个组件加配置，而是在[组合组件](layout.md#自定义组件)里自行分区、逐组组合 `ScopeSummary` / `MetricScatter` / `ExperimentList`，显式接管分区责任。
+
+组内散点的 series 维度缺省**逐组解析**：组内任一实验声明了 [`labels`](../../experiments/library.md#labels声明归类坐标不进运行时) 的 `line` 键，该组就按 `label("line")` 归类并连线——声明了线就画线，裸 `show` / `view` 不需要任何报告配置；没有 `line` 声明的组按 `"agent"` 归类、不连线。显式传 `series` / `connect` 时所有组统一用显式值，`connect` 与 [`MetricScatter`](metric-views.md#metricscatter) 同一契约。`series` 只改变逐组散点的归类与图例，不改变可比组分区，也不改变组卡汇总与列表。
 
 端到端通过率对同一 experiment × eval 的多轮 attempt 先求均值，再跨 experiment × eval 求均值；`failed` 与 `errored` 为 0，`skipped` 为 `null`。组卡中的 verdict 构成另按 Eval 最终 verdict 计票：任一轮 passed 则 Eval passed，否则按 `failed > errored > skipped` 折叠。两者有意回答不同问题，渲染面不得从 verdict 计数反推通过率。
 
@@ -23,9 +25,19 @@ interface ExperimentComparisonGroupData {
   experiments: ExperimentListItem[];
 }
 
-function experimentComparisonData(input: ReportInput): Promise<ExperimentComparisonData>;
+interface ExperimentComparisonOptions {
+  /** 逐组散点的 series 维度。缺省逐组解析:组内有 label `line` 声明 → label("line") 并连线;否则 "agent"、不连线。 */
+  series?: SeriesInput;
+}
 
-type ExperimentComparisonProps = DataProps<ExperimentComparisonData, {}, {
+function experimentComparisonData(
+  input: ReportInput,
+  options?: ExperimentComparisonOptions,
+): Promise<ExperimentComparisonData>;
+
+type ExperimentComparisonProps = DataProps<ExperimentComparisonData, ExperimentComparisonOptions, {
+  /** 透传给逐组散点；契约同 MetricScatter 的 connect。 */
+  connect?: boolean;
   locale?: ReportLocale;
   className?: string;
 }>;
@@ -33,6 +45,7 @@ type ExperimentComparisonProps = DataProps<ExperimentComparisonData, {}, {
 
 ```tsx
 <ExperimentComparison />
+<ExperimentComparison series={label("line")} connect />
 ```
 
 组按 `key` 字典序排列；组内 experiment 按端到端通过率从高到低预排。自定义报告若直接组合 [`MetricScatter`](metric-views.md#metricscatter) / [`ExperimentList`](entity-lists.md#experimentlist)，就是在显式接管分区责任。

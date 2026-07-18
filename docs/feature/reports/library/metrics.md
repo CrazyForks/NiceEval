@@ -127,13 +127,16 @@ interface CustomDimension {
 }
 
 interface DimensionRef {
-  readonly kind: "flag" | "runConfig";
+  readonly kind: "flag" | "runConfig" | "label";
   readonly name: string;
   readonly label?: LocalizedText;
   readonly unit?: string;
 }
 
 type DimensionInput = BuiltInDimension | CustomDimension | DimensionRef;
+
+/** series 类选项(MetricScatter / MetricLine / ExperimentComparison)额外接受非空数组,解析为复合维度。 */
+type SeriesInput = DimensionInput | readonly [DimensionInput, ...DimensionInput[]];
 
 interface NumericAxis {
   name: string;
@@ -158,8 +161,10 @@ interface NumericRunConfigAxisOptions extends NumericAxisOptions {
 type RunConfigKey = keyof ExperimentRunInfo | "model" | "agent";
 
 function flag(name: string, options?: DimensionOptions): DimensionRef;
+function label(name: string, options?: DimensionOptions): DimensionRef;
 function runConfig(name: RunConfigKey, options?: DimensionOptions): DimensionRef;
 function numericFlag(name: string, options?: NumericAxisOptions): NumericAxis;
+function numericLabel(name: string, options?: NumericAxisOptions): NumericAxis;
 function numericRunConfig(name: RunConfigKey, options?: NumericRunConfigAxisOptions): NumericAxis;
 ```
 
@@ -172,10 +177,11 @@ const verdictFamily = {
 };
 ```
 
-experiment 中声明的变量用 `flag()` 读取，不从 experiment id 字符串猜。`flag()` 只读 `ExperimentDef.flags` 里显式声明的 KV，用于分组：
+experiment 中声明的变量用声明它的字段对应的构造器读取，不从 experiment id 字符串猜。三个来源三个构造器，一一对应：`flag()` 读 `ExperimentDef.flags`（运行参数，agent / eval 可见），`label()` 读 `ExperimentDef.labels`（报告归类标注，运行时不可见，声明语义见 [Experiments · labels](../../experiments/library.md#labels声明归类坐标不进运行时)），`runConfig()` 读顶层运行配置：
 
 ```ts
-const memory = flag("memory", { label: "Memory mode" });
+const memory = label("memory", { label: "Memory mechanism" });
+const webResearch = flag("webResearch", { label: "Web research" });
 ```
 
 `model`、`reasoningEffort`、`budget`、`runs` 这类**顶层运行配置不在 `flags` 里**，用 `runConfig()` 读快照的 [`ExperimentRunInfo`](../../results/architecture.md#snapshotjson) 投影——名字点明读的是这次运行的落盘配置，与项目的 `niceeval.config.ts` 无关；可用键由 `RunConfigKey` 在类型层穷尽（那张接口的字段全集，外加桥接到快照顶层权威字段的 `model` / `agent`），拼错键在编译期就被拒绝：
@@ -185,10 +191,15 @@ const reasoning = runConfig("reasoningEffort", { label: "Reasoning effort" });
 const budget = runConfig("budget", { label: "Budget", unit: "USD" });
 ```
 
-`flag()` / `runConfig()` 只是分组维度；它们读取的 JSON 值可能是字符串、数字、布尔值、数组或对象，不冒充数值轴。分组显示键按稳定 JSON 规则生成：字符串直接显示，其它值用对象键递归排序后的 JSON，缺失值显示内置文案 `(missing)`。若不同原始值生成同一个显示键，计算函数报出冲突并要求改用 `CustomDimension`，绝不静默合组。`MetricLine` 的 x 必须是 `NumericAxis`，用 `numericFlag()` / `numericRunConfig()` 或自定义 `of` 构造：
+`flag()` / `label()` / `runConfig()` 只是分组维度；它们读取的落盘值可能是字符串、数字、布尔值、数组或对象，不冒充数值轴。分组显示键按稳定 JSON 规则生成：字符串直接显示，其它值用对象键递归排序后的 JSON，缺失值显示内置文案 `(missing)`。若不同原始值生成同一个显示键，计算函数报出冲突并要求改用 `CustomDimension`，绝不静默合组。
+
+接受 `SeriesInput` 的选项传数组时解析为**复合维度**：维度 name 为成员 name 依声明顺序以 ` × ` 连接；每个 attempt 的维度值为各成员显示键依同一顺序以 ` · ` 连接，任一成员缺失沿用 `(missing)` 显示键参与连接；显示键冲突检测仍按成员各自执行。`["agent", label("memory")]` 即「agent × 记忆机制」各自成类。
+
+`MetricLine` 的 x 必须是 `NumericAxis`，用 `numericFlag()` / `numericLabel()` / `numericRunConfig()` 或自定义 `of` 构造：
 
 ```ts
 const budget = numericFlag("budget", { label: "Token budget", unit: "tokens" });
+const contextK = numericLabel("contextK", { label: "Context window", unit: "k tokens" });
 const concurrency = numericRunConfig("maxConcurrency", { label: "Concurrency" });
 const reasoning = numericRunConfig("reasoningEffort", {
   label: "Reasoning effort",
@@ -196,7 +207,7 @@ const reasoning = numericRunConfig("reasoningEffort", {
 });
 ```
 
-`numericFlag(name, options?)` 只接受落盘值为 number 的 flag；`numericRunConfig(name, options?)` 对数值配置直接返回该值，对字符串配置必须显式给 `map: Record<string, number>`。未声明、未投影、非数值或未命中 map 的值返回 `null`，折线不绘该点并报告缺失。
+`numericFlag(name, options?)` 只接受落盘值为 number 的 flag；`numericLabel(name, options?)` 同理只接受 number 值的 label——labels 由作者亲手声明，要数值轴就直接声明成 number，不设 map；`numericRunConfig(name, options?)` 对数值配置直接返回该值，对字符串配置必须显式给 `map: Record<string, number>`（`reasoningEffort` 这类词表由外部定义，才需要映射）。未声明、未投影、非数值或未命中 map 的值返回 `null`，折线不绘该点并报告缺失。
 
 ## 相关阅读
 

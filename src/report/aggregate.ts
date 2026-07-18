@@ -18,8 +18,9 @@ import type {
   MetricColumn,
   NumericAxis,
   ReportInput,
+  SeriesInput,
 } from "./types.ts";
-import { flagValueOf, runConfigValueOf } from "./flag.ts";
+import { flagValueOf, labelValueOf, runConfigValueOf } from "./flag.ts";
 import { formatMetricValue, localizedDisplay } from "./format.ts";
 import { localeText, type LocalizedText } from "./locale.ts";
 import { evalPrefixPredicate } from "../shared/aggregate.ts";
@@ -119,7 +120,9 @@ function isDimensionRef(dimension: DimensionInput): dimension is DimensionRef {
   return (
     typeof dimension === "object" &&
     "kind" in dimension &&
-    ((dimension as DimensionRef).kind === "flag" || (dimension as DimensionRef).kind === "runConfig")
+    ((dimension as DimensionRef).kind === "flag" ||
+      (dimension as DimensionRef).kind === "runConfig" ||
+      (dimension as DimensionRef).kind === "label")
   );
 }
 
@@ -147,9 +150,9 @@ export function refDisplayKey(value: unknown): [display: string, canonical: stri
 }
 
 function refValueOf(ref: DimensionRef, item: Item): unknown {
-  return ref.kind === "flag"
-    ? flagValueOf(item.attempt, ref.name)
-    : runConfigValueOf(item.attempt, ref.name as Parameters<typeof runConfigValueOf>[1]);
+  if (ref.kind === "flag") return flagValueOf(item.attempt, ref.name);
+  if (ref.kind === "label") return labelValueOf(item.attempt, ref.name);
+  return runConfigValueOf(item.attempt, ref.name as Parameters<typeof runConfigValueOf>[1]);
 }
 
 export function dimensionKey(dimension: DimensionInput, item: Item): string {
@@ -177,6 +180,25 @@ export function dimensionKey(dimension: DimensionInput, item: Item): string {
       throw new Error(`Unknown dimension: ${String(exhausted)}`);
     }
   }
+}
+
+/**
+ * series 类选项(SeriesInput)的复合维度解析:数组形态的维度 name 依声明顺序以 ` × ` 连接,
+ * 每个 attempt 的维度值为各成员显示键以 ` · ` 连接(缺失成员沿用 `(missing)` 显示键参与
+ * 连接,与单维度缺失同一条规则)。单维度形态与 dimensionName / dimensionKey 严格等价。
+ */
+export function seriesMembers(series: SeriesInput): readonly DimensionInput[] {
+  return Array.isArray(series) ? (series as readonly DimensionInput[]) : [series as DimensionInput];
+}
+
+export function seriesName(series: SeriesInput): string {
+  return seriesMembers(series).map(dimensionName).join(" × ");
+}
+
+export function seriesKey(series: SeriesInput, item: Item): string {
+  return seriesMembers(series)
+    .map((member) => dimensionKey(member, item))
+    .join(" · ");
 }
 
 /**

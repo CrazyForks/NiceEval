@@ -122,6 +122,8 @@ interface ExperimentRunInfo {
   description?: string;
   reasoningEffort?: string;
   flags?: Record<string, JsonValue>;
+  /** 报告归类标注（ExperimentDef.labels 原样投影）；不透传运行时，不参与可比性配置。 */
+  labels?: Record<string, string | number>;
   runs: number;
   earlyExit: boolean;
   timeoutMs?: number;

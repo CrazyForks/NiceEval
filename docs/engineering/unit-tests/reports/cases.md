@@ -113,6 +113,19 @@ it("scopeSummaryData 使用端到端两级聚合并保留覆盖率", async () =>
 | 标签从点四周候选位择优：存在无冲突候选时，标签不与其它标签重叠、不遮盖任何数据点、不越出画布；全候选冲突时取重叠最小者，不丢标签 | 正例：三点近重合 + 正下方另一点的簇，标签框两两不叠且不压任何点框；反例：只向下推的级联布局会把第三个标签推到下方点上，可区分 |
 | 无冲突时标签取点右侧紧邻位且不带 leader 标记；离开左右紧邻位的标签带 leader 标记；靠画布右缘的点标签整体落在画布内 | 正例：稀疏两点右侧紧邻、无 leader；边界：右缘点锚到左侧紧邻位、标签框不越出画布、无 leader 标记 |
 
+## labels 维度、series 归类与 connect
+
+契约来源：[Library · 指标与维度](../../../feature/reports/library/metrics.md)「维度与数值轴」、[Library · 指标组件](../../../feature/reports/library/metric-views.md)「MetricScatter」、[Library · 概览组件](../../../feature/reports/library/summaries.md)「ExperimentComparison」、[Show · 默认报告](../../../feature/reports/show/default-report.md)、[Experiments Library](../../../feature/experiments/library.md)「labels」。
+
+| 契约 | 场景 |
+|---|---|
+| `label()` 读快照 `ExperimentRunInfo.labels` 的声明值作分组维度，报告不从 experiment id 字符串猜；`numericLabel()` 只接受 number 值 | 正例：`label("line")` 按声明值分组；边界：未声明该键的实验归 `(missing)`；反例：`numericLabel` 对字符串值返回 null，不猜序 |
+| series 类选项接受非空数组解析为复合维度：name 依声明顺序以 ` × ` 连接，值以 ` · ` 连接，缺失成员沿用 `(missing)` 参与连接 | 正例：`["agent", label("memory")]` 的 seriesDimension 与行 series 值；边界：单成员数组等价于单维度 |
+| `ExperimentComparison` series 缺省逐组解析：组内任一实验声明 label `line` → `label("line")` 并连线，否则 `"agent"` 不连线；显式 series 对所有组统一生效 | 正例：声明 line 的组 seriesDimension 为 "line"；正例：无 line 的组回落 "agent"；正例：显式 series 同时覆盖两种组 |
+| `MetricScatter` 默认不连线，`connect` 显式开启：web 面每 series 按 x 升序折线；text 面不在坐标图画折线，图例按 x 升序 `→` 串联并给逐段位移摘要（两轴带符号差），标题行尾标注归类维度 | 正例：connect 关时无 polyline 也无箭头；正例：connect 开时折线点序、图例箭头与位移摘要；边界：单点 series 无箭头无摘要 |
+| text 散点标记按图例顺序分配：series 显示键字典序、series 内 x 原始值升序；无 series 时按点键字典序 | 正例：两 series 各两点的 A–D 分配顺序；边界：无 series 时按 key 字典序 |
+| 同图 series 配色以稳定散列为起点，图内撞色按图例顺序线性探测下一个空色格，超过色板数才复用 | 正例：散列同格的两个 series 在同图不同色；正例：无冲突的键仍取散列格（跨图稳定）；边界：第 7 个 series 开始复用颜色 |
+
 ## text/web 双面同源
 
 契约来源：[Architecture](../../../feature/reports/architecture.md)、[View](../../../feature/reports/view.md)、[Show](../../../feature/reports/show.md)、[Library · 实体列表](../../../feature/reports/library/entity-lists.md)。

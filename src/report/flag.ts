@@ -20,6 +20,12 @@ export function flagValueOf(attempt: AttemptHandle, name: string): unknown {
   return info?.flags?.[name];
 }
 
+/** experiment 声明的报告归类标注 labels(同 flags 的读取回退链;值域 string | number)。 */
+export function labelValueOf(attempt: AttemptHandle, name: string): unknown {
+  const info = attempt.snapshot?.experiment ?? attempt.result.experiment;
+  return info?.labels?.[name];
+}
+
 /**
  * runConfig() 的取值:读快照的 `ExperimentRunInfo` 投影,外加桥接到快照顶层权威字段的
  * `model` / `agent` 两个键(与 "model" / "agent" 内置维度同一读法,不另造第二套口径)。
@@ -55,6 +61,21 @@ export function flag(name: string, options?: DimensionOptions): DimensionRef {
 }
 
 /**
+ * 把 experiment 声明的一个报告标注(`ExperimentDef.labels` 的键)当分组维度,与 {@link flag}
+ * 同一套用法。labels 是纯报告侧的归类坐标:不透传运行时、不参与可比性配置;报告不从
+ * experiment id 字符串猜语义,归类只认声明(docs/feature/experiments/library.md「labels」)。
+ */
+export function label(name: string, options?: DimensionOptions): DimensionRef {
+  assertName(name, "label", "the key declared in the experiment's labels");
+  return {
+    kind: "label",
+    name,
+    ...(options?.label !== undefined ? { label: options.label } : {}),
+    ...(options?.unit !== undefined ? { unit: options.unit } : {}),
+  };
+}
+
+/**
  * 把一项顶层运行配置当分组维度,与 {@link flag} 同一套用法。读快照的 `ExperimentRunInfo`
  * 投影;可用键由 RunConfigKey 在类型层穷尽(那张接口的字段全集,外加桥接到快照顶层权威
  * 字段的 `model` / `agent`),拼错键在编译期就被拒绝。
@@ -81,6 +102,23 @@ export function numericFlag(name: string, options?: NumericAxisOptions): Numeric
     ...(options?.unit !== undefined ? { unit: options.unit } : {}),
     of(attempt) {
       const value = flagValueOf(attempt, name);
+      return typeof value === "number" && Number.isFinite(value) ? value : null;
+    },
+  };
+}
+
+/**
+ * MetricLine 的 x 轴:只接受 number 值的 label。labels 由作者亲手声明,要数值轴就直接
+ * 声明成 number,不设 map;字符串值返回 null(折线不绘该点并报告缺失)。
+ */
+export function numericLabel(name: string, options?: NumericAxisOptions): NumericAxis {
+  assertName(name, "numericLabel", "the key declared in the experiment's labels");
+  return {
+    name,
+    ...(options?.label !== undefined ? { label: options.label } : {}),
+    ...(options?.unit !== undefined ? { unit: options.unit } : {}),
+    of(attempt) {
+      const value = labelValueOf(attempt, name);
       return typeof value === "number" && Number.isFinite(value) ? value : null;
     },
   };

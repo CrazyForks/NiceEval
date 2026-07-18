@@ -123,7 +123,7 @@ export function scopeSummaryText(data: ScopeSummaryData, votes: "eval" | "attemp
 // ───────────────────────── ExperimentComparison ─────────────────────────
 
 /** 单组详情:标题行 + 缩进的散点与实验列表(与 web 面同一份预分区数据)。 */
-function comparisonGroupText(group: ExperimentComparisonGroupData, ctx: TextContext): string {
+function comparisonGroupText(group: ExperimentComparisonGroupData, ctx: TextContext, connect?: boolean): string {
   const inner = Math.max(20, ctx.width - 2);
   const innerCtx: TextContext = {
     width: inner,
@@ -132,7 +132,12 @@ function comparisonGroupText(group: ExperimentComparisonGroupData, ctx: TextCont
     experimentCommand: ctx.experimentCommand,
     render: (node, w) => ctx.render(node, w ?? inner),
   };
-  const body = [scatterText(group.scatter, innerCtx), experimentListText(group.experiments, innerCtx, group.key)]
+  // connect 缺省跟随缺省 series 解析:按 line 归类的组连线(声明了线就画线),agent 组不连。
+  const connectOn = connect ?? group.scatter.seriesDimension === "line";
+  const body = [
+    scatterText(group.scatter, innerCtx, { connect: connectOn }),
+    experimentListText(group.experiments, innerCtx, group.key),
+  ]
     .filter((block) => block.length > 0)
     .join("\n\n");
   return `${localeText(ctx.locale, "experimentComparison.group")} ${group.key}\n\n${indentBlock(body, "  ")}`;
@@ -146,10 +151,11 @@ export function experimentComparisonText(
   data: ExperimentComparisonData,
   _className: string | undefined,
   ctx: TextContext,
+  connect?: boolean,
 ): string {
   const locale = ctx.locale;
   if (data.groups.length === 0) return localeText(locale, "experimentComparison.empty");
-  if (data.groups.length === 1) return comparisonGroupText(data.groups[0]!, ctx);
+  if (data.groups.length === 1) return comparisonGroupText(data.groups[0]!, ctx, connect);
 
   const columns: TableColumn[] = [
     { key: "group", header: localeText(locale, "experimentComparison.group") },
@@ -383,8 +389,21 @@ function scatterHeading(data: ScatterData, locale: ReportLocale): string {
   return `${withBetter(data.x)} × ${withBetter(data.y)}`;
 }
 
-export function scatterText(data: ScatterData, ctx: TextContext): string {
+export interface ScatterTextOptions {
+  /** series 内按 x 升序成线:坐标图内不画折线,图例以 ` → ` 串联并给逐段位移摘要。 */
+  connect?: boolean;
+}
+
+/** 位移摘要里的带符号差值;`%` 的差是百分点,单位写 pt(docs/feature/reports/show/default-report.md)。 */
+function signedDelta(value: number, unit?: string): string {
+  const text = formatMetricValue(value, unit);
+  const signed = value >= 0 ? `+${text}` : text;
+  return unit === "%" ? signed.replace("%", "pt") : signed;
+}
+
+export function scatterText(data: ScatterData, ctx: TextContext, opts?: ScatterTextOptions): string {
   const locale = ctx.locale;
+  const connect = opts?.connect === true && data.seriesDimension !== undefined;
   const drawable = data.rows.filter((r) => r.x.value !== null && r.y.value !== null);
   const missing = data.rows.length - drawable.length;
   const footnotes: string[] = [];
@@ -395,38 +414,56 @@ export function scatterText(data: ScatterData, ctx: TextContext): string {
   if (drawable.length === 0) {
     return [localeText(locale, "scatter.noData", axes), ...footnotes].join("\n");
   }
+  // 标题行尾标注归类维度(· 按 <series> 归类)。
+  const heading =
+    data.seriesDimension !== undefined
+      ? `${scatterHeading(data, locale)} · ${localeText(locale, "scatter.groupedBy", { dim: data.seriesDimension })}`
+      : scatterHeading(data, locale);
+
+  // 标记分配顺序即图例顺序:series 按显示键字典序、series 内按 x 原始值升序;
+  // 无 series 时保持点键字典序(rows 本身已按维度 key 排序)。
+  const ordered =
+    data.seriesDimension === undefined
+      ? drawable
+      : [...drawable].sort((a, b) => {
+          const sa = a.series ?? "";
+          const sb = b.series ?? "";
+          if (sa !== sb) return sa < sb ? -1 : 1;
+          return (a.x.value as number) - (b.x.value as number);
+        });
+
   // 点太密排不下时降级为坐标表,不硬挤
-  if (drawable.length > POINT_MARKS.length || ctx.width < 44) {
+  if (ordered.length > POINT_MARKS.length || ctx.width < 44) {
     const table = renderCoordinateTable(
-      drawable.map((r) => ({
+      ordered.map((r) => ({
         key: r.key,
         x: resolveLocalizedText(r.x.display, locale),
         y: resolveLocalizedText(r.y.display, locale),
       })),
       { key: data.pointDimension, x: axes.x, y: axes.y },
     );
-    return [scatterHeading(data, locale), "", table, ...footnotes].join("\n");
+    return [heading, "", table, ...footnotes].join("\n");
   }
 
-  const points: PlotPoint[] = drawable.map((r, i) => ({
+  const points: PlotPoint[] = ordered.map((r, i) => ({
     mark: POINT_MARKS[i],
     x: r.x.value as number,
     y: r.y.value as number,
   }));
-  // 同系列的点按 x 排序连线
-  const bySeries = new Map<string, { x: number; y: number }[]>();
-  for (const r of drawable) {
+  // series 分组(ordered 已按 series、x 排好序);connect 的折线只进 web 面,
+  // text 面用图例的 → 串联 + 位移摘要表达同一条线,坐标图内不画折线。
+  const rowsBySeries = new Map<string, typeof ordered>();
+  for (const r of ordered) {
     if (r.series === undefined) continue;
-    const list = bySeries.get(r.series) ?? [];
-    list.push({ x: r.x.value as number, y: r.y.value as number });
-    bySeries.set(r.series, list);
+    const list = rowsBySeries.get(r.series) ?? [];
+    list.push(r);
+    rowsBySeries.set(r.series, list);
   }
-  for (const list of bySeries.values()) list.sort((a, b) => a.x - b.x);
 
   const plot = renderCharPlot({
     width: ctx.width,
     points,
-    lines: [...bySeries.values()].filter((l) => l.length > 1),
+    lines: [],
     xLabel: axes.x,
     yLabel: axes.y,
     formatX: (v) => formatMetricValue(v, data.x.unit),
@@ -435,9 +472,32 @@ export function scatterText(data: ScatterData, ctx: TextContext): string {
     invertX: data.x.better === "lower",
     invertY: data.y.better === "lower",
   });
-  const legend = drawable.map((r, i) => `${POINT_MARKS[i]} ${r.key}`).join("   ");
+
+  const markByKey = new Map(ordered.map((r, i) => [r.key, POINT_MARKS[i]]));
+  let legend: string;
+  if (data.seriesDimension === undefined) {
+    legend = ordered.map((r) => `${markByKey.get(r.key)} ${r.key}`).join("   ");
+  } else {
+    // 图例一行一个 series:行首 series 显示键,后接线上各点;connect 用 → 串联并给逐段位移摘要。
+    const seriesWidth = Math.max(...[...rowsBySeries.keys()].map(stringWidth));
+    const lines: string[] = [];
+    for (const [series, list] of rowsBySeries) {
+      const parts = list.map((r) => `${markByKey.get(r.key)} ${r.key}`);
+      lines.push(`${padDisplay(series, seriesWidth)}  ${parts.join(connect ? " → " : "   ")}`);
+      if (connect) {
+        for (let i = 1; i < list.length; i++) {
+          const a = list[i - 1];
+          const b = list[i];
+          const dy = signedDelta((b.y.value as number) - (a.y.value as number), data.y.unit);
+          const dx = signedDelta((b.x.value as number) - (a.x.value as number), data.x.unit);
+          lines.push(`${" ".repeat(seriesWidth + 2)}└ ${axes.y} ${dy} · ${axes.x} ${dx}`);
+        }
+      }
+    }
+    legend = lines.join("\n");
+  }
   const hint = betterCornerText(data.x, data.y, locale);
-  return [scatterHeading(data, locale), plot, "", ...(hint !== undefined ? [hint] : []), legend, ...footnotes].join("\n");
+  return [heading, plot, "", ...(hint !== undefined ? [hint] : []), legend, ...footnotes].join("\n");
 }
 
 // ───────────────────────── MetricLine ─────────────────────────

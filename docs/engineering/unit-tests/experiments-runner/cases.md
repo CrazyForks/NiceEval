@@ -17,6 +17,7 @@
 | 调度项覆盖优先级 CLI flag → experiment → config → 内置默认；agent/model/flags 只属于 experiment，CLI 不可覆盖 | 正例：`--runs` 覆盖实验 runs；正例：实验 timeoutMs 覆盖 config；反例：`exp --model` 报用法错误 |
 | 结果按发现顺序（相对路径排序）排列，与完成顺序无关 | 反例：后发现的先完成，输出顺序仍稳定 |
 | `model` / `reasoningEffort` / `flags` 由实验经 ctx 透传到 agent send 与 eval test；省略 model 时不传值 | 正例：透传值一致；边界：省略时 ctx.model 为 undefined |
+| `ExperimentDef.labels` 值域 string \| number（解析时校验），原样投影进快照 `ExperimentRunInfo.labels`；不透传 ctx / t，不参与可比性配置 | 正例：声明 labels 的实验落盘投影一致且 ctx.flags 不含 labels；反例：布尔 / 对象值在 defineExperiment 解析时报错；边界：仅 labels 不同的两快照仍互相可比（current() 拼接不跳过） |
 
 ## 并发
 

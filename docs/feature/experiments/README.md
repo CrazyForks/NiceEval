@@ -28,6 +28,8 @@ export default defineExperiment({
   reasoningEffort?: string;                  // 推理努力程度(agent 留空);省略=原生默认。经 ctx.reasoningEffort / t.reasoningEffort 透传
   flags?: Record<string, JsonValue>;        // KV 参数,透传到 ctx.flags / t.flags(见 Library);必须 JSON 可序列化——
                                             // 实验是可签入可复现的配置,函数/类实例装不进快照;解析时校验,非 JSON 值直接报错
+  labels?: Record<string, string | number>; // 报告归类标注:实验在各对比轴上的坐标(如 { line: "codex", memory: "mempal" })。
+                                            // 不透传 ctx / t,不参与可比性配置;报告用 label() / numericLabel() 按它归类(见 Library)
   runs?: number;                             // 每个 (agent × model × eval) 跑几次(默认 1)
   earlyExit?: boolean;                        // 先过一次即停其余(默认 true)
   evals?: "*" | string[] | ((id: string) => boolean);  // 跑哪些 eval(默认 "*")
@@ -39,6 +41,8 @@ export default defineExperiment({
   teardown?: (ctx: ExperimentHookContext) => void | Promise<void>;  // 全部 attempt 收尾后执行;setup 时点走到过才触发
 });
 ```
+
+`flags` 与 `labels` 的分界是**这个值会不会改变 attempt 里发生的事**:会(开关联网、注入 skill)→ `flags`,进 `ctx.flags` / `t.flags`、参与可比性配置;只是给报表归类(「这格用的记忆机制是 mempal」)→ `labels`,agent 和 eval 都看不见,改它不作废任何已有结果。声明与消费见 [Library · labels](library.md#labels声明归类坐标不进运行时)。
 
 `maxConcurrency` 是**实验自己的并发闸**:调度器为这个实验单建一道信号量,它的 attempt 先过这道闸再去占全局并发位;同批跑的其它实验不受影响,仍按全局并发(CLI / env / config / 沙箱默认)跑。两个用途:把有共享状态的实验串行化(例如跨 eval 累积记忆的场景,`maxConcurrency: 1` 保证 attempt 按 eval 顺序一个个跑),或给撞了 provider 限额的实验单独降速。
 

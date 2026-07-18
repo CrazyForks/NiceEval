@@ -1,0 +1,71 @@
+// cases: docs/engineering/unit-tests/experiments-runner/cases.md
+// 登记行:ExperimentDef.labels 值域 string | number(解析时校验),原样投影进快照
+// ExperimentRunInfo.labels;不透传 ctx / t,不参与可比性配置。
+
+import { describe, expect, it } from "vitest";
+
+import { defineExperiment } from "../define.ts";
+import { experimentRunInfo } from "./attempt.ts";
+import { comparabilityConfigOf, deepEqualJson } from "../results/select.ts";
+import type { Snapshot } from "../results/types.ts";
+import type { Agent } from "../agents/types.ts";
+import type { AgentRun } from "./types.ts";
+
+const fakeAgent = { name: "fake" } as unknown as Agent;
+
+function runWith(labels?: Record<string, string | number>): AgentRun {
+  return {
+    agent: fakeAgent,
+    flags: {},
+    runs: 1,
+    earlyExit: true,
+    evalFilter: () => true,
+    ...(labels !== undefined ? { labels } : {}),
+  };
+}
+
+describe("ExperimentDef.labels", () => {
+  it("值域 string | number:合法值通过,布尔 / 对象在解析时报错", () => {
+    expect(() =>
+      defineExperiment({ agent: fakeAgent, labels: { line: "codex", contextK: 32 } }),
+    ).not.toThrow();
+    expect(() =>
+      defineExperiment({ agent: fakeAgent, labels: { on: true as unknown as string } }),
+    ).toThrow(/labels\.on/);
+    expect(() =>
+      defineExperiment({ agent: fakeAgent, labels: { nested: { a: 1 } as unknown as string } }),
+    ).toThrow(/labels\.nested/);
+    expect(() =>
+      defineExperiment({ agent: fakeAgent, labels: { nan: Number.NaN } }),
+    ).toThrow(/labels\.nan/);
+  });
+
+  it("原样投影进 ExperimentRunInfo.labels;未声明时字段缺省", () => {
+    const labels = { line: "codex", memory: "mempal" };
+    expect(experimentRunInfo(runWith(labels))?.labels).toEqual(labels);
+    expect(experimentRunInfo(runWith())?.labels).toBeUndefined();
+    // 空对象不落盘(与 flags 同一态度:不写空壳字段)
+    expect(experimentRunInfo(runWith({}))?.labels).toBeUndefined();
+  });
+
+  it("不参与可比性配置:仅 labels 不同的两快照仍互相可比", () => {
+    const snapshotWith = (labels?: Record<string, string | number>): Snapshot =>
+      ({
+        experimentId: "mem/codex",
+        agent: "codex",
+        model: "gpt-5.4",
+        experiment: {
+          runs: 1,
+          earlyExit: true,
+          selectedEvalIds: [],
+          flags: { web: true },
+          ...(labels !== undefined ? { labels } : {}),
+        },
+      }) as unknown as Snapshot;
+    const a = comparabilityConfigOf(snapshotWith({ line: "codex" }));
+    const b = comparabilityConfigOf(snapshotWith({ line: "renamed", memory: "mempal" }));
+    const c = comparabilityConfigOf(snapshotWith());
+    expect(deepEqualJson(a, b)).toBe(true);
+    expect(deepEqualJson(a, c)).toBe(true);
+  });
+});

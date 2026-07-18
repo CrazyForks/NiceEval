@@ -35,6 +35,7 @@ import type {
   ScopeSummaryData,
   ScopeWarning,
   ScoreboardData,
+  SeriesInput,
   TableData,
   TraceSpanSummary,
   TraceWaterfallRow,
@@ -63,6 +64,8 @@ import {
   locatorOf,
   refDisplayKey,
   resolveInput,
+  seriesKey,
+  seriesName,
   snapshotKeyOf,
   toColumn,
   type Item,
@@ -418,20 +421,37 @@ export function experimentComparisonGroupKey(experimentId: string): string {
   return experimentGroupOf(experimentId) ?? experimentId;
 }
 
-/** 每组散点的唯一口径:默认 definition 与公开计算共用,不各写一份。 */
-const COMPARISON_SCATTER_OPTIONS: MetricScatterOptions = {
-  points: "experiment",
-  series: "agent",
-  x: costUSD,
-  y: endToEndPassRate,
-};
+export interface ExperimentComparisonOptions {
+  /**
+   * 逐组散点的 series 维度。缺省逐组解析:组内任一实验声明了 label `line` → `label("line")`
+   * 并由渲染面连线;否则 `"agent"`、不连线。显式传入时对所有组统一生效。
+   */
+  series?: SeriesInput;
+}
+
+/** 默认报告识别的归类键:声明了它的组按线归类并连线(docs/feature/experiments/library.md「labels」)。 */
+const LINE_LABEL_KEY = "line";
+const LINE_SERIES: DimensionInput = { kind: "label", name: LINE_LABEL_KEY };
+
+/** 每组散点的固定两轴;series 逐组解析,见 comparisonSeriesFor。 */
+const COMPARISON_SCATTER_AXES = { points: "experiment", x: costUSD, y: endToEndPassRate } as const;
+
+/** 组的缺省 series:组内任一快照声明了 labels.line 用 line 维度,否则 agent。 */
+function comparisonSeriesFor(groupSnapshots: readonly Snapshot[]): SeriesInput {
+  const hasLine = groupSnapshots.some((s) => s.experiment?.labels?.[LINE_LABEL_KEY] !== undefined);
+  return hasLine ? LINE_SERIES : "agent";
+}
 
 /**
- * `experimentComparisonData(input)`:先把 input 按可比组分区(experiment id 的完整父路径),
- * 再为每组分别计算 ScopeSummary、成本 × 端到端通过率散点和 ExperimentList——分区发生在任何
- * 指标计算之前,组外 attempt 不可能污染该组的坐标尺度、series、通过率、成本、排序或缺数据计数。
+ * `experimentComparisonData(input, options?)`:先把 input 按可比组分区(experiment id 的完整
+ * 父路径),再为每组分别计算 ScopeSummary、成本 × 端到端通过率散点和 ExperimentList——分区
+ * 发生在任何指标计算之前,组外 attempt 不可能污染该组的坐标尺度、series、通过率、成本、
+ * 排序或缺数据计数。series 缺省逐组解析(comparisonSeriesFor),显式传入统一生效。
  */
-export async function experimentComparisonData(input: ReportInput): Promise<ExperimentComparisonData> {
+export async function experimentComparisonData(
+  input: ReportInput,
+  options?: ExperimentComparisonOptions,
+): Promise<ExperimentComparisonData> {
   const { snapshots } = resolveInput(input);
   const snapshotsByGroup = new Map<string, Snapshot[]>();
   for (const snapshot of snapshots) {
@@ -444,9 +464,10 @@ export async function experimentComparisonData(input: ReportInput): Promise<Expe
     [...snapshotsByGroup.entries()]
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(async ([key, groupSnapshots]): Promise<ExperimentComparisonGroupData> => {
+        const series = options?.series ?? comparisonSeriesFor(groupSnapshots);
         const [summary, scatter, experiments] = await Promise.all([
           scopeSummaryData(groupSnapshots),
-          metricScatterData(groupSnapshots, COMPARISON_SCATTER_OPTIONS),
+          metricScatterData(groupSnapshots, { ...COMPARISON_SCATTER_AXES, series }),
           experimentListData(groupSnapshots),
         ]);
         return { key, summary, scatter, experiments };
@@ -649,8 +670,8 @@ function subjectDisplay(earned: number, possible: number): LocalizedText {
 export interface MetricScatterOptions {
   /** 点维度:每个点 = 该组 attempt 的聚合。 */
   points: DimensionInput;
-  /** 可选:只决定颜色和分组,默认不连线。 */
-  series?: DimensionInput;
+  /** 决定颜色和图例归类,默认不连线(连线是呈现 prop `connect`);数组形态解析为复合维度。 */
+  series?: SeriesInput;
   x: Metric;
   y: Metric;
   /** eval id 前缀过滤,同 CLI 位置参数语义。 */
@@ -666,14 +687,14 @@ export async function metricScatterData(input: ReportInput, options: MetricScatt
     rows.push({
       key,
       // 组内取第一条解析系列:点维度细于系列维度时(experiment ⊂ agent)天然一致
-      ...(options.series ? { series: dimensionKey(options.series, group[0]!) } : {}),
+      ...(options.series ? { series: seriesKey(options.series, group[0]!) } : {}),
       x: await computeCell(options.x, group),
       y: await computeCell(options.y, group), // 任一轴 null 的点留在 rows 里:组件不画,但注脚要报的数就从这里数
     });
   }
   return {
     pointDimension: dimensionName(options.points),
-    ...(options.series ? { seriesDimension: dimensionName(options.series) } : {}),
+    ...(options.series ? { seriesDimension: seriesName(options.series) } : {}),
     x: toColumn(options.x),
     y: toColumn(options.y),
     rows,
@@ -683,9 +704,10 @@ export async function metricScatterData(input: ReportInput, options: MetricScatt
 // ───────────────────────── metricLineData ─────────────────────────
 
 export interface MetricLineOptions {
-  /** x 轴:NumericAxis(numericFlag() / numericRunConfig() 或自定义 of),不解析 experiment 命名。 */
+  /** x 轴:NumericAxis(numericFlag() / numericLabel() / numericRunConfig() 或自定义 of),不解析 experiment 命名。 */
   x: NumericAxis;
-  series?: DimensionInput;
+  /** 数组形态解析为复合维度。 */
+  series?: SeriesInput;
   y: Metric;
   /** eval id 前缀过滤,同 CLI 位置参数语义。 */
   evals?: string | readonly string[];
@@ -719,7 +741,7 @@ export async function metricLineData(input: ReportInput, options: MetricLineOpti
           "Fix of() to read experiment-level configuration (numericFlag()/numericRunConfig() do this by construction).",
       );
     }
-    const series = options.series ? dimensionKey(options.series, item) : undefined;
+    const series = options.series ? seriesKey(options.series, item) : undefined;
     const bucketKey = `${series ?? ""} ${x === null ? "null" : String(x)}`;
     const bucket = buckets.get(bucketKey);
     if (bucket) bucket.items.push(item);
@@ -752,7 +774,7 @@ export async function metricLineData(input: ReportInput, options: MetricLineOpti
       label: options.x.label ?? options.x.name,
       ...(options.x.unit !== undefined ? { unit: options.x.unit } : {}),
     },
-    ...(options.series ? { seriesDimension: dimensionName(options.series) } : {}),
+    ...(options.series ? { seriesDimension: seriesName(options.series) } : {}),
     y: toColumn(options.y),
     rows,
   };

@@ -81,6 +81,14 @@ export function defineExperiment(def: ExperimentDef): ExperimentDef {
       }
     }
   }
+  // labels 是报告归类坐标(进 ExperimentRunInfo.labels,不透传 ctx/t):值域 string | number,
+  // 解析时即校验,布尔 / 对象 / NaN 直接报错,不等到落盘或报告分组才炸。
+  if (def.labels !== undefined) {
+    for (const [key, value] of Object.entries(def.labels)) {
+      const ok = typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
+      if (!ok) throw new Error(t("define.experimentLabelInvalid", { key }));
+    }
+  }
   return def;
 }
 

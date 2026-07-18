@@ -19,7 +19,7 @@ export {
   taskPassRate,
   tokens,
 } from "./metrics.ts";
-export { flag, numericFlag, numericRunConfig, runConfig } from "./flag.ts";
+export { flag, label, numericFlag, numericLabel, numericRunConfig, runConfig } from "./flag.ts";
 
 // 报告定义与组件基座
 export {
@@ -165,6 +165,7 @@ export {
 } from "./compute.ts";
 export type {
   DeltaTableOptions,
+  ExperimentComparisonOptions,
   MetricLineOptions,
   MetricMatrixOptions,
   MetricScatterOptions,
@@ -207,6 +208,7 @@ export type {
   ScopeSummaryData,
   ScopeWarning,
   ScoreboardData,
+  SeriesInput,
   TableData,
   TraceSpanSummary,
   TraceWaterfallRow,

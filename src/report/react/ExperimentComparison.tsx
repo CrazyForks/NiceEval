@@ -13,11 +13,14 @@ import { cx } from "./format.ts";
 
 export function ExperimentComparisonView({
   data,
+  connect,
   className,
   locale = DEFAULT_REPORT_LOCALE,
   attemptHref,
 }: {
   data: ExperimentComparisonData;
+  /** 透传给逐组散点;缺省跟随缺省 series 解析——按 line 归类的组连线(声明了线就画线)。 */
+  connect?: boolean;
   className?: string;
   locale?: ReportLocale;
   attemptHref?: (locator: AttemptLocator) => string;
@@ -63,7 +66,7 @@ export function ExperimentComparisonView({
             open={index === 0}
           >
             <summary>{group.key}</summary>
-            <MetricScatter data={group.scatter} locale={locale} />
+            <MetricScatter data={group.scatter} connect={connect ?? group.scatter.seriesDimension === "line"} locale={locale} />
             <ExperimentList data={group.experiments} filter locale={locale} relativeTo={group.key} attemptHref={attemptHref} />
           </details>
         ))}

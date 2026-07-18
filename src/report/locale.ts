@@ -121,6 +121,8 @@ const en = {
   "scatter.betterUpperRight": "better → upper right",
   /** 0 个可画点:x/y 指标没有可用数据。 */
   "scatter.noData": "No data to plot {x} × {y}",
+  /** 标题行尾的归类维度标注(series 维度存在时显示)。 */
+  "scatter.groupedBy": "grouped by {dim}",
   "pointsMissing.one": "{n} point missing data",
   "pointsMissing.other": "{n} points missing data",
 
@@ -266,6 +268,7 @@ const zhCN: Record<ReportMessageKey, string> = {
 
   "scatter.betterUpperRight": "越靠右上越好",
   "scatter.noData": "{x} × {y} 没有可绘制的数据",
+  "scatter.groupedBy": "按 {dim} 归类",
   "pointsMissing.one": "{n} 个点缺数据",
   "pointsMissing.other": "{n} 个点缺数据",
 

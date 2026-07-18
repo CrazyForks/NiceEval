@@ -163,6 +163,7 @@ export const zhCN = {
   "define.evalTestRequired": "defineEval 需要一个 async test(t) 函数。",
   "define.experimentAgentRequired": "defineExperiment 需要 agent。",
   "define.experimentFlagNotJson": "experiment.flags.{{key}} 不是可 JSON 序列化的值(函数 / undefined / 循环引用 / bigint 不允许);flags 会原样进入结果快照,必须是纯 JSON。",
+  "define.experimentLabelInvalid": "experiment.labels.{{key}} 必须是字符串或有限数字;labels 是报告侧的归类坐标,会原样进入结果快照。",
   "define.experimentSetupNotFunction": "experiment.setup 必须是函数((ctx) => void);要清理请挂 experiment.teardown;要按实验准备沙箱内环境请挂 sandbox spec 的 .setup() 钩子链。",
   "define.experimentIdRejected": "defineExperiment 不接受 id —— id 由文件路径推导。",
   "define.sandboxAgentNameRequired": "defineSandboxAgent 需要 name。",

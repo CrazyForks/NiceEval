@@ -227,13 +227,17 @@ describe("MetricScatter", () => {
     expect(cx("compare/bub-low")).toBeLessThan(cx("compare/bub-high"));
   });
 
-  it("同系列点连线,系列色走类名(nre-series-cN,CSS 上色跟随深浅主题),图例列系列名", () => {
-    expect(html).toContain("<polyline");
-    expect(html).toContain(`nre-scatter-line ${seriesClassForKey("bub")}`);
+  it("默认不连线;connect 显式开启才画折线,系列色走类名(nre-series-cN,CSS 上色跟随深浅主题),图例列系列名", () => {
+    expect(html).not.toContain("<polyline");
     // 渲染面零内联 hex:深色主题下由 CSS 变量切换
     expect(html).not.toMatch(/#[0-9a-f]{6}/i);
     expect(html).toContain(">bub</span>");
     expect(html).toContain(">codex</span>");
+
+    const connected = renderToStaticMarkup(<MetricScatter data={scatterData} connect />);
+    expect(connected).toContain("<polyline");
+    expect(connected).toContain('nre-scatter-line nre-series-c');
+    expect(connected).toContain('data-series="bub"');
   });
 
   it("niceTicks 网格与每点直接标签(末段唯一时缩成末段)", () => {

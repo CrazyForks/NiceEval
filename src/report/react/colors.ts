@@ -32,6 +32,28 @@ export function colorIndexForKey(key: string): number {
   return hash % NRE_PALETTE_SIZE;
 }
 
+/**
+ * 同一张图内 series 键集合的配色:每个键仍以稳定散列为起点(无冲突时与跨图配色一致),
+ * 图内撞色时按传入顺序(图例顺序)线性探测下一个空色格——跨图稳定让位给图内可辨;
+ * 键数超过色板后无空格可探,回落散列格(复用不可避免)。返回键 → 色板下标。
+ * 契约见 docs/feature/reports/library/metric-views.md「MetricScatter」;
+ * 修法台账见 memory/scatter-series-color-collision.md。
+ */
+export function colorIndicesForKeys(keys: readonly string[]): Map<string, number> {
+  const used = new Set<number>();
+  const out = new Map<string, number>();
+  for (const key of keys) {
+    if (out.has(key)) continue;
+    let idx = colorIndexForKey(key);
+    if (used.size < NRE_PALETTE_SIZE) {
+      while (used.has(idx)) idx = (idx + 1) % NRE_PALETTE_SIZE;
+    }
+    used.add(idx);
+    out.set(key, idx);
+  }
+  return out;
+}
+
 /** 键对应的稳定 class 名("nre-c3"),配 styles.css 的 .nre-cN 上文字色。 */
 export function colorClassForKey(key: string): string {
   return `nre-c${colorIndexForKey(key)}`;

@@ -25,6 +25,45 @@ export default defineExperiment({
 
 详见 [Adapter · 配置归属不变量](../adapters/architecture/agent-contract.md#配置归属不变量)。
 
+## labels:声明归类坐标,不进运行时
+
+同一个可比组里,「哪些实验算一类」的语义写在 `labels` 上:每个实验声明自己在各对比轴上的坐标,报告按坐标归类。它是纯报告侧事实——agent 的 `send` 和 eval 的 `test` 都看不见,也不参与[可比性配置](../results/library.md#官方现刻水位resultscurrent),改 labels 不会作废任何已有结果。值域限定 `string | number`,与 `flags` 同样在解析时校验,随快照落盘进 [`ExperimentRunInfo`](../results/architecture.md#snapshotjson)。
+
+「一条线」的模型是 **lineage(族系)**:线 = 同一个基座,线上的点 = 基座上的各个变体。声明成两条轴——`line` 说这个实验属于哪条线,变体轴(如 `memory`)说它是线上哪个点:
+
+```typescript
+// experiments/compare/codex-baseline.ts —— codex 线的基线
+export default defineExperiment({
+  agent: codexAgent(),
+  model: "gpt-5.4",
+  labels: { line: "codex", memory: "baseline" },
+});
+
+// experiments/compare/codex-mempal.ts —— 同一条线:codex 加 mempal
+export default defineExperiment({
+  agent: codexAgent(),
+  model: "gpt-5.4",
+  labels: { line: "codex", memory: "mempal" },
+});
+
+// experiments/compare/claude-baseline.ts / claude-mempal.ts —— claude 各自成线,同两条轴
+export default defineExperiment({
+  agent: claudeCodeAgent(),
+  model: "gpt-5.4",
+  labels: { line: "claude", memory: "baseline" },
+});
+```
+
+`line` 是默认报告识别的归类键:组内任一实验声明了它,裸 `niceeval show` / `view` 的散点就按线归类并连线——codex / claude 各成一色,基线 → 加 mempal 的位移直接可见,不用写任何报告配置(解析规则与终端展示见 [`ExperimentComparison`](../reports/library/summaries.md#experimentcomparison) 与 [`show` 默认报告](../reports/show/default-report.md))。变体轴(`memory`)和其它轴名是你自己起的,报告侧用 [`label()`](../reports/library/metrics.md#维度与数值轴) 显式选轴:
+
+- **成线**(自定义报告里等价写法):`series={label("line")}` + [`connect`](../reports/library/metric-views.md#metricscatter)。
+- **横切**:同一份声明换个轴,`series={label("memory")}` 让 baseline 们与 mempal 们各成一类,跨 agent 比较记忆机制本身;`series={["agent", label("memory")]}` 复合归类。
+- **参数进程**:数值坐标(`labels: { contextK: 32 }`)用 `numericLabel("contextK")` 直接当 `MetricLine` 的 x 轴。
+
+与 `flags` 的分界一句话:**这个值会改变 attempt 里发生的事吗?** 会(开关联网、注入 skill)→ `flags`,进 `ctx.flags` / `t.flags`、参与可比性配置;只是给报表归类 → `labels`。两边都落盘、报告都能分组(`flag()` / `label()`),区别只在运行时可见性与可比性——已经用 `flags` 表达且确实影响行为的变量不必迁移到 labels。
+
+文件名与归类自此脱钩:`codex-gpt-5.4--mempal.ts` 的后缀只是给人看的命名习惯,报告不从 experiment id 字符串里猜任何语义,归类只认 `labels` 声明。
+
 ## 不同 eval 起自不同预制环境
 
 同一 experiment 可以覆盖一批运行时年代不同的真实任务：一条需要 Python 3.9 + astropy 4.2，其余用默认 Node 环境。稳定的大依赖应进 image/template/snapshot（构建工作流见 [Sandbox · 预制环境](../sandbox/library/prebuilt-environments.md)），但具体产物名属于 provider 配置，不能写死在 eval。两边用一个 provider-neutral 的 environment profile 对接：eval 声明需求，sandbox spec 的 `environments` 表把需求翻译成产物：

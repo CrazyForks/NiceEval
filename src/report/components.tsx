@@ -60,6 +60,7 @@ import {
   type DeltaTableOptions,
   type MetricLineOptions,
   type MetricMatrixOptions,
+  type ExperimentComparisonOptions,
   type MetricScatterOptions,
   type MetricTableOptions,
   type ScoreboardOptions,
@@ -431,29 +432,36 @@ export const ScopeSummary = makeDataComponent<
   text: (props, ctx) => scopeSummaryText(props.data, props.votes ?? "eval", ctx),
 }) as unknown as ReportComponent<ScopeSummaryProps>;
 
-export type ExperimentComparisonProps = DataProps<ExperimentComparisonData, Record<never, never>, ChromeProps>;
+type ComparisonChrome = ChromeProps & {
+  /** 透传给逐组散点;契约同 MetricScatter 的 connect。缺省时 series 维度为 "line" 的组连线。 */
+  connect?: boolean;
+};
+
+export type ExperimentComparisonProps = DataProps<ExperimentComparisonData, ExperimentComparisonOptions, ComparisonChrome>;
 
 /**
  * 内建报告的默认组合件:先把 input 按可比组分区,再为每组分别计算 ScopeSummary、
  * 成本 × 端到端通过率散点和 ExperimentList。web 面持有完整组索引并一次聚焦一组;
  * text 面命中多个组时只显示组索引与可执行的单组查看命令,命中单组时才输出完整散点与列表。
+ * series 缺省逐组解析(组内有 label `line` 声明 → 按线归类并连线,否则 agent、不连线)。
  */
-export const ExperimentComparison = makeDataComponent<ExperimentComparisonData, Record<never, never>, ChromeProps>({
+export const ExperimentComparison = makeDataComponent<ExperimentComparisonData, ExperimentComparisonOptions, ComparisonChrome>({
   name: "ExperimentComparison",
   dataFnName: "experimentComparisonData",
   shapeName: "ExperimentComparisonData",
-  dataFn: (input) => experimentComparisonData(input),
-  specKeys: [],
+  dataFn: (input, options) => experimentComparisonData(input, options),
+  specKeys: ["series"],
   validate: validateComparisonData,
   web: (props, ctx) => (
     <ExperimentComparisonView
       data={props.data}
+      connect={props.connect}
       locale={props.locale ?? ctx.locale}
       className={props.className}
       attemptHref={isHostWebContextActive() ? ctx.attemptHref : undefined}
     />
   ),
-  text: (props, ctx) => experimentComparisonText(props.data, props.className, ctx),
+  text: (props, ctx) => experimentComparisonText(props.data, props.className, ctx, props.connect),
 }) as unknown as ReportComponent<ExperimentComparisonProps>;
 
 // ───────────────────────── 实体列表 ─────────────────────────
@@ -854,18 +862,16 @@ export const Scoreboard = makeDataComponent<
   text: (props, ctx) => scoreboardText(props.data, ctx),
 }) as unknown as ReportComponent<ScoreboardProps>;
 
-export type MetricScatterProps = DataProps<
-  ScatterData,
-  MetricScatterOptions,
-  ChromeProps & { pointHref?: (row: ScatterData["rows"][number]) => string }
->;
+type ScatterChrome = ChromeProps & {
+  /** series 内按 x 升序成线(呈现,不改变 ScatterData):web 面画折线,text 面在图例给逐段位移摘要;默认 false。 */
+  connect?: boolean;
+  pointHref?: (row: ScatterData["rows"][number]) => string;
+};
 
-/** 两个指标之间的取舍:每个点一个维度值,x / y 各一个指标,series 只决定颜色和分组。 */
-export const MetricScatter = makeDataComponent<
-  ScatterData,
-  MetricScatterOptions,
-  ChromeProps & { pointHref?: (row: ScatterData["rows"][number]) => string }
->({
+export type MetricScatterProps = DataProps<ScatterData, MetricScatterOptions, ScatterChrome>;
+
+/** 两个指标之间的取舍:每个点一个维度值,x / y 各一个指标,series 决定颜色和图例归类。 */
+export const MetricScatter = makeDataComponent<ScatterData, MetricScatterOptions, ScatterChrome>({
   name: "MetricScatter",
   dataFnName: "metricScatterData",
   shapeName: "ScatterData",
@@ -873,9 +879,15 @@ export const MetricScatter = makeDataComponent<
   specKeys: ["points", "series", "x", "y", "evals"],
   validate: validateScatterData,
   web: (props, ctx) => (
-    <MetricScatterWeb data={props.data} pointHref={props.pointHref} locale={props.locale ?? ctx.locale} className={props.className} />
+    <MetricScatterWeb
+      data={props.data}
+      connect={props.connect}
+      pointHref={props.pointHref}
+      locale={props.locale ?? ctx.locale}
+      className={props.className}
+    />
   ),
-  text: (props, ctx) => scatterText(props.data, ctx),
+  text: (props, ctx) => scatterText(props.data, ctx, { connect: props.connect }),
 }) as unknown as ReportComponent<MetricScatterProps>;
 
 export type MetricLineProps = DataProps<

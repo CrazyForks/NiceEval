@@ -8,7 +8,7 @@
 import type { ReactElement } from "react";
 import type { LineData } from "../types.ts";
 import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../locale.ts";
-import { seriesClassForKey } from "./colors.ts";
+import { colorIndicesForKeys } from "./colors.ts";
 import { cx } from "./format.ts";
 
 const WIDTH = 640;
@@ -101,6 +101,9 @@ export function MetricLine({
     bySeries.get(key)!.push(p);
   }
   for (const list of bySeries.values()) list.sort((a, b) => a.xValue - b.xValue);
+  // 同图撞色消解:散列格作起点,按图例顺序线性探测空格(colors.ts 的契约注释)
+  const colorIdx = colorIndicesForKeys(seriesOrder.filter((s) => s !== ""));
+  const seriesClassOf = (series: string) => (series === "" ? "nre-series-none" : `nre-series-c${colorIdx.get(series) ?? 0}`);
 
   const xTicks = xScale.lo === xScale.hi ? [xScale.lo] : [xScale.lo, xScale.hi];
   const yTicks = yScale.lo === yScale.hi ? [yScale.lo] : [yScale.lo, yScale.hi];
@@ -157,7 +160,7 @@ export function MetricLine({
 
         {seriesOrder.map((series) => {
           const list = bySeries.get(series)!;
-          const seriesClass = series === "" ? "nre-series-none" : seriesClassForKey(series);
+          const seriesClass = seriesClassOf(series);
           const labelAt = list.reduce((a, b) => (b.px > a.px ? b : a));
           return (
             <g key={series || "(single)"} className={cx("nre-line-series", seriesClass)} data-series={series || undefined}>
@@ -180,7 +183,7 @@ export function MetricLine({
         {points.map((p, i) => {
           const circle = (
             <circle
-              className={cx("nre-line-point", p.series !== undefined ? seriesClassForKey(p.series) : "nre-series-none")}
+              className={cx("nre-line-point", p.series !== undefined ? seriesClassOf(p.series) : "nre-series-none")}
               data-key={p.key}
               cx={p.px}
               cy={p.py}

@@ -21,6 +21,8 @@ export interface ExperimentRunInfo {
   description?: string;
   reasoningEffort?: string;
   flags?: Record<string, JsonValue>;
+  /** 报告归类标注(ExperimentDef.labels 原样投影);不透传运行时,不参与可比性配置。 */
+  labels?: Record<string, string | number>;
   runs: number;
   earlyExit: boolean;
   timeoutMs?: number;
@@ -409,6 +411,15 @@ export interface ExperimentDef {
    *  (defineExperiment 解析时校验,非 JSON 直接报错),经 ctx.flags 透传给 adapter、
    *  t.flags 暴露给 eval,并原样进入结果快照的 ExperimentRunInfo.flags。 */
   flags?: Record<string, JsonValue>;
+  /**
+   * 报告归类标注:实验在各对比轴上的坐标(如 `{ line: "codex", memory: "mempal" }`)。
+   * 值域 string | number(解析时校验)。与 `flags` 的分界是「会不会改变 attempt 里发生的事」:
+   * labels 不透传 ctx / t(agent 和 eval 看不见)、不参与可比性配置(改它不作废已有结果),
+   * 只原样投影进快照的 `ExperimentRunInfo.labels` 供报告维度(`label()` / `numericLabel()`)
+   * 分组。`line` 键被默认报告识别:组内任一实验声明了它,散点按线归类并连线。
+   * 见 docs/feature/experiments/library.md「labels」。
+   */
+  labels?: Record<string, string | number>;
   /** 同一 eval 重复跑几次(结果各计一条 attempt);省略/CLI `--runs` 覆盖时默认 1。 */
   runs?: number;
   /** 一次重复(runs > 1)里某次 attempt 失败后是否跳过剩余重复;省略默认 true(提前退出省钱)。 */
@@ -546,6 +557,8 @@ export interface AgentRun {
   experimentId?: string;
   /** 实验的一句话描述(ExperimentDef.description),进结果快照的 ExperimentRunInfo。 */
   description?: string;
+  /** 报告归类标注(ExperimentDef.labels),原样进 ExperimentRunInfo.labels;不透传 ctx / t。 */
+  labels?: Record<string, string | number>;
   /** evals 过滤器的指纹(数组内容 / 函数体哈希),进 ExperimentRunInfo.evalFilterFingerprint。 */
   evalFilterFingerprint?: string;
   /** 本次运行解析后实际选中的 eval id 全集;runEvals 在调度前按 evalFilter 求值填入。 */

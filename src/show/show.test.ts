@@ -259,7 +259,10 @@ describe("默认报告:跨快照合成的现刻水位(ExperimentComparison text 
     expect(code).toBe(0);
     // 成本轴(better: lower)反向,「更好」恒指向右上;两轴都声明 better → 提示在场
     expect(out).toContain("better → upper right");
-    expect(out).toContain("A compare/a   B compare/b");
+    // 无 line 声明:按 agent 归类、不连线;图例一行一个 series(显示键字典序),标记按图例顺序分配
+    expect(out).toContain("grouped by agent");
+    expect(out).toContain("claude  A compare/b");
+    expect(out).toContain("codex   B compare/a");
     expect(out).toMatch(/\bb\s+large\s+claude\s+1s\s+100%/);
     expect(out).toMatch(/\ba\s+mini\s+codex\s+1s\s+50%/);
     expect(out).toMatch(/✓ passed\s+q1[\s\S]*└─ @1[0-9a-z]{7}/);
