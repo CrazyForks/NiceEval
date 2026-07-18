@@ -15,25 +15,27 @@ An experiment is a commit-ready TypeScript file under `experiments/`, and it com
 export default defineExperiment({
   description: "Concise prompt variant",
   agent: webAgent({ baseUrl: "https://staging.example.com" }), // configured agent instance
-  model: "gpt-5.4",                    // forwarded to the adapter through ctx.model
+  model: "gpt-5.4",                    // forwarded to the Adapter through ctx.model
   flags: { promptVariant: "concise" }, // forwarded through ctx.flags; visible in evals as t.flags
   runs: 3,                             // how many times to run each eval (to counter randomness)
 });
 ```
 
-- `agent`: who to evaluate. Put a configured instance here. The subject under test URL and credentials belong in the adapter factory, not as ad hoc experiment fields.
-- `model` / `flags`: transparent pass-through values. [NiceEval](https://niceeval.com/) does not interpret them. They are forwarded through `ctx` to the Adapter as-is, and the Adapter forwards them with the request so the application can switch behavior. This is exactly the channel that [Tier](/concepts/tier) uses for model comparisons (Tier 1) and feature A/B tests (Tier 3).
-- `runs`, `budget`, concurrency, `sandbox`, and related settings: how to run, and how much to run. See [Write experiments](/guides/write-experiment) for the full field list.
+- `agent`: who to evaluate. Put a configured instance here — the subject-under-test URL and credentials go to the Adapter factory, not into other fields on the experiment.
+- `model` / `flags`: pass-through values. [NiceEval](https://niceeval.com/) does not interpret them. They are forwarded through `ctx` to the Adapter as-is, and the Adapter forwards them with the request and applies the switch as needed — this is exactly the channel [Tier](/explanation/tier) uses for model comparisons (Tier 1) and feature A/B tests (Tier 3).
+- `runs`, `budget`, concurrency, `sandbox`, and other run parameters: how to run, and how much. See [Write experiments](/tutorials/write-experiment) for the full field list.
 
-An experiment is pure configuration data. It has no `setup` / `teardown` lifecycle fields. To prepare an environment per experiment (install binaries, warm things up, carry state across attempts), attach it to the spec in the `sandbox` field — the object returned by factories such as `dockerSandbox()` can chain `.setup()` / `.teardown()`. See [Sandbox providers · Environment hooks](/guides/sandbox-providers#environment-hooks).
+An experiment also has a pair of experiment-level hooks, `setup` / `teardown`. They run once for the whole experiment, on your own machine, to start and stop services shared across all attempts — for example, a tunnel to an internal service, or a mock server dedicated to the experiment. `setup` runs before the first attempt in this experiment is dispatched; `teardown` runs after all attempts finish (including on interruption), but only if `setup`'s point in the timeline was already reached. To prepare an environment inside the Sandbox on a per-experiment basis (install binaries, warm things up, carry state across attempts), attach that to the spec on the `sandbox` field instead — the object returned by factories such as `dockerSandbox()` can chain `.setup()` / `.teardown()`. For where the boundary between the two lies and how to write each, see [Write experiments · Start experiment-shared services](/tutorials/write-experiment) and [Sandbox providers · Lifecycle](/tutorials/sandbox-providers).
+
+When evals in the same experiment need different pre-built environments, an eval only declares a provider-neutral `environment` profile; the `environments` table in the sandbox spec then maps that profile to a Docker image, an E2B template, or a Vercel Sandbox snapshot. This keeps task requirements in the eval and provider artifacts in the spec, so one experiment still covers every eval and the comparison doesn't have to be split apart. See [Write experiments · Use different pre-built environments for different evals](/tutorials/write-experiment) for how to write this.
 
 ## Matrix comparisons
 
-Write one experiment file per variant you want to compare. Two models means two files that differ by one `model` line. Prompt A/B means two files that differ by one parameter. The same eval suite runs once under each experiment, which gives you a comparable cross-section of pass rate, cost, and latency — stack them side by side in `niceeval view`. See [Experiment matrix](/guides/experiments) for which comparisons fit this pattern and how to read the results.
+Write one experiment file per variant you want to compare: two models means two files that differ by one `model` line; a prompt A/B means two files that differ by one parameter. Run the same eval suite once under each experiment and you get a comparable cross-section of pass rate, cost, and latency — stack them side by side in `niceeval view`. For what's worth comparing and how to read the results, see [Experiment matrix](/tutorials/experiments).
 
 ## Related reading
 
-- [Write experiments](/guides/write-experiment) - The full `defineExperiment` field set: runs, budget, concurrency, and sandbox.
-- [Experiment matrix](/guides/experiments) - How to organize and read cross-agent, cross-model, and cross-flag comparisons.
-- [Evals](/concepts/evals) - The other half: what an eval is, plus its lifecycle and verdicts.
-- [Tier](/concepts/tier) - Which tier `model` and `flags` each take effect at.
+- [Write experiments](/tutorials/write-experiment) — The full `defineExperiment` field set: runs, budget, concurrency, and sandbox.
+- [Experiment matrix](/tutorials/experiments) — How to organize comparisons across agent / model / flags, and how to read the results.
+- [Evals](/explanation/evals) — The other half: what an eval is, plus its lifecycle and verdicts.
+- [Tier](/explanation/tier) — Which tier `model` and `flags` each take effect at.

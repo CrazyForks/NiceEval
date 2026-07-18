@@ -4,7 +4,7 @@ sidebarTitle: "Tier"
 description: "Grouped by where the Adapter connects and what extra observability data it receives, integration comes in three tiers: Tier 1 is send only, Tier 2 adds OTel, Tier 3 modifies the application to expose experiment flags. What each tier buys and when to move up."
 ---
 
-Connecting to NiceEval is not an all-or-nothing one-time project. Grouped by where the Adapter connects and what extra observability data it receives, integration comes in three tiers — each tier adds one kind of investment on top of the previous one and buys a new set of capabilities, and every eval you have already written keeps working unchanged the whole way up.
+Connecting to [NiceEval](https://niceeval.com/) is not an all-or-nothing one-time project. Grouped by where the Adapter connects and what extra observability data it receives, integration comes in three tiers — each tier adds one kind of investment on top of the previous one and buys a new set of capabilities, and every eval you have already written keeps working unchanged the whole way up.
 
 ![Integration comes in three tiers: Tier 1 is send only, with zero application changes; Tier 2 adds OTel and buys the call waterfall in niceeval view; Tier 3 modifies the application to expose variants as flags for A/B testing.](/images/adapter-tiers-zh.svg)
 
@@ -12,33 +12,34 @@ Connecting to NiceEval is not an all-or-nothing one-time project. Grouped by whe
 
 Your application code stays untouched; the integration is a single Adapter file — `send` talks to the same interface your user-facing frontend already uses.
 
-**The full assertion set lives at this tier**: text assertions and judges, structured output validation, multi-turn and session isolation, HITL approval flows, tool assertions from event mapping, and usage assertions from the `usage` returned by `send` — every verdict is based entirely on the `Turn` returned by `send`, and the next two tiers add no further assertions. If the application interface itself exposes model selection, **model comparison** experiments also live at this tier — the experiment's `model` reaches the Adapter via `ctx.model` and is simply forwarded with the request.
+**The full assertion set lives at this tier**: text assertions and judges, structured output validation, multi-turn and session isolation, HITL approval flows, tool assertions from event mapping, and usage assertions from the usage that `send` returns — every verdict is based entirely on the `Turn` returned by `send`, and the next two tiers add no further assertions. If the application interface itself exposes model selection, **model comparison** experiments also live at this tier — the experiment's `model` reaches the Adapter via `ctx.model` and is simply forwarded with the request.
 
 Most teams start here, and for many this tier is all they ever need.
 
 ## Tier 2: send + OTel
 
-Same `send`, same event mapping — the only change is that your application also sends its OTel spans to NiceEval. If the app is already instrumented (AI SDK telemetry, LangGraph, OpenLLMetry / OpenInference, hand-rolled gen_ai spans), this is zero change; if not, what you add is a piece of generic OTel initialization — that is observability infrastructure, not an eval-specific modification.
+Same `send`, same event mapping — the only change is that your application also sends its OTel spans to [NiceEval](https://niceeval.com/). If the app is already instrumented (AI SDK telemetry, LangGraph, OpenLLMetry / OpenInference, hand-rolled gen_ai spans), this is zero change; if not, what you add is a piece of generic OTel initialization — that is observability infrastructure, not a modification built for eval purposes.
 
-What this tier buys is **observability**: the call waterfall in `niceeval view` — every model call and tool execution inside the application, each with its own latency and tokens, laid out as a per-turn timeline. Assertions are unaffected: spans only feed the waterfall; they never enter the event stream or feed assertions. See [OTel Integration](/guides/connect-otel) for the walkthrough.
+What this tier buys is **observability**: the call waterfall in `niceeval view` — every model call and tool execution inside the application, each with its own latency and tokens, laid out as a per-turn timeline. Assertions are unaffected: spans only feed the waterfall — they never enter the event stream or feed assertions. See [OTel Integration](/tutorials/connect-otel) for the walkthrough.
 
 ## Tier 3: application changes + experiment flags
 
-When you want to evaluate "which prompt / tool set / feature toggle works better" — a **feature A/B test** — the point of comparison lives inside the application, out of reach for the first two tiers. This tier changes the application's internal code to expose the variants as externally selectable configuration: the experiment's `flags` pass through `ctx.flags` to the Adapter, the Adapter hands them to the application with the request (an HTTP header, a request body field, or an environment variable all work), and the application switches variants by flag.
+To evaluate "which prompt / tool set / feature toggle works better" — a **feature A/B test** — the point of comparison lives inside the application, out of reach for the first two tiers. This tier changes the application's internal code to expose the variants as externally selectable configuration: the experiment's `flags` pass through `ctx.flags` to the Adapter, the Adapter hands them to the application with the request (an HTTP header, a request body field, or an environment variable all work), and the application switches variants based on the parameter.
 
 Note that what gets modified is the application (exposing variants as configuration), not the integration surface — the Adapter itself stays the same and still calls the application only through its external interface.
 
 ## Non-intrusive is the baseline for the first two tiers
 
-The first two tiers are both **non-intrusive**: you start the application your own way (`pnpm start`, deployed wherever) — the eval side never spawns the application process or opens a new port. The Adapter only talks to **the same interface your user-facing frontend already uses** (an HTTP endpoint, an SSE stream), and reports a clear "start the application first" error when it cannot connect. The only difference between the two tiers is observability data: Tier 1 has only the events returned by `send`; Tier 2 adds a copy of spans sent to NiceEval, and the waterfall appears with them.
+The first two tiers are both **non-intrusive**: you start the application your own way (`pnpm start`, deployed wherever) — the eval side never spawns the application process or opens a separate port. The Adapter only talks to **the same interface your user-facing frontend already uses** (an HTTP endpoint, an SSE stream), and reports a clear "start the application first" error when it cannot connect. The only difference between the two tiers is observability data: Tier 1 has only the events returned by `send`; Tier 2 adds a copy of spans sent to [NiceEval](https://niceeval.com/), and the waterfall appears along with them.
 
 ## How to move up
 
-The three tiers are progressive, not mutually exclusive: start with Tier 1 to get baselines and model comparison running; move up to Tier 2 when you want the call waterfall; move up to Tier 3 when you need to compare variants inside the application. Each upgrade only adds something to the Adapter or the application — how to organize comparisons on the experiment side is covered in [Experiments](/concepts/experiment).
+The three tiers are progressive, not mutually exclusive: start with Tier 1 to get baselines and model comparison running; move up to Tier 2 when you want the call waterfall; move up to Tier 3 when you need to compare variants inside the application. Each upgrade only adds something to the Adapter or the application — how to organize comparisons on the experiment side is covered in [Experiments](/explanation/experiment).
 
 ## Related reading
 
-- [Connect Your Agent](/guides/connect-your-agent) — The integration overview: minimal integration and parameter channels.
-- [Adapter](/concepts/adapter) — The contract itself: what `send` receives and returns, and how `ctx.model` / `ctx.telemetry` / `ctx.flags` appear per tier.
-- [OTel Integration](/guides/connect-otel) — The full Tier 2 walkthrough.
-- [Experiments](/concepts/experiment) — How model / flags comparisons are declared on the experiment side.
+- [Connect Your Agent](/tutorials/connect-your-agent) — The integration overview: minimal integration and parameter channels.
+- [Adapter](/explanation/adapter) — The contract itself: what `send` receives and returns, and how `ctx.model` / `ctx.telemetry` / `ctx.flags` appear per tier.
+- [OTel Integration](/tutorials/connect-otel) — The full Tier 2 walkthrough.
+- [Experiments](/explanation/experiment) — How model / flags comparisons are declared on the experiment side.
+</content>

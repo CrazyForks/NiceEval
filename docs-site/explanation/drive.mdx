@@ -4,7 +4,7 @@ sidebarTitle: "Drive"
 description: "t.send() and the Turn it returns, t.sendFile(), multi-turn conversations, t.newSession(), and HITL through t.respond() / t.respondAll()."
 ---
 
-Before assertions or judge scoring, you need to make the agent do something. **Drive** is the part of `test(t)` that sends input and gets results back: `t.send()`, `t.sendFile()`, `t.newSession()`, and HITL through `t.respond()` / `t.respondAll()`. Every drive API produces a **Turn**. All assertions and judge checks in [NiceEval](https://niceeval.com/) read from Turn data. See [Assert](/concepts/assert) and [Judge](/concepts/judge) for the scoring side.
+Before assertions or judge scoring, you need to make the agent do something. **Drive** is the part of `test(t)` that sends input and gets results back: `t.send()`, `t.sendFile()`, `t.newSession()`, and HITL through `t.respond()` / `t.respondAll()`. Every drive API produces a **Turn**. All assertions and judge checks in [NiceEval](https://niceeval.com/) read from Turn data. See [Assert](/explanation/assert) and [Judge](/explanation/judge) for the scoring side.
 
 ## `t.send()` and the `Turn` it returns
 
@@ -61,7 +61,7 @@ await t.send("Looks good, send it.");
 t.calledTool("send_email");
 ```
 
-Whether multi-turn calls actually continue the same conversation depends on whether the adapter's `send` uses the continuation helpers from `ctx.session` (`history()` or `id` + `capture()`). If it does not, each turn becomes a fresh conversation. See [Adapter](/concepts/adapter) and [How to write send](/guides/write-send).
+Whether multi-turn calls actually continue the same conversation depends on whether the adapter's `send` uses the continuation helpers from `ctx.session` (`history()` or `id` + `capture()`). If it does not, each turn becomes a fresh conversation. See [Adapter](/explanation/adapter) and [How to write send](/tutorials/write-send).
 
 ## Independent sessions: `t.newSession()`
 
@@ -83,7 +83,7 @@ Do not assume `t.newSession()` guarantees isolation by itself. The runner only g
 
 ## Human-in-the-loop (HITL)
 
-Some agents stop in the middle of a turn and wait for approval or missing information instead of finishing immediately. In that case the turn ends with `status: "waiting"` and one or more `input.requested` events that describe what it is waiting for. The full model is in [HITL](/concepts/hitl); here the focus is how evals drive it.
+Some agents stop in the middle of a turn and wait for approval or missing information instead of finishing immediately. In that case the turn ends with `status: "waiting"` and one or more `input.requested` events that describe what it is waiting for. The full model is in [HITL](/explanation/hitl); here the focus is how evals drive it.
 
 ```ts
 const draft = await t.send("Draft a follow-up email, but don't send it until I confirm.");
@@ -98,7 +98,7 @@ await t.respond({ request, optionId: "approve" });
 t.calledTool("send_email");
 ```
 
-`t.requireInputRequest(filter)` turns a pending HITL request into a concrete value you can inspect and answer. It throws when 0 or more than 1 requests match, so fill as many filter fields as you can (`id`, `prompt`, `display`, `action`, `optionIds`, `input`) to disambiguate. `t.respond(...)` answers it and emits the next turn. String arguments answer requests in order; object arguments such as `{ request, optionId }` target a specific request directly. Under the hood this is still just another `send`: the answer text goes into `input.text`, and structured answers go into `input.responses` one per request — an answer that hits one of the request's options carries `{ requestId, optionId }`, and a free-text answer carries `{ requestId, text }`. The adapter never has to parse text to figure out which answer belongs to which request; the `requestId` already lines them up. See [Inputs for the different answers](/concepts/adapter#inputs-for-the-different-answers) for what each answer shape looks like once it reaches the adapter.
+`t.requireInputRequest(filter)` turns a pending HITL request into a concrete value you can inspect and answer. It throws when 0 or more than 1 requests match, so fill as many filter fields as you can (`id`, `prompt`, `display`, `action`, `optionIds`, `input`) to disambiguate. `t.respond(...)` answers it and emits the next turn. String arguments answer requests in order; object arguments such as `{ request, optionId }` target a specific request directly. Under the hood this is still just another `send`: the answer text goes into `input.text`, and structured answers go into `input.responses` one per request — an answer that hits one of the request's options carries `{ requestId, optionId }`, and a free-text answer carries `{ requestId, text }`. The adapter never has to parse text to figure out which answer belongs to which request; the `requestId` already lines them up. See [Inputs for the different answers](/explanation/adapter) for what each answer shape looks like once it reaches the adapter.
 
 When the current turn has multiple pending requests of the same kind and they should all get the same answer, use `t.respondAll(optionId)` instead of resolving them one by one. The `optionId` is validated against every pending request first — one that is not in a request's `options` throws immediately instead of silently being sent as the wrong answer:
 
@@ -112,7 +112,7 @@ t.succeeded();
 
 ## Related reading
 
-- [HITL](/concepts/hitl) - The full concept for paused turns, request/response handshakes, and adapter obligations.
-- [Assert](/concepts/assert) - Assertions that read from `Turn.events` and `Turn.data`.
-- [Judge](/concepts/judge) - What `t.judge`, `session.judge`, and `turn.judge` score by default.
-- [Adapter](/concepts/adapter) - Where session continuation, HITL, and tool assertions come from.
+- [HITL](/explanation/hitl) - The full concept for paused turns, request/response handshakes, and adapter obligations.
+- [Assert](/explanation/assert) - Assertions that read from `Turn.events` and `Turn.data`.
+- [Judge](/explanation/judge) - What `t.judge`, `session.judge`, and `turn.judge` score by default.
+- [Adapter](/explanation/adapter) - Where session continuation, HITL, and tool assertions come from.

@@ -4,7 +4,7 @@ sidebarTitle: "Assert"
 description: "NiceEval's assertion vocabulary — value assertions, scoped assertions, test-as-scoring, and efficiency checks — plus gate vs soft severity and the rules that fold them into a verdict."
 ---
 
-Assertion is the process of taking everything an agent did during an eval — every message, tool call, file change, and token spent — and folding it into a single, actionable result. [NiceEval](https://niceeval.com/) gives you four assertion mechanisms that complement each other: some check values immediately, some assess the whole run after it completes, some execute tests inside the sandbox, and some measure efficiency. All four produce the same `Assertion` type and feed into the same verdict rules. For the fifth mechanism — asking a language model to judge open-ended quality — see [Judge](/concepts/judge).
+Assertion is the process of taking everything an agent did during an eval — every message, tool call, file change, and token spent — and folding it into a single, explainable result. [NiceEval](https://niceeval.com/) gives you four assertion mechanisms that complement each other: some check values immediately, some assess the whole run after it completes, some execute tests inside the Sandbox, and some measure efficiency. All four produce the same `Assertion` type and feed into the same verdict rules. For the fifth mechanism — asking a language model to judge open-ended quality — see [Judge](/explanation/judge).
 
 ## The four assertion mechanisms
 
@@ -16,7 +16,7 @@ Assertion is the process of taking everything an agent did during an eval — ev
     `t.succeeded()`, `t.calledTool()`, `t.messageIncludes()`, and friends are registered during `test(t)` but evaluated **after** the function returns, against the complete turn data. Use these for whole-run facts.
   </Card>
   <Card title="3. Test-as-scoring" icon="flask">
-    For sandbox evals, run project tests, build scripts, or focused probe commands from `test(t)`. Use this for coding tasks where file content and build results are the ground truth.
+    For Sandbox evals, run project tests, build scripts, or focused probe commands from `test(t)`. Use this for coding tasks where file content and build results are the ground truth.
   </Card>
   <Card title="4. Efficiency assertions" icon="gauge">
     `t.maxTokens()` and `t.maxCost()` turn token usage and estimated cost into scoreable dimensions. An agent that answers correctly but burns ten times the expected tokens should not score the same as one that answers efficiently.
@@ -55,11 +55,10 @@ t.maxTokens(80_000).atLeast(0.7);                 // demote to soft with a thres
 Once all assertions are collected, the runner takes the first matching rule in this fixed order and folds them into a single result:
 
 ```
-Execution error, timeout, or author mistake                       → errored
-Any gate assertion failed, or a soft is below its threshold
-  under --strict                                                  → failed
-t.skip(reason) was called explicitly                              → skipped
-Otherwise                                                         → passed
+Execution error, timeout, or author mistake                          → errored
+Any gate assertion failed, or a soft is below its threshold --strict  → failed
+t.skip(reason) was called explicitly                                  → skipped
+Otherwise                                                              → passed
 ```
 
 `errored` outranks everything else, because the execution evidence can no longer be trusted. `failed` outranks `skipped`, so that a `t.skip()` cannot mask a hard failure recorded earlier.
@@ -120,7 +119,7 @@ Matchers are pure functions — `(value) => number` — so you can write your ow
 
 ## 2. Scoped assertions
 
-Scoped assertions are registered during `test(t)` but evaluated **after the function returns**, against the complete accumulated turn data. They read from the standard event stream that `t.send()` produces (see [Drive](/concepts/drive)) and its derived facts — so as long as your adapter produces correct events, these assertions work identically for every agent.
+Scoped assertions are registered during `test(t)` but evaluated **after the function returns**, against the complete accumulated turn data. They read from the standard event stream that `t.send()` produces (see [Drive](/explanation/drive)) and its derived facts — so as long as your adapter produces correct events, these assertions work identically for every agent.
 
 <Warning>
 Scoped assertions only appear on `t` if the agent has declared the corresponding capability. Calling `t.calledTool()` when the agent has not declared `toolObservability: true` is a compile error.
@@ -168,7 +167,7 @@ turn.outputEquals({ status: "ok" });                         // deep equality on
 turn.outputMatches(z.object({ status: z.string() }));        // Standard Schema validation
 ```
 
-### Workspace dimension (sandbox agents only)
+### Workspace dimension (Sandbox agents only)
 
 ```ts
 t.sandbox.fileChanged("src/Button.tsx");
@@ -182,11 +181,11 @@ t.sandbox.noFailedShellCommands();
 
 `t.sandbox.diff` is a queryable object. `t.sandbox.diff.get("src/Button.tsx")` returns the file's post-change content; `t.sandbox.diff.isEmpty()` checks whether any files changed; `t.sandbox.diff.matches(re)` and `t.sandbox.notInDiff(re)` run a regex over the full diff text.
 
-Scoped assertions follow one rule everywhere: **the receiver decides the scope, not the assertion name.** `t.*` aggregates every turn of the whole eval run (including any `t.newSession()` sessions); `session.*` (from `t.newSession()`) scopes to that one session; `turn.*` (from `t.send()`'s return value) scopes to that single turn only. Same vocabulary, different receiver — see [Drive](/concepts/drive) for what each receiver is.
+Scoped assertions follow one rule everywhere: **the receiver decides the scope, not the assertion name.** `t.*` aggregates every turn of the whole eval run (including any `t.newSession()` sessions); `session.*` (from `t.newSession()`) scopes to that one session; `turn.*` (from `t.send()`'s return value) scopes to that single turn only. Same vocabulary, different receiver — see [Drive](/explanation/drive) for what each receiver is.
 
-## 3. Test-as-scoring (sandbox evals)
+## 3. Test-as-scoring (Sandbox evals)
 
-For sandbox coding evals, run validation commands inside `test(t)` and record their result as assertions.
+For Sandbox coding evals, run validation commands inside `test(t)` and record their result as assertions.
 
 ```ts
 import { commandSucceeded, includes } from "niceeval/expect";
@@ -211,7 +210,7 @@ t.maxTokens(80_000).atLeast(0.7);     // soft variant — tracked but only red u
 t.check(t.usage.outputTokens, satisfies((n) => n < 10_000, "not verbose"));
 ```
 
-`t.usage` is available anywhere inside `test(t)` and exposes `{ inputTokens, outputTokens, cacheReadTokens?, … }`. For sandbox agents, token counts are extracted from the transcript by the adapter; for remote agents, they are returned in `Turn.usage`.
+`t.usage` is available anywhere inside `test(t)` and exposes `{ inputTokens, outputTokens, cacheReadTokens?, … }`. For Sandbox agents, token counts are extracted from the transcript by the adapter; for remote agents, they are returned in `Turn.usage`.
 
 ## Custom scorers
 

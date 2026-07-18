@@ -4,7 +4,7 @@ sidebarTitle: "Judge"
 description: "How t.judge, session.judge, and turn.judge use a separate judge model to score factuality, closed-ended quality, and summarization faithfulness — plus model resolution and severity."
 ---
 
-Judge assertions are the fifth scoring mechanism, alongside the four covered in [Assert](/concepts/assert). Use them when correctness cannot be expressed as a rule — for open-ended prose, tone, factual consistency, or summarization quality. The judge model is **entirely separate** from the agent under test, which prevents self-evaluation bias: the same model grading its own output would be prone to rating itself generously.
+Judge assertions are the fifth scoring mechanism, alongside the four covered in [Assert](/explanation/assert). Use them when correctness cannot be expressed as a rule — for open-ended prose, tone, factual consistency, or summarization quality. The judge model is **entirely separate** from the agent under test, which prevents self-evaluation bias: the same model grading its own output would be prone to rating itself generously.
 
 ```ts
 t.judge.autoevals.factuality(reference).atLeast(0.8);   // factual consistency with a reference text
@@ -113,7 +113,7 @@ defineConfig({
 
 ## Severity: judge defaults to soft
 
-Judge calls are scoring functions like any other assertion, so they follow the same mechanics described in [Assert · Gate vs soft severity](/concepts/assert#gate-vs-soft-severity) — but their **default** is different from most value matchers:
+Judge calls are scoring functions like any other assertion, so they follow the same mechanics described in [Assert · Gate vs soft severity](/explanation/assert) — but their **default** is different from most value matchers:
 
 ```ts
 t.judge.autoevals.closedQA("Is the tone polite?");              // no threshold → soft, pure score, never fails the eval
@@ -125,6 +125,6 @@ With no `.atLeast()` and no `.gate()`, a bare judge call is recorded purely as a
 
 ## Related pages
 
-- [Assert](/concepts/assert) — gate vs soft severity in full, plus the verdict rules judge scores feed into.
-- [Drive](/concepts/drive) — `t.send()`, `t.newSession()`, and which handle `t.judge`, `session.judge`, and `turn.judge` each hang off of.
-- [Evals](/concepts/evals) — how judge scores fold into the eval lifecycle and verdict types.
+- [Assert](/explanation/assert) — gate vs soft severity in full, plus the verdict rules judge scores feed into.
+- [Drive](/explanation/drive) — `t.send()`, `t.newSession()`, and which handle `t.judge`, `session.judge`, and `turn.judge` each hang off of.
+- [Evals](/explanation/evals) — how judge scores fold into the eval lifecycle and verdict types.

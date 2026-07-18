@@ -28,6 +28,7 @@ Core fields:
 | Field | Meaning |
 |---|---|
 | `description` | Human-readable description shown in reports |
+| `environment` | Optional environment requirement profile, mapped by the Sandbox spec's `environments` table to a concrete preset environment |
 | `test(t)` | Interaction and assertion logic |
 
 An eval does not declare which Agent it runs against — it stays agent-neutral by default, so the same eval can run against different Agents under different experiments. Choosing the Agent is a field of the experiment, not something the CLI overrides ad hoc.
@@ -45,7 +46,7 @@ npx niceeval exp local weather
 npx niceeval exp local weather/brooklyn
 ```
 
-This keeps IDs stable and readable, and naturally consistent with the directory structure.
+This keeps IDs stable and readable, and naturally consistent with the directory structure. Positional arguments use a bare string-prefix match: `terminal-swe-bench` also matches `terminal-swe-bench-astropy-1` — the character right after the match is not required to be `/`.
 
 ## Lifecycle
 
@@ -89,7 +90,7 @@ This keeps IDs stable and readable, and naturally consistent with the directory 
 
 ## Gate and soft
 
-`gate` is a hard threshold. Failure makes the eval fail. `soft` contributes a score without necessarily failing the eval. See [Assert](/concepts/assert) for the full rules.
+`gate` is a hard threshold. Failure makes the eval fail. `soft` contributes a score without necessarily failing the eval. See [Assert](/explanation/assert) for the full rules.
 
 ## The `*.eval.ts` convention
 
@@ -117,9 +118,9 @@ export default rows.map((row) =>
 );
 ```
 
-This generates IDs such as `sql/0000` and `sql/0001`. See [Dataset fan-out](/guides/dataset-fanout).
+This generates IDs such as `sql/0000` and `sql/0001`. See [Dataset fan-out](/tutorials/dataset-fanout).
 
 ## Related reading
 
-- [Experiment](/concepts/experiment) - The other half: who to evaluate and how to run it, and why it is kept separate from the eval (late binding).
-- [Assert](/concepts/assert) - The full verdict rules for gate and soft assertions.
+- [Experiment](/explanation/experiment) — The other half: who to evaluate and how to run it, and why it is kept separate from the eval (late binding).
+- [Assert](/explanation/assert) — The full verdict rules for gate and soft assertions.
