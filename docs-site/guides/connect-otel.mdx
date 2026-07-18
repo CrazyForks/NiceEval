@@ -189,7 +189,7 @@ function mapMySpans(spans: TraceSpan[]): TraceSpan[] {
 }
 
 export default defineAgent({
-  name: "my-bot",
+  name: "my-agent",
   spanMapper: mapMySpans,
   async send(input, ctx) { /* same wiring as above */ },
 });

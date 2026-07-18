@@ -29,11 +29,11 @@ Assume the project has already run `npx niceeval init` (so `niceeval.config.ts` 
 **1. Write the adapter.** The minimal integration fills only `status` and `events`: whatever your agent said goes into one `message` event.
 
 ```ts
-// agents/my-bot.ts
+// agents/my-agent.ts
 import { defineAgent } from "niceeval/adapter";
 
 export default defineAgent({
-  name: "my-bot",
+  name: "my-agent",
   async send(input, ctx) {
     // Example URL: swap in your own agent's real endpoint (HTTP, CLI, or SDK all work,
     // as long as send can get the reply text)
@@ -66,13 +66,13 @@ Starting a local dev server costs one command; none of the above is worth tradin
 **2. Register it in an experiment:**
 
 ```ts
-// experiments/my-bot.ts
+// experiments/my-agent.ts
 import { defineExperiment } from "niceeval";
-import myBot from "../agents/my-bot.ts";
+import myAgent from "../agents/my-agent.ts";
 
 export default defineExperiment({
-  description: "my-bot baseline",
-  agent: myBot,
+  description: "my-agent baseline",
+  agent: myAgent,
   model: "gpt-4o",
   runs: 1,
 });
@@ -97,8 +97,8 @@ export default defineEval({
 ```
 
 ```bash
-npx niceeval exp my-bot        # run all evals under this experiment
-npx niceeval exp my-bot refund # only those whose ID starts with refund
+npx niceeval exp my-agent        # run all evals under this experiment
+npx niceeval exp my-agent refund # only those whose ID starts with refund
 npx niceeval view              # inspect results in the local viewer
 ```
 
@@ -119,16 +119,16 @@ Configuration has exactly two channels; keep them apart and the integration stay
 1. **Static configuration goes through the Adapter factory.** URL, auth, protocol details — the "what does this environment look like" kind of configuration — are written as factory options in the experiment file: the `agent` field of `defineExperiment` holds an **already-configured instance**.
 2. **Per-turn dynamic values go through `ctx`.** The `model` and `flags` declared by the experiment are handed to `send` verbatim via `ctx` every turn; the Adapter does not interpret their meaning, it only forwards them to the app with the request.
 
-Putting the two channels together means turning step 1's my-bot from "an instance with a hardcoded URL" into "a factory that receives configuration": the default export becomes a function returning `defineAgent(...)`, the hardcoded spots in `send` become reads of factory options; the `model` and `flags` declared by the experiment arrive via `ctx` every turn and are forwarded inside `send` with the request:
+Putting the two channels together means turning step 1's my-agent from "an instance with a hardcoded URL" into "a factory that receives configuration": the default export becomes a function returning `defineAgent(...)`, the hardcoded spots in `send` become reads of factory options; the `model` and `flags` declared by the experiment arrive via `ctx` every turn and are forwarded inside `send` with the request:
 
 ```ts
-// agents/my-bot.ts — factory: static configuration goes into the closure
+// agents/my-agent.ts — factory: static configuration goes into the closure
 import { defineAgent } from "niceeval/adapter";
 import type { Agent } from "niceeval/adapter";
 
-export function myBot(options: { baseUrl: string }): Agent {
+export function myAgent(options: { baseUrl: string }): Agent {
   return defineAgent({
-    name: "my-bot",
+    name: "my-agent",
     async send(input, ctx) {
       const r = await fetch(`${options.baseUrl}/chat`, {   // ← factory option: where to connect
         method: "POST",
@@ -153,13 +153,13 @@ export function myBot(options: { baseUrl: string }): Agent {
 Auth headers, protocol switches, and the like are static configuration too — add them to `options` the same way. The experiment side changes in two small places: a named import of the factory, and the `agent` field goes from "referencing an instance" to "calling the factory":
 
 ```ts
-// experiments/my-bot.ts — where parameters are declared
+// experiments/my-agent.ts — where parameters are declared
 import { defineExperiment } from "niceeval";
-import { myBot } from "../agents/my-bot.ts";
+import { myAgent } from "../agents/my-agent.ts";
 
 export default defineExperiment({
-  description: "my-bot baseline",
-  agent: myBot({ baseUrl: "http://localhost:3000" }),  // ← static configuration: passed at instantiation
+  description: "my-agent baseline",
+  agent: myAgent({ baseUrl: "http://localhost:3000" }),  // ← static configuration: passed at instantiation
   model: "gpt-5.4",                                    // ← dynamic value: reaches send via ctx.model
   flags: { promptVariant: "concise" },                 // ← dynamic value: reaches send via ctx.flags
 });
@@ -207,13 +207,13 @@ Running the same agent against local and production separately is just two exper
 ```ts
 // experiments/local.ts
 export default defineExperiment({
-  agent: myBot({ baseUrl: "http://localhost:3000" }),
+  agent: myAgent({ baseUrl: "http://localhost:3000" }),
   model: "gpt-5.4",
 });
 
 // experiments/prod.ts
 export default defineExperiment({
-  agent: myBot({ baseUrl: "https://api.example.com" }),
+  agent: myAgent({ baseUrl: "https://api.example.com" }),
   model: "gpt-5.4",
 });
 ```

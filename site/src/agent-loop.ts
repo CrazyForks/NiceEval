@@ -79,7 +79,7 @@ export const loopFrames: LoopFrame[] = [
       line("plain", "● Bash(niceeval show @1k2m9qtr --source)"),
       line("dim", '  └ 12✗ turn.calledTool("get_weather") · tool was never called'),
       line("plain", "● The eval found the bot answers weather without calling get_weather."),
-      line("pass", "● Update(agents/my-bot.ts)"),
+      line("pass", "● Update(agents/my-agent.ts)"),
       line("dim", "  └ call get_weather before answering"),
       line("blank"),
       line("plain", "● Done — re-run the experiment to verify."),

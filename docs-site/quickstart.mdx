@@ -39,11 +39,11 @@ pnpm exec niceeval init
 The adapter is the layer between your agent and [NiceEval](https://niceeval.com/). There are three integration tiers, from non-invasive to partially instrumented, which unlock more useful eval features. See [Tier](/concepts/tier).
 
 ```ts
-// agents/my-bot.ts
+// agents/my-agent.ts
 import { defineAgent } from "niceeval/adapter";
 
 export default defineAgent({
-  name: "my-bot",
+  name: "my-agent",
   async send(input, ctx) {
     // Example endpoint: replace with your agent's real endpoint (HTTP, CLI, or SDK all work, as long as send() can get the reply text)
     const r = await fetch("http://localhost:3000/chat", {
@@ -64,14 +64,14 @@ export default defineAgent({
 ### Experiment
 
 ```ts
-// experiments/my-bot.ts
+// experiments/my-agent.ts
 import { defineExperiment } from "niceeval";
-import myBot from "../agents/my-bot.ts";
+import myAgent from "../agents/my-agent.ts";
 
 export default defineExperiment({
-  description: "my-bot baseline",
+  description: "my-agent baseline",
   model: "gpt-4o",
-  agent: myBot,
+  agent: myAgent,
   runs: 1,
 });
 ```
@@ -94,7 +94,7 @@ export default defineEval({
 ```
 
 ```bash
-pnpm exec niceeval exp my-bot   # run it
+pnpm exec niceeval exp my-agent   # run it
 pnpm exec niceeval show         # read results in the terminal; failures print the command to drill in further
 pnpm exec niceeval view         # open the local viewer when you want to browse interactively
 ```
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - run: npm ci
-      - run: npm exec niceeval exp my-bot
+      - run: npm exec niceeval exp my-agent
 ```
 
 <Tip>

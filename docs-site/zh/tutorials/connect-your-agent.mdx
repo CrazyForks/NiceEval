@@ -29,11 +29,11 @@ description: "写一个 Adapter、配置一个 Experiment，并运行第一条 E
 **1. 写 Adapter。** 最小接入只填 `status` 和 `events`，把 Agent 回复放进一条 `message` 事件。
 
 ```ts
-// agents/my-bot.ts
+// agents/my-agent.ts
 import { defineAgent } from "niceeval/adapter";
 
 export default defineAgent({
-  name: "my-bot",
+  name: "my-agent",
   async send(input, ctx) {
     // 示例地址：换成你自己 agent 的真实端点（HTTP、CLI、SDK 都行，只要 send 里能拿到回复文本）
     const r = await fetch("http://localhost:3000/chat", {
@@ -60,13 +60,13 @@ export default defineAgent({
 **2. 实验**
 
 ```ts
-// experiments/my-bot.ts
+// experiments/my-agent.ts
 import { defineExperiment } from "niceeval";
-import myBot from "../agents/my-bot.ts";
+import myAgent from "../agents/my-agent.ts";
 
 export default defineExperiment({
-  description: "my-bot 基线",
-  agent: myBot,
+  description: "my-agent 基线",
+  agent: myAgent,
   model: "gpt-4o",
   runs: 1,
 });
@@ -91,8 +91,8 @@ export default defineEval({
 ```
 
 ```bash
-npx niceeval exp my-bot        # 跑这个 experiment 下的全部 eval
-npx niceeval exp my-bot refund # 只跑 ID 以 refund 开头的
+npx niceeval exp my-agent        # 跑这个 experiment 下的全部 eval
+npx niceeval exp my-agent refund # 只跑 ID 以 refund 开头的
 npx niceeval view              # 本地查看器里看结果
 ```
 
@@ -113,16 +113,16 @@ npx niceeval view              # 本地查看器里看结果
 1. **静态配置走 Adapter 工厂。** URL、鉴权和协议细节等环境级配置作为工厂参数写在 Experiment 文件里。`defineExperiment` 的 `agent` 字段接收**已经配置好的实例**。
 2. **每轮动态值走 `ctx`。** experiment 声明的 `model`、`flags`，运行器每轮经 `ctx` 原样递给 `send`；Adapter 不解释它们的含义，只随请求转发给应用。
 
-把第一步的 `my-bot` 从固定 URL 的实例改成接收配置的工厂。将 default export 改为返回 `defineAgent(...)` 的函数，并让 `send` 读取工厂参数。Experiment 声明的 `model` 和 `flags` 每轮经 `ctx` 到达，再由 `send` 随请求转发：
+把第一步的 `my-agent` 从固定 URL 的实例改成接收配置的工厂。将 default export 改为返回 `defineAgent(...)` 的函数，并让 `send` 读取工厂参数。Experiment 声明的 `model` 和 `flags` 每轮经 `ctx` 到达，再由 `send` 随请求转发：
 
 ```ts
-// agents/my-bot.ts —— 工厂：静态配置进闭包
+// agents/my-agent.ts —— 工厂：静态配置进闭包
 import { defineAgent } from "niceeval/adapter";
 import type { Agent } from "niceeval/adapter";
 
-export function myBot(options: { baseUrl: string }): Agent {
+export function myAgent(options: { baseUrl: string }): Agent {
   return defineAgent({
-    name: "my-bot",
+    name: "my-agent",
     async send(input, ctx) {
       const r = await fetch(`${options.baseUrl}/chat`, {   // ← 工厂配置：连哪
         method: "POST",
@@ -147,13 +147,13 @@ export function myBot(options: { baseUrl: string }): Agent {
 鉴权 header、协议开关这类同属静态配置，一样加进 `options`。experiment 侧对应两处小改：具名导入工厂，`agent` 字段从「引用实例」变成「调用工厂」：
 
 ```ts
-// experiments/my-bot.ts —— 参数的声明处
+// experiments/my-agent.ts —— 参数的声明处
 import { defineExperiment } from "niceeval";
-import { myBot } from "../agents/my-bot.ts";
+import { myAgent } from "../agents/my-agent.ts";
 
 export default defineExperiment({
-  description: "my-bot 基线",
-  agent: myBot({ baseUrl: "http://localhost:3000" }),  // ← 静态配置：实例化时传
+  description: "my-agent 基线",
+  agent: myAgent({ baseUrl: "http://localhost:3000" }),  // ← 静态配置：实例化时传
   model: "gpt-5.4",                                    // ← 动态值：经 ctx.model 到 send
   flags: { promptVariant: "concise" },                // ← 动态值：经 ctx.flags 到 send
 });
@@ -201,13 +201,13 @@ async send(input, ctx) {
 ```ts
 // experiments/local.ts
 export default defineExperiment({
-  agent: myBot({ baseUrl: "http://localhost:3000" }),
+  agent: myAgent({ baseUrl: "http://localhost:3000" }),
   model: "gpt-5.4",
 });
 
 // experiments/prod.ts
 export default defineExperiment({
-  agent: myBot({ baseUrl: "https://api.example.com" }),
+  agent: myAgent({ baseUrl: "https://api.example.com" }),
   model: "gpt-5.4",
 });
 ```

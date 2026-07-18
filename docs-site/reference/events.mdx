@@ -237,7 +237,7 @@ When the agent response contains step records, the mapping is a small loop:
 ```ts
 import type { StreamEvent } from "niceeval";
 
-function toStreamEvents(body: MyBotResponse): StreamEvent[] {
+function toStreamEvents(body: MyAgentResponse): StreamEvent[] {
   const events: StreamEvent[] = [];
   for (const step of body.steps) {
     if (step.type === "tool_call") {

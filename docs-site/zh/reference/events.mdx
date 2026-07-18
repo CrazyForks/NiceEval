@@ -237,7 +237,7 @@ agent 返回里带步骤记录时，映射就是一段小循环：
 ```ts
 import type { StreamEvent } from "niceeval";
 
-function toStreamEvents(body: MyBotResponse): StreamEvent[] {
+function toStreamEvents(body: MyAgentResponse): StreamEvent[] {
   const events: StreamEvent[] = [];
   for (const step of body.steps) {
     if (step.type === "tool_call") {

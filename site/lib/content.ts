@@ -44,8 +44,8 @@ export const fileTree: Record<"humans" | "agents", FileTreeItem[]> = {
     { path: "niceeval.config.ts", depth: 0, kind: "file", note: "config" },
   ],
   agents: [
-    { path: "agents/my-bot.ts", depth: 0, kind: "file", note: "adapter" },
-    { path: "experiments/my-bot.ts", depth: 0, kind: "file" },
+    { path: "agents/my-agent.ts", depth: 0, kind: "file", note: "adapter" },
+    { path: "experiments/my-agent.ts", depth: 0, kind: "file" },
     { path: "evals/refund-policy.eval.ts", depth: 0, kind: "file" },
     { path: "niceeval.config.ts", depth: 0, kind: "file", note: "config" },
   ],
