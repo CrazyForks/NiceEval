@@ -32,13 +32,25 @@ describe("随包 AI 文档索引", () => {
       scripts?: Record<string, string>;
     };
     const init = await readFile(join(ROOT, "INIT.zh.md"), "utf-8");
+    const initEn = await readFile(join(ROOT, "INIT.md"), "utf-8");
     const cli = await readFile(join(ROOT, "src/cli.ts"), "utf-8");
 
     expect(pkg.files).toContain("INDEX.md");
     expect(pkg.scripts?.prepare, "prepare 链必须包含 build:index,否则发出去的包缺 INDEX.md").toContain("build:index");
     expect(init).toContain("node_modules/niceeval/INDEX.md");
+    expect(initEn).toContain("node_modules/niceeval/INDEX.md");
     expect(cli).toContain("node_modules/niceeval/INDEX.md");
     expect(init).not.toContain("node_modules/niceeval/docs-site/zh/INDEX.md");
     expect(cli).not.toContain("node_modules/niceeval/docs-site/zh/INDEX.md");
+  });
+
+  it("安装向导是自举文件,不依赖线上文档链接", async () => {
+    // 线上 URL 无守护(页面改名即静默断链)、版本也与将要装到的包无关;
+    // 接入流程正文住在随包页面(docs-site/zh/tutorials/agent-onboarding.mdx),向导只做心智模型、前置与安装。
+    for (const name of ["INIT.zh.md", "INIT.md"]) {
+      const text = await readFile(join(ROOT, name), "utf-8");
+      expect(text, `${name} 不得引用线上文档页面`).not.toMatch(/niceeval\.com\/docs/);
+      expect(text, `${name} 不得引用 GitHub raw 文档`).not.toContain("raw.githubusercontent.com");
+    }
   });
 });

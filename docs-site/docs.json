@@ -421,7 +421,8 @@
                 "group": "开始使用",
                 "pages": [
                   "zh/introduction",
-                  "zh/tutorials/quickstart"
+                  "zh/tutorials/quickstart",
+                  "zh/tutorials/agent-onboarding"
                 ]
               },
               {
