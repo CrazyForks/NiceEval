@@ -12,17 +12,17 @@ description: "写一个 Adapter、配置一个 Experiment，并运行第一条 E
 
 <CardGroup cols={3}>
   <Card title="AI SDK 应用" icon="bolt" href="/zh/reference/builtin-agents">
-    Vercel AI SDK（`useChat` 后端）应用可使用内置 `uiMessageStreamAgent` 连接现有 HTTP 接口，无需手写事件映射，并支持 HITL。直接按完整的 before/after 示例接入。
+    Vercel AI SDK 应用可使用内置适配器连接现有 HTTP 接口。
   </Card>
-  <Card title="Coding agent CLI" icon="terminal" href="/zh/tutorials/sandbox-agent">
-    评 claude-code / codex / bub 这类改文件的 coding agent：用内置 sandbox agent。
+  <Card title="Agent" icon="terminal" href="/zh/tutorials/sandbox-agent">
+    评估 Claude Code / Codex / bub 这种独立的 Agent：用内置 Sandbox Agent。
   </Card>
   <Card title="其它 AI Agent" icon="plug">
-    自研 Agent loop、LangGraph / OpenAI Agents SDK 应用和已部署 Agent 需要手写 `send`（本文与[编写 Send](/zh/tutorials/write-send)）。应用已有 OTel 埋点时，再按 [OTel 接入](/zh/tutorials/connect-otel)发送 span，`niceeval view` 会显示调用瀑布图。
+    自己的 Agent 需要 [编写 Send](/zh/tutorials/write-send)。如应用已有 OTel 埋点，可 [接入OTel ](/zh/tutorials/connect-otel)
   </Card>
 </CardGroup>
 
-## 跑通最小接入
+## 最小接入示例
 
 以下步骤假设项目已经运行 `npx niceeval init`，并包含 `niceeval.config.ts` 和 `evals/` 目录。三个文件各有一项职责：**Adapter 连接被测系统，Experiment 固定运行配置，Eval 定义交互和断言。**
 
@@ -53,16 +53,11 @@ export default defineAgent({
 
 最小示例先使用固定 URL。需要按环境传入 URL 时，使用下文的[参数传递方式](#传递参数：experiment-声明，adapter-消费)。`send` 的完整契约（`TurnInput` / `AgentContext` / `Turn` 各字段）见 [Adapter](/zh/explanation/adapter)。
 
-即使 Agent runtime 和 Eval 位于同一个代码库，也应通过 HTTP 调用，不要把 `fetch` 换成进程内函数调用：
-
-- **直调评的不是用户走的那条链路。** HTTP 层、序列化、中间件、流式传输全被绕过，eval 通过不代表线上行为正确。
-- **进程不隔离，结果不可复现。** 被测代码的崩溃、全局状态、内存泄漏会连累运行器；并发跑多条 eval 时共享状态互相污染。
-- **超时与取消会失效。** `ctx.signal` 只有挂在请求上才能取消超时的 Agent 轮次；进程内函数调用无法由该信号终止。
+即使 Agent runtime 和 Eval 位于同一个代码库，也应通过像前端用户一样调用接口，也不要把 `fetch` 换成进程内函数调用，因为
+- **代码内部调用不是用户走的那条链路。** HTTP 层、序列化、中间件、流式传输全被绕过，eval 通过不代表线上行为正确。
 - **Adapter 无法复用于其它部署环境。** HTTP Adapter 只需更换 `baseUrl`，即可连接本地、预发或生产环境（见下文两个 Experiment 文件）；进程内调用依赖当前代码库。
 
-因此，本地评估也需要先启动应用的开发服务器。
-
-**2. 注册进一个 experiment：**
+**2. 实验**
 
 ```ts
 // experiments/my-bot.ts
@@ -77,7 +72,7 @@ export default defineExperiment({
 });
 ```
 
-**3. 写第一条 eval，然后跑：**
+**3. 评估用例**
 
 ```ts
 // evals/refund-policy.eval.ts
@@ -111,7 +106,7 @@ npx niceeval view              # 本地查看器里看结果
 
 完成这些步骤后，文本断言和 Judge 评分即可使用。工具、多轮和审批流断言需要继续添加文末列出的可选能力。
 
-## 传递参数：Experiment 声明，Adapter 消费
+## 实验 Flag
 
 配置归属只有两条通道，分清它们，接入就不会乱：
 

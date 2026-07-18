@@ -1,5 +1,5 @@
 ---
-title: "编写 eval: 单轮、多轮和数据集模式"
+title: "编写 Eval: 单轮、多轮和数据集模式"
 sidebarTitle: "编写 eval"
 description: "用 defineEval 编写 NiceEval Eval，包括单轮断言、多轮对话、数据驱动测试和 sandbox workspace。"
 ---
@@ -22,10 +22,6 @@ export default defineEval({
   async test(t) { /* interactions + assertions */ },
 });
 ```
-
-<Warning>
-  不要设置 `id` 或 `name`。`evals/weather/brooklyn.eval.ts` 会自动变成 ID `weather/brooklyn`。
-</Warning>
 
 ## 单轮 eval
 
