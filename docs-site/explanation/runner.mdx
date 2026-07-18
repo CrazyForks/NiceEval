@@ -29,7 +29,7 @@ npx niceeval exp local weather
 npx niceeval exp local fixtures/button
 ```
 
-Do not put the agent name into positional arguments. Agent, model, and flags belong in the experiment.
+Do not put the agent name into positional arguments. agent, model, and flags belong in the experiment.
 
 ## Concurrency
 
@@ -37,19 +37,20 @@ Do not put the agent name into positional arguments. Agent, model, and flags bel
 npx niceeval exp local --max-concurrency 8
 ```
 
-Remote HTTP agents can usually handle higher concurrency. Local Docker sandbox runs usually need lower concurrency to avoid CPU, memory, and disk contention.
+Remote HTTP agents can usually handle higher concurrency; local Docker Sandbox runs usually need lower concurrency to avoid CPU, memory, and disk contention.
 
-## `runs` and `early-exit`
+## runs and early-exit
 
 ```bash
-npx niceeval exp local fixtures/button --runs 5 --early-exit
+npx niceeval exp local fixtures/button --runs 5
+npx niceeval exp local fixtures/button --runs 5 --no-early-exit
 ```
 
-`runs` is for pass-rate measurement. `early-exit` stops the remaining attempts for the same eval after one attempt passes.
+`runs` is for measuring pass rate. Early exit is on by default: once one Attempt for an eval passes, the remaining Attempts for that eval are stopped. To get the full pass-rate distribution, turn it off with `--no-early-exit` so each eval runs the full `runs` count.
 
 ## Cache
 
-[NiceEval](https://niceeval.com/) can skip results already judged `passed` or `failed`, based on a fingerprint of inputs, configuration, and relevant files — both are settled verdicts. `errored` attempts (timeouts, sandbox crashes, and other framework/environment-level failures) always retry. Cache is useful for iteration speed, but turn it off (`--force`) or clear it explicitly when you are debugging non-deterministic behavior.
+[NiceEval](https://niceeval.com/) can skip results already judged `passed` or `failed`, based on a fingerprint of inputs, configuration, and relevant files — both are settled verdicts. `errored` (timeouts, Sandbox crashes, and other framework/environment-level, non-deterministic failures) always retries. Cache is useful for iteration speed, but turn it off explicitly (`--force`) or clear the relevant cache when you are debugging non-deterministic behavior.
 
 ## Timeout and budget
 
@@ -57,11 +58,11 @@ npx niceeval exp local fixtures/button --runs 5 --early-exit
 npx niceeval exp local --timeout 300000 --budget 5
 ```
 
-Timeout protects a single eval. Budget protects the cost of the entire run.
+Timeout protects a single eval; budget protects the cost of the entire run. NiceEval only warns that the budget cannot be enforced when an Attempt has already issued an Agent Turn but repeatedly fails to get cost data back. If an Attempt fails during `sandbox.create` or setup, the Agent never ran, so the CLI shows only the corresponding structured execution error, without an added budget warning that would point debugging in the wrong direction.
 
 ## Reporter
 
-Feedback while a run is in flight is chosen by `--output`, a separate layer from reporters — reporters write completed results elsewhere:
+Feedback while a run is in flight is chosen by `--output`; reporters write completed results elsewhere. The two are not the same layer:
 
 ```bash
 npx niceeval exp local --output human  # a person: TTY dashboard + permanent errors/diagnostics
@@ -73,19 +74,19 @@ The default is `auto`: a TTY picks human, a CI environment picks ci, any other n
 
 After each eval finishes, the runner hands the result to reporters:
 
-- JSON artifacts support later analysis
-- the JUnit reporter fits CI
-- the Braintrust reporter reports a run as an experiment for comparison across commits
+- JSON artifacts support later analysis.
+- the JUnit reporter fits CI.
+- the Braintrust reporter reports a run as an experiment for comparison across commits.
 
-See [Reporter integrations](./reporters) for how to wire reporters in and configure Braintrust.
+See [Reporter integrations](/tutorials/reporters) for how to wire reporters in and configure Braintrust.
 
 ## Output directory
 
-Each run writes to that experiment's results snapshot directory, `.niceeval/<experiment>/<snapshot>/`, including snapshot-level `snapshot.json` and, per attempt, `result.json` (verdict, assertions, structured errors, diagnostics) plus artifacts generated as needed such as `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json`. Transient progress is never persisted.
+Each run writes to that experiment's results snapshot directory, `.niceeval/<experiment>/<snapshot>/`, including snapshot-level `snapshot.json`, plus, per Attempt, `result.json` (verdict, assertions, structured errors, diagnostics) and artifacts generated as needed such as `events.json`, `sources.json`, `trace.json`, `o11y.json`, and `diff.json`. Transient progress is never persisted.
 
 ## Recommended debugging flow
 
-1. Run `npx niceeval list` to confirm discovery.
+1. Run `npx niceeval list` first to confirm discovery.
 2. Narrow to one eval with `npx niceeval exp <experiment> <id-prefix>`.
-3. After a failure, copy the locator from the terminal and run `npx niceeval show @<locator>` to see the error or the assertion summary. Add `--execution` when you need the agent's behavior, and `--diff` when you need the file changes.
+3. After a failure, copy the locator from the terminal and run `npx niceeval show @<locator>` to see the error or assertion summary. Add `--execution` when you need the agent's behavior, and `--diff` when you need the file changes.
 4. Then widen back out to the full suite or experiment.

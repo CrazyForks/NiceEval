@@ -55,10 +55,10 @@ t.maxTokens(80_000).atLeast(0.7);                 // demote to soft with a thres
 Once all assertions are collected, the runner takes the first matching rule in this fixed order and folds them into a single result:
 
 ```
-Execution error, timeout, or author mistake                          → errored
-Any gate assertion failed, or a soft is below its threshold --strict  → failed
-t.skip(reason) was called explicitly                                  → skipped
-Otherwise                                                              → passed
+Execution error, timeout, or author mistake                        → errored
+Any gate assertion failed, or a soft is below threshold --strict   → failed
+t.skip(reason) was called explicitly                                → skipped
+Otherwise                                                            → passed
 ```
 
 `errored` outranks everything else, because the execution evidence can no longer be trusted. `failed` outranks `skipped`, so that a `t.skip()` cannot mask a hard failure recorded earlier.
@@ -236,9 +236,9 @@ t.check(t.reply, jsonValid());
 
 Custom matchers compose with the same chain methods as built-ins: `.gate()`, `.atLeast(0.7)`.
 
-## Related pages
+## Related reading
 
-- [Drive](/concepts/drive) — `t.send()`, `t.newSession()`, and HITL: how you produce the Turn data these assertions read from.
-- [Judge](/concepts/judge) — the fifth scoring mechanism, for open-ended quality that can't be expressed as a fixed rule.
-- [Write send](/guides/write-send) — how the standard event stream is produced, and what scoped assertions depend on.
-- [Evals](/concepts/evals) — how assertions fold into the eval lifecycle and verdict types.
+- [Drive](/explanation/drive) — `t.send()`, `t.newSession()`, and HITL: how you produce the Turn data these assertions read from.
+- [Judge](/explanation/judge) — the fifth scoring mechanism, for open-ended quality that can't be expressed as a fixed rule.
+- [Write send](/tutorials/write-send) — how the standard event stream is produced, and what scoped assertions depend on.
+- [Evals](/explanation/evals) — how assertions fold into the eval lifecycle and verdict types.

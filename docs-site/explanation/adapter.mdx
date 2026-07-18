@@ -4,7 +4,7 @@ sidebarTitle: "Adapter"
 description: "The Adapter is the adapter you write. This page explains what the send function receives and returns, how system-under-test configuration is passed in, the three integration tiers, and where the capabilities on t come from."
 ---
 
-In NiceEval, an `Adapter` is the adaptation layer between the runner and the system under test. The Adapter implements the `send` function: it forwards eval-side actions such as `t.send()` to your application, then translates the application's response into NiceEval's standard `Turn`.
+In [NiceEval](https://niceeval.com/), an `Adapter` is the adaptation layer between the runner and the system under test. The Adapter implements the `send` function: it forwards eval-side actions such as `t.send()` to your application, then translates the application's response into [NiceEval](https://niceeval.com/)'s standard `Turn`.
 
 Follow-up reading: [Write Send](/tutorials/write-send)
 
@@ -95,7 +95,7 @@ export default defineExperiment({
 
 ## Integration tiers
 
-Grouped by where the Adapter connects and what extra observability data it receives, integration comes in three tiers: **Tier 1 is send only** (not a single line of application code changes, and the full assertion set is already complete at this tier), **Tier 2 is send + OTel** (the application sends spans to NiceEval, buying the call waterfall in `niceeval view`), **Tier 3 is application changes + experiment flags** (feature A/B). What each tier costs, what it buys, and when to move up: see [Tier](/explanation/tier).
+Grouped by where the Adapter connects and what extra observability data it receives, integration comes in three tiers: **Tier 1 is send only** (not a single line of application code changes, and the full assertion set is already complete at this tier), **Tier 2 is send + OTel** (the application sends spans to [NiceEval](https://niceeval.com/), buying the call waterfall in `niceeval view`), **Tier 3 is application changes + experiment flags** (feature A/B). What each tier costs, what it buys, and when to move up: see [Tier](/explanation/tier).
 
 The eval-side driving API — `t.send()`, `t.sendFile()`, `t.newSession()`, and HITL's `t.respond()` / `t.respondAll()` —
 all uniformly call the Adapter's `send`.
@@ -235,7 +235,7 @@ The runner binds a lifecycle scope to the Agent's `setup`, to each `send`, and t
 
 There are no flags to check on `ctx`. All three tier fields have "pass-through" semantics: `model` and `flags` are declared by the experiment and handed over verbatim by the runner — the Adapter's only job is to forward them to the application with the request, never to interpret them; `telemetry` only appears when OTel integration is configured, and inside `send` you only need to spread its `headers` into the request headers — the receiving endpoint is fixed in `defineConfig` and pointed at by the application at startup, not passed from here; see [OTel Integration](/tutorials/connect-otel). `experimentId` is a stable identifier derived from the path; the typical use is isolating cross-attempt state per experiment inside a Sandbox's environment hooks (partitioning cache directory names and sandbox snapshot tags by it); see [Sandbox providers · Environment hooks](/tutorials/sandbox-providers).
 
-`session` is the private state of one conversation line, and NiceEval promises exactly one thing about it: **every `send` on the same conversation line receives the same `ctx.session`, and a new conversation line (the first turn of an eval, or after `t.newSession()`) receives a brand-new one.** The session continuation accessors (`id`/`capture`, `history`) and the HITL paused-turn accessors (`hold`/`take`) all live on it, and "the first turn" is simply the natural shape of a new conversation line — `id` is `undefined`, `history.get()` is an empty array, with no branch to write; `state` is the escape hatch beyond those accessors, and the framework never writes data into it.
+`session` is the private state of one conversation line, and [NiceEval](https://niceeval.com/) promises exactly one thing about it: **every `send` on the same conversation line receives the same `ctx.session`, and a new conversation line (the first turn of an eval, or after `t.newSession()`) receives a brand-new one.** The session continuation accessors (`id`/`capture`, `history`) and the HITL paused-turn accessors (`hold`/`take`) all live on it, and "the first turn" is simply the natural shape of a new conversation line — `id` is `undefined`, `history.get()` is an empty array, with no branch to write; `state` is the escape hatch beyond those accessors, and the framework never writes data into it.
 
 ### Return: `Turn`
 
