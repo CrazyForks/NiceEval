@@ -1,167 +1,57 @@
 ---
-title: "Eval Your Claude Code / Codex Plugin"
-sidebarTitle: "Eval CC/Codex Plugins"
-description: "Use NiceEval to put a coding-agent plugin in a real workspace and compare pass rate, cost, latency, and behavior with and without the plugin."
+title: "Eval Coding Agent Extensions"
+sidebarTitle: "Coding Agent Extensions"
+description: "Evaluate whether Skills, prompts, and plugin benchmarks improve a coding agent's task results, using a real workspace, a baseline experiment, and a custom report."
 ---
 
-If you're building a plugin for Claude Code, Codex, or another coding agent, the useful eval is not "can the agent mention the plugin?" It is: put the plugin in a real workspace, ask the agent to complete real development tasks, and compare pass rate, latency, cost, and diffs against a no-plugin baseline.
+This example treats extension content as an Experiment variable: the same coding agent runs the same batch of real development tasks, and you compare task success rate, cost, latency, and behavior differences.
 
-The runnable reference is [coding-agent-skill](https://github.com/CorrectRoadH/coding-agent-skill), a standalone example repository. Its Ponytail suite migrates a third-party Ponytail skill/plugin agentic benchmark into a [NiceEval](https://niceeval.com/) eval and compares it against a no-plugin baseline.
+- [View the full source](https://github.com/CorrectRoadH/coding-agent-skill)
+- [View the Fixtures guide](/tutorials/fixtures)
 
-## Directory structure
+## Two experiments
+
+| Experiment | Comparison | What it tests |
+| --- | --- | --- |
+| Zod Skill | `with-skill` vs `baseline` | Whether the Skill makes the agent reliably use `z.object().safeParse()`, instead of falling back to handwritten validation |
+| Ponytail Benchmark | Baseline / Caveman / Ponytail / YAGNI One-liner | Whether a full decision Skill is more effective than a bare agent, a short-style Skill, or a one-line prompt |
+
+The Ponytail group is migrated from a third-party plugin's agentic benchmark, but what this repository actually compares is the content and prompts injected into the agent. It does not prove whether a native plugin wrapper or install protocol is correct. For native Skill/plugin installation and configuration, see [Official Adapters](/reference/official-adapters).
+
+## Experiment design
+
+Every Arm holds the same model, Sandbox, task set, Runs, and budget fixed, and only varies the injected content. The eval doesn't read which Arm is currently active, and it doesn't lower its acceptance bar for any experiment group.
 
 ```text
 coding-agent-skill/
-├─ niceeval.config.ts
-├─ skills/
-│  └─ ponytail.md
-├─ workspaces/
-│  └─ ts-starter/
-├─ evals/
-│  ├─ ponytail-safe-path.eval.ts
-│  ├─ ponytail-csv-sum.eval.ts
-│  └─ ponytail-reuse.eval.ts
-└─ experiments/
-   ├─ ponytail.ts
-   └─ ponytail-baseline.ts
+├── skills/                  # content injected by each Arm
+├── workspaces/ts-starter/   # starting project for each eval
+├── evals/                   # real development tasks and verification
+├── experiments/             # baseline and experiment Arms
+└── reports/benchmark.tsx    # custom Arm x Metric report
 ```
 
-- `skills/ponytail.md` is the plugin/skill content injected into the agent workspace.
-- `workspaces/ts-starter/` is the initial project uploaded into each sandbox.
-- `evals/*.eval.ts` uploads the workspace, sends the task, and verifies the result.
-- `experiments/ponytail.ts` injects the plugin; `experiments/ponytail-baseline.ts` does not.
+Verification looks at final artifacts first: project tests, hidden probes, source code, and diffs. Only treat Skill load or tool calls as a Gate when the underlying events are stable and complete.
 
-## Install the plugin in an experiment
-
-Plugin on/off belongs in the experiment, not in the eval ID or CLI positionals. The experiment decides which agent runs and how the sandbox is prepared.
-
-```ts
-import { defineExperiment } from "niceeval";
-import { claudeCodeAgent } from "niceeval/adapter";
-import { dockerSandbox } from "niceeval/sandbox";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dir = dirname(fileURLToPath(import.meta.url));
-const ponytailSkill = readFileSync(join(__dir, "../skills/ponytail.md"), "utf-8");
-const baseAgent = claudeCodeAgent();
-
-const ponytailAgent = {
-  ...baseAgent,
-  name: "claude-code+ponytail",
-  async setup(sb, ctx) {
-    const cleanup = await baseAgent.setup?.(sb, ctx);
-    await sb.writeFiles({ "CLAUDE.md": ponytailSkill });
-    return cleanup;
-  },
-} satisfies typeof baseAgent;
-
-export default defineExperiment({
-  description: "claude-code + ponytail plugin",
-  agent: ponytailAgent,
-  model: "claude-sonnet-4-6",
-  sandbox: dockerSandbox(),
-  runs: 3,
-  earlyExit: false,
-  budget: 15,
-  evals: (id) => id.startsWith("ponytail-"),
-});
-```
-
-The baseline keeps the same model, runs, budget, and eval filter, but uses plain `claudeCodeAgent()`. That keeps the comparison attributable to the plugin.
-
-## Write plugin tasks
-
-Each task is a normal `.eval.ts` file. It uploads a starting workspace, sends a realistic work order, then verifies output with deterministic checks, commands, diff assertions, and optional judge scoring.
-
-```ts
-import { defineEval } from "niceeval";
-import { includes } from "niceeval/expect";
-
-export default defineEval({
-  description: "Implement an upload path resolver without explicitly mentioning traversal",
-
-  async test(t) {
-    await t.sandbox.uploadDirectory("../workspaces/ts-starter");
-    await t.sandbox.writeFiles({
-      "uploads.py": [
-        "import os",
-        "",
-        "def safe_upload_path(base_dir: str, filename: str) -> str:",
-        "    # TODO: implement",
-        "    pass",
-      ].join("\n"),
-    });
-
-    await t
-      .send(
-        "Complete safe_upload_path(base_dir, filename) in uploads.py. " +
-          "Return the full server path for a user-uploaded file. base_dir is the allowed root.",
-      )
-      .then((turn) => turn.succeeded());
-
-    const src = await t.sandbox.readSourceFiles({ extensions: ["py"] });
-    const code = src.text();
-
-    t.check(code, includes(/commonpath|realpath|abspath/));
-
-    await t.sandbox.writeFiles({
-      "_test_traversal.py": [
-        "import sys, os",
-        "sys.path.insert(0, '.')",
-        "from uploads import safe_upload_path",
-        "base = '/var/uploads'",
-        "try:",
-        "    p = safe_upload_path(base, '../../etc/passwd')",
-        "    assert os.path.commonpath([base, os.path.abspath(p)]) == base",
-        "except (ValueError, PermissionError, AssertionError):",
-        "    pass",
-        "print('ok')",
-      ].join("\n"),
-    });
-
-    const result = await t.sandbox.runCommand("python3", ["_test_traversal.py"]);
-    t.check(result.stdout.trim(), includes(/ok/));
-    t.sandbox.fileChanged("uploads.py");
-  },
-});
-```
-
-The prompt does not leak the safety answer. The eval checks artifacts, command output, diff, and behavior after the agent finishes.
-
-## Run the comparison
+## Run it
 
 ```bash
 git clone https://github.com/CorrectRoadH/coding-agent-skill.git
 cd coding-agent-skill
 pnpm install
+cp .env.example .env
+docker info
+
 pnpm exec niceeval exp ponytail-baseline
 pnpm exec niceeval exp caveman
 pnpm exec niceeval exp ponytail
 pnpm exec niceeval exp yagni-oneliner
-pnpm exec niceeval view
+pnpm exec niceeval view --report reports/benchmark.tsx
 ```
 
-The first argument after `exp` selects the experiment group or file. Later positionals only filter eval IDs; they are not agent names, plugin names, or URLs.
+## What to reuse from this example
 
-## What to inspect
-
-- Whether `pass@N` improves.
-- Whether average latency, tokens, and estimated cost remain acceptable.
-- Whether failing transcripts show the agent ignored the plugin process.
-- Whether the diff only touches task-relevant files.
-- Whether behavior assertions capture the plugin's value, such as less rewriting, more reuse, or proactive safety defenses.
-
-## Copy to your agent
-
-```text
-READ docs-site/example/claude-code-codex-plugin.mdx and install niceeval for this repo.
-Use https://github.com/CorrectRoadH/coding-agent-skill as the reference shape: put the plugin in skills/, inject it from an experiment setup hook, write one .eval.ts task against a real workspace, then add a no-plugin baseline experiment.
-```
-
-## Next steps
-
-- [Fixtures](/guides/fixtures) — manage sandbox workspaces, tasks, and verification in `.eval.ts`.
-- [Sandbox Agent](/guides/sandbox-agent) — built-in `claude-code`, `codex`, and custom sandbox agents.
-- [Viewing Results](/guides/viewing-results) — inspect transcripts, diffs, event streams, and traces.
+- Use an Experiment to express the comparison between having the extension and not, without letting the eval know which condition is active.
+- Keep the prompt from leaking the answer; check tests, source code, diffs, and behavior evidence during verification instead.
+- Use task success rate as the primary metric, and tokens, cost, latency, and behavior as explanatory metrics.
+- The [Scoring Guide](/tutorials/scoring-guide) owns the choice between Gate, Soft, and Judge; this page doesn't duplicate the scoring API.
