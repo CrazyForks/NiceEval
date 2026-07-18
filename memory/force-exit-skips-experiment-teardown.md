@@ -23,3 +23,17 @@
 适用场景:任何「进程退出路径绕过 Effect fiber 内 finalizer」的资源清理;新加宿主机侧长驻资源时应同样登记进独立于 Effect 的注册表。
 
 关联:[experiment-teardown-missed-once-in-batch](experiment-teardown-missed-once-in-batch.md)(计数路径间歇失灵的兜底扫尾,是本条修法 2 的前身;本条把扫尾进一步扩到缺陷 throw 路径与进程强清路径)。
+
+## 复盘与二次修法(2026-07-18,commit 14e5207)
+
+第一版三件套仍留了两个洞,真机再次复现孤儿容器后定位:
+
+- **窗口与预算倒挂**:强清等 `runInFlight` 的固定窗口 15s < 单个收尾可调用体的合法预算 `CLEANUP_TIMEOUT_MS`(30s)——一个合法的实验级 teardown(probe+down)还没跑完就被 `process.exit` 拦腰砍断。数字孤立手写、没有从常量推导,是漂移的直接来源。
+- **在飞收尾对兜底不可见**:`runExperimentTeardown` 的同步一次性交换把 closure 从 `lc.cleanup` 取走后,注册表 drain 只能空转——最常见时序(sweep 已在跑 teardown 时二次 Ctrl-C)下兜底恰好失效。
+
+二次修法(与生命周期成对化联动,见 [lifecycle-paired-teardown-replaces-cleanup-return](lifecycle-paired-teardown-replaces-cleanup-return.md)):
+
+1. teardown 执行体改为 **memoized 一次性 promise**(`lc.teardownPromise`),注册表条目 settle 后自注销——drain 语义变成「启动全部未启动 + 等待全部未 settle(含在飞)」,兜底不再空转;登记时机提前到触发时点,setup 挂起/抛错也不丢收尾。
+2. 强清退出条件从「时钟窗口到点」改为**事件驱动 settle**:强停沙箱后并发等「在飞收尾链 settle」与「注册表排空」,两者 settle 即退;兜底上限 `2 × CLEANUP_TIMEOUT_MS` 直接从常量推导,docs/cli.md 声明不等式链(provider stop 8s < 看门狗 12s < 30s ≤ 60s),只拦可调用体绕过自身超时的失守病态。
+
+教训:「有界窗口等得起」这类论证必须真的比较两个数——上界存在 ≠ 窗口 ≥ 上界;固定时钟 race 不可观测的在飞工作,取什么数都不对,正确形态是让在飞工作可等待、事件驱动收口。
