@@ -1,10 +1,10 @@
 ---
-title: "用 Coding Agent 编写 Eval 并迭代程序"
+title: "用 Coding Agent 编写评估用例并迭代程序"
 sidebarTitle: "Coding Agent 反馈闭环"
 description: "让 Coding Agent 读取随包文档，用 Bash 运行实验、查看结果、定位失败并持续迭代，最后通过全量重跑确认结果。"
 ---
 
-Coding Agent 可以根据需求编写 NiceEval 配置与 Eval，也可以根据运行结果持续改进被测程序。整个过程只需要仓库文件和 Bash，不依赖浏览器或额外的 Skill。
+Coding Agent 可以根据需求编写 NiceEval 配置与评估用例，也可以根据运行结果持续改进被测程序。整个过程只需要仓库文件和 Bash，不依赖浏览器或额外的 Skill。
 
 ## 读取安装版本的文档
 
@@ -25,7 +25,7 @@ AI 通常按任务选择这些入口：
 | 任务 | 随包文档 |
 | --- | --- |
 | 初始化项目 | `docs-site/zh/tutorials/quickstart.mdx` |
-| 编写 Eval | `docs-site/zh/explanation/evals.mdx` |
+| 编写评估用例 | `docs-site/zh/explanation/evals.mdx` |
 | 定义实验 | `docs-site/zh/tutorials/write-experiment.mdx` |
 | 连接被测 Agent | `docs-site/zh/explanation/adapter.mdx` |
 | 配置 Sandbox | `docs-site/zh/tutorials/sandbox-agent.mdx` |
@@ -33,7 +33,7 @@ AI 通常按任务选择这些入口：
 
 ## 用 bash 完成一次反馈闭环
 
-闭环的目标不是“把命令跑绿”，而是形成并验证一个假设：失败来自被测程序、Eval，还是运行环境。推荐按下面的顺序迭代。
+闭环的目标不是”把命令跑绿”，而是形成并验证一个假设：失败来自被测程序、评估用例，还是运行环境。推荐按下面的顺序迭代。
 
 <Steps>
   <Step title="运行实验">
@@ -41,7 +41,7 @@ AI 通常按任务选择这些入口：
     npx niceeval exp local --output agent
     ```
 
-    先读取退出码：`0` 表示所有 Eval 通过；`1` 表示至少一个 Eval 失败或出错；`2` 表示 NiceEval 自身未能完成运行。退出码决定是否继续，控制台文本用于定位原因。
+    先读取退出码：`0` 表示所有评估用例通过；`1` 表示至少一个评估用例失败或出错；`2` 表示 NiceEval 自身未能完成运行。退出码决定是否继续，控制台文本用于定位原因。
   </Step>
   <Step title="读取失败">
     ```bash
@@ -49,7 +49,7 @@ AI 通常按任务选择这些入口：
     npx niceeval show @1k2m9qtr
     ```
 
-    第一条命令显示当前各实验的通过率、成本、耗时，以及每个 Eval 的紧凑 Attempt locator——locator 本身就是证据入口，不在列表里编码证据可用性。第二条命令直接打开选中的 Attempt，页面末尾的 `available:` 只列出这个 Attempt 实际可用的证据命令。
+    第一条命令显示当前各实验的通过率、成本、耗时，以及每个评估用例的紧凑 Attempt locator——locator 本身就是证据入口，不在列表里编码证据可用性。第二条命令直接打开选中的 Attempt，页面末尾的 `available:` 只列出这个 Attempt 实际可用的证据命令。
   </Step>
   <Step title="按问题读取证据">
     ```bash
@@ -153,7 +153,7 @@ AI 通常按任务选择这些入口：
     full events: …/weather/brooklyn/a2/events.json
     ```
 
-    diff 是被测 Agent 在 Sandbox 工作区造成的文件变化，不是 Eval 源码的新旧差异。只有 sandbox eval 才会收集到 diff——非 sandbox eval 或 agent 确实没碰任何文件时，attempt 页的 `available:` 列表会省略 `--diff`。默认先给文件级摘要，避免把大段补丁塞进 Agent 上下文；`--diff=<文件>` 再展开单个文件，原始 artifact 路径始终保留：
+    diff 是被测 Agent 在 Sandbox 工作区造成的文件变化，不是评估用例源码的新旧差异。只有 Sandbox 评估用例才会收集到 diff——非 Sandbox 评估用例或 agent 确实没碰任何文件时，attempt 页的 `available:` 列表会省略 `--diff`。默认先给文件级摘要，避免把大段补丁塞进 Agent 上下文；`--diff=<文件>` 再展开单个文件，原始 artifact 路径始终保留：
 
     ```text
     $ niceeval show @1c3h6tbn --diff
@@ -171,8 +171,8 @@ AI 通常按任务选择这些入口：
 
     | 诊断目标 | 入口 | 输出必须包含 |
     | --- | --- | --- |
-    | 查看一次 Attempt 摘要 | `niceeval show @<id>` | Eval 断言、执行步骤、生命周期阶段耗时摘要、diff 摘要及各块可用性 |
-    | 检查 Eval 断言及其通过或失败原因 | `niceeval show @<id> --eval` | 运行时 Eval 源码、源码哈希、断言所在行、严重度、分数与原因 |
+    | 查看一次 Attempt 摘要 | `niceeval show @<id>` | 评估用例断言、执行步骤、生命周期阶段耗时摘要、diff 摘要及各块可用性 |
+    | 检查评估用例断言及其通过或失败原因 | `niceeval show @<id> --eval` | 运行时评估用例源码、源码哈希、断言所在行、严重度、分数与原因 |
     | 检查 Coding Agent 的消息与调用 | `niceeval show @<id> --execution` | 消息、thinking、Skill load、工具调用与结果；有 OTel 时在同一节点附时间、父子关系和错误状态 |
     | 检查 Attempt 各阶段耗时 | `niceeval show @<id> --timing` | lifecycle → hook/turn → shell → OTel 的统一时间树；出错的 Attempt 标出已知的最深失败节点 |
     | 检查 Sandbox 工作区改动 | `niceeval show @<id> --diff` | 文件摘要、增删行数、具体补丁和原始 diff 路径；无文件工作区时明确 unavailable |
@@ -184,9 +184,9 @@ AI 通常按任务选择这些入口：
     | --- | --- |
     | 回复或工具调用不符合需求 | 被测程序、Prompt、工具定义 |
     | `diff` 与任务要求不符 | 被测 Agent 的实现策略或运行环境 |
-    | 正确行为被 gate 拒绝 | Eval 断言、fixture、setup |
+    | 正确行为被 gate 拒绝 | 评估用例断言、fixture、setup |
     | timeout、鉴权或 Sandbox 错误 | 实验配置、Adapter、Sandbox |
-    | 同一 Eval 时好时坏 | `--history`、`runs` 和稳定性问题 |
+    | 同一评估用例时好时坏 | `--history`、`runs` 和稳定性问题 |
 
     不要为了变绿而放宽一个本来正确的断言。先写清楚“哪条证据支持什么判断”，再修改代码。
   </Step>
@@ -196,7 +196,7 @@ AI 通常按任务选择这些入口：
     npx niceeval show weather/brooklyn
     ```
 
-    位置参数按 Eval ID 前缀缩小实验范围。调试同一个失败时加 `--force`，确保刚才的修改真的触发一次新运行。然后用 `show` 验证判定、断言和证据是否按预期变化。
+    位置参数按评估用例 ID 前缀缩小实验范围。调试同一个失败时加 `--force`，确保刚才的修改真的触发一次新运行。然后用 `show` 验证判定、断言和证据是否按预期变化。
   </Step>
   <Step title="全量确认没有回归">
     ```bash
@@ -242,11 +242,11 @@ Coding Agent 应先从 `failures` 选中 Attempt locator，再按证据位执行
 - `events.json` 是对话与工具调用事件，`trace.json` 是调用链，`diff.json` 是 Sandbox 文件变化。
 - 某类证据不存在时，对应文件不会生成。先以 `show` 的提示为准，不要假设每个目录都有全部文件。
 
-`show` 的默认结果可能合成自多次运行：每个 Experiment × Eval 选择最新判定，因此局部重跑后仍能看到其它 Eval 的旧结果。该视图用于查看每条 Eval 的最新已知判定；同一版代码的整体结果必须通过一次 `--force` 全量运行确认。
+`show` 的默认结果可能合成自多次运行：每个 Experiment × 评估用例选择最新判定，因此局部重跑后仍能看到其它评估用例的旧结果。该视图用于查看每条评估用例的最新已知判定；同一版代码的整体结果必须通过一次 `--force` 全量运行确认。
 
 ## 结果复用条件
 
-不传 `--force` 时，NiceEval 会比较当前指纹与最近结果。指纹由 Eval 源码和运行配置组成，包括实验 ID、Agent、model、flags、Sandbox、timeout 与 strict 等设置。
+不传 `--force` 时，NiceEval 会比较当前指纹与最近结果。指纹由评估用例源码和运行配置组成，包括实验 ID、Agent、model、flags、Sandbox、timeout 与 strict 等设置。
 
 | 最近结果与当前输入 | 本次行为 |
 | --- | --- |
@@ -258,13 +258,13 @@ Coding Agent 应先从 `failures` 选中 Attempt locator，再按证据位执行
 被测程序的源码不在指纹里。修改实现后，即使行为已经变化，旧的 `passed` 或 `failed` 仍可能被复用。因此可以这样选择：
 
 - 只想重看已有结果：运行 `niceeval show`，不产生新费用。
-- 修改了 Eval 或实验配置：直接重跑；指纹变化会触发对应任务。
-- 修改了被测程序：对受影响的 Eval 使用 `--force`。
-- 准备结束本轮工作：对整个实验使用 `--force`，排除其它 Eval 的回归。
+- 修改了评估用例或实验配置：直接重跑；指纹变化会触发对应任务。
+- 修改了被测程序：对受影响的评估用例使用 `--force`。
+- 准备结束本轮工作：对整个实验使用 `--force`，排除其它评估用例的回归。
 
 ## 设置自主迭代协议
 
-可以把下面的协议放进任务描述。它既适合优化被测实现，也适合调试 Eval：
+可以把下面的协议放进任务描述。它既适合优化被测实现，也适合调试评估用例：
 
 ```text
 读取 node_modules/niceeval/INDEX.md，再按索引读取与任务有关的文档。

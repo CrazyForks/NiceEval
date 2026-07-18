@@ -1,7 +1,7 @@
 ---
 title: "实验矩阵：用运行矩阵比较 agents 和 models"
 sidebarTitle: "实验矩阵"
-description: "使用 NiceEval experiments 让同一批 eval 横跨多个 agents、models 和 flags，比较 pass rate、成本和延迟。"
+description: "使用 NiceEval experiments 让同一批评估用例横跨多个 agents、models 和 flags，比较 pass rate、成本和延迟。"
 ---
 
 Experiment 用于比较多组运行配置。典型比较包括 Claude Code 与 Codex 在同一批 Coding Agent 任务上的通过率、prompt 改动前后的成本，以及不同模型的延迟与质量。
@@ -57,7 +57,7 @@ npx niceeval exp compare-models/gpt
 - 不同模型（Tier 1 接入即可：应用接口暴露模型选择，`model` 经 `ctx.model` 透传）。
 - 不同 prompts 或 feature flags（要求 Tier 3 接入：变体在应用内部，需要应用把它暴露成 experiment 可选的 flag，经 `flags` → `ctx.flags` 透传）。
 - 不同 sandbox provider。
-- 不同运行环境条件（比如装不装某个记忆工具的二进制、有没有预置状态）：环境差异写在 `sandbox` spec 的 `.setup()` / `.teardown()` 钩子里，一个变体一个 experiment 文件，见 [沙箱 provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
+- 不同运行环境条件（比如装不装某个记忆工具的二进制、有没有预置状态）：环境差异写在 `sandbox` spec 的 `.setup()` / `.teardown()` 钩子里，一个变体一个 experiment 文件，见 [Sandbox provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
 - 同一任务的 pass@N。
 
 Tier 1 / Tier 2 / Tier 3 的定义见 [Tier](/zh/explanation/tier)。
@@ -82,11 +82,11 @@ npx niceeval view
 
 ## 设计 experiment 的建议
 
-- 保持 eval 集合稳定，避免比较时混入新变量。
+- 保持评估用例集合稳定，避免比较时混入新变量。
 - 每个 cell 跑多个 attempts，尤其是非确定性 coding agent。
 - 把预算和并发写清楚。
 - 对“失败原因”做归类，不只看总分。
 
 ## 与普通运行的关系
 
-`npx niceeval exp <实验>` 检查一批 Eval 在指定配置下的判定；实验组用于比较多组配置。两者使用同一套 Eval、Adapter、scoring 和 artifacts。
+`npx niceeval exp <实验>` 检查一批评估用例在指定配置下的判定；实验组用于比较多组配置。两者使用同一套评估用例、Adapter、scoring 和 artifacts。

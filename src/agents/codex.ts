@@ -78,13 +78,13 @@ export interface CodexConfig {
   /** OpenAI 兼容代理 base URL(如 https://s2a.example.com/v1)。省略时读 CODEX_BASE_URL env。 */
   baseUrl?: string;
   /**
-   * 额外 MCP server(每个沙箱 setup 时追加进 ~/.codex/config.toml)。
+   * 额外 MCP server(每个 Sandbox setup 时追加进 ~/.codex/config.toml)。
    * stdio 形态(command/args/env)写 [mcp_servers.<name>] 的 command 行;
    * Streamable HTTP 形态(url/headers)写 url 行,headers 进 [mcp_servers.<name>.http_headers] 子表。
    */
   mcpServers?: McpServer[];
   /**
-   * 装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+   * 装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
    * 落在 `.agents/skills/<name>/`,并写一段发现指引进 AGENTS.md —— codex 没有 Claude Code 那种
    * 原生 Skill 工具,只把文件装进去它不会自己去读(见 memory/codex-no-native-skill-tool.md)。
    */
@@ -95,7 +95,7 @@ export interface CodexConfig {
    * 一份完整的 Codex `config.toml`(官方 TOML 格式)在本地项目里的路径 —— 相对运行
    * niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
    * 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-   * 都在 setup 阶段报错。原始字节原样并入沙箱里原本为空的用户级 `~/.codex/config.toml`
+   * 都在 setup 阶段报错。原始字节原样并入 Sandbox 里原本为空的用户级 `~/.codex/config.toml`
    * (不继承宿主机配置、不解析后重写);保留键 `model`、`model_provider`、`model_providers`、
    * `model_reasoning_effort`、`mcp_servers`、`otel` 出现在文件里 setup 报错。manifest 只记
    * 项目相对路径与字节 SHA-256,不落正文。

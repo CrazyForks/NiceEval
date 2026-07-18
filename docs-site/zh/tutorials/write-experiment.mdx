@@ -20,7 +20,8 @@ export default defineExperiment({
 
 `agent` 放的是已经配置好的 agent 实例。被测系统的 URL、鉴权、协议细节通常传给 adapter 工厂；运行器不会单独保存一个 `agentConfig` 字段。
 
-## 传 model 和 flags
+## 评估不同的 System Prompt 对于 Agent 的影响
+使用 flag 机制，配置不同的 Flag，设置两个实验，对比不同 Prompt 的区别。
 
 ```ts
 // experiments/concise.ts
@@ -28,25 +29,46 @@ import { defineExperiment } from "niceeval";
 import { webAgent } from "../agents/web-agent.ts";
 
 export default defineExperiment({
-  description: "简洁 prompt 变体",
+  description: "测试 V1 System Prompt",
   agent: webAgent({
     baseUrl: "https://staging.example.com",
-    apiKey: process.env.STAGING_AGENT_API_KEY,
   }),
   model: "gpt-5.4",
   flags: {
-    promptVariant: "concise",
-    webResearch: false,
+    promptVariant: "v1",
   },
-  runs: 3,
+  runs: 1,
   earlyExit: true,
   budget: 5,
 });
 ```
 
-`model` 会作为 `ctx.model` 传给 adapter；应用接口支持模型选择时，adapter 把它放进请求体、header 或 CLI 参数即可。
+```ts
+// experiments/concise.ts
+import { defineExperiment } from "niceeval";
+import { webAgent } from "../agents/web-agent.ts";
 
-`flags` 会作为 `ctx.flags` 传给 adapter，也会作为 `t.flags` 出现在 eval 里。语义就是产品 A/B 测试里的 feature flag：一个 experiment 就是一组 flag 取值，例如 prompt 版本、工具集、检索开关；值可以是任意 JSON（变体名、数字、配置对象），不限于布尔。真正按 flag 切换行为的是你的应用或 adapter，[NiceEval](https://niceeval.com/) 只负责原样透传。它与命令行开关是两回事——后者在文档里一律写作 CLI flag 或字面的 `--xxx`。
+export default defineExperiment({
+  description: "测试 V1 System Prompt",
+  agent: webAgent({
+    baseUrl: "https://staging.example.com",
+  }),
+  model: "gpt-5.4",
+  flags: {
+    promptVariant: "v1",
+  },
+  runs: 1,
+  earlyExit: true,
+  budget: 5,
+});
+```
+
+
+`model` 会作为 `ctx.model` 传给 Adapter；如果你的 Agent 支持模型选择，自己构建请求
+
+`flags` 会作为 `ctx.flags` 传给 Adapter，也会作为 `t.flags` 出现在评例代码中里。
+
+语义就是产品 A/B 测试里的 feature flag，应该编写 Adapter 把 Flag 发给你的 Agent，Agent 根据 Flag 切换不同的 System Prompt 或者行为。
 
 ```ts
 // agents/web-agent.ts
@@ -104,7 +126,7 @@ npx niceeval exp prompt-variants/concise
 | `timeoutMs` | 单个 attempt 的超时 |
 | `budget` | 这一格配置的预算上限 |
 | `maxConcurrency` | 这一格配置的并发上限 |
-| `sandbox` | sandbox agent 使用的固定 spec；spec 可带 `environments` 表按 eval 的环境 profile 换预制产物，也可以链 `.setup()` / `.teardown()` 挂环境钩子 |
+| `sandbox` | sandbox agent 使用的固定 spec；spec 可带 `environments` 表按评估用例的环境 profile 换预制产物，也可以链 `.setup()` / `.teardown()` 挂环境钩子 |
 | `setup` | 实验级钩子：整个实验只跑一次、在你自己的机器上执行，启动全部 Attempt 共享的服务（见下） |
 | `teardown` | 与 `setup` 成对的实验级钩子：全部 Attempt 收尾后执行一次，当且仅当 `setup` 的时点已经走到（见下） |
 
@@ -148,7 +170,7 @@ async teardown(ctx) {
 },
 ```
 
-`setup` / `teardown` 只管「在你机器上、一个实验一份」的服务。要在跑 agent 前按实验在**沙箱里**准备环境（装二进制、预热、跨 attempt 载入和回存状态），挂在 `sandbox` 字段的 spec 上：
+`setup` / `teardown` 只管「在你机器上、一个实验一份」的服务。要在跑 agent 前按实验在**Sandbox 里**准备环境（装二进制、预热、跨 attempt 载入和回存状态），挂在 `sandbox` 字段的 spec 上：
 
 ```ts
 export default defineExperiment({
@@ -162,11 +184,11 @@ export default defineExperiment({
 
 固定的 Agent CLI、系统包和大模型缓存应先做进 image/template/snapshot；`.setup()` 不应在每个 Attempt 重建同一套环境。从官方 Docker 镜像、E2B 模板或 Vercel runtime 派生预制环境的步骤见 [Sandbox Provider · 从官方基线继续构建以提速](/zh/tutorials/sandbox-providers#从官方基线继续构建以提速)。
 
-钩子的执行时机、多钩子顺序和失败语义见 [沙箱 provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
+钩子的执行时机、多钩子顺序和失败语义见 [Sandbox provider · 环境钩子](/zh/tutorials/sandbox-providers#环境钩子)。
 
-### 与沙箱钩子协作
+### 与 Sandbox 钩子协作
 
-实验级钩子起宿主机侧服务，沙箱钩子每个沙箱把坐标写进去、收尾时回存状态——两层在同一个文件里靠模块变量衔接，时序由 runner 保证：实验级 `setup` 早于本实验任何沙箱钩子，沙箱钩子读到的变量一定已经赋好值：
+实验级钩子起宿主机侧服务，Sandbox 钩子每个 Sandbox 把坐标写进去、收尾时回存状态——两层在同一个文件里靠模块变量衔接，时序由 runner 保证：实验级 `setup` 早于本实验任何 Sandbox 钩子，Sandbox 钩子读到的变量一定已经赋好值：
 
 ```ts
 // experiments/compare/claude--nowledge.ts
@@ -201,11 +223,11 @@ export default defineExperiment({
 });
 ```
 
-一份实验文件从上往下读就是完整的运行说明：整场一次的宿主机资源在实验级钩子对里；每沙箱的写入与回存在 `sandbox` 链式钩子里，读实验级产物；agent 怎么连自己、eval 的任务夹具各在 agent 定义与 `EvalDef` 里，不进实验文件。
+一份实验文件从上往下读就是完整的运行说明：整场一次的宿主机资源在实验级钩子对里；每 Sandbox 的写入与回存在 `sandbox` 链式钩子里，读实验级产物；agent 怎么连自己、评估用例的任务夹具各在 agent 定义与 `EvalDef` 里，不进实验文件。
 
 ### 多个实验共享同一套生命周期代码
 
-对比组里常常是几个实验对着同一类基础设施——同一个记忆产品，claude 与 codex 各一格对照，起停机制完全一样。把起停写成一个**工厂函数**，返回共享同一闭包的整套件：实验级钩子对、给 agent / MCP 工厂读坐标的 getter、把坐标写进沙箱的 sandbox 钩子。每个实验文件各自调用一次工厂，同一套代码、各自的实例与坐标：
+对比组里常常是几个实验对着同一类基础设施——同一个记忆产品，claude 与 codex 各一格对照，起停机制完全一样。把起停写成一个**工厂函数**，返回共享同一闭包的整套件：实验级钩子对、给 agent / MCP 工厂读坐标的 getter、把坐标写进 Sandbox 的 sandbox 钩子。每个实验文件各自调用一次工厂，同一套代码、各自的实例与坐标：
 
 ```ts
 // experiments/shared/nowledge.ts —— 启停一份代码；实例、坐标每实验一份
@@ -292,9 +314,9 @@ export const sharedNowledge = {
 
 边界在生命周期：同批共享的服务活不过这次 run。要**跨 run** 存在的服务（先起好、连续跑多次 `niceeval exp`）仍归外部编排（`docker compose` 之类）起停，URL 经环境变量传入。
 
-## 让不同 eval 使用不同预制环境
+## 让不同评估用例使用不同预制环境
 
-一批真实任务可能需要不同版本的运行时和依赖。eval 用 `environment` 声明一个与 provider 无关的 profile ID；sandbox spec 的 `environments` 表再把它映射到具体模板或快照：
+一批真实任务可能需要不同版本的运行时和依赖。评估用例用 `environment` 声明一个与 provider 无关的 profile ID；sandbox spec 的 `environments` 表再把它映射到具体模板或快照：
 
 ```ts
 // evals/astropy-2021.eval.ts
@@ -329,6 +351,6 @@ export default defineExperiment({
 });
 ```
 
-`environment` 是非空的稳定字符串，不是包版本约束。`environments` 表的值就是该 provider 预制产物字段的覆盖（Docker 的 `image`、E2B 的 `template`、Vercel 的 `snapshotId`）。NiceEval 在启动任何 Sandbox 前对所有选中的 eval 完成查表；某条 eval 声明的 profile 缺表项会在启动时一次性报出全部缺项。remote Agent 不创建 Sandbox，不参与查表。因为映射是随 spec 复用的数据，同一个实验能覆盖全部 eval——分数和对比表不会因为环境不同被拆成多个实验。
+`environment` 是非空的稳定字符串，不是包版本约束。`environments` 表的值就是该 provider 预制产物字段的覆盖（Docker 的 `image`、E2B 的 `template`、Vercel 的 `snapshotId`）。NiceEval 在启动任何 Sandbox 前对所有选中的评估用例完成查表；某条评估用例声明的 profile 缺表项会在启动时一次性报出全部缺项。remote Agent 不创建 Sandbox，不参与查表。因为映射是随 spec 复用的数据，同一个实验能覆盖全部评估用例——分数和对比表不会因为环境不同被拆成多个实验。
 
 跨配置比较的设计建议见[实验矩阵](/zh/tutorials/experiments)。Adapter 对 `ctx.model` 和 `ctx.flags` 的用法见 [Adapter](/zh/explanation/adapter)。

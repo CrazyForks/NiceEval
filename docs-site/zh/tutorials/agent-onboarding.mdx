@@ -1,7 +1,7 @@
 ---
 title: "Coding Agent 从零接入项目"
 sidebarTitle: "Coding Agent 从零接入"
-description: "给 Coding Agent 的完整接入流程：探索项目、与用户确认路径、配置 Judge、写出 Adapter / Experiment / Eval 并跑通第一个实验。"
+description: "给 Coding Agent 的完整接入流程：探索项目、与用户确认路径、配置 Judge、写出 Adapter / Experiment / 评估用例并跑通第一个实验。"
 ---
 
 这一页是 Coding Agent 把 NiceEval 接入一个项目的执行步骤。前提：`niceeval` 依赖已经装进项目、`niceeval init` 已经运行，你是从随包 `INDEX.md` 进入本页的。用用户的语言与用户交流；所有 API、字段和 CLI 行为以随包文档为准，不要凭训练记忆现编。
@@ -54,8 +54,8 @@ export default defineConfig({
 
 两个要提醒用户的点：
 
-- **key 解析不到时 Judge 断言会静默跳过**（不报错、不记分）——Eval 全绿不代表 Judge 真的跑了。所以配完先跑一条带 `t.judge` 的 Eval，在 `niceeval view` 里确认有 Judge 分数。
-- Judge 模型要**与被测 Agent 分离**，避免同一个模型给自己打分。模型解析优先级（单次调用 → Eval 级 → 全局配置）和三种评分形状见 [Judge](/zh/explanation/judge)，`judge` 字段全集见 [defineConfig 参考](/zh/reference/define-config)。
+- **key 解析不到时 Judge 断言会静默跳过**（不报错、不记分）——评估用例全绿不代表 Judge 真的跑了。所以配完先跑一条带 `t.judge` 的评估用例，在 `niceeval view` 里确认有 Judge 分数。
+- Judge 模型要**与被测 Agent 分离**，避免同一个模型给自己打分。模型解析优先级（单次调用 → 评估用例级 → 全局配置）和三种评分形状见 [Judge](/zh/explanation/judge)，`judge` 字段全集见 [defineConfig 参考](/zh/reference/define-config)。
 
 ## 第 3 步：写三件套
 
@@ -63,14 +63,14 @@ export default defineConfig({
 
 1. **Adapter**（`agents/*.ts` 或用户项目里约定的目录）——只填 `defineAgent` 的 `send`，配置走工厂参数，不写死、不读 `process.env`。契约见 [Adapter](/zh/explanation/adapter)，API 签名见 [defineAgent 参考](/zh/reference/define-agent)，事件映射见[事件参考](/zh/reference/events)。
 2. **Experiment**（`experiments/*.ts`）——引用上面的 Adapter，声明 `model`、`flags`、`runs` 等；被测对象是 Agent 的话还要声明 `sandbox`（第 1 步已跟用户确认过的 Provider，默认 `dockerSandbox()`，从 `niceeval/sandbox` 导入）。**默认建一个实验组文件夹做模型对比**：`experiments/compare-models/` 下放两个文件，同一个 Adapter、钉住一切、只差 `model` 各一个（比如 `compare-models/gpt-5.4.ts` 和 `compare-models/deepseek-v4-pro.ts`；`model` 是单个字符串，不接受数组）。跑一次 `niceeval exp compare-models` 就把组内各 model 并排出报告——这是 NiceEval 最直观的价值演示。用哪两个模型要跟用户确认（应用支持哪些、有哪些 key）；应用接口不收模型参数的话退化成单个 Experiment 文件，如实告诉用户原因。字段见[编写 Experiment](/zh/tutorials/write-experiment)，实验组组织方式见[组织 Experiment](/zh/tutorials/experiments)。
-3. **Eval**（`evals/*.eval.ts`）——**先探明这个应用是干嘛的，再写一条贴着它真实功能的 Eval**：读它的 README、路由、工具定义或系统提示，找出它的核心用例（客服机器人就问一条真实的客服问题、SQL agent 就给一个真实的查询任务），拿这个用例做第一条 Eval 的输入和断言，不要写「你好」这种和应用无关的占位输入。形式上仍从最小写起：一句输入，`t.succeeded()` + 一个针对预期回答的内容断言，跑通再加断言密度。写法见[编写 Eval](/zh/tutorials/authoring)，断言与评分见[评分指南](/zh/tutorials/scoring-guide)，签名见 [defineEval 参考](/zh/reference/define-eval)。
+3. **评估用例**（`evals/*.eval.ts`）——**先探明这个应用是干嘛的，再写一条贴着它真实功能的评估用例**：读它的 README、路由、工具定义或系统提示，找出它的核心用例（客服机器人就问一条真实的客服问题、SQL agent 就给一个真实的查询任务），拿这个用例做第一条评估用例的输入和断言，不要写「你好」这种和应用无关的占位输入。形式上仍从最小写起：一句输入，`t.succeeded()` + 一个针对预期回答的内容断言，跑通再加断言密度。写法见[编写评估用例](/zh/tutorials/authoring)，断言与评分见[评分指南](/zh/tutorials/scoring-guide)，签名见 [defineEval 参考](/zh/reference/define-eval)。
 
 参数怎么从 Experiment 流到 Adapter、静态配置和每轮动态值怎么分（工厂参数 vs `ctx`），见[接入自己的 Agent](/zh/tutorials/connect-your-agent)。
 
 架构上有两条硬规则，写 Adapter 时不要违反：
 
-- **不做进程内直调**。就算 agent runtime 和 Eval 在同一个代码库里，Adapter 也要走 HTTP（或对应传输层），不要把 `fetch` 换成直接 `import` 被测函数——原因见[接入自己的 Agent](/zh/tutorials/connect-your-agent) 里「为什么不直调」。
-- **Eval 侧不代管被测进程**。不 spawn 应用、不另开端口；应用由用户自己按平时的方式启动（`pnpm dev` 之类），Adapter 连不上时报「先起应用」这类明确的错误，不要自己起服务。
+- **不做进程内直调**。就算 agent runtime 和评估用例在同一个代码库里，Adapter 也要走 HTTP（或对应传输层），不要把 `fetch` 换成直接 `import` 被测函数——原因见[接入自己的 Agent](/zh/tutorials/connect-your-agent) 里「为什么不直调」。
+- **评估用例侧不代管被测进程**。不 spawn 应用、不另开端口；应用由用户自己按平时的方式启动（`pnpm dev` 之类），Adapter 连不上时报「先起应用」这类明确的错误，不要自己起服务。
 
 ## 第 4 步：跑通并验证
 
@@ -83,7 +83,7 @@ export default defineConfig({
 
 ## 第 5 步：收尾，告诉用户做了什么
 
-跑通之后先总结，再谈下一步。总结要说清：接了什么被测对象、生成了哪几个文件（Adapter / Experiment / Eval 各在哪）、`niceeval exp compare-models` 和 `niceeval view` 怎么跑、第一次运行的结果是什么样。不要在没被要求的情况下顺手重构用户已有代码，也不要在这几个文件之外新增抽象。
+跑通之后先总结，再谈下一步。总结要说清：接了什么被测对象、生成了哪几个文件（Adapter / Experiment / 评估用例各在哪）、`niceeval exp compare-models` 和 `niceeval view` 怎么跑、第一次运行的结果是什么样。不要在没被要求的情况下顺手重构用户已有代码，也不要在这几个文件之外新增抽象。
 
 ## 第 6 步：问用户要不要往深了接
 
@@ -91,10 +91,10 @@ export default defineConfig({
 
 | 能做什么 | 改动量 | 好处 | 文档 |
 |---|---|---|---|
-| 工具调用断言（`t.calledTool()` 等） | 只改 Adapter：把应用响应映射成标准事件流，约 10–30 行映射代码 | Eval 能断言「Agent 有没有调对工具、参数对不对」，不再只看最终回复 | [编写 send](/zh/tutorials/write-send)、[事件参考](/zh/reference/events) |
-| 多轮对话、会话隔离 | 只改 Adapter：接上 `ctx.session`（`history()` 或 `id` + `capture()`），几行到十几行 | Eval 能写多轮场景、`t.newSession()` 验证会话间不串味 | [驱动多轮交互](/zh/explanation/drive)、[编写 send](/zh/tutorials/write-send) |
-| 人工审批流（HITL） | 只改 Adapter：停轮返回 `waiting` + `input.requested`，回答轮续跑，约 10–20 行 | Eval 能覆盖「批准/拒绝之后 Agent 行为对不对」这类审批场景 | [HITL](/zh/explanation/hitl) |
+| 工具调用断言（`t.calledTool()` 等） | 只改 Adapter：把应用响应映射成标准事件流，约 10–30 行映射代码 | 评估用例能断言「Agent 有没有调对工具、参数对不对」，不再只看最终回复 | [编写 send](/zh/tutorials/write-send)、[事件参考](/zh/reference/events) |
+| 多轮对话、会话隔离 | 只改 Adapter：接上 `ctx.session`（`history()` 或 `id` + `capture()`），几行到十几行 | 评估用例能写多轮场景、`t.newSession()` 验证会话间不串味 | [驱动多轮交互](/zh/explanation/drive)、[编写 send](/zh/tutorials/write-send) |
+| 人工审批流（HITL） | 只改 Adapter：停轮返回 `waiting` + `input.requested`，回答轮续跑，约 10–20 行 | 评估用例能覆盖「批准/拒绝之后 Agent 行为对不对」这类审批场景 | [HITL](/zh/explanation/hitl) |
 | 调用瀑布图（升 Tier 2） | 应用已有 OTel 埋点（第 1 步探过）：只是把 span 多发一份给 NiceEval，几行配置；没埋点：补一段通用 OTel 初始化 | `niceeval view` 里看到应用内部每次模型调用、工具执行的耗时和 token 时间线；不影响任何断言 | [配置 OTel](/zh/tutorials/connect-otel) |
 | feature A/B 对比（升 Tier 3） | 改应用：把变体暴露成 `flags` 可切换的配置，改动量取决于应用；已有 A/B 开关（第 1 步探过）就是现成入口 | Experiment 层面直接对比「改 prompt / 换工具集 / 开关 feature 谁更好」 | [组织 Experiment](/zh/tutorials/experiments)、[接入等级](/zh/explanation/tier) |
 
-共同点也要讲给用户：这些全是给 Adapter 或应用加增量，**已写的 Eval 一行不用改**。三档投入分别买到什么、什么时候值得升级，见[接入等级](/zh/explanation/tier)。第 1 步探到应用已有 OTel 埋点的话，瀑布图那条要主动推荐——成本接近零。
+共同点也要讲给用户：这些全是给 Adapter 或应用加增量，**已写的评估用例一行不用改**。三档投入分别买到什么、什么时候值得升级，见[接入等级](/zh/explanation/tier)。第 1 步探到应用已有 OTel 埋点的话，瀑布图那条要主动推荐——成本接近零。

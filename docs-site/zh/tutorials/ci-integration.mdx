@@ -1,10 +1,10 @@
 ---
 title: "在 GitHub Actions 和 CI 中运行 NiceEval"
 sidebarTitle: "CI 集成"
-description: "把 NiceEval 接入 GitHub Actions 或任意 CI。eval 失败时非零退出，输出 JUnit XML，并通过缓存加速重复运行。"
+description: "把 NiceEval 接入 GitHub Actions 或任意 CI。评估用例失败时非零退出，输出 JUnit XML，并通过缓存加速重复运行。"
 ---
 
-Evals 应该和测试一样进入 CI。它们能在 PR 阶段发现 agent 行为回退，也能在 nightly job 中跟踪模型、成本和延迟变化。
+评估用例应该和测试一样进入 CI。它们能在 PR 阶段发现 agent 行为回退，也能在 nightly job 中跟踪模型、成本和延迟变化。
 
 ## 退出码
 
@@ -55,10 +55,10 @@ jobs:
     把 provider token 放进 GitHub Actions secrets。
   </Step>
   <Step title="在 workflow 中传入 env">
-    只在运行 eval 的 step 暴露必要环境变量。
+    只在运行评估用例的 step 暴露必要环境变量。
   </Step>
   <Step title="验证变量存在">
-    用最小 eval 或 `list` / dry run 先验证配置。
+    用最小评估用例或 `list` / dry run 先验证配置。
   </Step>
 </Steps>
 
@@ -82,7 +82,7 @@ CLI 显式要求的 JSON/JUnit 和默认 results artifact 都是 required 输出
 npx niceeval list
 ```
 
-适合快速验证 eval 文件能加载、配置没有明显错误。
+适合快速验证评估用例文件能加载、配置没有明显错误。
 
 ## 缓存 `.niceeval/`
 
@@ -94,13 +94,13 @@ npx niceeval list
 npx niceeval exp ci --output ci --max-concurrency 2
 ```
 
-标准 GitHub-hosted runner 上，sandbox eval 并发不宜过高。远程 HTTP eval 可以按服务限流能力调高。
+标准 GitHub-hosted runner 上，sandbox 评估用例并发不宜过高。远程 HTTP 评估用例可以按服务限流能力调高。
 
 ## 推荐模式
 
 <CardGroup cols={2}>
   <Card title="PR runs" icon="code-pull-request">
-    只跑关键 eval 和高风险路径，保持反馈快。
+    只跑关键评估用例和高风险路径，保持反馈快。
   </Card>
   <Card title="Nightly 全量矩阵运行" icon="moon">
     运行完整 experiment，记录 pass rate、成本和延迟趋势。

@@ -17,7 +17,7 @@
 | 中文 | English | 含义 |
 |---|---|---|
 | NiceEval | NiceEval | 产品名。正文写 `NiceEval`;命令、包名、配置文件、代码标识写 `niceeval` |
-| Eval(评估用例) | Eval | 评测的最小单元:一个 Task 跑在一个 Agent 上,由若干 Scorer 判分;id 从文件路径推导 |
+| 评估/评估用例 | Eval | 评测的最小单元:一个 Task 跑在一个 Agent 上,由若干 Scorer 判分;id 从文件路径推导 |
 | 任务 | Task | 要让被测对象完成的"那件事",写成一串 `t.send(...)`;只描述意图,不描述判分 |
 | Agent | Agent | 「一条连到 AI 的连接」的抽象,由 experiment 引用;`kind` 只有 `"remote"` 和 `"sandbox"` 两类 |
 | `send` | `send` | 运行器唯一认得的统一动词;协议、事件映射、会话续接都在 Adapter 的 `send` 里实现 |
@@ -32,21 +32,22 @@
 | 中文 | English | 含义 |
 |---|---|---|
 | 适配器 | Adapter | 某个 Agent 的具体实现,由用户编写;拥有协议、认证、CLI 参数、transcript 位置等全部特殊性 |
-| 沙箱 | Sandbox | 封装「在哪里、如何隔离地跑命令」的对象;实现有 Docker、Vercel Sandbox 等 |
+| Sandbox | Sandbox | 封装「在哪里、如何隔离地跑命令」的对象;实现有 Docker、Vercel Sandbox 等 |
 | Provider | Provider | 某个 Sandbox 的具体实现选择；由 `dockerSandbox()`、`vercelSandbox()`、`e2bSandbox()` 或自定义工厂显式构造 |
 | 工作目录 | workdir | 沙箱内 agent 的默认工作目录,变更分类账与 agent diff 的锚点;沙箱侧相对路径都解析到它 |
 | `t.sandbox` | `t.sandbox` | 沙箱型 eval 里 `test(t)` 拿到的沙箱操作接口:文件 IO、命令执行、断言 / diff 三类 |
+| Fixture | Fixture | `test(t)` 里显式写入沙箱的起始文件,加上 `EvalDef.setup` 准备的任务素材;两类写入都算 eval 归因,不进 agent diff |
 | 能力 | Capability | `t` 上暴露哪些动作,由 `send` 的构造证据决定,不是声明式的能力位 |
 | 接入等级 | Integration tier | 按「Adapter 接到哪里、额外拿到什么观测数据」分的三级:Tier 1 只接 `send`,Tier 2 `send` + OTel,Tier 3 侵入改造 + flags |
 | 无侵入 | Non-intrusive | Tier 1 / Tier 2 的共同性质:应用按自己的方式启动,eval 侧不 spawn 应用进程、不另开端口。不写「黑盒」 |
 | 模型(`model` 字段) | Model | 给 agent 指定模型的标识(如 `opus`),由 experiment 的 `model` 字段指定 |
 | 人工介入 | HITL(human-in-the-loop) | agent 中途等待人工输入的交互;`send` 返回过 `waiting` + `input.requested` 即具备该能力 |
 
-### 数据集与发现
+### 测试集与发现
 
 | 中文 | English | 含义 |
 |---|---|---|
-| 数据集 | Dataset | 共享同一 `test` 逻辑、只有输入不同的一组 case,`.map` 扇出,id 零填充编号 |
+| 测试集 | Dataset | 共享同一 `test` 逻辑、只有输入不同的一组 case,`.map` 扇出,id 零填充编号 |
 | 发现 | Discovery | 运行器扫 `evals/` 找 `*.eval.ts` / `*.eval.tsx`、按路径推导 id;没有目录层面的隐式发现 |
 
 ### 运行与结果
@@ -146,6 +147,8 @@
 **workdir** —— 沙箱内 agent 的默认工作目录,也是变更分类账和 agent diff 的锚点;绝对值随 provider 不同(docker `/home/sandbox/workspace`、e2b `/home/user/workspace`、vercel `/vercel/sandbox`)。API 里所有沙箱侧相对路径、省略的 `targetDir` / `cwd` 都解析到它;eval 作者用相对路径写完整条 eval,必须要绝对路径时读 `t.sandbox.workdir`。详见 [Sandbox · 路径与 workdir](feature/sandbox/library.md#路径与-workdir一个坐标系)。
 
 **`t.sandbox`** —— 沙箱型 eval 里暴露给 `test(t)` 的沙箱操作接口。它分三类:文件 IO(`writeFiles` / `readFile`)、命令执行(`runCommand` / `runShell`)和结果断言 / diff(`fileChanged` / `diff` / `file`)。沙箱生命周期由 runner 管,`stop()` 不暴露给 eval 作者。
+
+**Fixture** —— `test(t)` 里显式写入沙箱的起始文件(`writeFiles` / `uploadFiles` / `uploadDirectory`),加上 `EvalDef.setup` 准备的任务素材,合起来是这条 eval 的 Fixture。两类写入都算**eval 归因**:`t.sandbox.diff` / `fileChanged` 只反映 agent 在 send 窗口内的改动,Fixture 写入永不计入其中。详见 [Eval Architecture · Fixture 与 send 窗口](feature/eval/architecture.md#fixture-与-send-窗口)。
 
 **Provider** —— 某个 Sandbox 的具体实现选择。沙箱型 Agent 必须从 experiment 或项目级 config 获得工厂函数产出的 `SandboxSpec`；NiceEval 不根据云 token、本机 Docker 状态或其它环境条件猜测 Provider。
 

@@ -1,7 +1,7 @@
 ---
 title: "用 niceeval/results 直接读写结果数据"
 sidebarTitle: "结果数据 API"
-description: "报告积木脚下的数据层：openResults 把 .niceeval/ 的落盘 artifact parse 成「实验 → 结果快照 → eval → attempt」的类型化层次，createResultsWriter 把别家结果写成 NiceEval 格式，copySnapshots 负责发布瘦身。"
+description: "报告积木脚下的数据层：openResults 把 .niceeval/ 的落盘 artifact parse 成「实验 → 结果快照 → 评估 → attempt」的类型化层次，createResultsWriter 把别家结果写成 NiceEval 格式，copySnapshots 负责发布瘦身。"
 ---
 
 [自定义报告](/zh/tutorials/custom-reports)的积木——指标、计算函数、双面组件——脚下还有一层：`niceeval/results`，落盘 artifact 的 parser。官方两扇门和全部报告积木读的都是这一层，没有私有数据通道；报告表达不了的口径，下到这层直接拿数据算。
@@ -16,7 +16,7 @@ description: "报告积木脚下的数据层：openResults 把 .niceeval/ 的落
 
 ## 读：`openResults`
 
-输入是 `.niceeval/` 目录（或 `copySnapshots` 产出的结果根目录，同一种布局），输出是四层数据：**实验 → 结果快照（单次跑的实验）→ eval → attempt**。你从此不碰路径、不判断文件存在性、不解析 JSON：
+输入是 `.niceeval/` 目录（或 `copySnapshots` 产出的结果根目录，同一种布局），输出是四层数据：**实验 → 结果快照（单次跑的实验）→ 评估 → attempt**。你从此不碰路径、不判断文件存在性、不解析 JSON：
 
 ```typescript
 import { openResults } from "niceeval/results";
@@ -51,7 +51,7 @@ snap.producer;                 // { name: "niceeval", version: "0.4.6" } —— 
 snap.schemaVersion;            // 结果格式版本
 ```
 
-**第三层，eval**——这次实验里的每道题，attempt（重试历史）挂在题下面：
+**第三层，评估**——这次实验里的每道题，attempt（重试历史）挂在题下面：
 
 ```typescript
 for (const ev of snap.evals) {
@@ -186,7 +186,7 @@ for (const exp of results.experiments) {
 
 即使在这条最深的路径上也不碰磁盘布局：路径拼接、存在性、版本过滤、快照切分全被库消化。要把这份分布摆进报告页，用 [`defineComponent`](/zh/tutorials/custom-reports) 包一个双面组件即可。
 
-一条跨快照累计时的义务：NiceEval 默认把上一轮已有确定判定（passed / failed）、且 eval 代码和配置没变的结果携带合入新快照（`--force` 全部重跑），同一个 attempt 因此可能存在于多份落盘。携带条目不是空壳：它带着原快照的 `startedAt`(身份锚)与 `artifactBase`(指向原快照 attempt 目录的相对路径)，懒加载按候选顺序回退——先本快照的 attempt 目录，再 `artifactBase` 指向的原快照目录(原快照被清理后如实返回 `null`)；`ref` 指向条目所在的落盘，即携带入的那份新快照。身份键 `(experimentId, evalId, attempt, startedAt)` 的四个字段都在数据上——前两个是 attempt 的直达字段，序号与 `startedAt` 在 `attempt.result` 上。reader 忠实反映这份重复；跨快照聚合前用 `dedupeAttempts` 按身份键去重，重复保留最新快照里的那份——报告积木的计算函数内置这条，自己写脚本时记得过一遍：
+一条跨快照累计时的义务：NiceEval 默认把上一轮已有确定判定（passed / failed）、且评估用例代码和配置没变的结果携带合入新快照（`--force` 全部重跑），同一个 attempt 因此可能存在于多份落盘。携带条目不是空壳：它带着原快照的 `startedAt`(身份锚)与 `artifactBase`(指向原快照 attempt 目录的相对路径)，懒加载按候选顺序回退——先本快照的 attempt 目录，再 `artifactBase` 指向的原快照目录(原快照被清理后如实返回 `null`)；`ref` 指向条目所在的落盘，即携带入的那份新快照。身份键 `(experimentId, evalId, attempt, startedAt)` 的四个字段都在数据上——前两个是 attempt 的直达字段，序号与 `startedAt` 在 `attempt.result` 上。reader 忠实反映这份重复；跨快照聚合前用 `dedupeAttempts` 按身份键去重，重复保留最新快照里的那份——报告积木的计算函数内置这条，自己写脚本时记得过一遍：
 
 ```typescript
 import { dedupeAttempts } from "niceeval/results";
@@ -223,7 +223,7 @@ for (const r of convertedResults) {
 await writer.finish();                 // 给每个快照补 completedAt,没有任何收尾聚合
 ```
 
-`writer.snapshot()` 就是读取面「实验 → 快照」层次的镜像：转多个 experiment 就开多个快照目录，experimentId / agent / model / startedAt 这些快照级元数据在这里声明一次，不用塞进每条 attempt；可选的 `knownEvalIds`（该实验已知的 eval 并集）也在这里声明——它是残缺检测的分母，转换只覆盖部分题目时如实交代全集，下游的覆盖警告就能算出来（`copySnapshots` 发布时会自动补记这个字段，见下文）。转完的目录就是标准结果目录：`niceeval show` / `niceeval view` 直接能看，报告积木直接能算，不用抄格式文档；`producer` 会原样出现在读取面的 `snap.producer` 上。**每个文件恰好写入一次**是写入面的核心承诺:`snapshot.json` 开跑即写、收尾只补 `completedAt`;`result.json` 与 artifact 随 attempt 完成落盘。进程中断只丢未完成的 attempt,已完成的判定与 artifact 已经在盘上——真正「有 attempt 落盘却没有 `snapshot.json`」的极端情况才归 `skipped("incomplete")`,未收尾但元数据齐全的快照能正常读,只带一条警告。
+`writer.snapshot()` 就是读取面「实验 → 快照」层次的镜像：转多个 experiment 就开多个快照目录，experimentId / agent / model / startedAt 这些快照级元数据在这里声明一次，不用塞进每条 attempt；可选的 `knownEvalIds`（该实验已知的评估用例并集）也在这里声明——它是残缺检测的分母，转换只覆盖部分题目时如实交代全集，下游的覆盖警告就能算出来（`copySnapshots` 发布时会自动补记这个字段，见下文）。转完的目录就是标准结果目录：`niceeval show` / `niceeval view` 直接能看，报告积木直接能算，不用抄格式文档；`producer` 会原样出现在读取面的 `snap.producer` 上。**每个文件恰好写入一次**是写入面的核心承诺:`snapshot.json` 开跑即写、收尾只补 `completedAt`;`result.json` 与 artifact 随 attempt 完成落盘。进程中断只丢未完成的 attempt,已完成的判定与 artifact 已经在盘上——真正「有 attempt 落盘却没有 `snapshot.json`」的极端情况才归 `skipped("incomplete")`,未收尾但元数据齐全的快照能正常读,只带一条警告。
 
 ## 发布：`copySnapshots`
 

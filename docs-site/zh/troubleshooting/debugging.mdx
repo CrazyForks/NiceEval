@@ -1,7 +1,7 @@
 ---
 title: "排查失败与复盘历史运行"
 sidebarTitle: "Debug 手册"
-description: "一份按场景组织的排查手册：断言失败怎么定位、环境错误怎么进沙箱、agent 改了什么怎么看、旧的运行怎么翻出来复盘——每一步都有命令顺序和输出示例。"
+description: "一份按场景组织的排查手册：断言失败怎么定位、环境错误怎么进 Sandbox、agent 改了什么怎么看、旧的运行怎么翻出来复盘——每一步都有命令顺序和输出示例。"
 ---
 
 跑完一次 `niceeval exp`，失败的 Attempt 都带一个 `@` 开头的定位符（如 `@1qrdcfq8`）。它出现在运行摘要、CI 日志和报告里，定位符本身不会过期——只要 `.niceeval/` 里对应的结果快照还在，今天的定位符下周还能用同一条命令打开同一次 Attempt。所有排查都从它开始。
@@ -46,7 +46,7 @@ available:
 
 排查顺序是「哪条断言挂了 → agent 当时做了什么 → 它到底改了什么」。
 
-**1. 把断言放回源码。** `--eval` 显示运行时保存的那份 eval 源码（不是你工作区里可能已经改过的版本），失败的断言直接标在对应行上；`t.send(...)` 的调用行标出它产生的那一轮——轮标签（`s1/t1`，与 `--execution` / `--timing` 用同一套）、这轮成没成、花了多久：
+**1. 把断言放回源码。** `--eval` 显示运行时保存的那份评估用例源码（不是你工作区里可能已经改过的版本），失败的断言直接标在对应行上；`t.send(...)` 的调用行标出它产生的那一轮——轮标签（`s1/t1`，与 `--execution` / `--timing` 用同一套）、这轮成没成、花了多久：
 
 ```text
 $ niceeval show @1qrdcfq8 --eval
@@ -118,7 +118,7 @@ M manager_decisions.json · changed in s1/t1, s1/t2
 
 到这里通常能下结论：是任务描述有歧义、agent 理解错了，还是断言本身写得太死。
 
-**要看文件本身，而不只是改动？** 落盘的证据刻意不保存整个工作区——`--diff` 只有 agent 改过的文件，agent 该写没写的文件、你上传的起始材料、setup 装出来的东西都不在里面。想看它们的实际内容，进活现场：重跑这一条 eval 加 `--keep-sandbox`（`failed` 的 Attempt 同样会保留，不只是环境错误），用下面场景二的方式进沙箱，workdir 里就是这次跑完时的完整文件树。
+**要看文件本身，而不只是改动？** 落盘的证据刻意不保存整个工作区——`--diff` 只有 agent 改过的文件，agent 该写没写的文件、你上传的起始材料、setup 装出来的东西都不在里面。想看它们的实际内容，进活现场：重跑这一条评估用例加 `--keep-sandbox`（`failed` 的 Attempt 同样会保留，不只是环境错误），用下面场景二的方式进 Sandbox，workdir 里就是这次跑完时的完整文件树。
 
 ## 场景二：环境错误（errored）——agent 根本没跑起来
 
@@ -140,9 +140,9 @@ timing: sandbox.queue 1.2s · sandbox.create 2m 6s ✗ failed here
 
 `phase` 直接告诉你死在哪一步，而且决定了下一步走哪条路：
 
-**`sandbox.create` 失败——沙箱根本没创建出来，没有现场可留。** 这类错误（配额、限流、凭据、镜像 / 模板不存在）在你自己的机器和账号侧排查：核对 API key 和配额、降低 `--max-concurrency`、确认镜像 / 模板名。示例里的 rate-limit 就属于这类，重跑加 `--keep-sandbox` 只会原地再死一次。
+**`sandbox.create` 失败——Sandbox 根本没创建出来，没有现场可留。** 这类错误（配额、限流、凭据、镜像 / 模板不存在）在你自己的机器和账号侧排查：核对 API key 和配额、降低 `--max-concurrency`、确认镜像 / 模板名。示例里的 rate-limit 就属于这类，重跑加 `--keep-sandbox` 只会原地再死一次。
 
-**`sandbox.setup` / `agent.setup` / `eval.run` 失败——沙箱活过，值得留现场。** 装依赖失败、agent CLI 起不来、跑到一半超时，这类问题事件流往往是空的，落盘证据帮不上忙，最快的办法是留住现场进去手动重跑一遍出错的命令：
+**`sandbox.setup` / `agent.setup` / `eval.run` 失败——Sandbox 活过，值得留现场。** 装依赖失败、agent CLI 起不来、跑到一半超时，这类问题事件流往往是空的，落盘证据帮不上忙，最快的办法是留住现场进去手动重跑一遍出错的命令：
 
 ```bash
 # 只重跑这一条 eval，失败时保留沙箱
@@ -156,11 +156,11 @@ Kept sandboxes (1)
 Stop them with: niceeval sandbox stop --all
 ```
 
-`niceeval sandbox enter a3f9c2d1` 会唤醒现场并在 workdir 打开 shell——手动执行安装命令看真实报错、翻 `$HOME` 下的配置、检查 `PATH`，这些都在 artifact 之外，只有活现场能回答；退出 shell 后现场自动回到休眠，不白烧资源。保留策略、各 provider 的差别见[保留沙箱现场](/zh/troubleshooting/debug-sandbox)。
+`niceeval sandbox enter a3f9c2d1` 会唤醒现场并在 workdir 打开 shell——手动执行安装命令看真实报错、翻 `$HOME` 下的配置、检查 `PATH`，这些都在 artifact 之外，只有活现场能回答；退出 shell 后现场自动回到休眠，不白烧资源。保留策略、各 provider 的差别见[保留 Sandbox 现场](/zh/troubleshooting/debug-sandbox)。
 
-## 查看和清理留下的沙箱
+## 查看和清理留下的 Sandbox
 
-保留下来的沙箱不会一直烧资源：Docker 容器停驻在磁盘上，E2B 微 VM 暂停计费，进入时自动唤醒。用 `niceeval sandbox` 管理：
+保留下来的 Sandbox 不会一直烧资源：Docker 容器停驻在磁盘上，E2B 微 VM 暂停计费，进入时自动唤醒。用 `niceeval sandbox` 管理：
 
 ```text
 $ niceeval sandbox list
@@ -182,7 +182,7 @@ niceeval sandbox stop --all
 
 每次运行都会在 `.niceeval/<实验>/<时间戳>/` 下留一份完整的结果快照，判定、断言、事件流、diff 都在里面，**不会被下一次运行覆盖**。复盘有三个入口：
 
-**用旧定位符直接打开。** 从上周的终端记录、CI 日志或报告里复制 `@` 定位符，`niceeval show @<定位符>` 照常工作，上面的 `--eval` / `--execution` / `--diff` 全部可用——包括那份运行时的 eval 源码，哪怕你后来把 eval 改了。
+**用旧定位符直接打开。** 从上周的终端记录、CI 日志或报告里复制 `@` 定位符，`niceeval show @<定位符>` 照常工作，上面的 `--eval` / `--execution` / `--diff` 全部可用——包括那份运行时的评估用例源码，哪怕你后来把评估用例改了。
 
 **按实验回看当前水位。** 不记得定位符时，从实验入手：
 
@@ -228,9 +228,9 @@ niceeval view --results site-data/run
 | 想确认有没有调用过某个工具 / 搜对话关键词 | `show @loc --execution \| grep "TOOL ·" \| sort \| uniq -c` / `\| grep <关键词>` |
 | 想确认 agent 改了哪些文件 | `show @loc --diff` → `--diff=<path>` |
 | 哪一步慢 / 超时死在哪 | `show @loc`（看 `timing:` 行）→ `show @loc --timing` |
-| 沙箱创建就失败（配额 / 凭据 / 镜像） | `show @loc` 看 error 的 code 与 cause → 查账号配额、核对凭据、降 `--max-concurrency`（没有现场可留） |
-| 装依赖失败、CLI 起不来、跑一半超时 | 重跑该 eval 加 `--keep-sandbox` → `niceeval sandbox enter <id>` |
+| Sandbox 创建就失败（配额 / 凭据 / 镜像） | `show @loc` 看 error 的 code 与 cause → 查账号配额、核对凭据、降 `--max-concurrency`（没有现场可留） |
+| 装依赖失败、CLI 起不来、跑一半超时 | 重跑该评估用例加 `--keep-sandbox` → `niceeval sandbox enter <id>` |
 | 想看文件实际内容（agent 没改的、起始材料、`$HOME`） | 重跑加 `--keep-sandbox`（failed 也留）→ `sandbox enter` 进 workdir 看 |
-| 留了哪些沙箱、清理 | `sandbox list` → `sandbox stop <id>` / `--all` |
+| 留了哪些 Sandbox、清理 | `sandbox list` → `sandbox stop <id>` / `--all` |
 | 复盘上周那次失败 | 翻出旧定位符 → `show @loc`；不记得就 `show --exp <实验>` |
 | 一批失败一起看 | `niceeval view` → Attempt 详情 → Copy fix prompt |

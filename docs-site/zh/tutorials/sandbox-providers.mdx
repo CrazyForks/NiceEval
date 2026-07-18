@@ -1,7 +1,7 @@
 ---
-title: "Sandbox provider：Docker、Vercel 与第三方"
-sidebarTitle: "沙箱 provider"
-description: "选择 Docker、Vercel 或 E2B Provider，配置权限，并通过预制环境改善 Coding Agent 的运行性能。"
+title: "沙箱"
+sidebarTitle: "沙箱"
+description: "官方沙箱 Docker、Vercel 或 E2B Provider。通过预制快照加速评估"
 ---
 
 Sandbox Provider 是创建和管理隔离运行环境的基础设施。[NiceEval](https://niceeval.com/) 把它们包装成同一个 `Sandbox` 接口，所以 Adapter 不需要知道当前用的是本地 Docker、Vercel micro-VM、E2B 还是第三方云服务。
@@ -21,9 +21,9 @@ Adapter 常用操作包括：
 | `runCommand(..., { cwd })` | 单条命令临时切换工作目录；相对路径按 `workdir` 解析 |
 | `stop()` | 销毁环境 |
 
-## 选择 provider
+## 选择 Sandbox 
 
-选择 provider 只能写在代码里——没有对应的 CLI flag，[NiceEval](https://niceeval.com/) 也不会自动探测 provider。在 experiment 里设置 `sandbox` 字段（或者在 `niceeval.config.ts` 里设置作为项目级兜底），三选一：
+在实验里设置 `sandbox` 字段
 
 ```ts
 // experiments/local.ts
@@ -49,7 +49,7 @@ export default defineExperiment({
 
 漏装时不会静默失败：NiceEval 在创建 sandbox 的那一刻报错并直接给出上面的安装命令，例如 `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`。
 
-## 环境钩子
+## 生命周期
 
 `dockerSandbox()` / `vercelSandbox()` / `e2bSandbox()` 返回的 spec 上有两个链式方法：`.setup(fn)` 和 `.teardown(fn)`。它们处理只有运行时才知道的环境内容，例如按实验写小配置、检查预制工具是否可用、安装 hook，或在多次 Attempt 之间载入和回存状态。
 
@@ -104,7 +104,7 @@ const spec = e2bSandbox({ template: "niceeval-agents" })
 
 钩子里可以用 `ctx.experimentId`（路径推导的实验 id）当状态隔离的键，比如不同实验各自维护一份跨 attempt 的缓存。跨 attempt 状态的载入和回存是你自己在钩子里写的普通代码——[NiceEval](https://niceeval.com/) 不提供状态存储；要保证同一实验的 attempt 不并发读写同一份状态，在 experiment 上声明 `maxConcurrency: 1`。
 
-### 从环境钩子报告进度和问题
+### 从 Hook 中输出进度和问题
 
 长时间安装、预热和状态恢复可以调用 `ctx.progress(...)`。它只更新当前 Attempt 的短期状态，不会把每一步都写进结果。需要运行结束后仍能看到的问题使用 `ctx.diagnostic(...)`：
 

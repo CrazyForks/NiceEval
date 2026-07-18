@@ -14,11 +14,12 @@
 ## 术语表
 
 - **NiceEval**：产品名。中文正文表达产品时用 `NiceEval`；命令、包名、配置文件、代码标识里用 `niceeval`。
-- **Eval**：一个评测用例。中文可以写“Eval”或“评估用例”
+- **Eval**：一个评测用例。中文正文写“评估”或“评估用例”，不写未译的英文 `Eval`；`defineEval`、`EvalDef`、`.eval.ts`、`evalId` 等代码标识符不受影响。
 - **Experiment**：可签入的运行配置。中文写“实验”或保留 `Experiment`，用于说明 agent、model、flags、runs、budget、sandbox 等运行维度。
 - **Adapter**：适配器，负责连接被测系统、鉴权、调用接口、把返回翻译成标准事件流。页面标题和导航可用 `Adapter`。
 - **Agent**：NiceEval 看到的被测对象连接。不要把 Agent 写成某个固定协议；具体协议属于 Adapter。
-- **Sandbox**：沙箱，回答“在哪里隔离运行”。不要和 Adapter 混成一层。
+- **Sandbox**：回答“在哪里隔离运行”的对象。中文正文写未译的 `Sandbox`，不写“沙箱”；不要和 Adapter 混成一层。
+- **Fixture**：`test(t)` 里写入 Sandbox 的起始文件，加上 `EvalDef.setup` 准备的任务素材。中文正文写未译的 `Fixture`，不写“任务夹具”或“夹具”。
 - **Provider**：某个 Sandbox 的具体实现选择（docker / vercel / e2b）。不要写「沙箱后端」——「后端」留给用户自己的应用服务。
 - **Verdict**：一个 eval 的四态评分判定（passed / failed / errored / skipped）。中文写“判定”，不写“判决”。
 - **Judge**：LLM-as-judge 的裁判模型。中文直接写 `Judge`，需要解释时写“裁判模型”，不写“评判模型”。

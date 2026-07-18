@@ -172,12 +172,12 @@ export type SandboxSpec = DockerSandboxSpec | VercelSandboxSpec | E2BSandboxSpec
 export type SandboxOption = SandboxSpec;
 
 export interface CommandOptions {
-  /** 追加/覆盖本命令的环境变量(与沙箱默认环境叠加,不清空默认值;各 provider 会保留自己固定的 `PATH` 等变量,不保证能被这里覆盖)。 */
+  /** 追加/覆盖本命令的环境变量(与 Sandbox 默认环境叠加,不清空默认值;各 provider 会保留自己固定的 `PATH` 等变量,不保证能被这里覆盖)。 */
   env?: Record<string, string>;
   /** 本命令的工作目录;省略时落到 `Sandbox.workdir`。相对路径按 workdir 解析,绝对路径原样使用。 */
   cwd?: string;
   /**
-   * 把本命令的输出也送进沙箱的「原生日志流」(于是 `docker logs` / Docker UI 的 Logs
+   * 把本命令的输出也送进 Sandbox 的「原生日志流」(于是 `docker logs` / Docker UI 的 Logs
    * 标签页能实时看到它)。给 agent 命令(codex exec / bub run / claude)开它,就能在容器
    * 日志里看到 agent 的【原始输出】。provider 各自实现(docker:tee 到 PID1 tail 的文件;
    * 不支持的 provider 忽略)—— 日志怎么浮现是 provider 的事,adapter 只声明意图。
@@ -192,7 +192,7 @@ export interface CommandOptions {
   /** `onStdout` 的 stderr 对应物；完整 stderr 仍保留在 `CommandResult`。 */
   onStderr?: (chunk: string) => void | Promise<void>;
   /**
-   * 以 root 跑本命令。默认 `false` —— 命令以沙箱的标准**非 root** 用户跑(agent 的自然环境)。
+   * 以 root 跑本命令。默认 `false` —— 命令以 Sandbox 的标准**非 root** 用户跑(agent 的自然环境)。
    * 给 setup 阶段装系统依赖用(`apt-get install …`、`pip install --break-system-packages …`)。
    *
    * 语义跨 provider 一致:"本命令以 root 跑,否则以标准非 root 用户跑"。各 provider 映射到自己的原生机制
@@ -204,7 +204,7 @@ export interface CommandOptions {
 }
 
 export interface Sandbox {
-  /** 沙箱内项目/工作区根目录的绝对路径(agent 命令的默认 cwd,也是 git baseline 提交的位置)。各方法的相对路径都以此为基准解析,省略 `cwd`/`targetDir` 时也落到这里。 */
+  /** Sandbox 内项目/工作区根目录的绝对路径(agent 命令的默认 cwd,也是 git baseline 提交的位置)。各方法的相对路径都以此为基准解析,省略 `cwd`/`targetDir` 时也落到这里。 */
   readonly workdir: string;
   /**
    * 执行单个命令,`args` 作为独立 argv 传递、不经 shell 解释(无 `&&`、管道、通配符展开)。
@@ -216,29 +216,29 @@ export interface Sandbox {
    * 需要拼多条命令或做条件判断时用它。
    */
   runShell(script: string, opts?: CommandOptions): Promise<CommandResult>;
-  /** 读取沙箱内文件的文本内容(UTF-8)。文件不存在时抛错,不返回空字符串——需要容错请自行 `.catch()`。 */
+  /** 读取 Sandbox 内文件的文本内容(UTF-8)。文件不存在时抛错,不返回空字符串——需要容错请自行 `.catch()`。 */
   readFile(path: string): Promise<string>;
-  /** 检查沙箱内路径是否存在。跨 provider 语义不完全一致:仅保证对普通文件可靠,对目录路径的行为不同 provider 不保证一致。 */
+  /** 检查 Sandbox 内路径是否存在。跨 provider 语义不完全一致:仅保证对普通文件可靠,对目录路径的行为不同 provider 不保证一致。 */
   fileExists(path: string): Promise<boolean>;
   /**
    * 一次 shell 往返读全部源码文件(按扩展名收、按目录/文件名忽略)。
-   * 取代每个 eval 目录里手写的 find + 逐文件 readFile。
+   * 取代每个评估用例目录里手写的 find + 逐文件 readFile。
    */
   readSourceFiles(opts?: ReadSourceFilesOptions): Promise<SourceFiles>;
   /** 写入若干文本文件(内容已在内存里的字符串);是 `uploadFiles` 的文本特化,省略 `targetDir` 落到 workdir。 */
   writeFiles(files: Record<string, string>, targetDir?: string): Promise<void>;
   /** 批量写入若干文件,内容可以是文本或二进制 Buffer;省略 `targetDir` 落到 workdir。 */
   uploadFiles(files: SandboxFile[], targetDir?: string): Promise<void>;
-  /** 把本地磁盘上的一个目录整体上传进沙箱(递归读取本地文件后按 `uploadFiles` 写入);`opts.ignore` 是排除规则,省略 `targetDir` 落到 workdir。 */
+  /** 把本地磁盘上的一个目录整体上传进 Sandbox(递归读取本地文件后按 `uploadFiles` 写入);`opts.ignore` 是排除规则,省略 `targetDir` 落到 workdir。 */
   uploadDirectory(localDir: string, targetDir?: string, opts?: { ignore?: string[] }): Promise<void>;
-  /** 销毁沙箱占用的计算资源(容器/microVM)。调用后沙箱不可再用;是否可安全重复调用因 provider 而异,不要依赖这一点。 */
+  /** 销毁 Sandbox 占用的计算资源(容器/microVM)。调用后 Sandbox 不可再用;是否可安全重复调用因 provider 而异,不要依赖这一点。 */
   stop(): Promise<void>;
-  /** 本沙箱的稳定标识(各 provider 原生 ID,如 Docker 容器 ID 前缀);用于跨调用关联同一沙箱的会话状态,也用于日志展示。 */
+  /** 本 Sandbox 的稳定标识(各 provider 原生 ID,如 Docker 容器 ID 前缀);用于跨调用关联同一 Sandbox 的会话状态,也用于日志展示。 */
   readonly sandboxId: string;
   /**
    * 本地 OTLP 接收器的目标 host。
-   * - `string`:沙箱内可通过该 hostname 回连宿主 OTLP 端口(如 docker 的 `host.docker.internal`)。
-   * - `null`:沙箱运行在远程云端(如 e2b/vercel),无法访问宿主本地端口 → 跳过 tracing。
+   * - `string`:Sandbox 内可通过该 hostname 回连宿主 OTLP 端口(如 docker 的 `host.docker.internal`)。
+   * - `null`:Sandbox 运行在远程云端(如 e2b/vercel),无法访问宿主本地端口 → 跳过 tracing。
    *   可通过环境变量 `NICEEVAL_OTLP_HOST` 强制覆盖(如配置 tunnel 时)。
    */
   readonly otlpHost: string | null;
@@ -250,13 +250,13 @@ export interface Sandbox {
   appendLog?(line: string): Promise<void>;
 
   /**
-   * 从沙箱内任意路径读取文件,返回二进制 Buffer。
+   * 从 Sandbox 内任意路径读取文件,返回二进制 Buffer。
    * 对应各 provider:Docker getArchive / Vercel readFileToBuffer / e2b files.read(bytes) / …
    */
   downloadFile(path: string): Promise<Buffer>;
 
   /**
-   * 向沙箱内任意路径写入文件(二进制)。
+   * 向 Sandbox 内任意路径写入文件(二进制)。
    * 对应各 provider:Docker putArchive / Vercel fs.writeFile(Buffer) / e2b files.write / …
    */
   uploadFile(path: string, content: Buffer): Promise<void>;

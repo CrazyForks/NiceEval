@@ -1,15 +1,15 @@
 ---
 title: "把结果上报到 Braintrust 与其它目的地"
 sidebarTitle: "Reporter 上报"
-description: "用内置 reporters 把 eval 结果送到 Braintrust 实验、JUnit XML 或自定义目的地。"
+description: "用内置 reporters 把评估用例结果送到 Braintrust 实验、JUnit XML 或自定义目的地。"
 ---
 
 [NiceEval](https://niceeval.com/) 自己跑、自己判分；Reporter 负责把完成结果送到其它目的地。运行中的 Human/Agent/CI 反馈由 `niceeval exp --output ...` 选择，不是用户配置的 Reporter；`.niceeval/` results artifacts 始终开启。其余 Reporter 从 `niceeval/reporters` 导入，按需挂载。
 
 挂载位置有两个：
 
-- `niceeval.config.ts` 的 `reporters`：观测整次运行的每个 eval。共享目的地（比如一个 Braintrust 实验）通常写在这里。
-- 单个 eval 的 `reporters`：实例只观测引用它的 eval。多个 eval 引用同一个实例时合并观测，结果落进同一个目的地；已经写在 config 里的实例在 eval 上再列一遍也不会重复上报。
+- `niceeval.config.ts` 的 `reporters`：观测整次运行的每个评估用例。共享目的地（比如一个 Braintrust 实验）通常写在这里。
+- 单个评估用例的 `reporters`：实例只观测引用它的评估用例。多个评估用例引用同一个实例时合并观测，结果落进同一个目的地；已经写在 config 里的实例在评估用例上再列一遍也不会重复上报。
 
 ## Braintrust
 
@@ -24,7 +24,7 @@ export default defineConfig({
 });
 ```
 
-只想上报部分 eval 时，挂在 eval 上：
+只想上报部分评估用例时，挂在评估用例上：
 
 ```ts evals/forecast.eval.ts
 import { defineEval } from "niceeval";
@@ -105,9 +105,9 @@ const notify: Reporter = {
 };
 ```
 
-- `onRunStart(evals, agent, shape)`：运行开始，收到本次实际要跑的 eval 列表和运行规模。
+- `onRunStart(evals, agent, shape)`：运行开始，收到本次实际要跑的评估用例列表和运行规模。
 - `onEvalComplete(result)`：每个 attempt 完成即时触发，回调串行化，不会交错。
 - `onRunComplete(summary)`：运行结束，收到聚合汇总。
 - `onEvent(event)`：更细粒度的事件流（`eval:start`、`run:budgetExceeded` 等）。
 
-用户在 config/eval 中挂载的 Reporter 默认是 best-effort：抛错会形成永久 diagnostic，但不会中断在飞 Attempt。CLI 显式要求的 `--json` / `--junit` 与默认 results artifacts 是 required 输出，写失败会让最终运行判红。只有目的地没被内置覆盖时才需要自定义——`.niceeval/` 的 artifacts 已经记录了完整结果，事后分析直接读它（见[查看结果](./viewing-results)）。
+用户在 config/评估用例中挂载的 Reporter 默认是 best-effort：抛错会形成永久 diagnostic，但不会中断在飞 Attempt。CLI 显式要求的 `--json` / `--junit` 与默认 results artifacts 是 required 输出，写失败会让最终运行判红。只有目的地没被内置覆盖时才需要自定义——`.niceeval/` 的 artifacts 已经记录了完整结果，事后分析直接读它（见[查看结果](./viewing-results)）。

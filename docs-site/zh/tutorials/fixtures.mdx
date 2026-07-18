@@ -1,5 +1,5 @@
 ---
-title: "沙箱 Fixture：用任务评估 coding agents"
+title: "Sandbox Fixture：用任务评估 coding agents"
 sidebarTitle: "Fixture"
 description: "用 .eval.ts 给 coding agent 准备隔离 workspace、发送真实任务，并用 sandbox 文件、命令、diff 和 judge 验证结果。"
 ---
@@ -34,7 +34,7 @@ experiments/
 
 ## 准备 workspace
 
-在 eval 里把初始项目上传到 sandbox：
+在评估用例里把初始项目上传到 sandbox：
 
 ```ts
 import { defineEval } from "niceeval";
@@ -51,7 +51,7 @@ export default defineEval({
 });
 ```
 
-也可以用 `t.sandbox.writeFiles()` 在单个 eval 里补充种子文件，适合小任务或安全探针。
+也可以用 `t.sandbox.writeFiles()` 在单个评估用例里补充种子文件，适合小任务或安全探针。
 
 ## 写任务 prompt
 
@@ -125,7 +125,7 @@ t.check(result, commandSucceeded());
 
 ## 用 experiment 做对照组
 
-不要把 Agent 名、插件名或 URL 放进位置参数。Experiment 选择 Agent 并固定运行配置；CLI 的 Eval 位置参数只过滤 Eval ID。
+不要把 Agent 名、插件名或 URL 放进位置参数。Experiment 选择 Agent 并固定运行配置；CLI 的评估用例位置参数只过滤评估用例 ID。
 
 ```bash
 pnpm exec niceeval exp compare
@@ -136,7 +136,7 @@ pnpm exec niceeval exp compare api-validation
 
 - `experiments/baseline.ts`：裸 agent。
 - `experiments/with-skill.ts`：同一 agent + setup hook 注入 `CLAUDE.md`。
-- 两组使用同一批 eval、同一模型、同一 runs 和预算。
+- 两组使用同一批评估用例、同一模型、同一 runs 和预算。
 
 ## Sandbox Fixture 的适用场景
 

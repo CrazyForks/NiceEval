@@ -66,17 +66,17 @@ export interface ClaudeCodeConfig {
   baseUrl?: string;
   /**
    * 最多跑几个 tool-use 轮次(→ `--max-turns`)。
-   * 控制 eval 成本上限;省略时用 CLI 原生默认(无限制)。
+   * 控制评估用例成本上限;省略时用 CLI 原生默认(无限制)。
    */
   maxTurns?: number;
   /**
-   * 额外 MCP server(每个沙箱 setup 时写进用户级 ~/.claude.json)。
+   * 额外 MCP server(每个 Sandbox setup 时写进用户级 ~/.claude.json)。
    * stdio 形态写 command(可带 args / env);Streamable HTTP 形态写 url(可带 headers,
    * 逐字进请求头),落成 { "type": "http", "url": …, "headers": … } 条目。
    */
   mcpServers?: McpServer[];
   /**
-   * 装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+   * 装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
    * 落在 project 级 `.claude/skills/<name>/`,claude CLI 原生发现。
    */
   skills?: SkillSpec[];
@@ -86,7 +86,7 @@ export interface ClaudeCodeConfig {
    * 一份完整的 Claude Code `settings.json`(官方格式)在本地项目里的路径 —— 相对运行
    * niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
    * 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-   * 都在 setup 阶段报错。原始字节原样上传为沙箱里原本为空的用户级 `~/.claude/settings.json`
+   * 都在 setup 阶段报错。原始字节原样上传为 Sandbox 里原本为空的用户级 `~/.claude/settings.json`
    * (不继承宿主机配置、不拼接、不重新序列化);保留键 `model` 与 `env` 出现在文件里
    * setup 报错。manifest 只记项目相对路径与字节 SHA-256,不落正文。
    */

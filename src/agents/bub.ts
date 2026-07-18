@@ -52,12 +52,12 @@ export interface BubConfig {
   /** OpenAI 兼容代理的 base URL。省略时读 BUB_API_BASE env。 */
   apiBase?: string;
   /**
-   * 装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+   * 装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
    * 落在 `.agents/skills/<name>/`,并写一段发现指引进 AGENTS.md(bub 没有原生 Skill 加载机制)。
    */
   skills?: SkillSpec[];
   /**
-   * 额外装进 bub tool 环境的 Python Package,每个沙箱 setup 时进 `uv tool install … --with <pkg>`。
+   * 额外装进 bub tool 环境的 Python Package,每个 Sandbox setup 时进 `uv tool install … --with <pkg>`。
    * 规范化后的 package 列表进安装 checkpoint key:plugin 集合不同的两个 agent 变体不会复用同一个
    * 安装 checkpoint(否则第二个变体会静默拿到第一个变体的环境)。
    */

@@ -84,7 +84,7 @@ maxTurns?: number;
 ```
 
 最多跑几个 tool-use 轮次(→ `--max-turns`)。
-控制 eval 成本上限;省略时用 CLI 原生默认(无限制)。
+控制评估用例成本上限;省略时用 CLI 原生默认(无限制)。
 
 #### `mcpServers`
 
@@ -92,7 +92,7 @@ maxTurns?: number;
 mcpServers?: McpServer[];
 ```
 
-额外 MCP server(每个沙箱 setup 时写进用户级 ~/.claude.json)。
+额外 MCP server(每个 Sandbox setup 时写进用户级 ~/.claude.json)。
 stdio 形态写 command(可带 args / env);Streamable HTTP 形态写 url(可带 headers,
 逐字进请求头),落成 &#123; "type": "http", "url": …, "headers": … &#125; 条目。
 
@@ -102,7 +102,7 @@ stdio 形态写 command(可带 args / env);Streamable HTTP 形态写 url(可带 
 skills?: SkillSpec[];
 ```
 
-装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
 落在 project 级 `.claude/skills/<name>/`,claude CLI 原生发现。
 
 #### `plugins`
@@ -122,7 +122,7 @@ settingsFile?: string;
 一份完整的 Claude Code `settings.json`(官方格式)在本地项目里的路径 —— 相对运行
 niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-都在 setup 阶段报错。原始字节原样上传为沙箱里原本为空的用户级 `~/.claude/settings.json`
+都在 setup 阶段报错。原始字节原样上传为 Sandbox 里原本为空的用户级 `~/.claude/settings.json`
 (不继承宿主机配置、不拼接、不重新序列化);保留键 `model` 与 `env` 出现在文件里
 setup 报错。manifest 只记项目相对路径与字节 SHA-256,不落正文。
 
@@ -173,7 +173,7 @@ OpenAI 兼容代理 base URL(如 `https://s2a.example.com/v1`)。省略时读 CO
 mcpServers?: McpServer[];
 ```
 
-额外 MCP server(每个沙箱 setup 时追加进 ~/.codex/config.toml)。
+额外 MCP server(每个 Sandbox setup 时追加进 ~/.codex/config.toml)。
 stdio 形态(command/args/env)写 [mcp_servers.&lt;name&gt;] 的 command 行;
 Streamable HTTP 形态(url/headers)写 url 行,headers 进 [mcp_servers.&lt;name&gt;.http_headers] 子表。
 
@@ -183,7 +183,7 @@ Streamable HTTP 形态(url/headers)写 url 行,headers 进 [mcp_servers.&lt;name
 skills?: SkillSpec[];
 ```
 
-装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
 落在 `.agents/skills/<name>/`,并写一段发现指引进 AGENTS.md —— codex 没有 Claude Code 那种
 原生 Skill 工具,只把文件装进去它不会自己去读(见 memory/codex-no-native-skill-tool.md)。
 
@@ -204,7 +204,7 @@ configFile?: string;
 一份完整的 Codex `config.toml`(官方 TOML 格式)在本地项目里的路径 —— 相对运行
 niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-都在 setup 阶段报错。原始字节原样并入沙箱里原本为空的用户级 `~/.codex/config.toml`
+都在 setup 阶段报错。原始字节原样并入 Sandbox 里原本为空的用户级 `~/.codex/config.toml`
 (不继承宿主机配置、不解析后重写);保留键 `model`、`model_provider`、`model_providers`、
 `model_reasoning_effort`、`mcp_servers`、`otel` 出现在文件里 setup 报错。manifest 只记
 项目相对路径与字节 SHA-256,不落正文。
@@ -256,7 +256,7 @@ OpenAI 兼容代理的 base URL。省略时读 BUB_API_BASE env。
 skills?: SkillSpec[];
 ```
 
-装进沙箱的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
+装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
 落在 `.agents/skills/<name>/`,并写一段发现指引进 AGENTS.md(bub 没有原生 Skill 加载机制)。
 
 #### `pythonPlugins`
@@ -265,7 +265,7 @@ skills?: SkillSpec[];
 pythonPlugins?: PythonPluginSpec[];
 ```
 
-额外装进 bub tool 环境的 Python Package,每个沙箱 setup 时进 `uv tool install … --with <pkg>`。
+额外装进 bub tool 环境的 Python Package,每个 Sandbox setup 时进 `uv tool install … --with <pkg>`。
 规范化后的 package 列表进安装 checkpoint key:plugin 集合不同的两个 agent 变体不会复用同一个
 安装 checkpoint(否则第二个变体会静默拿到第一个变体的环境)。
 

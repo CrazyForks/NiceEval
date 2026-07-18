@@ -263,10 +263,10 @@ export interface AgentSession {
 
 export interface AgentContext {
   /**
-   * 软取消信号:合并了 attempt 超时、run 级中断(用户 Ctrl+C)与 eval 自身的中断请求
+   * 软取消信号:合并了 attempt 超时、run 级中断(用户 Ctrl+C)与评估用例自身的中断请求
    * (见 src/runner/attempt.ts)。adapter 可以选择性检查它(或直接传给 `fetch`)以提前
    * 优雅退出,但这不是唯一的硬边界——即便 adapter 完全忽略它,运行器也会用
-   * `Effect.timeoutTo` 兜底强制收尾(停沙箱容器)。
+   * `Effect.timeoutTo` 兜底强制收尾(停 Sandbox 容器)。
    */
   readonly signal: AbortSignal;
   /** 本次 attempt 用的模型名,透传自 experiment 的 `model` 字段。sandbox 型 agent 通常在 setup 里用它写配置,remote 型通常在 send 里用它选模型。 */
@@ -289,7 +289,7 @@ export interface AgentContext {
    */
   readonly experimentId?: string;
   /**
-   * 所有 agent 都有:沙箱型是运行器按项目/experiment 配置备好的真实沙箱句柄,remote 型是
+   * 所有 agent 都有:Sandbox 型是运行器按项目/experiment 配置备好的真实 Sandbox 句柄,remote 型是
    * `createRemoteSandbox()` 产出的 stub(仅含 `workdir`/`sandboxId`/`otlpHost`/`stop` 等
    * 元信息,其余方法调用即抛错)。
    */
@@ -370,18 +370,18 @@ export interface SandboxAgentDef {
   /** 该 Adapter 的常态证据覆盖声明(完整采集的用 `completeCoverage` 常量);省略 = 全通道 unknown。 */
   coverage?: EvidenceCoverage;
   /**
-   * 每个沙箱一次(不是每轮一次):装 CLI、写 config.toml / 鉴权配置(model/base/auth 等
-   * 本轮内不变的东西)。运行器在沙箱备好(上传/基线/eval.setup 之后)、第一次 send 前
+   * 每个 Sandbox 一次(不是每轮一次):装 CLI、写 config.toml / 鉴权配置(model/base/auth 等
+   * 本轮内不变的东西)。运行器在 Sandbox 备好(上传/基线/eval.setup 之后)、第一次 send 前
    * 调用一次,不返回值。
    */
   setup?: AgentSetup;
-  /** OTLP 导出配置:沙箱里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 setup 拆出。 */
+  /** OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 setup 拆出。 */
   tracing?: AgentTracing;
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。只影响瀑布图。 */
   spanMapper?: SpanMapper;
   /** 每轮一次:跑 prompt(fresh / resume)+ 解析成 events。 */
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
-  /** 沙箱销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
+  /** Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
    * 在 finally 里跑一次。 */
   teardown?: AgentTeardown;
 }
@@ -393,9 +393,9 @@ export interface RemoteAgentDef {
   /** 该 Adapter 的常态证据覆盖声明(完整采集的用 `completeCoverage` 常量);省略 = 全通道 unknown。 */
   coverage?: EvidenceCoverage;
   /**
-   * 每个 attempt 一次(remote agent 没有真实沙箱,运行器会传入一个仅含 `workdir`/`sandboxId`/
+   * 每个 attempt 一次(remote agent 没有真实 Sandbox,运行器会传入一个仅含 `workdir`/`sandboxId`/
    * `otlpHost`/`stop` 等元信息的 stub `Sandbox`,其余方法调用即抛错——不要在这里调用
-   * 文件/命令类沙箱方法)。常用于建立连接、鉴权等一次性准备,不返回值。
+   * 文件/命令类 Sandbox 方法)。常用于建立连接、鉴权等一次性准备,不返回值。
    */
   setup?: AgentSetup;
   /** OTLP 导出配置:远程被测对象怎么把 trace 发到 endpoint(env-based 注入 / file-based 配置)。 */

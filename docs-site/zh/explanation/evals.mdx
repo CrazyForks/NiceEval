@@ -1,12 +1,12 @@
 ---
-title: "NiceEval 中的 eval：生命周期、verdict 与文件"
+title: "NiceEval 中的评估用例：生命周期、verdict 与文件"
 sidebarTitle: "评估"
-description: "eval 是一个测试用例：描述和 test 函数，agent-neutral。了解 eval 如何被发现、调度、评分和报告。"
+description: "评估用例是一个测试用例：描述和 test 函数，agent-neutral。了解评估用例如何被发现、调度、评分和报告。"
 ---
 
 一个 eval 是一个可运行的测试用例。它通常由一个 `*.eval.ts` 文件导出，通过 `defineEval` 声明。
 
-## eval 的组成
+## 评估用例的组成
 
 ```ts
 import { defineEval } from "niceeval";
@@ -31,7 +31,7 @@ export default defineEval({
 | `environment` | 可选的环境需求 profile，由 sandbox spec 的 `environments` 表映射到具体预制环境 |
 | `test(t)` | 交互和断言逻辑 |
 
-eval 本身不声明用哪个 Agent——它默认保持 agent-neutral，同一个 eval 可以在不同 experiment 下跑不同 Agent。选哪个 Agent 是 experiment 的字段，不由 CLI 临时覆盖。
+评估用例本身不声明用哪个 Agent——它默认保持 agent-neutral，同一个评估用例可以在不同 experiment 下跑不同 Agent。选哪个 Agent 是 experiment 的字段，不由 CLI 临时覆盖。
 
 <Note>
   不要手写 `id` 或 `name`。[NiceEval](https://niceeval.com/) 从文件路径推导 ID。
@@ -84,7 +84,7 @@ npx niceeval exp local weather/brooklyn
     执行异常、超时或作者错误，本次执行无法形成可信结论。
   </Card>
   <Card title="skipped" icon="forward" color="#6b7280">
-    eval 主动跳过，通常通过 `t.skip(reason)`。
+    评估用例主动跳过，通常通过 `t.skip(reason)`。
   </Card>
 </CardGroup>
 
@@ -122,5 +122,5 @@ export default rows.map((row) =>
 
 ## 相关阅读
 
-- [实验](/zh/explanation/experiment) — 另一半：评谁、怎么跑；为什么和 eval 分开（晚绑定）。
+- [实验](/zh/explanation/experiment) — 另一半：评谁、怎么跑；为什么和评估用例分开（晚绑定）。
 - [Assert](/zh/explanation/assert) — gate 与 soft 的完整判定规则。

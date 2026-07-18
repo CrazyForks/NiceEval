@@ -4,7 +4,7 @@ sidebarTitle: "断言"
 description: "NiceEval 的断言词汇——值断言、作用域断言、test-as-scoring 和效率断言——以及 gate / soft 严重度和判定 verdict 的规则。"
 ---
 
-断言把 agent 在一次 eval 里做的一切——每条消息、每次工具调用、每处文件改动、每一分 token——折叠成一个可解释的结果。[NiceEval](https://niceeval.com/) 提供四种互补的断言机制：有的立即检查一个值，有的在整轮跑完后评估整次运行，有的在沙箱里跑测试，有的衡量效率。四种都产出同一种 `Assertion` 类型，都进同一套判定规则。第五种机制——让语言模型评判开放式质量——见 [Judge](/zh/explanation/judge)。
+断言把 agent 在一次评估用例里做的一切——每条消息、每次工具调用、每处文件改动、每一分 token——折叠成一个可解释的结果。[NiceEval](https://niceeval.com/) 提供四种互补的断言机制：有的立即检查一个值，有的在整轮跑完后评估整次运行，有的在 Sandbox 里跑测试，有的衡量效率。四种都产出同一种 `Assertion` 类型，都进同一套判定规则。第五种机制——让语言模型评判开放式质量——见 [Judge](/zh/explanation/judge)。
 
 ## 四种断言机制
 
@@ -16,7 +16,7 @@ description: "NiceEval 的断言词汇——值断言、作用域断言、test-a
     `t.succeeded()`、`t.calledTool()`、`t.messageIncludes()` 等在 `test(t)` 里注册，但在函数返回**之后**才对完整轮次数据统一评估，适合整次运行的事实。
   </Card>
   <Card title="3. Test-as-scoring" icon="flask">
-    在 sandbox eval 里，从 `test(t)` 跑项目测试、构建脚本或临时探针命令——适合代码任务，文件内容和构建结果就是事实标准。
+    在 Sandbox 型评估用例里，从 `test(t)` 跑项目测试、构建脚本或临时探针命令——适合代码任务，文件内容和构建结果就是事实标准。
   </Card>
   <Card title="4. 效率断言" icon="gauge">
     `t.maxTokens()` 和 `t.maxCost()` 把 token 用量和估算成本变成可评分的维度。答对了但烧掉十倍 token 的 agent，不该跟省着用的拿一样的分。
@@ -29,12 +29,12 @@ description: "NiceEval 的断言词汇——值断言、作用域断言、test-a
 
 <Tabs>
   <Tab title="gate">
-    gate 是硬性要求。一旦失败，整个 eval 立刻判为 `failed`——不管其它断言表现如何。适合必须为真的事实：“调用了正确的工具”“输出解析为合法 JSON”“没有 shell 命令报错”。
+    gate 是硬性要求。一旦失败，整个评估用例立刻判为 `failed`——不管其它断言表现如何。适合必须为真的事实：“调用了正确的工具”“输出解析为合法 JSON”“没有 shell 命令报错”。
 
     `niceeval/expect` 里大多数匹配器（`includes`、`equals`、`matches`、`satisfies`）默认 gate；`t.succeeded()`、`t.calledTool()` 这类作用域断言也默认 gate。
   </Tab>
   <Tab title="soft">
-    soft 是带数值阈值的质量分。分数低于阈值时，eval 变成 `passed` 而不是 `failed`——是质量回归的信号，但不算硬性破坏。soft 失败只在 `--strict` 下才算数。
+    soft 是带数值阈值的质量分。分数低于阈值时，评估用例变成 `passed` 而不是 `failed`——是质量回归的信号，但不算硬性破坏。soft 失败只在 `--strict` 下才算数。
 
     适合“好不好”而不是“对不对”的连续判断：相似度打分、LLM-as-judge 的事实性评分、想跟踪但不想拦 CI 的成本预算。
 
@@ -183,9 +183,9 @@ t.sandbox.noFailedShellCommands();
 
 作用域断言到处遵守同一条规则：**接收者决定作用域，不是断言名字决定作用域。** `t.*` 聚合这次 eval run 的全部轮次（含 `t.newSession()` 开的额外 session）；`session.*`（`t.newSession()` 的返回值）只看这一条 session；`turn.*`（`t.send()` 的返回值）只看这一轮自己。同一套词汇，不同接收者——各接收者是什么见 [Drive](/zh/explanation/drive)。
 
-## 3. Test-as-scoring（沙箱型 eval）
+## 3. Test-as-scoring（Sandbox 型评估用例）
 
-沙箱型代码 eval 里，在 `test(t)` 内跑验证命令，把结果记成断言：
+Sandbox 型代码评估用例里，在 `test(t)` 内跑验证命令，把结果记成断言：
 
 ```ts
 import { commandSucceeded, includes } from "niceeval/expect";
@@ -210,7 +210,7 @@ t.maxTokens(80_000).atLeast(0.7);     // soft 变体——照样跟踪，只有 
 t.check(t.usage.outputTokens, satisfies((n) => n < 10_000, "not verbose"));
 ```
 
-`t.usage` 在 `test(t)` 里随处可用，暴露 `{ inputTokens, outputTokens, cacheReadTokens?, … }`。沙箱型 agent 的 token 数由 adapter 从 transcript 里抠出；远程 agent 直接在 `Turn.usage` 里返回。
+`t.usage` 在 `test(t)` 里随处可用，暴露 `{ inputTokens, outputTokens, cacheReadTokens?, … }`。Sandbox 型 agent 的 token 数由 adapter 从 transcript 里抠出；远程 agent 直接在 `Turn.usage` 里返回。
 
 ## 自定义评分器
 
@@ -241,4 +241,4 @@ t.check(t.reply, jsonValid());
 - [Drive](/zh/explanation/drive) — `t.send()`、`t.newSession()` 和 HITL：这些断言读的 Turn 数据是怎么产出的。
 - [Judge](/zh/explanation/judge) — 第五种评分机制，评无法写成固定规则的开放式质量。
 - [写 send](/zh/tutorials/write-send) — 标准事件流如何产出，作用域断言依赖它什么。
-- [Evals](/zh/explanation/evals) — 断言如何折进 eval 生命周期和 verdict 类型。
+- [评估](/zh/explanation/evals) — 断言如何折进评估用例生命周期和 verdict 类型。

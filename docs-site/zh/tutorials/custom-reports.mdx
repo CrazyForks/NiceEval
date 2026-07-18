@@ -75,13 +75,13 @@ niceeval show --report reports/exam.tsx    # 终端：同一棵树走文本面
 niceeval view --report reports/exam.tsx    # 网页：渲染网页面，Attempt 链接进入证据页
 ```
 
-注入的上下文只有两样，全部是[结果数据 API](/zh/reference/results-data) 的原语，宿主没有私有通道：`results` 就是 `openResults(".niceeval")` 的返回（实验、历次快照、attempt 级 `diff()`、`trace()` 都在上面）；`selection` 是宿主替你挑好的那份结果。挑选规则是：对每个实验、每道 eval，取该实验历史运行里最新的那次判定——只按前缀重跑了一部分 eval，其余 eval 的判定从更早的运行补齐，不会因为一次局部重跑就整体退回某一份残缺快照。默认报告吃的就是这份 `selection`，快照在 `selection.snapshots`，挑选提醒在 `selection.warnings`。默认挑法不合口径时，拿 `results` 自己挑，手工挑的 `Snapshot[]` 数组同样能喂给每个组件。
+注入的上下文只有两样，全部是[结果数据 API](/zh/reference/results-data) 的原语，宿主没有私有通道：`results` 就是 `openResults(".niceeval")` 的返回（实验、历次快照、attempt 级 `diff()`、`trace()` 都在上面）；`selection` 是宿主替你挑好的那份结果。挑选规则是：对每个实验、每道评估用例，取该实验历史运行里最新的那次判定——只按前缀重跑了一部分评估用例，其余评估用例的判定从更早的运行补齐，不会因为一次局部重跑就整体退回某一份残缺快照。默认报告吃的就是这份 `selection`，快照在 `selection.snapshots`，挑选提醒在 `selection.warnings`。默认挑法不合口径时，拿 `results` 自己挑，手工挑的 `Snapshot[]` 数组同样能喂给每个组件。
 
 报告文件里有两种数据形态。实体列表的 `.data(selection)` 返回普通数组：`ExperimentListItem[]`、`EvalListItem[]`、`AttemptListItem[]`。报告作者用 JavaScript `.filter()` / `.slice()` 决定展示哪些实体，再把数组作为 `items` 传给列表；组件不藏另一套过滤 DSL。指标图形和汇总组件收算好的 `data`；其中 `MetricScatter` 也提供 `selection` 简写，由宿主在渲染前计算。计算后的组件只渲染传入数据，不碰结果目录。
 
 选择警告（`ScopeWarnings`）组件显示覆盖不全、快照过期、运行未完成和快照读取失败等提醒。提醒按 Experiment 分组，组头列出实验名、问题标签和可复制的重跑命令；每条原文位于可展开区域中。默认报告的每一页都包含该组件。自定义报告需要显示提醒时，在页首添加 `<ScopeWarnings />`。
 
-命令行的范围先作用在挑选上，报告拿到的就是收窄到这个范围后的 `selection`：位置参数的 eval id 前缀收窄 Selection 覆盖的 eval（覆盖提醒的分母同样收窄到范围内），`--results` 把结果根换成指定目录，`--exp` 让 Selection 只留该实验。`--history` 与 `--report` 互斥——趋势在报告里用 `exp.snapshots` 自行组织；证据视图（`--eval` / `--execution` / `--diff`）只看证据，不渲染报告。
+命令行的范围先作用在挑选上，报告拿到的就是收窄到这个范围后的 `selection`：位置参数的评估用例 id 前缀收窄 Selection 覆盖的评估用例（覆盖提醒的分母同样收窄到范围内），`--results` 把结果根换成指定目录，`--exp` 让 Selection 只留该实验。`--history` 与 `--report` 互斥——趋势在报告里用 `exp.snapshots` 自行组织；证据视图（`--eval` / `--execution` / `--diff`）只看证据，不渲染报告。
 
 页面里的每个组件都是**双面**的：网页面是 React 渲染，终端面是字符渲染，两面吃同一份算好的数据。实体列表按 experiment → Eval → Attempt 展示事实；指标表、矩阵、条形图、成绩单、散点图、趋势图和差异表展示聚合值。完整清单见[报告组件](/zh/reference/report-components)。网页面的实体、格子和点深链到 Attempt 详情，终端面印出对应的 `niceeval show <eval id>` 下钻命令。
 

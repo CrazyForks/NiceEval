@@ -1,27 +1,27 @@
 ---
-title: "NiceEval runner 如何调度和执行 eval"
+title: "NiceEval runner 如何调度和执行评估用例"
 sidebarTitle: "运行器"
-description: "NiceEval runner 发现 eval，用有界并发调度，缓存结果，重试脆弱基础设施，并执行预算保护。"
+description: "NiceEval runner 发现评估用例，用有界并发调度，缓存结果，重试脆弱基础设施，并执行预算保护。"
 ---
 
-Runner 是把 eval 文件变成一次实际运行的执行引擎。它负责发现、过滤、调度、缓存、attempt、reporters 和 artifact 输出。
+Runner 是把评估用例文件变成一次实际运行的执行引擎。它负责发现、过滤、调度、缓存、attempt、reporters 和 artifact 输出。
 
 ## 发现
 
 runner 会读取 `evals/` 下的：
 
 - `*.eval.ts` 文件
-- 导出 eval 数组的数据集文件
+- 导出评估用例数组的数据集文件
 
 ```bash
 npx niceeval list
 ```
 
-`list` 只发现和打印 ID，不执行 eval。
+`list` 只发现和打印 ID，不执行评估用例。
 
 ## 过滤
 
-`exp` 命令中,实验名之后的位置参数是 eval ID 前缀：
+`exp` 命令中,实验名之后的位置参数是评估用例 ID 前缀：
 
 ```bash
 npx niceeval exp local

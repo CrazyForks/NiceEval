@@ -1,12 +1,12 @@
 ---
 title: "OTel 接入"
 sidebarTitle: "OTel 接入"
-description: "把应用已有的 OTel span 发送给 NiceEval，在 niceeval view 中查看每轮调用瀑布图；Eval 断言仍以 Send 返回的事件和用量为准。"
+description: "把应用已有的 OTel span 发送给 NiceEval，在 niceeval view 中查看每轮调用瀑布图；评估用例断言仍以 Send 返回的事件和用量为准。"
 ---
 
 OTel 接入**不改变断言的数据来源**。`t.calledTool`、`t.maxTokens` 和耗时判定都读取 Adapter 在 `send` 中返回的 `Turn`（`events` 与 `usage`），见[接入你的 Agent](/zh/tutorials/connect-your-agent)。
 
-OTel span 用于生成 **`niceeval view` 中的调用瀑布图**。瀑布图按轮显示模型调用、工具执行、耗时和 token，帮助定位 Eval 失败或轮次变慢的具体步骤。
+OTel span 用于生成 **`niceeval view` 中的调用瀑布图**。瀑布图按轮显示模型调用、工具执行、耗时和 token，帮助定位评估用例失败或轮次变慢的具体步骤。
 
 如果你的应用已经在发 OTel trace——AI SDK 的 telemetry、LangGraph 的 LangSmith 导出、OpenLLMetry / OpenInference 自动埋点，或自己按 GenAI 语义埋的点——那瀑布图的数据你已经在生产了：让应用把 span 也发给 [NiceEval](https://niceeval.com/) 一份即可，应用代码一行不改，仍是无侵入（见 [Tier](/zh/explanation/tier)）。
 
@@ -55,7 +55,7 @@ export default defineAgent({
   });
   ```
 
-  服务启动时一次性配 `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces`，之后跑多少次 eval 都不用改。代价：端口共享意味着同一台机器同时只能跑一个 niceeval 进程；OTel Collector 扇出场景同理指向这个固定端点。`port` 被其它进程占用时 [NiceEval](https://niceeval.com/) 会直接报错提示换一个空闲端口，不会静默失败。
+  服务启动时一次性配 `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces`，之后跑多少次评估用例都不用改。代价：端口共享意味着同一台机器同时只能跑一个 niceeval 进程；OTel Collector 扇出场景同理指向这个固定端点。`port` 被其它进程占用时 [NiceEval](https://niceeval.com/) 会直接报错提示换一个空闲端口，不会静默失败。
 
   报给应用的接收端 hostname 默认是 `127.0.0.1`；docker 型 sandbox tracing 需要 `host.docker.internal`、或配了隧道的远程接入需要别的 hostname 时，加 `host` 覆盖：`telemetry: { host: "host.docker.internal", port: 4318 }`。这两个字段是 [NiceEval](https://niceeval.com/) 里配置 OTLP 接收的唯一入口，不读环境变量。
 
@@ -115,7 +115,7 @@ export default defineAgent({
 
 ## 把 span 归属到 Turn
 
-并行跑多条 eval 时，同一个接收器会同时收到多条会话的 span，[NiceEval](https://niceeval.com/) 按两条路把它们归到各自的轮：
+并行跑多条评估用例时，同一个接收器会同时收到多条会话的 span，[NiceEval](https://niceeval.com/) 按两条路把它们归到各自的轮：
 
 - **traceparent（推荐，并发安全）**：`send` 发请求时把 `ctx.telemetry.headers`（W3C trace context，每轮一个新 `traceparent`）spread 进请求头。应用的埋点支持 context 传播的话（标准 OTel HTTP 服务端埋点都支持），本轮 span 自动挂到 [NiceEval](https://niceeval.com/) 给的 trace 下，按 traceId 精确归属。
 - **时间窗口（兜底）**：应用不传播 trace context 时，按 send 前后的时间窗归属。窗口只在串行下可靠，所以这种情况 [NiceEval](https://niceeval.com/) 会把这个 agent 的轮次串行执行并在日志里提示，不会静默混流；一旦确认 traceparent 生效，自动恢复并发。

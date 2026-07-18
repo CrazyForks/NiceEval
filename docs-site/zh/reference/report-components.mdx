@@ -8,20 +8,20 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 
 ## 名称与用途
 
-英文术语描述组件形态，API 名是代码里的导出名。组件分四类：默认组合件按可比组组织完整比较；实体列表逐项展示 experiment、Eval 或 Attempt；汇总组件概括整批 Selection；指标图形把指定维度聚合成值。三个实体列表的 `.data(selection)` 都返回普通数组，报告作者先用 JavaScript `.filter()` 收窄，再把 `items` 交给组件。过滤条件不藏在组件里。中文正文首次提到时用“中文名（`API 名`）”，后续可以只写中文名或 `API 名`。
+英文术语描述组件形态，API 名是代码里的导出名。组件分四类：默认组合件按可比组组织完整比较；实体列表逐项展示 experiment、评估用例或 Attempt；汇总组件概括整批 Selection；指标图形把指定维度聚合成值。三个实体列表的 `.data(selection)` 都返回普通数组，报告作者先用 JavaScript `.filter()` 收窄，再把 `items` 交给组件。过滤条件不藏在组件里。中文正文首次提到时用“中文名（`API 名`）”，后续可以只写中文名或 `API 名`。
 
 | 分类 | 中文名 | English | API | 主展示单位 |
 | --- | --- | --- | --- | --- |
 | 组合 | 实验组比较 | Experiment comparison | `ExperimentComparison` | 按 experiment 父目录分组；每组独立的摘要、散点与实验列表 |
-| 汇总 | 运行总览 | Run overview | `RunOverview` | 一批 Selection；汇总其中的 experiment、Eval 和 Attempt |
-| 汇总 | 组摘要 | Group summary | `GroupSummary` | 收窄后的一批 Selection；汇总一组 experiment 和 Eval |
-| 实体列表 | 实验列表 | Experiment list | `ExperimentList` | 每项一个 experiment；展开到该 experiment 的 Eval |
-| 实体列表 | Eval 列表 | Eval list | `EvalList` | 每项一个 experiment × Eval；展开到该 Eval 的 Attempt |
+| 汇总 | 运行总览 | Run overview | `RunOverview` | 一批 Selection；汇总其中的 experiment、评估用例和 Attempt |
+| 汇总 | 组摘要 | Group summary | `GroupSummary` | 收窄后的一批 Selection；汇总一组 experiment 和评估用例 |
+| 实体列表 | 实验列表 | Experiment list | `ExperimentList` | 每项一个 experiment；展开到该 experiment 的评估用例 |
+| 实体列表 | 评估用例列表 | Eval list | `EvalList` | 每项一个 experiment × 评估用例；展开到该评估用例的 Attempt |
 | 实体列表 | Attempt 列表 | Attempt list | `AttemptList` | 每项一个 Attempt；显示断言、错误、Judge 评语和证据 |
 | 指标图形 | 指标表 | Metric table | `MetricTable` | 一个可配置行维度；每格是一个聚合指标值 |
 | 指标图形 | 指标矩阵 | Metric matrix | `MetricMatrix` | 两个可配置维度的交叉格；每格是一个聚合指标值 |
 | 指标图形 | 分组条形图 | Grouped bar chart | `MetricBars` | 两个可配置维度形成分组和系列；每根条是一个聚合指标值 |
-| 指标图形 | 成绩单 | Scoreboard | `Scoreboard` | 每行一个可配置维度值；按 Eval 和 Eval 分组计算分数 |
+| 指标图形 | 成绩单 | Scoreboard | `Scoreboard` | 每行一个可配置维度值；按评估用例和评估用例分组计算分数 |
 | 指标图形 | 指标散点图 | Metric scatter plot | `MetricScatter` | 每点一个可配置维度值，通常是 experiment；坐标是两个聚合指标值 |
 | 指标图形 | 指标趋势图 | Metric line chart | `MetricLine` | 每点一个 experiment；横轴是 experiment flag，纵轴是聚合指标值 |
 | 指标图形 | 成对差异表 | Paired delta table | `DeltaTable` | 每行一对 experiment 或结果快照；格内是指标值及差值 |
@@ -33,7 +33,7 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 - **诚实渲染。** 缺数据渲染 `—` 不补 0；覆盖不全的格子带 `12/15` 角标；截断如实标注剩余数量与原始 artifact 路径。
 - **排序与方向随指标的 `better`。** higher 的指标降序、lower 的升序，「好」的一头恒在上、在右上。
 - **证据室深链。** 网页面的格子、点和条目深链到 Attempt 详情；终端面用同一 Attempt locator 交给 `niceeval show @<id>`。
-- **终端输出形成反馈闭环。** 每个 Attempt 有一个以 `@` 开头的短 locator，例如 `@1k2m9qrs`。它唯一指向 experiment、结果快照、Eval 和 Attempt。`✓` / `✗` / `!` / `–` 是 passed / failed / errored / skipped。列表不用字母缩写编码证据可用性——locator 本身就是证据入口；打开 attempt（`niceeval show @<locator>`）后再列出实际可用的证据命令。执行步骤统一包含消息、thinking、tool call/result 和 Skill load；OTel 只给这些步骤补时间，不另开一份输出。
+- **终端输出形成反馈闭环。** 每个 Attempt 有一个以 `@` 开头的短 locator，例如 `@1k2m9qrs`。它唯一指向 experiment、结果快照、评估用例和 Attempt。`✓` / `✗` / `!` / `–` 是 passed / failed / errored / skipped。列表不用字母缩写编码证据可用性——locator 本身就是证据入口；打开 attempt（`niceeval show @<locator>`）后再列出实际可用的证据命令。执行步骤统一包含消息、thinking、tool call/result 和 Skill load；OTel 只给这些步骤补时间，不另开一份输出。
 - **两面同口径，网页面不依赖 JS 也完整。** 排序在计算时由 `sort` 定死，终端和网页看到同一份基准顺序；下钻是普通链接、展开折叠用 `<details>`。网页面另有一层浏览操作：点表头就地重排、榜单行过滤、图表点位悬停看数值——只影响眼前的视图，不改数据口径，刷新即回基准顺序；浏览器禁用 JS 时这些操作消失，内容一样不少（悬停信息退化为图内提示）。
 
 ## 排版原语
@@ -141,13 +141,13 @@ Pass rate 73.3% · 2 experiments · 15 evals · failed 3 · errored 1 · $0.93
 latest 2026-07-09T10:00:00Z
 ```
 
-通过率是 eval 级折叠计票口径：同一 eval 的多轮 attempt 先折成一个判定（任一轮通过则算通过，否则取最严重的），`passed / (passed + failed + errored)`，`skipped` 不进分母。页头 `RunOverview` 使用 `endToEndPassRate` 的两级聚合：先算同一道题各 Attempt 的端到端通过率，再跨题平均。两者的聚合粒度不同，但都会让 errored 降低通过率。`GroupSummary` 回答「这组题最终过了几道」，`RunOverview` 回答「每次实际运行交付成功结果的比例」，不要互相替代。`evals` 按 `experimentId + eval id` 的完整身份键去重——组里两个 experiment 各自的同名 eval 算两道题，不会被误合并成一道。`errored` 为 0 时这一段省略，但 `verdicts.errored` 这个数据字段本身永远在，省略只发生在渲染层。`totalCostUSD` 是组内可测 attempt 成本求和，一个 attempt 都没报成本时是 `null`，两面都渲染缺数据而不是 `$0`。
+通过率是评估用例级折叠计票口径：同一评估用例的多轮 attempt 先折成一个判定（任一轮通过则算通过，否则取最严重的），`passed / (passed + failed + errored)`，`skipped` 不进分母。页头 `RunOverview` 使用 `endToEndPassRate` 的两级聚合：先算同一道题各 Attempt 的端到端通过率，再跨题平均。两者的聚合粒度不同，但都会让 errored 降低通过率。`GroupSummary` 回答「这组题最终过了几道」，`RunOverview` 回答「每次实际运行交付成功结果的比例」，不要互相替代。`evals` 按 `experimentId + eval id` 的完整身份键去重——组里两个 experiment 各自的同名评估用例算两道题，不会被误合并成一道。`errored` 为 0 时这一段省略，但 `verdicts.errored` 这个数据字段本身永远在，省略只发生在渲染层。`totalCostUSD` 是组内可测 attempt 成本求和，一个 attempt 都没报成本时是 `null`，两面都渲染缺数据而不是 `$0`。
 
 组摘要是普通的公开组件，`GroupSummary.data` 是普通的公开计算函数——想在自己的报告里按目录前缀分组、每组摆一块，按上面的写法收窄 Selection 再调它就行。
 
 ## 实验列表（`ExperimentList`）
 
-每项固定代表一个 experiment。主行显示 experiment id、agent、model、flags、Eval 判定构成、通过率、Tokens、成本和耗时；其中“通过率 / Pass rate”是 `endToEndPassRate` 的默认短标签，完整口径名是“端到端通过率 / End-to-end pass rate”。展开后显示这个 experiment 的 Eval 列表。Eval 父行显示折叠判定、Attempt 数、平均耗时和平均成本；下面每个 Attempt 再显示该轮自己的失败摘要。失败内容只出现一次，不会在 Eval 与唯一 Attempt 上重复。它不接受列配置——这是 experiment 的诊断视图，不是通用指标表。默认 `ExperimentComparison` 每次只把一个可比组的 items 交给它；组件本身不猜组边界。
+每项固定代表一个 experiment。主行显示 experiment id、agent、model、flags、评估用例判定构成、通过率、Tokens、成本和耗时；其中”通过率 / Pass rate”是 `endToEndPassRate` 的默认短标签，完整口径名是”端到端通过率 / End-to-end pass rate”。展开后显示这个 experiment 的评估用例列表。评估用例父行显示折叠判定、Attempt 数、平均耗时和平均成本；下面每个 Attempt 再显示该轮自己的失败摘要。失败内容只出现一次，不会在评估用例与唯一 Attempt 上重复。它不接受列配置——这是 experiment 的诊断视图，不是通用指标表。默认 `ExperimentComparison` 每次只把一个可比组的 items 交给它；组件本身不猜组边界。
 
 默认比较已经用组名作面板 / 段落标题，所以组内每行的 experiment 标签会去掉这层文件夹前缀，只显示 id 末段（和同组散点的点标签一致），不在每行重复文件夹名。这不是独立短标签，也不从 id 猜别名；完整 id 仍是排序、过滤和身份的依据，系列颜色跟随 Agent，与散点图对齐。独立使用 `ExperimentList`、不告诉它相对哪个组时，显示完整 id。中文副行用“`8 个 Eval`”而不是“`8 道题`”。
 
@@ -159,7 +159,7 @@ const experiments = await ExperimentList.data(selection);
 />
 ```
 
-`niceeval show` 先输出 experiment 比较表，再按 experiment 展开 Eval / Attempt 父子表。Eval 父行给题级平均值，Attempt 子行给这一轮的失败摘要和 locator：
+`niceeval show` 先输出 experiment 比较表，再按 experiment 展开评估用例 / Attempt 父子表。评估用例父行给题级平均值，Attempt 子行给这一轮的失败摘要和 locator：
 
 ```text
 Experiment      Model     Agent   Avg. time   Pass rate   Results                 Tokens   Cost
@@ -174,13 +174,13 @@ Status      Eval / Attempt       Result                                  Duratio
   ✗         └─ @1nx4dpqr         calledTool("get_weather") · no calls    43.0s       $0.04
 ```
 
-locator 由 `experimentId + snapshot.startedAt + evalId + attempt index` 的不可变身份确定，复制或发布结果后保持不变。宿主在当前结果根解析 locator；不存在或发生冲突时直接报错，不回退到“最新一次”。`@` 前缀让它与 Eval ID 前缀选择器无歧义。
+locator 由 `experimentId + snapshot.startedAt + evalId + attempt index` 的不可变身份确定，复制或发布结果后保持不变。宿主在当前结果根解析 locator；不存在或发生冲突时直接报错，不回退到“最新一次”。`@` 前缀让它与评估用例 ID 前缀选择器无歧义。
 
 `.data(selection)` 返回普通的 `ExperimentListItem[]`，顺序按 experiment id 稳定排列。要只看某个 agent、目录前缀或运行状态，直接过滤数组。组件不提供另一套 `filter` 查询语法。网页面的文本搜索只是临时浏览操作，不改变传入的 items；终端面始终输出完整的传入数组。
 
-## Eval 列表（`EvalList`）
+## 评估用例列表（`EvalList`）
 
-每项固定代表一个 `experimentId + evalId`，因为同一个 Eval 跑在两个 experiment 上是两条不同结果。主行显示判定、Attempt 数、聚合分数、平均成本和平均耗时；展开后显示这个 Eval 的 Attempt 列表，由每个 Attempt 行显示该轮自己的失败原因。Eval 主行不挑某一轮的失败原因冒充题级结论。
+每项固定代表一个 `experimentId + evalId`，因为同一个评估用例跑在两个 experiment 上是两条不同结果。主行显示判定、Attempt 数、聚合分数、平均成本和平均耗时；展开后显示这个评估用例的 Attempt 列表，由每个 Attempt 行显示该轮自己的失败原因。评估用例主行不挑某一轮的失败原因冒充题级结论。
 
 ```tsx
 const evals = await EvalList.data(selection);
@@ -206,11 +206,11 @@ fixtures/button · compare/bub-gpt-5.4 · errored
 inspect: niceeval show @<id> [--eval|--execution|--diff]
 ```
 
-`.data(selection)` 返回普通的 `EvalListItem[]`。按 Eval id 前缀、experiment、判定或分数过滤都使用数组 `.filter()`；组件只负责渲染传入的 items。
+`.data(selection)` 返回普通的 `EvalListItem[]`。按评估用例 id 前缀、experiment、判定或分数过滤都使用数组 `.filter()`；组件只负责渲染传入的 items。
 
 ## Attempt 列表（`AttemptList`）
 
-每项固定代表一个 Attempt，显示 experiment、Eval、Attempt 序号、判定、耗时、成本、失败断言、结构化 error 的一层摘要、Judge 评语和证据链接。diagnostics、cause 和 stack 留给 locator 下钻详情，避免比较列表被基础设施日志撑开。它既能列失败证据，也能列通过样本，不把 verdict 过滤写死在组件名里。
+每项固定代表一个 Attempt，显示 experiment、评估用例、Attempt 序号、判定、耗时、成本、失败断言、结构化 error 的一层摘要、Judge 评语和证据链接。diagnostics、cause 和 stack 留给 locator 下钻详情，避免比较列表被基础设施日志撑开。它既能列失败证据，也能列通过样本，不把 verdict 过滤写死在组件名里。
 
 ```tsx
 const attempts = await AttemptList.data(selection);
@@ -220,7 +220,7 @@ const attempts = await AttemptList.data(selection);
 />
 ```
 
-`niceeval show` 每项完整输出一个 Attempt，不折叠到 Eval 汇总。这里已经是叶子层，只在末尾给一条与该 Attempt 可用证据对应的模板：
+`niceeval show` 每项完整输出一个 Attempt，不折叠到评估用例汇总。这里已经是叶子层，只在末尾给一条与该 Attempt 可用证据对应的模板：
 
 ```text
 ✗ @1k2m9qrs · weather/brooklyn · compare/bub-gpt-5.4 · 41s · $0.04
@@ -258,7 +258,7 @@ codex   80% 12/15   355 lines    $0.51
 
 两面都按 `sort` 预排，基准顺序一致——要固定换一种排序，改一行重跑。`12/15` 角标表示该格 15 个 attempt 里只有 12 个测得了这个指标。
 
-`rows: "experiment"` 时每行自动带 agent 与 model 列——结果里现成的元信息，不用配置。`MetricTable` 不展开实体层级：要看 experiment、Eval 或 Attempt 的固定诊断字段，分别使用三个实体列表；要自由换维度和指标列，使用指标表。
+`rows: "experiment"` 时每行自动带 agent 与 model 列——结果里现成的元信息，不用配置。`MetricTable` 不展开实体层级：要看 experiment、评估用例或 Attempt 的固定诊断字段，分别使用三个实体列表；要自由换维度和指标列，使用指标表。
 
 ## 指标矩阵（`MetricMatrix`）
 
@@ -304,7 +304,7 @@ geometry
 
 ## 成绩单（`Scoreboard`）
 
-总分 + 分科小计，回答「这套题它能得几分」。逐题分值制：权重按 eval id 前缀配置，分母对所有被打分者恒定，没跑到的题挣 0 分并如实报 `missing`。
+总分 + 分科小计，回答「这套题它能得几分」。逐题分值制：权重按评估用例 id 前缀配置，分母对所有被打分者恒定，没跑到的题挣 0 分并如实报 `missing`。
 
 ```tsx
 <Scoreboard data={await Scoreboard.data(selection, {
