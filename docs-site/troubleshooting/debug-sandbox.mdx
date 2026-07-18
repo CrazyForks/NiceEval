@@ -1,0 +1,57 @@
+---
+title: "Keep a Sandbox alive to debug it"
+sidebarTitle: "Keep Sandbox Alive"
+description: "Use --keep-sandbox to keep a failed attempt's Sandbox alive as a wakeable environment, use niceeval sandbox enter to go in and inspect it by hand, and use sandbox list / stop to see and clean up what's kept."
+---
+
+By default a Sandbox is destroyed after every attempt finishes, and you debug from the artifacts written to disk: `niceeval show` shows you the verdict, assertions, diff, and event stream. That covers most problems — for the full debugging workflow, see the [Debugging Guide](/troubleshooting/debugging).
+
+But some problems can only be seen inside a live environment:
+
+- **The environment never comes up** — a dependency install fails during setup, or the agent CLI won't start. The agent hasn't started running yet, so the event stream is empty; the fastest way in is to enter the Sandbox and rerun the install command by hand.
+- **The change lives outside `git diff`** — what packages got installed globally, what config got written under `$HOME`, what `PATH` actually resolves to. None of that shows up in the artifact.
+- **Rerunning is too slow** — a cold start plus install can take minutes. When you want to test hypotheses one at a time, keeping the environment alive is much faster than rerunning from scratch each time.
+
+## Keep the environment alive during a run
+
+```bash
+npx niceeval exp local onboarding/tool-first --keep-sandbox        # equivalent to --keep-sandbox=failed
+npx niceeval exp local onboarding/tool-first --keep-sandbox=all    # keep passing attempts too
+```
+
+`--keep-sandbox` is a run parameter of `niceeval exp` with two settings: `failed` (the default) keeps attempts whose verdict is `failed` or `errored` (including ones interrupted by timeout); `all` also keeps attempts that passed — use it when you're iterating on a setup hook or want to inspect the real state of a passing environment, not to deliberately break an eval. Without this flag, every Sandbox is destroyed.
+
+When the run finishes, the summary lists which Sandboxes were kept and how to enter them:
+
+```text
+Kept sandboxes (1)
+  @1x7f3q9k  onboarding/tool-first #1  errored  docker · a3f9c2d1
+             enter: niceeval sandbox enter a3f9c2d1
+Stop them with: niceeval sandbox stop --all
+```
+
+Each line gives you three things: the attempt locator (use `niceeval show @1x7f3q9k` to see the evidence written to disk), the Sandbox instance id, and the command to enter it. A kept Sandbox doesn't sit there burning resources — a Docker container stops on disk, an E2B microVM pauses billing, a Vercel Sandbox saves its filesystem. `niceeval sandbox enter` wakes it up, then opens a shell in `workdir`; when you exit the shell, the environment automatically goes back to sleep (pass `--leave-running` to keep it running instead). Once inside, you're looking at the environment exactly as it was when that attempt finished — run commands, browse files, reproduce the failure by hand.
+
+## List and clean up
+
+Kept Sandboxes are recorded one by one under `.niceeval/sandboxes/`, and you manage them with `niceeval sandbox`:
+
+```bash
+niceeval sandbox list              # list kept sandboxes and their state
+niceeval sandbox enter a3f9c2d1    # wake it up and enter; goes back to sleep on exit
+niceeval sandbox stop a3f9c2d1     # destroy the given sandbox (id can be a unique prefix)
+niceeval sandbox stop --all        # destroy all of them
+```
+
+`stop` is idempotent: if the Sandbox is already gone (deleted by hand, expired in the cloud), that's not an error — the command just removes the record and reports it. If the provider fails to destroy it, the command keeps the record and returns an error, so you can retry later instead of losing track of a resource that's still alive. There's also a reminder if you forget to clean up — the next run prints a line at startup if Sandboxes from a previous run are still kept.
+
+## Differences between providers
+
+- **Docker**: keeping means the container stops on disk (uses no memory, survives a Docker restart) and starts automatically when you enter it. Containers don't disappear on their own, so Docker is the only provider where you need to actively clean up. Besides `niceeval sandbox stop`, you can also check directly with `docker ps -a -f label=niceeval.keep-candidate=true`.
+- **E2B**: keeping means pausing the microVM — files and memory are preserved as a whole, billing stops while paused, retention is indefinite, and it resumes automatically when you enter it.
+- **Vercel Sandbox**: keeping means stopping the microVM — the filesystem is preserved and can be resumed later, but memory state is not kept, so processes need to restart after waking up; once the provider's retention window passes, `niceeval sandbox list` marks it `expired`.
+- **Custom providers**: a provider produced by `defineSandbox` does not support keeping, because the later `sandbox stop` call doesn't load the user's config, so there's no safe way to recover a custom teardown function in a new process.
+
+## Boundaries
+
+A kept Sandbox is for inspection only — it can't resume a run or be rescored; the verdict, assertions, and diff still come from the artifact. For how to read artifacts, see [Viewing Results](/tutorials/viewing-results).
