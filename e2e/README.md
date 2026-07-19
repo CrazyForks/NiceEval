@@ -41,7 +41,7 @@ cd e2e/repos/ai-sdk && pnpm install && pnpm e2e
 |---|---|---|
 | `results` | mechanism | Results 落盘格式、`openResults()`、`--json`、`--junit` 契约 |
 | `cli` | mechanism | CLI 选择、退出码折叠、缓存复用契约 |
-| `ai-sdk` | sdk | `uiMessageStreamAgent` / `aiSdkAgent` |
+| `ai-sdk` | sdk | `uiMessageStreamAgent` |
 | `claude-code` | sandbox | `claudeCodeAgent()`（Docker） |
 | `codex-cli` | sandbox | `codexAgent()`（Docker） |
 | `bub` | sandbox | `bubAgent()`（Docker + Python） |

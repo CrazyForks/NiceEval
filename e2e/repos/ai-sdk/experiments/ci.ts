@@ -6,16 +6,19 @@ const BASE_URL = process.env.AI_SDK_URL ?? "http://127.0.0.1:34101";
 const agent = uiMessageStreamAgent({
   name: "ai-sdk-ui-message-stream",
   url: `${BASE_URL}/api/chat`,
+  // 应用用 BatchSpanProcessor,流结束后留一段宽限让最后一批 span 落进本轮收集窗口
+  // (只影响 `niceeval view` / `show --execution` 的瀑布图,不影响断言)。
+  settleMs: 600,
 });
 
+// 单一实验:仓库里全部 Eval 共用同一个 uiMessageStreamAgent,不需要按前缀选择。
 // runs: 3 + earlyExit absorbs a single real-model blip; three consecutive misses is a
 // genuine regression and the matrix should stay red for it.
 export default defineExperiment({
-  description: "ui-message-stream:HTTP useChat 后端(SSE、全量历史重放、审批改写重发)",
+  description: "ai-sdk:HTTP useChat 后端(SSE、全量历史重放、审批改写重发、OTel)",
   agent,
   model: DEFAULT_MODEL,
   runs: 3,
   earlyExit: true,
-  evals: (id) => id.startsWith("ui-message-stream/"),
   budget: 1,
 });

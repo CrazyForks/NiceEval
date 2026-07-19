@@ -1,11 +1,13 @@
 // HTTP target for the `uiMessageStreamAgent` entry point: a `useChat`-shaped backend
 // speaking the AI SDK UI Message Stream protocol (https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol).
-// No OTel here — the OTel proof for this repo lives entirely on the in-process
-// `aiSdkAgent` entry point (experiments/in-process.ts), which is the one with a tracing block.
+// OTel is on by default (see ./otel.ts) — this is the repo's remote-agent telemetry proof.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { convertToModelMessages, pipeUIMessageStreamToResponse, stepCountIs, streamText, toUIMessageStream, type UIMessage } from "ai";
 import { buildTools, SYSTEM_PROMPT } from "./tool-defs.ts";
 import { DEFAULT_MODEL, resolveModel } from "./models.ts";
+import { setupOtel } from "./otel.ts";
+
+setupOtel("ai-sdk-e2e");
 
 const port = Number(process.env.PORT ?? 34101);
 

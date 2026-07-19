@@ -56,3 +56,10 @@ span 从不匹配，见上）。修复需要两者之一：(a) `AgentOtelChannel
 把 traceparent 传给 `@ai-sdk/otel`（若其 `OpenTelemetryOptions` 支持接受外部 parent context）
 换取"traceparent 确认"路径。两者都需要改 `src/context/session.ts` / `src/o11y/otlp/
 turn-otel.ts` / `src/agents/ai-sdk.ts`，不在本仓库范围内。
+
+**范围不限于 aiSdkAgent**：根因在 `AgentOtelChannel.runTurn()` 的 window-attribution
+分支本身，与哪个 Agent 工厂驱动 turn 无关——`e2e/repos/ai-sdk` 把 OTel 证明从 `aiSdkAgent`
+（进程内）迁到 `uiMessageStreamAgent`（HTTP）+ `defineConfig({ telemetry })` 后
+（[[ai-sdk-official-entry-points-narrowed]]），`scripts/verify.ts` 对 `show --timing` 的
+断言仍保持非 gating——同一个合成 `traceId` 不匹配真实 span 的问题原样复现，迁移传输层不能
+绕开这条 niceeval 侧的结构性缺口。

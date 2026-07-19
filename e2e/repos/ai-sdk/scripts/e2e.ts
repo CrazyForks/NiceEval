@@ -1,6 +1,5 @@
 // Single entry point (docs/engineering/e2e-ci/README.md §3.1): install, start the
-// HTTP app under test (only ui-message-stream needs it; in-process calls generateText
-// directly), run verify.ts, classify the outcome into 0 / 75 / other.
+// HTTP app under test, run verify.ts, classify the outcome into 0 / 75 / other.
 import "dotenv/config";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -9,6 +8,9 @@ import { runVerify } from "./verify.ts";
 
 const PORT = Number(process.env.PORT ?? 34101);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+// 固定端口,对应 niceeval.config.ts 的 telemetry.port——niceeval 在这个端口上起 OTLP
+// 接收器,应用把官方 @ai-sdk/otel span 发过来。
+const OTLP_ENDPOINT = "http://127.0.0.1:4318";
 
 class InfraError extends Error {}
 
@@ -40,7 +42,7 @@ async function main(): Promise<void> {
 
   process.env.AI_SDK_URL = BASE_URL;
   const server = spawn("pnpm", ["exec", "tsx", "src/backend/server.ts"], {
-    env: { ...process.env, PORT: String(PORT) },
+    env: { ...process.env, PORT: String(PORT), OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let serverLog = "";
