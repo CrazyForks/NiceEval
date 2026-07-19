@@ -168,6 +168,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [pnpm11-verify-deps-gate-blocks-niceeval-cli](pnpm11-verify-deps-gate-blocks-niceeval-cli.md) — pnpm 11 pre-run gate 会在 niceeval 启动前拦死 CLI(消费方项目)
 - [e2e-repos-stale-pnpm-workspace-hijacks-lockfile](e2e-repos-stale-pnpm-workspace-hijacks-lockfile.md) — `e2e/pnpm-workspace.yaml`(旧架构遗留)把 `e2e/repos/<id>` 的 `pnpm install` 顶到 e2e/ 根共享 lockfile;仓库自己的 install 要加 `--ignore-workspace`
 - [e2e-s2a-jihuayu-proxy-decommissioned](e2e-s2a-jihuayu-proxy-decommissioned.md) — 旧 `s2a.jihuayu.site` 代理签发的 `OPENAI_*`/`CODEX_*`/`NICEEVAL_JUDGE_*` 凭据全部 401;`api.deepseek.com` 官方端点可平替 chat-completions 场景,Codex(Responses API)不适用、已暂缓
+- 已修 [e2e-run-dangerously-allow-all-builds-conflicts-with-allowbuilds](e2e-run-dangerously-allow-all-builds-conflicts-with-allowbuilds.md) — `run.ts` 隔离安装的 `--config.dangerouslyAllowAllBuilds=true` 在 pnpm 10.33+ 上与仓库自己 `allowBuilds` 派生的 `onlyBuiltDependencies` 互斥,`ERR_PNPM_CONFIG_CONFLICT_BUILT_DEPENDENCIES` 让 e2e matrix 常年判红;连带修了缺失的 GitHub secrets、失效的 `NICEEVAL_JUDGE_KEY`、`results` verify.ts 改名后的断言漂移,六仓库全部转绿
 - [vercel-site-domain-and-docs-routing](vercel-site-domain-and-docs-routing.md) — niceeval.com 域名指向和 docs routing 容易分裂成 404,部署 Ready ≠ 域名指对
 - [site-blog-empty-post-dir-breaks-build](site-blog-empty-post-dir-breaks-build.md) — posts/ 下缺 mdx 的空目录(git 不跟踪)让 site:build ENOENT 崩;全 draft 时 slug 页 404 是预期
 - [shared-worktree-concurrent-commit-race](shared-worktree-concurrent-commit-race.md) — 多 agent 共用工作树时 `git add`→`commit` 之间有竞态,暂存文件会被别人的提交带走;用 `git commit <paths>` 一步提交
