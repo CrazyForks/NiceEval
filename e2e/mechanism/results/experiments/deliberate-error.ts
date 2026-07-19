@@ -5,7 +5,7 @@ import agent from "../agents/openai-compat.ts";
 // to produce a deterministic `errored` verdict for the JUnit `<error>` folding assertion,
 // kept in its own Experiment so it never shares a JUnit file with deliberate-fail.
 export default defineExperiment({
-  description: "deterministic errored verdict — JUnit <error> folding",
+  description: "deliberate-error:确定性 errored 判定,验证 JUnit <error> 折叠",
   agent,
   evals: ["deliberate-error"],
 });

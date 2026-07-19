@@ -7,7 +7,7 @@ import { equals } from "niceeval/expect";
 // needed: `t.check` on a plain value never depends on evidence coverage, so this fails
 // the same way every run.
 export default defineEval({
-  description: "deterministic failing assertion — verifies the failed verdict and JUnit <failure> folding",
+  description: "deliberate-fail:确定性失败断言,验证 failed 判定与 JUnit <failure> 折叠",
 
   async test(t) {
     t.check(1 + 1, equals(3));

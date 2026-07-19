@@ -6,7 +6,7 @@ import { defineEval } from "niceeval";
 // test() is an eval-script exception — a framework/environment-level fault, not an
 // assertion outcome — so the runner records it as `errored`, never `failed`.
 export default defineEval({
-  description: "deterministic thrown error — verifies the errored verdict and JUnit <error> folding",
+  description: "deliberate-error:确定性执行错误(未捕获异常),验证 errored 判定与 JUnit <error> 折叠",
 
   async test() {
     throw new Error("deliberate error for e2e contract testing");

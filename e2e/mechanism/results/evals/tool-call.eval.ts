@@ -6,12 +6,11 @@ import { isDefined } from "niceeval/expect";
 // this Eval's real attempts, run twice (see experiments/main.ts) so sources.json dedup
 // across attempts sharing this eval file has something to exercise.
 export default defineEval({
-  description: "real tool-calling round trip against a Chat Completions-compatible gateway",
+  description: "tool-call:真实 Chat Completions 兼容网关一次工具调用(get_stock_price),验证 calledTool 走通",
 
   async test(t) {
     const turn = await t.send(
-      "What is the current stock price of ACME? Use the get_stock_price tool to look it up, " +
-        "then tell me the price in one short sentence.",
+      "ACME 现在的股价是多少?请使用 get_stock_price 工具查询,然后用一句简短的话告诉我价格。",
     );
     turn.expectOk();
 
