@@ -1110,6 +1110,11 @@ h1 {
   overflow: hidden;
 }
 
+.blog-card-art img,
+.article-mark img {
+  object-fit: cover;
+}
+
 .blog-card-art span,
 .article-mark span {
   position: absolute;

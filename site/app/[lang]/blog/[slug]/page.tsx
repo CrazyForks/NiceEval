@@ -39,6 +39,7 @@ export async function generateMetadata({ params }: { params: BlogPostParams }) {
       siteName: "NiceEval",
       locale: lang === "zh" ? "zh_CN" : "en_US",
       publishedTime: postCopy.date,
+      images: post.cover ? [post.cover] : undefined,
     },
   };
 }
@@ -61,6 +62,7 @@ export default async function BlogPostPage({ params }: { params: BlogPostParams 
           description: postCopy.description,
           datePublished: postCopy.date,
           articleSection: postCopy.category,
+          image: post.cover ? `https://niceeval.com${post.cover}` : undefined,
           url: `https://niceeval.com/${lang}/blog/${slug}`,
           author: { "@type": "Organization", name: "NiceEval" },
           publisher: { "@type": "Organization", name: "NiceEval" },

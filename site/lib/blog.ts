@@ -1,7 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const postsDir = path.join(process.cwd(), "src/blog/posts");
+const coversDir = path.join(process.cwd(), "public/blog");
+const coverExtensions = ["png", "jpg", "jpeg", "webp"] as const;
 const requiredFrontmatter = ["title", "description", "date", "category", "readMinutes"] as const;
 
 export type BlogPostCopy = {
@@ -16,6 +18,7 @@ export type BlogPostCopy = {
 
 export type BlogPost = {
   slug: string;
+  cover: string | null;
   en: BlogPostCopy;
   zh: BlogPostCopy;
 };
@@ -57,11 +60,23 @@ function readPost(slug: string, locale: "en" | "zh") {
   return parseMdxDocument(readFileSync(postPath, "utf8"));
 }
 
+// 封面图放在 public/blog/<slug>/cover.<ext>,和 mdx 内容分离,这样能直接以静态资源 URL 提供给
+// <Image> 和 openGraph 元数据使用,不需要走 Next 的动态 import() 打包。
+function findCover(slug: string): string | null {
+  for (const ext of coverExtensions) {
+    if (existsSync(path.join(coversDir, slug, `cover.${ext}`))) {
+      return `/blog/${slug}/cover.${ext}`;
+    }
+  }
+  return null;
+}
+
 export function getAllBlogPosts(): BlogPost[] {
   return readdirSync(postsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => ({
       slug: entry.name,
+      cover: findCover(entry.name),
       en: readPost(entry.name, "en"),
       zh: readPost(entry.name, "zh"),
     }))

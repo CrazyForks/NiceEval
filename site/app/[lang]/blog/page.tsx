@@ -14,6 +14,7 @@ export async function generateMetadata({ params }: { params: LangParams }) {
   const { lang } = await params;
   if (!hasLocale(lang)) return {};
   const t = getDictionary(lang);
+  const featuredCover = getAllBlogPosts()[0]?.cover;
   return {
     title: t.titleBlog,
     description: t.blogPage.meta,
@@ -28,6 +29,7 @@ export async function generateMetadata({ params }: { params: LangParams }) {
       url: `/${lang}/blog`,
       siteName: "NiceEval",
       locale: lang === "zh" ? "zh_CN" : "en_US",
+      images: featuredCover ? [featuredCover] : undefined,
     },
   };
 }
@@ -52,6 +54,7 @@ export default async function BlogIndexPage({ params }: { params: LangParams }) 
             headline: post[lang].title,
             description: post[lang].description,
             datePublished: post[lang].date,
+            image: post.cover ? `https://niceeval.com${post.cover}` : undefined,
             url: `https://niceeval.com/${lang}/blog/${post.slug}`,
           })),
         }}

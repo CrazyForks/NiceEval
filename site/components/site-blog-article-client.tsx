@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Highlight, themes } from "prism-react-renderer";
@@ -79,12 +80,18 @@ function ArticleBody({ t, locale, post }: { t: Dictionary; locale: Locale; post:
           <p>{postCopy.description}</p>
           <PostMeta postCopy={postCopy} t={t} />
         </div>
-        <div className="article-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
+        {post.cover ? (
+          <div className="article-mark">
+            <Image src={post.cover} alt={postCopy.title} fill sizes="(max-width: 900px) 100vw, 40vw" priority />
+          </div>
+        ) : (
+          <div className="article-mark" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
       </header>
       <MdxBody source={postCopy.body} />
     </article>

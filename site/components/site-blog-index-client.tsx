@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { initAnalytics, track } from "../src/analytics";
@@ -42,11 +43,17 @@ export default function BlogIndexClient({
           </div>
           {post ? (
             <article className="blog-card">
-              <div className="blog-card-art" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
+              {post.cover ? (
+                <div className="blog-card-art">
+                  <Image src={post.cover} alt={post[locale].title} fill sizes="(max-width: 900px) 100vw, 40vw" priority />
+                </div>
+              ) : (
+                <div className="blog-card-art" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
               <div className="blog-card-copy">
                 <span className="post-kicker">{post[locale].category}</span>
                 <h2>{post[locale].title}</h2>
