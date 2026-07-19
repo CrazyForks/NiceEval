@@ -1,5 +1,13 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/openai-compat.ts";
+import { aiSdkAgent } from "niceeval/adapter";
+import { generateText, type ModelMessage } from "ai";
+import { resolveModel } from "../src/model.ts";
+
+const agent = aiSdkAgent<ModelMessage>({
+  name: "results-deliberate-error",
+  generate: ({ messages, model, signal }) =>
+    generateText({ model: resolveModel(model ?? "deepseek-chat"), messages, abortSignal: signal }),
+});
 
 // Never calls the real gateway (deliberate-error.eval.ts throws before any send). Exists
 // to produce a deterministic `errored` verdict for the JUnit `<error>` folding assertion,

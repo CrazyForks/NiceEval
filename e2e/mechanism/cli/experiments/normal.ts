@@ -1,5 +1,20 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/deepseek-chat.ts";
+import { aiSdkAgent } from "niceeval/adapter";
+import { generateText, stepCountIs, type ModelMessage } from "ai";
+import { resolveModel } from "../src/model.ts";
+import { weatherTools } from "../src/tools.ts";
+
+const agent = aiSdkAgent<ModelMessage>({
+  name: "cli-mechanism",
+  generate: ({ messages, model, signal }) =>
+    generateText({
+      model: resolveModel(model ?? "deepseek-v4-flash"),
+      messages,
+      tools: weatherTools(),
+      stopWhen: stepCountIs(3),
+      abortSignal: signal,
+    }),
+});
 
 // 正常路径:两条正例(greet/、tool/ 两个 id 前缀),断言按 Eval 级折叠后整体退出 0。
 // 同时是缓存三步验收的基线实验——scripts/verify.ts 对它先 --force 再不带 --force 再 --force。

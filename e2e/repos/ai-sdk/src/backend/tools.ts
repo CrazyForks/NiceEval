@@ -1,5 +1,5 @@
 // Plain execute functions, deliberately transport-agnostic: the same two functions back
-// the tool defs used by the HTTP server, the in-process agent, and the zero-mapping agent,
+// the tool defs used by the HTTP server and the in-process official Agent factory,
 // so a passing Eval on one entry point is directly comparable to the same Eval on another.
 
 const weatherBank: Record<string, { tempC: number; condition: string }> = {

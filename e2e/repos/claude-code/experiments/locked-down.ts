@@ -1,5 +1,11 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/claude-code-locked-down.ts";
+import { claudeCodeAgent } from "niceeval/adapter";
+
+const agent = claudeCodeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseUrl: process.env.ANTHROPIC_BASE_URL,
+  settingsFile: "configs/claude-code/no-web.json",
+});
 
 // 独立实验:只挂了 settingsFile(permissions.deny)的 agent 才会真的没有 WebSearch/WebFetch。
 export default defineExperiment({

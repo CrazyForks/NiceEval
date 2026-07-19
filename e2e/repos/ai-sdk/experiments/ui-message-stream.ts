@@ -1,6 +1,12 @@
 import { defineExperiment } from "niceeval";
+import { uiMessageStreamAgent } from "niceeval/adapter";
 import { DEFAULT_MODEL } from "../src/backend/models.ts";
-import agent from "../agents/ui-message-stream.ts";
+
+const BASE_URL = process.env.AI_SDK_URL ?? "http://127.0.0.1:34101";
+const agent = uiMessageStreamAgent({
+  name: "ai-sdk-ui-message-stream",
+  url: `${BASE_URL}/api/chat`,
+});
 
 // runs: 3 + earlyExit absorbs a single real-model blip; three consecutive misses is a
 // genuine regression and the matrix should stay red for it.

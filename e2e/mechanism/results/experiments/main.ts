@@ -1,5 +1,20 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/openai-compat.ts";
+import { aiSdkAgent } from "niceeval/adapter";
+import { generateText, stepCountIs, type ModelMessage } from "ai";
+import { resolveModel } from "../src/model.ts";
+import { stockTools } from "../src/tools.ts";
+
+const agent = aiSdkAgent<ModelMessage>({
+  name: "results-mechanism",
+  generate: ({ messages, model, signal }) =>
+    generateText({
+      model: resolveModel(model ?? "deepseek-chat"),
+      messages,
+      tools: stockTools(),
+      stopWhen: stepCountIs(3),
+      abortSignal: signal,
+    }),
+});
 
 // The only Experiment in this repo that calls the real gateway. `runs: 2` with
 // `earlyExit: false` guarantees two real attempts of tool-call even though it's expected

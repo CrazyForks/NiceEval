@@ -7,7 +7,7 @@
 //
 // setup 钩子在 agent.setup 之前把 fixture 上传到沙箱 workdir 下的
 // `.fixtures/e2e-marketplace`(见 EvalDef.setup 时序:eval.setup → agent.setup →
-// test),agents/claude-code-plugin.ts 里的 `marketplace.source` 引用同一个相对路径。
+// test),experiments/plugin.ts 里的 `marketplace.source` 引用同一个相对路径。
 import { defineEval } from "niceeval";
 import type { Sandbox } from "niceeval/sandbox";
 

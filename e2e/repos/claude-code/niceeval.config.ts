@@ -4,11 +4,13 @@ import { dockerSandbox } from "niceeval/sandbox";
 export default defineConfig({
   name: { "zh-CN": "e2e: claude-code(沙箱型内置 agent,docker)", en: "e2e: claude-code (built-in sandbox agent, docker)" },
   judge: { model: "deepseek-v4-pro" },
-  // 默认镜像(node:24-slim)够用:这套 eval 只建/改文件、跑 shell、装 skill/MCP/plugin,
-  // 不需要 python。
-  sandbox: dockerSandbox(),
-  // 沙箱型 agent 每个 attempt 都是全新容器,要重装 CLI(+ setup 阶段的 skills/MCP/plugin);
-  // 挂了 MCP/plugin 的 agent 还要等 npx 下载依赖,10 分钟放足余量。
+  // 用 NiceEval 官方预制镜像(sandbox/README.md「Docker」),claude CLI 已烘焙进
+  // /usr/local/bin,agent setup 的 `command -v claude` 直接命中、跳过 npm install -g;
+  // 多架构 manifest 也顺带避开 Apple Silicon 本机拉 amd64 镜像走 QEMU 模拟的问题。
+  // 升级 CLI 版本(coding-cli-versions.ts)时同步把这里的 tag 换成对应的新 release。
+  sandbox: dockerSandbox({ image: "niceeval/claude-code:v0.9.1" }),
+  // 沙箱型 agent 每个 attempt 都是全新容器;CLI 已随镜像预装,但 setup 阶段的
+  // skills/MCP/plugin 仍要装,挂了 MCP/plugin 的 agent 还要等 npx 下载依赖,10 分钟放足余量。
   timeoutMs: 600_000,
   // 沙箱贵:限制并发,避免本机/CI runner 同时起太多容器抢 CPU。
   maxConcurrency: 2,

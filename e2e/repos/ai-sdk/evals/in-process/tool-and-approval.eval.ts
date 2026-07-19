@@ -1,6 +1,6 @@
 // Protocol behavior: 进程内循环 — aiSdkAgent walks the same tool-call + approval
 // vocabulary as the HTTP (ui-message-stream) transport, proving the two transports agree
-// on event shape. This Eval also carries this repo's OTel proof (see agents/in-process.ts):
+// on event shape. This Eval also carries this repo's OTel proof (see experiments/in-process.ts):
 // the ungated get_weather call is what scripts/verify.ts correlates against `show
 // --execution` / `--timing`, since it has fewer moving parts than the approval-gated call.
 import { defineEval } from "niceeval";

@@ -1,5 +1,10 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/claude-code.ts";
+import { claudeCodeAgent } from "niceeval/adapter";
+
+const agent = claudeCodeAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseUrl: process.env.ANTHROPIC_BASE_URL,
+});
 
 // 基线 agent:coding-task(文件/shell 工具轨)+ session-resume(原生 resume + usage)。
 export default defineExperiment({

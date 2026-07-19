@@ -1,5 +1,4 @@
-// Model resolution shared by all three entry points (HTTP server, in-process agent,
-// zero-mapping agent) so the underlying provider wiring only lives in one place.
+// Model resolution shared by the HTTP server and in-process official Agent factory.
 //
 // "deepseek-v4-flash" is the same alias other e2e repos use against DEEPSEEK_BASE_URL
 // (a proxy gateway, not the public DeepSeek API) — reusing it keeps this repo's cost

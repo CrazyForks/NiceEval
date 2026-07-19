@@ -9,7 +9,11 @@ export default defineConfig({
   // 仍需要充裕的时间预算。
   timeoutMs: 300_000,
   // 项目级兜底 sandbox:每个 Eval 都跑同一个预制镜像(见 docker/Dockerfile +
-  // scripts/build-docker-env.ts),不逐 eval 声明。
+  // scripts/build-docker-env.ts),不逐 eval 声明。不用官方 niceeval/bub 镜像(sandbox/README.md
+  // 「Docker」)——那个镜像烘焙的是不带 pythonPlugins 的裸 bub,而 experiments/ci.ts 的
+  // agent 配了 pythonPlugins: [{ package: "cowsay" }],安装指纹永远对不上裸镜像;这套 eval
+  // 本来就是要验证「pythonPlugins 声明的包被真正装进 bub 自己的 uv tool venv」这条运行时安装
+  // 路径,预装反而会跳过它要证明的行为。
   sandbox: dockerSandbox({ image: IMAGE_TAG }),
   // 同一进程内的 attempt 共享 bub 安装的内存 checkpoint(见 src/agents/bub.ts 的
   // installsInProgress 互斥),小并发即可,不必对 Docker daemon 施加更大压力。

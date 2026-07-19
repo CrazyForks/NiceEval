@@ -1,10 +1,11 @@
 import { defineEval } from "niceeval";
 import { commandSucceeded, includes } from "niceeval/expect";
 import { REPLY_DIRECTIVE, SKIP_BUILD_NOTE } from "../shared.ts";
-import { POSTSETUP_ORDER_LOG } from "../../agents/bub.ts";
+
+const POSTSETUP_ORDER_LOG = "/tmp/niceeval-bub-postsetup-order.log";
 
 // pythonPlugins + postSetup(docs/engineering/e2e-ci/adapters/bub.md):
-//   1. postSetup 钩子按声明顺序执行,证据落进 POSTSETUP_ORDER_LOG(agents/bub.ts)——
+//   1. postSetup 钩子按声明顺序执行,证据落进 POSTSETUP_ORDER_LOG(experiments/ci.ts)——
 //      直接读文件断言顺序,不依赖模型这次怎么回答。
 //   2. pythonPlugins 声明的包被真正装进 bub 自己的 uv tool venv(`uv tool install bub --with
 //      cowsay`),用 uv 的标准 venv 布局直接验证可导入;同时也让 agent 自己跑一次同样的

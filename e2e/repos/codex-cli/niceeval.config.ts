@@ -6,12 +6,13 @@ export default defineConfig({
   // NICEEVAL_JUDGE_BASE 这个网关只认 deepseek-v4-pro / deepseek-v4-flash(实测确认,同一凭据
   // 已在 e2e/repos/codex-sdk 验证过),不是通用 OpenAI 兼容网关,不能沿用 gpt-5.4 之类的模型名。
   judge: { model: "deepseek-v4-flash" },
-  // 默认镜像(node:24-slim)够用;plugin 实验按需自带一个额外的 git 安装 setup 钩子
-  // (见 experiments/plugin.ts),不在这里全局装 git——其它实验不需要,省下每 attempt 的
-  // apt-get 开销。
-  sandbox: dockerSandbox(),
-  // 沙箱型 agent 每个 attempt 都是全新容器,要重装 CLI(+ setup 阶段的 skills/MCP/plugin);
-  // 实测本机单次 attempt 数十秒到数分钟,10 分钟放足余量。
+  // 用 NiceEval 官方预制镜像(sandbox/README.md「Docker」),codex CLI 与 git/curl/
+  // ca-certificates 都已烘焙进镜像,agent setup 的 `command -v codex` 直接命中、跳过
+  // npm install -g;多架构 manifest 也顺带避开 Apple Silicon 本机拉 amd64 镜像走 QEMU
+  // 模拟的问题。升级 CLI 版本(coding-cli-versions.ts)时同步把这里的 tag 换成对应的新 release。
+  sandbox: dockerSandbox({ image: "niceeval/codex:v0.9.1" }),
+  // 沙箱型 agent 每个 attempt 都是全新容器;CLI 已随镜像预装,但 setup 阶段的
+  // skills/MCP/plugin 仍要装;实测本机单次 attempt 数十秒到数分钟,10 分钟放足余量。
   timeoutMs: 600_000,
   maxConcurrency: 2,
 });

@@ -1,4 +1,4 @@
-// 全部 4 条 Eval 共用同一个 bubAgent 配置(agents/bub.ts),该配置在 setup() 阶段没有
+// 全部 4 条 Eval 共用 experiments/ci.ts 直接实例化的官方 bubAgent,该配置在 setup() 阶段没有
 // AGENTS.md 时会写一段通用的 Next.js 项目说明(见 src/agents/bub.ts),其中包含
 // "verify with bash(\"cd <workspace> && npm run build\")"。本仓库的任务都不是真实的
 // Next.js 项目,一个空 workspace 上跑 npm run build 必然失败,会污染 noFailedActions()/

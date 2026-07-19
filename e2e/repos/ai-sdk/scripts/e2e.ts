@@ -1,6 +1,6 @@
 // Single entry point (docs/engineering/e2e-ci/README.md §3.1): install, start the
-// HTTP app under test (only ui-message-stream needs it; in-process and zero-mapping
-// call generateText directly), run verify.ts, classify the outcome into 0 / 75 / other.
+// HTTP app under test (only ui-message-stream needs it; in-process calls generateText
+// directly), run verify.ts, classify the outcome into 0 / 75 / other.
 import "dotenv/config";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

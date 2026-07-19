@@ -1,5 +1,20 @@
 import { defineExperiment } from "niceeval";
-import agent from "../agents/bub.ts";
+import { bubAgent } from "niceeval/adapter";
+import type { SandboxHook } from "niceeval/sandbox";
+
+const POSTSETUP_ORDER_LOG = "/tmp/niceeval-bub-postsetup-order.log";
+const markFirst: SandboxHook = async (sandbox) => {
+  await sandbox.runShell(`printf 'first\\n' >> ${POSTSETUP_ORDER_LOG}`);
+};
+const markSecond: SandboxHook = async (sandbox) => {
+  await sandbox.runShell(`printf 'second\\n' >> ${POSTSETUP_ORDER_LOG}`);
+};
+
+const agent = bubAgent({
+  skills: [{ kind: "local", path: "skills/review/SKILL.md" }],
+  pythonPlugins: [{ package: "cowsay" }],
+  postSetup: [markFirst, markSecond],
+});
 
 // 单一实验:全部 4 条 Eval 共用同一个 agent 变体和同一份安装 checkpoint,只证明协议路径通
 // (docs/engineering/e2e-ci/adapters/README.md「仓库 Eval 预算」),不做多样本统计。

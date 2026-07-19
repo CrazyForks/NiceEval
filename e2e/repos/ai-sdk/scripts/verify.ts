@@ -10,7 +10,6 @@ const EXPECTED_EVALS = [
   "ui-message-stream/hitl-approval",
   "ui-message-stream/session-replay",
   "in-process/tool-and-approval",
-  "zero-mapping/tool-call",
 ];
 
 function sh(cmd: string, expect: number | "nonzero" = 0): string {
@@ -43,8 +42,8 @@ interface JsonSummary {
 }
 
 export async function runVerify(): Promise<void> {
-  // Single combined command runs all three Experiments (ui-message-stream, in-process,
-  // zero-mapping) covering this repo's three entry points; logged unconditionally so
+  // Single combined command runs both official Agent factories (ui-message-stream and
+  // in-process); logged unconditionally so
   // scripts/e2e.ts can classify infra-vs-regression from the raw --output ci log even
   // when the assert below throws.
   const runCmd = "pnpm exec niceeval exp --force --output ci --json summary.json --junit junit.xml";
@@ -61,13 +60,13 @@ export async function runVerify(): Promise<void> {
   // Bare `show` groups by experiment rather than flattening every eval id (current CLI),
   // so the id-level check goes one level down via `--exp`.
   const board = sh("pnpm exec niceeval show");
-  for (const experimentId of ["ui-message-stream", "in-process", "zero-mapping"]) {
+  for (const experimentId of ["ui-message-stream", "in-process"]) {
     assert.ok(
       board.includes(experimentId),
       `show board is missing the ${experimentId} experiment group — discovery/selection changed`,
     );
   }
-  for (const experimentId of ["ui-message-stream", "in-process", "zero-mapping"]) {
+  for (const experimentId of ["ui-message-stream", "in-process"]) {
     const groupBoard = sh(`pnpm exec niceeval show --exp ${experimentId}`);
     for (const id of EXPECTED_EVALS.filter((e) => e.startsWith(`${experimentId}/`))) {
       assert.ok(
@@ -92,7 +91,7 @@ export async function runVerify(): Promise<void> {
   // carry no token counts at all (see src/agents/ui-message-stream.ts's coverage
   // declaration — usage is honestly `unavailable`, not a bug to assert against here).
   const summary = JSON.parse(readFileSync("summary.json", "utf8")) as JsonSummary;
-  for (const id of ["zero-mapping/tool-call", "in-process/tool-and-approval"]) {
+  for (const id of ["in-process/tool-and-approval"]) {
     const result = summary.results.find((r) => r.id === id);
     assert.ok(result, `summary.json has no result entry for ${id}`);
     assert.ok(
