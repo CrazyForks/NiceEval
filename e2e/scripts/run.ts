@@ -220,11 +220,12 @@ async function runRepoOnce(
   await copyRepoIsolated(repo.dir, copyDir);
   await pointAtCandidateTarball(copyDir, candidate.path);
 
-  const installCode = await runInherited(
-    "pnpm",
-    ["install", "--no-frozen-lockfile", "--config.dangerouslyAllowAllBuilds=true"],
-    copyDir,
-  );
+  // Each repo declares its own `allowBuilds` in pnpm-workspace.yaml (README §2.1) — that's
+  // the source of truth for which native builds run, not a blanket CLI override. pnpm 10.33+
+  // translates allowBuilds into onlyBuiltDependencies, and a `--config.dangerouslyAllowAllBuilds`
+  // override collides with it (pnpm sets neverBuiltDependencies to an empty-but-truthy array,
+  // which pnpm's own guard rejects alongside a non-empty onlyBuiltDependencies).
+  const installCode = await runInherited("pnpm", ["install", "--no-frozen-lockfile"], copyDir);
   if (installCode !== 0) {
     return {
       exitCode: null,
