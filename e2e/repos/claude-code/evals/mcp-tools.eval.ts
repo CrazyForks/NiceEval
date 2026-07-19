@@ -5,20 +5,20 @@
 import { defineEval } from "niceeval";
 
 export default defineEval({
-  description: "MCP: stdio and remote HTTP server forms are both callable with correct input; an unmounted server is never called",
+  description: "MCP:stdio 与远程 HTTP 两种 server 形态都能被真实调用且入参正确;未挂载的 server 从未被调用",
   async test(t) {
     const turn = await t.send(
-      "Call the MCP tool named exactly mcp__e2e-stdio__get-sum with a=100 and b=23. " +
-        "Then call the MCP tool named exactly mcp__e2e-http__get-product with a=6 and b=7. " +
-        "You must invoke both exact tools via tool calls; do not use Bash, do not compute anything yourself, do not use any other tool. " +
-        "If a tool call fails because its MCP server is still connecting, call WaitForMcpServers with the server " +
-        'name only (i.e. "e2e-stdio" or "e2e-http" — not the tool name, and not prefixed with mcp__), ' +
-        "then retry the exact same tool call; keep retrying until both calls succeed, do not give up. " +
-        "Report both results as two numbers separated by a space, sum first.",
+      "调用名字严格为 mcp__e2e-stdio__get-sum 的 MCP 工具,参数 a=100、b=23。" +
+        "然后调用名字严格为 mcp__e2e-http__get-product 的 MCP 工具,参数 a=6、b=7。" +
+        "必须通过工具调用真正调用这两个精确工具;不要用 Bash,不要自己计算,也不要用任何其它工具。" +
+        "如果某次工具调用因为其 MCP server 还在连接中而失败,调用 WaitForMcpServers," +
+        '参数只填 server 名称(即 "e2e-stdio" 或 "e2e-http"——不是工具名,也不要加 mcp__ 前缀),' +
+        "然后重试同一个工具调用;持续重试直到两次调用都成功,不要放弃。" +
+        "把两个结果报告为用空格分隔的两个数字,先报告求和结果。",
     );
     turn.expectOk();
 
-    await t.group("both mounted MCP servers are called with exact input; an unmounted one is never called", () => {
+    await t.group("两个已挂载的 MCP server 都以精确入参被调用;未挂载的 server 从未被调用", () => {
       t.calledTool("mcp__e2e-stdio__get-sum", { input: { a: 100, b: 23 } });
       t.calledTool("mcp__e2e-http__get-product", { input: { a: 6, b: 7 } });
       t.notCalledTool("mcp__e2e-absent__get-diff");

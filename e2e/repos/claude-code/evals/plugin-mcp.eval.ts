@@ -12,19 +12,19 @@ import { defineEval } from "niceeval";
 import type { Sandbox } from "niceeval/sandbox";
 
 export default defineEval({
-  description: "Plugins: a marketplace-installed plugin's bundled MCP server is wired in and callable with correct input",
+  description: "Plugins:marketplace 安装的 plugin 自带的 MCP server 已接线且能以正确入参被调用",
   async setup(sandbox: Sandbox) {
     // uploadDirectory 的本地目录相对 eval 定义文件所在目录(evals/)解析,不是项目根。
     await sandbox.uploadDirectory("../fixtures/plugins/e2e-marketplace", ".fixtures/e2e-marketplace");
   },
   async test(t) {
     const turn = await t.send(
-      "Call the MCP tool named exactly mcp__plugin_e2e-plugin_tools__get-sum with a=55 and b=8. " +
-        "Do not use Bash, do not compute it yourself, do not use any other tool. " +
-        "If the call fails because its MCP server is still connecting, call WaitForMcpServers with the server " +
-        'name only ("plugin_e2e-plugin_tools" — not the tool name, and not prefixed with mcp__), ' +
-        "then retry the exact same tool call; keep retrying until it succeeds, do not give up. " +
-        "Report only the final number it returns.",
+      "调用名字严格为 mcp__plugin_e2e-plugin_tools__get-sum 的 MCP 工具,参数 a=55、b=8。" +
+        "不要用 Bash,不要自己计算,也不要用任何其它工具。" +
+        "如果调用因为其 MCP server 还在连接中而失败,调用 WaitForMcpServers," +
+        '参数只填 server 名称("plugin_e2e-plugin_tools"——不是工具名,也不要加 mcp__ 前缀),' +
+        "然后重试同一个工具调用;持续重试直到成功,不要放弃。" +
+        "只报告它返回的最终数字。",
     );
     turn.expectOk();
 

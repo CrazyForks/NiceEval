@@ -9,21 +9,21 @@ import { defineEval } from "niceeval";
 const TOPIC = "niceeval-e2e-skill-topic-926";
 
 export default defineEval({
-  description: "Skills: a mounted local Skill produces a skill.loaded event and its content shapes the answer",
+  description: "Skills:挂载的本地 Skill 产生 skill.loaded 事件,其内容会影响回答",
   async test(t) {
     const turn = await t.send(
-      `What is ${TOPIC}? Check whether you have a skill about this exact topic before answering, and use it if you do.`,
+      `${TOPIC} 是什么?回答前先检查你是否有一个关于这个确切主题的 skill,如果有就使用它。`,
     );
     turn.expectOk();
 
-    await t.group("native Skill tool invoked, normalized to skill.loaded", () => {
+    await t.group("原生 Skill 工具被调用,归一为 skill.loaded", () => {
       t.loadedSkill("e2e-marker");
       t.messageIncludes("926");
     });
 
     t.judge.autoevals
       .closedQA(
-        'Does the assistant\'s answer state that the magic number is 926 (the exact content of the e2e-marker skill), rather than a generic guess or refusal?',
+        '助手的回答是否明确说明这个魔法数字是 926(e2e-marker skill 里的确切内容),而不是泛泛的猜测或拒绝回答?',
       )
       .atLeast(0.6);
   },

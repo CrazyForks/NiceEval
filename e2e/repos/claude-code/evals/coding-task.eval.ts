@@ -10,18 +10,18 @@ const MARKER_A = "niceeval-e2e-marker-alpha-926";
 const MARKER_B = "niceeval-e2e-marker-beta-926";
 
 export default defineEval({
-  description: "coding-task tool trail: file_write + file_edit + shell events, call/result paired via completed status",
+  description: "coding-task 工具轨:file_write + file_edit + shell 事件,调用与结果通过 completed 状态配对成立",
   async test(t) {
     const turn = await t.send(
-      "In the current directory, do these three steps in order: " +
-        `(1) create a file named notes.txt containing exactly one line: ${MARKER_A}. ` +
-        `(2) Edit notes.txt to append a second line containing exactly: ${MARKER_B}. ` +
-        "(3) Run the shell command 'cat notes.txt' and show me its output.",
+      "在当前目录下按顺序完成以下三步:" +
+        `(1) 创建一个名为 notes.txt 的文件,内容恰好一行:${MARKER_A}。` +
+        `(2) 编辑 notes.txt,追加恰好一行:${MARKER_B}。` +
+        "(3) 运行 shell 命令 'cat notes.txt',并把它的输出展示给我。",
     );
     turn.expectOk();
     t.succeeded();
 
-    await t.group("file and shell tool events are present and completed", () => {
+    await t.group("file 与 shell 工具事件均已出现且状态为 completed", () => {
       t.calledTool("file_write", { status: "completed" });
       t.calledTool("file_edit", { status: "completed" });
       t.calledTool("shell", { status: "completed", input: { command: /notes\.txt/ } });
