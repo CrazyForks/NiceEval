@@ -357,17 +357,6 @@ export interface TraceWaterfallRow {
   spans: readonly TraceSpanSummary[];
 }
 
-/**
- * `experimentComparisonData()` 的产物:对完整 Scope 只算一份 summary / scatter /
- * experiments——不同深度目录的 experiments 一律进同一份 data,不再按父路径分组比较
- * (docs/feature/reports/library/summaries.md「ExperimentComparison」)。
- */
-export interface ExperimentComparisonData {
-  summary: ScopeSummaryData;
-  scatter: ScatterData;
-  experiments: ExperimentListItem[];
-}
-
 // ───────────────────────── 实体列表(ExperimentList / EvalList / AttemptList)─────────────────────────
 //
 // 三个组件按「experiment → experimentId × eval → attempt」逐级下钻,固定展示实体事实,

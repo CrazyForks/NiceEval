@@ -19,7 +19,6 @@ import type {
   DeltaPair,
   DimensionInput,
   EvalListItem,
-  ExperimentComparisonData,
   ExperimentListEvalRow,
   ExperimentListItem,
   FlagPairs,
@@ -42,7 +41,7 @@ import type {
 } from "./types.ts";
 import type { EvalResult, JsonValue, TraceSpan } from "../types.ts";
 import type { Snapshot } from "../results/types.ts";
-import { comparabilityConfigOf, deepEqualJson } from "../results/select.ts";
+import { comparabilityConfigOf, deepEqualJson, selectedEvalIdsOf } from "../results/select.ts";
 import { evalLevelStats, foldEvalVerdict } from "../shared/verdict.ts";
 import { experimentGroupOf } from "../shared/aggregate.ts";
 import {
@@ -262,6 +261,24 @@ export async function evalListData(input: ReportInput): Promise<EvalListItem[]> 
 }
 
 /**
+ * 每个 experiment 只保留自己 `selectedEvalIds` 内的 eval/attempt——两个 experiment 声明不同
+ * eval 集时各自只统计自己选中的那部分,未选择的 eval(即使恰好在同一次运行里跑过)不进
+ * 分母、不污染另一个 experiment。第三方快照缺该字段时 `selectedEvalIdsOf` 退化为其实际
+ * evals,过滤天然是 no-op。宿主注入的 current() Scope 在合成时已按这条规则收窄,这里对
+ * 真实 Scope 是幂等的;只对作者手工拼的 Snapshot[] 真正生效。`experimentListData` /
+ * `scopeSummaryData` / `metricScatterData` 共用同一条规则,保证经 `ExperimentComparison`
+ * 展开后收到的 spec 与直接调用同一份 input 深相等。
+ */
+function selectedEvalsOnly(snapshots: readonly Snapshot[]): readonly Snapshot[] {
+  return snapshots.map((snapshot) => {
+    const selected = new Set(selectedEvalIdsOf(snapshot));
+    const evals = snapshot.evals.filter((ev) => selected.has(ev.id));
+    if (evals.length === snapshot.evals.length) return snapshot;
+    return { ...snapshot, evals, attempts: evals.flatMap((ev) => ev.attempts) };
+  });
+}
+
+/**
  * `experimentListData(input)`:每个 experiment 一项,展开到每道 Eval;初始按端到端通过率
  * 从高到低(缺数据沉底,同分按 id)。一行只有一套 agent / model / flags 是输入约束:
  * 宿主注入的 current() Scope 保证每个 experiment 只由可比性配置一致的快照拼成;作者自选
@@ -269,7 +286,8 @@ export async function evalListData(input: ReportInput): Promise<EvalListItem[]> 
  * 看跨配置演化用 snapshot 维度或 MetricLine,不把两套配置拼成一行冒充单一配置。
  */
 export async function experimentListData(input: ReportInput): Promise<ExperimentListItem[]> {
-  const { snapshots } = resolveInput(input);
+  const { snapshots: rawSnapshots } = resolveInput(input);
+  const snapshots = selectedEvalsOnly(rawSnapshots);
 
   // 可比性配置单义检查:同一 experiment 的输入快照必须共享一套可比性配置。
   const configByExperiment = new Map<string, { snapshot: Snapshot; config: unknown }>();
@@ -387,7 +405,7 @@ function summarizeItems(items: Item[]): {
  * data 恒携带两级计票;通过率来自官方两级指标引擎,不从任一计票重算。
  */
 export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummaryData> {
-  const { snapshots } = resolveInput(input);
+  const snapshots = selectedEvalsOnly(resolveInput(input).snapshots);
   const items = collectItems(snapshots);
 
   let earliest: string | null = null;
@@ -411,66 +429,6 @@ export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummary
     endToEndPassRate: await computeCell(endToEndPassRate, items),
     totalCostUSD: await computeCell(totalCostMetric, items),
   };
-}
-
-// ───────────────────────── experimentComparisonData ─────────────────────────
-
-export interface ExperimentComparisonOptions {
-  /**
-   * 散点的 series 维度。缺省解析:Scope 内任一实验声明了 label `line` → `label("line")`
-   * 并由渲染面连线;否则 `"agent"`、不连线。显式传入覆盖缺省值。
-   */
-  series?: SeriesInput;
-}
-
-/** 默认报告识别的归类键:声明了它的实验按线归类并连线(docs/feature/experiments/library.md「labels」)。 */
-const LINE_LABEL_KEY = "line";
-const LINE_SERIES: DimensionInput = { kind: "label", name: LINE_LABEL_KEY };
-
-/** 散点的固定两轴;series 缺省解析,见 comparisonSeriesFor。 */
-const COMPARISON_SCATTER_AXES = { points: "experiment", x: costUSD, y: endToEndPassRate } as const;
-
-/** 缺省 series:Scope 内任一快照声明了 labels.line 用 line 维度,否则 agent。 */
-function comparisonSeriesFor(scopeSnapshots: readonly Snapshot[]): SeriesInput {
-  const hasLine = scopeSnapshots.some((s) => s.experiment?.labels?.[LINE_LABEL_KEY] !== undefined);
-  return hasLine ? LINE_SERIES : "agent";
-}
-
-/**
- * 默认比较契约的选题投影:每个 snapshot 只保留自己 `experiment.selectedEvalIds` 集合内的
- * evals/attempts——两个 experiment 声明不同 evals 时各自只统计自己选中的那部分,未选择的
- * eval(即使恰好在同一次运行里跑过)不污染另一个 experiment 的分母。第三方快照无该字段时
- * 保留其实际全部 evals(退化,与 `selectedEvalIdsOf` 同规则)。只投影容器、复用现有
- * attempt handle——不修改输入对象、不为空缺 eval 造 attempt,下钻(ref / locator)身份不变。
- */
-function comparisonSnapshots(snapshots: readonly Snapshot[]): Snapshot[] {
-  return snapshots.map((snapshot) => {
-    const ids = snapshot.experiment?.selectedEvalIds;
-    if (ids === undefined) return snapshot;
-    const selected = new Set(ids);
-    const evals = snapshot.evals.filter((ev) => selected.has(ev.id));
-    return { ...snapshot, evals, attempts: evals.flatMap((ev) => ev.attempts) };
-  });
-}
-
-/**
- * `experimentComparisonData(input, options?)`:对完整 Scope(按各自 `selectedEvalIds`
- * 投影后)只计算一份 ScopeSummary、成本 × 端到端通过率散点和 ExperimentList——不同深度目录
- * 的 experiments(`compare/a`、`bench/long/x`、`standalone`)一律进同一份 data,不再按父路径
- * 分组比较、不生成 tab 或 panel 索引。series 缺省解析(comparisonSeriesFor),显式传入覆盖。
- */
-export async function experimentComparisonData(
-  input: ReportInput,
-  options?: ExperimentComparisonOptions,
-): Promise<ExperimentComparisonData> {
-  const allSnapshots = comparisonSnapshots(resolveInput(input).snapshots);
-  const series = options?.series ?? comparisonSeriesFor(allSnapshots);
-  const [summary, scatter, experiments] = await Promise.all([
-    scopeSummaryData(allSnapshots),
-    metricScatterData(allSnapshots, { ...COMPARISON_SCATTER_AXES, series }),
-    experimentListData(allSnapshots),
-  ]);
-  return { summary, scatter, experiments };
 }
 
 // ───────────────────────── scoreboardData ─────────────────────────
@@ -676,7 +634,7 @@ export interface MetricScatterOptions {
 }
 
 export async function metricScatterData(input: ReportInput, options: MetricScatterOptions): Promise<ScatterData> {
-  const { snapshots } = resolveInput(input);
+  const snapshots = selectedEvalsOnly(resolveInput(input).snapshots);
   const items = filterItems(collectItems(snapshots), options.evals);
   const groups = groupItems(items, options.points);
   const rows: ScatterData["rows"] = [];

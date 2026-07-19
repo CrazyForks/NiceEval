@@ -28,7 +28,6 @@ import type {
   CopyFixPromptData,
   DeltaData,
   EvalListItem,
-  ExperimentComparisonData,
   ExperimentListItem,
   HeroData,
   LineData,
@@ -38,6 +37,7 @@ import type {
   ScopeSummaryData,
   ScopeWarning,
   ScoreboardData,
+  SeriesInput,
   TableData,
   TraceWaterfallRow,
 } from "./types.ts";
@@ -46,7 +46,6 @@ import {
   copyFixPromptData,
   deltaTableData,
   evalListData,
-  experimentComparisonData,
   experimentListData,
   heroData,
   metricLineData,
@@ -60,17 +59,17 @@ import {
   type DeltaTableOptions,
   type MetricLineOptions,
   type MetricMatrixOptions,
-  type ExperimentComparisonOptions,
   type MetricScatterOptions,
   type MetricTableOptions,
   type ScoreboardOptions,
 } from "./compute.ts";
-import { collectItems, locatorOf, resolveInput } from "./aggregate.ts";
+import { collectItems, locatorOf, resolveInput, seriesName } from "./aggregate.ts";
+import { label } from "./flag.ts";
+import { costUSD, endToEndPassRate } from "./metrics.ts";
 import {
   attemptListText,
   deltaText,
   evalListText,
-  experimentComparisonText,
   experimentListText,
   barsText,
   heroCardText,
@@ -83,8 +82,8 @@ import {
   tableText,
   traceWaterfallText,
 } from "./text/faces.ts";
+import { Col } from "./primitives.tsx";
 import { ScopeSummary as ScopeSummaryWeb } from "./react/ScopeSummary.tsx";
-import { ExperimentComparisonView } from "./react/ExperimentComparison.tsx";
 import { ExperimentList as ExperimentListWeb } from "./react/ExperimentList.tsx";
 import { EvalList as EvalListWeb } from "./react/EvalList.tsx";
 import { AttemptList as AttemptListWeb } from "./react/AttemptList.tsx";
@@ -230,16 +229,6 @@ const validateScopeSummaryData: Validator = (data) => {
   if (!isCell(data.endToEndPassRate) || !isCell(data.totalCostUSD)) {
     return 'missing "endToEndPassRate" / "totalCostUSD" (MetricCell)';
   }
-  return null;
-};
-
-const validateComparisonData: Validator = (data) => {
-  if (!isObject(data)) return "expected an object";
-  if (validateScopeSummaryData(data.summary) !== null) return 'missing "summary" (ScopeSummaryData)';
-  if (!isObject(data.scatter) || !Array.isArray((data.scatter as Record<string, unknown>).rows)) {
-    return 'missing "scatter" (ScatterData)';
-  }
-  if (!Array.isArray(data.experiments)) return 'missing "experiments" (array)';
   return null;
 };
 
@@ -436,36 +425,58 @@ export const ScopeSummary = makeDataComponent<
 }) as unknown as ReportComponent<ScopeSummaryProps>;
 
 type ComparisonChrome = ChromeProps & {
-  /** 透传给散点;契约同 MetricScatter 的 connect。缺省时 series 维度为 "line" 时连线。 */
+  /** 透传给散点;缺省跟随缺省 series 解析——按 line 归类时连线(声明了线就画线)。 */
   connect?: boolean;
 };
 
-export type ExperimentComparisonProps = DataProps<ExperimentComparisonData, ExperimentComparisonOptions, ComparisonChrome>;
+export type ExperimentComparisonProps = ComparisonChrome & {
+  input?: ReportInput;
+  /** 散点的 series 维度。缺省解析:Scope 内任一实验声明了 label `line` → `label("line")` 并连线;否则 `"agent"`、不连线。 */
+  series?: SeriesInput;
+};
+
+/** 默认报告识别的归类键:声明了它的实验按线归类并连线(docs/feature/experiments/library.md「labels」)。 */
+const LINE_LABEL_KEY = "line";
 
 /**
- * 内建报告的默认组合件:对完整 input 计算一份 ScopeSummary、成本 × 端到端通过率散点和
- * ExperimentList——不同深度目录的 experiments 一律同屏,不分组、不生成 tab 或 panel 索引。
- * web/text 两面都直接显示完整 Scope。series 缺省解析(Scope 内有 label `line` 声明 →
- * 按线归类并连线,否则 agent、不连线)。
+ * 缺省 series:Scope 内任一快照声明了 labels.line 用 line 维度,否则 agent;显式传入覆盖。
+ * connect 缺省跟随最终 series 是否解析为 line(即便是显式传入的)。
  */
-export const ExperimentComparison = makeDataComponent<ExperimentComparisonData, ExperimentComparisonOptions, ComparisonChrome>({
-  name: "ExperimentComparison",
-  dataFnName: "experimentComparisonData",
-  shapeName: "ExperimentComparisonData",
-  dataFn: (input, options) => experimentComparisonData(input, options),
-  specKeys: ["series"],
-  validate: validateComparisonData,
-  web: (props, ctx) => (
-    <ExperimentComparisonView
-      data={props.data}
-      connect={props.connect}
-      locale={props.locale ?? ctx.locale}
-      className={props.className}
-      attemptHref={ctx.attemptHref}
-    />
-  ),
-  text: (props, ctx) => experimentComparisonText(props.data, props.className, ctx, props.connect),
-}) as unknown as ReportComponent<ExperimentComparisonProps>;
+function resolveComparisonSeries(
+  input: ReportInput,
+  props: { series?: SeriesInput; connect?: boolean },
+): { series: SeriesInput; connect: boolean } {
+  const hasLine = resolveInput(input).snapshots.some((s) => s.experiment?.labels?.[LINE_LABEL_KEY] !== undefined);
+  const series = props.series ?? (hasLine ? label(LINE_LABEL_KEY) : "agent");
+  return { series, connect: props.connect ?? seriesName(series) === LINE_LABEL_KEY };
+}
+
+/**
+ * 内建报告的默认组合件:把同一个 input(缺省 ctx.scope)原样透传给 ScopeSummary、
+ * 成本 × 端到端通过率的 MetricScatter 与 ExperimentList——组合本身不二次计算或过滤,
+ * 也不导出自己的 data 形态;每个叶子组件按自己的公开契约取数,共享计算由 resolve 的
+ * 「同引用 input + 深相等 spec」记忆化保证。
+ */
+export const ExperimentComparison = defineComponent<ExperimentComparisonProps>((props, ctx) => {
+  const input = props.input ?? ctx.scope;
+  const { series, connect } = resolveComparisonSeries(input, props);
+  return (
+    <Col className={props.className}>
+      <ScopeSummary input={input} locale={props.locale} />
+      <MetricScatter
+        input={input}
+        points="experiment"
+        series={series}
+        connect={connect}
+        x={costUSD}
+        y={endToEndPassRate}
+        locale={props.locale}
+      />
+      <ExperimentList input={input} filter locale={props.locale} />
+    </Col>
+  );
+});
+ExperimentComparison.displayName = "ExperimentComparison";
 
 // ───────────────────────── 实体列表 ─────────────────────────
 

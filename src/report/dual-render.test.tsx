@@ -46,8 +46,9 @@ import {
   TraceWaterfall,
 } from "./components.tsx";
 import { Col, Row, Section, Style, Tab, Table, Tabs, Text } from "./primitives.tsx";
-import { attemptListData, metricScatterData } from "./compute.ts";
+import { attemptListData, experimentListData, metricScatterData, scopeSummaryData } from "./compute.ts";
 import { costUSD, defineMetric, endToEndPassRate } from "./metrics.ts";
+import { label } from "./flag.ts";
 import builtInReport, { standard } from "./built-in/index.tsx";
 
 // ───────────────────────── fake 数据 ─────────────────────────
@@ -992,12 +993,13 @@ describe("内建报告", () => {
     expect(html).toContain("dev/b");
   });
 
-  it("0/1/多 experiment 均可渲染;0 个时两面显示空态", async () => {
+  it("0/1/多 experiment 均可渲染;0 个时三个叶子组件各自显示自己的空态", async () => {
     const empty = { scope: scopeOf([]), results: resultsOf([]) };
     const emptyText = await renderReportToText(builtInReport, empty, { width: 120 });
-    expect(emptyText).toContain("No experiments");
+    expect(emptyText).toContain("No data to plot Cost × Pass rate"); // MetricScatter 零点空态
+    expect(emptyText).toContain("No attempts"); // ExperimentList 零行空态
     const emptyHtml = await renderReportToStaticHtml(builtInReport, empty);
-    expect(emptyHtml).toContain("No experiments");
+    expect(emptyHtml).toContain("No data to plot Cost × Pass rate");
 
     const priced = snap({
       experimentId: "compare/priced",
@@ -1011,6 +1013,116 @@ describe("内建报告", () => {
     expect(single).toContain("Eval / Attempt"); // 单 experiment 直接展示散点与实验明细
     // 成本轴(better: lower)反向渲染,「更好」恒指向右上;两轴都声明 better → 提示在场
     expect(single).toContain("better → upper right");
+  });
+});
+
+// ───────────────────────── ExperimentComparison(组合组件)─────────────────────────
+
+describe("ExperimentComparison(组合组件)", () => {
+  /** 展开树里 [ScopeSummary, MetricScatter, ExperimentList] 三个已解析元素。 */
+  async function resolveComparisonChildren(
+    node: ReportNode,
+    snapshots: Snapshot[],
+  ): Promise<Array<{ props: { data: unknown } }>> {
+    const scope = scopeOf(snapshots);
+    const definition = defineReport(node);
+    const page = pickReportPage(definition);
+    const resolved = (await resolveReportTree(page.content, {
+      scope,
+      results: resultsOf(snapshots),
+      report: buildReportMeta(definition, scope),
+      page: { id: page.id, input: "scope" },
+      memo: new ResolveMemo(),
+    })) as unknown as { props: { children: Array<{ props: { data: unknown } }> } };
+    return resolved.props.children;
+  }
+
+  it("等价于手写的 Col<ScopeSummary/MetricScatter/ExperimentList>:同一份 input 下两棵树渲染逐字节相同(text 与 web)", async () => {
+    const a = snap({ experimentId: "cmp/a", agent: "bub", results: [res("q", "passed")] });
+    const b = snap({ experimentId: "cmp/b", agent: "codex", results: [res("q", "failed")] });
+    const ctx = { scope: scopeOf([a, b]), results: resultsOf([a, b]) };
+
+    const viaCompose = defineReport(<ExperimentComparison />);
+    const viaHandwritten = defineReport(
+      <Col>
+        <ScopeSummary />
+        <MetricScatter points="experiment" series="agent" x={costUSD} y={endToEndPassRate} />
+        <ExperimentList filter />
+      </Col>,
+    );
+    expect(await renderReportToText(viaCompose, ctx, { width: 120 })).toBe(
+      await renderReportToText(viaHandwritten, ctx, { width: 120 }),
+    );
+    expect(await renderReportToStaticHtml(viaCompose, ctx)).toBe(await renderReportToStaticHtml(viaHandwritten, ctx));
+  });
+
+  it("不同深度目录的 experiments 一律进同一份 data;展开树里 ScopeSummary / MetricScatter / ExperimentList 的解析结果与直接调用三个函数深等", async () => {
+    const g1a = snap({ experimentId: "compare/a", agent: "bub", results: [res("q", "passed")] });
+    const g1b = snap({ experimentId: "compare/b", agent: "codex", results: [res("q", "failed")] });
+    const g2 = snap({ experimentId: "bench/long/x", results: [res("q", "passed")] });
+    const solo = snap({ experimentId: "standalone", results: [res("q", "failed")] });
+    const all = [g1a, g1b, g2, solo];
+    const [summaryEl, scatterEl, listEl] = await resolveComparisonChildren(<ExperimentComparison />, all);
+    expect(listEl.props.data).toEqual(await experimentListData(all));
+    expect(summaryEl.props.data).toEqual(await scopeSummaryData(all));
+    expect(scatterEl.props.data).toEqual(
+      await metricScatterData(all, { points: "experiment", series: "agent", x: costUSD, y: endToEndPassRate }),
+    );
+  });
+
+  it("series 缺省解析:Scope 内任一 experiment 声明 labels.line 时全图 line,完全无 line 时 agent;显式 series 覆盖缺省", async () => {
+    const withCost = { usage: { inputTokens: 1, outputTokens: 1, costUSD: 0.1 } };
+    const withLine = snap({ experimentId: "series/with-line", results: [res("q", "passed", withCost)] });
+    withLine.experiment = { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex" } };
+    const withoutLine = snap({ experimentId: "series/plain", results: [res("q", "passed", withCost)] });
+
+    const textWithLine = await renderTreeText(<ExperimentComparison />, scopeOf([withLine, withoutLine]));
+    expect(textWithLine).toContain("grouped by line");
+
+    const textNoLine = await renderTreeText(<ExperimentComparison />, scopeOf([withoutLine]));
+    expect(textNoLine).toContain("grouped by agent");
+
+    const textExplicit = await renderTreeText(<ExperimentComparison series="agent" />, scopeOf([withLine]));
+    expect(textExplicit).toContain("grouped by agent");
+  });
+
+  it("connect 缺省跟随 series 解析:默认 line 时同 series 两点连线,默认 agent 时不连线", async () => {
+    const withCost = { usage: { inputTokens: 1, outputTokens: 1, costUSD: 0.1 } };
+    const lineA = snap({ experimentId: "connect/a", agent: "codex", results: [res("q", "passed", withCost)] });
+    lineA.experiment = { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex" } };
+    const lineB = snap({ experimentId: "connect/b", agent: "codex", results: [res("q", "failed", withCost)] });
+    lineB.experiment = { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex" } };
+    // 同一个 agent 分两个 experiment,声明 line 时归同一条线;位移摘要行(└ Pass rate …)只在
+    // connect 开时出现(scatterText 的 connect 分支),是比裸 "→" 更可靠的标记
+    // ("better → upper right" 提示行本身也含 "→",不能用来判连线)。
+    const connected = await renderTreeText(<ExperimentComparison />, scopeOf([lineA, lineB]));
+    expect(connected).toContain("grouped by line");
+    expect(connected).toContain("└ Pass rate");
+
+    const plainA = snap({ experimentId: "connect/plain-a", agent: "codex", results: [res("q", "passed", withCost)] });
+    const plainB = snap({ experimentId: "connect/plain-b", agent: "codex", results: [res("q", "failed", withCost)] });
+    const unconnected = await renderTreeText(<ExperimentComparison />, scopeOf([plainA, plainB]));
+    expect(unconnected).toContain("grouped by agent");
+    expect(unconnected).not.toContain("└ Pass rate");
+  });
+
+  it("line 缺省对整个 Scope 生效:混入一个声明 line 的实验后,没声明的实验落 (missing) 而非回退 agent;显式 series 覆盖全部", async () => {
+    const lineA = snap({ experimentId: "mem/codex-baseline", agent: "codex", results: [res("q", "passed")] });
+    lineA.experiment = { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex", memory: "baseline" } };
+    const lineB = snap({ experimentId: "mem/codex-mempal", agent: "codex", results: [res("q", "failed")] });
+    lineB.experiment = { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex", memory: "mempal" } };
+    const plain = snap({ experimentId: "dev/one", agent: "codex", results: [res("q", "passed")] });
+    const all = [lineA, lineB, plain];
+
+    const [, scatterEl] = await resolveComparisonChildren(<ExperimentComparison />, all);
+    const scatterData = scatterEl.props.data as { seriesDimension?: string; rows: Array<{ key: string; series?: string }> };
+    expect(scatterData.seriesDimension).toBe("line");
+    const byKey = new Map(scatterData.rows.map((r) => [r.key, r.series]));
+    expect(byKey.get("mem/codex-baseline")).toBe("codex");
+    expect(byKey.get("dev/one")).toBe("(missing)");
+
+    const [, explicitScatterEl] = await resolveComparisonChildren(<ExperimentComparison series={label("memory")} />, all);
+    expect((explicitScatterEl.props.data as { seriesDimension?: string }).seriesDimension).toBe("memory");
   });
 });
 

@@ -103,7 +103,7 @@ Results 保存事实：判定、断言、runner 时间树、事件、trace、dif
 
 ## Scope 是默认报告的比较边界
 
-默认 `ExperimentComparison` 不推导第二层实验组，直接消费宿主已经收窄并完成现刻水位选择的 Scope。每个 experiment 的 eval 集来自快照里的 `ExperimentRunInfo.selectedEvalIds`；未选择的 eval 不进入分母，也不补成失败。
+`experimentListData`、`scopeSummaryData` 与 `metricScatterData` 不推导第二层实验组，直接消费宿主已经收窄并完成现刻水位选择的 Scope；每个 experiment 的 eval 集以快照里的 `ExperimentRunInfo.selectedEvalIds` 为准——未选择的 eval 不进入分母，也不补成失败。这是三个函数自己的契约：直接调用与经 `ExperimentComparison` 展开后走到的调用深相等。
 
 `ScopeSummary`、`MetricScatter` 与 `ExperimentList` 都消费同一份 Scope。用户用 `--exp` 按 experiment id 路径收窄，或在自定义报告里显式 `filter`；组件不从路径、文件名、agent、model、flags 或 labels 猜比较边界。
 

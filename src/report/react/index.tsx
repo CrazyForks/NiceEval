@@ -12,7 +12,6 @@ export { AttemptList } from "./AttemptList.tsx";
 export { EvalList } from "./EvalList.tsx";
 export { ExperimentList } from "./ExperimentList.tsx";
 export { ScopeSummary } from "./ScopeSummary.tsx";
-export { ExperimentComparisonView as ExperimentComparison } from "./ExperimentComparison.tsx";
 export { MetricTable } from "./MetricTable.tsx";
 export { MetricMatrix } from "./MetricMatrix.tsx";
 export { MetricBars } from "./MetricBars.tsx";
@@ -35,7 +34,6 @@ export type {
   CopyFixPromptData,
   DeltaData,
   EvalListItem,
-  ExperimentComparisonData,
   ExperimentListEvalRow,
   ExperimentListItem,
   HeroData,

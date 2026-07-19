@@ -4,7 +4,7 @@
 // skipped=null、null≠0、Scoreboard 固定分母(notRun/unscorable 分开)、权重最长前缀、
 // 身份键去重、现刻水位、自定义指标 where/aggregate、evalGroup 完整父路径、verdict 权威、
 // MetricCell 诚实、缺 artifact 指标、repeatedFailedCommands、实体列表 failureSummary、
-// scopeSummaryData 两级计票、experimentComparisonData 分区、pairsByFlag、
+// scopeSummaryData 两级计票、experimentListData/scopeSummaryData 的 selectedEvalIds 投影、pairsByFlag、
 // MetricLine 点身份、空数组反馈、metricTableData sort。
 
 import { describe, expect, it } from "vitest";
@@ -32,7 +32,6 @@ import {
   attemptListData,
   deltaTableData,
   evalListData,
-  experimentComparisonData,
   experimentListData,
   metricLineData,
   metricMatrixData,
@@ -670,32 +669,25 @@ describe("scopeSummaryData", () => {
   });
 });
 
-// ───────────────────────── experimentComparisonData ─────────────────────────
+// ───────────────────────── experimentListData / scopeSummaryData 的 selectedEvalIds 投影 ─────────────────────────
+// ExperimentComparison 已收为普通组合组件(把同一个 input 原样透传给 ScopeSummary /
+// MetricScatter / ExperimentList,不再有自己的 data 形态);经它展开后与直接调用这三个
+// 函数深等的验证挪到 dual-render.test.tsx(需要 resolve 管线)。这里只测三个函数自己的
+// selectedEvalIds 投影契约。
 
-describe("experimentComparisonData", () => {
-  it("不同深度目录的 experiments 进同一份 data;三块与对完整投影 input 单独调用结果深等", async () => {
+describe("experimentListData / scopeSummaryData 的 selectedEvalIds 投影", () => {
+  it("不同深度目录的 experiments 一律进同一份 data,不按父路径分组比较", async () => {
     const g1a = snap({ experimentId: "compare/a", agent: "bub", results: [res("q", "passed")] });
     const g1b = snap({ experimentId: "compare/b", agent: "codex", results: [res("q", "failed")] });
     const g2 = snap({ experimentId: "bench/long/x", results: [res("q", "passed")] });
     const solo = snap({ experimentId: "standalone", results: [res("q", "errored", { error: erroredWith("x") })] });
-    const all = [g1a, g1b, g2, solo];
-
-    const data = await experimentComparisonData(all);
-    expect(data.experiments.map((e) => e.experimentId).sort()).toEqual([
+    const items = await experimentListData([g1a, g1b, g2, solo]);
+    expect(items.map((e) => e.experimentId).sort()).toEqual([
       "bench/long/x",
       "compare/a",
       "compare/b",
       "standalone",
     ]);
-
-    const [summary, scatter, experiments] = await Promise.all([
-      scopeSummaryData(all),
-      metricScatterData(all, { points: "experiment", series: "agent", x: costUSD, y: endToEndPassRate }),
-      experimentListData(all),
-    ]);
-    expect(data.summary).toEqual(summary);
-    expect(data.scatter).toEqual(scatter);
-    expect(data.experiments).toEqual(experiments);
   });
 
   it("每个 experiment 只保留自己选择的 eval:A 声明 selectedEvalIds:[q1] 但夹带 q2 attempt,B 只选 q2;q2 不污染 A", async () => {
@@ -710,44 +702,26 @@ describe("experimentComparisonData", () => {
       experiment: { runs: 1, earlyExit: false, selectedEvalIds: ["q2"] },
     });
 
-    const data = await experimentComparisonData([a, b]);
-
-    const rowA = data.experiments.find((e) => e.experimentId === "exp/a")!;
-    const rowB = data.experiments.find((e) => e.experimentId === "exp/b")!;
+    const items = await experimentListData([a, b]);
+    const rowA = items.find((e) => e.experimentId === "exp/a")!;
+    const rowB = items.find((e) => e.experimentId === "exp/b")!;
     expect(rowA.evals).toBe(1); // 只统计 q1,夹带的 q2 attempt 不计入
     expect(rowA.evalRows.map((r) => r.evalId)).toEqual(["q1"]);
     expect(rowB.evals).toBe(1);
     expect(rowB.evalRows.map((r) => r.evalId)).toEqual(["q2"]);
 
     // 汇总口径同样不被污染:全 Scope 只有 2 个 eval(exp/a·q1、exp/b·q2),不是 3 个。
-    expect(data.summary.evals).toBe(2);
+    const summary = await scopeSummaryData([a, b]);
+    expect(summary.evals).toBe(2);
   });
 
-  it("series 缺省解析:Scope 内任一 experiment 声明 labels.line 时全图 line,完全无 line 时 agent,显式 series 覆盖", async () => {
-    const withLine = snap({
-      experimentId: "series/with-line",
-      results: [res("q", "passed")],
-      experiment: { runs: 1, earlyExit: false, selectedEvalIds: ["q"], labels: { line: "codex" } },
-    });
-    const withoutLine = snap({ experimentId: "series/plain", results: [res("q", "passed")] });
-
-    const dataWithLine = await experimentComparisonData([withLine, withoutLine]);
-    expect(dataWithLine.scatter.seriesDimension).toBe("line");
-
-    const dataNoLine = await experimentComparisonData([withoutLine]);
-    expect(dataNoLine.scatter.seriesDimension).toBe("agent");
-
-    const explicit = await experimentComparisonData([withLine], { series: "agent" });
-    expect(explicit.scatter.seriesDimension).toBe("agent");
-  });
-
-  it("第三方快照缺 experiment 信息时仍可见,按其实际 evals 参与", async () => {
+  it("第三方快照缺 experiment 信息时仍可见,按其实际 evals 参与(selectedEvalIdsOf 退化)", async () => {
     const thirdParty = snap({ experimentId: "third-party/exp", results: [res("q", "passed")] });
     expect(thirdParty.experiment).toBeUndefined();
 
-    const data = await experimentComparisonData([thirdParty]);
-    expect(data.experiments.map((e) => e.experimentId)).toEqual(["third-party/exp"]);
-    expect(data.experiments[0]!.evals).toBe(1);
+    const items = await experimentListData([thirdParty]);
+    expect(items.map((e) => e.experimentId)).toEqual(["third-party/exp"]);
+    expect(items[0]!.evals).toBe(1);
   });
 });
 
@@ -1119,24 +1093,6 @@ describe("labels 维度、series 归类与 connect", () => {
     const single = await metricScatterData([a], { points: "experiment", series: ["agent"], x: costUSD, y: endToEndPassRate });
     expect(single.seriesDimension).toBe("agent");
     expect(single.rows[0]!.series).toBe("codex");
-  });
-
-  it('ExperimentComparison series 缺省解析对完整 Scope 生效:任一实验声明 line 即全图 "line";显式 series 覆盖全部', async () => {
-    const lineExp = [
-      labeled("mem/codex-baseline", { line: "codex", memory: "baseline" }, ["passed"], "codex"),
-      labeled("mem/codex-mempal", { line: "codex", memory: "mempal" }, ["failed"], "codex"),
-    ];
-    const plainExp = [labeled("dev/one", undefined, ["passed"], "codex")];
-    const data = await experimentComparisonData([...lineExp, ...plainExp]);
-    // 混入一个声明 line 的实验后,连没声明 line 的 dev/one 也归入同一张 line 散点
-    // (未声明该 label 的实验落 "(missing)" 系列,不回退成 agent 系列)。
-    expect(data.scatter.seriesDimension).toBe("line");
-    const byRowKey = new Map(data.scatter.rows.map((r) => [r.key, r.series]));
-    expect(byRowKey.get("mem/codex-baseline")).toBe("codex");
-    expect(byRowKey.get("dev/one")).toBe("(missing)");
-
-    const explicit = await experimentComparisonData([...lineExp, ...plainExp], { series: label("memory") });
-    expect(explicit.scatter.seriesDimension).toBe("memory");
   });
 
   const cell = (value: number, display: string): import("./types.ts").MetricCell => ({

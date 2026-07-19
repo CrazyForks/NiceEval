@@ -109,8 +109,6 @@ const en = {
   "overview.passRate": "Pass rate",
   "overview.totalCost": "Cost",
 
-  "experimentComparison.empty": "No experiments",
-
   /** 方向提示唯一文案:轴向已随 better 反正,「更好」恒指向右上(两轴都声明 better 时才显示)。 */
   "scatter.betterUpperRight": "better → upper right",
   /** 0 个可画点:x/y 指标没有可用数据。 */
@@ -251,8 +249,6 @@ const zhCN: Record<ReportMessageKey, string> = {
   "overview.evals": "Eval",
   "overview.passRate": "通过率",
   "overview.totalCost": "成本",
-
-  "experimentComparison.empty": "暂无实验",
 
   "scatter.betterUpperRight": "越靠右上越好",
   "scatter.noData": "{x} × {y} 没有可绘制的数据",

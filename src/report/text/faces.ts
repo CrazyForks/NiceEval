@@ -8,7 +8,6 @@ import type {
   AttemptListItem,
   DeltaData,
   EvalListItem,
-  ExperimentComparisonData,
   ExperimentListItem,
   HeroData,
   LineData,
@@ -106,7 +105,8 @@ export function scopeSummaryText(data: ScopeSummaryData, votes: "eval" | "attemp
         : ""
     }`,
   ].join(" · ");
-  const lines = [head];
+  // 头行拼接的字段较多,窄终端下按显示宽度折行(不截断内容)。
+  const lines = wrapDisplay(head, ctx.width);
   if (data.range.latestStartedAt !== null) {
     const from = data.range.earliestStartedAt;
     const to = data.range.latestStartedAt;
@@ -117,36 +117,6 @@ export function scopeSummaryText(data: ScopeSummaryData, votes: "eval" | "attemp
     );
   }
   return lines.join("\n");
-}
-
-// ───────────────────────── ExperimentComparison ─────────────────────────
-
-/**
- * text 面:对完整 Scope 依次输出 summary、散点与实验列表——不同深度目录的 experiments
- * 一律同屏,不再有组索引或 `niceeval exp <group>` 命令提示。
- */
-export function experimentComparisonText(
-  data: ExperimentComparisonData,
-  _className: string | undefined,
-  ctx: TextContext,
-  connect?: boolean,
-): string {
-  const locale = ctx.locale;
-  if (data.experiments.length === 0) return localeText(locale, "experimentComparison.empty");
-  // connect 缺省跟随缺省 series 解析:series 为 "line" 时连线,agent 不连。
-  const connectOn = connect ?? data.scatter.seriesDimension === "line";
-  // scopeSummaryText 产出不折行的单行头;窄终端下按显示宽度折行,不截断内容。
-  const summary = scopeSummaryText(data.summary, "eval", ctx)
-    .split("\n")
-    .flatMap((line) => wrapDisplay(line, ctx.width))
-    .join("\n");
-  return [
-    summary,
-    scatterText(data.scatter, ctx, { connect: connectOn }),
-    experimentListText(data.experiments, ctx),
-  ]
-    .filter((block) => block.length > 0)
-    .join("\n\n");
 }
 
 // ───────────────────────── MetricTable ─────────────────────────

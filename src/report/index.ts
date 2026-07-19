@@ -156,7 +156,6 @@ export {
   copyFixPromptData,
   deltaTableData,
   evalListData,
-  experimentComparisonData,
   experimentListData,
   heroData,
   metricLineData,
@@ -171,7 +170,6 @@ export {
 } from "./compute.ts";
 export type {
   DeltaTableOptions,
-  ExperimentComparisonOptions,
   MetricLineOptions,
   MetricMatrixOptions,
   MetricScatterOptions,
@@ -193,7 +191,6 @@ export type {
   DimensionOptions,
   DimensionRef,
   EvalListItem,
-  ExperimentComparisonData,
   ExperimentListEvalRow,
   ExperimentListItem,
   FlagPairs,

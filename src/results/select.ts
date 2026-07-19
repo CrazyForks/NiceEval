@@ -141,7 +141,7 @@ export function deepEqualJson(a: unknown, b: unknown): boolean {
  * 写入面必有此字段);第三方 harness 未实现该字段时退化为该快照实际写出的 `evals`,不把整份
  * 来源排除在外(见 docs/feature/results/architecture.md「selectedEvalIds」)。
  */
-function selectedEvalIdsOf(snapshot: Snapshot): readonly string[] {
+export function selectedEvalIdsOf(snapshot: Snapshot): readonly string[] {
   return snapshot.experiment?.selectedEvalIds ?? snapshot.evals.map((ev) => ev.id);
 }
 
