@@ -1,6 +1,8 @@
 import "../globals.css";
 import type { ReactNode } from "react";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { notFound } from "next/navigation";
 import { getDictionary, hasLocale, locales } from "../../lib/content";
 
@@ -32,6 +34,8 @@ export default async function LangLayout({ children, params }: { children: React
     <html lang={lang === "zh" ? "zh-CN" : "en"} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         {children}
+        <Analytics />
+        <SpeedInsights />
         <Script
           src="https://api.goshipfast.com/tracker.js"
           data-project="cmr24oe2n006qlj10lr9t38n8"
