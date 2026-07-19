@@ -12,6 +12,10 @@
   ],
   "rewrites": [
     {
+      "source": "/llms-full.txt",
+      "destination": "https://niceeval.mintlify.site/docs/llms-full.txt"
+    },
+    {
       "source": "/docs",
       "destination": "https://niceeval.mintlify.site/docs"
     },
