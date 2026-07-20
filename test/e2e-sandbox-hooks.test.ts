@@ -119,6 +119,7 @@ test("sandbox 钩子:全序 + ctx.experimentId + 失败语义", async () => {
 
   const orderEvents = log.filter((l) => l.experimentId === orderExperimentId).map((l) => l.event);
   expect(orderEvents).toEqual([
+    "exp:setup",
     "sandbox:setup:a",
     "sandbox:setup:b",
     "agent:setup",
@@ -126,6 +127,7 @@ test("sandbox 钩子:全序 + ctx.experimentId + 失败语义", async () => {
     "agent:teardown",
     "sandbox:teardown:y",
     "sandbox:teardown:x",
+    "exp:teardown",
   ]);
 
   // ── 2. ctx.experimentId 处处一致、等于路径推导出的实验 id ──────────────

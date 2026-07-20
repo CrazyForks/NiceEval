@@ -709,6 +709,7 @@ async function main(): Promise<void> {
         // 不再取所有选中实验的最小值钳全局——那会让一个串行实验拖慢整批基线。
         maxConcurrency: exp.maxConcurrency,
         setup: exp.setup,
+        teardown: exp.teardown,
       });
     }
   } else {

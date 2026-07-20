@@ -45,9 +45,18 @@ const agent = defineSandboxAgent({
 });
 
 export default defineExperiment({
-  description: "回归夹具:sandbox 钩子全序 + ctx.experimentId",
+  description: "回归夹具:实验级钩子 + sandbox 钩子全序 + ctx.experimentId",
   agent,
   sandbox,
+  // 实验级钩子(宿主机侧、整场一次)包在最外层:setup 早于本实验任何沙箱钩子,
+  // teardown 在全部 attempt 收尾后。这对钩子由 cli 装配 AgentRun 时搬运,
+  // 断言它出现在日志里 = 覆盖 ExperimentDef → AgentRun 这段搬运本身。
+  async setup(ctx) {
+    await logEvent("exp:setup", ctx.experimentId);
+  },
+  async teardown(ctx) {
+    await logEvent("exp:teardown", ctx.experimentId);
+  },
   model: "mock-order",
   runs: 1,
   earlyExit: false,
