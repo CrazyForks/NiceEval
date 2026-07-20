@@ -102,20 +102,18 @@ export type ExperimentListProps = DataProps<
   EntityListChrome & {
     /** web 面在比较表前显示实验过滤框;text 面忽略。 */
     filter?: boolean;
-    /**
-     * 可选父路径:两面的行标签去掉与它相同的前缀,只显示 experiment id 末段。自定义报告
-     * 显式传入使用;`ExperimentComparison` 原样透传自己的 relativeTo,缺省不设,行标签用
-     * 完整 id。完整 id 仍是排序 / 着色 / 过滤 / 折叠的键。
-     */
-    relativeTo?: string;
   }
 >;
 
-/** 实验列表:每项一个 experiment,固定八列比较表 + 展开到 Eval / Attempt。 */
+/**
+ * 实验列表:每项一个 experiment,固定八列比较表 + 展开到 Eval / Attempt。行标签是
+ * experiment id 在当前列表里的最短唯一后缀(与 MetricScatter 点标签同一算法,重名逐步
+ * 加长到能区分为止);完整 id 不受影响,仍是排序 / 过滤 / 折叠的键。
+ */
 export const ExperimentList = makeDataComponent<
   readonly ExperimentListItem[],
   Record<never, never>,
-  EntityListChrome & { filter?: boolean; relativeTo?: string }
+  EntityListChrome & { filter?: boolean }
 >({
   name: "ExperimentList",
   dataFnName: "experimentListData",
@@ -127,13 +125,12 @@ export const ExperimentList = makeDataComponent<
     <ExperimentListWeb
       data={props.data}
       filter={props.filter}
-      relativeTo={props.relativeTo}
       locale={props.locale ?? ctx.locale}
       attemptHref={hrefOf(props, ctx)}
       className={props.className}
     />
   ),
-  text: (props, ctx) => experimentListText(props.data, ctx, props.relativeTo),
+  text: (props, ctx) => experimentListText(props.data, ctx),
 }) as unknown as ReportComponent<ExperimentListProps>;
 
 export type EvalListProps = DataProps<readonly EvalListItem[], Record<never, never>, EntityListChrome>;

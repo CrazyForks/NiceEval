@@ -6,16 +6,41 @@ import type { Verdict } from "../../types.ts";
 import { DISPLAY_LOCALES, type LocalizedText, type ReportLocale } from "./locale.ts";
 
 /**
- * experiment 行的显示名：给了父路径 `relativeTo` 且它确是前缀，就去掉 `relativeTo + "/"`，
- * 只留 id 末段——供自定义报告在已知父路径的上下文里显式调用，避免每行重复文件夹名。默认
- * `ExperimentComparison` 不传 `relativeTo`，完整 id 始终可见。不给 `relativeTo`、或它不是
- * 前缀时原样返回完整 id。完整 id 仍是排序 / 着色 / 折叠的键，调用方不要拿这个显示名当身份用。
+ * 一组 id 的显示名：每个 id 缩成在这组里唯一的最短路径后缀，重名逐步加长到能区分为止
+ * （与 `MetricScatter` 点标签同一算法，两处共用本函数以保证同一份 experiment id 在散点和
+ * 列表里缩成同一个显示名）。单个 id、或所有 id 深度不同时也照常缩到各自的最短唯一后缀。
+ * 完整 id 不受影响，调用方仍用它做排序 / 过滤 / 折叠的身份键，这里只产出显示名。
  */
-export function experimentDisplayName(experimentId: string, relativeTo?: string): string {
-  if (relativeTo && experimentId.startsWith(`${relativeTo}/`)) {
-    return experimentId.slice(relativeTo.length + 1);
+export function shortestUniqueLabels(ids: readonly string[]): Map<string, string> {
+  const segsOf = (id: string) => id.split("/").filter(Boolean);
+  const depth = new Map<string, number>(ids.map((id) => [id, 1]));
+  for (;;) {
+    const byLabel = new Map<string, string[]>();
+    for (const id of ids) {
+      const segs = segsOf(id);
+      const label = segs.slice(-Math.min(depth.get(id)!, segs.length)).join("/") || id;
+      byLabel.set(label, [...(byLabel.get(label) ?? []), id]);
+    }
+    let grew = false;
+    for (const group of byLabel.values()) {
+      if (group.length < 2) continue;
+      for (const id of group) {
+        const segs = segsOf(id);
+        if (depth.get(id)! < segs.length) {
+          depth.set(id, depth.get(id)! + 1);
+          grew = true;
+        }
+      }
+    }
+    if (!grew) {
+      const out = new Map<string, string>();
+      for (const id of ids) {
+        const segs = segsOf(id);
+        out.set(id, segs.slice(-Math.min(depth.get(id)!, segs.length)).join("/") || id);
+      }
+      return out;
+    }
   }
-  return experimentId;
 }
 
 /** 一位小数、去掉无意义的 ".0" 尾巴。 */

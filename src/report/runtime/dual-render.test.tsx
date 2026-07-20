@@ -521,13 +521,13 @@ describe("text/web 双面同源", () => {
         res("algebra/retry", "passed", { attempt: 1 }),
       ],
     });
-    const text = await renderTreeText(<ExperimentList relativeTo="grp" />, scopeOf([s]), 160);
+    const text = await renderTreeText(<ExperimentList />, scopeOf([s]), 160);
     expect(text.match(/algebra\/retry/g)).toHaveLength(1); // Eval 父行只出现一次
     expect(text).toContain("├─");
     expect(text).toContain("└─");
     // 失败摘要只在 Attempt 子行(父行不复述)
     expect(text.match(/equals\(42\)/g)).toHaveLength(1);
-    // relativeTo:行标签只显示末段
+    // 行标签默认缩成最短唯一后缀
     expect(text).toContain("exp-a");
   });
 });
@@ -1276,18 +1276,21 @@ describe("内建报告", () => {
     );
   });
 
-  it("首页 web/text 两面都展示完整 Scope,不同深度目录的 experiment 同屏且显示完整 id;无组选择器或组索引", async () => {
-    const g1 = snap({ experimentId: "compare/a", results: [res("q", "passed")] });
-    const g2 = snap({ experimentId: "dev/b", results: [res("q", "failed")] });
+  it("首页 web/text 两面都展示完整 Scope,不同深度目录的 experiment 同屏且行标签缩成最短唯一后缀;无组选择器或组索引", async () => {
+    const g1 = snap({ experimentId: "compare/alpha-exp", results: [res("q", "passed")] });
+    const g2 = snap({ experimentId: "dev/beta-exp", results: [res("q", "failed")] });
     const ctx = { scope: scopeOf([g1, g2]), results: resultsOf([g1, g2]) };
 
     const text = await renderReportToText(builtInReport, ctx, { width: 120 });
     // Hero text 面:标题行(回退链终点)+ 最后运行 meta 行在页首
     expect(text.split("\n")[0]).toBe("Eval Results");
     expect(text).toContain("Last run");
-    // 完整 Scope 直接展示:两个不同路径的 experiment 都可见,不是组索引 + 单组查看命令
-    expect(text).toContain("compare/a");
-    expect(text).toContain("dev/b");
+    // 完整 Scope 直接展示:两个不同路径的 experiment 都可见,不是组索引 + 单组查看命令;
+    // 行标签是各自末段(两个 id 互不撞名,不必加长),不带父路径。
+    expect(text).toContain("alpha-exp");
+    expect(text).toContain("beta-exp");
+    expect(text).not.toContain("compare/alpha-exp");
+    expect(text).not.toContain("dev/beta-exp");
     expect(text).not.toContain("niceeval show --exp compare");
     expect(text).not.toContain("niceeval show --exp dev");
     expect(text).not.toContain("niceeval exp compare");
@@ -1296,8 +1299,11 @@ describe("内建报告", () => {
     const html = await renderReportToStaticHtml(builtInReport, ctx);
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain("data-nre-experiment-group");
-    expect(html).toContain("compare/a");
-    expect(html).toContain("dev/b");
+    expect(html).toContain(">alpha-exp</b>");
+    expect(html).toContain(">beta-exp</b>");
+    // 完整 id 仍是排序键,只是不再重复出现在显示文字里
+    expect(html).toContain('data-sort-value="compare/alpha-exp"');
+    expect(html).toContain('data-sort-value="dev/beta-exp"');
   });
 
   it("0/1/多 experiment 均可渲染;0 个时三个叶子组件各自显示自己的空态", async () => {
@@ -1432,26 +1438,31 @@ describe("ExperimentComparison(组合组件)", () => {
     expect((explicitScatterEl.props.data as { seriesDimension?: string }).seriesDimension).toBe("memory");
   });
 
-  it("relativeTo 原样透传给 ExperimentList,只缩短行显示名,不影响 ScopeSummary / MetricScatter 也不改变排序键", async () => {
+  it("ExperimentList 行标签默认缩成 Scope 内的最短唯一后缀,不改变 ScopeSummary / MetricScatter 输出或排序键", async () => {
     const a = snap({ experimentId: "compare/a", agent: "bub", results: [res("q", "passed")] });
     const b = snap({ experimentId: "compare/b", agent: "codex", results: [res("q", "failed")] });
     const ctx = { scope: scopeOf([a, b]), results: resultsOf([a, b]) };
 
-    const withRelativeTo = defineReport(<ExperimentComparison relativeTo="compare" />);
-    const bare = defineReport(<ExperimentComparison />);
+    const definition = defineReport(<ExperimentComparison />);
+    const html = await renderReportToStaticHtml(definition, ctx);
+    expect(html).toContain(">a</b>");
+    expect(html).toContain(">b</b>");
+    expect(html).toContain('data-sort-value="compare/a"');
+    expect(html).toContain('data-sort-value="compare/b"');
 
-    const relativeHtml = await renderReportToStaticHtml(withRelativeTo, ctx);
-    expect(relativeHtml).toContain(">a</b>");
-    expect(relativeHtml).toContain('data-sort-value="compare/a"');
+    // 换成末段撞名的一对(a/run、b/run 都叫 run)时两行都要加长到能区分为止,不是随口断言。
+    const dupeA = snap({ experimentId: "compare/x/run", agent: "bub", results: [res("q", "passed")] });
+    const dupeB = snap({ experimentId: "compare/y/run", agent: "codex", results: [res("q", "failed")] });
+    const dupeHtml = await renderReportToStaticHtml(definition, { scope: scopeOf([dupeA, dupeB]), results: resultsOf([dupeA, dupeB]) });
+    expect(dupeHtml).toContain(">x/run</b>");
+    expect(dupeHtml).toContain(">y/run</b>");
 
-    const bareHtml = await renderReportToStaticHtml(bare, ctx);
-    expect(bareHtml).toContain(">compare/a</b>");
-
-    // ScopeSummary / MetricScatter 的输出与不传 relativeTo 时一致(relativeTo 只是 ExperimentList 的显示层参数)
-    const [summaryElWith, scatterElWith] = await resolveComparisonChildren(<ExperimentComparison relativeTo="compare" />, [a, b]);
-    const [summaryElBare, scatterElBare] = await resolveComparisonChildren(<ExperimentComparison />, [a, b]);
-    expect(summaryElWith.props.data).toEqual(summaryElBare.props.data);
-    expect(scatterElWith.props.data).toEqual(scatterElBare.props.data);
+    // ScopeSummary / MetricScatter 完全不受行标签缩短影响
+    const [summaryEl, scatterEl] = await resolveComparisonChildren(<ExperimentComparison />, [a, b]);
+    expect(summaryEl.props.data).toEqual(await scopeSummaryData([a, b]));
+    expect(scatterEl.props.data).toEqual(
+      await metricScatterData([a, b], { points: "experiment", series: "agent", x: costUSD, y: endToEndPassRate }),
+    );
   });
 });
 

@@ -57,8 +57,8 @@ it("scopeSummaryData 使用端到端两级聚合并保留覆盖率", async () =>
 | 契约 | 场景 |
 |---|---|
 | `experimentListData()` 对完整 input 计算 experiment 列表，每个 experiment 的 eval 集以快照 `selectedEvalIds` 为准；不同深度目录（如 `compare/a`、`bench/long/x`、`standalone`）的 experiments 一律进同一份 data，不再按父路径分组比较；`ExperimentComparison` 把同一个 `input`（缺省 `ctx.scope`）原样透传给 `ScopeSummary` / `MetricScatter` / `ExperimentList`，组合本身不二次计算或过滤，也不导出自己的 `data` 形态 | 正例：两个 experiment 选择不同 eval 集，列表 eval 数与各自分母如实且未选择项不补失败；正例：三种深度不同的 experiment id 混在一份 input 里，直接调用 `experimentListData` 与经 `ExperimentComparison` resolve 展开后 `ExperimentList` 收到的 spec 深等；正例：来源快照缺 `selectedEvalIds`（第三方）时该 experiment 按其实际 evals 可见；正例：resolve 后 `ExperimentComparison` 展开树里 `ScopeSummary`/`MetricScatter`/`ExperimentList` 三个组件收到的 spec `input` 与 `ctx.scope` 同引用 |
-| `ExperimentComparison` 的 web/text 面都直接显示完整 Scope，不输出实验组选择器或组索引 | 正例：多 experiment 的两面都有摘要、散点与实验明细；反例：web 面 DOM 中无 `role=tablist` 与任何 group `<details>`/data 属性；反例：text 面不含分组索引段与 `niceeval exp <group>` 命令提示；正例：不传 `relativeTo` 时 `ExperimentList` 行显示完整 experiment id（不按父路径截断） |
-| `ExperimentComparison` 传 `relativeTo` 时原样透传给内部 `ExperimentList`，只缩短行显示名，不影响 `ScopeSummary` / `MetricScatter` 也不改变排序键、过滤或折叠依据的完整 id；不设置时行为等同不传 | 正例：`relativeTo="compare"` 时 `compare/a` 行显示 `a` 且 `data-sort-value` 仍是完整 id；正例：`ScopeSummary` / `MetricScatter` 输出与不传 `relativeTo` 时一致 |
+| `ExperimentComparison` 的 web/text 面都直接显示完整 Scope，不输出实验组选择器或组索引 | 正例：多 experiment 的两面都有摘要、散点与实验明细；反例：web 面 DOM 中无 `role=tablist` 与任何 group `<details>`/data 属性；反例：text 面不含分组索引段与 `niceeval exp <group>` 命令提示 |
+| `ExperimentComparison` 展开树里 `ExperimentList` 的行标签缩短是 `ExperimentList` 自己的契约（见「text/web 双面同源」一节），`ExperimentComparison` 不二次处理；与 `MetricScatter` 点标签共用同一份最短唯一后缀算法（`shortestUniqueLabels`），同一份 id 集合两个组件得到相同显示名 | 正例：`compare/a`、`dev/b` 经 `ExperimentComparison` 展开后 `ExperimentList` 显示 `a`、`b`，`MetricScatter` 点标签同样显示 `a`、`b` |
 | `MetricScatter` 对缺 x 或 y 的点不绘制并报告缺失数；零点显示明确空态；单点照常绘制 | 边界：0 点 / 1 点 / 部分缺 x；反例：单点不被拒绝 |
 | 散点轴方向跟随指标 `better`：lower 反向（左贵右便宜）、higher 正向，「更好」恒指向右上，提示恒为「越靠右上越好」；刻度显示真实值；未声明 better 的轴正向且整图不出方向提示；两面同规则 | 正例：成本 × 通过率图上低成本点落在右侧且刻度值仍从大到小；边界：x 无 better 时无方向提示；正例：text 面同方向 |
 | `MetricLine` 对未声明数值 flag 的 experiment 不伪造 x 值并报告未绘制数 | 正例：flag 缺失与 flag="high" 两种；反例：不落到 x=0 |
@@ -141,7 +141,7 @@ it("scopeSummaryData 使用端到端两级聚合并保留覆盖率", async () =>
 | `ExperimentList` web 面是固定八列比较表，可见列名使用“Pass rate / 通过率”，默认按 `endToEndPassRate` 降序；标签与排序箭头同行；Model 缺失显示明确空值；Eval 数不翻成“题” | 正例：断言双语列名与顺序、默认降序标记、`8 evals` / `8 个 Eval`；边界：model 缺失；反例：taskPassRate 高但 executionReliability 低的实验不能排到端到端通过率更高者之前 |
 | `ExperimentList` text 面保持实体层级：Eval 父行、Attempt `├─`/`└─` 子行，不压平 | 正例：一题两 attempt 只出现一次 Eval 标题 |
 | `ExperimentList` / `EvalList` 的 Eval 父行只承载折叠判定与题级聚合，失败摘要只在 Attempt 子行出现；父行不因 verdict 改变同一位置的字段含义（[bug 台账](../../../../memory/eval-parent-repeats-attempt-failure.md)） | 反例：单个 failed / errored Attempt 的摘要在展开树中出现两次；正例：failed Eval 父行仍显示平均耗时与平均成本 |
-| `ExperimentList` 传 `relativeTo` 时 web 与 text 两面行标签去掉该路径前缀，只改变显示名；完整 id 仍用于排序键 / 过滤 / 折叠，默认 `ExperimentComparison` 不从目录猜前缀 | 正例：显式传 `relativeTo: "compare"` 时 `compare/bub-gpt-5.4--agents-md` 显示 `bub-gpt-5.4--agents-md` 且 `data-sort-value` 仍是完整 id；反例：不传时默认报告显示完整 id |
+| `ExperimentList` 行标签默认缩成最短唯一后缀，web 与 text 两面缩短结果一致；完整 id 仍用于排序键 / 过滤 / 折叠 | 正例：`compare/bub-gpt-5.4--agents-md` 单独出现时两面都显示 `bub-gpt-5.4--agents-md` 且 `data-sort-value` 仍是完整 id；正例：末段撞名的两个 id 两面都加长到相同的可区分后缀 |
 
 ```tsx
 import { renderToStaticMarkup } from "react-dom/server"

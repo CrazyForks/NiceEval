@@ -12,7 +12,7 @@
 
 import type { ReactElement } from "react";
 import type { MetricColumn, ScatterData } from "../../model/types.ts";
-import { formatMetricValue } from "../../model/format.ts";
+import { formatMetricValue, shortestUniqueLabels } from "../../model/format.ts";
 import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../../model/locale.ts";
 import { niceTicks, placePointLabels } from "./chart-math.ts";
 import { colorIndicesForKeys } from "../../assets/colors.ts";
@@ -34,42 +34,6 @@ interface DrawablePoint {
   title: string;
   px: number;
   py: number;
-}
-
-/**
- * 点的直接标签:末段在当前 data 中唯一才缩成末段;重名时逐步加长为能区分它们的最短
- * 路径后缀(完整 id 与两轴值仍进 <title>)。
- */
-function pointLabels(keys: readonly string[]): Map<string, string> {
-  const segsOf = (key: string) => key.split("/").filter(Boolean);
-  const depth = new Map<string, number>(keys.map((key) => [key, 1]));
-  for (;;) {
-    const byLabel = new Map<string, string[]>();
-    for (const key of keys) {
-      const segs = segsOf(key);
-      const label = segs.slice(-Math.min(depth.get(key)!, segs.length)).join("/") || key;
-      byLabel.set(label, [...(byLabel.get(label) ?? []), key]);
-    }
-    let grew = false;
-    for (const group of byLabel.values()) {
-      if (group.length < 2) continue;
-      for (const key of group) {
-        const segs = segsOf(key);
-        if (depth.get(key)! < segs.length) {
-          depth.set(key, depth.get(key)! + 1);
-          grew = true;
-        }
-      }
-    }
-    if (!grew) {
-      const out = new Map<string, string>();
-      for (const key of keys) {
-        const segs = segsOf(key);
-        out.set(key, segs.slice(-Math.min(depth.get(key)!, segs.length)).join("/") || key);
-      }
-      return out;
-    }
-  }
 }
 
 /**
@@ -143,7 +107,7 @@ export function MetricScatter({
     MARGIN.top,
     data.y.better === "lower",
   );
-  const labelByKey = pointLabels(drawableRows.map((r) => r.key));
+  const labelByKey = shortestUniqueLabels(drawableRows.map((r) => r.key));
   // 方向提示恒为「越靠右上越好」,仅当两轴都声明 better 时显示——任一轴未声明,
   // 组件不猜「更好」朝哪边,整图无提示。
   const showBetterHint = data.x.better !== undefined && data.y.better !== undefined;

@@ -152,11 +152,7 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 
 每个 experiment 的评估用例集合来自快照记录的 `selectedEvalIds`。网页面与终端面都显示完整 Scope；需要子集时用 `--exp` 收窄，或在自定义报告里对 Scope 先 `.filter()` 再传给 `input`。
 
-experiment id 带公共目录前缀时（比如都在 `compare/` 下），传 `relativeTo` 去掉行显示里的这段前缀——只改显示，排序、过滤和折叠展开仍用完整 id：
-
-```tsx
-<ExperimentComparison relativeTo="compare" />
-```
+实验列表行的显示名不需要额外配置：experiment id 共享公共目录前缀时（比如都在 `compare/` 下），行标签自动缩成各自的最短唯一后缀，不显示重复的前缀；末段撞名的 id 会自动加长到能互相区分为止。完整 id 始终是排序、过滤和折叠展开用的身份键，只是显示文字变短了。
 
 组卡使用 `Pass rate / 通过率`、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`、`Total cost / 总成本` 这套字段标签，不在标签里重复“数”“次”或“计票”。时间显示为本地化到分钟的 `Last run / 最近运行` 或 `Run range / 运行范围`，不直接暴露 ISO 字符串；成本数据覆盖不全时写明“`63/72 次有成本数据`”，不显示没有上下文的 `63/72`。六项 KPI 在宽卡片保持同一行，空间不足时按三项或两项一组换行，避免总成本单独掉到下一行。
 
@@ -200,7 +196,7 @@ const CompareSummary = defineComponent((_props, ctx) => (
 
 每项固定代表一个 experiment。主行显示 experiment id、agent、model、flags、评估用例判定构成、通过率、Tokens、成本和耗时。默认 `ExperimentComparison` 把当前 Scope 的全部条目交给它；组件本身不猜边界。
 
-默认比较显示完整 experiment id；排序、过滤和身份也使用完整 id。中文副行用“`8 个 Eval`”而不是“`8 道题`”。
+行标签默认缩成 experiment id 在当前列表里的最短唯一后缀——末段唯一就只显示末段，撞名的 id 各自向前多取一段直到能区分为止（与 `MetricScatter` 散点的点标签同一算法）。排序、过滤和折叠展开始终用完整 id，不受显示名影响。中文副行用“`8 个 Eval`”而不是“`8 道题`”。
 
 ```tsx
 <ExperimentList filter />

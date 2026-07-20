@@ -390,9 +390,11 @@ describe("ExperimentList", () => {
     expect(html).toContain("2 evals");
   });
 
-  it("主行:身份、agent/model、官方两级聚合指标与 eval 级判定构成", () => {
-    expect(html).toContain("compare/bub");
-    expect(html).toContain("compare/codex");
+  it("主行:身份(最短唯一后缀)、agent/model、官方两级聚合指标与 eval 级判定构成;完整 id 仍是排序键", () => {
+    expect(html).toContain(">bub</b>");
+    expect(html).toContain(">codex</b>");
+    expect(html).toContain('data-sort-value="compare/bub"');
+    expect(html).toContain('data-sort-value="compare/codex"');
     expect(html).toContain("gpt-5.4");
     expect(html).toContain("50%"); // endToEndPassRate.display
     expect(html).toContain("1 passed · 1 failed");
@@ -416,12 +418,20 @@ describe("ExperimentList", () => {
     expect(html.match(/gate: roots-correct/g)).toHaveLength(2);
   });
 
-  it("relativeTo 去掉组前缀只显示末段;data-sort-value 仍是完整 id", () => {
-    const relative = renderToStaticMarkup(<ExperimentList data={experimentListItems} relativeTo="compare" />);
-    expect(relative).toContain(">bub</b>");
-    expect(relative).toContain('data-sort-value="compare/bub"');
-    // 不传 relativeTo 显示完整 id
-    expect(html).toContain(">compare/bub</b>");
+  it("行标签默认缩成当前列表里的最短唯一后缀;末段重名时逐步加长到能区分,data-sort-value 仍是完整 id", () => {
+    // 两个不同 experiment 末段撞名(a/run 与 b/run 都叫 run)时,两行都要加长到能区分为止。
+    const dupes = renderToStaticMarkup(
+      <ExperimentList
+        data={[
+          { ...experimentListItems[0]!, experimentId: "compare/a/run" },
+          { ...experimentListItems[1]!, experimentId: "compare/b/run" },
+        ]}
+      />,
+    );
+    expect(dupes).toContain(">a/run</b>");
+    expect(dupes).toContain(">b/run</b>");
+    expect(dupes).toContain('data-sort-value="compare/a/run"');
+    expect(dupes).toContain('data-sort-value="compare/b/run"');
   });
 
   it("零 JS 靠原生 <details>,无 <script>", () => {

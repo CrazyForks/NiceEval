@@ -6,7 +6,7 @@
 import type { ReactElement } from "react";
 import type { AttemptLocator } from "../../../results/locator.ts";
 import type { AttemptListItem, ExperimentListEvalRow, ExperimentListItem } from "../../model/types.ts";
-import { experimentDisplayName } from "../../model/format.ts";
+import { shortestUniqueLabels } from "../../model/format.ts";
 import { DEFAULT_REPORT_LOCALE, localeText, type ReportLocale } from "../../model/locale.ts";
 import { AttemptLocatorBadge, failureSummaryText } from "./AttemptList.tsx";
 import { MetricCellView } from "../cell.tsx";
@@ -122,23 +122,21 @@ function Flags({ flags, locale }: { flags: Record<string, unknown> | undefined; 
 
 function ExperimentRow({
   item,
+  label,
   attemptHref,
   locale,
-  relativeTo,
 }: {
   item: ExperimentListItem;
+  label: string;
   attemptHref?: (locator: AttemptLocator) => string;
   locale: ReportLocale;
-  relativeTo?: string;
 }): ReactElement {
   return (
     <details className="nre-experiment-entry">
       <summary className="nre-experiment-summary">
-        {/* relativeTo 只影响显示末段;完整 id 仍是排序 / 过滤 / 折叠的键,系列色跟随 agent */}
+        {/* label 是当前列表里的最短唯一后缀;完整 id 仍是排序 / 过滤 / 折叠的键,系列色跟随 agent */}
         <span className="nre-experiment-name" data-sort-value={item.experimentId}>
-          <b className={cx("nre-experiment-id", "nre-key")}>
-            {experimentDisplayName(item.experimentId, relativeTo)}
-          </b>
+          <b className={cx("nre-experiment-id", "nre-key")}>{label}</b>
           <small>
             {localeText(locale, "overview.evalsCount", { n: item.evals })}
             {item.attempts > item.evals ? ` · ${localeText(locale, "overview.attemptsCount", { n: item.attempts })}` : ""}
@@ -184,15 +182,14 @@ export function ExperimentList({
   filter = false,
   className,
   locale = DEFAULT_REPORT_LOCALE,
-  relativeTo,
 }: {
   data: readonly ExperimentListItem[];
   attemptHref?: (locator: AttemptLocator) => string;
   filter?: boolean;
   className?: string;
   locale?: ReportLocale;
-  relativeTo?: string;
 }): ReactElement {
+  const experimentLabels = shortestUniqueLabels(data.map((item) => item.experimentId));
   const labels = [
     localeText(locale, "experimentList.experiment"),
     localeText(locale, "table.model"),
@@ -221,7 +218,13 @@ export function ExperimentList({
       </div>
       {data.length === 0 && <p className="nre-experiment-list-empty">{localeText(locale, "attemptList.empty")}</p>}
       {data.map((item) => (
-        <ExperimentRow key={item.experimentId} item={item} attemptHref={attemptHref} locale={locale} relativeTo={relativeTo} />
+        <ExperimentRow
+          key={item.experimentId}
+          item={item}
+          label={experimentLabels.get(item.experimentId) ?? item.experimentId}
+          attemptHref={attemptHref}
+          locale={locale}
+        />
       ))}
     </div>
   );
