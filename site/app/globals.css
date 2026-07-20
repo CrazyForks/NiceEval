@@ -725,7 +725,7 @@ h1 {
 
 .code-line {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 1px 14px;
 }
@@ -752,7 +752,6 @@ h1 {
 .code-line-no {
   flex-shrink: 0;
   width: 16px;
-  padding-top: 1px;
   color: var(--soft);
   font-variant-numeric: tabular-nums;
   text-align: right;
