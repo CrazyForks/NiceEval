@@ -29,6 +29,10 @@
 
 其它所有 E2E 仓库每次验收都带 `--force`，不依赖跨运行缓存——缓存语义只在这里验收一次。
 
+### 反馈输出格式
+
+对 human/agent/ci 三种 `--output` profile 各跑一次真实进程，在真实 stdout/stderr 上断言 [Experiments CLI](../../../feature/experiments/cli.md) 声明的反馈契约：agent/ci 是固定 ASCII `key=value` envelope，永不出现 ANSI 控制字符，字段值含空格时 JSON 转义；ci 的正常事件全部落在 stdout，只有 run 建立前的错误落 stderr；human 的 TTY 输出用真实终端网格核对行宽/行高降级与折叠，非 TTY 输出零 ANSI；三种 profile 在同一次真实结果上给出一致的完成态判定与退出码。心跳、动态区域重画节奏这类纯计时细节不在真实进程上逐秒断言——那类调度节奏由 [Runner](../unit/experiments-runner.md) 用可控 fake clock 验收。
+
 ## 边界
 
 flag 组合、错误文案与选择器的语义广度归[单元测试](../unit/README.md)；本仓库证明的是这些行为在真实模型、真实进程退出码下端到端成立。
