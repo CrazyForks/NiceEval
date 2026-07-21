@@ -2,7 +2,7 @@
   "name": "niceeval-e2e-results",
   "private": true,
   "type": "module",
-  "description": "results E2E repo — validates the on-disk Results format, openResults() library parity, --json parity and --junit folding against a real run (docs/engineering/testing/e2e/report.md).",
+  "description": "report E2E repo — validates on-disk Results format/openResults() parity/--json/--junit folding, read-face CLI behavior, and show/view rendering (structure, terminal typography, browser visual & interaction) against real runs (docs/engineering/testing/e2e/report.md).",
   "scripts": {
     "e2e": "tsx scripts/e2e.ts",
     "typecheck": "tsc --noEmit"
@@ -16,6 +16,7 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@types/node": "^22.0.0",
     "dotenv": "^16.4.5",
     "tsx": "^4.19.2",
