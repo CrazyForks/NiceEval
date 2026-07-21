@@ -1,20 +1,23 @@
 // cases: docs/engineering/testing/unit/reports.md
-// niceeval view 的报告槽与宿主组合语义(docs/feature/reports/architecture.md「Selection 是计算入口」
+// niceeval view 的报告槽装载语义(docs/feature/reports/architecture.md「Selection 是计算入口」
 // 与裁决记录 6;公开行为准绳 docs-site/zh/tutorials/viewing-results.mdx / custom-reports.mdx)。
-// 覆盖:
-// - 组合语义与 show 对齐:位置前缀收窄报告槽 Scope、--exp 过滤、匹配不到直说;
+// 覆盖(「view 数据装载(ViewScan)」类别,见 unit/reports.md 覆盖规范):
 // - 输入语义:位置参数只表示 eval id 前缀(不随文件系统状态改变),结果根走 --results,
-//   单开一份快照走 --snapshot(文件不可读时失败);
-// - 报告槽恒在:裸跑填充内建报告,--report 整槽替换;en / zh-CN 双语各渲染一遍;
-//   裸跑 ≡ --report <re-export ExperimentComparison 的文件>(等价性);
-// - --out 静态导出:index.html 含两个语言的报告块、官方样式与增强 runtime,报告块零 <script>;
-// - dev server 装载语义:报告文件变更 → 下次装载整页重算(mtime cache-busting)。
+//   单开一份快照走 --snapshot(文件不可读时失败),--results/--snapshot 互斥;
+// - 组合语义:位置前缀收窄证据室(attemptsByBase/artifactDirs/attemptPages.locators),
+//   不收窄时的对照;前缀/实验匹配不到直说;
+// - 报告槽恒在:裸跑填充内建报告(三页声明序),--report 整槽替换不影响证据室索引,
+//   viewData 不携带统计产物(overview/table/overall),报告文件缺失或非法默认导出的完整反馈;
+// - 外壳标题取值链(def.title → 内置文案兜底)与 ReportLink.icon 原样透传进 viewData;
+// - dev server 装载语义:报告文件变更 → 下次装载读取新内容(mtime cache-busting)。
+//
+// 渲染出的 HTML 结构、终端/web 双面逐字比对、--out 导出产物与本地 server 的进程级行为
+// 归 docs/engineering/testing/e2e/report.md §4/§5 对真实产物验收,不在本层断言。
 //
 // fixture 直接写新布局(<expDir>/<snapDir>/snapshot.json + <evalId>/a<n>/result.json),
 // 依据是 docs/feature/results/architecture.md 的稳定磁盘契约,不经 writer 运行时 API。
 
-import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,15 +25,11 @@ import { afterEach, describe, expect, it } from "vitest";
 // (see src/view/data.ts's comment) — a raw-src import would be a structurally-identical but
 // `instanceof`-incompatible class.
 import { ReportLoadError } from "../../dist/report/runtime/load.js";
-import { ViewInputError, loadViewScan, type ViewScan } from "./data.ts";
-import { renderHtml } from "./site.ts";
-import { buildView, resolveViewInput } from "./index.ts";
-import { runShow } from "../show/index.ts";
-import { createResultsWriter } from "../results/index.ts";
+import { ViewInputError, loadViewScan } from "./data.ts";
+import { resolveViewInput } from "./index.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION, type EvalResult, type Verdict } from "../types.ts";
 
 const EXAM_REPORT = resolve(__dirname, "../../test/fixtures/report/exam-report.tsx");
-const DEFAULT_REPORT_REEXPORT = resolve(__dirname, "../../test/fixtures/report/default-report-reexport.tsx");
 
 const roots: string[] = [];
 async function makeRoot(): Promise<string> {
@@ -139,61 +138,24 @@ describe("resolveViewInput · 输入语义", () => {
   });
 });
 
-
-/** 单页报告(树形态 --report)的报告槽 HTML:规范化后唯一页 id 恒为 `report`。 */
-function slotHtml(scan: ViewScan): { en: string; "zh-CN": string } {
-  expect(scan.reportPages).toHaveLength(1);
-  expect(scan.reportPages[0]!.id).toBe("report");
-  return scan.reportPages[0]!.html as { en: string; "zh-CN": string };
-}
-
-/** 多页定义(裸跑装载的内建报告是三页)按页 id 取报告槽 HTML。 */
-function pageHtml(scan: ViewScan, id: string): { en: string; "zh-CN": string } {
-  const page = scan.reportPages.find((p) => p.id === id);
-  expect(page, `page ${id}`).toBeTruthy();
-  return page!.html as { en: string; "zh-CN": string };
-}
-
-/** 裸跑的首页(内建报告的 report 页):先断言内建三页齐全,再取首页 HTML。 */
-function bareReportHtml(scan: ViewScan): { en: string; "zh-CN": string } {
-  expect(scan.reportPages.map((p) => p.id)).toEqual(["report", "attempts", "traces"]);
-  return pageHtml(scan, "report");
-}
-
 // ───────────────────────── 组合语义(与 show 对齐) ─────────────────────────
 
 describe("loadViewScan · 组合语义", () => {
-  it("位置前缀收窄作用在有效根上:全部页与证据室一致缩小,被滤掉的 attempt 不烘进页面数据", async () => {
+  it("位置前缀收窄作用在有效根上:证据室(attemptsByBase/artifactDirs)一致缩小,被滤掉的 attempt 不在场", async () => {
     const root = await seedRoot();
     const scan = await loadViewScan(root, { patterns: ["weather"] });
-    const reportHtml = bareReportHtml(scan);
-    // 报告页:两实验都只剩 weather/brooklyn 一题,范围外的失败不再出现。
-    expect(reportHtml.en).toContain("compare/bub");
-    expect(reportHtml.en).toContain("compare/codex");
-    expect(reportHtml.en).not.toContain("fixtures/button");
-    // Attempts / Traces 是普通页,共享同一收窄后 Scope:行集同样缩小。
-    expect(pageHtml(scan, "attempts").en).not.toContain("fixtures/button");
-    expect(pageHtml(scan, "traces").en).not.toContain("fixtures/button");
-    const bare = await loadViewScan(root);
-    expect(pageHtml(bare, "attempts").en).toContain("fixtures/button"); // 不收窄时在场,对照
-    // 有效根即证据室:被滤掉的 attempt 不在 attemptsByBase / attemptPages.locators 里,
-    // 站点管线(site.ts)不会为它生成 attempt/<locator>.html。
+    // 有效根即证据室:被滤掉的 attempt 不在 attemptsByBase 里,站点管线(site.ts)不会为它
+    // 生成 attempt/<locator>.html。
     const filteredOut = [...scan.attemptsByBase.values()].find((a) => a.evalId === "fixtures/button");
     expect(filteredOut).toBeUndefined();
     expect(scan.artifactDirs.size).toBe(
       [...scan.artifactDirs.keys()].filter((base) => base.includes("weather/brooklyn")).length,
     );
-    // 收窄之内、不在现刻水位的口径差异由 --exp 深链测试覆盖;不收窄时深链照常可达,对照:
+    // 不收窄时深链照常可达,对照:
+    const bare = await loadViewScan(root);
     const inBare = [...bare.attemptsByBase.values()].find((a) => a.evalId === "fixtures/button");
     expect(inBare?.locator).toBeTruthy();
     expect(bare.attemptPages!.locators.get(inBare!.locator!)).toBe(inBare);
-  });
-
-  it("--exp 过滤:报告槽 Selection 只留该实验", async () => {
-    const root = await seedRoot();
-    const reportHtml = bareReportHtml(await loadViewScan(root, { experiment: "compare/codex" }));
-    expect(reportHtml.en).toContain("compare/codex");
-    expect(reportHtml.en).not.toContain("compare/bub");
   });
 
   it("前缀/实验匹配不到:直说,不渲染空页面", async () => {
@@ -203,15 +165,12 @@ describe("loadViewScan · 组合语义", () => {
     await expect(loadViewScan(root, { experiment: "nosuch" })).rejects.toBeInstanceOf(ViewInputError);
   });
 
-  it("全部缺省:报告槽使用现刻水位口径(与 show 相同的合成规则);导航页即内建三页", async () => {
+  it("全部缺省:导航页即内建三页(声明序),viewData.report.pages 与 reportPages 一致", async () => {
     const root = await seedRoot();
     const scan = await loadViewScan(root);
-    const reportHtml = bareReportHtml(scan);
-    // 默认报告的榜单含两个实验;官方组件的稳定类名在场。
-    expect(reportHtml.en).toContain("compare/bub");
-    expect(reportHtml.en).toContain("compare/codex");
-    expect(reportHtml.en).toContain("nre-");
-    // 导航 = 报告定义声明的页(声明序),宿主不追加:裸 view 的三个 tab 就是内建三页。
+    // 报告页与 viewData 的页元数据是两份独立结构(渲染出的 HTML vs 序列化声明),
+    // 两者的页 id 集合与顺序必须一致——导航页就是报告定义声明的页,声明序,宿主不追加。
+    expect(scan.reportPages.map((p) => p.id)).toEqual(["report", "attempts", "traces"]);
     expect(scan.viewData.report?.pages.map((p) => p.id)).toEqual(["report", "attempts", "traces"]);
     expect(scan.viewData.report?.pages.map((p) => p.title)).toEqual([
       { en: "Report", "zh-CN": "报告" },
@@ -221,128 +180,27 @@ describe("loadViewScan · 组合语义", () => {
   });
 });
 
-// ─────────────────── 报告槽恒在:裸跑 ≡ --report <ExperimentComparison> ───────────────────
+// ───────────────────────── 报告槽恒在:统计产物只住在报告槽里 ─────────────────────────
 
-describe("loadViewScan · 默认报告槽(裸跑)", () => {
-  it("裸跑产出的报告槽 HTML 与 --report <re-export 内建报告的文件> 逐页完全一致(双语)", async () => {
-    const root = await seedRoot();
-    const bare = await loadViewScan(root);
-    const viaReport = await loadViewScan(root, {
-      report: { path: DEFAULT_REPORT_REEXPORT, cwd: root },
-    });
-    expect(viaReport.reportPages.map((p) => p.id)).toEqual(bare.reportPages.map((p) => p.id));
-    for (const pageId of ["report", "attempts", "traces"]) {
-      expect(pageHtml(viaReport, pageId).en).toBe(pageHtml(bare, pageId).en);
-      expect(pageHtml(viaReport, pageId)["zh-CN"]).toBe(pageHtml(bare, pageId)["zh-CN"]);
-    }
-  });
-
-  it("报告槽双语渲染:同一棵树按 locale 渲染两遍,chrome 文案分语言、数据不分语言", async () => {
-    const root = await seedRoot();
-    const reportHtml = bareReportHtml(await loadViewScan(root));
-    expect(reportHtml.en).toContain("Pass rate"); // ExperimentList 主行(en)
-    expect(reportHtml["zh-CN"]).toContain("通过率"); // ExperimentList 主行(zh-CN)
-    for (const html of [reportHtml.en, reportHtml["zh-CN"]]) {
-      expect(html).toContain("compare/bub");
-      // 失败案例深链进独立 attempt 文档:不透明 AttemptLocator 编码进文件名
-      // (`attempt/<encodeURIComponent(locator)>.html`),不再是旧的 hash 路由。
-      expect(html).toMatch(/href="attempt\/%40[0-9a-z]+\.html"/);
-      expect(html).not.toContain("<script"); // 报告槽产物零客户端 JS,不 hydrate
-    }
-  });
-
-  it("失败清单与警告住在报告页里:ExperimentList 列出失败,壳的 viewData 不携带统计产物", async () => {
+describe("loadViewScan · 报告槽 viewData 不携带统计产物", () => {
+  it("壳的 viewData 不携带统计产物:统计口径整体住在报告页里(官方组件的计算函数)", async () => {
     const root = await seedRoot();
     const scan = await loadViewScan(root);
-    const { viewData } = scan;
-    expect(bareReportHtml(scan).en).toContain("fixtures/button");
-    // 品牌行是页内组件(Hero 恒含),不是宿主 chrome:每页 web 面都带官网品牌行。
-    for (const pageId of ["report", "attempts", "traces"]) {
-      const html = pageHtml(scan, pageId).en;
-      expect(html).toContain("nre-powered-by");
-      expect(html).toContain("https://niceeval.com/?utm_source=report&amp;utm_medium=powered-by");
-    }
-    // viewData 只有证据室数据:快照 + skipped + 壳元信息。
-    expect(viewData).not.toHaveProperty("overview");
-    expect(viewData).not.toHaveProperty("table");
-    expect(viewData).not.toHaveProperty("overall");
+    expect(scan.viewData).not.toHaveProperty("overview");
+    expect(scan.viewData).not.toHaveProperty("table");
+    expect(scan.viewData).not.toHaveProperty("overall");
   });
 });
 
 // ───────────────────────── 报告槽整槽替换 ─────────────────────────
 
 describe("loadViewScan · --report 报告槽", () => {
-  it("报告树渲染为静态 HTML:官方水位 + 自定义摆法 + <Style> 产物,零 <script>", async () => {
+  it("--report 整槽替换不影响证据室索引:attemptsByBase 原样保留、每条都有 locator;报告块本体不进 viewData", async () => {
     const root = await seedRoot();
     const scan = await loadViewScan(root, { report: { path: EXAM_REPORT, cwd: root } });
-    const html = slotHtml(scan).en;
-    expect(html).toContain("考试成绩单"); // 自定义 Section
-    expect(html).toContain("nre-"); // 官方组件的稳定类名
-    expect(html).toContain("<style>.exam-note { color: #4a7; }</style>"); // <Style> 随树带走
-    // exam-report.tsx 是树形态 defineReport,没有声明 attempt-input page:locator 因此只是
-    // 纯文本,不生成假 href(architecture.md「Attempt 详情是一张参数化 page」)。
-    expect(html).toMatch(/<span class="nre-locator[^"]*">@[0-9a-z]+/);
-    expect(html).not.toMatch(/href="#\/attempt\//);
-    expect(html).not.toContain("<script"); // 报告槽产物零客户端 JS,不 hydrate
-    // 用户报告同样双语渲染两遍(壳按界面语言摆放)。
-    expect(slotHtml(scan)["zh-CN"]).toContain("考试成绩单");
-    // 证据室索引(attemptsByBase,供 artifact/ 与 attempt/<locator>.html 两条出口共用)原样保留,
-    // 不受这份没有 attempt-input page 的自定义报告影响;每条都有 locator。
     expect(scan.attemptsByBase.size).toBeGreaterThan(0);
     expect([...scan.attemptsByBase.values()].every((a) => a.locator)).toBe(true);
     expect(JSON.stringify(scan.viewData)).not.toContain("考试成绩单"); // 报告块不进 viewData
-  });
-
-  it("位置前缀对 --report 生效:收窄注入 Selection,报告只见范围内的 eval", async () => {
-    const root = await seedRoot();
-    const scan = await loadViewScan(root, {
-      patterns: ["weather"],
-      report: { path: EXAM_REPORT, cwd: root },
-    });
-    // 范围外的失败(fixtures/button)不再出现在报告里;范围内的实验行都在。
-    const html = slotHtml(scan);
-    expect(html.en).not.toContain("fixtures/button");
-    expect(html.en).toContain("compare/bub");
-    expect(html.en).toContain("compare/codex");
-  });
-
-  it("show --report 与 view --report 吃同一个报告文件,判定口径一致", async () => {
-    const root = await seedRoot();
-    let text = "";
-    const code = await runShow(root, [], { results: root, report: EXAM_REPORT }, {
-      out: (s) => (text += s),
-      err: () => {},
-      width: 120,
-    });
-    expect(code).toBe(0);
-    const scan = await loadViewScan(root, { report: { path: EXAM_REPORT, cwd: root } });
-    // 同一棵树的两个面:同一份失败清单与同一个自定义 Section。
-    const html = slotHtml(scan);
-    for (const needle of ["考试成绩单", "compare/bub", "compare/codex", "fixtures/button"]) {
-      expect(text).toContain(needle);
-      expect(html.en).toContain(needle);
-    }
-    // Grid/Stat/Section.meta:两面共享同一批 label/value/detail/meta 终值,不要求布局逐字一致。
-    for (const needle of ["速览", "人工摘要,非计算结果", "及格线", "60 分", "最高分", "97 分", "compare/codex"]) {
-      expect(text).toContain(needle);
-      expect(html.en).toContain(needle);
-    }
-    // web 面是 Grid 结构(稳定 nre-grid/nre-grid-cell class),text 面无 JS 概念、只有内容。
-    expect(html.en).toContain("nre-grid");
-    expect(html.en).toContain("nre-grid-cell");
-    expect(html.en).toContain("nre-stat");
-
-    // text 面按显示宽度减列但不丢 Stat:极窄终端下两个 Stat 仍都完整可读。
-    let narrowText = "";
-    const narrowCode = await runShow(root, [], { results: root, report: EXAM_REPORT }, {
-      out: (s) => (narrowText += s),
-      err: () => {},
-      width: 30,
-    });
-    expect(narrowCode).toBe(0);
-    for (const needle of ["及格线", "60 分", "最高分", "97 分"]) {
-      expect(narrowText).toContain(needle);
-    }
   });
 
   it("报告文件缺失 / 默认导出不是 defineReport 产物:ReportLoadError 直说", async () => {
@@ -386,7 +244,7 @@ describe("loadViewScan · 外壳标题与 ReportLink.icon", () => {
     ].join("\n");
   }
 
-  it("def.title 进 viewData.report.title,初始 <title> 同源烘进 HTML;link 的 icon svg 原样透传", async () => {
+  it("def.title 进 viewData.report.title;link 的 icon svg 原样透传进 viewData", async () => {
     const root = await seedRoot();
     const path = join(root, "shell-report.mjs");
     await writeFile(path, shellReportSource(), "utf-8");
@@ -397,16 +255,12 @@ describe("loadViewScan · 外壳标题与 ReportLink.icon", () => {
     expect(scan.viewData.report?.links).toEqual([
       { label: "GitHub", href: "https://example.com", icon: { svg: "<svg data-mark></svg>" } },
     ]);
-    const html = await renderHtml(scan);
-    expect(html).toContain("<title>Memory Evals</title>");
   });
 
   it("无 def.title 且快照无 name:标题落内置文案「Eval 运行结果 / Eval Results」,不再是产品名", async () => {
     const root = await seedRoot(); // seedRoot 的快照都没有 name
     const scan = await loadViewScan(root);
     expect(scan.viewData.report?.title).toEqual({ en: "Eval Results", "zh-CN": "Eval 运行结果" });
-    const html = await renderHtml(scan);
-    expect(html).toContain("<title>Eval Results</title>");
   });
 });
 
@@ -437,212 +291,19 @@ describe("loadViewScan · 报告文件变更整页重算", () => {
     ].join("\n");
   }
 
-  it("重写报告文件后,下一次装载渲染新内容(mtime cache-busting)", async () => {
+  it("重写报告文件后,下一次装载读取新内容(mtime cache-busting,不复用陈旧模块)", async () => {
     const root = await seedRoot();
     const path = join(root, "report.mjs");
     await writeFile(path, reportSource("FIRST_RENDER"), "utf-8");
-    const first = slotHtml(await loadViewScan(root, { report: { path, cwd: root } }));
-    expect(first.en).toContain("FIRST_RENDER");
+    const first = await loadViewScan(root, { report: { path, cwd: root } });
+    expect(first.reportPages[0]!.html.en).toContain("FIRST_RENDER");
 
     await writeFile(path, reportSource("SECOND_RENDER"), "utf-8");
     // mtime 精度兜底:显式把 mtime 拨到未来,确保与首次装载可区分。
     const future = new Date(Date.now() + 5000);
     await utimes(path, future, future);
-    const second = slotHtml(await loadViewScan(root, { report: { path, cwd: root } }));
-    expect(second.en).toContain("SECOND_RENDER");
-    expect(second.en).not.toContain("FIRST_RENDER");
-  });
-});
-
-// ───────────────────────── --out 静态导出 ─────────────────────────
-
-describe("buildView · --out 与 --report", () => {
-  it("报告页为首页报告槽,证据室同站:index.html 含报告块与官方样式,artifact 照常复制", async () => {
-    const root = await seedRoot();
-    // 给 weather attempt 一份 events artifact,验证证据室 artifact 照常进导出。
-    // 本快照跑出的条目:artifact 目录 = <snapshot.dir>/<evalId>/a<n>,不需要声明字段。
-    const artifactDir = join(root, "compare_codex", "2026-07-09T10-00-00-000Z", "weather", "brooklyn", "a0");
-    await mkdir(artifactDir, { recursive: true });
-    await writeFile(join(artifactDir, "events.json"), "[]", "utf-8");
-
-    const out = join(root, "site");
-    await buildView({ input: root, out, scan: { report: { path: EXAM_REPORT, cwd: root } } });
-
-    const html = await readFile(join(out, "index.html"), "utf-8");
-    // 双语两个 <template> 静态块都在,壳按界面语言摆放。
-    expect(html).toContain('<template id="niceeval-report-report-en">');
-    expect(html).toContain('<template id="niceeval-report-report-zh-CN">');
-    expect(html).toContain("考试成绩单");
-    expect(html).toContain("nre-"); // 官方组件样式(report/react/styles.css)随页注入
-    // 报告块本体零 <script>:静态块起于 <template>,内部只有标记与 <style>。
-    const block = html.split('<template id="niceeval-report-report-en">')[1]!.split("</template>")[0]!;
-    expect(block).not.toContain("<script");
-    // 证据室同站: artifact 按 /artifact/<base>/ 布局复制。
-    expect(
-      existsSync(join(out, "artifact", "compare_codex/2026-07-09T10-00-00-000Z/weather/brooklyn/a0", "events.json")),
-    ).toBe(true);
-  });
-
-  it("--out 无档位:diff.json 有就带,o11y.json 永不复制", async () => {
-    const root = await seedRoot();
-    const artifactDir = join(root, "compare_codex", "2026-07-09T10-00-00-000Z", "weather", "brooklyn", "a0");
-    await mkdir(artifactDir, { recursive: true });
-    await writeFile(join(artifactDir, "events.json"), "[]", "utf-8");
-    await writeFile(join(artifactDir, "diff.json"), "[]", "utf-8");
-    await writeFile(join(artifactDir, "o11y.json"), "{}", "utf-8");
-
-    const out = join(root, "site");
-    await buildView({ input: root, out });
-    const exported = join(out, "artifact", "compare_codex/2026-07-09T10-00-00-000Z/weather/brooklyn/a0");
-    expect(existsSync(join(exported, "diff.json"))).toBe(true);
-    expect(existsSync(join(exported, "events.json"))).toBe(true);
-    expect(existsSync(join(exported, "o11y.json"))).toBe(false);
-  });
-
-  it("--out 接受收窄,出站的就是收窄到的:被滤掉实验的证据文件与页面数据都不出站", async () => {
-    const root = await seedRoot();
-    // 两个实验各写一份 events.json:导出后只有收窄内的那份在站里。
-    const bubDir = join(root, "compare_bub", "2026-07-08T10-00-00-000Z", "weather", "brooklyn", "a0");
-    const codexDir = join(root, "compare_codex", "2026-07-09T10-00-00-000Z", "weather", "brooklyn", "a0");
-    for (const dir of [bubDir, codexDir]) {
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, "events.json"), "[]", "utf-8");
-    }
-
-    const out = join(root, "site");
-    await buildView({ input: root, out, scan: { patterns: [], experiment: "compare/codex" } });
-    expect(existsSync(join(out, "artifact", "compare_codex/2026-07-09T10-00-00-000Z/weather/brooklyn/a0", "events.json"))).toBe(true);
-    // 被滤掉的实验:证据树整目录不出站,页面数据(烘进 HTML 的 viewData 与报告块)也不含它。
-    expect(existsSync(join(out, "artifact", "compare_bub"))).toBe(false);
-    const html = await readFile(join(out, "index.html"), "utf-8");
-    expect(html).not.toContain("compare/bub");
-    expect(html).toContain("compare/codex");
-  });
-
-  it("eval 前缀收窄导出:不匹配 attempt 的证据不出站", async () => {
-    const root = await seedRoot();
-    const weatherDir = join(root, "compare_bub", "2026-07-08T10-00-00-000Z", "weather", "brooklyn", "a0");
-    const buttonDir = join(root, "compare_bub", "2026-07-08T10-00-00-000Z", "fixtures", "button", "a0");
-    for (const dir of [weatherDir, buttonDir]) {
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, "events.json"), "[]", "utf-8");
-    }
-
-    const out = join(root, "site");
-    await buildView({ input: root, out, scan: { patterns: ["weather"] } });
-    expect(existsSync(join(out, "artifact", "compare_bub/2026-07-08T10-00-00-000Z/weather/brooklyn/a0", "events.json"))).toBe(true);
-    expect(existsSync(join(out, "artifact", "compare_bub/2026-07-08T10-00-00-000Z/fixtures"))).toBe(false);
-    const html = await readFile(join(out, "index.html"), "utf-8");
-    expect(html).not.toContain("fixtures/button");
-  });
-
-  it("默认导出(无 --report):报告槽填充 ExperimentComparison,双语块与增强 runtime 恒内联", async () => {
-    const root = await seedRoot();
-    const out = join(root, "site");
-    await buildView({ input: root, out });
-    const html = await readFile(join(out, "index.html"), "utf-8");
-    expect(html).toContain('<template id="niceeval-report-report-en">');
-    expect(html).toContain('<template id="niceeval-report-report-zh-CN">');
-    expect(html).toContain("nre-"); // 官方组件的稳定类名(KPI / 榜单 / 散点来自 nre 组件)
-    // 渐进增强 runtime(排序 / 过滤 / tooltip)恒内联;报告块本体仍零 <script>。
-    expect(html).toContain("__nreEnhanced");
-    const block = html.split('<template id="niceeval-report-report-en">')[1]!.split("</template>")[0]!;
-    expect(block).not.toContain("<script");
-  });
-});
-
-// ───────────────────── attempt/<locator>.html:独立静态详情文档 ─────────────────────
-
-describe("buildView · attempt/<locator>.html", () => {
-  it("收窄后有效根内每个可达 locator 各一份文档,收窄外 locator 不生成文件(cases.md 第 205 行)", async () => {
-    const root = await makeRoot();
-    const writer = createResultsWriter(root, { producer: { name: "niceeval", version: "1.0.0" } });
-    const snapA = await writer.snapshot({ experimentId: "exp/a", agent: "bub", startedAt: "2026-07-01T08:00:00.000Z" });
-    await snapA.writeAttempt({ id: "q1", verdict: "passed", attempt: 0, durationMs: 1000, assertions: [] });
-    const snapB = await writer.snapshot({ experimentId: "exp/b", agent: "bub", startedAt: "2026-07-01T09:00:00.000Z" });
-    await snapB.writeAttempt({ id: "q2", verdict: "passed", attempt: 0, durationMs: 1000, assertions: [] });
-    await writer.finish();
-
-    const scanFull = await loadViewScan(root);
-    const scanNarrowed = await loadViewScan(root, { experiment: "exp/a" });
-    expect(scanFull.attemptPages!.locators.size).toBe(2);
-    expect(scanNarrowed.attemptPages!.locators.size).toBe(1);
-    const [keptLocator] = [...scanNarrowed.attemptPages!.locators.keys()];
-    const droppedLocator = [...scanFull.attemptPages!.locators.keys()].find((l) => l !== keptLocator)!;
-
-    const out = join(root, "site");
-    await buildView({ input: root, out, scan: { experiment: "exp/a" } });
-    const files = await readdir(join(out, "attempt"));
-    expect(files).toEqual([`${keptLocator}.html`]);
-    expect(existsSync(join(out, "attempt", `${droppedLocator}.html`))).toBe(false);
-  });
-
-  it("直接读取该文档即可见完整内容(cases.md Attempt 参数化 page);样式与视觉归 e2e 报告域,不在本层断言", async () => {
-    const root = await makeRoot();
-    const writer = createResultsWriter(root, { producer: { name: "niceeval", version: "1.0.0" } });
-    const snap = await writer.snapshot({ experimentId: "compare/bub", agent: "bub", startedAt: "2026-07-01T08:00:00.000Z" });
-    await snap.writeAttempt(
-      {
-        id: "weather/brooklyn",
-        verdict: "failed",
-        attempt: 0,
-        durationMs: 4200,
-        assertions: [
-          {
-            name: "temperature matches forecast",
-            severity: "gate",
-            outcome: "failed",
-            score: 0,
-            expected: "72",
-            received: "71",
-            loc: { file: "evals/weather.eval.ts", line: 1 },
-          },
-        ],
-        phases: [{ name: "eval.run", durationMs: 4000 }],
-        diagnostics: [{ code: "teardown-failed", level: "warning", phase: "sandbox.teardown", message: "container stop timed out" }],
-        usage: { inputTokens: 100, outputTokens: 50 },
-      },
-      {
-        sources: [{ path: "evals/weather.eval.ts", content: "export default 1;\n" }],
-        events: [
-          { type: "message", role: "user", text: "what is the forecast for brooklyn" },
-          { type: "message", role: "assistant", text: "72 degrees and sunny" },
-        ],
-        trace: [{ traceId: "t1", spanId: "s1", name: "turn", kind: "turn", startMs: 0, endMs: 100 }],
-        diff: [{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "1" } } }] as never,
-      },
-    );
-    await writer.finish();
-
-    const out = join(root, "site");
-    await buildView({ input: root, out });
-    const [locator] = [...(await loadViewScan(root)).attemptPages!.locators.keys()];
-    const html = await readFile(join(out, "attempt", `${locator}.html`), "utf-8");
-
-    // 结构:en 可见(无 hidden 属性),zh-CN 带 hidden——两者都不需要 JS 才能被浏览器正确
-    // 处理(hidden 是浏览器原生渲染指令,不是 JS 行为);没有 <template> 把内容整个锁起来。
-    expect(html).toMatch(/<div data-nre-locale="en">/);
-    expect(html).not.toMatch(/<div data-nre-locale="en"[^>]*\shidden/);
-    expect(html).toMatch(/<div data-nre-locale="zh-CN" hidden>/);
-    const body = html.split("<body>")[1]!.split("</body>")[0]!;
-    expect(body).not.toContain("<template"); // 不像 index.html 那样把内容锁进 <template>
-    const enBlock = html.split('<div data-nre-locale="en">')[1]!.split('<div data-nre-locale="zh-CN"')[0]!;
-    for (const needle of [
-      "weather/brooklyn", // 身份
-      "compare/bub",
-      "evals/weather.eval.ts", // source
-      "temperature matches forecast", // 断言
-      "71", // received(fix prompt 里的摘要行)
-      "4.0s", // 时间树(eval.run 4000ms)
-      "container stop timed out", // diagnostics
-      "output tokens", // usage
-      "what is the forecast", // 对话
-      "nre-attempt-trace", // trace
-      "a.txt", // diff 摘要
-    ]) {
-      expect(enBlock, needle).toContain(needle);
-    }
-    // 有 source 时对话住在源码行内,不再渲染独立 AttemptConversation。
-    expect(enBlock).not.toContain("nre-attempt-conversation");
+    const second = await loadViewScan(root, { report: { path, cwd: root } });
+    expect(second.reportPages[0]!.html.en).toContain("SECOND_RENDER");
+    expect(second.reportPages[0]!.html.en).not.toContain("FIRST_RENDER");
   });
 });

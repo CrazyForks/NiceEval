@@ -1,17 +1,16 @@
 // cases: docs/engineering/testing/unit/reports.md
-// 覆盖登记行:head 通道注入面——声明序注入 <head>、外链原样透传不进 assets/、
-// 本地 src/href 物化为 assets/<sha256><ext>、attrs 渲染与转义、注入不改初始 HTML
-// 数据节点、head 不进 ctx.report / viewData。
-// 站点管线是 server 与 --out 的唯一联系面,断言全部打在 planSite 产物上。
+// 覆盖登记行(「view 数据装载(ViewScan)」类别):外壳 head 通道的装载解析——按声明序产出
+// ResolvedHeadTag[]、外链原样透传不解析为本地资产、children 原样保留、本地 src/href 解析出
+// 绝对路径与扩展名、head 不进 viewData.report、本地资产缺失时的完整错误反馈。
+// 头标签渲染进最终 HTML 的结构、属性值转义与 assets/<sha256><ext> 物化落盘属于站点管线的
+// 渲染/导出产物,归 docs/engineering/testing/e2e/report.md 对真实产物验收,不在本层断言。
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { loadViewScan } from "./data.ts";
-import { planSite, readSiteFile, writeSite } from "./site.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
 
 const roots: string[] = [];
@@ -96,69 +95,38 @@ async function seedReport(root: string, head: string): Promise<string> {
   return path;
 }
 
-describe("站点管线 · head 通道注入", () => {
-  it("按声明序注入 <head>:外链原样、布尔属性裸渲染、属性值转义、children 原样", async () => {
+describe("loadViewScan · head 通道装载解析(shellAssets.head)", () => {
+  it("按声明序产出 ResolvedHeadTag[]:外链原样、不解析为本地资产;children 原样保留", async () => {
     const root = await seedRoot();
     const path = await seedReport(root, HEAD_DECL);
-    const plan = await planSite(root, { report: { path, cwd: root } });
-    const html = (await readSiteFile(plan.files.get("index.html")!)) as string;
+    const scan = await loadViewScan(root, { report: { path, cwd: root } });
+    const head = scan.shellAssets.head;
 
-    const gtag = `<script async src="${GA_SRC}"></script>`;
-    const inline = "<script>window.dataLayer = window.dataLayer || [];</script>";
-    const og = '<meta property="og:image" content="https://x.example/a&quot;b.png">';
-    expect(html).toContain(gtag);
-    expect(html).toContain(inline);
-    expect(html).toContain(og);
-    // 全部落在 <head> 内、按声明序。
-    const headEnd = html.indexOf("</head>");
-    const positions = [html.indexOf(gtag), html.indexOf(inline), html.indexOf(og), html.indexOf('rel="icon"')];
-    for (const p of positions) expect(p).toBeGreaterThan(-1);
-    for (const p of positions) expect(p).toBeLessThan(headEnd);
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(head.map((h) => h.tag)).toEqual(["script", "script", "meta", "link"]);
+    // 外链(gtag):attrs 原样保留,不解析出 localAsset。
+    expect(head[0]!.attrs).toEqual({ async: true, src: GA_SRC });
+    expect(head[0]!.localAsset).toBeUndefined();
+    // children 原样保留(inline script)。
+    expect(head[1]!.children).toBe("window.dataLayer = window.dataLayer || [];");
+    expect(head[1]!.attrs).toEqual({});
+    // 非 src/href 属性(og:image 的 content)不触发本地资产解析。
+    expect(head[2]!.attrs).toEqual({ property: "og:image", content: OG_IMAGE });
+    expect(head[2]!.localAsset).toBeUndefined();
   });
 
-  it("本地 href 物化为 assets/<sha256><ext> 并回填标签;外链不进 assets/;写盘与 server 读取同源", async () => {
+  it("本地 href 解析为绝对路径与扩展名(localAsset);服务/物化是渲染期的事,不在这层做", async () => {
     const root = await seedRoot();
     const path = await seedReport(root, HEAD_DECL);
-    const plan = await planSite(root, { report: { path, cwd: root } });
+    const scan = await loadViewScan(root, { report: { path, cwd: root } });
+    const link = scan.shellAssets.head[3]!;
 
-    const sha256 = createHash("sha256").update(FAVICON_SVG).digest("hex");
-    const assetPath = `assets/${sha256}.svg`;
-    const html = (await readSiteFile(plan.files.get("index.html")!)) as string;
-    expect(html).toContain(`<link rel="icon" href="${assetPath}">`);
-
-    const assetKeys = [...plan.files.keys()].filter((p) => p.startsWith("assets/"));
-    expect(assetKeys).toEqual([assetPath]); // 外链(gtag)不 vendored
-    expect(plan.files.get(assetPath)!.contentType).toBe("image/svg+xml");
-    // server 面:原字节读取(二进制安全)。
-    const served = await readSiteFile(plan.files.get(assetPath)!);
-    expect(Buffer.isBuffer(served)).toBe(true);
-    expect((served as Buffer).toString("utf-8")).toBe(FAVICON_SVG);
-    // 导出面:writeSite 落盘同一份字节。
-    const out = join(root, "out");
-    await writeSite(plan, out);
-    expect(await readFile(join(out, assetPath), "utf-8")).toBe(FAVICON_SVG);
+    expect(link.tag).toBe("link");
+    expect(link.localAsset).toEqual({ attr: "href", abs: join(root, "favicon.svg"), ext: ".svg" });
   });
 
-  it("head 注入不改初始 HTML 的报告数据节点;head 不进 viewData.report", async () => {
+  it("head 是注入资产,不进报告序列化声明(viewData.report)", async () => {
     const root = await seedRoot();
     const withHead = await seedReport(root, HEAD_DECL);
-    const planWith = await planSite(root, { report: { path: withHead, cwd: root } });
-
-    const bare = join(root, "bare-report.mjs");
-    await writeFile(bare, headReportSource("[]"), "utf-8");
-    const planWithout = await planSite(root, { report: { path: bare, cwd: root } });
-
-    const extractTemplate = (html: string): string => {
-      const match = html.match(/<template id="niceeval-report-report-en">[\s\S]*?<\/template>/);
-      expect(match).not.toBeNull();
-      return match![0];
-    };
-    const htmlWith = (await readSiteFile(planWith.files.get("index.html")!)) as string;
-    const htmlWithout = (await readSiteFile(planWithout.files.get("index.html")!)) as string;
-    expect(extractTemplate(htmlWith)).toBe(extractTemplate(htmlWithout));
-
-    // head 是注入资产,不进序列化声明(viewData.report)。
     const scan = await loadViewScan(root, { report: { path: withHead, cwd: root } });
     expect(scan.viewData.report).not.toHaveProperty("head");
     expect(scan.shellAssets.head).toHaveLength(4);
@@ -172,6 +140,6 @@ describe("站点管线 · head 通道注入", () => {
       headReportSource(JSON.stringify([{ tag: "link", attrs: { rel: "icon", href: "./nope.svg" } }])),
       "utf-8",
     );
-    await expect(planSite(root, { report: { path, cwd: root } })).rejects.toThrow(/asset not found: .*nope\.svg/);
+    await expect(loadViewScan(root, { report: { path, cwd: root } })).rejects.toThrow(/asset not found: .*nope\.svg/);
   });
 });
