@@ -1,6 +1,6 @@
 # Library 逐组件说明——图表族每个组件的契约与写法
 
-按组件遍历图表族:哪些容器接受子组件、每个子组件的 props、相对 recharts 的命名判定与两面投影,并给出写法示例。节点类别与容器解释机制见 [Architecture](architecture.md);真实报告图的结构对照见 [真实图表对照](gallery.md);现状组件的完整 props 契约见 [指标组件](../../feature/reports/library/metric-views.md)。
+按组件遍历图表族:哪些容器接受子组件、每个子组件的 props、相对 recharts 的命名判定与两面投影,并给出写法示例;recharts 全部组件的逐个去向(含设计上不支持的图型)收口在文末[全家普查表](#recharts-全家的去向)。节点类别与容器解释机制见 [Architecture](architecture.md);真实报告图的结构对照见 [真实图表对照](gallery.md);现状组件的完整 props 契约见 [指标组件](../../feature/reports/library/metric-views.md)。
 
 四件事 recharts 没有对应物、由 niceeval 既有契约自带,本页不逐组件重复:
 
@@ -47,6 +47,8 @@
   <ReferenceLine y={0.8} label="目标" />
 </MetricLine>
 ```
+
+面积呈现是 line 的填充变体,不开新容器:容器 prop `area`(布尔)把全部 series 画成填充面积;混合画布里逐 series 用 `as="area"`。
 
 ## `MetricBars`
 
@@ -123,6 +125,8 @@
 
 `connect` 连线、`better: "lower"` 的成本轴反向、单点与多点 series 混排、点级直接标签都是现状契约。「series 名标注在线端以替代图例」设计上不支持:图例契约两面同源、顺序确定,点级直接标签已承担就近识别,线端标注是重复的识别通道。
 
+误差呈现同样走扁平 prop:`errorBars`(布尔)为每个点在两轴分别画置信区间须线(口径与 [`ErrorBar`](#errorbar) 相同,默认 ci95)——点的 x/y 都是聚合值、都携带样本证据,双轴误差不需要子组件语法,不改「不子组件化」的判定。
+
 ## `MetricMatrix`——不子组件化
 
 格子热图没有可插拔的 series、轴或标注概念;「矩阵里一部分行画成柱、一部分画成线」不是矩阵的变体,是 `MetricComposed` 的场景。
@@ -171,13 +175,35 @@ web 渐进增强层的悬停提示,默认内容是该点的轴值与证据引用
 
 web 面背景网格线;text 面无投影。
 
-### `ReferenceLine` / `ReferenceArea`
+### `ReferenceLine` / `ReferenceArea` / `ReferenceDot`
 
-参考线 / 参考区间标注:`x` 或 `y` 给出位置(区间给两端),`label` 可选。web 面画进坐标系;text 面在图例区以「label = 值」一行列出,不进字符坐标图。
+参考标注三件套,与 recharts 同名:参考线(`x` 或 `y` 给出位置)、参考区间(给两端)、参考点(`x` 与 `y` 同给,标注坐标系里一个具名位置,如「当前 run」);`label` 都可选。web 面画进坐标系;text 面在图例区以「label = 值」一行列出,不进字符坐标图。
 
 ### `ErrorBar`
 
 误差线。容器的直接子节点,对图内全部 series 生效。与 recharts 同名但不收 `dataKey`:recharts 不知道数据从哪来,误差值只能作者自备;niceeval 的聚合值天然携带 attempt 级样本证据(`samples`/`refs`),让作者手工再算置信区间等于把管线已有的信息复写进报告。作者只选统计口径:`kind="ci95"`(默认)或 `"stderr"`。web 面画须线;text 面在数值后追加 `±` 区间。
+
+## recharts 全家的去向
+
+对 recharts 全部组件与图表家族的逐个判定,上文各小节已覆盖的只给指向;niceeval 不做的图型写明「设计上不支持」与理由——图表族的比较单位是「配置 × 指标」,不落在这个单位上的图型不进契约:
+
+| recharts | 去向 |
+|---|---|
+| `LineChart` / `BarChart` / `ComposedChart` / `ScatterChart` | [`MetricLine`](#metricline) / [`MetricBars`](#metricbars) / [`MetricComposed`](#metriccomposed) / [`MetricScatter`](#metricscatter不子组件化) |
+| `AreaChart` | 面积是 line 的填充变体:`MetricLine` 容器 prop `area`,混合画布 `as="area"`;不开新容器 |
+| Scatter 双轴误差(ScatterChartWithTwoErrorBars 例) | `MetricScatter` 扁平 prop `errorBars`,见[该节](#metricscatter不子组件化) |
+| `XAxis` / `YAxis` | 不设为组件:`Metric`/`NumericAxis` 自带轴配置,见[子组件·不设](#子组件) |
+| 时间轴(TimeSeries 例) | 不新增轴组件:时间显式映射为数值进 `NumericAxis`,刻度格式由轴声明——与「字符串配置必须显式映射到数值」同一条规则 |
+| tick 抽稀(EquidistantPreserveEnd 例)、`layout` 横竖切换(ChartLayout 例) | 轴渲染的内部策略与形态默认(排行横向、分组柱纵向),不暴露为组件或 prop——少一个自由度,两面同源少一处分叉 |
+| `CartesianGrid` / `Tooltip` / `Legend` / `ReferenceLine` / `ReferenceArea` / `ReferenceDot` / `ErrorBar` | 同名子组件,见上文各节 |
+| `Label` / `LabelList` | 不设为组件:数值标签是排行/堆叠形态的默认呈现,逐点 `label` 走三态阶梯 |
+| `Cell`(逐格/逐点覆盖) | 不设为组件:逐值覆盖由 `ChartSeries` 的 `value` 形态承担 |
+| `Brush`(区间刷选) | 设计上不支持:重交互能力,超出「静态 HTML + 轻量渐进增强」不变量;text 面无对应物 |
+| `syncId` 跨图联动(Synchronised 例)、动画、40 余个鼠标事件 props | 设计上不支持,[References · Recharts](../../references.md#recharts) 已记 |
+| `ResponsiveContainer` | 不设:响应式由 CSS 承担,[References · Recharts](../../references.md#recharts) 已记 |
+| `PieChart` / `RadialBarChart`(占比图) | 设计上不支持:饼图表达单一整体的构成,跨配置不可比;构成对比由 `stack` 堆叠承担,还能在配置间并排比较 |
+| `RadarChart` + Polar 轴族(`PolarGrid`/`PolarAngleAxis`/`PolarRadiusAxis`) | 设计上不支持:雷达图把不同单位的指标画上共用径向轴,轴间面积没有量纲意义;多指标横截面对比的契约是 `MetricTable`(列=指标)与 `Scoreboard` 分科 |
+| `FunnelChart` / `Treemap` / `Sankey` / `SunburstChart` | 设计上不支持:漏斗/层级/流量形态不落在「配置 × 指标」比较单位上,评测域没有对应诉求;出现真实诉求时按新图表容器单独立项,不预留半成品 |
 
 ## 收益边界
 

@@ -7,7 +7,7 @@
 [`ReportNode`](../../feature/reports/library/layout.md#树的节点reportnode) 的通用规则是「节点只有一类来源:`defineComponent` 产物或内置原语」,`validate` 确保展开后每个节点都有 text 和 web 两面。结构描述子节点是第三类来源:
 
 - **只携带 props**:它是一段声明,没有自己的 text/web 渲染面,不参与独立取数,通用 resolve 不展开它。
-- **宿主白名单**:每类结构描述子节点声明自己的宿主容器集合(`ChartSeries`/`ErrorBar` → `MetricLine`/`MetricBars`/`MetricComposed`;`Tooltip`/`Legend`/`CartesianGrid`/`ReferenceLine`/`ReferenceArea` → 全部图表容器)。`validate` 检查它必须是宿主的**直接子节点**;出现在宿主之外或更深层级,按完整用户反馈报错。
+- **宿主白名单**:每类结构描述子节点声明自己的宿主容器集合(`ChartSeries`/`ErrorBar` → `MetricLine`/`MetricBars`/`MetricComposed`;`Tooltip`/`Legend`/`CartesianGrid`/`ReferenceLine`/`ReferenceArea`/`ReferenceDot` → 全部图表容器)。`validate` 检查它必须是宿主的**直接子节点**;出现在宿主之外或更深层级,按完整用户反馈报错。
 - **先例与差异**:[`Tabs`/`Tab`](../../feature/reports/library/layout.md#tabs) 与 [`Grid`](../../feature/reports/library/layout.md#grid-与-stat) 已经确立「子节点由特定父组件解释」,但 `Tab` 做分组、`Grid` 把子节点当不透明格子,都不读取子节点内部结构。图表容器的解释深一层:要从子节点 props 里读出 `metric`、`by`/`value` 这类取数选项——这是两面校验豁免必须成为显式节点类别、而不是特例约定的原因。
 
 ## 容器解释流程
