@@ -37,6 +37,10 @@
 </MetricLine>
 ```
 
+真实报告里的同类诉求——自家模型在全部面板中统一强调,靠的就是这个"逐值携带专属呈现"能力([真实图表对照 · 图 2](gallery.md#图-2多题集小面板)):
+
+![八个题集各一块条形小面板,同一组模型,其中一个模型全程强调](assets/per-eval-bar-panels.jpg)
+
 **结论:** 这里候选语法不是"更简洁",是把现状**表达不了**的组合变成可表达——因为每个 series 现在是一个独立节点,可以各自携带专属 prop,不需要为"按 series 值覆盖呈现"在 `MetricLineOptions` 里发明一种新的嵌套选项(如 `seriesOverrides?: Record<string, {...}>`,这要求 series 取值在声明时就已知,与"`series` 从数据里发现取值域"的现状模型冲突)。这是真实的表现力提升。`value`(字面量单个 series)与场景 1 的 `by`(自动展开一个维度)是 `ChartSeries` 的两种互斥声明形态,详见[组件对照](component-mapping.md#chartseries-的两种声明形态)。
 
 ## 场景 3——同一张图混合柱与线:现状完全不可能
@@ -59,6 +63,10 @@
   <ChartSeries as="line" metric={endToEndPassRate} yAxis="right" />
 </MetricComposed>
 ```
+
+"每个 series 各带自己的指标画进同一根柱/同一张画布"在真实报告里的形态是成本构成堆叠柱——同属 `MetricComposed` 的领地,只是混合方式从"柱旁叠线"换成"柱内堆叠"([真实图表对照 · 图 3](gallery.md#图-3成本构成堆叠条形)):
+
+![每个模型组合一根柱,柱内按 Planner/Worker 成本构成堆叠,柱顶显示总成本](assets/stacked-cost-bars.webp)
 
 **结论:** 与场景 2 同类——不是语法偏好,是能力缺口的填补。现状拿不出"同一画布混合两种呈现"的等价物,候选写法把"呈现类型"变成子节点的一个属性(`as="bar"` / `as="line"`),新增第三种呈现类型时只是再加一个 `ChartSeries`,不用改动容器或其它子节点。`MetricComposed` 是[组件对照](component-mapping.md)里唯一新增的容器名字,其余场景都沿用现状的 `MetricLine`/`MetricBars`。
 
@@ -93,6 +101,10 @@
 ```tsx
 <MetricScatter points="experiment" series={label("line")} connect x={costUSD} y={endToEndPassRate} />
 ```
+
+真实报告里最复杂的散点形态——成本-质量前沿(series 内连线、`better: "lower"` 的成本轴反向、单点与多点 series 混排)——现状这一行语法就能配出来([真实图表对照 · 图 4](gallery.md#图-4成本-质量前沿散点)):
+
+![各模型的成本-质量前沿:series 内沿成本轴连线,成本轴反向(便宜在右),单点与多点 series 混排](assets/cost-quality-frontier.png)
 
 强行改写成子组件形式(如把 `x`/`y` 拆成两个 `ChartAxis` 子节点)只会比现状一行四个 props 更啰嗦,不会带来任何现状表达不了的组合,所以这不是候选 A 覆盖的范围——呼应下面的[结论](#结论子组件语法的收益边界)。
 
