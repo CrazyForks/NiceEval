@@ -1,11 +1,11 @@
 // cases: docs/engineering/testing/unit/reports.md
-// Attempt 详情组件族的单元测试:11 个叶子的非空/空证据矩阵、AttemptAssessment 的
-// source/assertions fallback、AttemptDetail 的内建顺序、spec/data 等价与 scope-input page
-// 报错、AttemptConversation 的 loc 分轮、attemptSourceData 的 loc 投影、AttemptTimeline 的默认折叠。
-// 纯渲染,注入数据:直接构造 AttemptEvidence fixture,不 mock fetch(这些组件从不 fetch)。
-// 样式与视觉交互(染色、布局、展开观感)不在本层:归 E2E 报告域(docs/engineering/testing/e2e/report.md)。
+// Attempt 详情组件族的单元测试:11 个叶子的 attempt*Data 非空/空证据矩阵与 validate*Data 校验、
+// AttemptAssessment 的 source/assertions fallback 展开树、AttemptDetail 的内建顺序(组合函数产出的
+// 树,不经渲染)、spec/data 等价与 scope-input page 报错、AttemptConversation 的 loc 分轮与容错、
+// attemptSourceData 的 loc 投影。观察面全部是 *Data 计算结果、resolve 后的树节点类型与错误对象;
+// 不构造渲染产物——DOM 结构、`<details>` 的 open 折叠标记、text 面下钻命令文本、两面逐字比较均归
+// E2E 报告域(docs/engineering/testing/e2e/report.md §5 结构/终端排版)。
 
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { AssertionResult, EvalResult, StreamEvent, Verdict } from "../../../types.ts";
@@ -13,7 +13,7 @@ import type { Results, Scope } from "../../../results/index.ts";
 import { makeScope } from "../../../results/select.ts";
 import type { AttemptEvidence, AttemptEvidenceCapabilities } from "../../../results/attempt-evidence.ts";
 import { encodeAttemptLocator, type AttemptIdentity } from "../../../results/locator.ts";
-import { composeOf, createTextContext, renderNodeToText, resolveReportTree, ResolveMemo, type ReportNode } from "../../definition/tree.ts";
+import { composeOf, resolveReportTree, ResolveMemo, type ReportNode } from "../../definition/tree.ts";
 import { buildReportMeta, defineReport } from "../../definition/report.ts";
 import {
   attemptAssertionsData,
@@ -134,29 +134,18 @@ describe("Attempt 详情组件族:非空/空证据矩阵", () => {
     expect(validateSummaryData(data)).toBeNull();
   });
 
-  it("AttemptSummary 的 startedAt 与 identity.attempt 两面都可见,startedAt 缺失时两面都不产生该字段", () => {
+  it("AttemptSummary 的 startedAt 取自 result.startedAt,identity.attempt 是零基下标,缺失 startedAt 时字段不产生", () => {
     const withBoth = evidenceOf({
       identity: identityOf({ attempt: 2 }),
       result: resultOf({ attempt: 2, startedAt: "2026-01-01T12:34:00.000Z" }),
     });
     const dataWithBoth = attemptSummaryData(withBoth);
-    const htmlWithBoth = renderToStaticMarkup(<AttemptSummary data={dataWithBoth} /> as never);
-    const textWithBoth = renderNodeToText(<AttemptSummary data={dataWithBoth} /> as never, createTextContext({ width: 100 }));
-    expect(htmlWithBoth).toContain("2026");
-    expect(textWithBoth).toContain("2026");
-    expect(htmlWithBoth).toContain("3"); // identity.attempt = 2,显示前 +1
-    expect(textWithBoth).toContain("3");
+    expect(dataWithBoth.startedAt).toBe("2026-01-01T12:34:00.000Z");
+    expect(dataWithBoth.identity.attempt).toBe(2);
 
     const withoutStartedAt = evidenceOf({ result: resultOf({ startedAt: undefined }) });
     const dataWithoutStartedAt = attemptSummaryData(withoutStartedAt);
     expect(dataWithoutStartedAt.startedAt).toBeUndefined();
-    const htmlWithoutStartedAt = renderToStaticMarkup(<AttemptSummary data={dataWithoutStartedAt} /> as never);
-    const textWithoutStartedAt = renderNodeToText(
-      <AttemptSummary data={dataWithoutStartedAt} /> as never,
-      createTextContext({ width: 100 }),
-    );
-    expect(htmlWithoutStartedAt).not.toContain("Started");
-    expect(textWithoutStartedAt).not.toContain("undefined");
   });
 
   it("AttemptError:没有 error 时 null,有 error 时结构化字段齐全", () => {
@@ -393,34 +382,6 @@ describe("叶子组件的 spec/data 形态", () => {
   });
 });
 
-// ───────────────────────── text/web 共享同一份 data ─────────────────────────
-
-describe("text/web 共享同一份 data,不逐字比较", () => {
-  it("AttemptSummary 两面都显示相同 verdict 与 locator", () => {
-    const evidence = evidenceOf({ result: resultOf({ verdict: "failed" }) });
-    const data = attemptSummaryData(evidence);
-    const html = renderToStaticMarkup(<AttemptSummary data={data} /> as never);
-    const text = renderNodeToText(<AttemptSummary data={data} /> as never, createTextContext({ width: 100 }));
-    expect(html).toContain(evidence.locator);
-    expect(text).toContain(evidence.locator);
-    expect(html).toContain("failed");
-    expect(text).toContain("failed");
-  });
-
-  it("失败断言的 expected/received 两面都可见(docs/feature/reports/library/attempt-detail.md「在 show 与 view 怎样渲染」表)", () => {
-    const assertions: AssertionResult[] = [
-      { name: "check", severity: "gate", outcome: "failed", score: 0, detail: "equals(4)", expected: "4", received: "3" },
-    ];
-    const data = attemptAssertionsData(evidenceOf({ result: resultOf({ verdict: "failed", assertions }) }))!;
-    const html = renderToStaticMarkup(<AttemptAssertions data={data} /> as never);
-    const text = renderNodeToText(<AttemptAssertions data={data} /> as never, createTextContext({ width: 100 }));
-    for (const face of [html, text]) {
-      expect(face).toContain("expected: 4");
-      expect(face).toContain("received: 3");
-    }
-  });
-});
-
 // ───────────────────────── AttemptConversation:loc 分轮 ─────────────────────────
 
 describe("AttemptConversation:标准事件流按 loc 分轮", () => {
@@ -533,226 +494,3 @@ describe("attemptSourceData:标准事件流按 loc 投影回 send 行", () => {
   });
 });
 
-// ───────────────────────── AttemptTimeline:默认折叠 ─────────────────────────
-
-describe("AttemptTimeline:默认只显示主链,children 收合", () => {
-  it("失败最深节点默认展开(HTML 含 open 属性)并带失败标记,祖先不重复标记", () => {
-    const evidence = evidenceOf({
-      result: resultOf({
-        phases: [
-          {
-            name: "eval.run",
-            durationMs: 100,
-            children: [
-              {
-                id: "t1",
-                kind: "turn",
-                label: "s1/t1",
-                startOffsetMs: 0,
-                durationMs: 50,
-                failed: true,
-                children: [{ id: "h1", kind: "hook", label: "hook#1", startOffsetMs: 0, durationMs: 10 }],
-              },
-            ],
-          },
-        ],
-      }),
-    });
-    const data = attemptTimelineData(evidence)!;
-    const html = renderToStaticMarkup(<AttemptTimeline data={data} /> as never);
-    // 失败最深节点(t1,带子节点故渲染为 <details>)默认展开;它的祖先 phase 自己没有 failed 标记
-    // (只有真正失败的最深节点才有),所以只有这一处 open,不是逐层重复标记。
-    expect(html).toContain('open=""');
-    expect(html).toContain("nre-timeline-failed");
-    expect((html.match(/nre-timeline-failed/g) ?? [])).toHaveLength(1);
-  });
-
-  it("默认(全部通过)不展开:HTML 不含 open 属性", () => {
-    const evidence = evidenceOf({
-      result: resultOf({
-        phases: [{ name: "eval.run", durationMs: 100, children: [{ id: "t1", kind: "turn", label: "s1/t1", startOffsetMs: 0, durationMs: 50 }] }],
-      }),
-    });
-    const data = attemptTimelineData(evidence)!;
-    const html = renderToStaticMarkup(<AttemptTimeline data={data} /> as never);
-    expect(html).not.toContain('open=""');
-  });
-});
-
-// ───────────────────────── 渲染矩阵:两面在空/非空两态下都真正渲染一次 ─────────────────────────
-// 上面的矩阵只断言了 data 层(null vs 结构化字段);没有一处真正调用大多数叶子的 web/text 渲染
-// 函数——一次 .map / JSON.stringify / 递归写错都能在那一层蒙混过关(typecheck 与 build:report
-// 只证明能编译、能打包,不证明能跑)。这里对每个叶子直接以 data 形态渲染(不经 resolve,构造
-// 方式与「text/web 共享同一份 data」一致):空态两面零可见输出,非空态两面都不抛错且各含一项
-// 该叶子独有的标志性字段。AttemptFixPrompt 的 text 面是故意恒为空串(见 attempt-faces.ts 注释:
-// 终端已有 locator,不重复整段 prompt),因此单列 textMarker: null 断言「恒空串」而不是子串。
-describe("Attempt 详情组件族:渲染矩阵(空/非空两态,两面都真正渲染)", () => {
-  const richEvidence = evidenceOf({
-    capabilities: FULL_CAPS,
-    result: resultOf({
-      verdict: "failed",
-      error: { code: "timeout", message: "boom", phase: "eval.run" },
-      assertions: [
-        { name: "a", severity: "gate", outcome: "failed", score: 0, detail: "expected true" },
-        { name: "b", severity: "gate", outcome: "passed", score: 1, groupPath: ["g1"] },
-      ],
-      phases: [
-        {
-          name: "eval.run",
-          durationMs: 100,
-          children: [{ id: "t1", kind: "turn", label: "s1/t1", startOffsetMs: 0, durationMs: 50 }],
-        },
-      ],
-      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 2 },
-      diagnostics: [{ code: "cleanup-failed", level: "warning", message: "m", phase: "eval.teardown" }],
-    }),
-    evalSource: {
-      sourcePath: "evals/a.ts",
-      sourceSha256: "x",
-      lines: [
-        {
-          line: 1,
-          text: "t.expect(1).toBe(1)",
-          assertions: [
-            {
-              name: "a",
-              severity: "gate" as const,
-              outcome: "failed" as const,
-              score: 0,
-              detail: "expected true",
-              loc: { file: "evals/a.ts", line: 1 },
-            },
-          ],
-          sends: [],
-        },
-      ],
-      unmapped: [],
-      summary: {
-        totalAssertions: 2,
-        mappedAssertions: 1,
-        unmappedAssertions: 1,
-        passed: 1,
-        failed: 1,
-        gate: 2,
-        soft: 0,
-        totalLines: 1,
-        annotatedLines: 1,
-      },
-    },
-    events: [
-      { type: "message", role: "user", text: "go", loc: { file: "evals/a.ts", line: 1 } },
-      { type: "message", role: "assistant", text: "hi there" },
-      { type: "action.called", callId: "c1", name: "bash", input: { command: "ls" }, tool: "shell" },
-      { type: "action.result", callId: "c1", output: "file.txt", status: "completed" },
-    ],
-    trace: [
-      { traceId: "t1", spanId: "root", name: "attempt", startMs: 0, endMs: 100 },
-      { traceId: "t1", spanId: "child", parentSpanId: "root", name: "model-call", startMs: 0, endMs: 50 },
-    ],
-    diff: {
-      windows: [{ window: "s1/t1", changes: { "a.ts": { status: "modified" as const, before: "1\n2", after: "1\n3" } } }],
-      files: { "a.ts": { net: "modified" as const, windows: ["s1/t1"] } },
-      get: () => "1\n3",
-    },
-  });
-
-  const emptyEvidence = evidenceOf();
-
-  const LEAVES = [
-    { name: "AttemptError", Component: AttemptError, computeData: attemptErrorData, htmlMarker: "boom", textMarker: "boom" },
-    {
-      name: "AttemptAssertions",
-      Component: AttemptAssertions,
-      computeData: attemptAssertionsData,
-      htmlMarker: "expected true",
-      textMarker: "expected true",
-    },
-    { name: "AttemptSource", Component: AttemptSource, computeData: attemptSourceData, htmlMarker: "evals/a.ts", textMarker: "evals/a.ts" },
-    { name: "AttemptFixPrompt", Component: AttemptFixPrompt, computeData: attemptFixPromptData, htmlMarker: "exp/a", textMarker: null },
-    { name: "AttemptTimeline", Component: AttemptTimeline, computeData: attemptTimelineData, htmlMarker: "eval.run", textMarker: "eval.run" },
-    {
-      name: "AttemptConversation",
-      Component: AttemptConversation,
-      computeData: attemptConversationData,
-      htmlMarker: "hi there",
-      textMarker: "hi there",
-    },
-    {
-      name: "AttemptDiagnostics",
-      Component: AttemptDiagnostics,
-      computeData: attemptDiagnosticsData,
-      htmlMarker: "cleanup-failed",
-      textMarker: "cleanup-failed",
-    },
-    { name: "AttemptUsage", Component: AttemptUsage, computeData: attemptUsageData, htmlMarker: "input tokens", textMarker: "tokens" },
-    {
-      name: "AttemptTrace",
-      Component: AttemptTrace,
-      computeData: attemptTraceData,
-      htmlMarker: "model-call",
-      textMarker: "trace:",
-    },
-    { name: "AttemptDiff", Component: AttemptDiff, computeData: attemptDiffData, htmlMarker: "a.ts", textMarker: "a.ts" },
-  ] as const;
-
-  it.each(LEAVES)("$name:空态两面零输出,非空态两面都渲染且各含标志字段", ({ Component, computeData, htmlMarker, textMarker }) => {
-    const emptyData = computeData(emptyEvidence);
-    expect(emptyData).toBeNull();
-    expect(renderToStaticMarkup(<Component data={emptyData as never} /> as never)).toBe("");
-    expect(renderNodeToText(<Component data={emptyData as never} /> as never, createTextContext({ width: 100 }))).toBe("");
-
-    const loadedData = computeData(richEvidence);
-    expect(loadedData).not.toBeNull();
-    const html = renderToStaticMarkup(<Component data={loadedData as never} /> as never);
-    const text = renderNodeToText(<Component data={loadedData as never} /> as never, createTextContext({ width: 100 }));
-    expect(html).toContain(htmlMarker);
-    if (textMarker === null) expect(text).toBe("");
-    else expect(text).toContain(textMarker);
-  });
-
-  it("AttemptSummary(恒非空)两面都渲染完整证据且含 locator/verdict", () => {
-    const data = attemptSummaryData(richEvidence);
-    const html = renderToStaticMarkup(<AttemptSummary data={data} /> as never);
-    const text = renderNodeToText(<AttemptSummary data={data} /> as never, createTextContext({ width: 100 }));
-    expect(html).toContain(richEvidence.locator);
-    expect(text).toContain(richEvidence.locator);
-    expect(html).toContain("failed");
-    expect(text).toContain("failed");
-  });
-
-  // 五个证据组件(AttemptSource/AttemptTimeline/AttemptConversation/AttemptTrace/AttemptDiff)的
-  // text 面都拼 `niceeval show <locator> --X` 下钻命令;docs/feature/reports/library/
-  // attempt-detail.md「在 show 与 view 怎样渲染」要求"保留完整 locator"——没有 locator 的裸
-  // `niceeval show --X` 不可执行,不能算满足契约。命令由宿主经 ctx.attemptCommand 注入
-  // (report.ts DEFAULT_ATTEMPT_COMMAND),没有 attempt-input page 时不存在,行退化为纯文本
-  // (与 traceWaterfallText 同一套退化规则),不生成假命令。
-  describe("证据组件的 text 面下钻命令携带完整 locator", () => {
-    const attemptCommand = (locator: string) => `niceeval show ${locator}`;
-    const withCommand = createTextContext({ width: 100, attemptCommand });
-    const withoutCommand = createTextContext({ width: 100 });
-
-    const COMMANDED = [
-      { name: "AttemptSource", computeData: attemptSourceData, Component: AttemptSource, flag: "--source" },
-      { name: "AttemptTimeline", computeData: attemptTimelineData, Component: AttemptTimeline, flag: "--timing" },
-      { name: "AttemptConversation", computeData: attemptConversationData, Component: AttemptConversation, flag: "--execution" },
-      { name: "AttemptTrace", computeData: attemptTraceData, Component: AttemptTrace, flag: "--timing" },
-      { name: "AttemptDiff", computeData: attemptDiffData, Component: AttemptDiff, flag: "--diff" },
-    ] as const;
-
-    it.each(COMMANDED)("$name:ctx.attemptCommand 存在时命令携带 locator,不存在时优雅退化(不生成假命令)", ({ computeData, Component, flag }) => {
-      const data = computeData(richEvidence);
-      expect(data).not.toBeNull();
-      const withText = renderNodeToText(<Component data={data as never} /> as never, withCommand);
-      expect(withText).toContain(`niceeval show ${richEvidence.locator} ${flag}`);
-      const withoutText = renderNodeToText(<Component data={data as never} /> as never, withoutCommand);
-      expect(withoutText).not.toContain("niceeval show");
-      expect(withoutText).not.toContain(flag);
-    });
-  });
-
-  it("AttemptSource:失败断言的 text 面锚点含完整 file:line:col,可直接复制定位", () => {
-    const data = attemptSourceData(richEvidence)!;
-    const text = renderNodeToText(<AttemptSource data={data} /> as never, createTextContext({ width: 100 }));
-    expect(text).toContain("source: evals/a.ts:1");
-  });
-});

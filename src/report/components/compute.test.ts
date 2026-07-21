@@ -5,7 +5,10 @@
 // 身份键去重、现刻水位、自定义指标 where/aggregate、evalGroup 完整父路径、verdict 权威、
 // MetricCell 诚实、缺 artifact 指标、repeatedFailedCommands、实体列表 failureSummary、
 // scopeSummaryData 两级计票、experimentListData/scopeSummaryData 的 selectedEvalIds 投影、pairsByFlag、
-// MetricLine 点身份、空数组反馈、metricTableData sort。
+// MetricLine 点身份、空数组反馈、metricTableData sort、series 配色的确定性索引计算(colorIndexForKey /
+// colorIndicesForKeys,纯函数,不断言渲染出的颜色值)。MetricScatter 的 text 面(`scatterText`)本身是
+// 终端排版渲染——图例分配、connect 位移摘要的字符串产物归 E2E 报告域(docs/engineering/testing/e2e/
+// report.md §5 终端排版),不在本文件内。
 
 import { describe, expect, it } from "vitest";
 
@@ -25,8 +28,6 @@ import {
   taskPassRate,
 } from "../model/metrics.ts";
 import { flag, label, numericFlag, numericLabel } from "../model/flag.ts";
-import { scatterText } from "./metric-views/faces.ts";
-import { createTextContext } from "../definition/tree.ts";
 import { colorIndexForKey, colorIndicesForKeys } from "../assets/colors.ts";
 import { attemptListData, evalListData, experimentListData } from "./entity-lists/compute.ts";
 import { validateAttemptListData, validateEvalListData, validateExperimentListData } from "./entity-lists/index.tsx";
@@ -1158,48 +1159,6 @@ describe("labels 维度、series 归类与 connect", () => {
     const single = await metricScatterData([a], { points: "experiment", series: ["agent"], x: costUSD, y: endToEndPassRate });
     expect(single.seriesDimension).toBe("agent");
     expect(single.rows[0]!.series).toBe("codex");
-  });
-
-  const cell = (value: number, display: string): import("../model/types.ts").MetricCell => ({
-    value,
-    display,
-    samples: 1,
-    total: 1,
-    refs: [],
-  });
-  const lineScatter = (): import("../model/types.ts").ScatterData => ({
-    pointDimension: "experiment",
-    seriesDimension: "line",
-    x: { key: "costUSD", label: "Cost", unit: "$", better: "lower" },
-    y: { key: "endToEndPassRate", label: "Pass rate", unit: "%", better: "higher" },
-    rows: [
-      { key: "mem/claude-mempal", series: "claude", x: cell(0.55, "$0.55"), y: cell(0.75, "75%") },
-      { key: "mem/claude-baseline", series: "claude", x: cell(0.35, "$0.35"), y: cell(0.5, "50%") },
-      { key: "mem/bub", series: "bub", x: cell(0.09, "$0.09"), y: cell(0.875, "87.5%") },
-    ],
-  });
-
-  it("scatterText:标记按图例顺序分配(series 字典序、series 内 x 升序),标题标注归类维度;默认无箭头", () => {
-    const text = scatterText(lineScatter(), createTextContext({ width: 80 }));
-    expect(text).toContain("grouped by line");
-    // bub < claude:A 给 bub;claude 内按成本升序 baseline(B) → mempal(C)
-    expect(text).toContain("bub     A mem/bub");
-    expect(text).toContain("B mem/claude-baseline");
-    expect(text).toContain("C mem/claude-mempal");
-    expect(text).not.toContain("→ C mem/claude-mempal");
-    expect(text).not.toContain("└ Pass rate");
-  });
-
-  it("scatterText connect:图例按 x 升序 → 串联并给逐段位移摘要;单点 series 无箭头无摘要;坐标图内不画折线", () => {
-    const text = scatterText(lineScatter(), createTextContext({ width: 80 }), { connect: true });
-    expect(text).toContain("B mem/claude-baseline → C mem/claude-mempal");
-    expect(text).toContain("└ Pass rate +25pt · Cost +$0.20");
-    expect(text).toContain("A mem/bub");
-    expect(text).not.toContain("A mem/bub →");
-    // 坐标图折线用 · 描画;connect 的 text 投影是图例的位移摘要,网格行(│ 开头)不出现折线点
-    const plotRows = text.split("\n").filter((l) => l.includes("│"));
-    expect(plotRows.length).toBeGreaterThan(0);
-    expect(plotRows.every((l) => !l.includes("·"))).toBe(true);
   });
 
   it("同图撞色按图例顺序线性探测空格;无冲突键仍取散列格;超过色板才复用", () => {
