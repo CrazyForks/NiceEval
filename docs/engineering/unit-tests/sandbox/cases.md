@@ -189,6 +189,18 @@ it("runCommand 保留参数边界、cwd、env 和 root 语义", async () => {
 | 只观察不还原:agent 写入落真实工作树且进 agent diff;用户 `.git`(HEAD / index / 未提交改动)全程不被触碰;`stop()` 只清 runner 私有资源,不删除、不还原工作树任何文件 | 正例:diff 采到且用户 git 状态逐字节不变;反例:`stop()` 后 agent 写入的文件仍在 |
 | `--keep-sandbox` 与 local 组合在创建前报错,不先起实例 | 反例:报错发生在 create 之前且说明现场天然留在工作树 |
 
+## 串行复用(`--reuse-sandbox`)
+
+契约来源:[串行复用](../../../feature/sandbox/serial-reuse.md)。
+
+| 契约 | 场景 |
+|---|---|
+| 复用模式下不随 eval 变的层整组只执行一次:`createSandbox`、`sandbox.setup` 链、`SandboxAgent.setup` 各一次且 `SandboxAgent.setup` 提前到温基线之前;`EvalDef.setup` / `test(t)` 夹具每题重放 | 正例:两题批次 create/setup/agent-setup 各一次、夹具两次;边界:单题批次除 hoist 外与默认链等价 |
+| 题间重置 = `git reset --hard 温基线` + 尊重分类账排除清单的 `git clean`:上一题夹具与 agent 产出消失,被排除路径(`node_modules` 等)保留 | 正例:上一题未跟踪文件被清;反例:排除清单内目录不被 clean 掉 |
+| 温基线即归因锚点:重置后每题夹具仍是 eval 归因、send 窗口仍是 agent 归因 | 正例:第二题 agent diff 不含第一题任何写入;反例:温基线之前装的 agent CLI 文件不进任何一题的 diff |
+| `--reuse-sandbox` 与 `--keep-sandbox`、`localSandbox()` 组合各自在创建沙箱前报错;批次 sandbox spec + environment profile 不一致时创建前一次性报错并列出分组 | 反例:互斥与异构报错均发生在 create 之前;反例:异构批次不静默降级、不偷起多个沙箱 |
+| 复用 attempt 落盘打 `reuse` 标记,永不作为后续 run 的指纹跳过来源;`runs > 1` 的 attempt 同道串行、每次先 reset 回温基线 | 正例:复用后的重跑不产生缓存命中;边界:`runs: 3` 串行三次且首过即停语义不变 |
+
 ## 孤儿核对与 prune
 
 契约来源：[Architecture · 孤儿核对](../../../feature/sandbox/architecture.md#孤儿核对强杀路径的实例面兜底)、[CLI · sandbox prune](../../../feature/sandbox/cli.md#sandbox-prune)。

@@ -46,8 +46,7 @@ docs/
 │   └── reports/                         show、view 与报告组件
 │
 ├── roadmap/                             尚未定稿的功能设计
-│   ├── multi-agent/                     多 Agent Eval 场景
-│   └── view-enhancements.md             View 的候选增强
+│   └── multi-agent/                     多 Agent Eval 场景
 │
 ├── engineering/                         仓库自身的工程机制
 │   ├── _template/                       新工程主题模板

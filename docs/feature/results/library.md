@@ -146,7 +146,7 @@ console.table([...touched.entries()].sort((a, b) => b[1].attempts - a[1].attempt
 
 ## 快照:experiment × 一次运行
 
-**快照 = 单次跑的实验**,物理上就是一个快照目录(`.niceeval/<experiment>/<timestamp>-<suffix>/`),与 [View 增强 · Compare 计划](../../roadmap/view-enhancements.md#compare-挑两次运行对比) 的 `(experimentId, startedAt)` 同一口径。「每个 experiment 最新一次」天然是快照粒度:周一跑了整组 compare,周二只重跑 `compare/bub-gpt-5.4`,bub 的最新快照在周二,codex 的还在周一——`niceeval exp compare` 一次 CLI 调用会同时开多个快照目录(每实验一个),但它们各自独立,没有跨实验的聚合落盘。
+**快照 = 单次跑的实验**,物理上就是一个快照目录(`.niceeval/<experiment>/<timestamp>-<suffix>/`),快照身份即 `(experimentId, startedAt)`,与报告组件 snapshot 维度(如 [`DeltaTable`](../reports/library/metric-views.md#deltatable) 的成对比较)同一口径。「每个 experiment 最新一次」天然是快照粒度:周一跑了整组 compare,周二只重跑 `compare/bub-gpt-5.4`,bub 的最新快照在周二,codex 的还在周一——`niceeval exp compare` 一次 CLI 调用会同时开多个快照目录(每实验一个),但它们各自独立,没有跨实验的聚合落盘。
 
 ```typescript
 interface Snapshot {

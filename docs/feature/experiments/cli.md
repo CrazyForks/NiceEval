@@ -649,3 +649,4 @@ Did you mean: niceeval show
 - [Library](library.md) —— 路径怎样形成 id，`evals` 怎样选择运行集合。
 - [Runner](../../runner.md) —— 矩阵展开、并发、首过即停、预算与退出码。
 - [Results](../results/README.md) —— AI 与 CI 应读取的权威快照。
+- [CLI 用例](use-case/README.md) —— 每个位置参数与 flag 的用户用例全流程。

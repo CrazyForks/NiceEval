@@ -26,6 +26,7 @@
 
 - [Show](show.md) —— 终端中的榜单、attempt 诊断和证据切面。
 - [View](view.md) —— 本地网页、结果收窄和静态导出。
+- [CLI 用例](use-case/README.md) —— `show` / `view` 每个位置参数与 flag 的用例全流程。
 - [Library](library.md) —— 报告组件目录和常用组合配方。
 - [Theme](library/theme.md) —— view 主题令牌、Library 配置 DX 与完整 CSS 出口。
 - [Architecture](architecture.md) —— 两个宿主、报告树和可序列化边界。
