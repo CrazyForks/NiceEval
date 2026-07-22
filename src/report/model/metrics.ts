@@ -9,6 +9,7 @@
 //   executionReliability(execution-reliability)    null     0                1       1             higher
 //   endToEndPassRate(end-to-end-pass-rate)         null     0                0       1             higher
 //   examScore(exam-score)                          null     0                0       soft 均分      higher
+//   totalScore(total-score)                        null     null             Σpoints Σpoints       higher(通过制 eval 恒 null,不参与聚合)
 //   durationMs(duration)                           null     实测             实测     实测          lower
 //   tokens(tokens)                                 null     实测;无 usage→null 同左   同左          lower
 //   costUSD(cost)                                  null     同上             同左     同左          lower
@@ -121,6 +122,33 @@ export const examScore = defineMetric({
     if (soft.length === 0) return 1;
     return soft.reduce((sum, x) => sum + (x.outcome === "unavailable" ? 0 : x.score), 0) / soft.length;
   },
+});
+
+/**
+ * 计分制(`defineScoreEval`)eval 的挣分:`assertions[].points` 之和加 `scoreEntries[].points`
+ * 之和——纯累加,不声明满分(docs/feature/experiments/score-points.md「计分制:叠加给分,
+ * 没有上限声明」)。errored 记 null(基础设施得 null,不折成 0);skipped 同为 null。通过制
+ * (`scoring !== "points"`,含省略即 "pass")eval 没有分数面,同样返回 null——这样跨题型的
+ * Scope 里对 totalScore 求 acrossEvals 和时,通过制 eval 天然不贡献、也不拉低分母(它们不落
+ * 进这个指标的样本)。`runs > 1` 时同一 eval 的多个 attempt 取均值(perEval mean,与文档「eval
+ * 得分取各 attempt 的均值」一致);跨 eval 用 sum(acrossEvals sum,对应「总分 = Σ 各 eval 挣分」)。
+ */
+export const totalScore = defineMetric({
+  name: "total-score",
+  label: { en: "Total score", "zh-CN": "总分" },
+  description: "Points-scoring eval's earned points: sum of assertions[].points + scoreEntries[].points. Not applicable (null) to pass-scoring evals.",
+  better: "higher",
+  value(a) {
+    if (a.result.scoring !== "points") return null;
+    if (a.result.verdict === "errored" || a.result.verdict === "skipped") return null;
+    let total = 0;
+    for (const assertion of a.result.assertions) {
+      if (assertion.outcome !== "unavailable" && typeof assertion.points === "number") total += assertion.points;
+    }
+    for (const entry of a.result.scoreEntries ?? []) total += entry.points;
+    return total;
+  },
+  aggregate: { perEval: "mean", acrossEvals: "sum" },
 });
 
 export const durationMs = defineMetric({

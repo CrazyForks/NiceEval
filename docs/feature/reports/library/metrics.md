@@ -69,6 +69,7 @@ interface MetricCell {
 | `taskPassRate` | 条件答题通过率：passed = 1，failed = 0，errored 记 `null`；即只在已形成可信判定的样本上回答 Agent 答题质量 | 高 | `result.json` |
 | `executionReliability` | 执行可靠性：跑到可判定（passed / failed）= 1，errored = 0；回答一次运行能否形成可信判定 | 高 | `result.json` |
 | `examScore` | gate 决定能否得分，soft 断言给质量分 | 高 | `result.json` |
+| `totalScore` | 计分制（`defineScoreEval`）eval 的挣分：`assertions[].points` 之和加 `scoreEntries[].points` 之和，纯累加不声明满分；通过制 eval（`scoring` 省略或 `"pass"`）恒 `null`，不参与聚合 | 高 | `result.json` |
 | `durationMs` | attempt 判定链耗时（不含收尾段，口径见 [Results](../../results/architecture.md#resultjson)） | 低 | `result.json` |
 | `tokens` | input + output tokens | 低 | `result.json` |
 | `costUSD` | 网关实测成本优先，否则估算成本 | 低 | `result.json` |
@@ -86,6 +87,8 @@ interface MetricCell {
 ```
 
 `assistantTurns` 与 `repeatedFailedCommands` 需要 `o11y.json`；发布时没复制该 artifact 就显示缺失，不会冒充 0。`endToEndPassRate` 与 Eval 最终 verdict 是两个问题：前者衡量单次实际交付成功的概率；后者为了 early-exit / 退出码按 `passed > failed > errored > skipped` 折叠多轮。Reports 可以同时展示终态判定构成和 `endToEndPassRate`，但不得用前者现场重算后者。
+
+`totalScore` 是「`skipped` 记 null、`errored` 记 0」这条通用规则的例外：它对 `errored` **与** `skipped` 都记 `null`（基础设施得 null，不折成 0——中止挣 0 是 `test()` 控制流自然产生的事实，已经体现在 `points` 求和里，不需要指标层再折一次），对通过制 eval（`scoring` 省略或显式 `"pass"`）也恒记 `null`（不适用，不是缺数据）。聚合方向同样是例外：`perEval` 用默认 `mean`（`runs > 1` 时同一 eval 的多轮取均值），但 `acrossEvals` 用 `sum`（不是默认的 `mean`）——「总分 = Σ 各 eval 挣分」，跨题不取平均。
 
 ## 自定义指标
 

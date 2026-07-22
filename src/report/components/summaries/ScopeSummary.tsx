@@ -44,12 +44,24 @@ export function ScopeSummary({
   return (
     <div className={cx("nre", "nre-scope-summary", className)} data-votes={votes}>
       <dl className="nre-scope-kpis">
-        <div className="nre-scope-kpi nre-scope-kpi-rate">
-          <dt>{localeText(locale, "scopeSummary.passRate")}</dt>
-          <dd>
-            <MetricCellView cell={data.endToEndPassRate} locale={locale} />
-          </dd>
-        </div>
+        {/* 计分制 Scope 隐藏通过率只显示总分;混型 Scope 两者都显示;纯通过制 Scope 只显示
+            通过率(现状不变),见 docs/feature/reports/library/summaries.md「ScopeSummary」。 */}
+        {data.scoringComposition !== "points" && (
+          <div className="nre-scope-kpi nre-scope-kpi-rate">
+            <dt>{localeText(locale, "scopeSummary.passRate")}</dt>
+            <dd>
+              <MetricCellView cell={data.endToEndPassRate} locale={locale} />
+            </dd>
+          </div>
+        )}
+        {data.totalScore !== undefined && (
+          <div className="nre-scope-kpi nre-scope-kpi-rate">
+            <dt>{localeText(locale, "scopeSummary.totalScore")}</dt>
+            <dd>
+              <MetricCellView cell={data.totalScore} locale={locale} />
+            </dd>
+          </div>
+        )}
         <div className="nre-scope-kpi">
           <dt>{localeText(locale, "scopeSummary.experiments")}</dt>
           <dd>{data.experiments}</dd>

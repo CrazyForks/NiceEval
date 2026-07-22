@@ -26,6 +26,7 @@ import {
   executionReliability,
   repeatedFailedCommands,
   taskPassRate,
+  totalScore,
 } from "../model/metrics.ts";
 import { flag, label, numericFlag, numericLabel } from "../model/flag.ts";
 import { colorIndexForKey, colorIndicesForKeys } from "../assets/colors.ts";
@@ -78,6 +79,11 @@ function res(id: string, verdict: Verdict, extra: Partial<EvalResult> = {}): Eva
 
 function softAssertion(name: string, score: number, extra: Partial<AssertionResult> = {}): AssertionResult {
   return { name, severity: "soft", score, outcome: "passed" as const, ...extra } as AssertionResult;
+}
+
+/** 计分制断言:.points(n) 挂了才有的 points 字段(n × score,由调用方直接传最终挣分)。 */
+function pointsAssertion(name: string, points: number, extra: Partial<AssertionResult> = {}): AssertionResult {
+  return { name, severity: "gate", score: 1, outcome: "passed" as const, points, ...extra } as AssertionResult;
 }
 
 /** 最小合规 O11ySummary;shellCommands / totalTurns 按需变。 */
@@ -701,6 +707,33 @@ describe("scopeSummaryData", () => {
     expect(data.range).toEqual({ earliestStartedAt: null, latestStartedAt: null });
     expect(data.evals).toBe(0);
   });
+
+  it("scoringComposition 与 totalScore:纯通过制 Scope 省略 totalScore(不摆空列)", async () => {
+    const data = await scopeSummaryData([snap({ experimentId: "exp/pass", results: [res("a", "passed")] })]);
+    expect(data.scoringComposition).toBe("pass");
+    expect(data.totalScore).toBeUndefined();
+  });
+
+  it("scoringComposition 与 totalScore:纯计分制 Scope 携带 totalScore", async () => {
+    const s = snap({
+      experimentId: "exp/points",
+      results: [res("a", "passed", { scoring: "points", assertions: [pointsAssertion("x", 3)] })],
+    });
+    const data = await scopeSummaryData([s]);
+    expect(data.scoringComposition).toBe("points");
+    expect(data.totalScore?.value).toBe(3);
+  });
+
+  it("scoringComposition:一个 Scope 里并排通过制与计分制两个 experiment → \"mixed\"", async () => {
+    const passExp = snap({ experimentId: "exp/a-pass", results: [res("a", "passed")] });
+    const pointsExp = snap({
+      experimentId: "exp/b-points",
+      results: [res("b", "passed", { scoring: "points", assertions: [pointsAssertion("x", 5)] })],
+    });
+    const data = await scopeSummaryData([passExp, pointsExp]);
+    expect(data.scoringComposition).toBe("mixed");
+    expect(data.totalScore).toBeDefined();
+  });
 });
 
 // ───────────────────────── experimentListData / scopeSummaryData 的 selectedEvalIds 投影 ─────────────────────────
@@ -1127,6 +1160,89 @@ describe("examScore", () => {
     expect(cellOf("allgate").value).toBe(1);
     expect(cellOf("crashed").value).toBe(0);
     expect(cellOf("crashed").samples).toBe(1); // 0 分是测得的事实,不是缺数据
+  });
+});
+
+// ───────────────────────── totalScore ─────────────────────────
+
+describe("totalScore", () => {
+  it("计分制 eval:assertions[].points 之和 + scoreEntries[].points 之和,纯累加", async () => {
+    const s = snap({
+      experimentId: "score/x",
+      results: [
+        res("checkpoints", "passed", {
+          scoring: "points",
+          assertions: [pointsAssertion("a", 1), pointsAssertion("b", 1), pointsAssertion("c", 0)],
+          scoreEntries: [{ label: "代码精简", points: 15 }],
+        }),
+      ],
+    });
+    const table = await metricTableData([s], { rows: "eval", columns: [totalScore] });
+    const cellOf = (key: string) => table.rows.find((r) => r.key === key)!.cells[totalScore.name]!;
+    expect(cellOf("checkpoints").value).toBe(17); // 1 + 1 + 0 + 15
+  });
+
+  it("errored 记 null(基础设施得 null,不折成 0),不进分母", async () => {
+    const s = snap({
+      experimentId: "score/errored",
+      results: [res("crashed", "errored", { scoring: "points", error: erroredWith("boom") })],
+    });
+    const table = await metricTableData([s], { rows: "eval", columns: [totalScore] });
+    const cell = table.rows.find((r) => r.key === "crashed")!.cells[totalScore.name]!;
+    expect(cell.value).toBeNull();
+    expect(cell.samples).toBe(0);
+  });
+
+  it("skipped 记 null", async () => {
+    const s = snap({
+      experimentId: "score/skipped",
+      results: [res("skip", "skipped", { scoring: "points", skipReason: "not applicable" })],
+    });
+    const table = await metricTableData([s], { rows: "eval", columns: [totalScore] });
+    expect(table.rows.find((r) => r.key === "skip")!.cells[totalScore.name]!.value).toBeNull();
+  });
+
+  it("failed(gate 挂了)仍照实求和已挣到的分——中止挣 0 靠 test() 控制流,不靠这个指标折成 0", async () => {
+    const s = snap({
+      experimentId: "score/failed",
+      results: [
+        res("partial", "failed", {
+          scoring: "points",
+          assertions: [
+            pointsAssertion("step1", 1),
+            pointsAssertion("step2", 0, { outcome: "failed" as const, severity: "gate" }),
+          ],
+        }),
+      ],
+    });
+    const table = await metricTableData([s], { rows: "eval", columns: [totalScore] });
+    expect(table.rows.find((r) => r.key === "partial")!.cells[totalScore.name]!.value).toBe(1);
+  });
+
+  it("通过制 eval(scoring 省略或 \"pass\"):恒 null,不参与聚合——两种题型天然不互相污染", async () => {
+    const s = snap({
+      experimentId: "score/mixed-scope",
+      results: [res("pass-eval", "passed"), res("also-pass-eval", "passed", { scoring: "pass" })],
+    });
+    const table = await metricTableData([s], { rows: "eval", columns: [totalScore] });
+    expect(table.rows.find((r) => r.key === "pass-eval")!.cells[totalScore.name]!.value).toBeNull();
+    expect(table.rows.find((r) => r.key === "also-pass-eval")!.cells[totalScore.name]!.value).toBeNull();
+  });
+
+  it("聚合口径:同一 eval 的多个 attempt 取均值(perEval mean),跨 eval 求和(acrossEvals sum)", async () => {
+    const s = snap({
+      experimentId: "score/aggregate",
+      results: [
+        // 同一题 "q1" 跑两轮:4 分与 2 分 → perEval mean = 3
+        res("q1", "passed", { attempt: 0, scoring: "points", assertions: [pointsAssertion("a", 4)] }),
+        res("q1", "passed", { attempt: 1, scoring: "points", assertions: [pointsAssertion("a", 2)] }),
+        // 另一题 "q2" 跑一轮:5 分
+        res("q2", "passed", { scoring: "points", assertions: [pointsAssertion("a", 5)] }),
+      ],
+    });
+    const table = await metricTableData([s], { rows: "experiment", columns: [totalScore] });
+    // acrossEvals sum:q1 的 perEval 均值(3)+ q2 的值(5)= 8,不是全部 attempt 直接相加(11)。
+    expect(table.rows[0]!.cells[totalScore.name]!.value).toBe(8);
   });
 });
 

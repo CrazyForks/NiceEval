@@ -317,6 +317,16 @@ export interface ScopeSummaryData {
   attemptVerdicts: VerdictTally;
   /** 官方两级 endToEndPassRate,不从任一计票重算。 */
   endToEndPassRate: MetricCell;
+  /**
+   * 该 Scope 内出现的题型:`"pass"` 全部通过制(默认,与此字段引入前行为一致)、`"points"`
+   * 全部计分制、`"mixed"` 两者都有(一个 Scope 可以并排多个 experiment,题型只在单个
+   * experiment 内被强制统一,见 docs/feature/experiments/score-points.md「横截面聚合」)。
+   * 渲染面据此决定主 KPI:`"points"` 隐藏通过率只显示 `totalScore`;`"mixed"` 两者都显示;
+   * `"pass"` 只显示通过率、`totalScore` 省略——不摆空列。
+   */
+  scoringComposition: "pass" | "points" | "mixed";
+  /** 计分制总分(totalScore 指标)。仅 `scoringComposition` 为 `"points"` 或 `"mixed"` 时出现。 */
+  totalScore?: MetricCell;
   /** costUSD 按 attempt 求和;缺失成本不伪造为 0。 */
   totalCostUSD: MetricCell;
 }

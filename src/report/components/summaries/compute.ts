@@ -9,7 +9,7 @@
 
 import type { ReportInput, ScopeSummaryData } from "../../model/types.ts";
 import { collectItems, computeCell, resolveInput } from "../../model/aggregate.ts";
-import { costUSD, defineMetric, endToEndPassRate } from "../../model/metrics.ts";
+import { costUSD, defineMetric, endToEndPassRate, totalScore } from "../../model/metrics.ts";
 import { selectedEvalsOnly, summarizeItems, tallyOf } from "../shared-compute.ts";
 
 // ───────────────────────── scopeSummaryData ─────────────────────────
@@ -43,6 +43,13 @@ export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummary
   const attemptVerdicts = tallyOf();
   for (const item of items) attemptVerdicts[item.attempt.result.verdict] += 1;
 
+  // 题型构成:决定渲染面的主 KPI 是通过率、总分,还是两者都显示(见
+  // docs/feature/reports/library/summaries.md「ScopeSummary」)。
+  const hasPoints = items.some((item) => item.attempt.result.scoring === "points");
+  const hasPass = items.some((item) => item.attempt.result.scoring !== "points");
+  const scoringComposition: ScopeSummaryData["scoringComposition"] =
+    hasPoints && hasPass ? "mixed" : hasPoints ? "points" : "pass";
+
   return {
     range: { earliestStartedAt: earliest, latestStartedAt: latest },
     experiments: stats.experiments,
@@ -51,6 +58,8 @@ export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummary
     evalVerdicts: stats.verdicts,
     attemptVerdicts,
     endToEndPassRate: await computeCell(endToEndPassRate, items),
+    scoringComposition,
+    ...(hasPoints ? { totalScore: await computeCell(totalScore, items) } : {}),
     totalCostUSD: await computeCell(totalCostMetric, items),
   };
 }

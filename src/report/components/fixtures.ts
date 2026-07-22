@@ -33,6 +33,7 @@ export const scopeSummaryData: ScopeSummaryData = {
   attemptVerdicts: { passed: 4, failed: 3, errored: 1, skipped: 1 },
   // 两级聚合口径,刻意不等于任一计票的比例:组件必须原样渲染,不重算
   endToEndPassRate: { value: 0.6, display: "60%", samples: 8, total: 9, refs: [] },
+  scoringComposition: "pass",
   totalCostUSD: { value: 1.5, display: "$1.50", samples: 8, total: 9, refs: [] },
 };
 

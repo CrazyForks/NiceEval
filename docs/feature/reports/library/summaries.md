@@ -61,9 +61,11 @@ export const ExperimentComparison = defineComponent((props, ctx) => {
 
 ## `ScopeSummary`
 
-显示一个范围的快照时间窗、experiment / eval / attempt 数、两级判定结果、端到端通过率和总成本。Eval 的身份键是 `experimentId + evalId`：同一个 Eval 在不同 experiment 中运行时算两个独立 Eval，`evals` 与 `evalVerdicts` 都按这个身份计数。`ExperimentComparison` 用它概括完整输入。
+显示一个范围的快照时间窗、experiment / eval / attempt 数、两级判定结果、主读数（通过率或总分）和总成本。Eval 的身份键是 `experimentId + evalId`：同一个 Eval 在不同 experiment 中运行时算两个独立 Eval，`evals` 与 `evalVerdicts` 都按这个身份计数。`ExperimentComparison` 用它概括完整输入。
 
-web 面使用短标签 `Pass rate / 通过率`、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`（`votes="attempt"` 时为 `Attempt results / Attempt 结果`）和 `Total cost / 总成本`。这些是字段名，不在标签里重复“数”“次”或“计票”；数量由值本身表达。时间不直接暴露 ISO 字符串：单点写成 `Last run / 最近运行`，范围写成 `Run range / 运行范围`，时间值按当前 locale 格式化到分钟；同日范围不重复右端日期，同年跨日范围不重复右端年份。成本覆盖不全时，在金额下方用 `Cost available for 63/72 attempts / 63/72 次有成本数据` 解释覆盖范围，不能只放一个无语义的 `63/72` 角标。
+web 面使用短标签 `Pass rate / 通过率`、`Total score / 总分`、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`（`votes="attempt"` 时为 `Attempt results / Attempt 结果`）和 `Total cost / 总成本`。这些是字段名，不在标签里重复“数”“次”或“计票”；数量由值本身表达。时间不直接暴露 ISO 字符串：单点写成 `Last run / 最近运行`，范围写成 `Run range / 运行范围`，时间值按当前 locale 格式化到分钟；同日范围不重复右端日期，同年跨日范围不重复右端年份。成本覆盖不全时，在金额下方用 `Cost available for 63/72 attempts / 63/72 次有成本数据` 解释覆盖范围，不能只放一个无语义的 `63/72` 角标。
+
+主读数按 Scope 内出现的题型（`scoringComposition`）切换：纯通过制（`"pass"`）只显示通过率，`totalScore` 省略；纯计分制（`"points"`）隐藏通过率、只显示总分（[`totalScore` 指标](metrics.md#内置指标)：`assertions[].points` 之和加 `scoreEntries[].points` 之和，errored/skipped 记 `null`）；混型（`"mixed"`，一个 Scope 并排通过制与计分制两个 experiment，见[计分粒度](../../experiments/score-points.md)）两者都显示——不摆空列，只在相关时才出现对应的读数。
 
 data 恒携带两级计票，两份序列化 JSON 摆在一起时口径自明；渲染面显示哪一级由呈现 prop `votes` 决定：
 
@@ -86,6 +88,15 @@ interface ScopeSummaryData {
   attemptVerdicts: { passed: number; failed: number; errored: number; skipped: number };
   /** 官方两级 endToEndPassRate，不从任一计票重算。 */
   endToEndPassRate: MetricCell;
+  /**
+   * 该 Scope 内出现的题型：`"pass"` 全部通过制、`"points"` 全部计分制、`"mixed"` 两者都有
+   * （一个 Scope 可以并排多个 experiment，题型只在单个 experiment 内被强制统一）。渲染面据此
+   * 决定主 KPI：`"points"` 隐藏通过率只显示 `totalScore`；`"mixed"` 两者都显示；`"pass"` 只
+   * 显示通过率、`totalScore` 省略。
+   */
+  scoringComposition: "pass" | "points" | "mixed";
+  /** 计分制总分（`totalScore` 指标）。仅 `scoringComposition` 为 `"points"` 或 `"mixed"` 时出现。 */
+  totalScore?: MetricCell;
   /** costUSD 按 attempt 求和；缺失成本不伪造为 0。 */
   totalCostUSD: MetricCell;
 }
