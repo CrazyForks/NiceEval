@@ -28,6 +28,7 @@ import { verifyFormat } from "./verify-format.ts";
 import { verifyReadback } from "./verify-readback.ts";
 import { verifyRenderStructure } from "./verify-render-structure.ts";
 import { verifyRenderVisual } from "./verify-render-visual.ts";
+import { verifyCustomReports } from "./verify-custom-reports.ts";
 // ── new verify-<domain>.ts imports go here (one line each) ──
 
 const EX_TEMPFAIL = 75;
@@ -73,6 +74,10 @@ async function main(): Promise<void> {
     // evidence.main 原始的 locator 就不会再出现在 --page traces / show 的
     // ExperimentList(当前 Scope 视图)里。
     await verifyRenderStructure(evidence);
+    // verifyCustomReports 现场调用 `niceeval show`/`view --report <自定义文件>` 去核对
+    // evidence.main/deliberateFail/deliberateError 的原始 locator(它自己独立的 `--out` 导出,
+    // 与 evidence.siteExportDir 无关),同样必须排在 verifyReadback 之前(理由同上)。
+    await verifyCustomReports(evidence);
     await verifyReadback(evidence);
     // verifyRenderVisual 只读 evidence.siteExportDir 已导出好的静态文件(attempt/<locator>.html
     // 走 file://,index.html 靠本地起的静态文件 HTTP server)——不现场调用 `niceeval show`/`view`
