@@ -22,7 +22,7 @@ export interface ValueAssertion {
   /** 期望条件的有界文本描述(如 `contains "Brooklyn"`),失败时进 AssertionResult.expected。 */
   readonly expected?: string;
   score(value: unknown): number | Promise<number>;
-  /** 转成硬门槛断言:未达阈值(省略 threshold 则按 score > 0 判定)整条评估用例判为 failed。返回新实例,不改原对象。 */
+  /** 转成硬门槛断言:未达阈值(省略 threshold 则按 score >= 1,即满分判定)整条评估用例判为 failed。返回新实例,不改原对象。 */
   gate(threshold?: number): ValueAssertion;
   /**
    * 转成软阈值断言:未达 threshold 时该条记为 failed,但默认不拖累整条评估用例的 verdict;

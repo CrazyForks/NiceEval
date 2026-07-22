@@ -220,7 +220,7 @@ score(value: unknown): number | Promise<number>;
 gate(threshold?: number): ValueAssertion;
 ```
 
-转成硬门槛断言:未达阈值(省略 threshold 则按 score &gt; 0 判定)整条评估用例判为 failed。返回新实例,不改原对象。
+转成硬门槛断言:未达阈值(省略 threshold 则按 score &gt;= 1,即满分判定)整条评估用例判为 failed。返回新实例,不改原对象。
 
 #### `atLeast`
 

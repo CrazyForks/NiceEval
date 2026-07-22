@@ -47,7 +47,7 @@ Scope fixture 必须让三个接收者得到**不同答案**，才能发现 sele
 - **Scope**：同名断言挂三个接收者时按各自数据范围判定；session 时点快照不被后续事件追溯；新 session 事件进 `t.*` 聚合但不进主 session 即时视图；子序列匹配类断言的顺序语义；互斥断言对（`succeeded`/`parked`）在同一证据上反转；接收者专属能力不下放（类型负例）。
 - **Collector 生命周期**：链式句柄只改 severity/threshold 且 evaluate 恰好一次（这里断言调用次数是有意义的——"延迟断言只求值一次"本身是生命周期契约）；延迟断言 finalize 时求值、即时断言立即求值、两者产出同构 AssertionResult；五种评分来源折叠进同一 collector；AssertionResult 判别联合的字段构成与有界预览（含 `undefined` 值不崩溃）；判定只消费声明的字段。
 - **证据完整性**：负断言与上限断言在「完整且找到 / 完整且确认无 / 不完整」三态矩阵下的结果——不完整时绝不给出可信 passed；正断言缺数据时失败不猜；不用 OTel span 补写行为事件。这一族的 fixture 必须让完整性是显式字段。
-- **Severity 与 Verdict**：`computeVerdict` 用决策表直接断言冲突输入的最终优先级（errored > failed > skipped > passed）；gate 与 strict 的正交；无阈值 soft 永不影响判定；`.atLeast` 的 strict 四象限与恰好达标边界；执行异常是 errored 不是 failed；skip 的优先级。
+- **Severity 与 Verdict**：`computeVerdict` 用决策表直接断言冲突输入的最终优先级（errored > failed > skipped > passed）；gate 与 strict 的正交；无阈值 soft 永不影响判定；`.atLeast` 的 strict 四象限与恰好达标边界；执行异常是 errored 不是 failed；skip 的优先级；`computePassed` 在 gate 省略阈值时的默认通过线是满分（`score >= 1`）——0/1 matcher（如 `equals`/`includes`，命中即 1、不命中即 0）不受这条默认线影响，连续打分的 gate 断言（省略阈值的 judge 类）未达满分即 fail、恰好满分才 pass。
 - **摘要投影（display）**：控制字节剥离的保留/去除边界、单值收口的折行与上限、宽度预算下的让位优先级、`+N more failures` 的独立尾行不变量、作用域前缀规则。全部是纯函数字符串语义，输入输出直接断言。
 - **judge**：缺模型/缺 key 记 `unavailable` 且非 optional 使 attempt errored、绝不静默消失；默认 soft 与链式提级；模型与端点/凭据的解析优先级逐层可区分且落在捕获请求的 URL 与头上；判卷材料随接收者分层、`{ on }` 覆盖；入口封闭。真实裁判模型的端到端行为归 E2E。
 

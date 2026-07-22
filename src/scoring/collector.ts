@@ -152,6 +152,6 @@ export class AssertionCollector {
 }
 
 export function computePassed(severity: Severity, threshold: number | undefined, score: number): boolean {
-  if (severity === "gate") return threshold === undefined ? score > 0 : score >= threshold;
+  if (severity === "gate") return threshold === undefined ? score >= 1 : score >= threshold;
   return threshold === undefined ? true : score >= threshold;
 }
