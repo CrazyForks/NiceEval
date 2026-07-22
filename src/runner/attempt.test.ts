@@ -63,9 +63,7 @@ class FakeSandbox implements Partial<Sandbox> {
     if (hit === undefined) throw new Error(`no such file: ${path}`);
     return hit;
   }
-  async readSourceFiles(): Promise<never> {
-    throw new Error("not implemented");
-  }
+  async downloadDirectory(): Promise<void> {}
   async stop(): Promise<void> {
     if (this.stopDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.stopDelayMs));
   }

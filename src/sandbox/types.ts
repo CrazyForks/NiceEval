@@ -20,39 +20,6 @@ export interface SandboxFile {
   content: string | Buffer;
 }
 
-/** 一个源码文件:相对工作区根的路径 + 文本内容。readSourceFiles 的返回元素。 */
-export interface SourceFile {
-  path: string;
-  content: string;
-}
-
-/**
- * readSourceFiles 的返回值:仍是一个 SourceFile 数组(.filter/.some/.map 照用),
- * 额外挂上整体匹配 / 按文件匹配的便利方法,省掉 eval 目录里手写的 source-helpers。
- */
-export interface SourceFiles extends ReadonlyArray<SourceFile> {
-  /** 全部文件内容拼接(每段前带 `// path` 注释),用于整体 regex。 */
-  text(): string;
-  /** 同 text() 但先剥注释,只看真实代码。 */
-  code(): string;
-  /** 第一个内容命中 pattern 的文件。 */
-  fileMatching(pattern: RegExp): SourceFile | undefined;
-  /** 第一个内容命中全部 patterns 的文件(同文件共现,per-file 而非拼接源码)。 */
-  fileMatchingAll(patterns: RegExp[]): SourceFile | undefined;
-  /** 是否存在路径命中 pattern 的文件。 */
-  hasPath(pattern: RegExp): boolean;
-}
-
-/** readSourceFiles 的可选项;不传则用一套合理默认。 */
-export interface ReadSourceFilesOptions {
-  /** 文件扩展名(不带点)。默认 ts/tsx/js/jsx。 */
-  extensions?: string[];
-  /** 按目录名(任意深度)剪枝。默认 .git/.next/node_modules/dist/build/coverage。 */
-  ignoreDirs?: string[];
-  /** 按文件 basename 忽略。默认 EVAL.ts/PROMPT.md。 */
-  ignoreFiles?: string[];
-}
-
 /** 内置 provider 名;不出现在 `sandbox` 字段的类型里(spec 用各自的 `provider` 判别字段区分)。 */
 export type SandboxProvider = "docker" | "vercel" | "e2b";
 
@@ -220,11 +187,6 @@ export interface Sandbox {
   readFile(path: string): Promise<string>;
   /** 检查 Sandbox 内路径是否存在。跨 provider 语义不完全一致:仅保证对普通文件可靠,对目录路径的行为不同 provider 不保证一致。 */
   fileExists(path: string): Promise<boolean>;
-  /**
-   * 一次 shell 往返读全部源码文件(按扩展名收、按目录/文件名忽略)。
-   * 取代每个评估用例目录里手写的 find + 逐文件 readFile。
-   */
-  readSourceFiles(opts?: ReadSourceFilesOptions): Promise<SourceFiles>;
   /** 写入若干文本文件(内容已在内存里的字符串);是 `uploadFiles` 的文本特化,省略 `targetDir` 落到 workdir。 */
   writeFiles(files: Record<string, string>, targetDir?: string): Promise<void>;
   /** 批量写入若干文件,内容可以是文本或二进制 Buffer;省略 `targetDir` 落到 workdir。 */
@@ -260,4 +222,12 @@ export interface Sandbox {
    * 对应各 provider:Docker putArchive / Vercel fs.writeFile(Buffer) / e2b files.write / …
    */
   uploadFile(path: string, content: Buffer): Promise<void>;
+
+  /**
+   * 把 Sandbox 内一个目录整体递归下载到本地磁盘,与 `uploadDirectory` 对称:按远端相对路径
+   * 把每个文件字节精确落盘到 `localDir`(自动建目录,不做文本编码转换,不拼接,不返回带便利
+   * 方法的包装类型)。省略 `targetDir` 落到 workdir(Sandbox 侧锚点);`opts.ignore` 与
+   * `uploadDirectory` 同名同义——按 basename 排除路径,省略即不过滤。
+   */
+  downloadDirectory(localDir: string, targetDir?: string, opts?: { ignore?: string[] }): Promise<void>;
 }

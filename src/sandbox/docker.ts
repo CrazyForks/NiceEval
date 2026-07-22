@@ -2,26 +2,19 @@
 // 改编自 agent-eval 的 docker-sandbox.ts,签名对齐 ../types.ts 的 Sandbox 契约
 //(runShell/runCommand 的 opts 一律是选项对象,不再用位置参数)。
 
-import { basename, dirname } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 import Docker from "dockerode";
-import type {
-  Sandbox,
-  CommandResult,
-  CommandOptions,
-  SandboxFile,
-  SourceFile,
-  SourceFiles,
-  ReadSourceFilesOptions,
-} from "../types.ts";
-import { makeSourceFiles } from "./source-files.ts";
+import type { Sandbox, CommandResult, CommandOptions, SandboxFile } from "../types.ts";
+import { collectLocalFiles } from "./local-files.ts";
+import { shellQuote } from "./shell.ts";
 import {
-  DEFAULT_IGNORE_DIRS,
-  DEFAULT_IGNORE_FILES,
-  DEFAULT_SOURCE_EXTENSIONS,
-  collectLocalFiles,
-} from "./local-files.ts";
-import { buildFindScript, shellQuote } from "./shell.ts";
-import { createExecDemuxer, extractFileFromTar, packFilesToTar, readableToBuffer } from "./docker-stream.ts";
+  createExecDemuxer,
+  extractFileFromTar,
+  extractFilesFromTar,
+  packFilesToTar,
+  readableToBuffer,
+} from "./docker-stream.ts";
 import { resolveSandboxPath } from "./paths.ts";
 import { t } from "../i18n/index.ts";
 import { reportActivity } from "../runner/feedback/sink.ts";
@@ -59,9 +52,6 @@ export async function reconcileProvision(token: string): Promise<void> {
     }
   }
 }
-
-// 行首哨兵:源码文件几乎不可能出现这一串,用来切分单次 shell 输出里的多份文件。
-const SOURCE_FILE_MARKER = "::FE-SRC-7b3f9c::";
 
 // 各 Node 运行时对应的镜像。用 -slim 变体下载更快、兼容性够用。
 const DOCKER_IMAGES: Record<string, string> = {
@@ -449,34 +439,6 @@ export class DockerSandbox implements Sandbox {
     return result.exitCode === 0;
   }
 
-  /**
-   * 一次 shell 往返读全部源码文件。find 按目录名(任意深度)剪枝、按扩展名收,
-   * 每份文件前打一行哨兵 + 相对路径,再 cat 内容;在宿主侧按哨兵切分。
-   */
-  async readSourceFiles(opts: ReadSourceFilesOptions = {}): Promise<SourceFiles> {
-    const extensions = opts.extensions ?? DEFAULT_SOURCE_EXTENSIONS;
-    const ignoreDirs = opts.ignoreDirs ?? DEFAULT_IGNORE_DIRS;
-    const ignoreFiles = new Set(opts.ignoreFiles ?? DEFAULT_IGNORE_FILES);
-
-    const script =
-      `${buildFindScript({ extensions, ignoreDirs })} | ` +
-      `while IFS= read -r f; do printf '%s%s\\n' '${SOURCE_FILE_MARKER}' "$f"; cat "$f"; printf '\\n'; done`;
-    const result = await this.runShell(script);
-
-    const files: SourceFile[] = [];
-    for (const chunk of result.stdout.split(SOURCE_FILE_MARKER)) {
-      const newline = chunk.indexOf("\n");
-      if (newline < 0) continue; // 第一段(哨兵前的空串)或畸形段
-      const path = chunk.slice(0, newline).trim().replace(/^\.\//, "");
-      if (!path || ignoreFiles.has(path.split("/").at(-1) ?? "")) continue;
-      // 去掉我们额外追加的那个结尾换行,还原文件原始内容。
-      const body = chunk.slice(newline + 1);
-      const content = body.endsWith("\n") ? body.slice(0, -1) : body;
-      files.push({ path, content });
-    }
-    return makeSourceFiles(files);
-  }
-
   /** 批量写文件(路径 -> 文本内容)。 */
   async writeFiles(files: Record<string, string>, targetDir?: string): Promise<void> {
     const sandboxFiles: SandboxFile[] = Object.entries(files).map(([path, content]) => ({
@@ -519,6 +481,32 @@ export class DockerSandbox implements Sandbox {
   async uploadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
     const files = await collectLocalFiles(localDir, opts.ignore);
     await this.uploadFiles(files, targetDir);
+  }
+
+  /**
+   * 递归下载容器内一个目录到本地磁盘,与 uploadDirectory 对称。用 getArchive 单次取回
+   * 整棵目录的 tar(而不是逐文件走 downloadFile):getArchive 对目录路径返回的 tar 里,
+   * entry 名以请求路径的 basename 为首段(如请求 `/…/out` 得到 `out/x.txt`),剥离首段
+   * 还原成相对 localDir 的路径。ignore 命中的路径(任意深度、按 basename)整支排除——
+   * tar 已经整体取回,这里是纯本地过滤,不省网络传输,但语义上等价于「命中即剪除」。
+   */
+  async downloadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
+    if (!this.container) throw new Error(t("docker.containerNotInitialized"));
+    const absTargetDir = resolveSandboxPath(this.workdir, targetDir);
+    const stream = await (this.container as Docker.Container).getArchive({ path: absTargetDir });
+    const tarBuf = await readableToBuffer(stream as NodeJS.ReadableStream);
+    const files = await extractFilesFromTar(tarBuf);
+    const ignore = new Set(opts.ignore ?? []);
+
+    await Promise.all(
+      files.map(async (file) => {
+        const parts = file.name.split("/").slice(1);
+        if (parts.length === 0 || parts.some((part) => ignore.has(part))) return;
+        const dest = join(localDir, ...parts);
+        await mkdir(dirname(dest), { recursive: true });
+        await writeFile(dest, file.content);
+      }),
+    );
   }
 
   /**

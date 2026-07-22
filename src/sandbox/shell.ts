@@ -6,12 +6,13 @@ export function shellQuote(s: string): string {
 }
 
 /**
- * 构造 readSourceFiles 用的 find 脚本:按目录名(任意深度)剪枝、按扩展名收文件,
- * 输出 `./` 前缀的相对路径。ignoreDirs / extensions 可能来自 eval 作者输入,
- * 一律走 shellQuote 转义后再拼进脚本,防止特殊字符破坏脚本结构。
+ * 构造 downloadDirectory 用的 find 脚本:按 basename(任意深度、不区分文件/目录)排除——
+ * 命中即整支剪除,不再输出该路径,匹配的目录也不再向下递归;其余全部文件按 `./` 前缀之外
+ * 的相对路径输出。与 uploadDirectory 侧 collectLocalFiles 的 ignore 语义一致。ignore 可能
+ * 来自 eval 作者输入,一律走 shellQuote 转义后再拼进脚本,防止特殊字符破坏脚本结构。
  */
-export function buildFindScript(opts: { extensions: readonly string[]; ignoreDirs: readonly string[] }): string {
-  const dirPrune = opts.ignoreDirs.map((d) => `-name ${shellQuote(d)}`).join(" -o ");
-  const nameTests = opts.extensions.map((e) => `-name ${shellQuote(`*.${e}`)}`).join(" -o ");
-  return `find . \\( -type d \\( ${dirPrune} \\) \\) -prune -o -type f \\( ${nameTests} \\) -print`;
+export function buildDownloadFindScript(opts: { ignore: readonly string[] }): string {
+  if (opts.ignore.length === 0) return "find . -type f -print";
+  const namePrune = opts.ignore.map((name) => `-name ${shellQuote(name)}`).join(" -o ");
+  return `find . \\( ${namePrune} \\) -prune -o -type f -print`;
 }

@@ -25,13 +25,6 @@ function fakeSandbox(): Sandbox & { calls: string[] } {
       calls.push(`exists:${path}`);
       return true;
     },
-    readSourceFiles: async () => Object.assign([], {
-      text: () => "",
-      code: () => "",
-      fileMatching: () => undefined,
-      fileMatchingAll: () => undefined,
-      hasPath: () => false,
-    }),
     writeFiles: async (_files, targetDir) => {
       calls.push(`write:${targetDir}`);
     },
@@ -48,6 +41,9 @@ function fakeSandbox(): Sandbox & { calls: string[] } {
     },
     uploadFile: async (path) => {
       calls.push(`upload-file:${path}`);
+    },
+    downloadDirectory: async (_localDir, targetDir) => {
+      calls.push(`download-dir:${targetDir}`);
     },
     calls,
   };
@@ -74,6 +70,7 @@ describe("sandbox path helpers", () => {
     await normalized.uploadFiles([], "fixtures");
     await normalized.uploadDirectory("/host/app");
     await normalized.downloadFile("dist/out.txt");
+    await normalized.downloadDirectory("/host/out", "dist");
 
     expect(sandbox.calls).toEqual([
       "cwd:/work/packages/api",
@@ -81,6 +78,7 @@ describe("sandbox path helpers", () => {
       "upload:/work/fixtures",
       "upload-dir:/work",
       "download:/work/dist/out.txt",
+      "download-dir:/work/dist",
     ]);
   });
 });

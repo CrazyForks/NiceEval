@@ -4,13 +4,7 @@
 import type { InputRequest, StreamEvent, ToolCall, Usage } from "../o11y/types.ts";
 import type { DiagnosticInput, ProgressUpdate } from "../shared/types.ts";
 import type { AssertionHandle, ValueAssertion } from "../scoring/types.ts";
-import type {
-  CommandOptions,
-  CommandResult,
-  ReadSourceFilesOptions,
-  SandboxFile,
-  SourceFiles,
-} from "../sandbox/types.ts";
+import type { CommandOptions, CommandResult, SandboxFile } from "../sandbox/types.ts";
 
 /** `t.send()` / `session.send()` 的入参:字符串,或带附件的结构化消息。 */
 export type SendInput = string | { text: string; files?: readonly import("../agents/types.ts").InputFile[] };
@@ -166,8 +160,6 @@ export interface SandboxHandle {
   readFile(path: string): Promise<string>;
   /** Sandbox 内某路径此刻是否存在。 */
   fileExists(path: string): Promise<boolean>;
-  /** 按选项批量读回 Sandbox 里的源文件,供比对 / judge 用材料。 */
-  readSourceFiles(opts?: ReadSourceFilesOptions): Promise<SourceFiles>;
   /** 把一组内容写进 Sandbox(路径相对 targetDir,默认 workdir)。 */
   writeFiles(files: Record<string, string>, targetDir?: string): Promise<void>;
   /** 把一批内存中的文件上传进 Sandbox。 */
@@ -178,6 +170,8 @@ export interface SandboxHandle {
   downloadFile(path: string): Promise<Buffer>;
   /** 把一段内容上传成 Sandbox 里的单个文件。 */
   uploadFile(path: string, content: Buffer): Promise<void>;
+  /** 把 Sandbox 内一个目录整体递归下载到本地磁盘,与 `uploadDirectory` 对称;`opts.ignore` 按 basename 排除指定路径。 */
+  downloadDirectory(localDir: string, targetDir?: string, opts?: { ignore?: string[] }): Promise<void>;
   /** Sandbox provider 分配的实例 id,用于排查 / 关联日志。 */
   readonly sandboxId: string;
   /** 相对 git 基线的最终 diff 视图(test() 跑完、finalize 前才落定)。 */

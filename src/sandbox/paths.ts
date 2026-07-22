@@ -33,7 +33,6 @@ export function normalizeSandboxPaths(sandbox: Sandbox): Sandbox {
     runShell: (script, opts) => sandbox.runShell(script, resolveCommandOptions(sandbox.workdir, opts)),
     readFile: (path) => withSandboxIoRetry(() => sandbox.readFile(resolveSandboxPath(sandbox.workdir, path))),
     fileExists: (path) => withSandboxIoRetry(() => sandbox.fileExists(resolveSandboxPath(sandbox.workdir, path))),
-    readSourceFiles: (opts) => withSandboxIoRetry(() => sandbox.readSourceFiles(opts)),
     writeFiles: (files, targetDir) => withSandboxIoRetry(
       () => sandbox.writeFiles(files, resolveSandboxPath(sandbox.workdir, targetDir)),
     ),
@@ -43,6 +42,10 @@ export function normalizeSandboxPaths(sandbox: Sandbox): Sandbox {
     uploadDirectory: (localDir, targetDir, opts) =>
       withSandboxIoRetry(
         () => sandbox.uploadDirectory(localDir, resolveSandboxPath(sandbox.workdir, targetDir), opts),
+      ),
+    downloadDirectory: (localDir, targetDir, opts) =>
+      withSandboxIoRetry(
+        () => sandbox.downloadDirectory(localDir, resolveSandboxPath(sandbox.workdir, targetDir), opts),
       ),
     stop: () => sandbox.stop(),
     appendLog: sandbox.appendLog ? (line) => sandbox.appendLog!(line) : undefined,

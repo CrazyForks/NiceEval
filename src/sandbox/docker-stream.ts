@@ -76,6 +76,35 @@ export async function extractFileFromTar(tarBuf: Buffer): Promise<Buffer> {
   });
 }
 
+/**
+ * 从(可能含多条 entry 的)tar 包里提取全部普通文件——downloadDirectory 用:`getArchive`
+ * 对目录路径返回该目录的整棵 tar,entry 名以请求路径的 basename 为首段。跳过目录 / 符号链接
+ * 等非常规文件条目,只收集 `type === "file"` 的 entry。
+ */
+export async function extractFilesFromTar(tarBuf: Buffer): Promise<{ name: string; content: Buffer }[]> {
+  return new Promise((resolve, reject) => {
+    const extract = tar.extract();
+    const files: { name: string; content: Buffer }[] = [];
+    extract.on("entry", (header, stream, next) => {
+      if (header.type !== "file") {
+        stream.resume();
+        next();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      stream.on("data", (c: Buffer) => chunks.push(c));
+      stream.on("end", () => {
+        files.push({ name: header.name, content: Buffer.concat(chunks) });
+        next();
+      });
+      stream.on("error", reject);
+    });
+    extract.on("finish", () => resolve(files));
+    extract.on("error", reject);
+    extract.end(tarBuf);
+  });
+}
+
 /** 把若干文件打成 tar 流(putArchive 用)。 */
 export function packFilesToTar(entries: readonly { name: string; content: Buffer }[]): tar.Pack {
   const pack = tar.pack();

@@ -210,13 +210,14 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     runShell: (script, opts) => deps.sandbox.runShell(script, opts),
     readFile: (path) => deps.sandbox.readFile(path),
     fileExists: (path) => deps.sandbox.fileExists(path),
-    readSourceFiles: (opts) => deps.sandbox.readSourceFiles(opts),
     writeFiles: (files, targetDir) => deps.sandbox.writeFiles(files, targetDir),
     uploadFiles: (files, targetDir) => deps.sandbox.uploadFiles(files, targetDir),
     uploadDirectory: (localDir, targetDir, opts) =>
       deps.sandbox.uploadDirectory(resolveLocalPath(deps.evalBaseDir, localDir), targetDir, opts),
     downloadFile: (path) => deps.sandbox.downloadFile(path),
     uploadFile: (path, content) => deps.sandbox.uploadFile(path, content),
+    downloadDirectory: (localDir, targetDir, opts) =>
+      deps.sandbox.downloadDirectory(resolveLocalPath(deps.evalBaseDir, localDir), targetDir, opts),
     ...sandboxAssertions,
   };
 

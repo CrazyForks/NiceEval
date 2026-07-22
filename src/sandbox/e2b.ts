@@ -6,21 +6,14 @@
 //       codex/claude-code/bub 的 "niceeval-agents")见 sandbox/e2b/。
 
 import { Sandbox as E2BSdkSandbox, CommandExitError, NotFoundError, RateLimitError } from "e2b";
-import type {
-  Sandbox,
-  CommandResult,
-  CommandOptions,
-  SandboxFile,
-  SourceFiles,
-  ReadSourceFilesOptions,
-} from "../types.ts";
+import type { Sandbox, CommandResult, CommandOptions, SandboxFile } from "../types.ts";
 import {
   classifyProvisionErrorFallback,
   isRetryableProvisionError,
   type SandboxProvisionErrorKind,
 } from "./errors.ts";
 import { classifySandboxIoError } from "./errors.ts";
-import { readSourceFilesByList } from "./source-files.ts";
+import { downloadDirectoryByList } from "./download-directory.ts";
 import { collectLocalFiles } from "./local-files.ts";
 import { shellQuote } from "./shell.ts";
 import { resolveSandboxPath } from "./paths.ts";
@@ -187,15 +180,6 @@ export class E2BSandbox implements Sandbox {
     }
   }
 
-  async readSourceFiles(opts: ReadSourceFilesOptions = {}): Promise<SourceFiles> {
-    // find 列路径 + 逐文件 files.read —— 与 vercel provider 共用同一两阶段模板。
-    return readSourceFilesByList({
-      options: opts,
-      runShell: (script) => this.runShell(script),
-      readOne: (path) => this.sbx.files.read(`${E2B_WORKDIR}/${path}`, { format: "text" }),
-    });
-  }
-
   // targetDir 已由 paths.ts 的 normalizeSandboxPaths 解析成绝对路径;这里再解析一次
   // 只是对直接使用 provider 实例(未包 normalize)的幂等防御,提到 map 外只算一次。
   async writeFiles(files: Record<string, string>, targetDir?: string): Promise<void> {
@@ -218,6 +202,20 @@ export class E2BSandbox implements Sandbox {
 
   async uploadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
     await this.uploadFiles(await collectLocalFiles(localDir, opts.ignore), targetDir);
+  }
+
+  /**
+   * 递归下载沙箱内一个目录到本地磁盘,与 uploadDirectory 对称:两阶段模板(与 vercel provider
+   * 共用)——find 列路径 + 逐文件 files.read(bytes) 独立读取,写回本地磁盘。
+   */
+  async downloadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
+    const remoteDir = resolveSandboxPath(this.workdir, targetDir);
+    await downloadDirectoryByList({
+      localDir,
+      ignore: opts.ignore ?? [],
+      runShell: (script) => this.runShell(script, { cwd: remoteDir }),
+      readOne: (relPath) => this.downloadFile(`${remoteDir}/${relPath}`),
+    });
   }
 
   async stop(): Promise<void> {

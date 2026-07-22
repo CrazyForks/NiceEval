@@ -27,7 +27,7 @@ await t.sandbox.writeFiles({
 await t.sandbox.uploadFiles([{ path: "assets/logo.png", content: logoBuffer }]);
 ```
 
-文本读取只有 `readFile(path)` 一个 API。批量读取、按扩展名过滤、拼接全文是普通代码，不设 `readSourceFiles` 这类带过滤约定的批量读取器——哪些扩展名算源码、哪些目录该剪枝因项目而异，收进 API 就成了约定式黑箱。要聚合就用命令表达，要评 agent 的改动则直接读 `t.sandbox.diff`（归因增量，起始 fixture 不会混进来，见[断言结果](asserting-results.md)）：
+文本读取只有 `readFile(path)` 一个 API。批量读取、按扩展名过滤、拼接全文是普通代码，不设带过滤约定的批量读取器——哪些扩展名算源码、哪些目录该剪枝因项目而异，收进 API 就成了约定式黑箱。要聚合就用命令表达，要评 agent 的改动则直接读 `t.sandbox.diff`（归因增量，起始 fixture 不会混进来，见[断言结果](asserting-results.md)）：
 
 ```ts
 // 批量聚合:一条命令,过滤规则明明白白写在 eval 里

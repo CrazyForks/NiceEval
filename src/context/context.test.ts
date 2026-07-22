@@ -26,23 +26,21 @@ function calculatorAgent(): Agent {
   };
 }
 
-type FakeSandbox = Sandbox & { calls: { uploadDirectory: [string, string | undefined][] } };
+type FakeSandbox = Sandbox & {
+  calls: {
+    uploadDirectory: [string, string | undefined][];
+    downloadDirectory: [string, string | undefined][];
+  };
+};
 
 function fakeSandbox(): FakeSandbox {
-  const calls: { uploadDirectory: [string, string | undefined][] } = { uploadDirectory: [] };
+  const calls: FakeSandbox["calls"] = { uploadDirectory: [], downloadDirectory: [] };
   return {
     workdir: "/sandbox/work",
     runCommand: async () => { throw new Error("not implemented"); },
     runShell: async () => { throw new Error("not implemented"); },
     readFile: async () => "",
     fileExists: async () => false,
-    readSourceFiles: async () => Object.assign([], {
-      text: () => "",
-      code: () => "",
-      fileMatching: () => undefined,
-      fileMatchingAll: () => undefined,
-      hasPath: () => false,
-    }),
     writeFiles: async () => {},
     uploadFiles: async () => {},
     uploadDirectory: async (localDir, targetDir) => {
@@ -53,6 +51,9 @@ function fakeSandbox(): FakeSandbox {
     otlpHost: null,
     downloadFile: async () => Buffer.from(""),
     uploadFile: async () => {},
+    downloadDirectory: async (localDir, targetDir) => {
+      calls.downloadDirectory.push([localDir, targetDir]);
+    },
     calls,
   };
 }
@@ -171,6 +172,17 @@ describe("createEvalContext / TestContext live state", () => {
 
     expect(sandbox.calls.uploadDirectory).toEqual([
       ["/repo/evals/fixtures/app", "src"],
+    ]);
+  });
+
+  it("resolves downloadDirectory local paths relative to the eval file directory", async () => {
+    const sandbox = fakeSandbox();
+    const { context } = makeContext(calculatorAgent(), sandbox, "/repo/evals/nested");
+
+    await context.sandbox.downloadDirectory("../out/attempt", "dist");
+
+    expect(sandbox.calls.downloadDirectory).toEqual([
+      ["/repo/evals/out/attempt", "dist"],
     ]);
   });
 });

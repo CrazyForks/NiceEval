@@ -2,15 +2,8 @@
 // 契约对齐 ../types.ts 的 Sandbox 接口,与 DockerSandbox 可互换。
 
 import { Sandbox as VSandbox, APIError } from "@vercel/sandbox";
-import type {
-  Sandbox,
-  CommandResult,
-  CommandOptions,
-  SandboxFile,
-  SourceFiles,
-  ReadSourceFilesOptions,
-} from "../types.ts";
-import { readSourceFilesByList } from "./source-files.ts";
+import type { Sandbox, CommandResult, CommandOptions, SandboxFile } from "../types.ts";
+import { downloadDirectoryByList } from "./download-directory.ts";
 import { collectLocalFiles } from "./local-files.ts";
 import { resolveSandboxPath } from "./paths.ts";
 import { t } from "../i18n/index.ts";
@@ -191,19 +184,6 @@ export class VercelSandbox implements Sandbox {
     return buf !== null;
   }
 
-  async readSourceFiles(opts: ReadSourceFilesOptions = {}): Promise<SourceFiles> {
-    // 两阶段读取(共享模板):Phase 2 逐文件用 readFileToBuffer(独立 HTTP GET,
-    // 不依赖 NDJSON 流),即使 session 快到 plan 上限,后半段读取也不会被截断。
-    return readSourceFilesByList({
-      options: opts,
-      runShell: (script) => this.runShell(script),
-      readOne: async (path) => {
-        const buf = await this.vsb.readFileToBuffer({ path: `${VERCEL_WORKDIR}/${path}` });
-        return buf ? buf.toString("utf8") : null;
-      },
-    });
-  }
-
   // targetDir 已由 paths.ts 的 normalizeSandboxPaths 解析成绝对路径;这里再解析一次
   // 只是对直接使用 provider 实例(未包 normalize)的幂等防御,提到 map 外只算一次。
   async writeFiles(files: Record<string, string>, targetDir?: string): Promise<void> {
@@ -229,6 +209,20 @@ export class VercelSandbox implements Sandbox {
 
   async uploadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
     await this.uploadFiles(await collectLocalFiles(localDir, opts.ignore), targetDir);
+  }
+
+  /**
+   * 递归下载沙箱内一个目录到本地磁盘,与 uploadDirectory 对称:两阶段模板(与 e2b provider
+   * 共用)——find 列路径 + 逐文件 readFileToBuffer(独立 HTTP GET)读取,写回本地磁盘。
+   */
+  async downloadDirectory(localDir: string, targetDir?: string, opts: { ignore?: string[] } = {}): Promise<void> {
+    const remoteDir = resolveSandboxPath(this.workdir, targetDir);
+    await downloadDirectoryByList({
+      localDir,
+      ignore: opts.ignore ?? [],
+      runShell: (script) => this.runShell(script, { cwd: remoteDir }),
+      readOne: (relPath) => this.downloadFile(`${remoteDir}/${relPath}`),
+    });
   }
 
   async stop(): Promise<void> {

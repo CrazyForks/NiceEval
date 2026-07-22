@@ -52,14 +52,14 @@ function hostSandbox(
     },
     readFile: async () => "",
     fileExists: async () => false,
-    readSourceFiles: async () => {
-      throw new Error("not used");
-    },
     writeFiles: async () => {},
     uploadFiles: async () => {},
     uploadDirectory: async () => {},
     downloadFile,
     uploadFile: async () => {},
+    downloadDirectory: async () => {
+      throw new Error("not used");
+    },
     stop: async () => {},
   } as unknown as Sandbox;
 }

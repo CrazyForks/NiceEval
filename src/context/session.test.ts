@@ -15,13 +15,6 @@ function fakeSandbox(): Sandbox {
     runShell: async () => { throw new Error("not implemented"); },
     readFile: async () => "",
     fileExists: async () => false,
-    readSourceFiles: async () => Object.assign([], {
-      text: () => "",
-      code: () => "",
-      fileMatching: () => undefined,
-      fileMatchingAll: () => undefined,
-      hasPath: () => false,
-    }),
     writeFiles: async () => {},
     uploadFiles: async () => {},
     uploadDirectory: async () => {},
@@ -30,6 +23,7 @@ function fakeSandbox(): Sandbox {
     otlpHost: null,
     downloadFile: async () => Buffer.from(""),
     uploadFile: async () => {},
+    downloadDirectory: async () => {},
   };
 }
 

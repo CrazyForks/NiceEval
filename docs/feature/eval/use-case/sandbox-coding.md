@@ -65,7 +65,7 @@ diff 断言评的是这一次跑分内的归因增量，跑完就随沙箱销毁
 await t.sandbox.downloadDirectory("./out/attempt-final", "src");
 ```
 
-不内置「哪些文件算产出」的判断：下载下来就是宿主机上的普通目录，要筛选、要拼给 judge 用，用 `fs`/`glob` 写普通代码处理——这与 `t.sandbox` 不设 `readSourceFiles` 这类带过滤约定的批量读取器是同一条原则（[操作 Sandbox](../../sandbox/library/operations.md#文件)）。
+不内置「哪些文件算产出」的判断：下载下来就是宿主机上的普通目录，要筛选、要拼给 judge 用，用 `fs`/`glob` 写普通代码处理——这与 `t.sandbox` 不设带过滤约定的批量读取器是同一条原则（[操作 Sandbox](../../sandbox/library/operations.md#文件)）。
 
 ## 边界
 

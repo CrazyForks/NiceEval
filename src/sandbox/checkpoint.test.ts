@@ -12,16 +12,13 @@ function sandbox(overrides: Partial<Sandbox> = {}): Sandbox {
     runShell: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
     readFile: async () => "",
     fileExists: async () => false,
-    readSourceFiles: async () => Object.assign([], {
-      text: () => "", code: () => "", fileMatching: () => undefined,
-      fileMatchingAll: () => undefined, hasPath: () => false,
-    }),
     writeFiles: async () => {},
     uploadFiles: async () => {},
     uploadDirectory: async () => {},
     stop: async () => {},
     downloadFile: async () => Buffer.from("archive"),
     uploadFile: async () => {},
+    downloadDirectory: async () => {},
     ...overrides,
   };
 }
