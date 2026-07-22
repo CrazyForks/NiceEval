@@ -13,7 +13,7 @@
 | Sandbox 能力只出现在正确构造路径 | 公共类型与运行时 capability guard | remote/sandbox 两种 Agent |
 | eval 相对路径按定义文件目录解析 | Sandbox 收到的规范化路径 | recording Sandbox |
 | setup 时机与 cleanup | 生命周期事件顺序 | 记录调用序的 setup/cleanup 闭包 |
-| turn 瞬时错误分类与重试 | 重试次数、会话记账、最终 AttemptError | 按脚本抛错的 Agent |
+| turn 瞬时错误分类与重试 | 重试次数、会话记账、最终 AttemptError | 按脚本抛错或返回 failed Turn 的 Agent |
 
 ## Fixture 规范
 
@@ -62,7 +62,7 @@ function scriptedAgent(turns: readonly Turn[]): ScriptedAgent {
 - **HITL**：`requireInputRequest` 的恰好一个语义（0 个、多个都报错）；filter 的匹配与不匹配；无法对位时**先报错且不向 agent 发送任何响应**——错误反馈正确但响应已发出仍违反契约，`agent.received` 长度必须一并断言；`respond`/`respondAll` 的续接与跨 session 隔离。
 - **Sandbox 能力暴露面**：`t.sandbox` 只在声明 capability 时存在，未声明时是明确错误而非 undefined；文件只经显式上传进入沙箱；本地路径按 eval 定义文件目录解析；`t.sandbox` 面不含生命周期动作。路径、命令与生命周期契约归 [Sandbox](sandbox.md)。
 - **judge 作用域与诊断**：判卷材料随接收者分层、`{ on }` 覆盖；`diagnostic` 不改变 verdict、scope 不可伪装；`progress` 不进最终输出。judge 的评分与模型解析归 [Scoring](scoring.md)。
-- **turn 瞬时错误与重试**：兜底分类器按重试安全性归类（限流/网络/unknown）与 adapter 覆盖；重试只包 `agent.send`、会话记账不重放；封顶次数与耗尽后的错误码不变；退避可被中断干净打断。
+- **turn 瞬时错误与重试**：兜底分类器按重试安全性归类（限流/网络/unknown），`thrown` 与 `turn-failed` 两种 `TurnFailure` 形态都要有区分力场景；adapter 分类器的覆盖、`undefined` 回落与抛错按 `unknown` 吞掉；受理证据门对带 agent 产出事件的失败 Turn 的否决——文本像限流也不重试；重试只包 `agent.send`、会话记账不重放、被吸收尝试的事件不落账；封顶次数、耗尽后错误码不变与 message 重试摘要（未重试的失败无后缀）；退避可被中断干净打断。
 
 ## 不这样测
 

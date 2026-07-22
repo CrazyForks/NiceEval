@@ -14,6 +14,8 @@ interface Agent {
   tracing?: AgentTracing;
   spanMapper?: SpanMapper;
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
+  /** 可选 turn 失败分类器:按重试安全性归类一次 send 失败,undefined 回落保守兜底。形状与分类链见执行错误类型。 */
+  classifyTurnError?: TurnErrorClassifier;
   teardown?(sandbox: Sandbox, ctx: AgentContext): Promise<void> | void;
 }
 
@@ -69,7 +71,7 @@ Agent 只配置怎样连接自己；运行条件不固化在 Agent 中。被测 
 
 ## 能力由构造证明
 
-Agent 没有声明式 capabilities：会话能力来自 `ctx.session` 的使用，HITL 来自 waiting + request + resume，行为断言来自事件，负断言可信度来自完整性证据，Sandbox 能力来自 sandbox kind，trace 来自 telemetry 配置。`coverage` 不是能力位的例外——它是完整性证据的载体（诚实义务的声明），core 不据它启用或禁用任何行为，只用它折叠断言可信度。
+Agent 没有声明式 capabilities：会话能力来自 `ctx.session` 的使用，HITL 来自 waiting + request + resume，行为断言来自事件，负断言可信度来自完整性证据，Sandbox 能力来自 sandbox kind，trace 来自 telemetry 配置。`coverage` 不是能力位的例外——它是完整性证据的载体（诚实义务的声明），core 不据它启用或禁用任何行为，只用它折叠断言可信度。`classifyTurnError` 同理——它是分类精度的声明，core 只用它判断一次 send 失败是否安全重试，策略（次数、退避）对所有 Agent 一致（见[执行错误类型](../../error-classification/architecture.md)）。
 
 只有 Sandbox 设置运行时守卫。其它能力缺失时由返回数据自然表现，core 不按 Agent 名字分支。
 
