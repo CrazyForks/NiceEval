@@ -5,7 +5,7 @@
 ## 内建自愈行为(零配置面)
 
 - [高并发批跑撞限流:attempt 内自愈,不再整批 errored](rate-limit-batch.md)
-- [流中断不重试:读懂一次「诚实的 errored」](stream-drop-unknown.md)
+- [流中断不重试:读懂一次「诚实的 errored」](stream-drop-no-retry.md)
 
 ## `classifyTurnError`(adapter 作者)
 
@@ -15,5 +15,5 @@ API → 篇目对照:
 
 | API | 篇目 |
 | --- | --- |
-| (无配置面,内建行为的观察面) | [rate-limit-batch](rate-limit-batch.md)、[stream-drop-unknown](stream-drop-unknown.md) |
+| (无配置面,内建行为的观察面) | [rate-limit-batch](rate-limit-batch.md)、[stream-drop-no-retry](stream-drop-no-retry.md) |
 | `Agent.classifyTurnError` / `turnErrorText` | [adapter-classifier](adapter-classifier.md) |

@@ -70,6 +70,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 裁决
 
+- [turn-error-binary-retryable-open-reason](turn-error-binary-retryable-open-reason.md) — 裁决(2026-07-22):turn 失败分类改判别联合 `{retryable, reason?}`——二分决策轴 + 开放 reason 词表,推翻同日封闭三词枚举 `rate_limit|network|unknown`;同场加 attempt 级总重试上限(8 次)与 send 级封顶(4 次)叠成两层预算
 - [external-review-round2-rulings](external-review-round2-rulings.md) — 设计裁决:第二轮外部评审翻案清单(2026-07-14)——coverage 省略=unknown、AssertionResult 判别联合、redact 必填、earlyExit 只认 passed、keep=failed|all、passRate 三拆、Selection 物化 attempts、ExperimentRunInfo 存 resolved
 - [dispatch-priority-binds-to-slot-grant](dispatch-priority-binds-to-slot-grant.md) — 裁决(2026-07-20):瓶颈优先绑在「全局并发位分配时刻」而非 fiber 创建顺序,空位给等待集中轮次最高者、不看谁先等;否决为 setup 中的瓶颈 run 预留名额(容量空转)、抢占在飞 attempt(成本不可回收)、削弱承诺(在最该生效的场景失效);根因是承诺句与「setup 不占并发位」组合不自洽的设计 bug,实现未走样
 - [lifecycle-paired-teardown-replaces-cleanup-return](lifecycle-paired-teardown-replaces-cleanup-return.md) — 裁决(2026-07-18):四层生命周期统一成对 setup/teardown、setup 返回 void,否决 setup-returns-cleanup(双写法并存、setup 半途抛错丢收尾、可见性差);触发规则=同层 setup 时点走到过;attempt 层状态通道以 sandbox 实例作键(纠正「一律模块闭包」);postSetup 配对命名 preTeardown;旧写法运行时护栏报错

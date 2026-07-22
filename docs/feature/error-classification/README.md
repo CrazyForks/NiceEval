@@ -19,29 +19,33 @@ user, please retry later
 
 ## 分类
 
+分类结果分两层:**顶层是二分的决策——可重试还是不可重试**,这是重试执行体唯一消费的轴;其下挂一个开放词表的 `reason` 细分(内建兜底产出 `"rate_limit"` / `"network"`,adapter 分类器可自造词),只进观察面(activity、耗尽摘要),不参与策略。
+
 ```ts
-export type TurnErrorKind = "rate_limit" | "network" | "unknown";
+export type TurnErrorClass =
+  | { readonly retryable: true; readonly reason: string }    // reason 必填:进 activity 与耗尽摘要
+  | { readonly retryable: false; readonly reason?: string };
 ```
 
-turn 失败没有 provisioning 那类「远端可能已创建计费实例」需要对账的歧义后果,只需要一个轴:是否瞬时。`rate_limit` 与 `network` 都重试,且共享同一套退避策略——分成两个词是因为判据与信号来源不同(服务端明示拒绝 vs 传输层形态),不是策略不同;`unknown` 不重试。
+turn 失败没有 provisioning 那类「远端可能已创建计费实例」需要对账的歧义后果,决策只需要一个轴:是否瞬时。所有可重试失败共享同一套退避策略——`reason` 不同不改变重试行为,它回答「为什么」,不回答「怎么办」。把决策与诊断拆成两层的理由:框架预设不了所有错误的细分词表,adapter 细分自家错误(队列满、模型预热中)时不该被迫塞进 `rate_limit` / `network` 两个桶;而「要不要重试」是封闭问题,二分即穷尽。
 
-**分类判据是重试安全性,不是错误文案的相似度**:只有能证明「这次输入未被 agent 受理」的错误才归入瞬时——
+**分类判据是重试安全性,不是错误文案的相似度**:只有能证明「这次输入未被 agent 受理」的错误才归可重试——
 
-- `rate_limit`:服务端在受理前拒绝(429、限流关键字、明示 "retry later")。样本里的「Concurrency limit exceeded for user, please retry later」属于这类:它虽经 stream 断开的包装浮出,但本质是入场拒绝,服务端明说了请重试。
-- `network`:连接建立失败(DNS 解析失败、连接被拒、TLS 握手失败、首字节前超时)——请求根本没到 agent。
-- `unknown`:其余一切,包括无法证明 agent 未开始处理的流中断、响应中途连接重置。不重试。
+- `"rate_limit"`(内建 reason):服务端在受理前拒绝(429、限流关键字、明示 "retry later")。样本里的「Concurrency limit exceeded for user, please retry later」属于这类:它虽经 stream 断开的包装浮出,但本质是入场拒绝,服务端明说了请重试。
+- `"network"`(内建 reason):连接建立失败(DNS 解析失败、连接被拒、TLS 握手失败、首字节前超时)——请求根本没到 agent。
+- 其余一切不可重试,包括无法证明 agent 未开始处理的流中断、响应中途连接重置。
 
-判据的理由:重试等于把同一段 user text 原样重发。若 agent 在失败前已经执行了部分工具调用、写了 workspace,重发会让它把做过的操作再做一遍,产出一个被污染的判定——比一次诚实的 `errored` 更糟。所以歧义一律 `unknown`:宁可判死一个 attempt,不产出不可信的 verdict。这与 provisioning 分类「偏向宽认瞬时」方向相反,因为两处误判的代价不对称方向相反:provisioning 误重试的代价只是封顶的退避时间,turn 误重试的代价是判定正确性。
+判据的理由:重试等于把同一段 user text 原样重发。若 agent 在失败前已经执行了部分工具调用、写了 workspace,重发会让它把做过的操作再做一遍,产出一个被污染的判定——比一次诚实的 `errored` 更糟。所以歧义一律不可重试:宁可判死一个 attempt,不产出不可信的 verdict。这与 provisioning 分类「偏向宽认瞬时」方向相反,因为两处误判的代价不对称方向相反:provisioning 误重试的代价只是封顶的退避时间,turn 误重试的代价是判定正确性。
 
 一次 send 的失败以两种形态浮出——`send()` 抛出异常,或返回 `status: "failed"` 的 Turn(agent CLI 退出码非零、流中断都以后者浮出,上面的真实样本即是)。两种形态都进分类;精确的输入形状(`TurnFailure`)与三道分类链(adapter 分类器 → 保守兜底 → 执行体的受理证据门)见 [Architecture](architecture.md#数据建模)。
 
-分类精度按 adapter 分别实现:不同 CLI / SDK 的错误形状不同,adapter 可自带分类器覆盖兜底(可选能力,挂在 [agent 契约](../adapters/architecture/agent-contract.md)的 `classifyTurnError` 字段上,与 sandbox 各 provider 自带 `classifyProvisionError` 同一套路,写法见 [Library](library.md#adapter-作者classifyturnerror));外层有一个保守的兜底分类器,复用 sandbox IO 分类器的正则形状——限流关键字 → `rate_limit`,连接建立层错误 → `network`,其余 → `unknown`。
+分类精度按 adapter 分别实现:不同 CLI / SDK 的错误形状不同,adapter 可自带分类器覆盖兜底(可选能力,挂在 [agent 契约](../adapters/architecture/agent-contract.md)的 `classifyTurnError` 字段上,与 sandbox 各 provider 自带 `classifyProvisionError` 同一套路,写法见 [Library](library.md#adapter-作者classifyturnerror));外层有一个保守的兜底分类器,复用 sandbox IO 分类器的正则形状——限流关键字 → 可重试(`"rate_limit"`),连接建立层错误 → 可重试(`"network"`),其余 → 不可重试。
 
 ## 挂载点与重试范围
 
 分类与重试只包住对 `agent.send(...)` 的那一次调用,不重放会话记账——`session.turnCount` 自增、`userEvent` 推入事件流这些在 send 之前就发生,重试不重复它们;重试成功后的 turn 数与事件流,与一次成功的 send 无异。变更归因的 send 窗口横跨全部尝试:同一段逻辑输入只有一个窗口。分类判据保证被重试的错误发生在 agent 受理之前,窗口内不应有 agent 写入;万一分类器误判、失败尝试里已有写入,它们仍落在同一个 send 窗口、归因给 agent,归因契约不破。
 
-重试执行体的精确契约——封顶 4 次尝试、基数 5 秒的全抖动指数退避、退避期间释放并发槽位、activity 反馈形态、耗尽后的错误摘要——见 [Architecture · 重试执行体](architecture.md#重试执行体)。重试封顶后,`agent.send()` 最终返回的失败 Turn 照旧走 `expectOk()` → `TurnFailed` → `AttemptError{code: "turn-failed"}` 路径,下游契约不变。
+重试预算两层:单次 send 封顶 4 次尝试,整个 attempt 另有加总的重试上限——多轮 eval 每轮都在限流窗口里挣扎说明环境有系统性问题,该如实 `errored`,不该把 attempt 泡在退避里蚕食 deadline。执行体的精确契约——两层预算的数值、基数 5 秒的全抖动指数退避、退避期间释放并发槽位、activity 反馈形态、耗尽后的错误摘要——见 [Architecture · 重试执行体](architecture.md#重试执行体)。重试封顶后,`agent.send()` 最终返回的失败 Turn 照旧走 `expectOk()` → `TurnFailed` → `AttemptError{code: "turn-failed"}` 路径,下游契约不变。
 
 ## 与 run 级 fail-fast 的关系
 
