@@ -30,6 +30,11 @@ export interface ValueAssertion {
    */
   atLeast(threshold: number): ValueAssertion;
   /**
+   * 转成纯记录的软断言:不设通过线,分数照实落盘、永不使该条 failed(judge 的默认严重度就是它)。
+   * 无参数——要设线用 `.atLeast(threshold)`,不提供同义的 `soft(threshold)`。返回新实例,不改原对象。
+   */
+  soft(): ValueAssertion;
+  /**
    * 允许这条断言证据缺席:评不了时只记录 `outcome: "unavailable"`,不影响判定。
    * 与 severity 正交(severity 说影不影响质量判定,optional 说证据允不允许缺席)。返回新实例,不改原对象。
    */
@@ -103,6 +108,8 @@ export interface PrimaryAssertionSummary {
 export interface AssertionHandle {
   atLeast(threshold: number): AssertionHandle;
   gate(threshold?: number): AssertionHandle;
+  /** 降级为纯记录的软断言:不设线,分数照实落盘、永不使该条 failed。无参数——要设线用 .atLeast(threshold)。 */
+  soft(): AssertionHandle;
   /** 允许这条断言证据缺席:unavailable 只保留在记录里,不影响判定(见 Severity 与 Verdict)。 */
   optional(): AssertionHandle;
 }

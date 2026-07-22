@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import { AssertionCollector } from "./collector.ts";
 import { completeCoverage, resolveAgentCoverage } from "./coverage.ts";
 import { emptyDiffData } from "./diff.ts";
-import { equals, includes, makeAssertion } from "../expect/index.ts";
+import { computeVerdict } from "./verdict.ts";
+import { equals, includes, makeAssertion, similarity } from "../expect/index.ts";
 import type { AssertionResult, ScoringContext, ValueAssertion } from "../types.ts";
 
 function ctxWith(over: Partial<ScoringContext> = {}): ScoringContext {
@@ -90,5 +91,27 @@ describe("gate 省略阈值:连续打分断言(judge 类)按满分线判定", ()
     const result = await evaluate(perfect, "irrelevant");
     expect(result.outcome).toBe("passed");
     expect(scoreOf(result)).toBe(1);
+  });
+});
+
+describe("无参 .soft():降级为纯记录,不设线", () => {
+  it("分数照实落盘,即便原始条件不成立(score=0 依旧记 passed)", async () => {
+    const result = await evaluate(equals(4).soft(), 5);
+    expect(result.outcome).toBe("passed");
+    expect(scoreOf(result)).toBe(0);
+    expect(result.outcome === "unavailable" ? undefined : result.threshold).toBeUndefined();
+  });
+
+  it("即便此前链过 .atLeast(x) 留下阈值,.soft() 也会清空阈值、永不判 failed", async () => {
+    // "completely different" 与 "Brooklyn" 编辑距离很大,相似度远低于 0.9 的旧阈值。
+    const result = await evaluate(similarity("Brooklyn").atLeast(0.9).soft(), "completely different");
+    expect(result.outcome).toBe("passed");
+    expect(result.outcome === "unavailable" ? undefined : result.threshold).toBeUndefined();
+  });
+
+  it("--strict 模式下无阈值的 soft 依旧只记录、不改判 failed(strict 只翻转有阈值的 soft)", async () => {
+    const result = await evaluate(equals(4).soft(), 5);
+    expect(computeVerdict({ assertions: [result], strict: false })).toBe("passed");
+    expect(computeVerdict({ assertions: [result], strict: true })).toBe("passed");
   });
 });

@@ -231,6 +231,15 @@ atLeast(threshold: number): ValueAssertion;
 转成软阈值断言:未达 threshold 时该条记为 failed,但默认不拖累整条评估用例的 verdict;
 `--strict` 运行下,软阈值失败也会把整条评估用例的 verdict 计为 failed。返回新实例,不改原对象。
 
+#### `soft`
+
+```ts
+soft(): ValueAssertion;
+```
+
+转成纯记录的软断言:不设通过线,分数照实落盘、永不使该条 failed(judge 的默认严重度就是它)。
+无参数——要设线用 `.atLeast(threshold)`,不提供同义的 `soft(threshold)`。返回新实例,不改原对象。
+
 #### `optional`
 
 ```ts

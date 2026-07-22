@@ -40,6 +40,8 @@ function createAssertion(
     gate: (t?: number) => createAssertion(name, "gate", score, t, opts),
     // 软阈值:默认不改变 verdict;--strict 下软阈值失败也会使 verdict=failed。
     atLeast: (t: number) => createAssertion(name, "soft", score, t, opts),
+    // 纯记录的软断言:不设线,分数照实落盘、永不 fail;无参数,清空 threshold(即便原先是 gate(x) 或 atLeast(x))。
+    soft: () => createAssertion(name, "soft", score, undefined, opts),
     // 允许证据缺席:评不了只记 unavailable,不影响判定(与 severity 正交)。
     optional: () => createAssertion(name, severity, score, threshold, { ...opts, isOptional: true }),
   };

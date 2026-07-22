@@ -52,6 +52,8 @@ export interface Spec {
 export interface RecordHandle {
   atLeast(threshold: number): RecordHandle;
   gate(threshold?: number): RecordHandle;
+  /** 降级为纯记录的 soft:不设线,分数照实落盘、永不 fail(judge 的默认严重度就是它)。无参数——要设线用 .atLeast(x)。 */
+  soft(): RecordHandle;
   optional(): RecordHandle;
 }
 
@@ -88,6 +90,11 @@ export class AssertionCollector {
       gate(threshold) {
         spec.severity = "gate";
         spec.threshold = threshold;
+        return handle;
+      },
+      soft() {
+        spec.severity = "soft";
+        spec.threshold = undefined;
         return handle;
       },
       optional() {
