@@ -9,6 +9,7 @@ import { t } from "../i18n/index.ts";
 import { cacheKey, planCarry } from "./fingerprint.ts";
 import { OtelReceiverPool } from "../o11y/otlp/turn-otel.ts";
 import { errorFromThrown, experimentRunInfo, runAttemptEffect } from "./attempt.ts";
+import type { ConcurrencySlot } from "../context/send-retry.ts";
 import { runReporter, emitReporterEvent, scopeReporter, summarize } from "./report.ts";
 import {
   reportActivity,
@@ -603,6 +604,23 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
                 ? AbortSignal.any([opts.signal, evalAc.signal])
                 : (evalAc?.signal ?? opts.signal);
 
+            // turn 级重试退避期间释放/收回的并发槽位(见 docs/feature/error-classification/
+            // architecture.md「退避与槽位」):按获取定序 runSem → globalSem 重新收回,与本
+            // attempt 起跑时的顺序一致(见上方「获取定序恒为 runSem → globalSem」注释),
+            // 不引入新的死锁风险。release 顺序不影响正确性(此刻只有本 fiber 持有这两个
+            // permit),按对称顺序反着还。
+            const runSem = runSems.get(a.run);
+            const concurrencySlot: ConcurrencySlot = {
+              release: async () => {
+                await Effect.runPromise(globalSem.release(1));
+                if (runSem) await Effect.runPromise(runSem.release(1));
+              },
+              reacquire: async () => {
+                if (runSem) await Effect.runPromise(runSem.take(1));
+                await Effect.runPromise(globalSem.take(1));
+              },
+            };
+
             yield* reportMutex.withPermits(1)(
               Effect.promise(() =>
                 emitReporterEvent(reporters, {
@@ -652,7 +670,7 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
                   assertions: [],
                   error: { ...errorFromThrown(expLc.setupError, "experiment.setup"), code: "experiment-setup-failed" },
                 } satisfies EvalResult)
-              : yield* runAttemptEffect(a, opts, sandboxSem, attemptSignal);
+              : yield* runAttemptEffect(a, opts, sandboxSem, attemptSignal, undefined, concurrencySlot);
             // locator 在这里确定 —— 早于本 attempt 触发的任何 reporter 回调 / 事件
             // (onEvalComplete、eval:complete),所以每一个观察者看到的都已经是最终值,
             // 和落盘 result.json 完全一致(writer.ts 的 entry.locator ?? 兜底分支因此

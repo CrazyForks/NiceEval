@@ -11,6 +11,8 @@ import type { Spec } from "../scoring/collector.ts";
 import * as Scoped from "../scoring/scoped.ts";
 import { buildJudge } from "../scoring/judge.ts";
 import { EvalSkipped, EvalRequirementFailed, TurnFailed } from "./control-flow.ts";
+import { turnErrorText } from "./turn-errors.ts";
+import type { ConcurrencySlot } from "./send-retry.ts";
 import { deriveRunFacts } from "../o11y/derive.ts";
 import { diffIsEmpty, diffMatches, emptyDiffData } from "../scoring/diff.ts";
 import { t } from "../i18n/index.ts";
@@ -84,6 +86,11 @@ export interface ContextDeps {
   ledgerHooks?: import("./session.ts").SessionDeps["ledgerHooks"];
   /** 每轮 send 的墙钟包络回报(runner 挂 turn 时间树节点);透传给 SessionManager。 */
   onTurn?: import("./session.ts").SessionDeps["onTurn"];
+  /** turn 级重试退避期间释放/收回的全局并发槽位;透传给 SessionManager。 */
+  concurrencySlot?: ConcurrencySlot;
+  /** 仅供确定性单测注入:透传给 SessionManager 的 turn 重试随机数/睡眠(生产路径省略)。 */
+  retryRandom?: import("./session.ts").SessionDeps["retryRandom"];
+  retrySleep?: import("./session.ts").SessionDeps["retrySleep"];
 }
 
 /**
@@ -115,6 +122,9 @@ export function createEvalContext(deps: ContextDeps): { context: TestContext; st
     onSendActive: deps.onSendActive,
     onTurn: deps.onTurn,
     ledgerHooks: deps.ledgerHooks,
+    concurrencySlot: deps.concurrencySlot,
+    retryRandom: deps.retryRandom,
+    retrySleep: deps.retrySleep,
   });
   const collector = new AssertionCollector();
   const state: ContextState = {
@@ -512,12 +522,10 @@ function makeTurnHandle(
     usage: turn.usage,
     expectOk() {
       if (turn.status === "failed") {
-        const lastError = [...turn.events]
-          .reverse()
-          .find((e): e is Extract<StreamEvent, { type: "error" }> => e.type === "error");
-        throw new TurnFailed(
-          lastError ? t("context.turnFailed", { message: lastError.message }) : undefined,
-        );
+        // 与保守兜底分类器、turn 级重试摘要读的同一段文本(见 turn-errors.ts 的 turnErrorText)——
+        // 不出现「报错说 A、分类看 B」。
+        const message = turnErrorText(turn);
+        throw new TurnFailed(message !== undefined ? t("context.turnFailed", { message }) : undefined);
       }
       return handle;
     },

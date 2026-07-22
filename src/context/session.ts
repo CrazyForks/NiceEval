@@ -6,6 +6,12 @@ import type { AgentOtelChannel } from "../o11y/otlp/turn-otel.ts";
 import { downgradeCoverage, resolveAgentCoverage, worstCoverage, type ResolvedCoverage } from "../scoring/coverage.ts";
 import { captureLoc } from "../source-loc.ts";
 import { t } from "../i18n/index.ts";
+import {
+  createAttemptRetryBudget,
+  sendWithTurnRetry,
+  type AttemptRetryBudget,
+  type ConcurrencySlot,
+} from "./send-retry.ts";
 
 /**
  * 一条会话线的存取器实现(见 docs-site/zh/explanation/adapter.mdx 的 AgentSession 契约)。
@@ -125,6 +131,14 @@ export interface SessionDeps {
   telemetry?: Telemetry;
   /** 非沙箱 tracing agent 的共享 OTLP 通道(runner 从 run 级池取,经它做逐轮 span 归属)。 */
   otel?: AgentOtelChannel;
+  /**
+   * turn 级重试退避期间释放/收回的全局并发槽位(见 docs/feature/error-classification/
+   * architecture.md「退避与槽位」)。省略时退避不释放槽位(测试 / 无并发闸场景)。
+   */
+  concurrencySlot?: ConcurrencySlot;
+  /** 仅供确定性单测注入:turn 重试执行体的随机数与睡眠(生产路径省略,走真实退避)。 */
+  retryRandom?: () => number;
+  retrySleep?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
 
 export class SessionManager {
@@ -150,6 +164,8 @@ export class SessionManager {
   private sessionCount = 0;
   /** 沙箱型 send 的串行链(见 SessionDeps.ledgerHooks):窗口不重叠。 */
   private sendChain: Promise<unknown> = Promise.resolve();
+  /** attempt 级 turn 重试预算,跨该 attempt 全部 send(全部 session)持续扣减,不随单次 send 重置。 */
+  private readonly retryBudget: AttemptRetryBudget = createAttemptRetryBudget();
 
   constructor(private readonly deps: SessionDeps) {
     this.agentCoverage = resolveAgentCoverage(deps.agent.coverage);
@@ -235,14 +251,36 @@ export class SessionManager {
     let sentTraceId: string | undefined;
     let sentAttribution: "traceparent" | "window" | "none" | undefined;
     this.deps.onSendActive?.(true);
+    // turn 级重试:包住这一次逻辑 send(下面两个分支各一次调用),分类判据与执行体时序见
+    // docs/feature/error-classification/architecture.md。retryDeps 复用同一个 attempt 级
+    // 预算(this.retryBudget)与 ctx.signal(合并了 attempt 超时 / Ctrl+C 中断),退避睡眠
+    // 因此能被 Effect interruption 干净打断,不新增超时语义。
+    const retryDeps = {
+      classifier: this.deps.agent.classifyTurnError,
+      budget: this.retryBudget,
+      slot: this.deps.concurrencySlot,
+      reportRetry: (message: string) => ctx.progress({ message }),
+      signal: ctx.signal,
+      random: this.deps.retryRandom,
+      sleep: this.deps.retrySleep,
+    };
     try {
       if (this.deps.otel) {
-        const r = await this.sendWithOtel(this.deps.otel, { text, files, responses }, ctx);
+        const otel = this.deps.otel;
+        const r = await sendWithTurnRetry(
+          () => this.sendWithOtel(otel, { text, files, responses }, ctx),
+          { get: (v) => v.turn, set: (v, t) => ({ ...v, turn: t }) },
+          retryDeps,
+        );
         turn = r.turn;
         sentTraceId = r.traceId;
         sentAttribution = r.attribution;
       } else {
-        turn = await this.deps.agent.send({ text, files, responses }, ctx);
+        turn = await sendWithTurnRetry(
+          () => this.deps.agent.send({ text, files, responses }, ctx),
+          { get: (v) => v, set: (_v, t) => t },
+          retryDeps,
+        );
       }
     } catch (e) {
       this.deps.onTurn?.({

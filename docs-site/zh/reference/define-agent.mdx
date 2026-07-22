@@ -134,6 +134,14 @@ send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
 
 每轮一次:把一轮 prompt 发给远程被测对象(HTTP/SDK 等),解析响应成 events。
 
+#### `classifyTurnError`
+
+```ts
+classifyTurnError?: TurnErrorClassifier;
+```
+
+可选 turn 失败分类器:见 `Agent.classifyTurnError`。
+
 #### `teardown`
 
 ```ts
@@ -194,6 +202,14 @@ send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
 ```
 
 每轮一次:跑 prompt(fresh / resume)+ 解析成 events。
+
+#### `classifyTurnError`
+
+```ts
+classifyTurnError?: TurnErrorClassifier;
+```
+
+可选 turn 失败分类器:见 `Agent.classifyTurnError`。
 
 #### `teardown`
 

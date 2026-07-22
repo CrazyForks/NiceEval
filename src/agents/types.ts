@@ -5,6 +5,7 @@
 import type { DiagnosticInput, ProgressUpdate } from "../shared/types.ts";
 import type { StreamEvent, TraceSpan, Usage } from "../o11y/types.ts";
 import type { Sandbox } from "../sandbox/types.ts";
+import type { TurnErrorClassifier } from "../context/turn-errors.ts";
 
 /**
  * 本地 stdio 形态的 MCP server:沙箱内起子进程,按 stdio 说 MCP 协议。
@@ -360,6 +361,13 @@ export interface Agent {
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。只影响瀑布图。 */
   spanMapper?: SpanMapper;
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
+  /**
+   * 可选 turn 失败分类器:按重试安全性归类一次 send 失败(抛出或返回 `status: "failed"` 的
+   * Turn),返回 `undefined` 回落保守兜底。分类器只声明决策与诊断词,不影响重试策略(次数、
+   * 退避对所有 agent 一致);抛错按不可重试处理并被吞掉。形状与分类链、执行体时序见
+   * docs/feature/error-classification/architecture.md。
+   */
+  classifyTurnError?: TurnErrorClassifier;
   teardown?: AgentTeardown;
 }
 
@@ -381,6 +389,8 @@ export interface SandboxAgentDef {
   spanMapper?: SpanMapper;
   /** 每轮一次:跑 prompt(fresh / resume)+ 解析成 events。 */
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
+  /** 可选 turn 失败分类器:见 `Agent.classifyTurnError`。 */
+  classifyTurnError?: TurnErrorClassifier;
   /** Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
    * 在 finally 里跑一次。 */
   teardown?: AgentTeardown;
@@ -404,6 +414,8 @@ export interface RemoteAgentDef {
   spanMapper?: SpanMapper;
   /** 每轮一次:把一轮 prompt 发给远程被测对象(HTTP/SDK 等),解析响应成 events。 */
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
+  /** 可选 turn 失败分类器:见 `Agent.classifyTurnError`。 */
+  classifyTurnError?: TurnErrorClassifier;
   /** 运行结束前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
    * 在 finally 里跑一次。 */
   teardown?: AgentTeardown;

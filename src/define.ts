@@ -28,6 +28,7 @@ export function defineSandboxAgent(def: SandboxAgentDef): Agent {
     tracing: def.tracing,
     spanMapper: def.spanMapper,
     send: def.send,
+    classifyTurnError: def.classifyTurnError,
     teardown: def.teardown,
   };
 }
@@ -43,6 +44,7 @@ export function defineAgent(def: RemoteAgentDef): Agent {
     tracing: def.tracing,
     spanMapper: def.spanMapper,
     send: def.send,
+    classifyTurnError: def.classifyTurnError,
     teardown: def.teardown,
   };
 }

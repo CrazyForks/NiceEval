@@ -7,6 +7,7 @@ import { resolve as resolvePath } from "node:path";
 import { readFile as readSourceFile } from "node:fs/promises";
 import { Effect, Cause, Duration } from "effect";
 import { createSandbox, resolveSandbox } from "../sandbox/resolve.ts";
+import type { ConcurrencySlot } from "../context/send-retry.ts";
 import { stopSandbox, unregisterSandbox } from "../sandbox/registry.ts";
 import { withCleanupTimeout } from "./cleanup-timeout.ts";
 import { KEEPABLE_PROVIDERS, nativeEnterCommand, suspendSandbox } from "../sandbox/keep.ts";
@@ -72,6 +73,11 @@ export function runAttemptEffect(
    *  时把 phase 塞进 `reportFailure()`(见 sink.ts 的 `FailureInput.phase`)—— 到那时
    *  attempt:complete 已经让 coordinator 把 active map 里的条目删掉,没有别的地方能事后查到。 */
   onPhase?: (phase: LifecyclePhase) => void,
+  /**
+   * turn 级重试退避期间释放/收回的全局并发槽位(globalSem / 实验级 runSem,见 run.ts 的调用点)。
+   * 省略时(如测试直调)退避不释放槽位。
+   */
+  concurrencySlot?: ConcurrencySlot,
 ): Effect.Effect<EvalResult> {
   const config = opts.config;
   const { evalDef, run, attempt } = a;
@@ -348,6 +354,7 @@ export function runAttemptEffect(
           attemptEpoch: t0,
           feedback: scopedFeedback,
           diagnostics,
+          concurrencySlot,
         }),
       );
 
@@ -493,6 +500,8 @@ interface AttemptResources {
   feedback: ScopedFeedback;
   /** attempt 级诊断累计(runAttemptEffect 持有,含 sandbox.create 期间的诊断)。 */
   diagnostics: DiagnosticRecord[];
+  /** turn 级重试退避期间释放/收回的全局并发槽位;透传给 createEvalContext。 */
+  concurrencySlot?: ConcurrencySlot;
 }
 
 // attempt 的固定段(上传→基线→setup→驱动 agent→采 diff→脚本→评分→判定)。
@@ -521,6 +530,7 @@ async function runAttemptBody(
     attemptEpoch,
     feedback,
     diagnostics,
+    concurrencySlot,
   } = res;
   const usesSandbox = run.agent.kind === "sandbox";
   // 命令时间树:所有经这个包装 sandbox 发出的 runCommand/runShell 都挂成当前阶段(或当前 hook
@@ -676,6 +686,7 @@ async function runAttemptBody(
       otel,
       evalBaseDir: evalDef.baseDir,
       feedback,
+      concurrencySlot,
       // send 窗口钩子:进入前落 eval 归因、返回后落 agent 归因(见 ledger.ts)。
       ledgerHooks: ledger
         ? {

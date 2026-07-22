@@ -55,6 +55,110 @@ function makeManager(turn: Turn) {
   return { manager, lines };
 }
 
+// turn 级重试(见 docs/feature/error-classification):agent 按调用次数依次吐出预设的 Turn
+// 序列,可选挂一个 classifyTurnError 分类器——用来证明重试真的经由 SessionManager 生效,
+// 而不只是 send-retry.ts 单元层的行为。
+function scriptedRetryAgent(turns: Turn[], classifyTurnError?: Agent["classifyTurnError"]): Agent & { calls: TurnInput[] } {
+  const calls: TurnInput[] = [];
+  let i = 0;
+  const agent: Agent = {
+    name: "scripted-retry",
+    kind: "remote",
+    async send(input: TurnInput): Promise<Turn> {
+      calls.push(input);
+      const turn = turns[Math.min(i, turns.length - 1)] as Turn;
+      i++;
+      return turn;
+    },
+    classifyTurnError,
+  };
+  return Object.assign(agent, { calls });
+}
+
+/** 退避睡眠瞬间返回 + 固定抖动为 0:单测不用真的等 5~20s 的退避窗口。 */
+function makeRetryManager(agent: Agent, overrides: Partial<ConstructorParameters<typeof SessionManager>[0]> = {}) {
+  const lines: string[] = [];
+  const manager = new SessionManager({
+    agent,
+    sandbox: fakeSandbox(),
+    flags: {},
+    signal: new AbortController().signal,
+    log: (msg) => lines.push(msg),
+    retryRandom: () => 0,
+    retrySleep: async () => {},
+    ...overrides,
+  });
+  return { manager, lines };
+}
+
+describe("SessionManager · turn 级重试", () => {
+  const rateLimited: Turn = { status: "failed", events: [{ type: "error", message: "rate limited, please retry later" }] };
+  const succeeded: Turn = { status: "completed", events: [{ type: "message", role: "assistant", text: "done" }] };
+
+  it("重试成功后结果零痕迹:只发生一次会话记账,失败尝试的事件不进 allEvents", async () => {
+    const agent = scriptedRetryAgent([rateLimited, succeeded]);
+    const { manager } = makeRetryManager(agent);
+
+    const turn = await manager.send(manager.primary, "hi");
+
+    expect(agent.calls).toHaveLength(2); // 确实重试了一次(第 1 次失败 + 第 2 次成功)
+    expect(turn.status).toBe("completed");
+    expect(manager.primary.turnCount).toBe(1); // 会话记账不因重试翻倍
+    expect(manager.allEvents.filter((e) => e.type === "error")).toHaveLength(0); // 失败尝试的事件不落账
+    expect(manager.allEvents.filter((e) => e.type === "message" && e.role === "user")).toHaveLength(1); // userEvent 不重放
+  });
+
+  it("adapter classifyTurnError 覆盖兜底:兜底本会判不可重试的文案,被 adapter 分类器判为可重试并触发重试", async () => {
+    const queueFull: Turn = { status: "failed", events: [{ type: "error", message: "ACME_QUEUE_FULL: too many concurrent runs" }] };
+    const agent = scriptedRetryAgent([queueFull, succeeded], (failure) =>
+      failure.type === "turn-failed" && failure.turn.events.some((e) => e.type === "error" && e.message.includes("ACME_QUEUE_FULL"))
+        ? { retryable: true, reason: "acme_queue_full" }
+        : undefined,
+    );
+    const { manager } = makeRetryManager(agent);
+
+    const turn = await manager.send(manager.primary, "hi");
+
+    expect(agent.calls).toHaveLength(2);
+    expect(turn.status).toBe("completed");
+  });
+
+  it("退避期间释放/收回并发槽位", async () => {
+    const agent = scriptedRetryAgent([rateLimited, succeeded]);
+    const slotCalls: string[] = [];
+    const concurrencySlot = {
+      release: async () => {
+        slotCalls.push("release");
+      },
+      reacquire: async () => {
+        slotCalls.push("reacquire");
+      },
+    };
+    const { manager } = makeRetryManager(agent, { concurrencySlot });
+
+    await manager.send(manager.primary, "hi");
+
+    expect(slotCalls).toEqual(["release", "reacquire"]);
+  });
+
+  it("受理证据门:失败 Turn 带 agent 产出事件时不重试,原样浮出", async () => {
+    const partialProgress: Turn = {
+      status: "failed",
+      events: [
+        { type: "action.called", callId: "c1", name: "bash", input: {} },
+        { type: "error", message: "rate limited, please retry later" },
+      ],
+    };
+    const agent = scriptedRetryAgent([partialProgress, succeeded]);
+    const { manager } = makeRetryManager(agent);
+
+    const turn = await manager.send(manager.primary, "hi");
+
+    expect(agent.calls).toHaveLength(1); // 没有发生重试
+    expect(turn.status).toBe("failed");
+  });
+});
+
 describe("SessionManager.send() 进度行", () => {
   it("failed 轮:进度行末尾追加最后一条 error 事件的 message", async () => {
     const events: StreamEvent[] = [
