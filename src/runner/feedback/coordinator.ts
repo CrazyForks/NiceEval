@@ -256,6 +256,7 @@ export function createFeedbackCoordinator(options: FeedbackCoordinatorOptions): 
       hook: input.hook,
       status: input.status,
       ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+      ...(input.recovery !== undefined ? { recovery: input.recovery } : {}),
     });
   }
 

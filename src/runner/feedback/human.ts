@@ -105,7 +105,8 @@ export function renderDurableLines(event: DurableFeedbackEvent, state: RunFeedba
       // 由 state.experimentHooks 驱动,成功钩子不进 scrollback,见 cli.md「实验级钩子的显示」)。
       const label = experimentHookLabel(event.hook);
       const duration = event.durationMs !== undefined ? ` (${formatElapsed(event.durationMs)})` : "";
-      if (event.status === "started") return [`${label} · ${event.experimentId}`];
+      const recoverySuffix = event.recovery ? ` (recovery)` : "";
+      if (event.status === "started") return [`${label} · ${event.experimentId}${recoverySuffix}`];
       const statusWord =
         event.status === "done" ? t("feedback.human.hookDone") : t("feedback.human.hookFailed");
       return [`${label} ${statusWord} · ${event.experimentId}${duration}`];
@@ -507,7 +508,10 @@ function formatExperimentHookRow(hook: ActiveExperimentHook, io: FeedbackIO): st
   const detailReserve = Math.min(80, Math.max(0, Math.floor(columns * 0.35)));
   const remaining = Math.max(0, columns - fixedWidth - detailReserve);
   // attempt 行的身份区是 evalCol + 两格间隔 + whoCol(合计 remaining + 2),这里用同一跨度。
-  const label = padTrunc(`${experimentHookLabel(hook.hook)} · ${hook.experimentId}`, remaining + 2);
+  const label = padTrunc(
+    `${experimentHookLabel(hook.hook)} · ${hook.experimentId}${hook.recovery ? " (recovery)" : ""}`,
+    remaining + 2,
+  );
   const prefix = `${sym}${label}  ${elapsed}  `;
   const budget = Math.max(0, columns - prefix.length);
   return prefix + (hook.detail ?? "").slice(0, budget);

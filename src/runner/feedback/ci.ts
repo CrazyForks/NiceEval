@@ -144,6 +144,7 @@ export function createCiRenderer(options: CiRendererOptions): FeedbackRenderer {
           const word = event.hook === "setup" ? "experiment_setup" : "experiment_teardown";
           const parts = [`niceeval: ${word}`, kv("experiment", event.experimentId), kv("status", event.status)];
           if (event.durationMs !== undefined) parts.push(kv("duration", formatCiSeconds(event.durationMs)));
+          if (event.recovery) parts.push(kv("recovery", "true"));
           io.stdout.write(parts.join(" ") + "\n");
           return;
         }

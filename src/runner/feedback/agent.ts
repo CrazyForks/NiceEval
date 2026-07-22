@@ -133,6 +133,7 @@ export function createAgentRenderer(options: AgentRendererOptions): FeedbackRend
           const word = event.hook === "setup" ? "experiment_setup" : "experiment_teardown";
           const parts = [`NICEEVAL ${word}`, kv("experiment", event.experimentId), kv("status", event.status)];
           if (event.durationMs !== undefined) parts.push(kv("duration", formatElapsedSeconds(event.durationMs)));
+          if (event.recovery) parts.push(kv("recovery", "true"));
           io.stderr.write(parts.join(" ") + "\n");
           return;
         }

@@ -59,6 +59,8 @@ export interface ExperimentHookInput {
   hook: ExperimentHookName;
   status: "started" | "done" | "failed";
   durationMs?: number;
+  /** 强杀后启动自愈的补执行(只在 teardown 的 started 上有意义);省略 = 正常路径。 */
+  recovery?: boolean;
 }
 
 /** `sink.experimentProgress()` 的输入 —— 实验级 `ctx.progress` 压好的单行文本。 */

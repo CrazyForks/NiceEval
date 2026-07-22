@@ -131,6 +131,7 @@ export function reduceRunFeedback(state: RunFeedbackState, event: RunFeedbackEve
           experimentId: event.experimentId,
           hook: event.hook,
           startedAt: event.at,
+          ...(event.recovery !== undefined ? { recovery: event.recovery } : {}),
         });
       } else {
         experimentHooks.delete(event.experimentId);

@@ -773,6 +773,8 @@ export interface ActiveExperimentHook {
   /** 钩子开始的墙钟时间(epoch ms),用于渲染运行级行的耗时。 */
   startedAt: number;
   detail?: string;
+  /** 强杀后启动自愈补执行的 teardown(见 `DurableFeedbackEvent` 的 "experiment-hook" 变体)。 */
+  recovery?: boolean;
 }
 
 /**
@@ -994,6 +996,12 @@ export type DurableFeedbackEvent =
       status: "started" | "done" | "failed";
       /** 只在 done / failed 上出现:钩子从开始到结束的耗时。 */
       durationMs?: number;
+      /**
+       * 只在 `hook: "teardown"` 的 `status: "started"` 上可能出现:标注这是强杀后的启动自愈
+       * 补执行(见 docs/feature/experiments/architecture.md「强杀后的收尾兜底」),不是本次 run
+       * 正常触发的收尾。省略 = 正常路径。
+       */
+      recovery?: boolean;
     }
   | { type: "interrupted"; at: number }
   | { type: "reporter-error"; at: number; reporter: string; required: boolean; message: string }

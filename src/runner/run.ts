@@ -29,6 +29,14 @@ import { prepareRunSandboxes, sandboxForEval } from "./sandbox-selection.ts";
 import { selectedEvalsForRun } from "./eval-selection.ts";
 import { registerExperimentTeardown, unregisterExperimentTeardown } from "./experiment-cleanup-registry.ts";
 import { withCleanupTimeout } from "./cleanup-timeout.ts";
+import { hostname } from "node:os";
+import {
+  isStaleTeardownRegistration,
+  readTeardownRegistration,
+  removeTeardownRegistrationIfPresent,
+  teardownEntryId,
+  writeTeardownRegistration,
+} from "./teardown-registry.ts";
 import type { Agent, EvalResult, JudgeConfig, Reporter, ReporterRegistration, RunShape, RunSummary, SandboxOption } from "../types.ts";
 import type { AgentRun, Attempt, ExperimentHookContext, LifecyclePhase, AttemptRef, RunOptions } from "./types.ts";
 
@@ -97,21 +105,8 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
   // 等),判定本身不可信,必须重跑。跳过/fingerprint 不匹配同样重跑。--force 跳过此逻辑
   // (cli.ts 在 --force 时不传 priorResults,也不算 carryPlan)。
   // carryPlan 优先用调用方(cli.ts,为了 live 表格)已经算好的那份,不重算一遍。
-  const { plannedFingerprints, priorRunKeys, carriedResults } =
+  const { plannedFingerprints, carriedAttemptsByKey, carriedResults } =
     opts.carryPlan ?? (await planCarry(opts.evals, opts.agentRuns, opts.priorResults, opts.config.sandbox));
-
-  // 携入覆盖计数:priorRunKeys 只回答「这个 (experimentId, evalId) 组合有没有可携入的终态
-  // 结果」,不回答「携入了几条」。runs 被调大(或实验改成更大的 runs)时,上次可能只留下比
-  // 这次请求更少的终态结果(如上次 runs:1、这次改成 runs:5),不能因为"有过携入"就把这次
-  // 请求的差额序号也整段跳过——那会让 pass@N 里的 N 被携入悄悄砍短,运行还照样报 PASSED/exit 0
-  // (见 docs/runner.md「不能在 CI 里伪装成全绿」)。下面按序号只跳过携入能覆盖到的前
-  // carriedCount 个,差额必须真正进 attempts 数组、走正常调度(含 earlyExit/budget 判断)。
-  const carriedCountByKey = new Map<string, number>();
-  for (const r of carriedResults) {
-    if (!r.experimentId) continue;
-    const key = `${r.experimentId}|${r.id}`;
-    carriedCountByKey.set(key, (carriedCountByKey.get(key) ?? 0) + 1);
-  }
 
   // 展开 attempts
   // 外层按「round」(run index)迭代,内层按 eval 迭代:同一 key 的第 i+1 次 attempt 排在
@@ -127,9 +122,10 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
     for (let i = 0; i < run.runs; i++) {
       for (const evalDef of evals) {
         const carryKey = `${run.experimentId ?? ""}|${evalDef.id}`;
-        // 只跳过携入能覆盖到的前 carriedCount 个序号(见上面 carriedCountByKey 的注释);
-        // i 超出携入数量的部分必须真正调度,不能因为同一组合"有过携入"就整段跳过。
-        if (run.experimentId && priorRunKeys.has(carryKey) && i < (carriedCountByKey.get(carryKey) ?? 0)) continue;
+        // 携带以 attempt 为粒度:只跳过这个具体序号确实被携入的那些(见 fingerprint.ts 的
+        // `carriedAttemptsByKey`),不是"这个组合有过携入就跳过前 N 个"——runs:5 里若只有
+        // 序号 1 是上一轮的终态、序号 0 是 errored,这里必须只跳过序号 1、照常调度序号 0。
+        if (run.experimentId && carriedAttemptsByKey.get(carryKey)?.has(i)) continue;
         // key 标识「同一个运行配置下的同一条 eval」,earlyExit 的跳过/abort 只应作用于
         // 同 key 的重试轮。experimentId 必须进 key:两个实验可以同 agent 同 model、只差
         // flags(feature A/B 正是这种形状),漏掉它会让先过的实验把其它实验的同名 eval
@@ -402,6 +398,11 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
       expLifecycles.set(a.run, (lc = { triggered: false, setupFailed: false, remaining: 0, tornDown: false }));
     lc.remaining += 1;
   }
+  // 强杀后的收尾兜底(docs/feature/experiments/architecture.md「强杀后的收尾兜底」)的磁盘登记
+  // 挂在结果根下,与留存注册表 `.niceeval/sandboxes/` 同一个根(省略时退回 cwd/.niceeval,
+  // 与 attempt.ts 的 niceevalRoot 兜底同一口径)。
+  const niceevalRoot = opts.niceevalRoot ?? `${process.cwd()}/.niceeval`;
+  const currentHost = hostname();
   const makeExperimentHookContext = (run: AgentRun): ExperimentHookContext => {
     const experimentId = run.experimentId ?? run.agent.name;
     return {
@@ -462,9 +463,83 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
       } finally {
         // settle 后才注销:drain 的「启动全部未启动 + 等待全部未 settle」依赖条目在飞期间仍可见。
         unregisterExperimentTeardown(experimentId);
+        // 磁盘镜像同一时点删除(所有触发路径:完成 / 中断 / 强清 drain 都经这条 finally)——
+        // 不变量:磁盘上存在登记,当且仅当某次 run 的实验级收尾义务尚未完成(docs/feature/
+        // experiments/architecture.md「强杀后的收尾兜底」)。没写过(裸 run / 无 teardown)
+        // 时删除是 no-op。
+        if (run.experimentId) {
+          await removeTeardownRegistrationIfPresent(niceevalRoot, teardownEntryId(run.experimentId)).catch(() => {});
+        }
       }
     })();
     return lc.teardownPromise;
+  };
+  /**
+   * 启动自愈:本实验触发 setup 之前,先核对磁盘上是否有它自己的遗留登记——上一次运行同一
+   * experimentId 被强杀、来不及删除。同宿主且 pid 已死才是遗留义务;pid 活或异宿主可能是
+   * 并发 run,不触碰。先原子删登记拿到执行权,再补执行一次它的 teardown(新进程语义:
+   * ctx.selectedEvalIds 从登记恢复,不依赖已丢失的 setup 产物)。失败只记诊断,不阻断、
+   * 不重试本次 run 的调度——recovery 补偿的是上一次的泄漏,不是这一次的前提条件。
+   */
+  const recoverStaleTeardownRegistration = async (run: AgentRun, experimentId: string): Promise<void> => {
+    if (!run.experimentId || !run.teardown) return;
+    let existing;
+    try {
+      existing = await readTeardownRegistration(niceevalRoot, run.experimentId);
+    } catch {
+      return;
+    }
+    if (!existing || !isStaleTeardownRegistration(existing, currentHost)) return;
+    const claimed = await removeTeardownRegistrationIfPresent(
+      niceevalRoot,
+      teardownEntryId(run.experimentId),
+    ).catch(() => false);
+    if (!claimed) return; // 已被另一个进程抢先删除,义务已被别处接手
+    reportExperimentHook({ experimentId, hook: "teardown", status: "started", recovery: true });
+    const startedAt = Date.now();
+    const recoveryCtx: ExperimentHookContext = {
+      experimentId,
+      selectedEvalIds: existing.selectedEvalIds,
+      signal: opts.signal ?? new AbortController().signal,
+      progress: (u) => {
+        const suffix = u.current !== undefined && u.total !== undefined ? ` (${u.current}/${u.total})` : "";
+        reportExperimentProgress({ experimentId, detail: `${u.message}${suffix}` });
+      },
+      diagnostic: (input) =>
+        reportDiagnostic({
+          key: input.dedupeKey ?? `${input.code}:experiment:${experimentId}`,
+          severity: input.level,
+          message: input.message,
+          data: { experimentId, ...(input.data ?? {}) },
+        }),
+    };
+    try {
+      await withCleanupTimeout(() => run.teardown!(recoveryCtx));
+      reportExperimentHook({
+        experimentId,
+        hook: "teardown",
+        status: "done",
+        durationMs: Date.now() - startedAt,
+        recovery: true,
+      });
+    } catch (e) {
+      reportExperimentHook({
+        experimentId,
+        hook: "teardown",
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        recovery: true,
+      });
+      reportDiagnostic({
+        key: `experiment-teardown-failed:${experimentId}`,
+        severity: "warning",
+        message: t("runner.experimentTeardownFailed", {
+          experimentId,
+          message: e instanceof Error ? e.message : String(e),
+        }).trimEnd(),
+        data: { experimentId },
+      });
+    }
   };
   const ensureExperimentSetup = (a: Attempt): Promise<void> => {
     const lc = expLifecycles.get(a.run)!;
@@ -476,18 +551,38 @@ export async function runEvals(opts: RunOptions): Promise<RunSummary> {
       // 丢收尾——强清退出(二次中断/看门狗/崩溃路径)时 cli 由此排空未被运行路径消费的
       // teardown(docs/cli.md「中断:三级响应」)。
       if (run.teardown) registerExperimentTeardown(experimentId, () => runExperimentTeardown(run, lc));
-      if (!run.setup) {
-        lc.setupPromise = Promise.resolve();
-        return lc.setupPromise;
-      }
-      const ctx = makeExperimentHookContext(run);
+      const ctx = run.setup ? makeExperimentHookContext(run) : undefined;
       lc.setupPromise = (async () => {
+        // 强杀后的收尾兜底(docs/feature/experiments/architecture.md「强杀后的收尾兜底」):
+        // 先核对并补执行本实验自己的遗留登记,再原子写入本次的登记——两步都先于 setup。
+        if (run.teardown && run.experimentId) {
+          await recoverStaleTeardownRegistration(run, experimentId);
+          await writeTeardownRegistration(niceevalRoot, {
+            experimentId: run.experimentId,
+            experimentFile: `experiments/${run.experimentId}.ts`,
+            selectedEvalIds: run.selectedEvalIds,
+            pid: process.pid,
+            host: currentHost,
+            startedAt: new Date().toISOString(),
+          }).catch((e) => {
+            reportDiagnostic({
+              key: `teardown-registration-write-failed:${experimentId}`,
+              severity: "warning",
+              message: t("runner.teardownRegistrationWriteFailed", {
+                experimentId,
+                message: e instanceof Error ? e.message : String(e),
+              }).trimEnd(),
+              data: { experimentId },
+            });
+          });
+        }
+        if (!run.setup) return;
         // 起止由 runner 发布(见 cli.md「实验级钩子的显示」):一个什么都不调的 setup 也必须
         // 可见,不能让「0 running · N queued 长时间不动」看起来像调度卡死。
         reportExperimentHook({ experimentId, hook: "setup", status: "started" });
         const startedAt = Date.now();
         try {
-          const returned = (await run.setup!(ctx)) as unknown;
+          const returned = (await run.setup!(ctx!)) as unknown;
           if (typeof returned === "function") {
             // 迁移护栏:tsx 用户没有类型检查,旧式「setup 返回 cleanup」会被静默忽略而泄漏资源。
             // best-effort 执行一次返回的函数(把已起的资源收掉),然后按 setup 失败报清晰错误。

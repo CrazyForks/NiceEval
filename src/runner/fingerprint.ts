@@ -54,9 +54,15 @@ export async function computeFingerprint(
 export interface CarryPlan {
   /** `cacheKey(run, evalId)` → 本次规划出的指纹,供调用方按同一口径判断"这条要不要携入"。 */
   plannedFingerprints: Map<string, string>;
-  /** 命中携入条件(passed/failed 终态 + 指纹匹配)的 `${experimentId}|${evalId}` 集合。 */
-  priorRunKeys: Set<string>;
-  /** priorRunKeys 对应的完整结果对象,供 run.ts 直接并入 summary、cli.ts 直接取 verdict 展示。 */
+  /**
+   * 携带以 attempt 为粒度:命中携入条件(该 attempt 自身 passed/failed 终态 + 指纹匹配)的
+   * `${experimentId}|${evalId}` → 该 eval 下具体携入的 attempt 序号集合(0-based)。同一个
+   * eval 在 `runs > 1` 时可能只有部分序号是终态、其余是 errored/未跑完——只有逐条命中的那些
+   * 序号才在这个集合里,不是"key 命中就整段携入"(反例与修法见 memory 的
+   * carry-key-must-be-per-attempt-not-whole-eval)。
+   */
+  carriedAttemptsByKey: Map<string, Set<number>>;
+  /** carriedAttemptsByKey 对应的完整结果对象,供 run.ts 直接并入 summary、cli.ts 直接取 verdict 展示。 */
   carriedResults: EvalResult[];
 }
 
@@ -65,6 +71,11 @@ export interface CarryPlan {
  * run.ts 与 cli.ts(live 表格构建)必须共用这同一份计算 —— 否则两边一旦对"哪些携入"的判断
  * 不一致,live 表格就会显示"还在等名额",而 run.ts 其实已经把它筛掉、根本不会调度这个 attempt
  * (见 memory 的 live-carry-row-shows-waiting-forever)。
+ *
+ * 携带来源不要求快照收尾:`priorResults` 来自 `loadLatestResultsPerEval`,它按落盘的
+ * `result.json` 一条条读,不检查所属快照有没有 `completedAt`——被中断或强杀的 run 留下的
+ * 未收尾快照,其中已落盘的终态 attempt 同样进入这里的候选集合(见 docs/runner.md
+ * 「缓存:指纹去重」)。
  */
 export async function planCarry(
   evals: DiscoveredEval[],
@@ -87,23 +98,23 @@ export async function planCarry(
   }
   await Promise.all(jobs);
 
-  const priorRunKeys = new Set<string>();
+  const carriedAttemptsByKey = new Map<string, Set<number>>();
   const carriedResults: EvalResult[] = [];
   if (priorResults?.length) {
     for (const r of priorResults) {
       if (!r.experimentId) continue;
       const key = `${r.experimentId}|${r.id}`;
+      // 逐条判断:这一条 attempt 自己是终态、且自己的指纹与本次规划一致才携入——errored /
+      // skipped 永不携带,即使同一 eval 的另一个 attempt 序号命中终态也不能连带把它捎上。
       const isTerminalVerdict = r.verdict === "passed" || r.verdict === "failed";
-      if (isTerminalVerdict && r.fingerprint !== undefined && r.fingerprint === plannedFingerprints.get(key)) {
-        priorRunKeys.add(key);
-      }
-    }
-    for (const r of priorResults) {
-      if (!r.experimentId || !priorRunKeys.has(`${r.experimentId}|${r.id}`)) continue;
+      if (!isTerminalVerdict || r.fingerprint === undefined || r.fingerprint !== plannedFingerprints.get(key)) continue;
+      let indices = carriedAttemptsByKey.get(key);
+      if (!indices) carriedAttemptsByKey.set(key, (indices = new Set()));
+      indices.add(r.attempt);
       carriedResults.push(r);
     }
   }
-  return { plannedFingerprints, priorRunKeys, carriedResults };
+  return { plannedFingerprints, carriedAttemptsByKey, carriedResults };
 }
 
 /** 键序稳定的 JSON 序列化(对象键排序),保证同一 payload 永远同一指纹。 */
