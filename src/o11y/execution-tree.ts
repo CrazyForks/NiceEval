@@ -1,9 +1,9 @@
 // ExecutionTree:标准事件流骨架 + 可选 OTel span enrichment 合成的统一执行记录
 // (定稿见 docs/observability.md「OTLP traces → 统一瀑布图」、docs/concepts.md「执行树」词条)。
 //
-// 骨架来自 events,永远不因有没有 spans 而变形:message / thinking / skill.loaded /
-// action(action.called + action.result 按 callId 合并成一个节点)/ subagent(同理)/
-// input.requested / compaction / error,每种事件一个节点,顺序 = 事件出现的顺序
+// 骨架来自 events,永远不因有没有 spans 而变形:message / thinking / context.injected /
+// skill.loaded / action(action.called + action.result 按 callId 合并成一个节点)/
+// subagent(同理)/ input.requested / compaction / error,每种事件一个节点,顺序 = 事件出现的顺序
 // (合并节点的位置 = 它 called/loaded 那条事件的位置,result/completed 只更新已有节点,
 // 不产生新位置)。没有 spans 时,`span` 字段整体缺失——渲染层据此判断「timing
 // unavailable」,不是 0,也不是从别处反推的估算值。
@@ -69,6 +69,17 @@ export interface ExecutionMessageNode extends ExecutionNodeBase {
 export interface ExecutionThinkingNode extends ExecutionNodeBase {
   kind: "thinking";
   text: string;
+}
+
+/**
+ * 被测系统内部机制注入进上下文的文本,不属于任何一方"说的话",不并进 `message`
+ * (见 docs/feature/adapters/architecture/events.md「不变量 9」)。与 thinking / compaction
+ * 同一档次的直通节点,不参与 callId 关联。
+ */
+export interface ExecutionContextInjectedNode extends ExecutionNodeBase {
+  kind: "context.injected";
+  text: string;
+  source?: string;
 }
 
 /** Skill 加载节点——一等,直接来自 StreamEvent 的 "skill.loaded",不靠工具名/文本猜。 */
@@ -142,6 +153,7 @@ export interface ExecutionTelemetryNode {
 export type ExecutionNode =
   | ExecutionMessageNode
   | ExecutionThinkingNode
+  | ExecutionContextInjectedNode
   | ExecutionSkillNode
   | ExecutionActionNode
   | ExecutionSubagentNode
@@ -218,6 +230,10 @@ export function buildExecutionTree(events: readonly StreamEvent[], spans: readon
 
       case "thinking":
         nodes.push({ id: nextId("thinking"), kind: "thinking", text: ev.text });
+        break;
+
+      case "context.injected":
+        nodes.push({ id: nextId("context-injected"), kind: "context.injected", text: ev.text, source: ev.source });
         break;
 
       case "skill.loaded": {

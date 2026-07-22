@@ -45,7 +45,7 @@ const scope = reportScopeFixture({
 - **Attempt 证据组件族**：`attempt*Data(evidence)` 纯派生零 IO、装配恰好一次；组合组件的展开树构成与二选一规则；spec 缺省取注入 evidence、错位使用的完整反馈；对话数据的分轮与容错。渲染出的 DOM、默认展开标记、染色与交互归 E2E；改动这些组件后需要 `pnpm run build:report`，改动 view 壳 / dialog 摆放后需要 `pnpm run view:build`。
 - **外壳与页面装载**：三种声明形态归一到同一规范化产物、`content`/`pages`/`extends` 恰好其一、标题取值链、资产路径纪律与 head 白名单/转义/scheme 分流、page id 与 attempt-input page 的校验规则。全部以装载结果或错误对象为断言面。
 - **show 终端宿主的选择、时间轴与文案**：`show` 专属的纯函数与错误路径以返回值或文案为断言面，不依赖终端排版——`attemptHistory` 按 experimentId + evalId 分节、跨快照按 attempt 身份键去重（resume 携带的复印件不占行）、startedAt 升序、单行摘要与成本派生；`showCommand` / `otherPagesText` 按 `HostCommandContext` 拼出可复现的页/组索引命令，只列未渲染的页且携带完整上下文；eval id 前缀无匹配、`--history`/`--report`/`--page` 的互斥与用法冲突、`@<locator>` 语法错误与索引未命中、证据切面撞多个 eval 时的紧凑索引——全部以 CLI 抛出的错误对象/文案为断言面。跨快照合成 Selection 与去重的结构化语义（`selectCurrentResults`/现刻水位）不在这里重复，归[单元测试 Results](results.md)的「现刻水位（`current()`）」类别。
-- **o11y 数据派生**：`estimateCost` 的查价与缺失口径（未知 model 为 null 不猜、缺 usage 不记零成本）；`buildExecutionTree` 把标准事件流与 OTel span 合成执行树——骨架完整性、callId 精确合并、关联失败降级不猜、乱序/截断的占位、失败状态透传。
+- **o11y 数据派生**：`estimateCost` 的查价与缺失口径（未知 model 为 null 不猜、缺 usage 不记零成本）；`buildExecutionTree` 把标准事件流与 OTel span 合成执行树——骨架完整性、callId 精确合并、关联失败降级不猜、乱序/截断的占位、失败状态透传、新增的 `context.injected` 节点按事件原样直通（不参与 callId 关联）；`deriveRunFacts` 把标准事件流折叠成 `DerivedFacts`——只有 called、尚未等到 result 的调用折叠成 `pending`（工具调用与子 agent 委派都适用），配上 result 才取 result 的状态，只有 result 没配上 called 时才是占位兜底；`contextInjections` 精确计数事件流里的 `context.injected` 事件次数，不与其它折叠字段重复计入。
 
 ## 不这样测
 

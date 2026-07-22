@@ -68,11 +68,16 @@ export function deriveRunFacts(events: readonly StreamEvent[]): DerivedFacts {
   const inputRequests: InputRequest[] = [];
   let messageCount = 0;
   let compactions = 0;
+  let contextInjections = 0;
 
   for (const ev of events) {
     switch (ev.type) {
       case "message":
         messageCount += 1;
+        break;
+
+      case "context.injected":
+        contextInjections += 1;
         break;
 
       case "action.called": {
@@ -82,7 +87,8 @@ export function deriveRunFacts(events: readonly StreamEvent[]): DerivedFacts {
           name: ev.tool ?? "unknown",
           originalName: ev.name,
           input: ev.input,
-          status: "completed",
+          // 只有 called、尚未等到 result 的调用是 pending(见 docs/feature/adapters/architecture/events.md)。
+          status: "pending",
         });
         break;
       }
@@ -112,7 +118,8 @@ export function deriveRunFacts(events: readonly StreamEvent[]): DerivedFacts {
           callId: ev.callId,
           name: ev.name,
           remoteUrl: ev.remoteUrl,
-          status: "completed",
+          // 只有 called、尚未等到 result 的调用是 pending(与 ToolCall 折叠同一条契约)。
+          status: "pending",
         });
         break;
       }
@@ -163,6 +170,7 @@ export function deriveRunFacts(events: readonly StreamEvent[]): DerivedFacts {
     parked,
     messageCount,
     compactions,
+    contextInjections,
   };
 }
 

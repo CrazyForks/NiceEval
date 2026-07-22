@@ -93,20 +93,30 @@ export type StreamEvent = { truncated?: Truncation[] } & (
   | { type: "input.requested"; request: InputRequest }
   /** 模型的思考/推理文本(非最终回复)。 */
   | { type: "thinking"; text: string }
+  /**
+   * 被测系统内部注入的、不披着 `message` 外衣的上下文文本(如 Claude Code 的 SessionStart /
+   * UserPromptSubmit hook 在下一轮开始前前置进模型上下文的文本)。只承载带实际文本内容的注入;
+   * `source` 是可选的原始来源标记(如 hook 名),adapter 按各自协议原样透传,不强行归一到封闭枚举。
+   */
+  | { type: "context.injected"; text: string; source?: string }
   /** 上下文被压缩/摘要(如超长会话截断历史);`reason` 是可选的压缩原因说明。 */
   | { type: "compaction"; reason?: string }
   /** 运行中出现的错误。 */
   | { type: "error"; message: string }
 );
 
-/** core 从事件流折叠出的结构化事实(deriveRunFacts)。 */
+/**
+ * core 从事件流折叠出的结构化事实(deriveRunFacts)。折叠按 callId 把 called 与 result 对成一条
+ * 调用:配上 result 的取 result 的状态;只有 called、尚未等到 result 的调用状态是 `pending`——
+ * HITL 停在审批上的调用就以这个状态被断言,不是容错分支(见 docs/feature/adapters/architecture/events.md)。
+ */
 export interface ToolCall {
   callId: string;
   name: ToolName;
   originalName?: string;
   input: JsonValue;
   output?: JsonValue;
-  status: "completed" | "failed" | "rejected";
+  status: "pending" | "completed" | "failed" | "rejected";
 }
 
 export interface SubagentCall {
@@ -114,7 +124,8 @@ export interface SubagentCall {
   name: string;
   remoteUrl?: string;
   output?: JsonValue;
-  status: "completed" | "failed";
+  /** 子 agent 委派没有 rejected 状态(subagent.completed 只报 completed / failed)。 */
+  status: "pending" | "completed" | "failed";
 }
 
 export interface DerivedFacts {
@@ -124,6 +135,8 @@ export interface DerivedFacts {
   readonly parked: boolean;
   readonly messageCount: number;
   readonly compactions: number;
+  /** 事件流里 `context.injected` 事件的次数;只回答存在性问题,不替代逐条读取原文。 */
+  readonly contextInjections: number;
 }
 
 /**

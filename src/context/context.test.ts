@@ -82,7 +82,7 @@ describe("createEvalContext / TestContext live state", () => {
 
     const [result] = await state.collector.finalize({
       events: [],
-      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0 },
+      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0, contextInjections: 0 },
       diff: state.late.diff,
       scripts: state.late.scripts,
       usage: { inputTokens: 0, outputTokens: 0 },
@@ -102,7 +102,7 @@ describe("createEvalContext / TestContext live state", () => {
 
     const [result] = await state.collector.finalize({
       events: [],
-      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0 },
+      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0, contextInjections: 0 },
       diff: state.late.diff,
       scripts: state.late.scripts,
       usage: { inputTokens: 0, outputTokens: 0 },
@@ -126,7 +126,7 @@ describe("createEvalContext / TestContext live state", () => {
 
     const [result] = await state.collector.finalize({
       events: [],
-      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0 },
+      facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0, contextInjections: 0 },
       diff: state.late.diff,
       scripts: state.late.scripts,
       usage: { inputTokens: 0, outputTokens: 0 },
@@ -332,7 +332,7 @@ describe("t.respond() / t.respondAll(): structured InputResponse", () => {
 function baseScoringContext(state: ContextState) {
   return {
     events: [],
-    facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0 },
+    facts: { toolCalls: [], subagentCalls: [], inputRequests: [], parked: false, messageCount: 0, compactions: 0, contextInjections: 0 },
     diff: state.late.diff,
     scripts: state.late.scripts,
     usage: { inputTokens: 0, outputTokens: 0 },

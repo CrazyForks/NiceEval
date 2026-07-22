@@ -570,6 +570,8 @@ function executionNodeLines(node: ExecutionNode, originMs: number, timingAvailab
       return block(node.role.toUpperCase(), node.text);
     case "thinking":
       return block("THINKING", clip(node.text, 200));
+    case "context.injected":
+      return block(node.source ? `CONTEXT INJECTED · ${node.source}` : "CONTEXT INJECTED", clip(node.text, 200));
     case "skill.loaded":
       return block(`SKILL · ${node.skill}`, "loaded");
     case "action": {
@@ -608,8 +610,8 @@ function executionNodeLines(node: ExecutionNode, originMs: number, timingAvailab
 }
 
 /**
- * `--execution`:标准事件流骨架(message / thinking / skill load / tool call+result / subagent /
- * input.requested / compaction / error),有 OTel 时同一节点补相对时间与耗时;没有 OTel 时
+ * `--execution`:标准事件流骨架(message / thinking / context.injected / skill load /
+ * tool call+result / subagent / input.requested / compaction / error),有 OTel 时同一节点补相对时间与耗时;没有 OTel 时
  * 节点、顺序与内容不变,只去掉时间列,并在结尾如实标 timing unavailable
  * (ExecutionTree 的契约:骨架不因时间有无而变形,见 o11y/execution-tree.ts 头注)。
  */
