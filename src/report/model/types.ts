@@ -15,6 +15,7 @@ import type {
   InputRequest,
   JsonValue,
   PhaseTiming,
+  ScoreEntry,
   SourceLoc,
   ToolName,
   TraceSpan,
@@ -494,12 +495,24 @@ export interface AttemptSummaryData {
 /** `AttemptError` 的 data:结构化 error 一层原因 + cause + stack;没有 error 时 null。 */
 export type AttemptErrorData = AttemptError;
 
-/** `AttemptAssertions` 的 data:非 passed 条目默认展开,passed 按 group 折叠计数;没有 assertion 时 null。 */
+/**
+ * `AttemptAssertions` 的 data:非 passed 条目默认展开,passed 按 group 折叠计数;没有 assertion
+ * 且没有给分记录时 null。计分制(`scoring: "points"`)eval 的 `.points` 挣分随所在
+ * `AssertionResult` 一起出现在 `attention` / `passedGroups` 里(字段本就在 `AssertionResult` 上,
+ * 不需要额外投影);`t.score(label, n)` 的直接给分记录另成一个分组数组,见 `scoreEntries`
+ * (docs/feature/scoring/library/display.md「计分制:.points 与给分记录」)。
+ */
 export interface AttemptAssertionsData {
   /** failed / unavailable / soft 全部非 passed 条目,按原始声明顺序。 */
   attention: AssertionResult[];
   /** passed 条目按 groupPath.join(" > ") 分组(无分组键为 ""),组内保持原始顺序。 */
   passedGroups: { group: string; items: AssertionResult[] }[];
+  /**
+   * `t.score(label, n)` 记录,按 groupPath.join(" > ") 分组(无分组键为 "",同 passedGroups
+   * 同一套分组算法),组内保持记录顺序。只在存在给分记录时出现;省略表示没有给分记录
+   * (通过制 eval 的 attempt 恒省略)。
+   */
+  scoreEntries?: { group: string; items: ScoreEntry[] }[];
 }
 
 /** `AttemptSource` 源码行内的一轮执行：send 头事实 + 标准事件流归并出的完整回复。 */

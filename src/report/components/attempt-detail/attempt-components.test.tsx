@@ -167,6 +167,43 @@ describe("Attempt 详情组件族:非空/空证据矩阵", () => {
     const data = attemptAssertionsData(evidenceOf({ result: resultOf({ verdict: "failed", assertions }) }))!;
     expect(data.attention.map((a) => a.name)).toEqual(["a"]);
     expect(data.passedGroups).toEqual([{ group: "g1", items: [assertions[1], assertions[2]] }]);
+    expect(data.scoreEntries).toBeUndefined(); // 通过制 attempt 恒没有给分记录,不摆空数组
+    expect(validateAssertionsData(data)).toBeNull();
+  });
+
+  it("AttemptAssertions:计分制 eval 的 .points 挣分随断言一起出现,不需要单独投影", () => {
+    const assertions: AssertionResult[] = [
+      { name: "a", severity: "gate", outcome: "passed", score: 1, points: 3 },
+      { name: "b", severity: "gate", outcome: "failed", score: 0, points: 0 },
+    ];
+    const data = attemptAssertionsData(
+      evidenceOf({ result: resultOf({ verdict: "failed", scoring: "points", assertions }) }),
+    )!;
+    expect((data.attention[0] as { points?: number }).points).toBe(0); // 挂了的检查点如实显示挣到 0 分,不隐藏
+    expect((data.passedGroups[0]!.items[0]! as { points?: number }).points).toBe(3);
+    expect(validateAssertionsData(data)).toBeNull();
+  });
+
+  it("AttemptAssertions:t.score(label, n) 的给分记录按 groupPath 分组,与 passedGroups 同一套算法", () => {
+    const data = attemptAssertionsData(
+      evidenceOf({
+        result: resultOf({
+          verdict: "passed",
+          scoring: "points",
+          scoreEntries: [
+            { label: "代码精简", points: 15, groupPath: ["代码质量"] },
+            { label: "重构说明", points: 16, groupPath: ["代码质量"] },
+            { label: "无分组给分", points: 2 },
+          ],
+        }),
+      }),
+    )!;
+    expect(data.attention).toEqual([]); // 没有 assertions,但存在给分记录,data 不是 null
+    expect(data.passedGroups).toEqual([]);
+    expect(data.scoreEntries).toEqual([
+      { group: "代码质量", items: [{ label: "代码精简", points: 15, groupPath: ["代码质量"] }, { label: "重构说明", points: 16, groupPath: ["代码质量"] }] },
+      { group: "", items: [{ label: "无分组给分", points: 2 }] },
+    ]);
     expect(validateAssertionsData(data)).toBeNull();
   });
 

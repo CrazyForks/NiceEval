@@ -100,6 +100,15 @@ export function formatPlainNumber(value: number): string {
   return sign + trimmed(Math.round(Math.abs(value) * 10) / 10);
 }
 
+/**
+ * 计分制 attempt 详情里的挣分标注:`.points(n)` 挣到的分(`n × score`)或 `t.score(label, n)`
+ * 的直接给分,单复数随数值(`+1 pt` / `+0.8 pts` / `+0 pts`)——挣 0 分同样显示,不隐藏
+ * (docs/feature/scoring/library/display.md「计分制:.points 与给分记录」)。
+ */
+export function formatPointsSuffix(points: number): string {
+  return `+${formatPlainNumber(points)} ${points === 1 ? "pt" : "pts"}`;
+}
+
 // ── 以下是两个渲染面共用的展示格式化:MetricCell 一律自带 display(格式化发生在
 //    计算侧),渲染面不重算;这里只服务 OverviewData 这类携带裸数字的字段。──
 

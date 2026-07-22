@@ -24,7 +24,7 @@ import type {
   AttemptTraceData,
   AttemptUsageData,
 } from "../../model/types.ts";
-import type { AssertionResult, DiagnosticRecord, JsonValue, StreamEvent } from "../../../types.ts";
+import type { DiagnosticRecord, JsonValue, ScoreEntry, StreamEvent } from "../../../types.ts";
 import { attemptCostUSD } from "../../model/metrics.ts";
 import { failureSummaryOf } from "../entity-lists/compute.ts";
 
@@ -52,19 +52,32 @@ export function attemptErrorData(evidence: AttemptEvidence): AttemptErrorData | 
 
 // ───────────────────────── AttemptAssertions ─────────────────────────
 
+/** 按 `groupPath.join(" > ")` 分组(无分组归到空键 ""),组内保持传入顺序;passedGroups 与
+ *  scoreEntries 共用同一套算法(docs/feature/scoring/library/display.md「计分制」)。 */
+function groupByPath<T extends { groupPath?: string[] }>(items: readonly T[]): { group: string; items: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.groupPath?.join(" > ") ?? "";
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+  return [...groups.entries()].map(([group, items]) => ({ group, items }));
+}
+
 export function attemptAssertionsData(evidence: AttemptEvidence): AttemptAssertionsData | null {
-  const assertions = evidence.result.assertions;
-  if (!assertions || assertions.length === 0) return null;
+  const assertions = evidence.result.assertions ?? [];
+  // t.score(label, n) 直接给分记录:与 assertions 分属两个数组,只在计分制 eval 上出现
+  // (见 docs/feature/scoring/architecture.md「断言记录」)。
+  const scoreEntries: readonly ScoreEntry[] = evidence.result.scoreEntries ?? [];
+  if (assertions.length === 0 && scoreEntries.length === 0) return null;
   const attention = assertions.filter((a) => a.outcome !== "passed");
   const passed = assertions.filter((a) => a.outcome === "passed");
-  const groups = new Map<string, AssertionResult[]>();
-  for (const a of passed) {
-    const key = a.groupPath?.join(" > ") ?? "";
-    const list = groups.get(key);
-    if (list) list.push(a);
-    else groups.set(key, [a]);
-  }
-  return { attention, passedGroups: [...groups.entries()].map(([group, items]) => ({ group, items })) };
+  return {
+    attention,
+    passedGroups: groupByPath(passed),
+    ...(scoreEntries.length > 0 ? { scoreEntries: groupByPath(scoreEntries) } : {}),
+  };
 }
 
 // ───────────────────────── AttemptSource ─────────────────────────

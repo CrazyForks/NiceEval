@@ -228,6 +228,32 @@ judge 没有解析到模型 / key 时记 `unavailable`（[判定规则](../archi
     source: evals/weather.eval.ts:31:7
 ```
 
+## 计分制：`.points` 与给分记录
+
+计分制（`defineScoreEval`）eval 的两种给分痕迹都要能在 attempt 详情里看到，不只在报告的总分列汇总——`show @locator` 与 view Attempt 详情都消费同一份 `AssertionResult[]` / `ScoreEntry[]`，不另建一套计分展示。
+
+**`.points(n)` 挂在断言上**：该断言无论 passed / failed 都在原有行尾追加一个挣分标注，与其它尾缀同一套 ` · ` 分隔规则；标注的是**挣到的分**（`n × score`），不是声明的 `n`——失败的检查点显示 `+0 pts`，不隐藏、不伪造成满分；连续打分断言按比例显示（如 `.points(20)` 挣 0.8 分显示 `+16 pts`）：
+
+```text
+✓ passed · 装了依赖
+    +1 pt
+✗ gate · 健康检查可达
+    expected: exit 0
+    received: exit 1
+    +0 pts
+```
+
+**`t.score(label, n)` 的直接给分记录**：与断言分属两个数组（见 [Scoring 架构 · 断言记录](../architecture.md#断言记录assertionresult)），没有 severity、没有 outcome，不与 assertions 混排；展示时单独成一个「给分记录」区块，按 `groupPath` 分组（与 passed 断言同一套 `groupPath.join(" > ")` 分组算法，无分组归到同一个空键），组内保持记录顺序：
+
+```text
+给分记录 · 2
+  代码质量 · 2
+    代码精简 · +15 pts
+    重构说明 · +16 pts
+```
+
+通过制（`scoring` 省略或 `"pass"`）eval 的 attempt 恒没有 `.points` 挣分与给分记录——两者在通过制 attempt 上零输出，不摆空区块；计分制 eval 没有 `t.score` 调用时同样不渲染「给分记录」区块。
+
 ## Turn（`t.send()`）的展示
 
 一次 `t.send()` 产生一个 Turn，它自己有五样要展示的东西：**身份**（轮标签，见下）、**status**（completed / failed / waiting）、**事件流**（这一轮的对话与工具卡片）、**usage**（这一轮的 token / 成本）、**`turn.data`**（结构化输出，如果 Adapter 给了）。语法契约在 [Show](../../reports/show.md) 与 [View](../../reports/view.md)，这里给对照示例。

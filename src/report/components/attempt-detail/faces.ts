@@ -17,11 +17,11 @@ import type {
   AttemptTraceData,
   AttemptUsageData,
 } from "../../model/types.ts";
-import type { AssertionResult, TimingNode } from "../../../types.ts";
+import type { AssertionResult, ScoreEntry, TimingNode } from "../../../types.ts";
 import type { AttemptLocator } from "../../../results/locator.ts";
 import type { TextContext } from "../../definition/tree.ts";
 import { localeText } from "../../model/locale.ts";
-import { formatDurationMs, formatMetricValue, formatReportDateTime, formatUSD, verdictMark } from "../../model/format.ts";
+import { formatDurationMs, formatMetricValue, formatPointsSuffix, formatReportDateTime, formatUSD, verdictMark } from "../../model/format.ts";
 import { TIMELINE_CLOSING_PHASES } from "./compute.ts";
 import { summaryText } from "../../../scoring/display.ts";
 
@@ -88,14 +88,39 @@ function assertionLine(a: AssertionResult): string {
     a.outcome === "failed" && a.loc ? `source: ${locAnchor(a.loc)}` : undefined,
   ].filter((part): part is string => part !== undefined);
   const evidenceSuffix = evidence.length > 0 ? ` · ${evidence.join(" · ")}` : "";
-  return `${mark} ${a.severity} · ${group}${a.name}${detail}${evidenceSuffix}`;
+  // 计分制(defineScoreEval)才有:.points(n) 挣到的分,0 分也如实显示,不隐藏
+  // (docs/feature/scoring/library/display.md「计分制:.points 与给分记录」)。
+  const pointsSuffix = a.points !== undefined ? ` · ${formatPointsSuffix(a.points)}` : "";
+  return `${mark} ${a.severity} · ${group}${a.name}${detail}${evidenceSuffix}${pointsSuffix}`;
+}
+
+/** 组内 `.points` 挣分之和;组内没有任何断言带 points 时返回 undefined(该组不是计分制组)。 */
+function groupPointsTotal(items: readonly AssertionResult[]): number | undefined {
+  const withPoints = items.filter((a) => a.outcome !== "unavailable" && a.points !== undefined);
+  if (withPoints.length === 0) return undefined;
+  return withPoints.reduce((sum, a) => sum + (a as { points: number }).points, 0);
+}
+
+/** `t.score(label, n)` 一条记录的紧凑行:group 前缀 + label + 挣分,同 assertionLine 的 group 拼接规则。 */
+function scoreEntryLine(group: string, entry: ScoreEntry): string {
+  const prefix = group ? `${group} · ` : "";
+  return `  ${prefix}${entry.label} · ${formatPointsSuffix(entry.points)}`;
 }
 
 export function attemptAssertionsText(data: AttemptAssertionsData | null, _ctx: TextContext): string {
   if (data === null) return "";
   const lines = data.attention.map(assertionLine);
   for (const { group, items } of data.passedGroups) {
-    lines.push(`✓ passed · ${group || "(ungrouped)"} · ${items.length}`);
+    const total = groupPointsTotal(items);
+    const pointsSuffix = total === undefined ? "" : ` · ${formatPointsSuffix(total)}`;
+    lines.push(`✓ passed · ${group || "(ungrouped)"} · ${items.length}${pointsSuffix}`);
+  }
+  if (data.scoreEntries && data.scoreEntries.length > 0) {
+    const total = data.scoreEntries.reduce((sum, g) => sum + g.items.reduce((s, e) => s + e.points, 0), 0);
+    lines.push(`score entries · ${formatPointsSuffix(total)}`);
+    for (const { group, items } of data.scoreEntries) {
+      for (const entry of items) lines.push(scoreEntryLine(group, entry));
+    }
   }
   return lines.join("\n");
 }

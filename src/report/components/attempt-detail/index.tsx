@@ -235,15 +235,31 @@ export const AttemptError = makeAttemptComponent<AttemptErrorData>({
 
 // ───────────────────────── AttemptAssertions ─────────────────────────
 
+/** ScoreEntry(src/scoring/types.ts):t.score(label, n) 的直接给分记录。 */
+function scoreEntryProblem(value: unknown, path: string): string | null {
+  if (!isObject(value)) return `"${path}" must be a ScoreEntry { label, points }`;
+  if (typeof value.label !== "string") return `"${path}.label" must be a string`;
+  if (typeof value.points !== "number") return `"${path}.points" must be a number`;
+  return null;
+}
+
 export function validateAssertionsData(data: unknown): string | null {
   if (!isObject(data)) return "expected an object";
   const attentionProblem = arrayProblem(data.attention, "attention", assertionResultProblem);
   if (attentionProblem !== null) return attentionProblem;
-  return arrayProblem(data.passedGroups, "passedGroups", (group, path) => {
+  const passedGroupsProblem = arrayProblem(data.passedGroups, "passedGroups", (group, path) => {
     if (!isObject(group) || typeof group.group !== "string") {
       return `"${path}" must be an object with a string "group"`;
     }
     return arrayProblem(group.items, `${path}.items`, assertionResultProblem);
+  });
+  if (passedGroupsProblem !== null) return passedGroupsProblem;
+  if (data.scoreEntries === undefined) return null;
+  return arrayProblem(data.scoreEntries, "scoreEntries", (group, path) => {
+    if (!isObject(group) || typeof group.group !== "string") {
+      return `"${path}" must be an object with a string "group"`;
+    }
+    return arrayProblem(group.items, `${path}.items`, scoreEntryProblem);
   });
 }
 
