@@ -70,7 +70,14 @@ async function main(): Promise<void> {
     // ExperimentList (current-scope views) if this module ran after that mutation.
     await verifyRenderStructure(evidence);
     await verifyReadback(evidence);
-    // ── new verify-<domain>.ts calls go here (one line each, in any order) ──
+    // ── new verify-<domain>.ts calls go here (one line each) ──
+    // Ordering rule: verifyReadback mutates evidence.resultsRoot (2 extra real `niceeval
+    // exp main` calls) as its documented final step, which changes which snapshot is
+    // "current" for main. Any module that live-calls `niceeval show`/`view` to check
+    // evidence.main/deliberateFail/deliberateError's original locators (rather than only
+    // reading evidence.siteExportDir's already-exported static files, which are unaffected)
+    // must be called BEFORE verifyReadback — see memory/verify-readback-mutation-orders-
+    // later-e2e-report-domains.md. Modules that only read siteExportDir may go anywhere.
     console.log("[e2e] report: all assertions passed");
     process.exit(0);
   } catch (err) {
