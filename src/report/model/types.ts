@@ -301,6 +301,14 @@ export interface VerdictTally {
 }
 
 /**
+ * 一个范围内出现的题型构成:`"pass"` 全部通过制、`"points"` 全部计分制、`"mixed"` 两者都有
+ * (一个 Scope 可以并排多个 experiment;题型只在单个 experiment 内被强制统一)。是定义期事实
+ * (`EvalDescriptor.scoring`),不依赖 attempt 执行结果(docs/feature/reports/library/metrics.md
+ * 「题型构成与主读数」)。
+ */
+export type ScoringComposition = "pass" | "points" | "mixed";
+
+/**
  * 一个范围的摘要:快照时间窗、experiment / eval / attempt 数、两级判定计票、端到端通过率
  * 和总成本。eval 的身份键是 experimentId + evalId;data 恒携带两级计票,渲染面显示哪一级
  * 由呈现 prop `votes` 决定,不改变 data(docs/feature/reports/library/summaries.md)。
@@ -325,7 +333,7 @@ export interface ScopeSummaryData {
    * 渲染面据此决定主 KPI:`"points"` 隐藏通过率只显示 `totalScore`;`"mixed"` 两者都显示;
    * `"pass"` 只显示通过率、`totalScore` 省略——不摆空列。
    */
-  scoringComposition: "pass" | "points" | "mixed";
+  scoringComposition: ScoringComposition;
   /** 计分制总分(totalScore 指标)。仅 `scoringComposition` 为 `"points"` 或 `"mixed"` 时出现。 */
   totalScore?: MetricCell;
   /** costUSD 按 attempt 求和;缺失成本不伪造为 0。 */
@@ -410,6 +418,8 @@ export interface AttemptListItem {
   moreFailures: number;
   /** 当前 attempt 的 examScore 与证据引用。 */
   examScore: MetricCell;
+  /** 当前 attempt 的挣分(totalScore 指标);通过制 eval 为 null cell(不适用,不是缺数据)。 */
+  totalScore: MetricCell;
   durationMs: number;
   /** 缺失为 null(测不了),不伪造 0;attempt 级条目的缺失一律用 null,不用省略字段。 */
   costUSD: number | null;
@@ -430,6 +440,8 @@ export interface EvalListItem {
   /** 任一轮 passed 即 passed,否则 failed > errored > skipped。 */
   verdict: Verdict;
   examScore: MetricCell;
+  /** 该题挣分(totalScore 指标,多轮按 perEval mean 折叠);通过制 eval 为 null cell。 */
+  totalScore: MetricCell;
   durationMs: MetricCell;
   costUSD: MetricCell;
   attempts: AttemptListItem[];
@@ -439,6 +451,8 @@ export interface EvalListItem {
 export interface ExperimentListEvalRow {
   evalId: string;
   verdict: Verdict;
+  /** 该题挣分;通过制 eval 为 null cell。 */
+  totalScore: MetricCell;
   durationMs: MetricCell;
   costUSD: MetricCell;
   attempts: AttemptListItem[];
@@ -455,9 +469,13 @@ export interface ExperimentListItem {
   agent: string;
   model?: string;
   flags?: Record<string, JsonValue>;
+  /** 该 experiment 的题型(定义期事实,单个 experiment 内由启动期强制同型)。主读数列据此选择。 */
+  scoring: "pass" | "points";
   /** eval 级最终 verdict 计票(Result 列的构成)。 */
   evalVerdicts: VerdictTally;
   endToEndPassRate: MetricCell;
+  /** 实验总分(totalScore 指标:perEval mean、acrossEvals sum);通过制实验为 null cell。 */
+  totalScore: MetricCell;
   costUSD: MetricCell;
   durationMs: MetricCell;
   tokens: MetricCell;
