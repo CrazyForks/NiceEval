@@ -144,19 +144,21 @@ description: "报告文件里能摆的全部官方双面组件：每个组件回
 
 ## 实验比较（`ExperimentComparison`）
 
-`niceeval show` / `view` 不传 `--report` 时使用的默认组合件。它把同一份 Scope 显式传给 `ScopeSummary`、成本 × 端到端通过率的 `MetricScatter` 和 `ExperimentList` 三个组件，自己不产出数据，也不合并三者的结果：
+`niceeval show` / `view` 不传 `--report` 时使用的默认组合件。它把同一份 Scope 显式传给 `ScopeSummary`、成本 × 主指标的 `MetricScatter` 和 `ExperimentList` 三个组件，自己不产出数据，也不合并三者的结果：
 
 ```tsx
 <ExperimentComparison />
 ```
 
+散点纵轴和列表排序读哪个指标跟着题型走，不需要配置——题型写在评估用例定义里：通过制（`defineEval`）实验读端到端通过率，计分制（`defineScoreEval`）实验读总分；两类实验同时在场时按题型分成两组并排展示，各读各的指标。
+
 每个 experiment 的评估用例集合来自快照记录的 `selectedEvalIds`。网页面与终端面都显示完整 Scope；需要子集时用 `--exp` 收窄，或在自定义报告里对 Scope 先 `.filter()` 再传给 `input`。
 
 实验列表行的显示名不需要额外配置：experiment id 共享公共目录前缀时（比如都在 `compare/` 下），行标签自动缩成各自的最短唯一后缀，不显示重复的前缀；末段撞名的 id 会自动加长到能互相区分为止。完整 id 始终是排序、过滤和折叠展开用的身份键，只是显示文字变短了。
 
-组卡使用 `Pass rate / 通过率`、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`、`Total cost / 总成本` 这套字段标签，不在标签里重复“数”“次”或“计票”。时间显示为本地化到分钟的 `Last run / 最近运行` 或 `Run range / 运行范围`，不直接暴露 ISO 字符串；成本数据覆盖不全时写明“`63/72 次有成本数据`”，不显示没有上下文的 `63/72`。六项 KPI 在宽卡片保持同一行，空间不足时按三项或两项一组换行，避免总成本单独掉到下一行。
+组卡使用 `Pass rate / 通过率`（计分制 Scope 换成 `Total score / 总分`，两类实验同时在场时两个都显示）、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`、`Total cost / 总成本` 这套字段标签，不在标签里重复“数”“次”或“计票”。时间显示为本地化到分钟的 `Last run / 最近运行` 或 `Run range / 运行范围`，不直接暴露 ISO 字符串；成本数据覆盖不全时写明“`63/72 次有成本数据`”，不显示没有上下文的 `63/72`。六项 KPI 在宽卡片保持同一行，空间不足时按三项或两项一组换行，避免总成本单独掉到下一行。
 
-下面的 `MetricScatter`、`ScopeSummary` 和 `ExperimentList` 同样忠实消费调用方传入的数据，不推导隐藏范围。它等价于把三个组件按下面这样手工摆放——想自定义顺序或搭配其它组件时，照这个形状写：
+下面的 `MetricScatter`、`ScopeSummary` 和 `ExperimentList` 同样忠实消费调用方传入的数据，不推导隐藏范围。它等价于把三个组件按下面这样手工摆放——想自定义顺序或搭配其它组件时，照这个形状写（示例是通过制 Scope；计分制把 `y` 换成 `totalScore`）：
 
 ```tsx
 export const MyComparison = defineComponent((_props, ctx) => (
@@ -194,7 +196,7 @@ const CompareSummary = defineComponent((_props, ctx) => (
 
 ## 实验列表（`ExperimentList`）
 
-每项固定代表一个 experiment。主行显示 experiment id、agent、model、flags、评估用例判定构成、通过率、Tokens、成本和耗时。默认 `ExperimentComparison` 把当前 Scope 的全部条目交给它；组件本身不猜边界。
+每项固定代表一个 experiment。主行显示 experiment id、agent、model、flags、评估用例判定构成、主指标（通过制实验是通过率，计分制实验是总分；两类同时在场时两列都显示，不适用的格子是 `—`）、Tokens、成本和耗时。默认按主指标从高到低排序；两类实验同时在场时改按 experiment id 字典序，两个指标列仍各自可点击排序。默认 `ExperimentComparison` 把当前 Scope 的全部条目交给它；组件本身不猜边界。
 
 行标签默认缩成 experiment id 在当前列表里的最短唯一后缀——末段唯一就只显示末段，撞名的 id 各自向前多取一段直到能区分为止（与 `MetricScatter` 散点的点标签同一算法）。排序、过滤和折叠展开始终用完整 id，不受显示名影响。中文副行用“`8 个 Eval`”而不是“`8 道题`”。
 

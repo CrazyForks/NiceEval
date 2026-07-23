@@ -4,9 +4,11 @@
 
 ## `ExperimentComparison`
 
-裸 `niceeval show` 与 `niceeval view` 首页经由[内建报告](built-in.md)渲染的默认组合件。它把同一个 `input` 显式传给 `ScopeSummary`、成本 × 端到端通过率的 `MetricScatter` 和 `ExperimentList`。每个叶子组件按自己的公开契约取数；组合件不合并结果、不缓存第二份 `ExperimentComparisonData`，共享计算由报告 resolve 的“同引用 input + 深相等 spec”记忆化保证。
+裸 `niceeval show` 与 `niceeval view` 首页经由[内建报告](built-in.md)渲染的默认组合件。它把同一个 `input` 显式传给 `ScopeSummary`、成本 × 主读数的 `MetricScatter` 和 `ExperimentList`。每个叶子组件按自己的公开契约取数；组合件不合并结果、不缓存第二份 `ExperimentComparisonData`，共享计算由报告 resolve 的“同引用 input + 深相等 spec”记忆化保证。
 
 Scope 内任一实验声明了 [`labels`](../../experiments/library.md#labels声明归类坐标不进运行时) 的 `line` 键，散点就按 `label("line")` 归类并连线；否则按 `"agent"` 归类、不连线。显式传 `series` / `connect` 时采用显式值，`connect` 与 [`MetricScatter`](metric-views.md#metricscatter) 同一契约。
+
+主读数与 series 一样在 compose 阶段解析，判据是[主读数映射](metrics.md#题型构成与主读数)单点规则：`scoringComposition(input)` 为 `"pass"` 时散点 y 轴与列表预排序用 `endToEndPassRate`；`"points"` 时全部换成 `totalScore`；`"mixed"` 时按题型把 input 拆成两个子 Scope，散点与 `ExperimentList` 每组各一份、各用各的主读数——[计分粒度](../../experiments/score-points.md#横截面聚合同型实验各读各的)「两类都要跑就报告并排两个实验组」的落点就在这里。`ScopeSummary` 始终是整个 input 一份：它的 data 自带 `scoringComposition`，混型时两个主 KPI 都显示。
 
 端到端通过率对同一 experiment × eval 的多轮 attempt 先求均值，再跨 experiment × eval 求均值；`failed` 与 `errored` 为 0，`skipped` 为 `null`。摘要中的 verdict 构成另按 Eval 最终 verdict 计票：任一轮 passed 则 Eval passed，否则按 `failed > errored > skipped` 折叠。
 
@@ -31,14 +33,16 @@ interface ExperimentComparisonProps {
 <ExperimentComparison series={label("line")} connect />
 ```
 
-Experiment 按端到端通过率从高到低预排。要比较某个子集，先用宿主的 `--exp` 收窄，或在自定义报告里对 Scope 调 `filter`。
+Experiment 按主读数从高到低预排（通过制按通过率，计分制按总分）。要比较某个子集，先用宿主的 `--exp` 收窄，或在自定义报告里对 Scope 调 `filter`。
 
-它等价于下面这类普通组合，具体默认 series 的选择也在 compose 阶段完成：
+它等价于下面这类普通组合，默认 series 与主读数的选择都在 compose 阶段完成（示例是单一题型的形态；`"mixed"` 时按题型拆成两个子 Scope，散点与列表每组一份）：
 
 ```tsx
-export const ExperimentComparison = defineComponent((props, ctx) => {
+export const ExperimentComparison = defineComponent(async (props, ctx) => {
   const input = props.input ?? ctx.scope;
   const { series, connect } = resolveComparisonSeries(input, props);
+  const composition = await scoringComposition(input);
+  const primary = composition === "points" ? totalScore : endToEndPassRate;
   return (
     <Col className={props.className}>
       <ScopeSummary input={input} locale={props.locale} />
@@ -48,7 +52,7 @@ export const ExperimentComparison = defineComponent((props, ctx) => {
         series={series}
         connect={connect}
         x={costUSD}
-        y={endToEndPassRate}
+        y={primary}
         locale={props.locale}
       />
       <ExperimentList input={input} filter locale={props.locale} />
@@ -65,7 +69,7 @@ export const ExperimentComparison = defineComponent((props, ctx) => {
 
 web 面使用短标签 `Pass rate / 通过率`、`Total score / 总分`、`Experiments / 实验`、`Evals / Eval`、`Attempts / Attempt`、`Eval results / Eval 结果`（`votes="attempt"` 时为 `Attempt results / Attempt 结果`）和 `Total cost / 总成本`。这些是字段名，不在标签里重复“数”“次”或“计票”；数量由值本身表达。时间不直接暴露 ISO 字符串：单点写成 `Last run / 最近运行`，范围写成 `Run range / 运行范围`，时间值按当前 locale 格式化到分钟；同日范围不重复右端日期，同年跨日范围不重复右端年份。成本覆盖不全时，在金额下方用 `Cost available for 63/72 attempts / 63/72 次有成本数据` 解释覆盖范围，不能只放一个无语义的 `63/72` 角标。
 
-主读数按 Scope 内出现的题型（`scoringComposition`）切换：纯通过制（`"pass"`）只显示通过率，`totalScore` 省略；纯计分制（`"points"`）隐藏通过率、只显示总分（[`totalScore` 指标](metrics.md#内置指标)：`assertions[].points` 之和加 `scoreEntries[].points` 之和，errored/skipped 记 `null`）；混型（`"mixed"`，一个 Scope 并排通过制与计分制两个 experiment，见[计分粒度](../../experiments/score-points.md)）两者都显示——不摆空列，只在相关时才出现对应的读数。
+主读数按 Scope 内出现的题型（`scoringComposition`，判据与公开函数单点在[主读数映射](metrics.md#题型构成与主读数)）切换：纯通过制（`"pass"`）只显示通过率，`totalScore` 省略；纯计分制（`"points"`）隐藏通过率、只显示总分（[`totalScore` 指标](metrics.md#内置指标)：`assertions[].points` 之和加 `scoreEntries[].points` 之和，errored/skipped 记 `null`）；混型（`"mixed"`，一个 Scope 并排通过制与计分制两个 experiment，见[计分粒度](../../experiments/score-points.md)）两者都显示——不摆空列，只在相关时才出现对应的读数。
 
 data 恒携带两级计票，两份序列化 JSON 摆在一起时口径自明；渲染面显示哪一级由呈现 prop `votes` 决定：
 

@@ -90,6 +90,27 @@ interface MetricCell {
 
 `totalScore` 是「`skipped` 记 null、`errored` 记 0」这条通用规则的例外：它对 `errored` **与** `skipped` 都记 `null`（基础设施得 null，不折成 0——中止挣 0 是 `test()` 控制流自然产生的事实，已经体现在 `points` 求和里，不需要指标层再折一次），对通过制 eval（`scoring` 省略或显式 `"pass"`）也恒记 `null`（不适用，不是缺数据）。聚合方向同样是例外：`perEval` 用默认 `mean`（`runs > 1` 时同一 eval 的多轮取均值），但 `acrossEvals` 用 `sum`（不是默认的 `mean`）——「总分 = Σ 各 eval 挣分」，跨题不取平均。
 
+## 题型构成与主读数
+
+一个范围的对比主读数由其中出现的题型决定（裁决在[计分粒度](../../experiments/score-points.md#横截面聚合同型实验各读各的)）：通过制读通过率，计分制读总分。题型是定义期事实（`EvalDescriptor.scoring`，单个 experiment 内由启动期强制同型），所以这个选择不依赖任何 attempt 结果——题目一行代码没跑时就有答案。
+
+```ts
+type ScoringComposition = "pass" | "points" | "mixed";
+
+/** input 内出现的题型构成，取自快照记录的定义期 `scoring` 事实。 */
+function scoringComposition(input: ReportInput): Promise<ScoringComposition>;
+```
+
+**主读数映射是单点规则**，官方消费者都引用这一条，不各自另设判据：
+
+| 构成 | 主读数 | 官方消费面的行为 |
+|---|---|---|
+| `"pass"` | `endToEndPassRate` | 摘要主 KPI、榜单主列、默认散点 y 轴与预排序全用通过率 |
+| `"points"` | `totalScore` | 同上位置全部换成总分；通过率不出现（不摆空列） |
+| `"mixed"` | 两者并排、各读各的 | 「过了 31/40 道」和「挣了 142 分」不能相加也不能互相排名：摘要两个 KPI 都显示，按题型拆组的位置各组用自己的主读数 |
+
+组件本身保持中立：`MetricScatter` / `MetricTable` 只收 `Metric`，不感知题型；分支只发生在消费 `scoringComposition` 的那几处组装点——[`ScopeSummary`](summaries.md#scopesummary) 的渲染面、[`ExperimentList`](entity-lists.md#experimentlist) 的主列、[`ExperimentComparison`](summaries.md#experimentcomparison) 的 compose。自定义报告需要同样的切换时调用同一个函数，不重新发明判据。
+
 ## 自定义指标
 
 ```ts
