@@ -275,194 +275,199 @@ h1 {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.visual {
+/* ---- Hero 终端动画:一个终端窗口回放 exp 运行 + show 对照(site-home-terminal.tsx)。
+   固定 min-height:转录逐行追加时窗口不长高,hero 两栏不因动画发生布局抖动。 */
+.term {
+  --term-bg: #0c0c0c;
   position: relative;
   min-height: 580px;
+  display: flex;
+  align-items: center;
 }
 
-.wire {
-  position: absolute;
-  border: 1px solid var(--line);
-}
-
-.wire.a {
-  top: 54px;
-  left: 8%;
-  width: 52%;
-  height: 42px;
-}
-
-.wire.b {
-  top: 166px;
-  left: 0;
-  width: 31%;
-  height: 42px;
-}
-
-.wire.c {
-  right: 0;
-  top: 190px;
-  width: 33%;
-  height: 42px;
-}
-
-.file-card,
-.run-card,
-.score-card {
-  position: absolute;
+.term-screen {
+  width: 100%;
+  min-height: 560px;
+  padding: 26px 26px 22px;
   border: 1px solid var(--line-strong);
   border-radius: 12px;
-  background: rgba(12, 12, 12, 0.92);
+  background: var(--term-bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 24px -8px rgba(0, 0, 0, 0.4);
+  font-family: "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--muted);
+  overflow-x: auto;
 }
 
-.file-card {
-  right: 12%;
-  top: 96px;
-  width: min(330px, 68%);
-  padding: 20px;
-}
-
-.card-head {
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--text);
-  font-size: 17px;
-}
-
-.file-card ul {
-  list-style: none;
+.term-replay {
+  position: absolute;
+  top: 22px;
+  right: 12px;
+  z-index: 1;
   display: grid;
-  gap: 11px;
-  margin: 18px 0 0;
-  padding: 0;
-}
-
-.file-card li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.file-card li svg {
-  flex-shrink: 0;
-}
-
-.file-card li.indent {
-  padding-left: 22px;
-}
-
-.file-card li em {
-  margin-left: auto;
-  padding-left: 10px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
   color: var(--soft);
-  font-size: 12px;
-  font-style: normal;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-.run-card {
-  right: 12%;
-  top: 410px;
-  width: min(330px, 68%);
-  padding: 18px 20px;
-}
-
-.run-card code {
-  display: block;
-  margin-bottom: 14px;
-  color: var(--soft);
-  font-size: 15px;
-}
-
-.run-line {
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 32px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.run-line svg {
-  color: var(--green);
-}
-
-.run-line span {
-  flex: 1;
-}
-
-.run-line b {
+.term-replay:hover {
+  border-color: var(--line-strong);
   color: var(--text);
-  font-weight: 620;
 }
 
-.score-card {
-  left: 5%;
-  bottom: 18px;
-  width: 235px;
-  padding: 18px;
+.term-line {
+  white-space: pre;
 }
 
-.compare-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
+.term .soft {
+  color: var(--soft);
+}
+
+.term .pass {
+  color: var(--green);
   font-weight: 650;
-  text-transform: uppercase;
+}
+
+.term .fail {
+  color: var(--rust);
+  font-weight: 650;
+}
+
+.term-indent {
+  padding-left: 4ch;
+}
+
+.term-prompt {
+  color: var(--soft);
+}
+
+.term-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--text);
+  animation: term-blink 1.1s steps(1) infinite;
+}
+
+@keyframes term-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* TUI 面板:边框上嵌 title / elapsed / cost 标签,复刻 CLI 的 boxed 版式。 */
+.term-panel {
+  position: relative;
+  margin: 16px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.term-tag {
+  position: absolute;
+  padding: 0 7px;
+  background: var(--term-bg);
+  color: var(--soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.term-tag.tl {
+  top: -9px;
+  left: 10px;
+  color: var(--text);
+}
+
+.term-tag.tr {
+  top: -9px;
+  right: 10px;
+}
+
+.term-tag.br {
+  bottom: -9px;
+  right: 10px;
+}
+
+.term-tag.fail {
+  color: var(--rust);
   letter-spacing: 0.06em;
 }
 
-.compare-rows {
-  list-style: none;
+.term-rule {
+  position: relative;
+  margin: 10px -14px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.term-rule span {
+  position: absolute;
+  top: -10px;
+  left: 24px;
+  padding: 0 7px;
+  background: var(--term-bg);
+  color: var(--soft);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.term-slot {
   display: grid;
-  gap: 14px;
-  margin: 18px 0 0;
-  padding: 0;
-}
-
-.compare-row-top {
-  display: flex;
+  grid-template-columns: 10px minmax(0, 1.1fr) minmax(0, 0.85fr) 4ch auto;
+  gap: 12px;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 14px;
+  white-space: pre;
 }
 
-.compare-row-top span {
-  color: var(--text);
-  font-weight: 560;
-}
-
-.compare-row-top b {
-  color: var(--green);
-  font-weight: 650;
-}
-
-.compare-bar {
-  margin-top: 7px;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+.term-slot-eval {
   overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
 }
 
-.compare-bar i {
-  display: block;
-  height: 100%;
+.term-slot-time {
+  color: var(--soft);
+  text-align: right;
+}
+
+.term-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--green);
-  border-radius: 999px;
+  align-self: center;
+  animation: term-pulse 1.4s ease-in-out infinite;
 }
 
-.compare-rows li.warn .compare-row-top b {
-  color: var(--rust);
+@keyframes term-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
-.compare-rows li.warn .compare-bar i {
-  background: var(--rust);
+/* 对照矩阵:列宽交给 grid 对齐(中英文案宽度不同,不做手工空格对齐)。 */
+.term-table {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  justify-content: start;
+  column-gap: 18px;
+  margin: 10px 0 6px;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-cursor,
+  .term-dot {
+    animation: none;
+  }
 }
 
 .strip {
@@ -1411,8 +1416,13 @@ h1 {
     margin-top: 26px;
   }
 
-  .visual {
-    min-height: 510px;
+  /* 单列布局下终端占满整行,高度跟内容走,只保底转录完整时的高度。 */
+  .term {
+    min-height: 0;
+  }
+
+  .term-screen {
+    min-height: 500px;
   }
 
   h1 {
@@ -1457,39 +1467,11 @@ h1 {
     width: 100%;
   }
 
-  /* 窄屏放弃绝对定位拼贴：卡片回到文档流上下叠放，用负 margin 留一点交叠的拼贴感。
-     卡片高度随内容（含 WebView 字号放大）变化时也只会把下一张往下推，不会互相盖住。 */
-  .visual {
-    min-height: 0;
-    display: grid;
-  }
-
-  .wire {
-    display: none;
-  }
-
-  .file-card,
-  .run-card,
-  .score-card {
-    position: relative;
-    inset: auto;
-  }
-
-  .file-card {
-    width: min(330px, 94%);
-    justify-self: end;
-  }
-
-  .run-card {
-    width: min(330px, 88%);
-    justify-self: start;
-    margin-top: -16px;
-  }
-
-  .score-card {
-    width: 210px;
-    justify-self: end;
-    margin: -14px 4% 0 0;
+  /* 窄屏:缩小字号与内边距,超宽行(对照矩阵)交给终端自己横向滚动。 */
+  .term-screen {
+    min-height: 460px;
+    padding: 18px 16px;
+    font-size: 11px;
   }
 
   .strip {

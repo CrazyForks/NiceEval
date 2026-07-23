@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  BookOpen,
-  CheckCircle2,
-  Clipboard,
-  FileCode2,
-  Folder,
-  GitCompare,
-  GitFork,
-  Play,
-  Terminal,
-  Wrench,
-} from "lucide-react";
+import { BookOpen, Clipboard, GitFork, Play } from "lucide-react";
 import { initAnalytics, track } from "../src/analytics";
-import { compareCard, fileTree, githubUrl, docsUrl, withLocale, type Dictionary, type FileTreeItem, type Locale } from "../lib/content";
+import { githubUrl, docsUrl, withLocale, type Dictionary, type Locale } from "../lib/content";
 import { Header } from "./site-header";
 import { LogoMark } from "./logo";
+import TerminalDemo from "./site-home-terminal";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -27,13 +17,6 @@ const Setup = dynamic(() => import("./site-home-setup"));
 const AgentLoop = dynamic(() => import("./site-home-agent-loop"));
 
 type AudienceMode = "humans" | "agents";
-
-function fileIcon(item: FileTreeItem) {
-  if (item.kind === "folder") return <Folder size={14} />;
-  if (item.path.endsWith("config.ts")) return <Wrench size={14} />;
-  if (item.path.endsWith(".json")) return <Terminal size={14} />;
-  return <FileCode2 size={14} />;
-}
 
 export default function HomeClient({ t, locale }: { t: Dictionary; locale: Locale }) {
   useEffect(() => {
@@ -136,65 +119,8 @@ function Hero({ t, locale }: { t: Dictionary; locale: Locale }) {
         </div>
       </div>
 
-      <ProductVisual mode={mode} t={t} />
+      <TerminalDemo t={t} />
     </section>
-  );
-}
-
-function ProductVisual({ mode, t }: { mode: AudienceMode; t: Dictionary }) {
-  return (
-    <div className="visual" aria-label={t.visualLabel}>
-      <div className="wire a" />
-      <div className="wire b" />
-      <div className="wire c" />
-      <div className="file-card">
-        <div className="card-head">
-          <Folder size={18} />
-          <span>{t.fileCardRoot}</span>
-        </div>
-        <ul>
-          {fileTree[mode].map((item) => (
-            <li key={item.path} className={item.depth ? "indent" : undefined}>
-              {fileIcon(item)}
-              <span>{item.path}</span>
-              {item.note ? <em>{t.fileNotes[item.note]}</em> : null}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="run-card">
-        <code>$ niceeval</code>
-        <div className="run-line">
-          <CheckCircle2 size={16} />
-          <span>weather</span>
-          <b>{t.runStatusPassed}</b>
-        </div>
-        <div className="run-line">
-          <CheckCircle2 size={16} />
-          <span>fixtures/button</span>
-          <b>91.7%</b>
-        </div>
-      </div>
-      <div className="score-card">
-        <div className="compare-head">
-          <GitCompare size={14} />
-          <span>{compareCard.group}</span>
-        </div>
-        <ul className="compare-rows">
-          {compareCard.rows.map((row) => (
-            <li key={row.name} className={row.score < 90 ? "warn" : undefined}>
-              <div className="compare-row-top">
-                <span>{row.name}</span>
-                <b>{row.score}%</b>
-              </div>
-              <div className="compare-bar">
-                <i style={{ width: `${row.score}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   );
 }
 

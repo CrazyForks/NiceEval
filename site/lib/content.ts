@@ -27,38 +27,22 @@ export const docsUrl: Record<Locale, string> = {
 export const initPrompt =
   "READ https://niceeval.com/INIT.md and install niceeval for this repo.";
 
-export type FileTreeItem = {
-  path: string;
-  depth: number;
-  kind: "file" | "folder";
-  note?: "adapter" | "config";
-};
-
-export const fileTree: Record<"humans" | "agents", FileTreeItem[]> = {
-  humans: [
-    { path: "agents/web-agent.ts", depth: 0, kind: "file", note: "adapter" },
-    { path: "evals/", depth: 0, kind: "folder" },
-    { path: "weather-tool.eval.ts", depth: 1, kind: "file" },
-    { path: "image-understanding.eval.ts", depth: 1, kind: "file" },
-    { path: "experiments/compare-models/", depth: 0, kind: "folder" },
-    { path: "niceeval.config.ts", depth: 0, kind: "file", note: "config" },
-  ],
-  agents: [
-    { path: "agents/my-agent.ts", depth: 0, kind: "file", note: "adapter" },
-    { path: "experiments/my-agent.ts", depth: 0, kind: "file" },
-    { path: "evals/refund-policy.eval.ts", depth: 0, kind: "file" },
-    { path: "niceeval.config.ts", depth: 0, kind: "file", note: "config" },
-  ],
-};
-
-// 呼应 fileTree.humans 里的 experiments/compare-models/:同一个 agent 换模型跑同一批 eval,
-// 通过率并排对比。agent/model 名和文件夹名一样是标识符,不随语言切换翻译。
-export const compareCard = {
-  group: "compare-models",
-  rows: [
-    { name: "gpt-5.4", score: 100 },
-    { name: "deepseek-v4-pro", score: 60 },
-  ],
+// Hero 终端动画的本地化文案。标识符(eval id、experiment id、命令、数字)是语言无关的,
+// 写死在 site-home-terminal.tsx;这里只放跟随 CLI i18n(src/i18n/、report locale)的人读文案,
+// 字符串照抄真实 CLI 输出,不自创措辞。countsFrames 是 live 面板计数行的四个关键帧。
+export type TerminalCopy = {
+  replay: string;
+  countsFrames: [string, string, string, string];
+  phaseSandbox: string;
+  phaseRun: string;
+  phaseScoring: string;
+  summaryLine: string;
+  compareHead: string;
+  coverage: string;
+  totalsLabel: string;
+  totalsBaseline: string;
+  totalsCondition: string;
+  footer: string;
 };
 
 export const copy = {
@@ -88,12 +72,26 @@ export const copy = {
     copied: "copied",
     primaryAction: "Start",
     github: "GitHub",
-    visualLabel: "NiceEval product diagram",
-    fileCardRoot: "your-project/",
-    fileNotes: {
-      adapter: "adapter",
-      config: "config",
-    },
+    visualLabel: "NiceEval terminal demo: run an experiment, then compare two models",
+    term: {
+      replay: "Replay animation",
+      countsFrames: [
+        "4 total · 0 reused · 2 running · 2 queued · 0 completed",
+        "4 total · 0 reused · 2 running · 1 queued · 1 completed",
+        "4 total · 0 reused · 2 running · 0 queued · 2 completed",
+        "4 total · 0 reused · 1 running · 0 queued · 3 completed",
+      ],
+      phaseSandbox: "creating sandbox",
+      phaseRun: "running eval",
+      phaseScoring: "scoring",
+      summaryLine: "3 passed · 1 failed · 0 errored  (0 reused)",
+      compareHead: "compare · 2 conditions · paired by eval id · baseline compare/gpt-5.4",
+      coverage: "common 2 · gpt-5.4 only 0 · deepseek-v4 only 0",
+      totalsLabel: "totals",
+      totalsBaseline: "2/2 passed  $0.31",
+      totalsCondition: "1/2 passed  $0.43",
+      footer: "2 common vs baseline · pass rate -50.0pt · tokens +25.4k · cost +$0.12",
+    } satisfies TerminalCopy,
     runStatusPassed: "passed",
     workflowLabel: "NiceEval workflow",
     steps: [
@@ -156,12 +154,26 @@ export const copy = {
     copied: "已复制",
     primaryAction: "开始",
     github: "GitHub",
-    visualLabel: "NiceEval 产品示意图",
-    fileCardRoot: "你的项目/",
-    fileNotes: {
-      adapter: "适配器",
-      config: "配置",
-    },
+    visualLabel: "NiceEval 终端演示:跑一次实验,再对照两个模型",
+    term: {
+      replay: "重放动画",
+      countsFrames: [
+        "共 4 · 复用 0 · 运行中 2 · 排队 2 · 已完成 0",
+        "共 4 · 复用 0 · 运行中 2 · 排队 1 · 已完成 1",
+        "共 4 · 复用 0 · 运行中 2 · 排队 0 · 已完成 2",
+        "共 4 · 复用 0 · 运行中 1 · 排队 0 · 已完成 3",
+      ],
+      phaseSandbox: "创建沙箱",
+      phaseRun: "运行 eval",
+      phaseScoring: "评分",
+      summaryLine: "3 通过 · 1 失败 · 0 出错  (复用 0)",
+      compareHead: "对照 · 2 个条件 · 配对身份 eval id · 基准 compare/gpt-5.4",
+      coverage: "共同 2 · 仅 gpt-5.4 0 · 仅 deepseek-v4 0",
+      totalsLabel: "汇总",
+      totalsBaseline: "2/2 通过  $0.31",
+      totalsCondition: "1/2 通过  $0.43",
+      footer: "共同 2 题对基准 · 通过率 -50.0pt · tokens +25.4k · 成本 +$0.12",
+    } satisfies TerminalCopy,
     runStatusPassed: "通过",
     workflowLabel: "NiceEval 工作流",
     steps: [
