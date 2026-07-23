@@ -142,7 +142,7 @@
 
 ### `ChartSeries`
 
-一个 series 的声明。两种互斥形态,呼应 [`DeltaTable.pairs`](../../feature/reports/library/metric-views.md#deltatable) 字面数组与 `pairsByFlag()` 派生声明并存的先例:
+一个 series 的声明。两种互斥形态,呼应 [`DeltaTable.conditions`](../../feature/reports/library/metric-views.md#deltatable) 字面有序数组与 `conditionsByFlag()` 派生声明并存的先例:
 
 ```tsx
 // by:按维度展开取值域,每个值各成一个 series,呈现取默认

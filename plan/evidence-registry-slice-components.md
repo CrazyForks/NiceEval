@@ -22,14 +22,14 @@ R 传播(核心裁决已落架构,见上)
 ├─ [x] N0 核心:results/architecture.md + reports/architecture.md + 两条 memory 裁决(planner,已完成)
 ├─ [x] W1 exp `--json` 事件流 typed 单源                    ── 并行(已验收;ResultEvent.status 四值按 CompletionStatus 对称补全,ExpPlanDocument 待实现期回填真实示例)
 ├─ [x] W2 results 库文档与词表贯通                          ── 并行(已验收;planner 顺手清掉 observability/testing-results/source-map 三处清单外 has* 残留)
-├─ [ ] W3 对照与稳定性组件(DeltaTable 多条件 + StabilityMatrix)── 并行
+├─ [x] W3 对照与稳定性组件(DeltaTable 多条件 + StabilityMatrix)── 并行(已验收;pairs→by+conditions/conditionsByFlag,示例数字未动;planner 顺手同步 recipes/source-map/roadmap/testing 四处旧 API 名残留)
 ├─ [x] W4 usage 组件化(UsageTable + 组装口径归位)          ── 并行(已验收;口径单源锚点 attempt-detail.md#usagetable-组装口径单源)
 ├─ [x] W5 show 总纲与 json 信封重写                         ── 并行(已验收;--history 明确留在组件模型之外,与 architecture 切片表一致)
 ├─ [x] W6 证据切片归属重写(execution/timing/diff/source)   ── 并行(已验收;行为契约数值/语法逐字未动,planner 补 attempt.md 口径指针化)
 ├─ [ ] W7a plan/show-scope-slice-json.md 波及同步            ── 串行,等 W3+W6
 ├─ [x] W7b plan/failed-command-evidence.md 波及同步          ── 并行(已验收;顺带裁决 execution JSON 的失败命令卡归 AttemptConversationData.failedCommands,attempt-detail.md 已补声明)
 ├─ [x] W7c plan/exp-json-machine-form.md 波及同步            ── 已验收(锚点全核对,B2 与流路由补充裁决一致)
-├─ [ ] W8 测试覆盖规范同步(engineering/testing/unit/reports.md)── 并行
+├─ [x] W8 测试覆盖规范同步(engineering/testing/unit/reports.md)── 并行(已验收;行为判据全保留,断言面锚定 *Data 单源,planner 补 #stabilitymatrix 精确锚点)
 └─ [ ] V1 已合并节点对抗性校验(只读,报告不改文件)          ── 并行,滚动执行
 ```
 

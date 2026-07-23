@@ -6,13 +6,13 @@
 
 ## 全流程
 
-1. 先确定配对身份是 experiment flag、label,还是字面的 experiment id 对。
-2. 用 `DeltaTable` 同时展示两侧原值和 delta,不只留一个脱离基数的差值。
-3. 并排成功率、成本和耗时,检查改善是否以另一个维度退化为代价。
+1. 先确定条件所在的维度是 experiment、agent 还是 flag,以及有序条件列表——首个是基准。
+2. 用 `DeltaTable` 同时展示各条件原值与对基准的 delta,不只留一个脱离基数的差值。
+3. 并排判定、tokens 与成本,检查改善是否以另一个维度退化为代价。
 4. 任一侧缺数据时保持缺失,回到 Scope 覆盖解决,不把缺失当 0。
 
 ## 边界
 
 - 没有天然配对关系、只想看所有方案前沿时用 `MetricScatter`。
 - 要看一条参数线上多个点的趋势时用 `MetricLine`。
-- 在终端里即时看逐题翻转与差值、不需要发布报告时,用 show 的[对照矩阵](../show/compare.md)(多 `--exp`),全流程见[跨条件归因](cli-cross-condition-attribution.md)。
+- 在终端里即时看逐题翻转与差值、不需要发布报告时,用 show 的[对照矩阵](../show/compare.md)(多 `--exp`)——它是 `DeltaTable` 的零配置装配,数字与报告页一致;全流程见[跨条件归因](cli-cross-condition-attribution.md)。

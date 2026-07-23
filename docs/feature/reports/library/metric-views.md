@@ -397,52 +397,68 @@ const budget = numericFlag("budget", { label: "Token budget", unit: "tokens" });
 
 ## `DeltaTable`
 
-`DeltaTable` 成对比较同一个显式维度上的 A 与 B。`by` 是必填，因此 `"baseline"` 不会被猜成 experiment、agent、flag 或 snapshot 中的某一种。`pairs` 有两种形态：**字面 pair 数组**逐对写死 A/B 与 label；**`pairsByFlag()` 派生声明**按一个 flag 机械导出全部 A/B 对——实验矩阵是「同配置开关某个 flag」时，配对关系本来就是 experiment 配置的推论，手抄 id 字面量等于把配置复写进报告，加实验后报告会静默缺行。
+`DeltaTable` 把同一批 eval 在一组有序条件下的对照展开成表：每行是一道 eval，每组列是一个条件，条件按声明顺序排列，**首个是基准**，其余各自对基准求 delta。`by` 是必填，声明条件取值所在的维度（如 `"experiment"`、`"agent"`、`"snapshot"`）；`"baseline"` 因此不会被猜成 experiment、agent、flag 或 snapshot 中的某一种。`conditions` 有两种形态：**字面有序数组**逐个写死该维度上的取值；**`conditionsByFlag()` 派生声明**按一个 flag 机械导出全部条件——实验矩阵是「同配置开关某个 flag」时，条件关系本来就是 experiment 配置的推论，手抄 id 字面量等于把配置复写进报告，加实验后报告会静默缺列。终端里多个 `--exp` 的[对照矩阵](../show/compare.md)是这个组件的一处零配置装配——同一批题在终端与报告页得到相同的行、相同的数字。
 
 ```ts
-interface DeltaPair {
-  label: LocalizedText;
-  a: string;
-  b: string;
-}
-
-/** 按 flag 派生 A/B 对；只在 by 为 "experiment" 时成立。 */
-interface FlagPairs {
-  readonly kind: "flagPairs";
+/** 按 flag 派生有序条件；只在 by 为 "experiment" 时成立。 */
+interface FlagConditions {
+  readonly kind: "flagConditions";
   readonly flag: string;
-  /** a 侧的 flag 取值；缺省表示「未声明该 flag」的实验作 a。 */
+  /** 基准侧的 flag 取值；缺省表示「未声明该 flag」的实验作基准。 */
   readonly baseline?: JsonValue;
 }
 
-function pairsByFlag(name: string, options?: { baseline?: JsonValue }): FlagPairs;
+function conditionsByFlag(name: string, options?: { baseline?: JsonValue }): FlagConditions;
 
 interface DeltaTableOptions {
   by: DimensionInput;
-  /** 字面 pair 需要自定义 label 时用；空数组在计算时按完整用户反馈报错。 */
-  pairs: readonly DeltaPair[] | FlagPairs;
-  metrics: readonly [Metric, ...Metric[]];
+  /** 有序条件值，取自 by 维度；长度 ≥ 2，首个是基准。空数组、单元素或重复值在计算时按完整用户反馈报错。 */
+  conditions: readonly [string, string, ...string[]] | FlagConditions;
+  /** eval id 前缀；与 CLI 位置参数同语义。 */
   evals?: string | readonly string[];
 }
 
 interface DeltaData {
   byDimension: string;
-  columns: MetricColumn[];
-  /** pairsByFlag 派生形态下的配对域实验数，0 对空态据此报「N 个实验、0 个可配对」；字面 pairs 不携带。 */
+  /** 有序条件值，首个是基准。 */
+  conditions: string[];
+  /** conditionsByFlag 派生形态下的候选实验数；0 候选时空态据此报「N 个实验、0 个可配对条件」，字面 conditions 不携带。 */
   experiments?: number;
   rows: Array<{
+    /** 行的配对身份：eval id。 */
     key: string;
-    /** 作者在 DeltaPair 里声明的 label，原样透传；renderer 据此显示行名。 */
-    label: LocalizedText;
-    a: { key: string };
-    b: { key: string };
-    cells: Record<string, {
-      a: MetricCell;
-      b: MetricCell;
-      /** b.value - a.value；任一侧缺失则为 null。 */
-      delta: number | null;
-      display: LocalizedText;
-      outcome: "improved" | "regressed" | "unchanged" | "unavailable";
+    /** 各条件判定不一致时 true——翻转标记 ⇄ 的数据面。 */
+    flipped: boolean;
+    cells: Record<string, {   // 键是条件值；该条件没有这道题的结果时无键，渲染为占位 —
+      scoring: "pass" | "points";
+      /** 复用 Results 的判定枚举，不为组件发明第二套。 */
+      verdict: AttemptRecord["verdict"];
+      /** 计分制的题目级挣分；通过制省略——计分制没有满分分母。 */
+      totalScore?: number;
+      attempts: readonly AttemptLocator[];
+      totalTokens?: number;
+      totalCostUSD?: number;
+      /** true 时该格来自跨快照携带的历史执行，渲染为 ↩ 时效标注。 */
+      historical: boolean;
     }>;
+    /** 键是非基准条件值；任一侧缺数据时无键——delta 不把缺失当 0。 */
+    delta?: Record<string, { score?: number; tokens?: number; costUSD?: number }>;
+  }>;
+  /** 各条件自身覆盖面的描述，分母是该条件有结果的 eval 数；不用于跨条件直接归因。 */
+  totals: Record<string, {
+    scoringComposition: "pass" | "points" | "mixed";
+    passed?: number; denominator?: number; // pass / mixed
+    totalScore?: number;                   // points / mixed
+    totalTokens?: number; totalCostUSD?: number;
+  }>;
+  /** 只在每个条件与基准的共同 eval 集上计算；键是非基准条件值。 */
+  pairedDelta: Record<string, {
+    commonEvalIds: string[];
+    /** mixed 时各自在对应题型子集配对，不共用一个含混分母。 */
+    pass?: { evalIds: string[]; passRatePoints: number };
+    points?: { evalIds: string[]; totalScore: number };
+    tokens?: number;
+    costUSD?: number;
   }>;
 }
 
@@ -459,32 +475,85 @@ type DeltaTableProps = DataProps<DeltaData, DeltaTableOptions, {
 ```
 
 ```tsx
-// 字面形态:逐对声明,label 自定义
-<DeltaTable
-  by="experiment"
-  pairs={[{ label: "memory", a: "compare/baseline", b: "compare/with-memory" }]}
-  metrics={[endToEndPassRate, costUSD, durationMs]}
-/>
+// 字面形态:显式列出有序条件,首个是基准
+<DeltaTable by="experiment" conditions={["compare/baseline", "compare/with-memory"]} />
 
-// 派生形态:按 flag 机械配对,加实验不用改报告
-<DeltaTable
-  by="experiment"
-  pairs={pairsByFlag("memory")}
-  metrics={[endToEndPassRate, costUSD, durationMs]}
-/>
+// 派生形态:按 flag 机械导出条件,加实验不用改报告
+<DeltaTable by="experiment" conditions={conditionsByFlag("memory")} />
 ```
 
-`pairsByFlag` 的配对规则是确定的：
+`conditionsByFlag` 的派生规则是确定的：
 
-- **配对域**：input 中的 experiment。两个 experiment 配对，当且仅当删除该 flag 后[可比性配置](../../results/library.md#官方现刻水位resultscurrent)深相等——输入范围就是配对边界，不再引入实验组规则。
-- **a 与 b**：a 侧取 `baseline` 声明的 flag 值，缺省为「未声明该 flag」；b 侧该 flag 的每个其它取值各成一对。同配置不同 id 的实验各自成对，不合并。
-- **label 自动生成**：`<a 的完整 experiment id> · <flag>=<b 值的稳定显示键>`；要自定义 label 就写字面 pairs，派生形态不收 label 覆盖。
-- **排序**：按 (a 末段, flag 显示键) 字典序。
-- **0 对不是错误**：收窄后配不出任何对时显示明确空态并报告「N 个实验、0 个可配对」；`by` 不是 `"experiment"` 时按完整用户反馈报错。
+- **条件域**：input 中 `by` 维度的全部取值（如全部 experiment）。收窄后的取值必须在删除该 flag 后[可比性配置](../../results/library.md#官方现刻水位resultscurrent)深相等——它们是同一组配置的不同 flag 取值，不是互不相关的两批实验；不满足时计算以完整用户反馈报错，提示按 `evals` 或输入范围收窄成单一组。
+- **基准与候选**：基准取 `baseline` 声明的 flag 值，缺省为「未声明该 flag」；候选是该 flag 每个其它取值各一个条件，按显示键字典序排在基准之后。
+- **0 候选不是错误**：收窄后配不出任何候选时显示明确空态并报告「N 个实验、0 个可配对条件」；`by` 不是 `"experiment"` 时按完整用户反馈报错。
 
-两种形态共同的行为：`a` / `b` 未命中时保留该 pair，对应侧格子为缺失；不把缺失当 0，不因一侧缺失把整行静默删掉。同一 `by` 值对应多个 experiment / snapshot 时，依然按通用两级指标口径聚合；需要一对一时选择更精确的维度。
+字面形态的元素与分组后得到的维度值精确匹配，不做前缀或模糊匹配；元素在数组内唯一，长度小于 2 时按完整用户反馈报错。两种形态共同的聚合行为：
 
-字面形态的 `a` / `b` 与分组后得到的维度 key 精确匹配，不做前缀或模糊匹配；pair label 不得为空且在数组内唯一，`a === b` 直接报错。`metrics` 必须非空（元素是静态 import 的 Metric 实例，类型层用非空元组）；`pairs` 的元素引用运行时数据、常由过滤动态构造，类型放宽为普通数组，空数组在计算时按完整用户反馈报错。
+- **配对身份是 eval id**：同一 eval id 在各条件下的结果进同一行；`evals` 选项与 CLI 位置参数同语义收窄行集。
+- **单格折叠**：每个 cell 是该条件值 × eval 的折叠——`verdict` / `totalScore` 用与榜单同一套题目级判定口径，`totalTokens` / `totalCostUSD` 是该题在该条件下全部 attempt 的合计。同一条件值对应多个 experiment / snapshot 时（`by` 不是 `"experiment"`，或现刻水位由多个贡献快照撑起），cell 仍按这份折叠规则合并该组合下的全部 attempt。
+- **翻转标记**：`flipped` 只在该行各条件判定不一致时为 true，供渲染面叠加 `⇄`；全部一致的行不加噪声。
+- **占位与时效**：某条件没有该 eval 的结果时 `cells` 无该条件的键，渲染面显示占位 `—`，该题不计入该条件在 `totals` 里的分母；`historical` 为 true 的格来自跨快照携带的历史执行，渲染面叠加 `↩ <时距>`，与[实体列表的时效标注](entity-lists.md#时效标注)同一条呈现规则。
+- **混型分段**：eval 集横跨通过制与计分制时，`totals[condition].scoringComposition` 为 `"mixed"`——通过制子集报 `passed / denominator`，计分制子集报 `totalScore`，两制不压成一个综合分；`totalTokens` / `totalCostUSD` 不分制，在该条件全部有结果的题上合计。
+- **共同题 paired delta**：`pairedDelta[condition]` 只在该条件与基准都存在结果的 eval 交集（`commonEvalIds`）上计算——先在同一题上配对，再分别聚合判定与用量；`totals` 是各条件自身覆盖面的描述，两者分母不同，不能互相替代或拿来直接归因。`pass` / `points` 按共同题各自的题型分别给出，mixed 时两者都出现。
+- **方向**：`score` 越高越好，`tokens` / `costUSD` 越低越好，符号由此固定；组件只呈现带符号差值，不替读者下结论。
+
+行按 `key`（eval id）字典序排列；空 `rows` 两面零输出。web 面 `flipped` 为真的行叠加翻转标记，某条件的 `attempts` 非空且传了 `attemptHref` 时对应格可点开跳到对应 attempt 页，长度大于 1 时格内标 `×N`。text 面按同一份行序展开，条件按 `conditions` 顺序分组列出。
+
+## `StabilityMatrix`
+
+`StabilityMatrix` 是一张历史全执行的稳定性矩阵：行是 eval，列是 `by` 维度上的取值（通常是 experiment），格是该组合**全部历史执行**（跨快照按[身份键](../../results/library.md#身份键与去重)去重、不设可比性门槛）的判定计数。它回答「这道题在这个条件下历史上稳不稳」，不是现刻水位下「现在算不算过」——分工上与消费 Scope 现刻水位的 `MetricMatrix` 不同：`MetricMatrix` 的每个格是一次两级指标聚合，服务发布用的可比读数；`StabilityMatrix` 的每个格是原始计数，服务「哪些题从来没通过过」这类题目质量诊断，覆盖 `--fresh` 收窄之外的全部历史。终端 [`--stats`](../show/stats.md) 是这个组件的一处零配置装配。
+
+因为它消费的是历史全执行而非现刻水位，组合组件应从 `ctx.results` 显式选择要统计的 `Snapshot[]` 传入 `input`；宿主注入的默认 Scope 已经过现刻水位收窄，不是完整历史（见 [Architecture · Scope 是计算入口](../architecture.md#scope-是计算入口)）。
+
+```ts
+interface StabilityMatrixCell {
+  passed: number;
+  failed: number;
+  errored: number;
+  /** passed + failed + errored 之和；skipped 不计。 */
+  executions: number;
+}
+
+interface StabilityMatrixData {
+  rowDimension: string;
+  columnDimension: string;
+  rows: Array<{
+    evalId: string;
+    /** 全部条件历史执行中通过次数为 0 且执行数 > 0。 */
+    neverPassed: boolean;
+  }>;
+  /** 贡献了至少一格的列值，字典序。 */
+  columns: readonly string[];
+  /** 稀疏格子：该 (eval, column) 组合没有任何历史执行时不生成格子，渲染面显示占位 —，不编三个 0 冒充跑过。 */
+  cells: ReadonlyArray<{ row: string; column: string; cell: StabilityMatrixCell }>;
+  /** 各列的合计。 */
+  totals: Record<string, StabilityMatrixCell>;
+}
+
+interface StabilityMatrixOptions {
+  by: DimensionInput;
+  /** eval id 前缀；与 CLI 位置参数同语义。 */
+  evals?: string | readonly string[];
+}
+
+function stabilityMatrixData(
+  input: ReportInput,
+  options?: StabilityMatrixOptions,
+): Promise<StabilityMatrixData>;
+
+type StabilityMatrixProps = DataProps<StabilityMatrixData, StabilityMatrixOptions, {
+  attemptHref?: (locator: AttemptLocator) => string;
+  locale?: ReportLocale;
+  className?: string;
+}>;
+```
+
+```tsx
+<StabilityMatrix by="experiment" evals="coding/" />
+```
+
+行按历史最高通过率升序排列，零通过的题排最前——它们是题目质量审查的第一队列；同序值再按 `evalId` 字典序收口。格内三计数固定顺序 `✓ ✗ !`：`✗`（failed）与 `!`（errored）永远分列——判定失败是题目 / agent 的事实，基础设施错误是环境的事实，混进同一列会把环境事故误判成题目难度；`skipped` 不计入任何列。`totals` 给每列的三计数合计；某列的 `!` 合计异常高指向环境事故（限流、配额），矩阵只陈列计数，不替读者下结论。空 `rows` 两面零输出。
 
 ## 相关阅读
 

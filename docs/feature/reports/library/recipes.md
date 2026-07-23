@@ -64,18 +64,18 @@ export default defineReport(
 
 ## 对比：基线与候选相差多少
 
-回答「加了 memory / 换了配置，指标是改善还是退化」。实验矩阵是「同配置开关某个 flag」时用 `pairsByFlag`——配对由 experiment 配置机械导出，加实验不用改报告；要自定义 label 或比较任意两个 id 时写字面 pairs。任一侧缺数据时 delta 保持缺失，不当 0：
+回答「加了 memory / 换了配置，指标是改善还是退化」。实验矩阵是「同配置开关某个 flag」时用 `conditionsByFlag`——条件由 experiment 配置机械导出，首个是基准，加实验不用改报告；要自定义顺序或比较任意一组 id 时写字面 `conditions` 有序数组（首个是基准）。任一侧缺数据时 delta 保持缺失，不当 0：
 
 ```tsx
 // reports/ab.tsx
 import {
-  DeltaTable, costUSD, defineReport, durationMs, endToEndPassRate, pairsByFlag,
+  DeltaTable, conditionsByFlag, costUSD, defineReport, durationMs, endToEndPassRate,
 } from "niceeval/report";
 
 export default defineReport(
   <DeltaTable
     by="experiment"
-    pairs={pairsByFlag("memory")}
+    conditions={conditionsByFlag("memory")}
     metrics={[endToEndPassRate, costUSD, durationMs]}
   />,
 );
