@@ -25,7 +25,7 @@
   - [ ] A4. 非零 Sandbox 命令证据(`commands.json`,`AttemptRecord.artifacts` 含 `commands`)按
     `plan/failed-command-evidence.md` 落盘并接入 Results reader/copy
 - [ ] **B. show 选择层:切片接受范围**(依赖 A 的读取面,不依赖 A3)
-  - [ ] B1. `src/cli.ts` + `src/report/` show 宿主:范围解析统一(locator = 单元素范围),`--source/--execution/--timing/--usage/--diff` 走同一条范围通路,多 attempt 分节输出
+  - [ ] B1. `src/cli.ts` + `src/report/` show 宿主:范围解析统一(locator = 单元素范围),`--source/--execution/--timing/--usage/--diff` 走同一条范围通路,多 attempt 分节输出。两条具体现状:`FLAG_OPTIONS` 里 `exp: { type: "string" }` 没有 `multiple: true`,`node:util` 的 `parseArgs` 对不带 `multiple` 的 `string` flag 重复传入时静默只保留最后一次出现的值(不报错),要改成 `multiple: true` 并把 `flags.experiment` 从单值改成数组消费;`src/show/index.ts:333-348` 的 legacy 单 eval 详情分支(`flags.report === undefined && flags.page === undefined && patterns.length > 0 && matchedEvalIds.length === 1` 时绕过报告槽直接 `evalDetailText` 渲染)要被三轴范围语义取代——落地范围解析后这条特判要么并入范围收窄后的裸报告路径,要么整支删除,不能继续和三轴模型并存
   - [ ] B2. 重复 `--exp` 的条件解析与互斥校验(恰好一个 experiment、`@locator` 冲突、`--grep`/`--expand` 的组合校验),错误文案按 `docs/error-feedback.md` 三段式
 - [ ] **C. 新切片与视图**(组件 `*Data` 计算函数只消费 `ReportInput`,不依赖 CLI 范围解析,可与 B 并行实现;零配置装配——按 `--exp` 顺序派生 `conditions`、按范围收窄 `by`/`evals`——依赖 B 的范围解析产出,单个节点内实现顺序是组件计算先于 show 装配)
   - [ ] C1. 对照矩阵(缺省切片 × 重复 `--exp`):`DeltaTable` 组件 + `deltaTableData` 计算函数——聚合口径、`DeltaData` 形状单源在 `docs/feature/reports/library/metric-views.md#deltatable`;show 侧是该组件的零配置装配(`--exp` 出现顺序即 `conditions`、首个为基准,eval id 前缀即 `evals`),落点见 `docs/feature/reports/show.md#缺省切片的选择规则`、`docs/feature/reports/show/compare.md`

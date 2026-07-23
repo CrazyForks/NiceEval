@@ -134,6 +134,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 裁决
 
+- [group-matrix-dedicated-component-ruling](group-matrix-dedicated-component-ruling.md) — 裁决(2026-07-23,补记):得分点=组的下钻矩阵做独立组件 GroupMatrix,否决扩展 MetricMatrix 动态 Metric 方案(组是 assertion/score-entry 子实体、格读法是题型固定语义非用户可配置 Metric)
 - [show-slices-are-components-ruling](show-slices-are-components-ruling.md) — 裁决(2026-07-23):show 切片收敛为报告组件装配,--json=当前视图组件 resolve 产物信封(两面同值由构造保证);对照=DeltaTable 多条件、--stats=StabilityMatrix、--usage=UsageTable、证据切片=attempt-detail text 面(预算/--expand/--grep 是 text 渲染选项);否决「宿主证据投影」独立管线与 CompareMatrix 新名;起因=三组平行实现+--json 手写第三套形状
 - [results-evidence-registry-ruling](results-evidence-registry-ruling.md) — 裁决(2026-07-23):attempt artifact 横切属性收敛证据 registry 表(writer/reader/copy/截断/导出全表驱动,新增证据=加一行);has* 四布尔换 artifacts 词干列表,schemaVersion 8→9;o11y 删 usage/cost 正名同版本派生缓存;否决散文清单照旧与第三方开放注册(留 roadmap);起因=commands.json 八处清单同步税
 - [show-scope-slice-json-ruling](show-scope-slice-json-ruling.md) — 裁决(2026-07-23):show 定稿为范围×切片×形态三正交轴(切片吃任意范围、多 --exp=对照矩阵、--json 第二形态、--grep/--expand、Usage 形状+ctx.fact 通道);否决独立 compare 子命令与 agent 直读 .niceeval;起因=MemoryBench 三条件归因 93 次调用+手写解析才拼出对照表,usage 落盘 requests:1 失真

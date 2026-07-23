@@ -103,7 +103,7 @@
   - [ ] H.2 按影响面运行 `pnpm run build:report` → `pnpm run view:build` → `pnpm run typecheck` → `pnpm test`
   - [ ] H.3 运行 `pnpm docs:reference`、`pnpm docs:validate`、`pnpm docs:links`，确认生成区块无漂移
   - [ ] H.4 Results / Reports 改动跑 `pnpm e2e --repo report`；runner / 公开 Reporter 破坏性变更跑 `pnpm e2e --repo cli`，再按测试矩阵修复全部受影响官方适配器仓库
-  - [ ] H.5 最后更新 `docs/source-map.md`：删除已闭合差异，只保留 E 若尚停在设计裁决；不得把尚未验收的节点提前写成已实现
+  - [x] H.5 最后更新 `docs/source-map.md`：删除已闭合差异，只保留 E 若尚停在设计裁决；不得把尚未验收的节点提前写成已实现（已删除「`current()` 仍合成报告用 Snapshot」「公开 Invocation 命名尚未落地」「Snapshot diagnostics 尚未落地」「`GroupMatrix` 已作为公开组件落地，但尚未接入内建 `standard`」四条已闭合差异，逐条到 `src/results/select.ts`、`src/runner/types.ts`、`src/results/writer.ts` + `src/report/components/site-components/index.tsx`、`src/report/built-in/standard.tsx` 复核；`--json` 题目级 `eval` 事件条目按现状改写为「已在源码落地，plan 台账尚未收口」）
 
 ## 验收
 
