@@ -31,7 +31,7 @@ import { JUnit } from "niceeval/reporters";
 
 export default defineConfig({
   judge: { model: "anthropic/claude-haiku-4-5" }, // 默认裁判模型
-  reporters: [JUnit(".niceeval/junit.xml")], // 终端反馈由 `niceeval exp --output human|agent|ci` 选择,不是 Reporter
+  reporters: [JUnit(".niceeval/junit.xml")], // 终端反馈是人读文本,加 `--json` 换机器事件流;都不是 Reporter
   maxConcurrency: 8,
   timeoutMs: 300_000,
   // 沙箱 provider 不在这里配 —— 它由 experiment 的 sandbox 字段决定
@@ -207,7 +207,7 @@ Discovered 3 evals
 Results:  2 passed, 1 failed, 0 skipped
 ```
 
-详细 artifact 落在该实验的快照目录 `.niceeval/<experiment>/<snapshot>/`:快照级 `snapshot.json`,以及每个 attempt 目录下的 `result.json`(判决、断言、结构化错误与 diagnostics)与按需生成的 `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`。结构详见 [Results Format](feature/results/architecture.md)。
+详细 artifact 落在该实验的快照目录 `.niceeval/<experiment>/<snapshot>/`:快照级 `snapshot.json`,以及每个 attempt 目录下的 `result.json`(判决、断言、结构化错误与 diagnostics)与按需生成的 `commands.json`（非零 Sandbox 命令）、`events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`。结构详见 [Results Format](feature/results/architecture.md)。
 
 ## 接进 CI
 

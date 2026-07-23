@@ -15,3 +15,4 @@
 
 - 没有天然配对关系、只想看所有方案前沿时用 `MetricScatter`。
 - 要看一条参数线上多个点的趋势时用 `MetricLine`。
+- 在终端里即时看逐题翻转与差值、不需要发布报告时,用 show 的[对照矩阵](../show/compare.md)(多 `--exp`),全流程见[跨条件归因](cli-cross-condition-attribution.md)。

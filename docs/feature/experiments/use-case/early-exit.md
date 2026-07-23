@@ -32,4 +32,4 @@
 ## 相关阅读
 
 - [Runner · 首过即停](../../../runner.md#首过即停earlyexit) —— 触发条件、abort 语义、与 fail-fast 的分界的单源。
-- [CLI · runs 与首过即停怎样展示](../cli.md#runs-与首过即停怎样展示) —— 三种 profile 的计数与聚合行形态。
+- [CLI · runs 与首过即停怎样展示](../cli.md#runs-与首过即停怎样展示) —— 两种输出形态的计数与题目级 `eval` 事件形态。

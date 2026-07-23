@@ -25,12 +25,12 @@ function sh(cmd: string, expect: number | "nonzero" = 0): string {
 
 ## 用例一：跑实验，断言退出码
 
-`--force` 保证真实新跑，`--output ci` 保证只追加的稳定日志，`--junit` 落 CI 出口：
+`--force` 保证真实新跑，`--json` 保证可解析的稳定事件流，`--junit` 落 CI 出口：
 
 ```ts
 const EXPECTED_EVALS = ["weather/brooklyn", "weather/hitl-reject"];
 
-sh("pnpm exec niceeval exp weather --force --output ci --junit junit.xml");
+sh("pnpm exec niceeval exp weather --force --json --junit junit.xml");
 ```
 
 ## 用例二：`show` 榜单——应发现的 Eval 都实际运行了
@@ -110,12 +110,12 @@ assert.ok(
 预期非零退出转换为仓库级验收成功；`failed` 与 `errored` 的区分从 `--junit` 出口断言——JUnit 按 verdict 折叠为 `<failure>` 与 `<error>`：
 
 ```ts
-sh("pnpm exec niceeval exp deliberate-fail --force --output ci --junit fail.xml", "nonzero");
+sh("pnpm exec niceeval exp deliberate-fail --force --json --junit fail.xml", "nonzero");
 const failXml = readFileSync("fail.xml", "utf8");
 assert.ok(failXml.includes("<failure"), "deliberate-fail 的 JUnit 里没有 <failure>——断言不通过没折叠成 failed");
 assert.ok(!failXml.includes("<error"), "deliberate-fail 混进了 <error>——failed 与 errored 的互斥判定破了");
 
-sh("pnpm exec niceeval exp deliberate-error --force --output ci --junit error.xml", "nonzero");
+sh("pnpm exec niceeval exp deliberate-error --force --json --junit error.xml", "nonzero");
 const errorXml = readFileSync("error.xml", "utf8");
 assert.ok(errorXml.includes("<error"), "deliberate-error 的 JUnit 里没有 <error>——执行错误被误折叠成断言失败");
 ```
@@ -131,20 +131,20 @@ function attemptCount(evalId: string): number {
     .filter((l) => l.includes("@")).length;
 }
 
-sh("pnpm exec niceeval exp cached --force --output ci");
+sh("pnpm exec niceeval exp cached --force --json");
 const baseline = attemptCount("cached/echo");
 
-const second = sh("pnpm exec niceeval exp cached --output ci");       // 不带 --force：复用
+const second = sh("pnpm exec niceeval exp cached --json");            // 不带 --force：复用
 assert.ok(second.includes("reused"), "第二次运行的摘要没有报告复用——缓存没生效");
 assert.equal(attemptCount("cached/echo"), baseline, "不带 --force 产生了新 attempt——缓存复用没有生效");
 
-sh("pnpm exec niceeval exp cached --force --output ci");              // 再带 --force：真实新 attempt
+sh("pnpm exec niceeval exp cached --force --json");                    // 再带 --force：真实新 attempt
 assert.equal(attemptCount("cached/echo"), baseline + 1, "--force 没有产生新 attempt——强制重跑失效");
 ```
 
 ## 失败分类：回归还是基础设施
 
-`e2e.ts` 捕获 verify 抛错后按[总则的退出码契约](README.md#31-唯一命令)折叠：能确证的外部故障退 `75`，其余一律按回归退非零。确证的依据是结构化证据——自己的 preflight / readiness 超时，或 `--output ci` 日志中 errored 行明确指向 provider（429 / 5xx / 网络错误）：
+`e2e.ts` 捕获 verify 抛错后按[总则的退出码契约](README.md#31-唯一命令)折叠：能确证的外部故障退 `75`，其余一律按回归退非零。确证的依据是结构化证据——自己的 preflight / readiness 超时，或 `--json` 事件流中 `error` 事件明确指向 provider（429 / 5xx / 网络错误）：
 
 ```ts
 // scripts/e2e.ts
@@ -155,7 +155,7 @@ try {
   const ciLog = readFileSync("logs/exp-ci.log", "utf8");
   const infra =
     err instanceof InfraError ||                                  // 自己的 preflight / readiness 超时
-    /errored .*(429|5\d\d|ECONNREFUSED|ETIMEDOUT)/.test(ciLog);   // provider 侧可确证的外部故障
+    /"event":"error".*(429|5\d\d|ECONNREFUSED|ETIMEDOUT)/.test(ciLog); // provider 侧可确证的外部故障
   console.error(err);
   process.exit(infra ? 75 : 1);
 }

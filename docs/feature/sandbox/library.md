@@ -153,7 +153,7 @@ type SandboxHook = (
 import type { SandboxHook, SandboxHookContext } from "niceeval/sandbox";
 ```
 
-Sandbox hook 有自己的窄上下文,包含 `experimentId`、`signal` 与作用域绑定的 `progress/diagnostic`;它不借用包含 session、model、telemetry 的完整 `AgentContext`。钩子不返回值;要把 `setup` 里创建的句柄传给 `teardown`,以 `sandbox` 实例作键存取——钩子每沙箱一次、并发 attempt 共享同一个模块,普通模块变量会互相覆写,而 sandbox 与 attempt 一一对应,是天然的 per-attempt 键(四层统一的成对语义见 [Runner · 环境预置](../../runner.md#环境预置不进运行器但按顺序调它)):
+Sandbox hook 有自己的窄上下文,包含 `experimentId`、`signal` 与作用域绑定的 `progress/diagnostic/fact`;它不借用包含 session、model、telemetry 的完整 `AgentContext`。钩子不返回值;要把 `setup` 里创建的句柄传给 `teardown`,以 `sandbox` 实例作键存取——钩子每沙箱一次、并发 attempt 共享同一个模块,普通模块变量会互相覆写,而 sandbox 与 attempt 一一对应,是天然的 per-attempt 键(四层统一的成对语义见 [Runner · 环境预置](../../runner.md#环境预置不进运行器但按顺序调它)):
 
 ```typescript
 import type { Sandbox } from "niceeval/sandbox";
@@ -218,6 +218,13 @@ const sandbox = e2bSandbox({ template: "niceeval-agents" })
 ```
 
 `progress` 只更新当前 sandbox setup 的短期 activity;`diagnostic` 才进入永久输出。它们不能指定 `sandbox-setup` 等 phase——runner 从当前 hook 自动得出阶段。诊断也不会吞掉或制造失败:上例明确选择降级继续;如果环境不可用,应直接抛出原错误,让 attempt 进入 `errored`。
+
+第三条通道 `ctx.fact(key, value)` 上报**运行环境观测**——恢复了哪份记忆状态、库里起步有多少条笔记、远端服务实际返回了哪个版本。它落进本 attempt 的 `result.json`(`AttemptRecord.facts`),在 show 的 `facts:` 行、对照矩阵与 `--json` 中作为一等观测量呈现；它用于事后审计，不参与 fingerprint。计划内自变量必须同时进入 `flags`、model、agent、sandbox 配置等 fingerprint 输入；无法配置化的外部可变状态变化后用 `--force` 重跑。三条通道语义互斥:`progress` 短期不落盘、`diagnostic` 记异常、`fact` 记中性事实;key/value 形状、覆盖与复用边界见 [Results · facts](../results/architecture.md#facts运行事实):
+
+```typescript
+ctx.fact("memory.notes", noteCount);
+ctx.fact("memory.restored", true);
+```
 
 自定义 provider 在 `create` options 上取得绑定到 `sandbox.create` 的 `feedback`:
 

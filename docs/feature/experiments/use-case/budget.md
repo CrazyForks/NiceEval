@@ -9,24 +9,22 @@
 1. 实验签入常规预算(`budget: 15`,见 [README · `defineExperiment` 的形状](../README.md#defineexperiment-的形状));本次回归想把每个选中配置的上限临时提到 25 美元——budget 按 experimentId 域各自计,`regression` 展开成几个配置就是几份 25,不是一次调用的总闸:
 
    ```sh
-   niceeval exp regression --output ci --strict --budget 25 \
-     --json .niceeval/regression.json
+   niceeval exp regression --strict --budget 25 --junit .niceeval/regression.xml
    ```
 
 2. 运行器只按**已完成 attempt 的实测花费**判断:同一 budget 域(experimentId)的花费到顶就停止派发新 attempt;已经在飞的照常跑完,不中途打断。到顶之前不做任何预测性节流,并发完全由并发参数决定(契约见 [Runner · 预算护栏](../../../runner.md#预算护栏budget))。
-3. 到顶时三种 profile 都追加一条永久事件,CI 形态:
+3. 到顶时两种输出形态都追加一条永久事件,`--json` 形态:
 
-   ```text
-   niceeval: budget_exhausted experiment=regression/codex spent=25.31 unstarted=4
-   niceeval: result=incomplete passed=36 failed=0 errored=0 unstarted=4 duration=18m02s
+   ```json
+   {"event":"budget_exhausted","experimentId":"regression/codex","spent":25.31,"unstarted":4}
+   {"event":"result","status":"incomplete","passed":36,"failed":0,"errored":0,"unstarted":4,"completion":"incomplete","snapshots":["…"]}
    ```
 
 4. 未派发的 attempt 计入完成状态的 `unstarted`,整次运行结论落在 `incomplete`、退出码 `1`——即使零 `failed` / `errored` 也不伪装全绿(见 [Runner · 完成状态](../../../runner.md#完成状态))。
 5. 想补完分母时提高预算重跑同一条命令:已落盘的终态 attempt 按指纹携带、不重付,本次只派发缺失的序号(见 [Runner · 缓存](../../../runner.md#缓存指纹去重)):
 
    ```sh
-   niceeval exp regression --output ci --strict --budget 40 \
-     --json .niceeval/regression.json
+   niceeval exp regression --strict --budget 40 --junit .niceeval/regression.xml
    ```
 
 ## 边界
@@ -38,4 +36,4 @@
 ## 相关阅读
 
 - [Runner · 预算护栏](../../../runner.md#预算护栏budget) —— 到顶停止派发、在飞跑完、不可执行 warning 的单源。
-- [CLI · CI 怎么用](../cli.md#ci-怎么用) —— `budget_exhausted` / `result=incomplete` 在门禁里的形态。
+- [CLI · CI 门禁](../cli.md#ci-门禁) —— `budget_exhausted` / `incomplete` 结论在门禁里的形态。

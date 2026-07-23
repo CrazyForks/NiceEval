@@ -186,7 +186,7 @@ spans 是异步推来的,必须知道「这批 span 属于哪一轮 `send`」。
   "verdict": "passed",
   "attempt": 1,
   "durationMs": 2184,
-  "hasEvents": true, "hasTrace": false, "hasSources": true,
+  "hasCommands": false, "hasEvents": true, "hasTrace": false, "hasSources": true,
   "assertions": [
     { "name": "succeeded", "severity": "gate", "score": 1, "passed": true },
     { "name": "calledTool(get_weather)", "severity": "gate", "score": 1, "passed": true }
@@ -308,9 +308,9 @@ interface Reporter {
 }
 ```
 
-Reporter 只负责把完成结果送到别处,不负责终端展示——运行中的 human / agent / ci 反馈由 `niceeval exp --output ...` 选择的反馈 coordinator 负责,是独立于 Reporter 的另一条通道(见 [Experiments · CLI 反馈模型](feature/experiments/cli.md))。报告器在**独立串行队列**上被回调,不阻塞执行池(见 [Runner](runner.md#调度有界并发))。内置:
+Reporter 只负责把完成结果送到别处,不负责终端展示——运行中的反馈(人读文本 / `--json` 事件流)由反馈 coordinator 负责,是独立于 Reporter 的另一条通道(见 [Experiments · CLI 反馈模型](feature/experiments/cli.md))。报告器在**独立串行队列**上被回调,不阻塞执行池(见 [Runner](runner.md#调度有界并发))。内置:
 
-- **`Artifacts()`** —— CLI 默认自带、视为 required(见 [CLI · required reporter](cli.md#required-reporter)):按实验写快照目录(`.niceeval/<experiment>/<snapshot>/`):`snapshot.json` 快照元数据 + 每个 attempt 的 `result.json`(判决、断言、用量,一次写成)与按需生成的 `events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`,供 `niceeval view` 读取。具体格式见 [Results Format](feature/results/architecture.md)。
+- **`Artifacts()`** —— CLI 默认自带、视为 required(见 [CLI · required reporter](cli.md#required-reporter)):按实验写快照目录(`.niceeval/<experiment>/<snapshot>/`):`snapshot.json` 快照元数据 + 每个 attempt 的 `result.json`(判决、断言、用量,一次写成)与按需生成的 `commands.json`、`events.json`、`sources.json`、`trace.json`、`o11y.json`、`diff.json`,供 `niceeval view` 读取。具体格式见 [Results Format](feature/results/architecture.md)。
 - **`JUnit(path)`** —— JUnit XML,接 CI 测试报告 UI;CLI 显式传 `--junit <path>` 时同样视为 required,同目录临时文件 + 原子 rename 写入,不留半成品。
 - **`Json(path)`** —— 机器可读全量;CLI 显式传 `--json <path>` 时同样视为 required,写入语义同上。
 - **`Braintrust(config?)`** —— 把一次 Invocation 作为一个 Braintrust experiment 上报,每个 attempt 一行:soft 断言按名字记分,gate 断言记在 `gate:` 前缀下(实验 diff 里 gate 回归和 soft 分数回归用同一套机制看);metrics 带 start/end、token 用量与估算成本,metadata 带 agent / model / experiment / flags 身份维度与失败断言明细。`braintrust` 包是可选 peer 依赖(动态 import,没装时 `onInvocationStart` 报错并提示安装);鉴权走 `BRAINTRUST_API_KEY` 或工厂参数 `apiKey`。源码 `src/runner/reporters/braintrust.ts`。

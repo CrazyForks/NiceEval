@@ -8,7 +8,7 @@
 
 | 契约 | 入口 | 目的 | passed attempt | failed / assertion-unavailable attempt |
 |---|---|---|---|---|
-| **结果摘要** | `exp` 的 Human 永久行与最终 handoff、Agent handoff、CI failure 行；`show` / `view` 的 `ExperimentList`、`EvalList`、`AttemptList` 比较列表 | 先定位哪条 attempt 红、最主要为什么红；计分制额外回答分丢在哪 | 不逐条输出；比较列表 Result 显示 `—`（计分制有丢分时显示首条丢分摘要，见「主失败断言怎样选」） | 只输出一条**主失败断言摘要**，其余失败只报 `+N more failures` |
+| **结果摘要** | `exp` 的人读永久行与 `FAILURES` 面板、`--json` 的 `failure` 事件；`show` / `view` 的 `ExperimentList`、`EvalList`、`AttemptList` 比较列表 | 先定位哪条 attempt 红、最主要为什么红；计分制额外回答分丢在哪 | 不逐条输出；比较列表 Result 显示 `—`（计分制有丢分时显示首条丢分摘要，见「主失败断言怎样选」） | 只输出一条**主失败断言摘要**，其余失败只报 `+N more failures` |
 | **具体诊断与源码** | `show @locator`、view Attempt 详情；`show @locator --source`、view source 模式 | 完整解释全部断言，并把它们放回运行时源码 | Attempt 首页显示 `N passed`，通过项在 view 默认折叠；源码行标 `✓` | failed / soft / unavailable 按声明顺序完整展开；源码行标 `✗` 并紧跟标题、matcher、expected / received 或 reason |
 
 结果摘要里的 `—` 表示“这条 attempt 没有需要解释的失败摘要”，不表示没有 assertions。任何摘要面都不得把 `assertions.map(a => a.name)` 拼进 Result 单元格：这会让通过项比失败项更吵，也会把几十条 matcher 挤成不可读的多行文本。
@@ -53,7 +53,7 @@ gate: Catalog reads use use-cache directive and products cache tag
 
 两个例子共享一条规则：`expected` / `received` 先剥控制字节，再把换行、回车、制表折成单空格。剥控制字节指去除 ANSI 转义序列（CSI 着色 / 光标控制、OSC 及其 payload）与其余不可打印 C0/C1（含裸 ESC、BEL、退格），只保留可打印字符——被测工具（jest / vitest / pytest）几乎总把代码帧、行号、`✕` 着色，这些 ESC 字节不是空白，若原样进任何展示面，终端会把它重新解释成乱码（单行截断从转义序列中间切开时尤其乱），HTML 报告则把 `ESC[2m…ESC[22m` 当字面文本渲染；`✕ ✓ › ❯ ↓ │` 这类工具合法打印的符号在可打印范围内，保留不删。剥净并折单行后（`commandSucceeded()` 的整段 pytest stdout 因此塌成 `exit 1 · “… 2 failed, 14 passed”`，不会几百行铺开），`received` 能并进 `matcher · expected` 那行就并，并不进去就单独截断一行、截断处补 `…`；`+N more failures`（其余同类失败计数，见上「主失败断言怎样选」）不参与截断也不拼进被截断的值——粘在一起会分不清 `…` 后面是值本身还是计数。剥的是展示投影：落盘 `AssertionResult` / artifact 存原始字节，完整证据不失真；落盘的 256 KiB 上限（[Results · 大值截断](../../results/architecture.md#大值截断)）管 artifact 体积，跟这里的展示宽度是两回事。
 
-`exp` 的 Human 永久行/最终 handoff、Agent handoff、CI failure 行用同一套排版。这里的领域标题必须由 eval 作者通过 `t.group(“Issue 15193: …”, fn)`（或断言自身的语义 name）明确提供；renderer 不读取变量名、源码表达式或 prompt 猜标题。没有 group 的原始 `t.check(value, equals(4))` 仍能可靠显示 `equals(4) · expected 4 · received 3`，只是没有足够事实生成 “selected proposal” 这层语义。
+`exp` 的人读永久行 / `FAILURES` 面板与 `--json` `failure` 事件的文本字段用同一套排版。这里的领域标题必须由 eval 作者通过 `t.group(“Issue 15193: …”, fn)`（或断言自身的语义 name）明确提供；renderer 不读取变量名、源码表达式或 prompt 猜标题。没有 group 的原始 `t.check(value, equals(4))` 仍能可靠显示 `equals(4) · expected 4 · received 3`，只是没有足够事实生成 “selected proposal” 这层语义。
 
 #### 单行压缩形态
 
@@ -70,9 +70,9 @@ gate: Catalog reads use use-cache directive and products cache tag
 - 宽度不足时先截断语义标题，再截断检查方式，`received` 值与分数最后截断；单个 attempt 的 Result 最多占两行，被 `…` 收口；`+N more failures` 独立，不参与截断也不拼进被截断的值。
 - 完整未折行的值在 attempt 首页与 `events.json` / `diff.json` 等 artifact 里，单行面只给能扫读的预览。
 
-CI 单行反馈使用独立结构化字段 `severity=` / `assertion=` / `matcher=` / `expected=` / `received=` / `score=` / `threshold=` / `reason=`；存在什么发什么。Agent checkpoint 只报告 locator 与 verdict，最终 handoff 再使用上面的两层文本。机器消费者因此不需要解析 `gate: ...` 这句 Human 文案。
+`--json` 的 `failure` 事件使用独立结构化字段 `severity` / `assertion` / `matcher` / `expected` / `received` / `score` / `threshold` / `reason`；存在什么发什么。机器消费者因此不需要解析 `gate: ...` 这句 Human 文案。
 
-结果摘要不内联源码。源码回答“这条检查写在哪里、周围代码是什么”，不能替代 expected / received；并发失败时内联还会淹没 scrollback。摘要保留 locator，并在最终 handoff 给出 `niceeval show @locator --source`。
+结果摘要不内联源码。源码回答“这条检查写在哪里、周围代码是什么”，不能替代 expected / received；并发失败时内联还会淹没 scrollback。摘要保留 locator，并在人读结束反馈（`FAILURES` / `NEXT` 面板）给出 `niceeval show @locator --source`。
 
 ### 契约二：具体诊断与源码
 

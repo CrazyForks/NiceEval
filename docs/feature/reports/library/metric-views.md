@@ -129,6 +129,79 @@ type MetricBarsProps = MetricMatrixProps;
 
 两个组件写同一份 spec 时，resolve 记忆化保证矩阵只计算一次——不需要为共享数据退回手工 `metricMatrixData`。矩阵是稀疏的：没有 attempt 的组合不生成格子。格子中的 `refs` 保留证据引用；在自有页面中传 `attemptHref` 可令格子跳到自己的 attempt 页。
 
+## `GroupMatrix`
+
+得分点 = 组（`t.group` 组名，见[计分粒度 · 得分点 = 组](../../experiments/score-points.md#得分点-组对比读取的下钻粒度)）的下钻矩阵：行 = eval × 组，列 = experiment；格读法随该 eval 的题型固定——计分制读组子树内给分项挣分之和，通过制只读显式 soft 断言（`.atLeast()` / `.soft()`）的无权均值（质量分）。通过制未链修饰符的断言缺省是 gate，不进入质量分。与 `MetricMatrix` 不同，`GroupMatrix` 不接收任意 `Metric`：折叠树的读法是题型的固定语义（见[折叠树](../../experiments/score-points.md#折叠树判定面分数面质量分)），不是报告作者能配置的选项。
+
+行按组的**子树**折叠：`groupPath` 为 `["路由层"]` 的行汇总 `["路由层"]` 自身与 `["路由层", "参数校验"]` 等全部后代组的证据，与折叠树「每层折叠子树」的定义一致；`["路由层", "参数校验"]` 同时也单独成一行，读者按需选任意深度下钻。字面不相等的组名各自成行、不做归一化（[得分点 = 组](../../experiments/score-points.md#得分点-组对比读取的下钻粒度)同一条对齐规则）；没有 `t.group` 的 eval 不产生行，整题读数看 `Scoreboard` / `MetricTable`，两者不重复。
+
+```ts
+interface GroupMatrixRow {
+  evalId: string;
+  /** 外层在前的 t.group 标题数组；空数组不会出现（隐式根组不进本组件）。 */
+  groupPath: readonly string[];
+  /** 该行所属 eval 的题型，决定 cell.value 的口径。 */
+  scoring: "pass" | "points";
+}
+
+interface GroupMatrixCell {
+  /**
+   * points 制：组子树内给分项（`.points()` 断言与 `t.score()`）挣分之和，跨 attempt 取均值；
+   * 通过制：组子树内显式 soft 断言（`.atLeast()` / `.soft()`）的无权均值（质量分）。子树内
+   * 没有对应证据时为 null，不编 0——计分制没有满分声明（见[计分制](../../experiments/score-points.md#计分制叠加给分没有上限声明)），
+   * value 只在同一行的不同 experiment 列之间相对比较，不看分母。
+   */
+  value: number | null;
+  display: LocalizedText;
+  /**
+   * 贡献本格的 attempt 中，至少一次在这个确切 groupPath（不含后代组）上发生 gate 断言失败——
+   * 通过制的「哪层死的」定位；计分制同一信号标记中止发生的组。随聚合折叠成一个格子后仍保留，
+   * 不因跨 attempt 取均值而丢失。
+   */
+  localizedFailure: boolean;
+  /** 该 (eval, groupPath 子树, experiment) 组合里，实际出现过匹配证据的 attempt 数。 */
+  samples: number;
+  /** 该 (eval, experiment) 组合的 attempt 总数（分母），含从未涉及这个组的 attempt。 */
+  total: number;
+  /**
+   * 只跟随 samples，不跟随 total——与 MetricCell.refs 刻意不同（[指标](metrics.md)）:
+   * 一个 attempt 的代码路径从未进入这个 `t.group`，不是「测了这个组、值是 null」，而是与这一行
+   * 无关，纳入 refs 只会把读者带去一个跟这个组毫无关系的 attempt。
+   */
+  refs: readonly AttemptLocator[];
+}
+
+interface GroupMatrixData {
+  rows: readonly GroupMatrixRow[];
+  /** 列 = 贡献了至少一格的 experiment id，字典序。 */
+  columns: readonly string[];
+  /** 稀疏格子：某 (eval, groupPath, experiment) 组合没有任何 attempt 涉及这个组时不生成格子。 */
+  cells: ReadonlyArray<{ evalId: string; groupPath: readonly string[]; column: string; cell: GroupMatrixCell }>;
+}
+
+interface GroupMatrixOptions {
+  /** eval id 前缀；与 CLI 位置参数同语义。 */
+  evals?: string | readonly string[];
+}
+
+function groupMatrixData(
+  input: ReportInput,
+  options?: GroupMatrixOptions,
+): Promise<GroupMatrixData>;
+
+type GroupMatrixProps = DataProps<GroupMatrixData, GroupMatrixOptions, {
+  attemptHref?: (locator: AttemptLocator) => string;
+  locale?: ReportLocale;
+  className?: string;
+}>;
+```
+
+```tsx
+<GroupMatrix evals="coding/" />
+```
+
+行按 evalId 字典序、同一 eval 内按 groupPath 深度优先排列（父组紧邻其子组之前）。web 面的 `localizedFailure` 格子叠加失败标记；`refs` 非空且传了 `attemptHref` 时格子可点开跳到对应 attempt 页。text 面按同一份行序展开；`value` 为 null 的格子显示缺数据占位，不显示 0。空 `rows` 两面零输出。
+
 ## `Scoreboard`
 
 Scoreboard 先接收一份显式固定题集，再把每个行维度在每道题上的分数折成总分和分科得分。组件不从已观测 attempt 的并集猜题集；因此“所有配置都没跑到的题”仍然留在分母中并按 0 分计。
@@ -211,9 +284,13 @@ Scope 中存在题集之外的 eval 时，Scoreboard 忽略它们，把数量写
 
 ## 图轴值域
 
-`MetricScatter` 的两轴与 `MetricLine` 的两轴按同一条规则推定值域：**值域 = 数据极值向两端各扩数据跨度的 5%，数据极值点不落在绘图框线上**。落在框线上的点标记被框线穿过、视觉上残缺，而极值点（最好与最差）恰是图上最需要被完整看清的点。数据跨度为零（单点，或全部点同值）时，边距改取该值绝对值的 5%；值恰为 0 时取 1。
+`MetricScatter` 的两轴与 `MetricLine` 的两轴按同一条规则推定值域，分两步：
 
-指标声明了 `bounds`（自然边界，见[指标](metrics.md)）的轴，边距截到边界为止：通过率 100% 的点落在框线上是「顶到语义天花板」的如实呈现，不是裁剪——此时框线就是指标的自然边界。`MetricLine` 的 x 轴是 `NumericAxis`，没有边界声明，只做边距不钳制。
+**呼吸边距**：数据极值向两端各扩数据跨度的 20%，数据极值点不落在绘图框线上。落在框线上的点标记被框线穿过、视觉上残缺，而极值点（最好与最差）恰是图上最需要被完整看清的点；边距同时给极值点旁的文字标签留出排布空间。数据跨度为零（单点，或全部点同值）时，边距改取该值绝对值的 20%；值恰为 0 时取 1。
+
+**最小跨度下限**：扩完边距后，值域跨度不得小于量程参考的 1/3。值域若永远贴着数据画，数据聚集时微小差距会撑满整个绘图区，读者把噪声读成显著差异；下限保证 1 个单位的差距在图上占的比例有上界。不足下限时以数据为中心向两端对称扩展补足，一端被 `bounds` 顶住时余量推到另一端。量程参考取自指标声明的 `bounds`（自然边界，见[指标](metrics.md)）：两端都声明时为 bounds 全量程——通过率的参考是 0–100%，值域至少画 33 个百分点；只声明一端时为声明端到数据另一侧极值的距离——成本的参考是 $0 到数据最大值；两端都未声明的轴（`MetricLine` 的 x 轴 `NumericAxis`）没有量程参考，不适用下限。
+
+声明了 `bounds` 的轴，边距与下限扩展都截到边界为止：通过率 100% 的点落在框线上是「顶到语义天花板」的如实呈现，不是裁剪——此时框线就是指标的自然边界。
 
 边距是呈现，与 `connect` 同一定性：不改变 `ScatterData` / `LineData`，不产生假刻度——刻度取扩后值域内的整值、标签始终显示真实值；反向轴（`better: "lower"`）先扩边距再反向。text 面的字符坐标图共用同一份值域，按字符行列粒度取整。
 

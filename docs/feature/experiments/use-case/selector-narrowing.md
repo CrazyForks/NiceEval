@@ -9,11 +9,11 @@
 1. 用「目录/文件名前缀」圈出一族,先 `--dry` 看计划(解析规则见 [CLI · 实验选择器怎样解析](../cli.md#实验选择器怎样解析)):
 
    ```sh
-   niceeval exp compare/codex --dry --output agent
+   niceeval exp compare/codex --dry
    ```
 
    ```text
-   NICEEVAL PLAN total=4 evals=1 configs=4 runs=1
+   plan: 4 attempts · 1 eval × 4 configs · runs 1
    compare/codex-gpt-5.6-luna              memory/commit0-cachetool
    compare/codex-gpt-5.6-luna--agents-md   memory/commit0-cachetool
    compare/codex-gpt-5.6-luna--mempal      memory/commit0-cachetool

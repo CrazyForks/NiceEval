@@ -231,7 +231,7 @@ type ReporterEvent =
 
 `verdict` 是互斥的判定分类:`passed` / `failed` / `errored` / `skipped`,没有 `scored` 中间态。`invocation:summary.failed` 只统计断言/评分不通过,环境、超时、adapter 或 agent runtime 问题统计到 `errored`。fresh attempt 的最终 `locator` 在构造调度计划时就由预先确定的 `snapshotStartedAt` 与 attempt 身份算好并传入执行体,所以留存注册表、feedback、`eval:complete` 与落盘 `result.json` 从第一次观察起就是同一个值;reporter 不需要等 artifact 落盘。
 
-终端反馈(human dashboard、agent envelope、CI 的单一 stdout 事件流)不消费这条 `Reporter` 事件流——它们由一个独立的反馈 coordinator 消费另一条内部事件通道,只服务 `--output` 选出的 profile,不对外暴露,详见 [CLI · 反馈 coordinator](cli.md#反馈-coordinator一个-run-只有一个终端协调者)。
+终端反馈(human dashboard 与 `--json` 的单一 stdout 事件流)不消费这条 `Reporter` 事件流——它们由一个独立的反馈 coordinator 消费另一条内部事件通道,只服务当前输出形态,不对外暴露,详见 [CLI · 反馈 coordinator](cli.md#反馈-coordinator一个-run-只有一个终端协调者)。
 
 ## Experiment 收尾协议
 
@@ -262,7 +262,7 @@ interface ExperimentDiagnosticInput {
 
 `experimentId` 只用于把这条诊断路由到正确的 Snapshot,不进入持久化的 `DiagnosticRecord`——持久化形状与 attempt 级 `DiagnosticRecord` 完全一致(见 [Results · snapshot.json](feature/results/architecture.md#snapshotjson)),因为归属已经隐含在该记录所属的 `snapshot.json` 身份里,不重复存。相同 `dedupeKey`(或省略时的 `code`)只在同一个 Snapshot 内折叠、`count` 递增;不同 Experiment、不同 Snapshot 各自独立计数,不跨来源合并。
 
-这条持久化通路与运行期的即时反馈通路(`ctx.diagnostic` → 反馈流 → human/agent/ci 展示)相互独立、互不派生:运行期反馈让操作者第一时间看到问题,持久化让读者事后从 `snapshot.json` 回顾。消费方(内建 Artifacts reporter、自定义 reporter)不得靠解析反馈流通知的 key 或 message 反推该往哪个 Snapshot 写——每个产生处直接构造上面的 `ExperimentDiagnosticInput`,由运行器在该 Experiment 域内按 Snapshot 累计,再通过 [`experiment:complete`](#experiment-收尾协议) 事件整批交给 Artifacts,由它在对应 Snapshot 封口时一次写入。
+这条持久化通路与运行期的即时反馈通路(`ctx.diagnostic` → 反馈流 → 人读文本 / `--json` 展示)相互独立、互不派生:运行期反馈让操作者第一时间看到问题,持久化让读者事后从 `snapshot.json` 回顾。消费方(内建 Artifacts reporter、自定义 reporter)不得靠解析反馈流通知的 key 或 message 反推该往哪个 Snapshot 写——每个产生处直接构造上面的 `ExperimentDiagnosticInput`,由运行器在该 Experiment 域内按 Snapshot 累计,再通过 [`experiment:complete`](#experiment-收尾协议) 事件整批交给 Artifacts,由它在对应 Snapshot 封口时一次写入。
 
 ## 完成状态
 
@@ -286,11 +286,11 @@ interface InvocationCompletion {
 - 任一 [required reporter](cli.md#required-reporter) 写失败 → 非 `complete`;失败明细进 `reporterErrors`,`required` 字段区分它是否让整体判红。
 - 首过即停(earlyExit)省略的重复验证次数单独计入 `earlyExitUnstarted`,不进入 `unstarted`——它是已知 verdict 下主动省下的成本,不是遗漏。
 
-CI 的最终结论(退出码、`niceeval: result=...` 行)必须读当场的 `InvocationCompletion`,不能只看 `passed` / `failed` / `errored` 计数——预算耗尽但零 `failed` / `errored` 的一次 Invocation 仍然不是"全绿"。这个结论不自动进入 `.niceeval/`;需要留档时配置 `Json(path)` reporter 写 `InvocationSummary`。
+CI 的最终结论(退出码、`result` 事件)必须读当场的 `InvocationCompletion`,不能只看 `passed` / `failed` / `errored` 计数——预算耗尽但零 `failed` / `errored` 的一次 Invocation 仍然不是"全绿"。这个结论不自动进入 `.niceeval/`;需要留档时配置 `Json(path)` reporter 写 `InvocationSummary`。
 
 ## 退出码
 
-退出码由 `InvocationCompletion.status` 与按 `(experiment, eval)` 折叠后的 verdict 共同决定;三种 `--output` profile(见 [Experiments · CLI 反馈模型](feature/experiments/cli.md))共用同一套语义:
+退出码由 `InvocationCompletion.status` 与按 `(experiment, eval)` 折叠后的 verdict 共同决定;两种输出形态(见 [Experiments · CLI 反馈模型](feature/experiments/cli.md))共用同一套语义:
 
 - `0` —— `status: "complete"`,且没有任一 `(experiment, eval)` 组合判定为 `failed`(含 `--strict` 下 soft 未达标而改判的)或 `errored`。
 - `1` —— 至少一个组合 `failed` / `errored`;或 `status: "incomplete"`(budget 未覆盖全部计划);或存在 required reporter 写失败。
@@ -302,7 +302,7 @@ CI 的最终结论(退出码、`niceeval: result=...` 行)必须读当场的 `In
 ## 相关阅读
 
 - [Architecture](architecture.md) —— 运行器在四段数据流里的位置与端到端时序。
-- [Experiments · CLI 反馈模型](feature/experiments/cli.md) —— human / agent / ci 三种 profile 怎样展示这篇讲的调度、预算与完成状态。
+- [Experiments · CLI 反馈模型](feature/experiments/cli.md) —— human / log 两种 profile 怎样展示这篇讲的调度、预算与完成状态。
 - [CLI](cli.md) —— `exp` 怎么把这些调度行为接进 Effect 核心与反馈 coordinator。
 - [Sandbox](feature/sandbox/README.md) —— 预热与复用的 provider 支持,以及环境预置放哪。
 - [Observability](observability.md) —— 运行器产出的 artifact 与报告。

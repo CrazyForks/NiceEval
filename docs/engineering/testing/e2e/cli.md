@@ -31,7 +31,7 @@
 
 ### 反馈输出格式
 
-对 human/agent/ci 三种 `--output` profile 各跑一次真实进程，在真实 stdout/stderr 上断言 [Experiments CLI](../../../feature/experiments/cli.md) 声明的反馈契约：agent/ci 是固定 ASCII `key=value` envelope，永不出现 ANSI 控制字符，字段值含空格时 JSON 转义；ci 的正常事件全部落在 stdout，只有 run 建立前的错误落 stderr；human 的 TTY 输出用真实终端网格核对行宽/行高降级与折叠，非 TTY 输出零 ANSI；三种 profile 在同一次真实结果上给出一致的完成态判定与退出码。心跳、动态区域重画节奏这类纯计时细节不在真实进程上逐秒断言——那类调度节奏由 [Runner](../unit/experiments-runner.md) 用可控 fake clock 验收。
+对人读文本与 `--json` 两种输出形态各跑一次真实进程，在真实 stdout/stderr 上断言 [Experiments CLI](../../../feature/experiments/cli.md) 声明的反馈契约：`--json` 每行是一个可 `JSON.parse` 的事件对象，永不出现 ANSI 控制字符，正常事件全部落在 stdout，只有 run 建立前的错误落 stderr；人读文本的 TTY 输出用真实终端网格核对行宽/行高降级与折叠，非 TTY 输出零 ANSI；两种形态在同一次真实结果上给出一致的完成态判定与退出码。心跳、动态区域重画节奏这类纯计时细节不在真实进程上逐秒断言——那类调度节奏由 [Runner](../unit/experiments-runner.md) 用可控 fake clock 验收。
 
 ## 边界
 

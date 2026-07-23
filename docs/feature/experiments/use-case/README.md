@@ -16,10 +16,10 @@
 
 - [选择器 + `--dry`:几十个实验里只跑要跑的,先看清计划再花钱](selector-narrowing.md)
 
-## `--output`(反馈模型)
+## 输出形态(`--json`)
 
-- [`--output agent`:让 coding agent 驱动「跑→读失败→改→重跑」循环](output-agent.md)
-- [`--output ci`:CI 门禁要稳定日志、单行结论、可归档产物](output-ci.md)
+- [`--json`(AI 循环):让 coding agent 驱动「跑→读失败→改→重跑」](json-agent-loop.md)
+- [CI 门禁:退出码、JUnit 与人读日志](json-ci-gate.md)
 
 ## 调度
 

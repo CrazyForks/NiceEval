@@ -363,7 +363,7 @@ export const agent = defineSandboxAgent({
 });
 ```
 
-终端最终怎样展示这些反馈由 `niceeval exp --output human|agent|ci` 决定,不是这些回调的职责。完整渲染契约见 [CLI · Attempt 阶段](cli.md#attempt-阶段)。
+终端最终怎样展示这些反馈由输出形态(人读文本 / `--json`)决定,不是这些回调的职责。完整渲染契约见 [CLI · Attempt 阶段](cli.md#attempt-阶段)。
 
 ### 哪些会落盘、怎样回顾
 
@@ -381,7 +381,7 @@ trace 不能替代 diagnostic/error:沙箱创建可能发生在 telemetry 建立
 
 diagnostic 是有界摘要,不是原始 SDK 日志转储。相同 `dedupeKey` 在同一 attempt 内折叠为一条并累计 `count`;`data` 只放定位所需的结构化小字段,不得放 token、完整 transcript 或无限增长的 stdout/stderr。原始 agent 行为属于 `events.json`,trace 属性属于 `trace.json`。
 
-实验级钩子(`ExperimentDef.setup` / `teardown`)不属于任何单个 attempt,它的 `diagnostic(...)` 只进运行级永久事件流(Human/Agent/CI 各追加一条),不落 attempt 的 `result.json`;`setup` 抛错则以每条 attempt 的结构化 `error`(`phase: "experiment.setup"`)落盘,失败照样可回顾。钩子的起止本身由 runner 直接发布为运行级反馈(Human 的运行级 active 行、agent/ci 的起止行,见 [CLI · 实验级钩子的显示](cli.md#实验级钩子的显示)),不写 `progress` 的 setup 在终端上同样可见。
+实验级钩子(`ExperimentDef.setup` / `teardown`)不属于任何单个 attempt,它的 `diagnostic(...)` 只进运行级永久事件流(人读文本与 `--json` 各追加一条),不落 attempt 的 `result.json`;`setup` 抛错则以每条 attempt 的结构化 `error`(`phase: "experiment.setup"`)落盘,失败照样可回顾。钩子的起止本身由 runner 直接发布为运行级反馈(Human 的运行级 active 行、`--json` 的起止事件,见 [CLI · 实验级钩子的显示](cli.md#实验级钩子的显示)),不写 `progress` 的 setup 在终端上同样可见。
 
 attempt 在 teardown 链与 sandbox stop 都结束后才封口并原子写 `result.json`,因此收尾 diagnostic 也能随 attempt 保存。teardown diagnostic 默认不反改已经得到的 verdict;如果某个收尾动作是结果正确性的必要条件,它应抛出致命错误并由 runner 明确把 attempt 记为 `errored`,而不是只打一条 diagnostic。
 

@@ -60,6 +60,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [codex-cli-otel-tool-span-callid-not-in-json-protocol](codex-cli-otel-tool-span-callid-not-in-json-protocol.md) — codex CLI `--json` 协议的 item 只有 item.id,原生 OTel 工具 span 的关联键是另一套 call_id(OpenAI Responses 风格),两者协议层面无共同字段,现有 call_id 精确匹配策略对 codex CLI 工具级 span 结构性地永远关联不上;真机验证到字段级,是否/如何解决未定,留待裁决
 - [claude-code-persistent-memory-breaks-verbal-isolation](claude-code-persistent-memory-breaks-verbal-isolation.md) — claude-code 会把"帮我记住"写进磁盘 memory,newSession 后合法记得;session-isolation 反证要测 transcript 不回放历史,不测回答不含事实
 - 已修 [e2b-provision-429-duplicate-sandbox](e2b-provision-429-duplicate-sandbox.md) — E2B create 成功后的 mkdir 初始化请求撞 429 被归拒绝类盲重试,同 token 开两台、首台泄漏计费(实跑 10 evals 见 14 台);修为 create 内 kill-on-failure(e2b.ts/docker.ts)+ 重试前一律对账且对账失败不重试(retry.ts)
+- [e2b-agent-template-npm-global-prefix](e2b-agent-template-npm-global-prefix.md) — 裁决(2026-07-23):NiceEval 的 Claude/Codex 公共 E2B baseline 继承了两套不同 Node 布局，普通 `npm install -g` 只在 Codex 可写、Claude 整片 EACCES；目标契约统一运行用户 prefix `/usr/local` + 目录权限 + build 自检，`v0.6.1` 在新模板发布前仍需显式 `--prefix /usr/local`；失败命令原始输出应由 wrapper 在 Eval 截断前落 `commands.json`，两项实现分别见 plan
 - 已修 [ledger-gitignore-pathspec-and-gitlinks](ledger-gitignore-pathspec-and-gitlinks.md) — ledger 裸 pathspec 只排根级缓存，嵌套 repo 又静默记成 gitlink 吞掉内部 diff；修为 gitignore glob 编译 + mode 160000 fail fast
 - 已修 [provision-retry-holds-concurrency-slot](provision-retry-holds-concurrency-slot.md) — provisioning 退避重试期间攥着 sandboxSem 并发名额陪跑 setTimeout,一批 429 能把实际并发拖到远低于 --max-concurrency 声明值(个位数);修为 ProvisionSlot 退避前 release、睡醒后 reacquire(`src/sandbox/retry.ts` + `resolve.ts` + `runner/attempt.ts`)
 - 已修 [e2b-list-returns-paginator-not-array](e2b-list-returns-paginator-not-array.md) — `Sandbox.list()` 真实是同步返回 `SandboxPaginator`，不是 Promise 数组；provision reconcile 与 detached keep inspect 都改为 `hasNext`/`nextItems()` 翻页，避免将真机 TypeError 吞成错误的过期状态(`src/sandbox/e2b.ts`、`src/sandbox/keep.ts`)
@@ -73,6 +74,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 裁决
 
+- [exp-output-two-forms-ruling](exp-output-two-forms-ruling.md) — 裁决(2026-07-23):`--output` 三档删除,exp 对齐「人读文本 + --json」全 CLI 原则(非 TTY 人读降级流即 CI 日志,--json=NDJSON,自造 NICEEVAL/niceeval: 方言与 --json <path> 聚合文件一并删);否决中间稿 human/log 两档(半人半机才需要自造词法);起因=show --json 定稿后 agent 档只剩参数差
 - [turn-error-binary-retryable-open-reason](turn-error-binary-retryable-open-reason.md) — 裁决(2026-07-22):turn 失败分类改判别联合 `{retryable, reason?}`——二分决策轴 + 开放 reason 词表,推翻同日封闭三词枚举 `rate_limit|network|unknown`;同场加 attempt 级总重试上限(8 次)与 send 级封顶(4 次)叠成两层预算
 - [external-review-round2-rulings](external-review-round2-rulings.md) — 设计裁决:第二轮外部评审翻案清单(2026-07-14)——coverage 省略=unknown、AssertionResult 判别联合、redact 必填、earlyExit 只认 passed、keep=failed|all、passRate 三拆、Selection 物化 attempts、ExperimentRunInfo 存 resolved
 - [dispatch-priority-binds-to-slot-grant](dispatch-priority-binds-to-slot-grant.md) — 裁决(2026-07-20):瓶颈优先绑在「全局并发位分配时刻」而非 fiber 创建顺序,空位给等待集中轮次最高者、不看谁先等;否决为 setup 中的瓶颈 run 预留名额(容量空转)、抢占在飞 attempt(成本不可回收)、削弱承诺(在最该生效的场景失效);根因是承诺句与「setup 不占并发位」组合不自洽的设计 bug,实现未走样
@@ -131,6 +133,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 裁决
 
+- [show-scope-slice-json-ruling](show-scope-slice-json-ruling.md) — 裁决(2026-07-23):show 定稿为范围×切片×形态三正交轴(切片吃任意范围、多 --exp=对照矩阵、--json 第二形态、--grep/--expand、Usage 形状+ctx.fact 通道);否决独立 compare 子命令与 agent 直读 .niceeval;起因=MemoryBench 三条件归因 93 次调用+手写解析才拼出对照表,usage 落盘 requests:1 失真
 - [score-display-source-face-carries-score-evidence](score-display-source-face-carries-score-evidence.md) — 裁决(2026-07-23):计分制给分证据在有源码的 attempt 详情由 AttemptSource 承载(pts pill/t.score 行标注/⤓+未到达降灰/unmapped 兜底),否决「AttemptAssessment 追加给分区块」;配套=总分只在 AttemptSummary 头行、得分点豁免 passed 收纳、passed 丢分进结果摘要、FixPrompt 把丢分算可操作失败;起因是 display.md 承诺与 AttemptAssessment 二选一契约互相矛盾
 - [one-line-summary-grammar-and-flat-attempt-assertions](one-line-summary-grammar-and-flat-attempt-assertions.md) — 裁决(2026-07-22):单行失败摘要语法收拢为 display.md#单行压缩形态 单点(` · ` 分隔、matcher 即条件时省 expected、received 永不省);attempt 首页四段分节(failures:/soft/scores/unavailable)被 Phase G 平铺混排取代,display 与 docs-site 中英示例已同步铲平
 - [staleness-demoted-from-warning-to-provenance](staleness-demoted-from-warning-to-provenance.md) — 裁决(2026-07-22):stale-snapshot/partial-coverage 两个警告 kind 删除——时效降级为行级 `↩` 标注(attempt.carried/historical),覆盖缺口物化为 scope.coverage+榜单占位行,新增 fresh 口径(--fresh);warnings 只留定位不到行的三种;否决理由=警告粒度与事实粒度错位、carry 是正常功能不该带「多数情况请忽略」的警告
@@ -166,6 +169,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 台账
 
+- 已修 [report-test-scope-fixture-duplication-tax](report-test-scope-fixture-duplication-tax.md) — report 四个测试文件各复制一份 `scopeOf`/`resultsOf`,makeScope 两天两次改签名每次连改四处;修为收敛进 `src/report/components/scope.harness.ts`(`*.harness.ts` 不进 vitest 收集与 dist/report)
 - 已修 [attempt-source-unlocated-conversation-unstyled-and-escape-leak](attempt-source-unlocated-conversation-unstyled-and-escape-leak.md) — AttemptSource「Other conversation」兜底区文字墙 + 工具结果 `\n` 字面直出:`.nre-conv-*` 按容器限定没盖到第三容器、`compact()` 在 stringify 之后才收口;修为第三容器补 CSS + 先收口后字符串化;教训=共享 renderer 进新容器 CSS 不自动跟、自由文本收口必须在序列化前
 - 已修 [eval-header-historical-mark-shifts-grid-columns](eval-header-historical-mark-shifts-grid-columns.md) — ExperimentList Eval 父行的 `↩` 时效标注曾裸插进按位置取列的 4 轨 grid 当第 5 个子元素,全携带的题整行错位、rollup 挤进 20px 列逐字竖排;修为嵌进题目名格内(`ExperimentList.tsx` EvalAttempts);教训=固定轨数 grid 不能裸插条件子元素
 - [view-shell-nav-ignores-page-navigation-flag](view-shell-nav-ignores-page-navigation-flag.md) — scope-input page 显式声明 `navigation: false` 时,view 外壳导航仍把它渲染成 tab;`renderReportSlot` 算出的 `navigablePages` 只喂 `initialPageId` 兜底,没喂 `viewData.report.pages`;目前无场景触发(唯一会设它的 attempt-input page 更早已被过滤掉),未修
@@ -317,6 +321,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 - [index-classification-by-subsystem](index-classification-by-subsystem.md) — 裁决(2026-07-21):memory 索引按「子系统」单一主轴归档(分区=动手前扫哪块),溶解「设计决定」分区、报告拆出独立、大区内拆裁决(≈DX 反馈)/台账(≈bug);否决把 bug/DX 反馈当顶层主轴(类型轴切顶层=同一块工作扫两处,正是原问题根因)与分离已修条目(违反不归档规则);commit 05a040e
 - [turn-label-plain-words](turn-label-plain-words.md) — 裁决(2026-07-21):轮/窗口标签从 `s<session>/t<turn>` 改为自描述词——主会话 `turn<N>`、`t.newSession()` 会话 `session<K>/turn<N>`(从 2 起),全证据面同一枚 token、`--window` 等值匹配;否决全局连号(并行 session 竞态)与恒带 session 前缀(主线噪音);标签不透明不解析,schemaVersion 不递增、旧快照不迁移
+- [unit-audit-2026-07-meaningless-test-verdicts](unit-audit-2026-07-meaningless-test-verdicts.md) — 全量单测审查裁决(2026-07-23):21k 行仅 5 条直接删除级(恒真占位/协议归一越层/语言能力/跨家族重复四类病因),2 条唯一覆盖搬家、2 处类型检查空转迁编译期;跟改率高 ≠ 该删,头部跟改文件恰是质量最好的;遗留改写候选与 6 处覆盖登记缺口清单在正文
 - [test-budget-inverted-pyramid](test-budget-inverted-pyramid.md) — 裁决(2026-07-13):测试预算按「静默出错的代价」分配,不按代码量或好测程度,行覆盖率不作指标;出处=全套件审计实测「读结果/画结果」测到 0.91 而「判断对错」(scoring/expect/fingerprint/runEvals/computeVerdict)测到 0;套件质量本身是好的,问题是指向了错的代码,落成 docs/engineering/testing/unit/
 - [terminology-overhaul-2026-07](terminology-overhaul-2026-07.md) — 术语大改名裁决(两批):Outcome→Verdict(经 Conclusion 同日翻案,eve/TTCN-3 先例)、Backend→Provider、早停→首过即停(代码名不动)、Judge/Attempt/Turn/artifact/Selection 中文直用、值断言/严重度/dual-render、结果快照限定语;多义词逐语境甄别纪律
 - [error-feedback-message-carries-fix](error-feedback-message-carries-fix.md) — 裁决(2026-07-15):报错必带下一步定为跨切面契约(docs/error-feedback.md,三段式+可选 `command`);曾选「必填独立 fix 字段」否决——拆走下一步破坏「只打 message 就完整」承诺、留内嵌又成重复;AttemptError 划在契约边界外

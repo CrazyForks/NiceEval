@@ -10,6 +10,7 @@
 
 ## 比较、评分与定位
 
+- [从终端做跨条件归因](cli-cross-condition-attribution.md) —— 多 `--exp` 对照矩阵 / `--usage` / `--grep` / `--json`。
 - [比较质量、成本与前沿](compare-quality-cost.md) —— `ExperimentComparison` / `MetricScatter` / `MetricTable`。
 - [固定题集做考试成绩单](fixed-suite-scorecard.md) —— `Scoreboard`。
 - [分数低时区分任务失败与执行失败](diagnose-reliability.md) —— `MetricTable` + 三种通过率。
@@ -60,8 +61,12 @@
 | 位置参数(eval id 前缀) | show / view | [`--history` 用例](show-history-flaky-eval.md) · [裸 `view` 与收窄](view-local-narrowing.md) |
 | `@<locator>` 位置参数 | show | [`@locator` 下钻](show-locator-drilldown.md) |
 | `--source` / `--execution` / `--timing` / `--diff` | show | [`@locator` 下钻](show-locator-drilldown.md) |
+| `--usage` / `--grep` / `--expand` | show | [跨条件归因](cli-cross-condition-attribution.md) |
+| `--json` | show | [跨条件归因](cli-cross-condition-attribution.md) |
 | `--history` | show | [`--history` 用例](show-history-flaky-eval.md) |
+| `--stats` | show | [跨条件归因](cli-cross-condition-attribution.md) |
 | `--exp` | show / view | [`--history` 用例](show-history-flaky-eval.md) · [裸 `view` 与收窄](view-local-narrowing.md) |
+| `--exp` ×N(对照) | show | [跨条件归因](cli-cross-condition-attribution.md) |
 | `--results` | show / view | [换结果根](results-root-and-snapshot.md) |
 | `--snapshot` | view | [换结果根](results-root-and-snapshot.md) |
 | `--no-open` / `--port` | view | [裸 `view` 与收窄](view-local-narrowing.md) |

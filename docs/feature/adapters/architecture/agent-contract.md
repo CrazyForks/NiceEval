@@ -53,9 +53,12 @@ interface AgentContext {
   readonly experimentId?: string;
   progress(update: { message: string; current?: number; total?: number }): void;
   diagnostic(input: DiagnosticInput): void;
+  fact(key: string, value: string | number | boolean): void;
   log(msg: string): void;
 }
 ```
+
+`fact(key, value)` 是与 `progress` / `diagnostic` 并列的第三条反馈通道:上报本次运行的中性环境观测(如实际生效的 agent 配置、缓存命中状态),落进 `AttemptRecord.facts` 成为一等观测量;不影响 Turn status 或 verdict,形状与覆盖语义见 [Results · facts](../../results/architecture.md#facts运行事实)。
 
 `ctx` 是驱动 Agent 的低层上下文,eval 的 `t` 是运行器构造的断言视图。二者共享 experiment 输入、signal 与作用域反馈能力,但只有 `ctx` 暴露 Agent 会话状态,只有 `t` 暴露断言和 judge。
 
