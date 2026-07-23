@@ -21,6 +21,7 @@ export {
   totalScore,
 } from "./model/metrics.ts";
 export { flag, label, numericFlag, numericLabel, numericRunConfig, runConfig } from "./model/flag.ts";
+export { scoringComposition } from "./model/scoring.ts";
 
 // 报告定义与组件基座
 export {
@@ -253,6 +254,7 @@ export type {
   ScopeSummaryData,
   ScopeWarning,
   ScoreboardData,
+  ScoringComposition,
   SeriesInput,
   TableData,
   TraceSpanSummary,

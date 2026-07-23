@@ -10,6 +10,7 @@
 import type { ReportInput, ScopeSummaryData } from "../../model/types.ts";
 import { collectItems, computeCell, resolveInput } from "../../model/aggregate.ts";
 import { costUSD, defineMetric, endToEndPassRate, totalScore } from "../../model/metrics.ts";
+import { scoringComposition } from "../../model/scoring.ts";
 import { selectedEvalsOnly, summarizeItems, tallyOf } from "../shared-compute.ts";
 
 // ───────────────────────── scopeSummaryData ─────────────────────────
@@ -43,12 +44,10 @@ export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummary
   const attemptVerdicts = tallyOf();
   for (const item of items) attemptVerdicts[item.attempt.result.verdict] += 1;
 
-  // 题型构成:决定渲染面的主 KPI 是通过率、总分,还是两者都显示(见
-  // docs/feature/reports/library/summaries.md「ScopeSummary」)。
-  const hasPoints = items.some((item) => item.attempt.result.scoring === "points");
-  const hasPass = items.some((item) => item.attempt.result.scoring !== "points");
-  const scoringComposition: ScopeSummaryData["scoringComposition"] =
-    hasPoints && hasPass ? "mixed" : hasPoints ? "points" : "pass";
+  // 题型构成:决定渲染面的主 KPI 是通过率、总分,还是两者都显示。单点判据见
+  // scoringComposition()(docs/feature/reports/library/metrics.md「题型构成与主读数」)——
+  // 不在这里另设一份 hasPoints/hasPass 判断。
+  const composition = await scoringComposition(input);
 
   return {
     range: { earliestStartedAt: earliest, latestStartedAt: latest },
@@ -58,8 +57,8 @@ export async function scopeSummaryData(input: ReportInput): Promise<ScopeSummary
     evalVerdicts: stats.verdicts,
     attemptVerdicts,
     endToEndPassRate: await computeCell(endToEndPassRate, items),
-    scoringComposition,
-    ...(hasPoints ? { totalScore: await computeCell(totalScore, items) } : {}),
+    scoringComposition: composition,
+    ...(composition !== "pass" ? { totalScore: await computeCell(totalScore, items) } : {}),
     totalCostUSD: await computeCell(totalCostMetric, items),
   };
 }
