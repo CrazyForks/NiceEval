@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { evalDescriptorOf, resolveExperimentEvals, selectedEvalsForRun, splitByScoring } from "./eval-selection.ts";
-import type { DiscoveredEval, EvalDescriptor } from "./types.ts";
+import type { DiscoveredEval } from "./types.ts";
 import { interpolate } from "../i18n/core.ts";
 import { en } from "../i18n/en.ts";
 import { zhCN } from "../i18n/zh-CN.ts";
@@ -180,13 +180,6 @@ describe("selectedEvalsForRun", () => {
     const c = makeEval("c");
     const picked = selectedEvalsForRun([a, b, c], { selectedEvalIds: ["c", "a"] });
     expect(picked.map((e) => e.id)).toEqual(["a", "c"]); // 顺序随 all,不随 selectedEvalIds 声明序
-  });
-});
-
-describe("EvalDescriptor 类型可从公开入口导入", () => {
-  it("类型层守卫:占位断言(真正的推断检查在 pnpm typecheck)", () => {
-    const descriptor: EvalDescriptor = { id: "x", tags: [], scoring: "pass" };
-    expect(descriptor.id).toBe("x");
   });
 });
 

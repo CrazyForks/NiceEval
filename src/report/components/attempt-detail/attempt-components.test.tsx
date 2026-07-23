@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AssertionResult, EvalResult, StreamEvent, Verdict } from "../../../types.ts";
 import type { Results, Scope } from "../../../results/index.ts";
-import { makeScope } from "../../../results/select.ts";
+import { emptyScopeAndResults } from "../scope.harness.ts";
 import type { AttemptEvidence, AttemptEvidenceCapabilities } from "../../../results/attempt-evidence.ts";
 import { encodeAttemptLocator, type AttemptIdentity } from "../../../results/locator.ts";
 import { buildAnnotatedEvalSource } from "../../../results/annotated-source.ts";
@@ -93,15 +93,9 @@ function evidenceOf(overrides: Partial<AttemptEvidence> = {}): AttemptEvidence {
   };
 }
 
-function scopeAndResults(): { scope: Scope; results: Results } {
-  const scope = makeScope("current-evals", [], [], []);
-  const results = { experiments: [], skipped: [], latest: () => scope, current: () => scope } as unknown as Results;
-  return { scope, results };
-}
-
 /** resolve 单个 attempt-input page 节点,注入给定的 evidence。 */
 async function resolveOnAttemptPage(node: ReportNode, evidence: AttemptEvidence): Promise<unknown> {
-  const { scope, results } = scopeAndResults();
+  const { scope, results } = emptyScopeAndResults();
   const page = { id: "attempt", input: "attempt" as const, locator: evidence.locator, evidence };
   return resolveReportTree(node, {
     scope,
@@ -114,7 +108,7 @@ async function resolveOnAttemptPage(node: ReportNode, evidence: AttemptEvidence)
 
 /** resolve 一份放在 scope-input page 上的节点(默认 report 页,没有 attempt evidence)。 */
 async function resolveOnScopePage(node: ReportNode): Promise<unknown> {
-  const { scope, results } = scopeAndResults();
+  const { scope, results } = emptyScopeAndResults();
   return resolveReportTree(node, {
     scope,
     results,

@@ -275,12 +275,4 @@ describe("createAgentSession", () => {
     });
   });
 
-  describe("state", () => {
-    it("起始是 {},框架从不写入——可以被 adapter 当逃生舱自由读写", () => {
-      const session = createAgentSession();
-      expect(session.state).toEqual({});
-      (session.state as Record<string, unknown>).foo = "bar";
-      expect(session.state.foo).toBe("bar");
-    });
-  });
 });

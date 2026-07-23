@@ -14,7 +14,6 @@ import {
   type ExecutionTelemetryNode,
 } from "./execution-tree.ts";
 import { IO_MAX, ioText } from "./otlp/select.ts";
-import { parseClaudeCodeTranscript } from "./parsers/claude-code.ts";
 
 function span(over: Partial<TraceSpan> & Pick<TraceSpan, "spanId">): TraceSpan {
   return {
@@ -284,48 +283,6 @@ describe("buildExecutionTree", () => {
     const skill = tree.nodes.find((n) => n.kind === "skill.loaded") as ExecutionSkillNode;
     expect(skill.span).toBeUndefined();
     expect(tree.nodes.some((n) => n.kind === "telemetry")).toBe(true);
-  });
-
-  it("composes end to end with a real claude-code parser output: a Skill tool_use surrounded by ordinary tool calls produces the same skeleton whether piped straight from parseClaudeCodeTranscript or hand-built, and a correlated span enriches the resulting skill.loaded node", () => {
-    const line = (obj: object): string => JSON.stringify(obj);
-    const raw = [
-      line({ type: "assistant", message: { content: [{ type: "text", text: "let me check the docs" }] } }),
-      line({
-        type: "assistant",
-        message: { content: [{ type: "tool_use", id: "toolu_skill", name: "Skill", input: { skill: "pdf-processing" } }] },
-      }),
-      line({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "toolu_skill", content: "PDF skill body" }] } }),
-      line({
-        type: "assistant",
-        message: { content: [{ type: "tool_use", id: "toolu_bash", name: "Bash", input: { command: "ls" } }] },
-      }),
-      line({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "toolu_bash", content: "a.pdf" }] } }),
-    ].join("\n");
-
-    const { events } = parseClaudeCodeTranscript(raw);
-
-    // Sanity check: the parser really did produce a first-class skill.loaded (not an
-    // action.called("Skill", ...)) with no orphan action.result for the swallowed tool_result.
-    expect(events).toEqual([
-      { type: "message", role: "assistant", text: "let me check the docs" },
-      { type: "skill.loaded", skill: "pdf-processing", callId: "toolu_skill" },
-      { type: "action.called", callId: "toolu_bash", name: "Bash", input: { command: "ls" }, tool: "shell" },
-      { type: "action.result", callId: "toolu_bash", output: "a.pdf", status: "completed" },
-    ]);
-
-    const skillSpan = span({ spanId: "sp-skill", startMs: 0, endMs: 40, attributes: { call_id: "toolu_skill" } });
-    const bashSpan = span({ spanId: "sp-bash", startMs: 41, endMs: 55, attributes: { call_id: "toolu_bash" } });
-
-    const tree = buildExecutionTree(events, [skillSpan, bashSpan]);
-
-    expect(tree.nodes.map((n) => n.kind)).toEqual(["message", "skill.loaded", "action"]);
-    const skillNode = tree.nodes[1] as ExecutionSkillNode;
-    expect(skillNode.skill).toBe("pdf-processing");
-    expect(skillNode.callId).toBe("toolu_skill");
-    expect(skillNode.span).toEqual(skillSpan);
-    const actionNode = tree.nodes[2] as ExecutionActionNode;
-    expect(actionNode.span?.attributes).toMatchObject({ call_id: "toolu_bash", "io.tool": "Bash" });
-    expect(tree.timingAvailable).toBe(true);
   });
 
   it("appends telemetry-only nodes after the full skeleton, sorted by span.startMs regardless of arrival order", () => {

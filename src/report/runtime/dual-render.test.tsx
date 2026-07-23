@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AssertionResult, EvalResult, Verdict } from "../../types.ts";
 import type { AttemptHandle, Results, Scope, Snapshot } from "../../results/index.ts";
-import { makeScope } from "../../results/select.ts";
+import { resultsOf, scopeOf } from "../components/scope.harness.ts";
 import {
   createTextContext,
   defineComponent,
@@ -99,30 +99,6 @@ function snap(spec: {
   snapshot.evals = [...evals.entries()].map(([id, list]) => ({ id, attempts: list }));
   snapshot.attempts = attempts;
   return snapshot;
-}
-
-function scopeOf(snapshots: Snapshot[]): Scope {
-  return makeScope("current-evals", snapshots, snapshots.flatMap((s) => s.attempts), []);
-}
-
-function resultsOf(snapshots: Snapshot[]): Results {
-  const byId = new Map<string, Snapshot[]>();
-  for (const s of snapshots) byId.set(s.experimentId, [...(byId.get(s.experimentId) ?? []), s]);
-  const experiments = [...byId.entries()].map(([id, snaps]) => {
-    const sorted = [...snaps].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return {
-      id,
-      snapshots: sorted,
-      latest: sorted[0]!,
-      evalIds: [...new Set(sorted.flatMap((s) => s.evals.map((e) => e.id)))].sort(),
-    };
-  });
-  return {
-    experiments,
-    skipped: [],
-    latest: () => makeScope("latest-snapshots", experiments.map((e) => e.latest), experiments.flatMap((e) => e.latest.attempts), []),
-    current: () => makeScope("current-evals", experiments.map((e) => e.latest), experiments.flatMap((e) => e.latest.attempts), []),
-  } as unknown as Results;
 }
 
 /**

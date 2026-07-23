@@ -96,45 +96,67 @@ describe("placePointLabels", () => {
 // 不经渲染(docs/feature/reports/library/metric-views.md「图轴值域」)。
 
 describe("paddedAxisDomain", () => {
-  it("两端各扩数据跨度的 5%:数据极值不落在域端点上", () => {
-    // 跨度 10,5% = 0.5;10% 或非对称实现会给出不同的 [9, 21] / [9.5, 20] 等,能被这条区分
-    expect(paddedAxisDomain([10, 20])).toEqual([9.5, 20.5]);
+  it("两端各扩数据跨度的 20%:数据极值不落在域端点上", () => {
+    // 跨度 10,20% = 2;其它比例或非对称实现会给出不同的 [9, 21] / [8, 20] 等,能被这条区分
+    expect(paddedAxisDomain([10, 20])).toEqual([8, 22]);
   });
 
-  it("零跨度 fallback:非零值取该值绝对值的 5%", () => {
-    // 单点 8:margin = |8| × 0.05 = 0.4,与「值为 0 取 1」的分支必须走不同代码路径
-    expect(paddedAxisDomain([8])).toEqual([7.6, 8.4]);
-    expect(paddedAxisDomain([-8, -8])).toEqual([-8.4, -7.6]);
+  it("零跨度 fallback:非零值取该值绝对值的 20%", () => {
+    // 单点 8:margin = |8| × 0.2 = 1.6,与「值为 0 取 1」的分支必须走不同代码路径
+    expect(paddedAxisDomain([8])).toEqual([6.4, 9.6]);
+    expect(paddedAxisDomain([-8, -8])).toEqual([-9.6, -6.4]);
   });
 
-  it("零跨度 fallback:值恰为 0 时取 1(而不是 |0| × 5% = 0 的退化边距)", () => {
+  it("零跨度 fallback:值恰为 0 时取 1(而不是 |0| × 20% = 0 的退化边距)", () => {
     expect(paddedAxisDomain([0])).toEqual([-1, 1]);
   });
 
-  it("声明了 bounds 的一端:边距截到边界为止,贴边数据点如实落在框线上", () => {
-    // 通过率贴到 100%:数据 [0.8, 1],5% margin = 0.01 → 未钳制应为 [0.79, 1.01];
-    // max 钳到 bounds.max = 1,min 离边界还远,不受影响
-    expect(paddedAxisDomain([0.8, 1], { min: 0, max: 1 })).toEqual([0.79, 1]);
-    // 贴到 0:数据 [0, 0.2] → 未钳制 [-0.01, 0.21];min 钳到 0,max 离边界远,不受影响
-    const [lo, hi] = paddedAxisDomain([0, 0.2], { min: 0, max: 1 });
-    expect(lo).toBe(0);
-    expect(hi).toBeCloseTo(0.21);
+  it("声明了 bounds 的一端:扩展截到边界为止,贴边数据点如实落在框线上,余量推到另一端", () => {
+    // 通过率贴到 100%:数据 [0.8, 1] 边距后 [0.76, 1](max 钳制),跨度 0.24 < 下限 1/3,
+    // 补足时 hi 被 1 顶住,余量全部推向 lo → [2/3, 1],跨度恰为下限
+    const [lo1, hi1] = paddedAxisDomain([0.8, 1], { min: 0, max: 1 });
+    expect(lo1).toBeCloseTo(2 / 3);
+    expect(hi1).toBe(1);
+    // 贴到 0:数据 [0, 0.2] 边距后 [0, 0.24](min 钳制),补足时余量推向 hi → [0, 1/3]
+    const [lo2, hi2] = paddedAxisDomain([0, 0.2], { min: 0, max: 1 });
+    expect(lo2).toBe(0);
+    expect(hi2).toBeCloseTo(1 / 3);
   });
 
-  it("bounds 只声明一端(如 costUSD 的 { min: 0 })时,数据远离该端不触发钳制", () => {
-    expect(paddedAxisDomain([100, 120], { min: 0 })).toEqual([99, 121]);
+  it("聚集数据扩到最小跨度下限:bounds 全量程的 1/3,以数据为中心对称补足", () => {
+    // 数据 [0.73, 0.83] 边距后 [0.71, 0.85] 跨度 0.14 < 1/3,两侧各补 (1/3 − 0.14)/2
+    const [lo, hi] = paddedAxisDomain([0.73, 0.83], { min: 0, max: 1 });
+    expect(lo).toBeCloseTo(0.71 - (1 / 3 - 0.14) / 2);
+    expect(hi).toBeCloseTo(0.85 + (1 / 3 - 0.14) / 2);
+    expect(hi - lo).toBeCloseTo(1 / 3);
+  });
+
+  it("数据跨度本就不小于下限时,值域不受下限影响", () => {
+    // 数据 [0.2, 0.9] 边距后 [0.06, 1](max 钳制),跨度 0.94 ≥ 1/3,原样返回
+    const [lo, hi] = paddedAxisDomain([0.2, 0.9], { min: 0, max: 1 });
+    expect(lo).toBeCloseTo(0.06);
+    expect(hi).toBe(1);
+  });
+
+  it("bounds 只声明一端(如 costUSD 的 { min: 0 })时,量程参考取声明端到数据另一侧极值", () => {
+    // 参考 = dataHi − 0 = 120,下限 40;边距后 [96, 124] 跨度 28,两侧各补 6 → [90, 130]
+    expect(paddedAxisDomain([100, 120], { min: 0 })).toEqual([90, 130]);
+    // 数据跨度相对量程足够大时下限不触发:[40, 120] 边距后 [24, 136] 跨度 112 ≥ 40
+    expect(paddedAxisDomain([40, 120], { min: 0 })).toEqual([24, 136]);
   });
 
   it("无 bounds 的轴(如 MetricLine 的 NumericAxis)只扩边距,不钳制——即使数据跨越常见的自然边界", () => {
     // 不传 bounds 参数:与「声明了 bounds」的钳制路径必须走不同分支,数据可以跨到 0 以外
-    expect(paddedAxisDomain([-5, -1])).toEqual([-5.2, -0.8]);
+    const [lo, hi] = paddedAxisDomain([-5, -1]);
+    expect(lo).toBeCloseTo(-5.8);
+    expect(hi).toBeCloseTo(-0.2);
   });
 });
 
 describe("ticksInDomain", () => {
   it("刻度只在值域内取值,不像经典 nice-numbers 算法那样向外扩张出假刻度", () => {
-    const ticks = ticksInDomain(9.5, 20.5, 5);
-    expect(ticks.every((t) => t >= 9.5 && t <= 20.5)).toBe(true);
+    const ticks = ticksInDomain(8, 22, 5);
+    expect(ticks.every((t) => t >= 8 && t <= 22)).toBe(true);
     expect(ticks.length).toBeGreaterThan(0);
   });
 
@@ -152,16 +174,16 @@ describe("axisScale", () => {
     // 值域(用刻度间接验证,ticksInDomain 是值域的纯函数)必须相同——反向不重新推定值域
     expect(inverted.ticks).toEqual(normal.ticks);
     // 但映射方向相反:数据下界在 normal 中落在像素下界,在 inverted 中落在像素上界
-    expect(normal.scale(9.5)).toBeCloseTo(0);
-    expect(normal.scale(20.5)).toBeCloseTo(100);
-    expect(inverted.scale(9.5)).toBeCloseTo(100);
-    expect(inverted.scale(20.5)).toBeCloseTo(0);
+    expect(normal.scale(8)).toBeCloseTo(0);
+    expect(normal.scale(22)).toBeCloseTo(100);
+    expect(inverted.scale(8)).toBeCloseTo(100);
+    expect(inverted.scale(22)).toBeCloseTo(0);
   });
 
   it("bounds 钳制在 invert 下同样生效(反向只翻转映射,不绕过钳制)", () => {
     const scale = axisScale([0.8, 1], { min: 0, max: 1 }, 0, 100, true);
-    // 值域被钳到 [0.79, 1](见 paddedAxisDomain 测试);反向后值域上界(1)映射到像素下界
+    // 值域被钳制 + 下限补足为 [2/3, 1](见 paddedAxisDomain 测试);反向后值域上界(1)映射到像素下界
     expect(scale.scale(1)).toBeCloseTo(0);
-    expect(scale.scale(0.79)).toBeCloseTo(100);
+    expect(scale.scale(2 / 3)).toBeCloseTo(100);
   });
 });

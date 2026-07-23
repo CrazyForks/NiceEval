@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AssertionResult, AttemptError, EvalResult, O11ySummary, Verdict } from "../../types.ts";
 import type { AttemptHandle, Scope, ScopeWarning, Snapshot } from "../../results/index.ts";
-import { makeScope, selectCurrentResults } from "../../results/select.ts";
+import { scopeOf } from "./scope.harness.ts";
 import type { Results } from "../../results/types.ts";
 import {
   assistantTurns,
@@ -157,10 +157,6 @@ function snap(spec: SnapSpec): Snapshot {
   snapshot.evals = [...evals.entries()].map(([id, list]) => ({ id, attempts: list }));
   snapshot.attempts = attempts;
   return snapshot;
-}
-
-function scopeOf(snapshots: Snapshot[], warnings: ScopeWarning[] = [], coverage: import("../../results/types.ts").ScopeCoverage[] = []): Scope {
-  return makeScope("current-evals", snapshots, snapshots.flatMap((s) => s.attempts), warnings, coverage);
 }
 
 // ───────────────────────── 指标聚合口径 ─────────────────────────
@@ -308,82 +304,6 @@ describe("两级聚合口径", () => {
     });
     const data = await scopeSummaryData([s]);
     expect(data.endToEndPassRate.value).toBe(0);
-  });
-});
-
-describe("宿主现刻水位(selectCurrentResults)", () => {
-  function resultsOf(snapshots: Snapshot[]): Results {
-    const byId = new Map<string, Snapshot[]>();
-    for (const s of snapshots) byId.set(s.experimentId, [...(byId.get(s.experimentId) ?? []), s]);
-    const experiments = [...byId.entries()].map(([id, snaps]) => {
-      const sorted = [...snaps].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-      const evalIds = [...new Set(sorted.flatMap((s) => s.evals.map((e) => e.id)))].sort();
-      return { id, snapshots: sorted, latest: sorted[0]!, evalIds };
-    });
-    const results = {
-      experiments,
-      skipped: [],
-      latest: () => scopeOf(experiments.map((e) => e.latest)),
-      current: () => selectCurrentResults(results),
-    } as unknown as Results;
-    return results;
-  }
-
-  it("每个 experiment × eval 取跨历史最新判定:先 failed 后 passed 只用最新", async () => {
-    const older = snap({
-      experimentId: "exp/w",
-      results: [res("a", "failed"), res("b", "passed")],
-      runStartedAt: "2026-07-01T00:00:00.000Z",
-    });
-    const newer = snap({
-      experimentId: "exp/w",
-      results: [res("a", "passed")],
-      runStartedAt: "2026-07-02T00:00:00.000Z",
-    });
-    const scope = selectCurrentResults(resultsOf([older, newer]));
-    expect(scope.mode).toBe("current-evals");
-    const data = await scopeSummaryData(scope);
-    expect(data.evals).toBe(2);
-    expect(data.evalVerdicts).toEqual({ passed: 2, failed: 0, errored: 0, skipped: 0 });
-  });
-
-  it("可比性前提:配置不一致的旧快照不贡献 attempt,缺口进 coverage.missingEvalIds", () => {
-    const oldConfig = snap({
-      experimentId: "exp/cfg",
-      model: "gpt-old",
-      results: [res("a", "passed"), res("b", "passed")],
-      runStartedAt: "2026-07-01T00:00:00.000Z",
-    });
-    const newConfig = snap({
-      experimentId: "exp/cfg",
-      model: "gpt-new",
-      results: [res("a", "failed")],
-      runStartedAt: "2026-07-02T00:00:00.000Z",
-    });
-    const scope = selectCurrentResults(resultsOf([oldConfig, newConfig]));
-    // 旧 model 的 b 不冒充新配置的水位
-    expect(scope.snapshots[0]!.evals.map((e) => e.id)).toEqual(["a"]);
-    expect(scope.warnings.filter((w) => w.kind !== "unreadable-snapshot")).toHaveLength(0);
-    const coverage = scope.coverage.find((c) => c.experimentId === "exp/cfg");
-    expect(coverage).toMatchObject({ knownEvalIds: ["a", "b"], missingEvalIds: ["b"] });
-  });
-
-  it("编排字段(runs / maxConcurrency / description…)不参与可比性比较", () => {
-    const older = snap({
-      experimentId: "exp/orch",
-      results: [res("a", "passed"), res("b", "passed")],
-      runStartedAt: "2026-07-01T00:00:00.000Z",
-      experiment: { runs: 3, earlyExit: true, maxConcurrency: 2, selectedEvalIds: ["a", "b"], description: "old" },
-    });
-    const newer = snap({
-      experimentId: "exp/orch",
-      results: [res("a", "failed")],
-      runStartedAt: "2026-07-02T00:00:00.000Z",
-      experiment: { runs: 1, earlyExit: false, selectedEvalIds: ["a"], description: "new" },
-    });
-    const scope = selectCurrentResults(resultsOf([older, newer]));
-    expect(scope.attempts.map((a) => a.evalId).sort()).toEqual(["a", "b"]);
-    expect(scope.coverage.find((c) => c.experimentId === "exp/orch")?.missingEvalIds).toEqual([]);
   });
 });
 
@@ -728,8 +648,6 @@ describe("实体列表 data", () => {
     const items = await experimentListData(scope);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ experimentId: "exp/fresh", missingEvalIds: ["a", "b"], evals: 0, attempts: 0, evalRows: [] });
-    // Scope.filter 不再拿 snapshots 当 coverage 的存续代理；无 snapshot 的覆盖事实保持不变。
-    expect(scope.filter(() => true).coverage).toEqual(scope.coverage);
   });
 
   // ─────── 计分制字段:scoring 定义期投影 / totalScore 的两级聚合方向 / 预排 ───────

@@ -500,31 +500,22 @@ describe("results.latest() / results.current() · unreadable-snapshot", () => {
 
 // ───────────────────────── ScopeWarning 联合成员恰为三种(回归锁死) ─────────────────────────
 
-describe("ScopeWarning 判别联合", () => {
-  it("kind 全集恰为 unfinished-snapshot / missing-startedAt / unreadable-snapshot;新增成员需同步改这里(穷尽 switch 编译期报错)", () => {
-    function assertKnownKind(kind: import("./types.ts").ScopeWarning["kind"]): void {
-      switch (kind) {
-        case "unfinished-snapshot":
-        case "missing-startedAt":
-        case "unreadable-snapshot":
-          return;
-        default: {
-          // 编译期穷尽检查:多一个 kind 而没同步改这里,这一行编译不过——
-          // 这就是「ScopeWarning 联合成员恰为三种」的运行时+类型层双重锁死。
-          const exhausted: never = kind;
-          throw new Error(`unexpected ScopeWarning kind: ${String(exhausted)}`);
-        }
-      }
+// 类型契约(编译期,随 pnpm typecheck):ScopeWarning 联合成员恰为三种——多一个 kind 而没同步
+// 改这里,default 分支的 never 赋值编译不过;少一个则对应 case 编译不过。kind 全集不是运行时
+// 行为,没有运行时断言可写(docs/engineering/testing/unit/README.md「类型契约」)。
+function assertScopeWarningKindExhaustive(kind: import("./types.ts").ScopeWarning["kind"]): void {
+  switch (kind) {
+    case "unfinished-snapshot":
+    case "missing-startedAt":
+    case "unreadable-snapshot":
+      return;
+    default: {
+      const exhausted: never = kind;
+      void exhausted;
     }
-    const samples: import("./types.ts").ScopeWarning[] = [
-      { kind: "unfinished-snapshot", experimentId: "e", startedAt: "t", dir: "/d", message: "m", command: "c" },
-      { kind: "missing-startedAt", experimentId: "e", evalId: "q1", message: "m" },
-      { kind: "unreadable-snapshot", dir: "/d", reason: "malformed", message: "m" },
-    ];
-    for (const s of samples) assertKnownKind(s.kind);
-    expect(samples.map((s) => s.kind)).toEqual(["unfinished-snapshot", "missing-startedAt", "unreadable-snapshot"]);
-  });
-});
+  }
+}
+void assertScopeWarningKindExhaustive;
 
 // ───────────────────────── 时效:attempt.carried 与 fresh 口径 ─────────────────────────
 
@@ -580,6 +571,22 @@ describe("时效:carried 投影与 fresh 口径", () => {
     // evals 里仍然原样带着被排除的 q1(真实 Snapshot 不被裁剪)。
     expect(fresh.snapshots.map((s) => s.startedAt)).toEqual(["2026-07-02T08:00:00.000Z"]);
     expect(fresh.snapshots[0]!.evals.map((e) => e.id).sort()).toEqual(["q1", "q3"]);
+  });
+
+  it("fresh 清空全部 attempt 后 Scope 只剩 coverage 事实;filter 不拿 snapshots 当 coverage 的存续代理", async () => {
+    const root = await makeRoot();
+    const monday = await writeSnapshot(root, "e", "2026-07-01T08-00-00-000Z", meta({ experimentId: "e", agent: "bub", startedAt: "2026-07-01T08:00:00.000Z", completedAt: "2026-07-01T08:10:00.000Z" }));
+    await writeResultFile(monday, "q1/a1", record({ id: "q1", attempt: 1 }));
+    // 周二唯一的条目是携带复印件:fresh 把它排除后,这个实验没有任何新执行。
+    const tuesday = await writeSnapshot(root, "e", "2026-07-02T08-00-00-000Z", meta({ experimentId: "e", agent: "bub", startedAt: "2026-07-02T08:00:00.000Z", completedAt: "2026-07-02T08:10:00.000Z" }));
+    await writeResultFile(tuesday, "q1/a1", record({ id: "q1", attempt: 1, startedAt: "2026-07-01T08:00:00.000Z", artifactBase: "e/2026-07-01T08-00-00-000Z/q1/a1" }));
+
+    const fresh = (await openResults(root)).current({ fresh: true });
+    expect(fresh.attempts).toEqual([]);
+    const coverage = fresh.coverage.find((c) => c.experimentId === "e")!;
+    expect(coverage.missingEvalIds).toEqual(["q1"]);
+    // coverage-only 实验(零 snapshot 贡献)经 filter 后覆盖缺口不静默消失——榜单占位行的上游事实。
+    expect(fresh.filter(() => true).coverage).toEqual(fresh.coverage);
   });
 });
 

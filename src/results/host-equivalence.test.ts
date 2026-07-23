@@ -57,6 +57,8 @@ interface SnapshotOpts {
   knownEvalIds?: string[];
   /** 声明这份快照实际选中的 eval id 全集;省略 = 第三方 harness 未实现该字段。 */
   selectedEvalIds?: string[];
+  /** 编排字段覆盖(runs / earlyExit / maxConcurrency / description…),叠在默认 { runs: 1, earlyExit: true } 上。 */
+  experiment?: Record<string, unknown>;
 }
 
 /** 写一份新布局快照:snapshot.json + 各 attempt 的 result.json。返回快照目录绝对路径。 */
@@ -78,8 +80,15 @@ async function writeSnapshot(
     startedAt: opts.startedAt,
     ...(opts.unfinished ? {} : { completedAt: opts.startedAt }),
     ...(opts.knownEvalIds ? { knownEvalIds: opts.knownEvalIds } : {}),
-    ...(opts.selectedEvalIds !== undefined
-      ? { experiment: { runs: 1, earlyExit: true, selectedEvalIds: opts.selectedEvalIds } }
+    ...(opts.selectedEvalIds !== undefined || opts.experiment !== undefined
+      ? {
+          experiment: {
+            runs: 1,
+            earlyExit: true,
+            ...(opts.selectedEvalIds !== undefined ? { selectedEvalIds: opts.selectedEvalIds } : {}),
+            ...opts.experiment,
+          },
+        }
       : {}),
   };
   await writeFile(join(dir, "snapshot.json"), JSON.stringify(meta, null, 2), "utf-8");
@@ -369,6 +378,76 @@ describe("selectCurrentResults · 现刻水位结构化身份", () => {
     expect(norm.warnings).toEqual([]);
     expect(norm.coverage).toEqual([
       { experimentId: "compare/bub", knownEvalIds: ["q1", "q2"], missingEvalIds: ["q2"] },
+    ] satisfies NormCoverage[]);
+  });
+
+  it("可比性前提:配置(model)不一致的旧快照不贡献 attempt,缺口进 coverage.missingEvalIds", async () => {
+    const root = await makeRoot();
+    await writeSnapshot(
+      root,
+      "2026-07-01T08-00-00-000Z",
+      { experimentId: "compare/cfg", model: "gpt-old", startedAt: "2026-07-01T08:00:00.000Z" },
+      [res("q1", "passed"), res("q2", "passed")],
+    );
+    await writeSnapshot(
+      root,
+      "2026-07-02T08-00-00-000Z",
+      { experimentId: "compare/cfg", model: "gpt-new", startedAt: "2026-07-02T08:00:00.000Z" },
+      [res("q1", "failed")],
+    );
+    const results = await openResults(root);
+    const norm = normalizeSelection(selectCurrentResults(results));
+    // 旧 model 的 q2 不冒充新配置的水位:只有周二的 q1 物化进 attempts,缺口如实进 coverage,不发警告。
+    expect(norm.experiments).toEqual([
+      {
+        experimentId: "compare/cfg",
+        evals: [{ evalId: "q1", attempts: [{ snapshot: "compare_cfg/2026-07-02T08-00-00-000Z", attempt: "q1/a0", verdict: "failed" }] }],
+      },
+    ] satisfies NormExperiment[]);
+    expect(norm.warnings).toEqual([]);
+    expect(norm.coverage).toEqual([
+      { experimentId: "compare/cfg", knownEvalIds: ["q1", "q2"], missingEvalIds: ["q2"] },
+    ] satisfies NormCoverage[]);
+  });
+
+  it("编排字段(runs / maxConcurrency / description…)不参与可比性比较:旧快照照常补齐,无缺口", async () => {
+    const root = await makeRoot();
+    await writeSnapshot(
+      root,
+      "2026-07-01T08-00-00-000Z",
+      {
+        experimentId: "compare/orch",
+        startedAt: "2026-07-01T08:00:00.000Z",
+        selectedEvalIds: ["q1", "q2"],
+        experiment: { runs: 3, earlyExit: true, maxConcurrency: 2, description: "old" },
+      },
+      [res("q1", "passed"), res("q2", "passed")],
+    );
+    await writeSnapshot(
+      root,
+      "2026-07-02T08-00-00-000Z",
+      {
+        experimentId: "compare/orch",
+        startedAt: "2026-07-02T08:00:00.000Z",
+        selectedEvalIds: ["q1"],
+        experiment: { runs: 1, earlyExit: false, description: "new" },
+      },
+      [res("q1", "failed")],
+    );
+    const results = await openResults(root);
+    const norm = normalizeSelection(selectCurrentResults(results));
+    // agent/model 一致、只有编排字段不同:q2 从周一补齐,不被误判为不可比而制造伪残缺。
+    expect(norm.experiments).toEqual([
+      {
+        experimentId: "compare/orch",
+        evals: [
+          { evalId: "q1", attempts: [{ snapshot: "compare_orch/2026-07-02T08-00-00-000Z", attempt: "q1/a0", verdict: "failed" }] },
+          { evalId: "q2", attempts: [{ snapshot: "compare_orch/2026-07-01T08-00-00-000Z", attempt: "q2/a0", verdict: "passed" }] },
+        ],
+      },
+    ] satisfies NormExperiment[]);
+    expect(norm.coverage).toEqual([
+      { experimentId: "compare/orch", knownEvalIds: ["q1", "q2"], missingEvalIds: [] },
     ] satisfies NormCoverage[]);
   });
 

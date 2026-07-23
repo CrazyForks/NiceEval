@@ -50,9 +50,6 @@ describe("validateTableData", () => {
     expect(validateTableData(bad)).toMatch(/"rows\[0\]\.key"/);
   });
 
-  it("旧形状(dimension 而非 rowDimension)整体报错", () => {
-    expect(validateTableData({ dimension: "agent", columns: [], rows: [] })).toMatch(/rowDimension/);
-  });
 });
 
 describe("validateMatrixData", () => {

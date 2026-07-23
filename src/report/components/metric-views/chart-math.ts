@@ -26,23 +26,54 @@ export interface AxisBounds {
 }
 
 /**
- * 图轴值域推定(docs/feature/reports/library/metric-views.md「图轴值域」):数据极值向两端
- * 各扩数据跨度的 5%,数据极值点因此不落在绘图框线上。数据跨度为零(单点,或全部点同值)时,
- * 边距改取该值绝对值的 5%;值恰为 0 时取 1(否则唯一的点仍会贴框)。声明了 bounds 的一端,
- * 边距截到边界为止——贴边数据点如实落在框线上(如通过率 100%),那是指标的自然边界,不是
- * 裁剪。MetricScatter 的两轴与 MetricLine 的两轴共用同一个函数;MetricLine 的 x 轴
- * (NumericAxis)没有 bounds,调用时不传第二参,只扩边距不钳制。web SVG 与 text 字符坐标图
- * 消费同一份返回值,渲染层不重算。
+ * 图轴值域推定(docs/feature/reports/library/metric-views.md「图轴值域」),两步:
+ *
+ * ① 呼吸边距:数据极值向两端各扩数据跨度的 20%,数据极值点因此不落在绘图框线上。数据跨度
+ * 为零(单点,或全部点同值)时,边距改取该值绝对值的 20%;值恰为 0 时取 1(否则唯一的点仍会
+ * 贴框)。
+ *
+ * ② 最小跨度下限:值域跨度不得小于量程参考的 1/3——值域永远贴着数据画的话,数据聚集时微小
+ * 差距会撑满绘图区被读成显著差异。不足时以数据为中心对称扩展补足,一端被 bounds 顶住时余量
+ * 推到另一端。量程参考:bounds 两端都声明取全量程;只声明一端取声明端到数据另一侧极值的
+ * 距离;都未声明(MetricLine 的 NumericAxis)不适用下限。
+ *
+ * 声明了 bounds 的一端,两步扩展都截到边界为止——贴边数据点如实落在框线上(如通过率 100%),
+ * 那是指标的自然边界,不是裁剪。MetricScatter 的两轴与 MetricLine 的两轴共用同一个函数;
+ * web SVG 与 text 字符坐标图消费同一份返回值,渲染层不重算。
  */
 export function paddedAxisDomain(values: readonly number[], bounds?: AxisBounds): [number, number] {
   const dataLo = Math.min(...values);
   const dataHi = Math.max(...values);
   const span = dataHi - dataLo;
-  const margin = span > 0 ? span * 0.05 : dataLo === 0 ? 1 : Math.abs(dataLo) * 0.05;
+  const margin = span > 0 ? span * 0.2 : dataLo === 0 ? 1 : Math.abs(dataLo) * 0.2;
   let lo = dataLo - margin;
   let hi = dataHi + margin;
   if (bounds?.min !== undefined) lo = Math.max(lo, bounds.min);
   if (bounds?.max !== undefined) hi = Math.min(hi, bounds.max);
+
+  const reference =
+    bounds?.min !== undefined && bounds?.max !== undefined
+      ? bounds.max - bounds.min
+      : bounds?.min !== undefined
+        ? dataHi - bounds.min
+        : bounds?.max !== undefined
+          ? bounds.max - dataLo
+          : undefined;
+  if (reference !== undefined) {
+    const deficit = reference / 3 - (hi - lo);
+    if (deficit > 0) {
+      lo -= deficit / 2;
+      hi += deficit / 2;
+      if (bounds?.min !== undefined && lo < bounds.min) {
+        hi += bounds.min - lo;
+        lo = bounds.min;
+      }
+      if (bounds?.max !== undefined && hi > bounds.max) {
+        lo = Math.max(lo - (hi - bounds.max), bounds?.min ?? -Infinity);
+        hi = bounds.max;
+      }
+    }
+  }
   return [lo, hi];
 }
 

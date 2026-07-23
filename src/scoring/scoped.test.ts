@@ -251,12 +251,12 @@ describe("calledSubagent:remoteUrl 三种形态与 output", () => {
     const r = await evaluate(Scoped.calledSubagent("researcher", { status: "pending" }), ctxWith({ events: pendingEvents }));
     expect(r.outcome).toBe("passed");
   });
-
-  it("类型层:SubagentMatch.status 没有 rejected 成员(子 agent 委派没有 rejected 状态)", () => {
-    const match: SubagentMatch = {
-      // @ts-expect-error SubagentMatch 的 status 只有 pending | completed | failed,没有 rejected
-      status: "rejected",
-    };
-    expect(match.status).toBe("rejected");
-  });
 });
+
+// 类型契约(编译期,随 pnpm typecheck):SubagentMatch.status 没有 rejected 成员——子 agent 委派
+// 没有 rejected 状态(scoring.md「类型层证明」)。成员全集不是运行时行为,没有运行时断言可写。
+const subagentMatchHasNoRejected: SubagentMatch = {
+  // @ts-expect-error SubagentMatch 的 status 只有 pending | completed | failed,没有 rejected
+  status: "rejected",
+};
+void subagentMatchHasNoRejected;
