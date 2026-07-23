@@ -48,12 +48,64 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
+/** E2B 沙箱的运行用户:agent 与 eval 的命令都以它执行,契约按它的视角定义。 */
+const E2B_RUN_USER = "user";
+
+/**
+ * NiceEval 三份 E2B baseline 共同的 Node 工具前缀:运行用户的 npm global prefix、
+ * 全局 bin 与全局 module 目录都收敛到这里。
+ *
+ * E2B 官方 `claude` 与 `codex` 起点把 Node 装在不同前缀下(`/usr` 与 `/usr/local`),
+ * 默认 npm prefix 随之不同,只有后者对运行用户可写。不规范化的话,同一条 eval 的
+ * `npm install -g` 会只因换 Agent 就整片 EACCES,而 Agent CLI 自检仍然通过。
+ */
+export const E2B_NODE_TOOL_PREFIX = "/usr/local";
+
+const NODE_TOOL_BIN = `${E2B_NODE_TOOL_PREFIX}/bin`;
+const NODE_TOOL_MODULES = `${E2B_NODE_TOOL_PREFIX}/lib/node_modules`;
+
+/**
+ * 横切在三条 Agent 配方之上的 Node 工具契约:准备运行用户可写的全局目录,并把它的
+ * npm prefix 写进 user 级 npmrc(user config 优先级高于 builtin/global,不依赖登录 shell)。
+ */
+function withNodeToolContract(template: TemplateBuilder): TemplateBuilder {
+  return template
+    .runCmd(
+      `mkdir -p ${NODE_TOOL_BIN} ${NODE_TOOL_MODULES} && chown ${E2B_RUN_USER} ${NODE_TOOL_BIN} ${NODE_TOOL_MODULES}`,
+      { user: "root" },
+    )
+    .runCmd(`npm config set prefix ${E2B_NODE_TOOL_PREFIX}`, { user: E2B_RUN_USER });
+}
+
+/**
+ * Assert the shared Node tooling contract inside a template build, as the sandbox run user.
+ *
+ * 校验 npm global prefix、`PATH` 与两个全局目录的写权限。任一项漂移时 build 在写入 registry
+ * 前失败,不会发布一份「Agent CLI 能启动、但 `npm install -g` 必挂」的模板。构建脚本应在
+ * 全部安装步骤之后链这一步。
+ */
+export function verifyE2BNodeToolContract(template: TemplateBuilder): TemplateBuilder {
+  return template.runCmd(
+    [
+      `test "$(npm config get prefix)" = "${E2B_NODE_TOOL_PREFIX}" || { echo "npm global prefix is $(npm config get prefix), expected ${E2B_NODE_TOOL_PREFIX}" >&2; exit 1; }`,
+      `case ":$PATH:" in *":${NODE_TOOL_BIN}:"*) ;; *) echo "${NODE_TOOL_BIN} is missing from PATH: $PATH" >&2; exit 1 ;; esac`,
+      `test -w ${NODE_TOOL_BIN} || { echo "${NODE_TOOL_BIN} is not writable by $(id -un)" >&2; exit 1; }`,
+      `test -w ${NODE_TOOL_MODULES} || { echo "${NODE_TOOL_MODULES} is not writable by $(id -un)" >&2; exit 1; }`,
+    ],
+    { user: E2B_RUN_USER },
+  );
+}
+
 /**
  * Start an extensible E2B template for a coding agent.
  *
  * Claude Code and Codex extend E2B's official templates. Bub uses NiceEval's
  * immutable install recipe because E2B does not currently publish a Bub base.
  * Callers can chain normal E2B TemplateBuilder operations before building.
+ *
+ * 三种 agent 的产物共享同一份 Node 工具契约:运行用户的 npm global prefix 是
+ * `/usr/local`,`/usr/local/bin` 在 PATH 中,该前缀下的 bin 与 module 目录对它可写。
+ * 因此叠加全局 Node 工具用普通 `npm install -g <pkg>` 即可,不按 agent 分支。
  */
 export function e2bCodingAgentTemplate(
   agent: E2BCodingAgent,
@@ -63,13 +115,13 @@ export function e2bCodingAgentTemplate(
     if (options.bubPythonPackages?.length) {
       throw new Error("bubPythonPackages can only be used with the Bub E2B template");
     }
-    const template = Template().fromTemplate(E2B_OFFICIAL_AGENT_TEMPLATES[agent]);
+    const template = withNodeToolContract(Template().fromTemplate(E2B_OFFICIAL_AGENT_TEMPLATES[agent]));
     if (agent === "claude-code") {
       // E2B's official template puts a native Claude binary first in the user PATH; installing
       // npm as root would leave that older binary shadowing /usr/local/bin/claude.
       return template.runCmd(
         `curl -fsSL https://claude.ai/install.sh | bash -s ${DEFAULT_CLAUDE_CODE_CLI_VERSION}`,
-        { user: "user" },
+        { user: E2B_RUN_USER },
       );
     }
     return template.runCmd(`npm install -g @openai/codex@${DEFAULT_CODEX_CLI_VERSION}`, { user: "root" });
@@ -80,15 +132,14 @@ export function e2bCodingAgentTemplate(
   const withPackages = packages.map((value) => ` --with ${shellQuote(value)}`).join("");
   const marker = `/home/user/${BUB_INSTALL_MARKER}`;
   const overrideFile = "/tmp/bub-override.txt";
-  return Template()
-    .fromBaseImage()
-    .runCmd("curl -LsSf https://astral.sh/uv/install.sh | sh", { user: "user" })
+  return withNodeToolContract(Template().fromBaseImage())
+    .runCmd("curl -LsSf https://astral.sh/uv/install.sh | sh", { user: E2B_RUN_USER })
     .runCmd(
       [
         `printf '%s\\n' ${shellQuote(DEFAULT_BUB_OVERRIDE)} > ${overrideFile}`,
         `$HOME/.local/bin/uv tool install --python 3.12 --prerelease allow bub --overrides ${overrideFile} --with ${shellQuote(DEFAULT_BUB_OTEL_PLUGIN)}${withPackages}`,
         `mkdir -p $(dirname ${marker}) && printf '%s' ${shellQuote(installHash)} > ${marker}`,
       ],
-      { user: "user" },
+      { user: E2B_RUN_USER },
     );
 }

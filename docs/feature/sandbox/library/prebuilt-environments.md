@@ -68,6 +68,8 @@ sandbox: dockerSandbox({ image: "acme-codex-evals:2026-07-13" })
 
 `niceeval/sandbox/e2b-template` 提供一个很薄的 **E2B 专属** factory `e2bCodingAgentTemplate(agent)`,从官方 coding agent 起点派生并返回原生 `TemplateBuilder`。用户可以继续链 E2B API,所以"官方基线"不会成为不能修改的黑盒:
 
+Factory 同时收敛三条基线的 Node 工具安装面：运行用户的 `npm prefix -g` 是 `/usr/local`，`/usr/local/bin` 已在 PATH，`/usr/local/bin` 与 `/usr/local/lib/node_modules` 对运行用户可写。E2B 官方 `claude` 与 `codex` 起点的 Node 路径和默认 prefix 不同，这层规范化是 NiceEval 派生 baseline 的职责；否则同一条 eval 的 `npm install -g` 会只因换 Agent 而成片失败。因此项目追加全局 Node 工具用普通 `npm install -g <pkg>`，不需要按 Agent 分支，也不需要 sudo。`verifyE2BNodeToolContract(template)` 把这三条断言链进 build，任一项漂移时模板在写入 registry 前构建失败。各 release 的实际满足情况见本页下方「官方 coding agent 起点」。
+
 ```typescript
 // scripts/build-e2b-template.ts
 import { Template } from "e2b";
@@ -140,6 +142,12 @@ e2bSandbox({ template: NICEEVAL_BUB_E2B_TEMPLATE })
 返回值始终带完整跨 Team namespace 与已验证 release tag；release 选择属于 NiceEval 的发布知识，
 下游不再维护或读取另一份易漂移的版本常量。派生模板如果需要把 base 身份编码进名字或
 provenance，应直接使用所选完整 template ref。公开模板是 convenience baseline,不是 Adapter 的隐式默认值。
+
+源码中的 factory 契约只影响之后构建的模板，不会改写已经发布的 registry 制品。当前具名常量仍指向
+`v0.6.1`；该 release 的 Claude Code 模板保留 E2B 官方 `/usr` npm prefix，运行用户执行
+`npm install -g` 会遇到权限错误。发布下一组模板并 bump 常量前，直接消费 `v0.6.1` 的 eval 应显式写
+`npm install -g --prefix /usr/local <pkg>`；`/usr/local/bin` 已在三个模板的 PATH 中。不要用
+`sudo npm install -g` 绕过：root 侧可能与模板预装包发生文件冲突。
 
 Adapter 不自动替 experiment 选择 template:同一个 Codex Adapter 可以跑 Docker、E2B 或 Vercel,选择权属于 sandbox spec;反过来,sandbox 也不猜要运行哪个 Agent。预装只是快速路径,各 agent 检测预装与回退安装的具体语义在各自的接入页(上表链接)。
 

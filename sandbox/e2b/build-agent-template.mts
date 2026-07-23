@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import {
   e2bCodingAgentTemplate,
+  verifyE2BNodeToolContract,
   type E2BCodingAgent,
 } from "niceeval/sandbox/e2b-template";
 
@@ -27,8 +28,10 @@ try {
 }
 
 // 在 build 前继续链 .aptInstall() / .runCmd() / .copy()，即可把项目依赖叠加在官方起点上。
-const template = e2bCodingAgentTemplate(agent)
-  .runCmd("git --version && node --version");
+// 自检放在最后：它要断言的是发布物的最终状态，追加步骤同样受这条门槛约束。
+const template = verifyE2BNodeToolContract(
+  e2bCodingAgentTemplate(agent).runCmd("git --version && node --version"),
+);
 
 const built = await Template.build(template, alias, {
   cpuCount: 2,

@@ -173,6 +173,18 @@ e2bSandbox({ template: NICEEVAL_BUB_E2B_TEMPLATE })
 
 这些基线已实际启动验证：Claude Code `2.1.207`、Codex `0.144.1`，Bub 安装指纹 `83770925b77a`。每个值都是带 tag 的完整跨 Team 引用；业务仓库不应复制这些字符串，也不应维护或读取另一份 NiceEval release 常量。派生模板需要记录 base 身份时，直接使用所选的完整 template ref。
 
+当前常量指向的 `v0.6.1` 中，Claude Code 模板沿用 E2B 官方 `/usr` npm prefix，普通用户不能直接写全局模块。需要在运行时追加 pnpm、yarn 等全局 Node 工具时，显式把它们装到两个模板都已加入 PATH 的 `/usr/local`：
+
+```ts
+await t.sandbox.runCommand("npm", [
+  "install", "-g", "--prefix", "/usr/local", "pnpm@10.34.5",
+]);
+```
+
+不要改用 `sudo npm install -g`；模板里已有的 root 全局包可能产生文件冲突。NiceEval 后续会在
+新模板发布时统一这条默认 prefix；在发布说明明确新 release 已满足前，继续保留显式
+`--prefix /usr/local`。
+
 ```ts title="scripts/build-e2b-template.ts"
 import { Template } from "e2b";
 import { e2bCodingAgentTemplate } from "niceeval/sandbox/e2b-template";
