@@ -31,7 +31,7 @@ experiment 影响调度的字段就四个，语义单点在 [Runner](../../runne
 - `maxConcurrency` —— 实验私有信号量，先过它再占全局并发位；名额与 attempt 同生命周期（沙箱创建到销毁全程持有，turn 退避等内部等待不释放），串行化共享状态实验或给撞限额的实验单独降速。
 - `earlyExit` —— 只由 `passed` 触发的首过即停；`errored` 不中止其余样本，确定性错误走 run 级 fail-fast（见 [Runner · 首过即停](../../runner.md#首过即停earlyexit)）。
 - `budget` —— 按已完成 attempt 实测花费停止派发的安全网。
-- `timeoutMs` —— 单 attempt 外层超时。
+- `timeoutMs` —— 单 attempt 外层超时。不进 eval fingerprint 哈希,以携带资格判据参与 carry(`durationMs` ≤ 当前值才可携带,见 [Runner · 缓存](../../runner.md#缓存指纹去重));超时的证据保全与删失语义见 [Runner · 超时](../../runner.md#超时双层保护)。
 
 ## 实验级生命周期：setup 与 teardown
 

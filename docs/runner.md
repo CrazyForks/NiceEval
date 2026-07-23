@@ -93,6 +93,7 @@ budget 按**域**计,不是全局总闸:每个 experimentId 一个域(没有 exp
 
 - 上次判定是 `passed` 或 `failed`、且指纹未变 → 默认**跳过**,结果**携带合入**本次快照(带 `artifactBase` 指回原 artifact,落盘语义见 [Results · 两类条目](feature/results/architecture.md#resultjson)),最新快照因此保持完整。两者都是"跑完了、判定确定"的终态,没理由重花一次 agent/sandbox 成本去复现同一个已知结果。
 - **携带以 attempt 为粒度,缺失序号补跑。** 指纹未变时,上一轮已落盘的终态 attempt 逐条携带,本轮只派发计划内缺失的 attempt 序号——`runs: 5` 已有 3 条终态就只补跑 2 条,通过率的分母由携带与新跑共同凑满。携带的 `passed` 与首过即停组合遵守既有语义:已携入通过且 `earlyExit` 开时,缺失序号不再派发,计入 `earlyExitUnstarted`。
+- **`timeoutMs` 不进指纹哈希,是携带的资格判据。** 超时上限不改变「结果是什么」,只决定「等不等得到」:一条 15 分钟跑完的 `passed`,在 20 分钟和 40 分钟的上限下是同一个事实,把 `timeoutMs` 掺进哈希会让提高上限作废全部已完成结果——为一个不影响它们的参数付全量重跑。因此指纹不含 `timeoutMs`;携带在指纹匹配之外追加一条判据:**终态 attempt 可携带,当且仅当其 `durationMs` ≤ 当前 resolved `timeoutMs`**(未设上限视为无穷)。提高上限时全部已完成结果照常携带,只有当初撞线的 `errored`(本就不携带)重跑;调低上限时,耗时超过新线的旧结果不可在新配置下复现,如实重跑。
 - **携带来源不要求快照收尾。** attempt 的 `result.json` 在收尾链完成后一次写成,判定可信与否与快照有没有补上 `completedAt` 无关;被中断或强杀的 run 留下的未收尾快照,其中已落盘的终态 attempt 照常携带。**重跑同一条命令就是续跑**:只花缺失 attempt 的成本——这也是长 run 撞上外部看门狗(CI 时限、宿主超时强杀)后的恢复路径,配合[实验面的启动自愈](feature/experiments/architecture.md#强杀后的收尾兜底收尾登记与启动自愈)与[实例面的孤儿核对](feature/sandbox/architecture.md#孤儿核对强杀路径的实例面兜底),重跑前不需要任何手工清理。
 - **执行模式 flag 划走两块例外。** [`--reuse-sandbox`](feature/sandbox/serial-reuse.md#与留存缓存重试的组合) 与指纹缓存**双向绝缘**:复用 run 不消费携带,计划内每个 attempt 都真实在热道上跑;复用产出也永不成为后续 run 的缓存命中。绝缘让一份快照里的结果只有一种出身,不会混出「一半干净携带、一半污染复用」的分布。[`--keep-sandbox`](feature/sandbox/cli.md) 下,历史终态 verdict 落在**当前留存档内**的 attempt 不携带、照常派发重跑:留存要的是一次真实执行的现场,携带条目没有沙箱可留——`failed` 档下 `failed` 重跑、`passed` 照常携带,`all` 档下全部重跑。
 - 改了 fixture、改了配置、或 `--force` → 重跑。
@@ -103,9 +104,13 @@ budget 按**域**计,不是全局总闸:每个 experimentId 一个域(没有 exp
 ## 超时:双层保护
 
 - **Adapter 内层超时** —— agent CLI 自己的超时。
-- **运行器外层超时** —— attempt deadline 用 Effect 的 interruption 中断 Scope 里的 verdict-producing 工作 fiber,把超时转换成 `errored`(error: timeout)draft;外层 Scope 不关闭,有界收尾(teardown 链、留存决策)仍在同一个 Scope 的 release 里照常完成——与 [Sandbox 的 Scope / finalizer 模型](feature/sandbox/architecture.md#留存keep与注册表)同一套语义,即使 agent 卡死也能强行收尾。
+- **运行器外层超时** —— attempt deadline 用 Effect 的 interruption 中断 Scope 里的 verdict-producing 工作 fiber,把超时转换成 `errored`(`error.code = "timeout"`,`error.phase` = 中断时已打开的生命周期阶段)draft;外层 Scope 不关闭,有界收尾(teardown 链、留存决策)仍在同一个 Scope 的 release 里照常完成——与 [Sandbox 的 Scope / finalizer 模型](feature/sandbox/architecture.md#留存keep与注册表)同一套语义,即使 agent 卡死也能强行收尾。
 
 外层是兜底,保证一个卡死的 case 不会挂起整批。
+
+**超时不丢证据。** 中断终止的是「继续执行」,不撤销「已经观察到的事实」:事件接收器、usage 累计与 timing recorder 都归属 attempt 的外层 Scope,不随 body fiber 一起消失——这与[结果封口发生在 Scope release 之后](feature/results/architecture.md#resultjson)是同一条纪律,从 timing 推广到全部证据通道。超时 attempt 的落盘因此与正常 errored 同构:`events.json` 保留截至中断时刻已归一化的全部事件(进行中一轮已收到的部分照常保留,不新增事件种类,中断事实由 `error` 表达)、`usage` 为已累计轮次的如实值、`sources` 照常;收尾段在 teardown 链之前照常折叠一次 `workspace.diff`——沙箱此刻仍然活着,而「agent 走到了哪」正是超时诊断最需要的证据(计时记入收尾段,不入 `durationMs` 口径)。`artifacts` 列表如实声明实际写出的文件。`show @<locator> --execution` 对超时 attempt 展示的是被打断前的真实执行过程,不是空壳。
+
+**超时线是删失线,不是中立的公平线。** `timeoutMs` 压在耗时分布上沿时,测出的是「谁先撞线」而不是「谁做得完」:对每个 attempt 背着固定协议开销的条件(记忆检索、额外收尾轮),同一条线系统性地更早截断它们,且被截断样本从完成耗时统计中消失,让慢条件反而显得快(幸存者偏差)。超时线应显著高于全部条件的自然耗时上沿;耗时作为对比指标时按[删失口径](feature/reports/library/metrics.md#内置指标)呈现,不把线值当实测。
 
 ## 环境预置不进运行器,但按顺序调它
 

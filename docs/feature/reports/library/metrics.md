@@ -73,7 +73,7 @@ interface MetricCell {
 | `executionReliability` | 执行可靠性：跑到可判定（passed / failed）= 1，errored = 0；回答一次运行能否形成可信判定 | 高 | `result.json` |
 | `examScore` | gate 决定能否得分，soft 断言给质量分 | 高 | `result.json` |
 | `totalScore` | 计分制（`defineScoreEval`）eval 的挣分：`assertions[].points` 之和加 `scoreEntries[].points` 之和，纯累加不声明满分；通过制 eval（`scoring` 省略或 `"pass"`）恒 `null`，不参与聚合 | 高 | `result.json` |
-| `durationMs` | attempt 判定链耗时（不含收尾段，口径见 [Results](../../results/architecture.md#resultjson)） | 低 | `result.json` |
+| `durationMs` | attempt 判定链耗时（不含收尾段，口径见 [Results](../../results/architecture.md#resultjson)）；对超时 attempt（`error.code = "timeout"`）返回 `null`——线值是右删失点不是实测完成耗时，计入聚合会把「被砍断」当成「跑了这么久」，排除又会让慢条件显得快，删失只能显式呈现（见下） | 低 | `result.json` |
 | `tokens` | input + output tokens | 低 | `result.json` |
 | `costUSD` | 网关实测成本优先，否则估算成本 | 低 | `result.json` |
 | `assistantTurns` | o11y 事件流中的 assistant turn 数；与 `t.send` 的轮次（轮标签 `turn<N>`）是两个计数，名字因此带限定词 | 低 | `o11y.json` |
@@ -81,7 +81,7 @@ interface MetricCell {
 
 内置指标都声明 `bounds`：三个通过率指标与 `examScore` 是 `{ min: 0, max: 1 }`（质量分是 soft 断言的均值），其余（`totalScore`、`durationMs`、`tokens`、`costUSD`、`assistantTurns`、`repeatedFailedCommands`）是 `{ min: 0 }`——计分制分值非负（[计分粒度](../../experiments/score-points.md)），耗时、tokens、成本与计数天然非负。
 
-`skipped` 对这些指标返回 `null`。`errored` 只在 `taskPassRate` 中返回 `null`，在默认 `endToEndPassRate` 与 `executionReliability` 中都返回 0。三个指标都遵守“先在同一 eval 的 attempts 内聚合，再跨 eval 聚合”的两级规则；每个 eval 只有一个 attempt 时，`endToEndPassRate` 才简化为 `passed / (passed + failed + errored)`。它的完整口径名是“End-to-end pass rate / 端到端通过率”，默认组件的可见短标签统一为“Pass rate / 通过率”；任何默认总览和任何只写这个短标签的位置都使用 `endToEndPassRate`。`taskPassRate` 必须标成“Task pass rate / 可判定任务通过率”等条件口径，不能把 `2 passed / 5 errored` 显示成无条件的 `100%`。要定位损失来自答题还是执行，可把三列并排：
+`skipped` 对这些指标返回 `null`。`durationMs` 的超时删失同样走 `null`,但删失不允许静默:`null` 使格子的 `samples` 小于 `total`,而 `samples` / `total` / `refs` 本就是渲染层不可丢弃的字段([聚合不变量](../architecture.md#指标聚合不变量))——耗时对比里被超时截断的样本因此以覆盖率缺口的形态可见,不会让「砍掉最慢的样本」伪装成「这个条件更快」。超时线的选取纪律(远离自然耗时上沿、对固定协议开销的条件不中立)见 [Runner · 超时](../../../runner.md#超时双层保护)。`errored` 只在 `taskPassRate` 中返回 `null`，在默认 `endToEndPassRate` 与 `executionReliability` 中都返回 0。三个指标都遵守“先在同一 eval 的 attempts 内聚合，再跨 eval 聚合”的两级规则；每个 eval 只有一个 attempt 时，`endToEndPassRate` 才简化为 `passed / (passed + failed + errored)`。它的完整口径名是“End-to-end pass rate / 端到端通过率”，默认组件的可见短标签统一为“Pass rate / 通过率”；任何默认总览和任何只写这个短标签的位置都使用 `endToEndPassRate`。`taskPassRate` 必须标成“Task pass rate / 可判定任务通过率”等条件口径，不能把 `2 passed / 5 errored` 显示成无条件的 `100%`。要定位损失来自答题还是执行，可把三列并排：
 
 ```tsx
 <MetricTable
