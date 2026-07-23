@@ -24,4 +24,9 @@
 - ~~计分制里前置词叫 `.require()`（链式）而不是 `.gate()`~~——提出理由是 gate 在两个题型下行为不同（通过制翻 verdict 不中止 / 计分制中止不翻 verdict）读起来像词义漂移。用户否决：`ScoreAssertionHandle` / `ScoreTestContext` 本来就是另一套类型，两个 `.gate()` 是两个类型上的两个方法、各带各的 TSDoc，类型空间已经把它们分开了，不存在漂移。
 - ~~计分制 verdict 收成三态（passed / errored / skipped）、中止另设标记~~——中止的 attempt 显示 `passed` 会误导；保留四态、把 `failed` 的唯一来源换成中止，读数更准且不引入新概念。
 
+**落代码时的两处自我翻案（当天，均已同步回 docs）**：
+
+- **`.atLeast(x)` 又加回来了，语义收窄成「观测的通过线」**。上面第 2 条按「低于线记 failed、`--strict` 下拖垮 verdict 在计分制没有落点」把它整个砍掉，漏了它还兼着**给 judge 这类没有默认线的打分断言设显示口径**。真实消费仓库（`NiceEval-Eval` 的 `evals/install/*.eval.ts`）的「装好了但产出质量差」那一档正是靠 `.atLeast(d.threshold)` 显示成失败行——砍掉后无法表达。现在它只决定这条记 passed 还是 failed，永不影响判定。教训：砍一个词之前先分清它承载了几件事，`.atLeast` 是「通过线 + strict 提级」两件，只有后一件在计分制没有读者。
+- **`ScoreTestContext` 不能用 `Omit<TestContext, "require">` 实现**。那样它不再是任何 `TestContext<H>` 的子类型，跨题型复用的共享 helper（`evals/*/share/` 里那种）就没有类型可标注，消费仓库直接编译不过。改成拆出 `BaseTestContext<H>` / `BaseAssertionHandle` 作为公共部分，两种 `t` 各自 extends 后加自己的词（`require` / `score`），helper 标注 `BaseTestContext<H>` 同时接受两种 `t`。教训：**从一个类型上减成员**这件事，必须走「提取公共基类」而不是 `Omit`，否则减出来的类型会掉出原有的子类型关系。
+
 **教训**：「A 与 B 正交」是个听起来永远正确的设计说法，但正交要求两个轴各自有读者。计分制里判定面这条轴已经被分数面顶掉了，还硬留着就会生出默认值陷阱（默认 gate）和双读（soft + points）。检查方法：把每条轴的读数落到具体报告列上，落不到列的轴就是多余的。
