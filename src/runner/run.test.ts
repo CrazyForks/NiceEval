@@ -1,5 +1,5 @@
 // cases: docs/engineering/testing/unit/experiments-runner.md
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,6 +33,7 @@ import type {
   ReporterRegistration,
   Sandbox,
   SandboxFile,
+  Turn,
 } from "../types.ts";
 
 // judge 预检的目标收敛:只探测「实际要跑、且源码里出现 judge 字样」的 eval 的生效配置。
@@ -1587,5 +1588,233 @@ describe("runEvals · exclusive provider 强制串行", () => {
     expect(summary.results).toHaveLength(6);
     expect(exclusivePeak).toBe(1);
     expect(normalPeak).toBeGreaterThan(1);
+  });
+});
+
+// turn 级重试退避期间只应释放全局并发位,实验级闸(runSem)必须全程持有——两级闸按持有期
+// 分工的语义单点见 docs/runner.md「调度:有界并发」。下面两个 Turn 工厂复用
+// src/context/send-retry.test.ts 已验证过的最小形状:失败 Turn 只带一条 error 事件(没有
+// message/thinking/action 事件,受理证据门不会把它强降为不可重试),成功 Turn 是一条
+// assistant message,消息文案匹配保守兜底分类器的限流关键字。
+function retryableFailureTurn(message: string): Turn {
+  return { status: "failed", events: [{ type: "error", message }] };
+}
+function okTurn(): Turn {
+  return { status: "completed", events: [{ type: "message", role: "assistant", text: "ok" }] };
+}
+
+// bug: memory/turn-retry-backoff-releases-experiment-serial-lock.md
+describe("runEvals · 退避的槽位持有期差:实验级闸全程持有,全局位在退避期间让位", () => {
+  it("maxConcurrency: 1 下,一个 attempt 进入退避窗口时同实验下一个 attempt 不启动;退避结束、首个 attempt 收尾后才放行", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.9); // 固定退避延迟为 4.5s,远大于 vi.waitFor 轮询期间可能顺带推进的虚拟时间
+    try {
+      let sendCalls = 0;
+      const agent = defineSandboxAgent({
+        name: "agent-retry-serial",
+        send: async () => {
+          sendCalls += 1;
+          return sendCalls === 1
+            ? retryableFailureTurn("rate limited, please retry later")
+            : okTurn();
+        },
+      });
+      let sandboxCreates = 0;
+      const sandboxSpec = defineSandbox({
+        name: "fake-retry-serial-sandbox",
+        create: async () => {
+          sandboxCreates += 1;
+          return asSandbox(new FakeSandbox());
+        },
+      });
+      const evalA = makeEval("a", async (t) => {
+        await t.send("go");
+      });
+      const evalB = makeEval("b", async (t) => {
+        await t.send("go");
+      });
+      const agentRun: AgentRun = {
+        agent,
+        flags: {},
+        runs: 1,
+        earlyExit: false,
+        sandbox: sandboxSpec,
+        maxConcurrency: 1,
+        timeoutMs: 30_000,
+        selectedEvalIds: ["a", "b"],
+        experimentId: "retry-serial-exp",
+      };
+
+      const runPromise = run([evalA, evalB], [agentRun], { maxConcurrency: 4 });
+
+      // a 撞到可重试错误、进入退避:此时它已经释放了全局位,但必须仍握着实验级闸(runSem)。
+      await vi.waitFor(() => expect(sendCalls).toBe(1));
+      await vi.advanceTimersByTimeAsync(0); // 只放行已经就绪的微任务,不推进真实退避时长
+      expect(sandboxCreates).toBe(1); // b 排在 a 后面:拿不到 runSem,沙箱不会创建
+
+      // 只推进到刚好越过退避延迟(mock 后固定 4.5s),不用 runAllTimersAsync——它会一路清空
+      // 定时器队列,连每个 attempt 30s 外层超时的 AbortSignal.timeout 都会被提前触发。
+      await vi.advanceTimersByTimeAsync(10_000);
+      const { summary } = await runPromise;
+
+      expect(summary.results).toHaveLength(2);
+      expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+      expect(sandboxCreates).toBe(2); // b 的沙箱现在才创建
+      expect(sendCalls).toBe(3); // a: 失败 1 次 + 重试成功 1 次;b: 成功 1 次
+    } finally {
+      vi.useRealTimers();
+      randomSpy.mockRestore();
+    }
+  });
+});
+
+// bug: memory/turn-retry-backoff-releases-experiment-serial-lock.md
+describe("runEvals · 实验级闸覆盖沙箱收尾", () => {
+  it("maxConcurrency: 1 下,上一个 attempt 的 sandbox.teardown 钩子未完成时,下一个 attempt 的沙箱不会创建", async () => {
+    let releaseTeardown!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      releaseTeardown = resolve;
+    });
+    let teardownEntered = false;
+    let sandboxCreates = 0;
+    const sandboxSpec = defineSandbox({
+      name: "fake-teardown-barrier-sandbox",
+      create: async () => {
+        sandboxCreates += 1;
+        return asSandbox(new FakeSandbox());
+      },
+    }).teardown(async () => {
+      teardownEntered = true;
+      await barrier;
+    });
+
+    const evalA = makeEval("a", () => {});
+    const evalB = makeEval("b", () => {});
+    const agentRun: AgentRun = {
+      agent: makeAgent("agent-teardown-barrier"),
+      flags: {},
+      runs: 1,
+      earlyExit: false,
+      sandbox: sandboxSpec,
+      maxConcurrency: 1,
+      timeoutMs: 10_000,
+      selectedEvalIds: ["a", "b"],
+      experimentId: "teardown-barrier-exp",
+    };
+
+    const runPromise = run([evalA, evalB], [agentRun], { maxConcurrency: 4 });
+
+    // a 的 sandbox.teardown 钩子挂在 barrier 上:runSem 名额要到沙箱销毁完成才归还,
+    // 所以 b 的沙箱这段时间不该被创建。
+    await vi.waitFor(() => expect(teardownEntered).toBe(true));
+    expect(sandboxCreates).toBe(1);
+
+    releaseTeardown();
+    const { summary } = await runPromise;
+    expect(summary.results).toHaveLength(2);
+    expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+    expect(sandboxCreates).toBe(2); // teardown 放行、a 收尾完成后 b 的沙箱才创建
+  });
+});
+
+// 护住 A1 修复不被顺手改坏:退避期间真正让出的是全局并发位,不是「两个都不放」。全局并发 2、
+// 两个互不相关的实验(都没有声明各自的 maxConcurrency,单纯受全局位约束)——R 与 W 各占一个
+// 初始名额,W 的第二个 attempt 排队;R 撞到可重试错误进入退避、释放全局位后,排队中的
+// W 第二个 attempt 应立刻拿到这个位开跑,不需要等 R 的退避结束。
+// bug: memory/turn-retry-backoff-releases-experiment-serial-lock.md
+describe("runEvals · 全局并发位在退避期间确实让给别的实验", () => {
+  it("全局并发 2:一个实验的 attempt 退避释放全局位后,另一个无关实验排队中的 attempt 立刻拿到位开跑", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.9);
+    try {
+      // r1 的第一次 send 卡在 rBarrier 上不立刻失败——这样可以先确认 r1、w1 都已经稳稳占住
+      // 两个初始全局位(而不是在一次 vi.waitFor 里赛跑:release→w2 抢位这条链路全是微任务,
+      // 没有真实/虚拟延时,跑得比逐条断言还快,会把「w2 还没拿到位」这个中间态直接跳过)。
+      let rSendCalls = 0;
+      let releaseR!: () => void;
+      const rBarrier = new Promise<void>((resolve) => {
+        releaseR = resolve;
+      });
+      const agentR = defineSandboxAgent({
+        name: "agent-guard-r",
+        send: async () => {
+          rSendCalls += 1;
+          if (rSendCalls === 1) {
+            await rBarrier;
+            return retryableFailureTurn("rate limited, please retry later");
+          }
+          return okTurn();
+        },
+      });
+
+      let wSendCalls = 0;
+      let releaseW!: () => void;
+      const wBarrier = new Promise<void>((resolve) => {
+        releaseW = resolve;
+      });
+      const agentW = defineSandboxAgent({
+        name: "agent-guard-w",
+        send: async () => {
+          wSendCalls += 1;
+          await wBarrier; // w1、w2 都卡在这里:两者都不会「自己跑完腾位置」,腾位置只能来自 r1 退避
+          return okTurn();
+        },
+      });
+
+      const evalR = makeEval("r1", async (t) => {
+        await t.send("go");
+      });
+      const evalW1 = makeEval("w1", async (t) => {
+        await t.send("go");
+      });
+      const evalW2 = makeEval("w2", async (t) => {
+        await t.send("go");
+      });
+
+      const runR: AgentRun = {
+        agent: agentR,
+        flags: {},
+        runs: 1,
+        earlyExit: false,
+        sandbox: fakeSandboxSpec(),
+        timeoutMs: 30_000,
+        selectedEvalIds: ["r1"],
+        experimentId: "guard-r",
+      };
+      const runW: AgentRun = {
+        agent: agentW,
+        flags: {},
+        runs: 1,
+        earlyExit: false,
+        sandbox: fakeSandboxSpec(),
+        timeoutMs: 30_000,
+        selectedEvalIds: ["w1", "w2"],
+        experimentId: "guard-w",
+      };
+
+      const runPromise = run([evalR, evalW1, evalW2], [runR, runW], { maxConcurrency: 2 });
+
+      // 初始两个全局位分别被 r1、w1 占住(两者的 send 都已调用、各自卡在自己的 barrier 上);
+      // w2 应该还排着队,拿不到位。
+      await vi.waitFor(() => expect(rSendCalls).toBe(1));
+      await vi.waitFor(() => expect(wSendCalls).toBe(1));
+      expect(wSendCalls).toBe(1); // w2 还没拿到全局位
+
+      // 放行 r1 的第一次 send:返回可重试失败,触发退避 —— 这一步才会真正释放全局位。
+      releaseR();
+      await vi.waitFor(() => expect(wSendCalls).toBe(2)); // 排队中的 w2 应该立刻拿到这个位
+      expect(rSendCalls).toBe(1); // 此刻 r1 仍在退避睡眠中,还没有发起第二次 send(重试)
+
+      releaseW(); // 放行 w1、w2,推进计时器让 r1 重试成功,run 完整收尾
+      // 只推进到刚好越过退避延迟,不用 runAllTimersAsync——它会连每个 attempt 30s 外层超时的
+      // AbortSignal.timeout 都一并触发。
+      await vi.advanceTimersByTimeAsync(10_000);
+      const { summary } = await runPromise;
+      expect(summary.results).toHaveLength(3);
+      expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      randomSpy.mockRestore();
+    }
   });
 });
