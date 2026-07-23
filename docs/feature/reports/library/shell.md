@@ -221,7 +221,7 @@ type ReportAsset =
 
 - [内建报告](built-in.md) —— 裸宿主装载的定义与升级路径。
 - [主题与 CSS 定制](theme.md) —— 强调色、状态色、分类色板与完整 CSS 出口。
-- [站点组件](site-components.md) —— hero、品牌行、警告区、修复 prompt 与 trace 瀑布。
+- [站点组件](site-components.md) —— hero、品牌行、警告区、快照诊断区、修复 prompt 与 trace 瀑布。
 - [Attempt 详情组件](attempt-detail.md) —— attempt-input page 能用哪些公开区块组装。
 - [排版原语与自定义组件](layout.md) —— 页 content 里的树怎么组织，组合组件怎么写。
 - [Show](../show.md) / [View](../view.md) —— 页索引、`--page` 与静态导出。

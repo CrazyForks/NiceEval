@@ -19,6 +19,7 @@
 | A 与 B 相差多少 | [`DeltaTable`](library/metric-views.md#deltatable) |
 | 页首放站点标题、最后运行时间与品牌行 | [`Hero`](library/site-components.md#hero) |
 | 这批数据的选择警告（快照未收尾、落盘被跳过） | [`ScopeWarnings`](library/site-components.md#scopewarnings) |
+| 哪些真实快照发生过无法归属单行的运行诊断 | [`SnapshotDiagnostics`](library/site-components.md#snapshotdiagnostics) |
 | 把全部失败打包成可交给 coding agent 的修复 prompt | [`CopyFixPrompt`](library/site-components.md#copyfixprompt) |
 | 每个 attempt 的执行时间瀑布 | [`TraceWaterfall`](library/site-components.md#tracewaterfall) |
 | 自定义 locator 打开的参数化 page | [`AttemptDetail`，或 `AttemptSummary`、`AttemptAssessment`、`AttemptTimeline` 等详情组件](library/attempt-detail.md) |
@@ -32,7 +33,7 @@
 | 组织报告树、拼自由摘要格、写组合组件或双面组件 | [排版原语与自定义组件](library/layout.md) |
 | 加标题、GitHub 链接、页脚，或拆成多页 | [外壳与多页](library/shell.md) |
 | 改强调色、状态色、图表色板或完整覆盖 CSS | [主题与 CSS 定制](library/theme.md) |
-| 摆 hero、品牌行、警告区、修复 prompt 或 trace 瀑布 | [站点组件](library/site-components.md) |
+| 摆 hero、品牌行、警告区、快照诊断区、修复 prompt 或 trace 瀑布 | [站点组件](library/site-components.md) |
 | 声明、删减或重排 attempt-input page | [Attempt 详情组件](library/attempt-detail.md) |
 | 看裸 `show` / `view` 装载的默认定义怎么写 | [内建报告](library/built-in.md) |
 
@@ -64,7 +65,7 @@ niceeval show --report reports/quality-cost.tsx
 niceeval view --report reports/quality-cost.tsx
 ```
 
-宿主先按位置参数、`--results`、`--exp` 和 `--fresh` 选择数据，再把 Scope 注入报告；管线在 [resolve 阶段](architecture.md#报告树与两个宿主)并行完成所有组件的取数，作者不写任何取数管道。快照未收尾、落盘不可读等选择警告由 [`ScopeWarnings`](library/site-components.md#scopewarnings) 组件呈现——宿主不在报告树外另设警告通道，[内建报告](library/built-in.md)的三张 scope-input page 都放它（attempt-input page 不重复站点范围警告），自定义报告放不放是作者义务；能定位到行的事实不走警告：覆盖缺口是 [`ExperimentList` 的占位行](library/entity-lists.md#experimentlist)，携带与跨快照拼接是行上的[时效标注](library/entity-lists.md#时效标注)。`ScopeSummaryData` 等指标数据不携带警告。显示时下一步随行：组件按「下一步动作」把警告聚合成组，组头带可复制的推进 `command`，逐条 `message`（[三段式](../../error-feedback.md#消息三段式)，已含下一步）作为明细原样保留——聚合、排序与折叠规则见[组件契约](library/site-components.md#scopewarnings)。
+宿主先按位置参数、`--results`、`--exp` 和 `--fresh` 选择数据，再把 Scope 注入报告；管线在 [resolve 阶段](architecture.md#报告树与两个宿主)并行完成所有组件的取数，作者不写任何取数管道。快照未收尾、落盘不可读等选择警告由 [`ScopeWarnings`](library/site-components.md#scopewarnings) 呈现；属于真实 Snapshot、但无法归属单行的运行诊断由 [`SnapshotDiagnostics`](library/site-components.md#snapshotdiagnostics) 呈现。宿主不在报告树外为两者另设通道，[内建报告](library/built-in.md)的三张 scope-input page 都相邻放置它们（attempt-input page 不重复站点范围信息），自定义报告放不放是作者义务。能定位到行的事实不进任一面板：覆盖缺口是 [`ExperimentList` 的占位行](library/entity-lists.md#experimentlist)，携带与跨快照拼接是行上的[时效标注](library/entity-lists.md#时效标注)，Attempt 事实进入详情。`ScopeSummaryData` 等指标数据不复制警告或诊断。`ScopeWarnings` 按下一步动作聚合闭集 kind；`SnapshotDiagnostics` 按真实 experiment → Snapshot 来源组织开放 code，两者各自的聚合、排序与折叠规则见[组件契约](library/site-components.md)。
 
 取数之后要用普通 JavaScript 加工（filter / slice / 自定义排序）时，写一个[组合组件](library/layout.md#自定义组件)：在里面调 `*Data` 函数、加工数组，再以 **data 形态** 把结果递给组件：
 
@@ -87,17 +88,18 @@ spec 形态与 data 形态的完整契约在 [Architecture · 组件模型](arch
 
 ```tsx
 import { openResults } from "niceeval/results";
-import { MetricTable, ScopeSummary, ScopeWarnings } from "niceeval/report/react";
+import { MetricTable, ScopeSummary, ScopeWarnings, SnapshotDiagnostics } from "niceeval/report/react";
 import {
   costUSD, durationMs, endToEndPassRate,
-  metricTableData, scopeSummaryData,
+  metricTableData, scopeSummaryData, snapshotDiagnosticsData,
 } from "niceeval/report";
 
 export default async function EvalsPage() {
   const results = await openResults(".niceeval");
   const scope = results.current({ experiments: "compare/" });
 
-  const [summary, table] = await Promise.all([
+  const [diagnostics, summary, table] = await Promise.all([
+    snapshotDiagnosticsData(scope),
     scopeSummaryData(scope),
     metricTableData(scope, {
       rows: "experiment",
@@ -109,6 +111,7 @@ export default async function EvalsPage() {
   return (
     <main>
       <ScopeWarnings data={scope.warnings} />
+      <SnapshotDiagnostics data={diagnostics} />
       <ScopeSummary data={summary} />
       <MetricTable
         data={table}
@@ -142,6 +145,7 @@ await writeFile("public/evals.json", JSON.stringify(table));
 
 ## 相关阅读
 
+- [用例手册](use-case/README.md) —— 按用户问题选报告能力,并划出何时换另一种组件或宿主。
 - [配方](library/recipes.md) —— 按场景可整份复制的完整报告文件。
 - [概览组件](library/summaries.md) / [实体列表](library/entity-lists.md) / [指标组件](library/metric-views.md) / [站点组件](library/site-components.md) / [Attempt 详情组件](library/attempt-detail.md) —— 组件契约分篇。
 - [指标与维度](library/metrics.md) —— 内置指标口径与自定义指标。

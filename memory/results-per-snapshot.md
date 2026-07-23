@@ -24,3 +24,7 @@
 - 需要审计当次调用时,`Json(path)` reporter 已是 opt-in 的 `InvocationSummary` 落点;在 `.niceeval/` 再写一份 Manifest 会制造两个权威来源。
 
 **配套裁决**:无法归属单个 Attempt、但明确归属单个 Experiment 的诊断(如 `experiment-teardown-failed`、`budget-unenforceable`)落入 `snapshot.json.diagnostics`,由 Snapshot 在补 `completedAt` 的同一次封口写入。它们不再只存活于终端,也不借此引入 Invocation 实体。
+
+**Scope 投影**:`latest()` / `current()` 返回的 Scope 是水位投影,不是合成 Snapshot。`current.snapshots` 保存贡献水位的真实 Snapshot,每条 Attempt 也保留来源 Snapshot 与证据引用。快照级 diagnostics 只随这些 Snapshot 透传;Scope 不聚合 diagnostics、不把它们提升成 warnings、也不复制到 Attempt。
+
+**Reports 呈现裁决**:快照级 diagnostics 由独立 `SnapshotDiagnostics` 组件呈现,不并入闭集 kind 的 `ScopeWarnings`。组件按 experiment → Snapshot 来源分组,保留 startedAt 与时效,通用渲染开放 code 的 level/message/command/count;web 面默认折叠但带严重度的摘要恒可见,text 面不折叠,空集零输出。spec 形态同时支持 Scope 与裸 Snapshot[],React data 形态只收 `{ experimentId, startedAt, diagnostics }[]` 投影。内建三张 scope-input page 与 `ScopeWarnings` 相邻放置两者;能定位到 Eval/Attempt 行的事实不得进入该面板。

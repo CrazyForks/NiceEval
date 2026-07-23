@@ -1,11 +1,29 @@
-# Reports —— CLI 用例
+# Reports —— 用例手册
 
-本目录是 `niceeval show` / `niceeval view` 全部位置参数与 flag 的用例文档(体裁约定见[功能文档](../../README.md)):一篇讲一个真实用例的全流程——用户遇到什么问题、带上它之后从命令到结束反馈的完整路径、边界与何时改用别的模式。契约单源在 [Show](../show.md)、[View](../view.md) 与 [`show/`](../show/attempt.md) 各证据分篇,这里只做叙事串联,不复制契约定义。
+本目录把 Reports 的 CLI 与 Library 能力放回真实任务里:先说用户要回答什么问题,再串起 Scope、组件、宿主和下钻路径,最后划出何时应换另一种形态。契约单源仍在 [Show](../show.md)、[View](../view.md)、[Library](../library.md) 与各组件分篇;可直接复制的代码在[报告配方](../library/recipes.md),用例篇不重复字段全集和渲染契约。
 
-## `niceeval show`(终端)
+## 修失败与查证据
 
-- [`@locator`:从榜单一行下钻到一次失败的全部证据](show-locator-drilldown.md)
-- [`--history`:一道题时好时坏,按 attempt 看历次执行](show-history-flaky-eval.md)
+- [从失败清单到可修复任务](triage-failures.md) —— `FailureList` / `CopyFixPrompt` / `AttemptDetail`。
+- [`@locator`:从榜单一行下钻到一次失败的全部证据](show-locator-drilldown.md)。
+- [`--history`:一道题时好时坏,按 attempt 看历次执行](show-history-flaky-eval.md)。
+
+## 比较、评分与定位
+
+- [比较质量、成本与前沿](compare-quality-cost.md) —— `ExperimentComparison` / `MetricScatter` / `MetricTable`。
+- [固定题集做考试成绩单](fixed-suite-scorecard.md) —— `Scoreboard`。
+- [分数低时区分任务失败与执行失败](diagnose-reliability.md) —— `MetricTable` + 三种通过率。
+- [定位「哪道题 × 哪个配置」出问题](locate-config-eval-interactions.md) —— `MetricMatrix` / `MetricBars`。
+- [比较基线与候选的成对差异](measure-ab-delta.md) —— `DeltaTable`。
+- [扫描参数档位的趋势与拐点](sweep-parameter-trend.md) —— `MetricLine`。
+- [跟踪一个 Experiment 的历次 Snapshot](track-experiment-history.md) —— `results.experiments` + snapshot 维度。
+
+## 完整性、定制与交付
+
+- [先证明数据范围值得相信](audit-scope-quality.md) —— `ScopeWarnings` / `SnapshotDiagnostics` / `ScopeSummary` / `ExperimentList`。
+- [用 artifact 定义业务指标](build-custom-metric.md) —— `defineMetric` / 自定义维度。
+- [从单页报告升级为多页站点](build-multipage-report.md) —— `defineReport` / pages / attempt-input page / theme。
+- [把报告嵌入自己的产品页](embed-in-product.md) —— `*Data` + `niceeval/report/react`。
 
 ## `niceeval view`(浏览器与静态站)
 
@@ -17,7 +35,25 @@
 - [`--results` / `--snapshot`:换结果根,或只看一份快照](results-root-and-snapshot.md)
 - [`--report` / `--page`:show 与 view 共用同一份自定义报告](report-shared-show-view.md)
 
-## flag → 篇目对照
+## 组件 / API → 用例对照
+
+| 能力 | 主用例 |
+|---|---|
+| `FailureList` / `CopyFixPrompt` / `AttemptDetail` | [修失败](triage-failures.md) |
+| `ExperimentComparison` / `MetricScatter` | [质量 × 成本](compare-quality-cost.md) |
+| `Scoreboard` | [固定题集考试](fixed-suite-scorecard.md) |
+| `MetricTable` | [可靠性诊断](diagnose-reliability.md) · [质量 × 成本](compare-quality-cost.md) |
+| `MetricMatrix` / `MetricBars` | [配置 × Eval 定位](locate-config-eval-interactions.md) |
+| `DeltaTable` | [A/B 成对差异](measure-ab-delta.md) |
+| `MetricLine` | [参数扫描](sweep-parameter-trend.md) |
+| snapshot 维度 / `ctx.results.experiments` | [Experiment 历史](track-experiment-history.md) |
+| `ScopeWarnings` / `SnapshotDiagnostics` / `ScopeSummary` / `ExperimentList` | [范围完整性](audit-scope-quality.md) |
+| `defineMetric` / `CustomDimension` | [业务指标](build-custom-metric.md) |
+| `defineReport({ pages })` / shell / theme | [多页报告](build-multipage-report.md) |
+| `*Data` / `niceeval/report/react` | [嵌入产品页](embed-in-product.md) |
+| `Grid` / `Stat` / `Row` / `Col` / `Section` / `Tabs` | 所有 Library 用例的布局层;内容过多时看[多页报告](build-multipage-report.md) |
+
+## CLI 输入 → 篇目对照
 
 | 输入 | 命令 | 所在篇目 |
 |---|---|---|

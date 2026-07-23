@@ -179,6 +179,8 @@ interface Snapshot {
 
 快照与实验归组只切片、不合并、不去重;合并与聚合永远发生在消费方([Reports](../reports/README.md) 的计算函数,或你自己的脚本),reader 不预设看法。
 
+快照级 `diagnostics` 只收“属于某次快照运行、但无法诚实定位到单个 Eval 或 Attempt 行”的操作性事实,并始终绑定它真实所属的 `(experimentId, startedAt)` Snapshot。能定位到具体行的事实归占位行、时效标注或 Attempt 详情,不进快照诊断。Scope 不设聚合后的 diagnostics 字段,不把它们提升为 `warnings`,也不复制到 Attempt 上;`latest()` / `current()` 只通过 `scope.snapshots` 带上贡献数据的真实 Snapshot 及其 diagnostics。消费方用 [`SnapshotDiagnostics`](../reports/library/site-components.md#snapshotdiagnostics) 呈现时逐条保留来源快照身份与时效。这样旧快照的 teardown 或 budget 诊断解释的是该快照贡献的数据,不会冒充另一快照或整份 Scope 的事实。
+
 ## 选择快照:`results.latest()` 返回 Scope
 
 多数消费场景先回答「现在什么水平」,所以选择器只有一个,长在集合上。返回物是一个 **Scope(范围)**:快照与挑选警告绑在一起走:
@@ -241,13 +243,13 @@ warnings 只收**定位不到任何一行**的完整性事实;能定位到行的
 const current = results.current({ experiments: "compare/" });   // 前缀过滤与 latest() 同一套
 
 current.mode;        // "current-evals"
-current.snapshots;   // 贡献了至少一道题当前判定的快照集
+current.snapshots;   // 贡献了至少一道题当前判定的真实快照集;各自保留 diagnostics
 current.attempts;    // 已按口径物化:每 experiment × eval 只含「包含该 eval 的最新快照」里的 attempt
 current.coverage;    // 同一套 ScopeCoverage:并集中某道题在可比历史里没有任何 attempt 就进 missingEvalIds
 current.warnings;    // 同一套 ScopeWarning
 ```
 
-**Scope 的口径不是隐藏语义,是物化的数据**:`mode` 字面声明口径,`attempts` 是按口径挑好的 attempt 全集——自定义脚本消费 `attempts` 就自动正确,不需要知道两种口径怎么展开,也不可能因为自己 flatten `snapshots` 而把旧快照里同一道题的历史 attempt 重复计入。官方计算函数同样只消费 `attempts`。`snapshots` 保留给需要快照级信息(配置、producer、目录)的消费方;`filter(predicate)` 仍按快照删减,`attempts`、coverage 与 warnings 随之同步修剪。时效同样物化:旧快照拼入的 attempt 是历史执行(见下节[时效](#时效新执行与历史执行)),「水位里混着旧结果」逐行可见,不靠读者去猜。
+**Scope 的口径不是隐藏语义,是物化的数据**:`mode` 字面声明口径,`attempts` 是按口径挑好的 attempt 全集——自定义脚本消费 `attempts` 就自动正确,不需要知道两种口径怎么展开,也不可能因为自己 flatten `snapshots` 而把旧快照里同一道题的历史 attempt 重复计入。官方计算函数同样只消费 `attempts`。`snapshots` 保留给需要快照级信息(配置、producer、目录、diagnostics)的消费方;其中每个成员都是持久化的真实 Snapshot,Scope 不合成报告专用 Snapshot,Attempt 仍以 `attempt.snapshot` 与 `attempt.ref` 指回来源。`filter(predicate)` 仍按快照删减,`attempts`、coverage 与 warnings 随之同步修剪。时效同样物化:旧快照拼入的 attempt 是历史执行(见下节[时效](#时效新执行与历史执行)),「水位里混着旧结果」逐行可见,不靠读者去猜。
 
 自动携带(见下节)让常态下两个口径重合——最新快照本来就完整;`current()` 保证在携带缺席时(局部 `--force` 重跑、errored 不携带)口径依然诚实,不把报表分母缩成刚重跑的那几道题。选哪个:对外发布自包含数据集用 `latest()` + `copySnapshots`;看当前水平、连续开发中对数用 `current()`。
 

@@ -10,11 +10,11 @@
 
 ### 1. 落盘格式
 
-`snapshot.json`、attempt 目录的 `result.json`、`events.json`、`sources.json`、`o11y.json`（有 tracing 面时含 `trace.json`）的字段与版本依据 [Results Format](../../../feature/results/architecture.md) 契约逐项断言——`verdict` 四态、断言明细、`durationMs` / `usage` / `estimatedCostUSD` 三件套成组出现、`snapshot.json` 不含逐 attempt 数据。
+`snapshot.json`、attempt 目录的 `result.json`、`events.json`、`sources.json`、`o11y.json`（有 tracing 面时含 `trace.json`）的字段与版本依据 [Results Format](../../../feature/results/architecture.md) 契约逐项断言——`verdict` 四态、断言明细、`durationMs` / `usage` / `estimatedCostUSD` 三件套成组出现、快照封口同时写入 `completedAt` 与实验域 diagnostics、`snapshot.json` 不含逐 attempt 数据。
 
 ### 2. 公开读取面
 
-`openResults()` 遍历出的快照、attempt 与推导聚合和盘上文件一致——读取面是落盘事实的忠实投影，不是第二份口径。
+`openResults()` 遍历出的快照、diagnostics、attempt 与推导聚合和盘上文件一致——读取面是落盘事实的忠实投影，不是第二份口径。`current()` 的 Scope 保留贡献水位的真实 Snapshot，diagnostics 只随这些 Snapshot 透传，不聚合进 Scope 或 Attempt。
 
 ### 3. 机器出口
 
@@ -29,13 +29,14 @@ show / view 对这份真实结果的可观察行为按 [Show](../../../feature/r
 - **历史与多页**：`show --history` 按 attempt 身份键跨快照去重、升序逐轮列出，与 `--report` 互斥按用法错误退出；多页报告渲染初始页并附带可复现上下文的 `--page` 索引命令。
 - **证据切面**：`show @<locator>` 与 `--source` / `--execution` / `--timing` / `--diff` 在真实证据上工作；`--timing` 的有界诊断树与 `--timing=full` 全量展开按契约取样；落盘无 phases 时如实显示 unavailable，不猜。
 - **Scope warnings**：局部补跑、过旧、不可读快照形成结构化 warning 且两宿主一致；单个坏快照不阻塞其余；零可读结果时 `show` 非零退出、`view` 不启动 server。
+- **Snapshot diagnostics**：真实快照的实验域 diagnostic 在两个宿主都按 experiment → Snapshot 来源呈现；裸 Snapshot[] 的自定义报告同样可见，来源、时效、level、message、command 与 count 不被合并或改写。
 - **导出与 server**：`view --out` 导出站与本地 server 对同一路径逐字节一致；收窄对页面 Scope 与 `artifact/` 证据树同步生效；`attempt/<locator>.html` 无 JavaScript 完整可读；`o11y.json` 永不出站；本地 server 的 attempt 详情路由对完整结果根解析、不受 `--exp` 等收窄限制（与 `show @<locator>` 同一套按结果根语义寻址，`--out` 则只产出收窄内可达 locator 对应的文档）；`sources.json` 出站（server 响应与 `--out` 导出）恒为解引用后的 `{path, content}[]`，不是落盘的两层去重引用格式（先例：[memory/attempt-locator-and-source-dedup](../../../../memory/attempt-locator-and-source-dedup.md)）。
 
 ### 5. 渲染面
 
 show 的终端输出与 view 的 HTML 是渲染契约的唯一验收面，对真实产物断言 [Reports](../../../feature/reports/README.md) 声明的呈现行为：
 
-- **结构**：区块存在与相对顺序、默认展开 / 折叠（原生 `<details>` 的 `open` 标记）、计数、expected / received 文本、失败断言的默认可见性、locator 链接与下钻命令；空证据位的组件零输出，不留空占位；`PoweredBy` / `HeroCard` 品牌行的固定链接（`utm_source=report&utm_medium=powered-by`、`rel="noopener"` 不含 `noreferrer`）与 web 恒含、text 零输出的两面差异；同一维度键在 `MetricTable` / `MetricMatrix` / `Scoreboard` / `AttemptList` / `ExperimentList` / `MetricScatter` 之间的配色类名一致（`colorClassForKey` / `seriesClassForKey` 稳定散列，与渲染顺序无关）；`MetricScatter` 轴方向随指标 `better` 反向、刻度显示真实值、connect 折线与图例的一致性；`view` 外壳（topbar）恒有 NiceEval 品牌位、无 hero 区（hero 是页内组件），导航项与顺序等于报告定义中 `navigation !== false` 的页（不多不少、宿主不追加），`ReportLink.icon` 的内联 SVG 渲染在 label 前。
+- **结构**：区块存在与相对顺序、默认展开 / 折叠（原生 `<details>` 的 `open` 标记）、计数、expected / received 文本、失败断言的默认可见性、locator 链接与下钻命令；空证据位的组件零输出，不留空占位；`SnapshotDiagnostics` 的摘要恒可见且暴露最高严重度、web 默认折叠、text 不折叠、单诊断快照不摆空壳层级、三张内建 scope-input page 均紧邻 `ScopeWarnings` 放置；`PoweredBy` / `HeroCard` 品牌行的固定链接（`utm_source=report&utm_medium=powered-by`、`rel="noopener"` 不含 `noreferrer`）与 web 恒含、text 零输出的两面差异；同一维度键在 `MetricTable` / `MetricMatrix` / `Scoreboard` / `AttemptList` / `ExperimentList` / `MetricScatter` 之间的配色类名一致（`colorClassForKey` / `seriesClassForKey` 稳定散列，与渲染顺序无关）；`MetricScatter` 轴方向随指标 `better` 反向、刻度显示真实值、connect 折线与图例的一致性；`view` 外壳（topbar）恒有 NiceEval 品牌位、无 hero 区（hero 是页内组件），导航项与顺序等于报告定义中 `navigation !== false` 的页（不多不少、宿主不追加），`ReportLink.icon` 的内联 SVG 渲染在 label 前。
 - **终端排版**：Table 的列宽 / 折行 / 丢列标注、Section 框线与窄宽降级、Grid 列数规划、显示宽度口径（CJK 记 2 列）——对 show 输出逐行断言，语义来源是 [Library · 排版原语](../../../feature/reports/library/layout.md)；`MetricScatter` 字符坐标图的标记分配顺序（图例字典序、series 内 x 升序）、图例文本与 `connect` 逐段位移摘要，语义来源是 [Library · 指标组件](../../../feature/reports/library/metric-views.md#metricscatter)。
 - **双面同源**：text 与 web 显示同一份解析终值、覆盖率、判定构成和 warning，渲染不重算不丢值；不逐字比较布局。
 - **视觉与交互**：对同一次运行执行 `niceeval view --out` 导出静态站，用真实浏览器打开 index 与失败 attempt 的 `attempt/<locator>.html` 文档，验收「组件 + 官方 stylesheet」在真实证据上的组合成立：详情各语义块是结构化布局而非 UA 默认排版；源码行按 [`AttemptSource` 视觉规范](../../../feature/reports/library/attempt-detail.md#attemptsource-web-面视觉规范)呈现状态染色与行号位标记；点击 send / assertion 行由原生 `<details>` 展开行内回复与断言细节，普通行不可展开；文档零 JS 依赖（禁 JS 后上述内容仍完整可读）。

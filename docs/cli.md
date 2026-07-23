@@ -48,7 +48,7 @@ process.argv
               → 收尾:stopAllSandboxes() 兜底强清(只清运行清理集合;--keep-sandbox 留存的沙箱已在
                 verdict 定稿时先原子登记注册表、再移出集合,见 feature/sandbox/architecture.md)
                 → coordinator.stopDynamic() → 把 coordinator 累计的诊断
-                折成 RunCompletion → coordinator.finish({ summary, completion, paths, json, junit }) 打印
+                折成 InvocationCompletion → coordinator.finish({ summary, completion, paths, json, junit }) 打印
                 最终摘要与快照路径 → 按 CompletionStatus 与 evalLevelStats 折叠的 verdict 统一计算退出码
 ```
 
@@ -57,7 +57,7 @@ process.argv
 ## 反馈 coordinator:一个 run 只有一个终端协调者
 
 `--output` 选出的 profile 只决定"终端展示",不进入调度核心,也不是一种 `Reporter`。`Reporter`
-(`onEvent` / `onRunStart` / `onEvalComplete` / `onRunComplete`)只负责把完成结果写到别处(artifacts、
+(`onEvent` / `onInvocationStart` / `onEvalComplete` / `onInvocationComplete`)只负责把完成结果写到别处(artifacts、
 JSON、JUnit、Braintrust、用户自定义平台);`cli.ts` 不再构造 `Console` / `Live` / `Quiet` 这类兼职当展示层
 的 reporter,三种 profile 各自的展示逻辑全部收在 `src/runner/feedback/`:
 
@@ -89,7 +89,7 @@ reporter 失败、Ctrl+C 中断——都经 `sink.ts` 的 `reportActivity` / `re
 失败必须让 completion / 退出码判红;`config.reporters` 标 `required: false`,失败只折成一条 diagnostic,
 不影响 completion 也不阻断其它 reporter 收尾或在飞的 attempt。`src/runner/report.ts` 的 `runReporter()`
 统一吞掉每次回调抛出的异常,按 `reg.name` 去重折叠成一条 `reporter-error:<name>` diagnostic;
-`reg.required` 决定它是否写进最终 `RunCompletion.reporterErrors` 并让 completion 非 `complete`。
+`reg.required` 决定它是否写进最终 `InvocationCompletion.reporterErrors` 并让 completion 非 `complete`。
 
 ### locator 在调度前生成
 

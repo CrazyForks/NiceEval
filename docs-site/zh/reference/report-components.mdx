@@ -184,7 +184,7 @@ export const MyComparison = defineComponent((_props, ctx) => (
 - `votes="eval"`（默认）：每个 experiment × 评估用例先按「任一轮 passed 即 passed，否则 failed > errored > skipped」折成最终判定后计票，回答「多少道题最终通过」。
 - `votes="attempt"`：Attempt 原始计票，不折叠，回答「实际跑的每一轮各是什么结果」。
 
-两级计票与端到端通过率互不换算：通过率来自官方两级指标口径，不是从计票现场重新加总。选择警告不在这份数据里——警告的呈现件是 `ScopeWarnings` 组件，同一份事实不在页面上出现两次。
+两级计票与端到端通过率互不换算：通过率来自官方两级指标口径，不是从计票现场重新加总。选择警告和快照诊断都不在这份数据里——它们的呈现件分别是 `ScopeWarnings` 和 `SnapshotDiagnostics` 组件，同一份事实不在页面上出现两次。
 
 收窄范围时在自定义组件里显式传 `input`：
 
