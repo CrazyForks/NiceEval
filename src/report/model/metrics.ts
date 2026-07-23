@@ -117,8 +117,12 @@ export const examScore = defineMetric({
     // failed 同理得 0:--strict 下被翻成 failed 的哪怕 soft 分不低也是 0(报告不重新判卷)。
     if (verdict !== "passed") return 0;
     // unavailable 没有分数:不计入均分分母(评不了 ≠ 0 分;非 optional 的 unavailable
-    // 早已把 verdict 拖成 errored,走不到这个分支)。
-    const soft = assertions.filter((x) => x.severity === "soft" && x.outcome !== "unavailable");
+    // 早已把 verdict 拖成 errored,走不到这个分支)。带 points 的也排除:计分制的得分点
+    // 已经在分数面被读过一次,再进质量分就是同一条证据被读两遍(docs/feature/experiments/
+    // score-points.md「折叠树」——质量分按「soft 且无 points」取子集)。
+    const soft = assertions.filter(
+      (x) => x.severity === "soft" && x.outcome !== "unavailable" && x.points === undefined,
+    );
     if (soft.length === 0) return 1;
     return soft.reduce((sum, x) => sum + (x.outcome === "unavailable" ? 0 : x.score), 0) / soft.length;
   },

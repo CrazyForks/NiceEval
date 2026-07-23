@@ -151,6 +151,10 @@ export const en = {
     "and {{pointsCount}} points-scoring (defineScoreEval) — {{pointsIds}}.\n" +
     "Pass rate and total score cannot be combined into one reading; narrow `evals` by tags, id prefix, or the `scoring` field " +
     "so every selected eval is the same type, or split into two experiment files (one per type).\n",
+  "cli.experiment.strictOnPoints":
+    "All {{count}} evals selected by experiment \"{{experimentId}}\" are points-based (defineScoreEval), and `--strict` does nothing for them:\n" +
+    "the flag only promotes soft assertions that carry a threshold into gates, while a points eval's verdict comes solely from a `.gate()` prerequisite abort — losing points never changes it.\n" +
+    "Drop `--strict` and re-run; to tighten a points eval, write the must-hold checks as `.gate()` prerequisites.\n",
   "cli.experimentGroup": " path",
   "cli.fallbackCleanupTimeout": "\ngraceful cleanup timed out; force-cleaning sandboxes...\n",
   "cli.forceCleanupExit": "\nForce-cleaning sandboxes and exiting...\n",

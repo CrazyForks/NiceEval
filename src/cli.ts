@@ -794,6 +794,16 @@ async function main(): Promise<void> {
         }));
         process.exit(1);
       }
+      // --strict 的全部作用是「把带线 soft 翻成 gate」,而计分制的判定面只认前置中止:
+      // 这个 flag 对计分制实验一件事都做不了,静默接受一个什么都不做的 flag 会让人以为
+      // 判定收紧了(见 docs/feature/experiments/score-points.md「计分制没有 --strict」)。
+      if (flags.strict && scoringSplit.points.length > 0 && scoringSplit.pass.length === 0) {
+        process.stderr.write(t("cli.experiment.strictOnPoints", {
+          experimentId: exp.id,
+          count: scoringSplit.points.length,
+        }));
+        process.exit(1);
+      }
       agentRuns.push({
         agent: exp.agent,
         model: exp.model,

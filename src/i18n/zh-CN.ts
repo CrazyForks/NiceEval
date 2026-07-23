@@ -146,6 +146,10 @@ export const zhCN = {
     "与 {{pointsCount}} 个计分制(defineScoreEval)—— {{pointsIds}}。\n" +
     "通过率与总分不能折成一个读数;按 tags / id 前缀 / scoring 字段收窄 `evals`,让选中的 eval 同一题型," +
     "或拆成两个实验文件(每种题型一个)。\n",
+  "cli.experiment.strictOnPoints":
+    "实验 \"{{experimentId}}\" 选中的 {{count}} 个 eval 全是计分制(defineScoreEval),而 `--strict` 对它们一件事都做不了:\n" +
+    "这个开关只把「带通过线的 soft 断言」翻成 gate,而计分制的判定只认前置 `.gate()` 中止——丢分从不改 verdict。\n" +
+    "去掉 `--strict` 重跑;要收紧计分制的判定,把该硬的检查写成前置 `.gate()`。\n",
   "cli.experimentGroup": "路径",
   "cli.fallbackCleanupTimeout": "\ngraceful 清理超时,强制清理沙箱…\n",
   "cli.forceCleanupExit": "\n强制清理沙箱并退出…\n",
