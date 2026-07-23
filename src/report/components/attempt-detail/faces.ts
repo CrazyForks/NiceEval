@@ -17,7 +17,7 @@ import type {
   AttemptTraceData,
   UsageTableData,
 } from "../../model/types.ts";
-import type { AssertionResult, ScoreEntry, TimingNode } from "../../../types.ts";
+import type { AssertionResult, FailedCommandEvidence, ScoreEntry, TimingNode } from "../../../types.ts";
 import type { AttemptLocator } from "../../../results/locator.ts";
 import type { TextContext } from "../../definition/tree.ts";
 import { localeText } from "../../model/locale.ts";
@@ -56,7 +56,7 @@ export function attemptSummaryText(data: AttemptSummaryData, ctx: TextContext): 
 
 // ───────────────────────── AttemptError ─────────────────────────
 
-export function attemptErrorText(data: AttemptErrorData | null, _ctx: TextContext): string {
+export function attemptErrorText(data: AttemptErrorData | null, ctx: TextContext): string {
   if (data === null) return "";
   // message/cause 折单行加上限(同 assertionLine 的 summaryText 规则);stack 是唯一没有替代
   // 查看入口的自由文本,原样保留多行,不折。
@@ -66,7 +66,12 @@ export function attemptErrorText(data: AttemptErrorData | null, _ctx: TextContex
     lines.push(`  cause: ${data.cause.name ? `${data.cause.name} · ${causeMessage}` : causeMessage}`);
   }
   const stack = data.stack?.replace(/\n+$/, "");
-  return stack ? `${lines.join("\n")}\n\n${stack}` : lines.join("\n");
+  const body = stack ? `${lines.join("\n")}\n\n${stack}` : lines.join("\n");
+  // message 疑似只剩截断尾部时,在错误摘要后明确提示失败命令证据的完整下钻入口
+  // (docs/feature/reports/show/execution.md)。
+  if (!data.commandEvidenceHint) return body;
+  const command = evidenceCommand(ctx, data.locator, "--execution");
+  return command ? `${body}\n\nfailed command evidence: ${command}` : body;
 }
 
 // ───────────────────────── AttemptAssertions ─────────────────────────
@@ -246,6 +251,15 @@ function replySummary(reply: AttemptConversationReply): string {
   }
 }
 
+/** 失败 Sandbox 命令的紧凑摘要行(与其它回复条目同一收口规则:自由文本折单行加上限;
+ *  完整 stdout/stderr 与逐字段展开在 `--execution` 里原样可查)。 */
+function failedCommandSummary(command: FailedCommandEvidence): string[] {
+  const lines = [`FAILED COMMAND · ${command.phase} · exit ${command.exitCode}: ${summaryText(command.display)}`];
+  if (command.stdout) lines.push(`  stdout: ${summaryText(command.stdout)}`);
+  if (command.stderr) lines.push(`  stderr: ${summaryText(command.stderr)}`);
+  return lines;
+}
+
 export function attemptConversationText(data: AttemptConversationData | null, ctx: TextContext): string {
   if (data === null) return "";
   const command = evidenceCommand(ctx, data.locator, "--execution");
@@ -256,6 +270,11 @@ export function attemptConversationText(data: AttemptConversationData | null, ct
     lines.push(`  round ${i + 1}${round.sentText ? `: ${summaryText(round.sentText)}` : ""}`);
     for (const reply of round.replies) lines.push(`    ${replySummary(reply)}`);
   });
+  if (data.failedCommands && data.failedCommands.length > 0) {
+    for (const failedCommand of data.failedCommands) {
+      for (const line of failedCommandSummary(failedCommand)) lines.push(`  ${line}`);
+    }
+  }
   return lines.join("\n");
 }
 

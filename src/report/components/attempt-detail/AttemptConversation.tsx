@@ -3,7 +3,7 @@
 
 import type { ReactElement, ReactNode } from "react";
 import type { AttemptConversationData, AttemptConversationReply, AttemptConversationRound } from "../../model/types.ts";
-import type { JsonValue, ToolName } from "../../../types.ts";
+import type { FailedCommandEvidence, JsonValue, ToolName } from "../../../types.ts";
 import { stripControl } from "../../../scoring/display.ts";
 import { cx } from "../shared.ts";
 
@@ -162,6 +162,31 @@ function RoundCard({ round, index }: { round: AttemptConversationRound; index: n
   );
 }
 
+/** 失败 Sandbox 命令卡:commands.json 的投影,`data.failedCommands` 已按 timing 节点
+ *  `startOffsetMs` 排好序(见 attempt-detail/compute.ts::sortFailedCommands)。 */
+function FailedCommandCard({ command }: { command: FailedCommandEvidence }): ReactElement {
+  return (
+    <div className="nre-conv-round nre-conv-failed-command">
+      <div className="nre-conv-round-head">
+        FAILED COMMAND · {command.phase} · exit {command.exitCode}
+      </div>
+      <div className="nre-conv-sent">{command.display}</div>
+      {command.stdout ? (
+        <details className="nre-conv-context">
+          <summary>stdout</summary>
+          <pre className="nre-conv-tool-io">{command.stdout}</pre>
+        </details>
+      ) : null}
+      {command.stderr ? (
+        <details className="nre-conv-context" open>
+          <summary>stderr</summary>
+          <pre className="nre-conv-tool-io">{command.stderr}</pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export function AttemptConversation({
   data,
   className,
@@ -174,6 +199,9 @@ export function AttemptConversation({
     <div className={cx("nre", "nre-attempt-conversation", className)}>
       {data.rounds.map((round, i) => (
         <RoundCard key={i} round={round} index={i} />
+      ))}
+      {(data.failedCommands ?? []).map((command) => (
+        <FailedCommandCard key={command.timingNodeId} command={command} />
       ))}
     </div>
   );

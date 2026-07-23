@@ -1,7 +1,7 @@
 ---
 title: "View NiceEval results and debug agent behavior"
 sidebarTitle: "Viewing Results"
-description: "Use niceeval show in the terminal to look up an attempt's eval source, execution record, and diff by @<locator>, or use niceeval view to browse the same evidence in a web page."
+description: "Use niceeval show in the terminal to look up an attempt's eval source, execution record, and diff by @<locator>, compare multiple --exp conditions, check stability and usage, search execution records across attempts, or use niceeval view to browse the same evidence in a web page."
 ---
 
 After every run, [NiceEval](https://niceeval.com/) writes structured results into that experiment's **result snapshot** directory, `.niceeval/<experiment>/<snapshot>/`. `niceeval show` prints results in the terminal, for humans or coding agents to read; `niceeval view` shows the same batch of artifacts in a web page, suited to interactive browsing. The two commands share the same verdict formula, result-selection rule, and default report: for each experiment's each eval, pick the verdict with the latest timestamp, then group by the experiment ID's parent directory and compare only within a group.
@@ -328,6 +328,195 @@ Alternating ✓✗ means the eval is flaky, and the fix is stability — the sys
 
 There is no dedicated flag for an exact comparison between two runs. Write a custom comparison report using the `DeltaTable` component, then pass the file to `--report`; the terminal and the web render the same report. For how to write one, see [Custom Reports](/tutorials/custom-reports).
 
+## Common Diagnostic Tasks
+
+Each of the five task paths below only needs one `niceeval show` command — no need to leave the terminal and dig through raw `.niceeval/` files.
+
+### Which of two conditions is better on the same batch, and which evals flipped: multiple `--exp`
+
+When `--exp` appears two or more times, `show` prints a per-eval comparison matrix directly: the first `--exp` is the baseline, `⇄` marks a row whose verdict flipped, and `—` means one side has no result for that eval:
+
+```text
+$ niceeval show --exp compare/claude-baseline --exp compare/claude-mempal
+compare · 2 conditions · paired by eval id · baseline compare/claude-baseline
+common 7 · compare/claude-baseline only 0 · compare/claude-mempal only 1
+
+Eval                                    compare/claude-baseline     compare/claude-mempal       Δ compare/claude-mempal
+memory/agent-037-updatetag-cache        ✓ passed   521.4k   $0.71   ✓ passed   254.8k   $0.44   -266.6k   -$0.27
+memory/repomod-hello-world-api          ✓ passed   703.1k   $0.95   ✓ passed   2.1M   $0.98     +1.4M   +$0.03
+memory/swelancer-manager-proposals  ⇄   ✗ failed   632.8k   $0.83   ✓ passed   58.5k   $0.41    -574.3k   -$0.42
+memory/terminal-cancel-async-tasks      ✓ passed   464.1k   $0.63   ✓ passed   592.7k   $0.13   +128.6k   -$0.50
+memory/terminal-pypi-server             ✗ failed   907k   $1.21     ✗ failed   787.6k   $1.30   -119.4k   +$0.09
+memory/tool-call-observability          ✓ passed   105.7k   $0.14   ✓ passed   18.9k   $0.02    -86.8k   -$0.12
+memory/uv-lock-refresh                  —                           ✓ passed   521.5k   $0.70   —   —
+react-datepicker/pr-6058                ✗ failed   64.3k   $0.09    ✗ failed   64.7k   $0.07    +400   -$0.02
+totals                                  4/7 passed   3.4M   $4.56   6/8 passed   4.4M   $4.05   —
+7 common vs baseline · compare/claude-baseline → compare/claude-mempal: pass rate +14.3pt · tokens +494.1k · cost -$1.21
+```
+
+`memory/swelancer-manager-proposals` flipped. Narrow to that one eval with the same two `--exp` flags, and add `--json` to read both sides' `@<locator>` directly:
+
+```sh
+niceeval show memory/swelancer --exp compare/claude-baseline --exp compare/claude-mempal --json
+```
+
+```json
+{
+  "key": "memory/swelancer-manager-proposals",
+  "flipped": true,
+  "cells": {
+    "compare/claude-baseline": { "verdict": "failed", "attempts": ["@10mpqug2"], "totalTokens": 632800, "totalCostUSD": 0.83 },
+    "compare/claude-mempal":   { "verdict": "passed", "attempts": ["@1l5n9ab5"], "totalTokens": 58500,  "totalCostUSD": 0.41 }
+  }
+}
+```
+
+With a locator from each side, run `--execution` on both and compare what the agent actually did:
+
+```text
+$ niceeval show @10mpqug2 --execution
+@10mpqug2 · memory/swelancer-manager-proposals · compare/claude-baseline · failed
+
+t1 · completed
+  USER
+    Review every unhandled proposal for the manager in SWE-Lancer, and give an approve or reject verdict for each.
+
+  ASSISTANT
+    I recall proposals for this kind of task usually live under a proposals directory — let me just read the file.
+
+  TOOL · read_file
+    input
+      {"path":"proposals/README.md"}
+    result · completed
+      {"content":"# Proposals\nSee individual proposal files."}
+
+  ASSISTANT
+    I've read the README, giving conclusions in the usual format now.
+
+$ niceeval show @1l5n9ab5 --execution
+@1l5n9ab5 · memory/swelancer-manager-proposals · compare/claude-mempal · passed
+
+t1 · completed
+  USER
+    Review every unhandled proposal for the manager in SWE-Lancer, and give an approve or reject verdict for each.
+
+  ASSISTANT
+    Let me search memory for related context first.
+
+  TOOL · memory_search
+    input
+      {"query":"manager proposal review flow"}
+    result · completed
+      {"total":2,"results":[{"score":0.845,"id":"swelancer-manager-proposal-review-flow"}]}
+
+  TOOL · write_file
+    input
+      {"path":"src/manager/reviewProposals.ts"}
+    result · completed
+      {"bytesWritten":1240}
+
+  ASSISTANT
+    Applied the fix following the pattern recorded in memory.
+```
+
+Baseline drew its conclusion from a single README; mempal searched memory for the prior review flow first, then changed code — that's exactly why this eval flipped. Check variance before attributing a single flip: pass-count jitter across two runs of the same condition can be larger than the gap between conditions, so build the conclusion on the matrix's overall shift, not on one flipped eval.
+
+### Which evals have never passed: `--stats`
+
+`--stats` flattens every eval in range into one row and every experiment into one column group, with each cell holding the verdict counts across **all historical executions** for that combination — one command tells you whether an eval has ever passed, no script needed to walk the stored files:
+
+```text
+$ niceeval show --stats
+stability · 8 evals × 2 experiments · all historical executions · ✗ failed / ! errored broken out
+
+Eval                                         compare/claude-baseline   compare/claude-mempal
+memory/terminal-pypi-server   never passed   ✓0 ✗1 !0                  ✓0 ✗1 !0
+react-datepicker/pr-6058   never passed      ✓0 ✗1 !1                  ✓0 ✗2 !0
+memory/agent-037-updatetag-cache             ✓1 ✗0 !0                  ✓1 ✗0 !0
+memory/repomod-hello-world-api               ✓1 ✗0 !0                  ✓1 ✗0 !0
+memory/swelancer-manager-proposals           ✓0 ✗1 !0                  ✓1 ✗0 !0
+memory/terminal-cancel-async-tasks           ✓1 ✗0 !0                  ✓1 ✗0 !0
+memory/tool-call-observability               ✓1 ✗0 !0                  ✓1 ✗0 !0
+memory/uv-lock-refresh                       —                         ✓1 ✗0 !0
+totals                                       ✓4 ✗3 !1                  ✓6 ✗3 !0
+```
+
+For an eval marked `never passed`, suspect the eval itself first (a prompt missing a public contract, an assertion that's too strict), before suspecting the agent. A column where `!` (execution error) clusters points at provider rate limits or concurrency to fix, not at the comparison condition. To see one cell's individual executions, drill down with `niceeval show <eval prefix> --history`.
+
+### Where the cost is going: `--usage`
+
+```text
+$ niceeval show --exp compare/claude-mempal --usage
+usage · compare/claude-mempal · 8 attempts
+
+locator     eval                                 result       turns   tools   uncached in   cache read     out   requests    cost
+@1xc8bnj5   memory/agent-037-updatetag-cache     ✓ passed         2       2         48.2k       201.5k    5.1k         13   $0.44
+@1auqs6m1   memory/repomod-hello-world-api       ✓ passed         2       2        122.9k           2M   12.4k         39   $0.98
+@1l5n9ab5   memory/swelancer-manager-proposals   ✓ passed         2       2         13.9k        38.2k    6.4k          9   $0.41
+@1m7xccjg   memory/terminal-cancel-async-tasks   ✓ passed         2       2           71k       513.7k      8k         20   $0.13
+@1ytda25t   memory/terminal-pypi-server          ✗ failed         2       2         88.3k       690.1k    9.2k         26   $1.30
+@1mkg6jkc   memory/tool-call-observability       ✓ passed         2       2          6.1k          11k    1.8k          3   $0.02
+@11kz1obv   memory/uv-lock-refresh               ✓ passed         2       2        511.8k            —    9.7k         15   $0.70
+@1puv8ydu   react-datepicker/pr-6058             ✗ failed         2       2         18.4k        44.1k    2.2k          6   $0.07
+total                                            6/8 passed      16      16        880.6k        3.5M*   54.8k        131   $4.05
+```
+
+`uncached in` and `cache read` are two halves of the same `inputTokens` split apart. When a protocol resends the whole context every turn, the growth shows up in `cache read` — that split, not the raw token total, is what actually answers "where's the cost going." A missing field shows `—` and is excluded from the total (not counted as zero); a total column with any missing input is marked with `*`.
+
+### Whether the agent actually searched: `--execution --grep`
+
+Questions that span a whole run — "did it search at all, what did it query for, how many hits" — get answered in one `--grep`, without opening `--execution` on every attempt:
+
+```text
+$ niceeval show --exp compare/claude-mempal --execution --grep memory_search
+@1xc8bnj5 · memory/agent-037-updatetag-cache · compare/claude-mempal · t1
+  TOOL · memory_search
+    input
+      {"query":"updateTag cache invalidation"}
+    result · completed
+      {"total":3,"results":[{"score":0.845,"id":"agent-037-updatetag-cache-invalidation"}]}
+
+@1auqs6m1 · memory/repomod-hello-world-api · compare/claude-mempal · t1
+  TOOL · memory_search
+    input
+      {"query":"hello-world api scaffold pattern"}
+    result · completed
+      {"total":5,"results":[{"score":0.845,"id":"repomod-hello-world-api-scaffold"}]}
+…
+8 matches in 8 attempts
+```
+
+`pattern` is a JS regular expression, matched against every text field on a card — role text, tool name, input, and result. Zero hits print explicitly as `0 matches in N attempts` rather than exiting non-zero — a silent empty output can't be told apart from "forgot to run it." When a matching card is truncated past its preview budget, the truncated tail carries its own `--expand t<turn>.c<card>` handle; copy it to read that card's full stored content.
+
+### Handing it to a script: `--json`
+
+Add `--json` to any of the steps above, and you get the same selected range as a structured data superset — the same selection, slicing, and aggregation rules, just printed to stdout as one JSON document instead of formatted text:
+
+```sh
+niceeval show --exp compare/claude-mempal --usage --json
+```
+
+```json
+{
+  "format": "niceeval.show",
+  "schemaVersion": 1,
+  "view": "usage",
+  "scope": { "resultsRoot": "…", "experiments": ["compare/claude-mempal"], "fresh": false },
+  "data": [
+    {
+      "locator": "@1xc8bnj5",
+      "evalId": "memory/agent-037-updatetag-cache",
+      "verdict": "passed",
+      "usage": { "inputTokens": 249700, "outputTokens": 5100, "cacheReadTokens": 201500, "requests": 13 },
+      "uncachedInputTokens": 48200,
+      "estimatedCostUSD": 0.44
+    }
+  ]
+}
+```
+
+Read from here to build a trend, feed CI, or hand off to the next analysis step; a script that scans `.niceeval/` on its own inevitably reinvents a second, inconsistent selection and dedup convention. `--json` prints one top-level JSON document, not NDJSON, and its field names match the stored types — no second vocabulary invented for display.
+
 ## `niceeval view`: Evidence in the Browser
 
 ```bash
@@ -424,4 +613,6 @@ Soft assertion scores are recorded in `assertions[].score`; outside `--strict`, 
 - Use `--execution` to check the agent's messages and calls; correlated OTel timing shows up right next to the same event.
 - For a coding-agent failure, look at `--diff` and the tool calls in `--execution`; together they show whether it "edited the wrong file" or "never called the tool it was supposed to."
 - When a Sandbox eval runs slowly or times out, look at `--timing` first. It separately lists queueing, Sandbox startup, shell commands inside setup hooks, agent install commands, each turn's `send`, correlated OTel model/tool time, and the wrap-up phase.
+- When the same batch of evals ran under multiple conditions, use multiple `--exp` flags for the per-eval comparison matrix — don't eyeball two separate single-condition leaderboards side by side.
+- When you suspect an eval itself is broken (not the condition you just changed), check `--stats` first for whether it's `never passed` across every condition and every historical execution.
 - For locating a defect in the system under test or the eval, and completing the rerun, see [Agent Feedback Loop](/tutorials/agent-feedback-loop).

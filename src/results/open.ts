@@ -9,7 +9,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { EvalResult } from "../types.ts";
-import type { O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
+import type { FailedCommandEvidence, O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
 import type { AgentSetupManifest, DiffData, SourceArtifact } from "../types.ts";
 import { deriveDiffData } from "../scoring/diff.ts";
 import { RESULT_FILE, SNAPSHOT_FILE, artifactFileOf, classifySnapshot } from "./format.ts";
@@ -367,6 +367,7 @@ function makeAttempt(snapshot: Snapshot, snapshotDir: string, attemptDir: string
     // 携带条目投影:artifactBase 有值就是本快照 `--resume` 合入的上一轮终态结果
     // (docs/feature/results/library.md「时效:新执行与历史执行」)。
     carried: Boolean(record.artifactBase),
+    commands: lazyArtifact<FailedCommandEvidence[]>(candidates, "commands", record.commands),
     events: lazyArtifact<StreamEvent[]>(candidates, "events", record.events),
     trace: lazyArtifact<TraceSpan[]>(candidates, "trace", record.trace),
     o11y: lazyArtifact<O11ySummary>(candidates, "o11y", record.o11y),

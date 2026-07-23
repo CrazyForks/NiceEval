@@ -203,7 +203,8 @@ describe("AttemptHandle · 懒加载", () => {
     const events = await q1.events();
     expect(events).toEqual([{ type: "message", text: "hi" }]);
     // artifacts 只是「不 stat 磁盘就知道有什么」的声明;懒加载(缺失返回 null)独立成立、不依赖它——
-    // 这里没声明 trace/o11y/diff/sources,对应文件也确实没写,四个方法照常读出 null。
+    // 这里没声明 commands/trace/o11y/diff/sources,对应文件也确实没写,五个方法照常读出 null。
+    expect(await q1.commands()).toBeNull();
     expect(await q1.trace()).toBeNull();
     expect(await q1.o11y()).toBeNull();
     expect(await q1.diff()).toBeNull();
@@ -612,6 +613,7 @@ function fakeAttempt(snapshot: Snapshot, result: EvalResult): AttemptHandle {
     ref: { snapshot: "x/y", attempt: `${result.id}/a${result.attempt}` },
     snapshot,
     carried: Boolean(result.artifactBase),
+    commands: async () => null,
     events: async () => null,
     trace: async () => null,
     o11y: async () => null,
@@ -765,6 +767,72 @@ describe("createResultsWriter", () => {
     await copySnapshots(results.latest(), dest, { artifacts: ["agentSetup"] });
     const copied = join(dest, "skill-ab_claude-effect", basename(snap.dir), "q1", "a1", "agent-setup.json");
     expect(JSON.parse(await readFile(copied, "utf-8"))).toEqual(manifest);
+  });
+
+  // cases: docs/engineering/testing/unit/results.md「Usage、facts 与失败命令证据落盘」
+  it("commands:落成 commands.json(不内联进 result.json),artifacts 含 commands;懒加载读回原样往返;没有非零命令的 attempt 恒 null;copySnapshots 缺省携带", async () => {
+    const root = await makeRoot();
+    const writer = createResultsWriter(root, { producer: { name: "niceeval", version: "0.12.0" } });
+    const evidence = [
+      {
+        timingNodeId: "n1",
+        phase: "eval.setup" as const,
+        display: "npm install -g pnpm",
+        exitCode: 243,
+        stdout: "",
+        stderr: "npm error code EACCES\nnpm error path /usr/lib/node_modules/pnpm",
+      },
+    ];
+
+    const snap = await writer.snapshot({
+      experimentId: "install/pnpm-eacces",
+      agent: "bub",
+      startedAt: "2026-07-11T08:00:00.000Z",
+    });
+    await snap.writeAttempt({ id: "q1", verdict: "errored", attempt: 1, durationMs: 10, assertions: [] }, { commands: evidence });
+    await snap.writeAttempt({ id: "q2", verdict: "passed", attempt: 1, durationMs: 10, assertions: [] });
+    await finishAll(writer);
+
+    const attemptDir = join(snap.dir, "q1", "a1");
+    expect(await exists(join(attemptDir, "commands.json"))).toBe(true);
+    const onDiskResult = JSON.parse(await readFile(join(attemptDir, "result.json"), "utf-8"));
+    expect(onDiskResult.commands).toBeUndefined(); // 不内联进判决记录
+    expect(onDiskResult.artifacts).toContain("commands");
+    expect(await exists(join(snap.dir, "q2", "a1", "commands.json"))).toBe(false);
+
+    const results = await openResults(root);
+    const [q1, q2] = results.experiments[0].latest.attempts;
+    expect(await q1.commands()).toEqual(evidence); // timingNodeId/phase/display/exitCode/stdout/stderr 原样往返
+    expect(await q2.commands()).toBeNull(); // 没有非零命令的 attempt 恒 null,不是空数组
+
+    // 缺省携带(证据 registry「copySnapshots 缺省」列):不显式声明 artifacts 时 commands 仍随行——
+    // 失败命令证据是 errored attempt 的主要下钻面,不能被默认发布拷贝静默删掉。
+    const dest = join(await makeRoot(), "published");
+    await copySnapshots(results.latest(), dest);
+    const copied = join(dest, "install_pnpm-eacces", basename(snap.dir), "q1", "a1", "commands.json");
+    expect(JSON.parse(await readFile(copied, "utf-8"))).toEqual(evidence);
+  });
+
+  it("commands:stdout/stderr 超 256 KiB 时逐值截断并打结构化 truncated 标记,path 固定为 stdout/stderr", async () => {
+    const { ARTIFACT_VALUE_MAX_BYTES } = await import("./truncate.ts");
+    const root = await makeRoot();
+    const writer = createResultsWriter(root, { producer: { name: "niceeval", version: "0.12.0" } });
+    const hugeStderr = "e".repeat(ARTIFACT_VALUE_MAX_BYTES + 500);
+
+    const snap = await writer.snapshot({ experimentId: "huge/output", agent: "bub", startedAt: "2026-07-11T08:00:00.000Z" });
+    await snap.writeAttempt(
+      { id: "q1", verdict: "errored", attempt: 1, durationMs: 10, assertions: [] },
+      { commands: [{ timingNodeId: "n1", phase: "eval.run", display: "yes", exitCode: 1, stdout: "short", stderr: hugeStderr }] },
+    );
+    await finishAll(writer);
+
+    const results = await openResults(root);
+    const q1 = results.experiments[0].latest.attempts[0]!;
+    const [readBack] = (await q1.commands())!;
+    expect(Buffer.byteLength(readBack.stderr, "utf-8")).toBeLessThanOrEqual(ARTIFACT_VALUE_MAX_BYTES + 100); // 头部 + marker 行
+    expect(readBack.stderr).toContain("[niceeval] truncated");
+    expect(readBack.stdout).toBe("short"); // 未超限的字段原样保留,不被误截
+    expect(readBack.truncated).toEqual([{ path: "stderr", originalBytes: ARTIFACT_VALUE_MAX_BYTES + 500 }]);
   });
 
   it("每个 Snapshot 各自独立封口:两个 Experiment 各自不同的 completedAt 与 diagnostics 不串味,空 diagnostics 省略字段", async () => {
@@ -965,6 +1033,7 @@ describe("createResultsWriter", () => {
       trace: [{ name: "turn", kind: "turn" } as never],
       o11y: { toolCalls: 2 } as never,
       diff: [{ window: "s1/t1", changes: { "a.txt": { status: "added", after: "1" } } }],
+      commands: [{ timingNodeId: "n1", phase: "eval.run", display: "npm ci", exitCode: 1, stdout: "", stderr: "boom" }],
       rawTranscript: "raw",
     };
     const carried: EvalResult = {
@@ -990,15 +1059,18 @@ describe("createResultsWriter", () => {
     const snapDir = dirs[0].dir;
 
     const freshRecord = JSON.parse(await readFile(join(snapDir, "algebra/q1/a1/result.json"), "utf-8"));
-    for (const key of ["agent", "model", "experimentId", "experiment", "events", "sources", "o11y", "trace", "diff", "rawTranscript"]) {
+    for (const key of ["agent", "model", "experimentId", "experiment", "events", "sources", "o11y", "trace", "diff", "commands", "rawTranscript"]) {
       expect(freshRecord).not.toHaveProperty(key);
     }
     // startedAt 是 attempt 级事实(每条各异,view 靠它显示「何时跑的」),正常条目也原样落盘。
     expect(freshRecord.startedAt).toBe("2026-07-01T08:01:00.000Z");
-    // 顺序与证据 registry 一致(events/trace/o11y/agentSetup/diff/sources);fresh 没写 agentSetup。
-    expect(freshRecord.artifacts).toEqual(["events", "trace", "o11y", "diff", "sources"]);
+    // 顺序与证据 registry 一致(commands/events/trace/o11y/agentSetup/diff/sources);fresh 没写 agentSetup。
+    expect(freshRecord.artifacts).toEqual(["commands", "events", "trace", "o11y", "diff", "sources"]);
     expect(await readFile(join(snapDir, "algebra/q1/a1/events.json"), "utf-8")).toBe('[{"type":"message","role":"assistant","text":"hi"}]');
     expect(await readFile(join(snapDir, "algebra/q1/a1/o11y.json"), "utf-8")).toBe('{"toolCalls":2}');
+    expect(await readFile(join(snapDir, "algebra/q1/a1/commands.json"), "utf-8")).toBe(
+      '[{"timingNodeId":"n1","phase":"eval.run","display":"npm ci","exitCode":1,"stdout":"","stderr":"boom"}]',
+    );
 
     const carriedRecord = JSON.parse(await readFile(join(snapDir, "algebra/q3/a1/result.json"), "utf-8"));
     expect(carriedRecord.startedAt).toBe("2026-06-30T08:01:00.000Z");

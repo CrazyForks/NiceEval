@@ -141,11 +141,14 @@ export function toBraintrustEvent(result: EvalResult): BraintrustLogEvent {
     }
   }
   if (result.usage) {
-    metrics.prompt_tokens = result.usage.inputTokens;
-    metrics.completion_tokens = result.usage.outputTokens;
-    metrics.tokens = result.usage.inputTokens + result.usage.outputTokens;
-    if (result.usage.cacheReadTokens !== undefined) metrics.cache_read_tokens = result.usage.cacheReadTokens;
-    if (result.usage.cacheWriteTokens !== undefined) metrics.cache_write_tokens = result.usage.cacheWriteTokens;
+    const { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, reasoningTokens, requests } = result.usage;
+    if (inputTokens !== undefined) metrics.prompt_tokens = inputTokens;
+    if (outputTokens !== undefined) metrics.completion_tokens = outputTokens;
+    if (inputTokens !== undefined && outputTokens !== undefined) metrics.tokens = inputTokens + outputTokens;
+    if (cacheReadTokens !== undefined) metrics.cache_read_tokens = cacheReadTokens;
+    if (cacheCreationTokens !== undefined) metrics.cache_creation_tokens = cacheCreationTokens;
+    if (reasoningTokens !== undefined) metrics.reasoning_tokens = reasoningTokens;
+    if (requests !== undefined) metrics.requests = requests;
   }
   if (result.estimatedCostUSD !== undefined) metrics.estimated_cost_usd = result.estimatedCostUSD;
 

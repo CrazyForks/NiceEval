@@ -73,7 +73,7 @@ export function estimateCost(
     (bucket(usage.inputTokens, p.in, p.in) +
       bucket(usage.outputTokens, p.out, p.out) +
       bucket(usage.cacheReadTokens, p.cacheRead, p.in) +
-      bucket(usage.cacheWriteTokens, p.cacheWrite, p.in)) /
+      bucket(usage.cacheCreationTokens, p.cacheWrite, p.in)) /
     1e6;
   return usd > 0 ? usd : undefined;
 }

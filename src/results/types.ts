@@ -7,12 +7,12 @@
 // 唯一叫 AttemptHandle 的是 attempt —— 它的方法真的会碰磁盘,后缀标记的就是这件事。
 
 import type { DiagnosticRecord, EvalResult, ExperimentRunInfo, LocalizedText } from "../types.ts";
-import type { O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
+import type { FailedCommandEvidence, O11ySummary, StreamEvent, TraceSpan } from "../types.ts";
 import type { AgentSetupManifest, DiffData, SourceArtifact } from "../types.ts";
 import type { AttemptLocator } from "./locator.ts";
 
 /** attempt 级 artifact 的种类;文件名见 format.ts 的 artifactFileOf,布局见 docs/feature/results/architecture.md。 */
-export const ARTIFACT_KINDS = ["events", "trace", "o11y", "agentSetup", "diff", "sources"] as const;
+export const ARTIFACT_KINDS = ["commands", "events", "trace", "o11y", "agentSetup", "diff", "sources"] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
 /** 写这份结果的工具:niceeval 自己,或经 niceeval/results 写入面转换的第三方 harness。 */
@@ -101,6 +101,8 @@ export interface AttemptHandle {
    * (时效语义见 docs/feature/results/library.md「时效:新执行与历史执行」)。
    */
   carried: boolean;
+  /** 非零 Sandbox 命令的 stdout/stderr 证据(`commands.json`);没有失败命令时 null。 */
+  commands(): Promise<FailedCommandEvidence[] | null>;
   events(): Promise<StreamEvent[] | null>;
   trace(): Promise<TraceSpan[] | null>;
   o11y(): Promise<O11ySummary | null>;

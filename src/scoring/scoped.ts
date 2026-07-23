@@ -567,7 +567,7 @@ export function maxTokens(max: number): Spec {
     name: `maxTokens(${max})`,
     severity: "gate",
     evaluate: (ctx) => {
-      const total = ctx.usage.inputTokens + ctx.usage.outputTokens;
+      const total = (ctx.usage.inputTokens ?? 0) + (ctx.usage.outputTokens ?? 0);
       // 上限断言:实测已超限是确凿失败;未超限时缺 usage 不能按零聚合。
       if (total > max) return { score: 0, expected: `≤ ${max} tokens`, received: `${total} tokens` };
       const gap = coverageGap(ctx, "usage");

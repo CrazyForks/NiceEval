@@ -29,6 +29,7 @@ export function experimentDirOf(experimentId: string): string {
  * (`agent-setup.json`)——两边各自守自己的惯例,映射表是唯一的翻译点。
  */
 const ARTIFACT_FILES: Record<ArtifactKind, string> = {
+  commands: "commands.json",
   events: "events.json",
   trace: "trace.json",
   o11y: "o11y.json",

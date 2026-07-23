@@ -24,7 +24,7 @@ import type {
   AttemptTraceData,
   UsageTableData,
 } from "../../model/types.ts";
-import type { AssertionResult, DiagnosticRecord, EvalResult, JsonValue, ScoreEntry, StreamEvent } from "../../../types.ts";
+import type { AssertionResult, DiagnosticRecord, EvalResult, FailedCommandEvidence, JsonValue, PhaseTiming, ScoreEntry, StreamEvent, TimingNode } from "../../../types.ts";
 import { attemptCostUSD } from "../../model/metrics.ts";
 import { failureSummaryOf } from "../entity-lists/compute.ts";
 import { buildO11ySummary } from "../../../o11y/derive.ts";
@@ -62,9 +62,29 @@ export function attemptSummaryData(evidence: AttemptEvidence): AttemptSummaryDat
 
 // ───────────────────────── AttemptError ─────────────────────────
 
+/**
+ * `message` 疑似只剩某条失败命令 stdout/stderr 的截断尾部:去首尾空白后,严格短于该字段
+ * 且是它的后缀——典型场景是 Eval 拿到 `CommandResult` 后自己 `.slice(-N)` 拼进异常消息。
+ * 严格短于(不是 `<=`)排除「message 恰好等于完整字段」的场景:那种情况没有被截掉的内容,
+ * 提示「还有更多证据」是误导。
+ */
+function looksLikeTruncatedCommandTail(message: string, commands: readonly FailedCommandEvidence[]): boolean {
+  const trimmed = message.trim();
+  if (!trimmed) return false;
+  return commands.some((cmd) =>
+    [cmd.stdout, cmd.stderr].some((field) => {
+      const full = field.trim();
+      return full.length > trimmed.length && full.endsWith(trimmed);
+    }),
+  );
+}
+
 export function attemptErrorData(evidence: AttemptEvidence): AttemptErrorData | null {
   const err = evidence.result.error;
-  return err ?? null;
+  if (!err) return null;
+  const commands = evidence.commands;
+  const hint = commands && commands.length > 0 && looksLikeTruncatedCommandTail(err.message, commands);
+  return { ...err, locator: evidence.locator, ...(hint ? { commandEvidenceHint: true as const } : {}) };
 }
 
 // ───────────────────────── AttemptAssertions ─────────────────────────
@@ -296,24 +316,61 @@ export function attemptTimelineData(evidence: AttemptEvidence): AttemptTimelineD
 
 // ───────────────────────── AttemptConversation ─────────────────────────
 
+/** 在 `phases` 时间树里按 id 查找 `kind === "command"` 节点的 `startOffsetMs`;查不到(timing
+ *  unavailable,或第三方落盘没有 phases)返回 undefined。 */
+function commandStartOffsetMs(phases: readonly PhaseTiming[] | undefined, timingNodeId: string): number | undefined {
+  const find = (nodes: TimingNode[] | undefined): number | undefined => {
+    for (const n of nodes ?? []) {
+      if (n.id === timingNodeId) return n.startOffsetMs;
+      const found = find(n.children);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+  for (const p of phases ?? []) {
+    const found = find(p.children);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
+ * 失败命令按关联 timing 节点的 `startOffsetMs` 排序(docs/feature/results/architecture.md
+ * 「commandsjson」);关联不到 timing 节点的排在最后,组内保持 `commands.json` 原始顺序作稳定
+ * tie-break,不按数组偶然顺序猜时间。
+ */
+function sortFailedCommands(
+  commands: readonly FailedCommandEvidence[],
+  phases: readonly PhaseTiming[] | undefined,
+): FailedCommandEvidence[] {
+  return commands
+    .map((command, index) => ({ command, index, offset: commandStartOffsetMs(phases, command.timingNodeId) }))
+    .sort((a, b) => (a.offset ?? Number.POSITIVE_INFINITY) - (b.offset ?? Number.POSITIVE_INFINITY) || a.index - b.index)
+    .map((entry) => entry.command);
+}
+
 /**
  * 标准事件流按 `loc` 分轮(docs/feature/reports/library/attempt-detail.md「Attempt 详情组件」):
  * 带 loc 的 user 消息开一轮;无 loc 的 user 消息不开新轮——与当前轮 sent 同文本的回显直接
  * 吃掉,其它(stop-hook 反馈、skill 注入等轮内注入)作为回复条目留在当前轮。流首出现无 loc
  * 的 user 消息(没有当前轮可归入)时退化开一条 loc 缺省的兜底轮,不丢弃。未识别的事件类型
  * 包成 `raw` 条目原样呈现,不吞没其余事件——StreamEvent 是随 artifact 版本演进的开放词表,
- * 这份纯函数不能假设自己认识每一种将来会出现的 type。
+ * 这份纯函数不能假设自己认识每一种将来会出现的 type。除标准事件流外还携带 `failedCommands`
+ * (`commands.json` 的投影);没有 events 但有失败命令时仍非空——事件骨架与命令证据是两个
+ * 独立的非空条件,任一非空这个组件就有内容可显示。
  */
 export function attemptConversationData(evidence: AttemptEvidence): AttemptConversationData | null {
   const events = evidence.events;
-  if (!events || events.length === 0) return null;
+  const failedCommands =
+    evidence.commands && evidence.commands.length > 0 ? sortFailedCommands(evidence.commands, evidence.result.phases) : undefined;
+  if ((!events || events.length === 0) && failedCommands === undefined) return null;
 
   const rounds: AttemptConversationRound[] = [];
   const toolByCallId = new Map<string, Extract<AttemptConversationReply, { kind: "tool" }>>();
   const subagentByCallId = new Map<string, Extract<AttemptConversationReply, { kind: "subagent" }>>();
   let current: AttemptConversationRound | null = null;
 
-  for (const ev of events) {
+  for (const ev of events ?? []) {
     if (ev.type === "message" && ev.role === "user") {
       if (!ev.loc && current) {
         if (current.replies.length === 0 && (ev.text || "") === current.sentText) continue;
@@ -332,7 +389,7 @@ export function attemptConversationData(evidence: AttemptEvidence): AttemptConve
     current.replies.push(...conversationReplyOf(ev, toolByCallId, subagentByCallId));
   }
 
-  return { locator: evidence.locator, rounds };
+  return { locator: evidence.locator, rounds, ...(failedCommands ? { failedCommands } : {}) };
 }
 
 /** 单条事件 → 0 或 1 条回复条目;action.result/subagent.completed 只更新已有条目,不新增。 */

@@ -86,14 +86,14 @@ export function parseOpenClawTranscript(raw: string | undefined): ParsedTranscri
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheReadTokens = 0;
-  let cacheWriteTokens = 0;
+  let cacheCreationTokens = 0;
   let costUSD = 0;
   let requests = 0;
   let compactions = 0;
   let parseSuccess = true;
 
   if (!raw || !raw.trim()) {
-    return { events, usage: { inputTokens: 0, outputTokens: 0 }, compactions: 0, parseSuccess: true };
+    return { events, usage: {}, compactions: 0, parseSuccess: true };
   }
 
   let synth = 0;
@@ -105,13 +105,13 @@ export function parseOpenClawTranscript(raw: string | undefined): ParsedTranscri
     const input = num(usage, "input", "input_tokens", "inputTokens", "prompt_tokens");
     const output = num(usage, "output", "output_tokens", "outputTokens", "completion_tokens");
     const cacheRead = num(usage, "cacheRead", "cache_read_input_tokens", "cacheReadTokens");
-    const cacheWrite = num(usage, "cacheWrite", "cache_creation_input_tokens", "cacheWriteTokens");
+    const cacheCreation = num(usage, "cacheWrite", "cache_creation_input_tokens", "cacheCreationTokens");
     const cost = num(usage, "cost") || num(get(usage, "cost"), "total");
-    if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0 && cost === 0) return;
+    if (input === 0 && output === 0 && cacheRead === 0 && cacheCreation === 0 && cost === 0) return;
     inputTokens += input;
     outputTokens += output;
     cacheReadTokens += cacheRead;
-    cacheWriteTokens += cacheWrite;
+    cacheCreationTokens += cacheCreation;
     costUSD += cost;
     requests += 1;
   };
@@ -202,9 +202,11 @@ export function parseOpenClawTranscript(raw: string | undefined): ParsedTranscri
     }
   }
 
-  const usage: Usage = { inputTokens, outputTokens };
+  // requests > 0 意味着至少一条消息真的带回了 usage;整份 transcript 没有任何 usage 时
+  // input/output 也不该垫成 0(见 docs/feature/results/architecture.md#usage)。
+  const usage: Usage = requests > 0 ? { inputTokens, outputTokens } : {};
   if (cacheReadTokens > 0) usage.cacheReadTokens = cacheReadTokens;
-  if (cacheWriteTokens > 0) usage.cacheWriteTokens = cacheWriteTokens;
+  if (cacheCreationTokens > 0) usage.cacheCreationTokens = cacheCreationTokens;
   if (requests > 0) usage.requests = requests;
   if (costUSD > 0) usage.costUSD = costUSD;
 

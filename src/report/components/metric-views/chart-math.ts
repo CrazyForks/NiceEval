@@ -82,6 +82,11 @@ export function paddedAxisDomain(values: readonly number[], bounds?: AxisBounds)
  * `[min, max]` 到下一个整齐边界再取刻度;这里 `[lo, hi]` 已经是呼吸边距 / bounds 钳制后的
  * 值域本身,刻度只在其内部取值,不再向外扩张——否则会在值域之外画出不存在的假刻度。
  */
+/** 相邻刻度的步长;单刻度返回 NaN(调用方回退通用格式化)。 */
+export function tickStepOf(ticks: readonly number[]): number {
+  return ticks.length > 1 ? ticks[1]! - ticks[0]! : Number.NaN;
+}
+
 export function ticksInDomain(lo: number, hi: number, count = 5): number[] {
   if (lo >= hi) return [lo];
   const step = niceNumber((hi - lo) / Math.max(1, count - 1), true);

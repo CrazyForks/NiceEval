@@ -3,7 +3,7 @@
 // 解析、不在事件归一化里做。适用范围:events.json 的事件字段与 trace.json 的 span 属性里的
 // 任意字符串值。没有 flag、没有配置项;截断永远不影响判决(落盘是证据,不是评分输入)。
 
-import type { StreamEvent, TraceSpan, Truncation } from "../types.ts";
+import type { FailedCommandEvidence, StreamEvent, TraceSpan, Truncation } from "../types.ts";
 
 /** 每个字符串值的落盘上限(UTF-8 字节)。 */
 export const ARTIFACT_VALUE_MAX_BYTES = 256 * 1024;
@@ -86,5 +86,17 @@ export function truncateSpans(spans: readonly TraceSpan[]): TraceSpan[] {
       : span.attributes;
     if (out.length === 0) return span;
     return { ...span, attributes, truncated: [...(span.truncated ?? []), ...out] };
+  });
+}
+
+/** commands.json 落盘前的截断:每条证据的 stdout / stderr 逐值截断,`truncated[].path` 固定
+ *  是 "stdout" 或 "stderr"(见 docs/feature/results/architecture.md「commandsjson」）。 */
+export function truncateCommands(commands: readonly FailedCommandEvidence[]): FailedCommandEvidence[] {
+  return commands.map((cmd) => {
+    const out: Truncation[] = [];
+    const stdout = truncateJsonValue(cmd.stdout, "stdout", out) as string;
+    const stderr = truncateJsonValue(cmd.stderr, "stderr", out) as string;
+    if (out.length === 0) return cmd;
+    return { ...cmd, stdout, stderr, truncated: [...(cmd.truncated ?? []), ...out] };
   });
 }

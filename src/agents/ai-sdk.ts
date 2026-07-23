@@ -78,6 +78,8 @@ export interface AiSdkUsageLike {
   promptTokens?: number;
   completionTokens?: number;
   cachedInputTokens?: number;
+  /** LanguageModelUsage(v5+)对推理模型(o-series 等)带回的思考 token,已计入 outputTokens。 */
+  reasoningTokens?: number;
   /** v7:cache 细分挪进了 inputTokenDetails。 */
   inputTokenDetails?: {
     cacheReadTokens?: number;
@@ -331,8 +333,10 @@ function readUsage(result: AiSdkResultLike, stepCount: number): Usage | undefine
   const usage: Usage = { inputTokens, outputTokens, requests: Math.max(stepCount, 1) };
   const cacheRead = num(u.cachedInputTokens) ?? num(u.inputTokenDetails?.cacheReadTokens);
   if (cacheRead) usage.cacheReadTokens = cacheRead;
-  const cacheWrite = num(u.inputTokenDetails?.cacheWriteTokens);
-  if (cacheWrite) usage.cacheWriteTokens = cacheWrite;
+  const cacheCreation = num(u.inputTokenDetails?.cacheWriteTokens);
+  if (cacheCreation) usage.cacheCreationTokens = cacheCreation;
+  const reasoning = num(u.reasoningTokens);
+  if (reasoning) usage.reasoningTokens = reasoning;
   return usage;
 }
 

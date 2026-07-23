@@ -110,7 +110,7 @@ function extractThinking(data: unknown): string {
 
 // ───────────────────────── usage 聚合 ─────────────────────────
 
-function readUsage(u: unknown): { input: number; output: number; cacheRead: number } | null {
+function readUsage(u: unknown): { input: number; output: number; cacheRead: number; cacheCreation: number } | null {
   if (!u || typeof u !== "object") return null;
   const o = u as Record<string, unknown>;
   const num = (...keys: string[]): number => {
@@ -123,8 +123,27 @@ function readUsage(u: unknown): { input: number; output: number; cacheRead: numb
   const input = num("input_tokens", "prompt_tokens", "inputTokens");
   const output = num("output_tokens", "completion_tokens", "outputTokens");
   const cacheRead = num("cache_read_input_tokens", "cached_input_tokens", "cache_read_tokens");
-  if (input === 0 && output === 0 && cacheRead === 0) return null;
-  return { input, output, cacheRead };
+  const cacheCreation = readCacheCreation(o);
+  if (input === 0 && output === 0 && cacheRead === 0 && cacheCreation === 0) return null;
+  return { input, output, cacheRead, cacheCreation };
+}
+
+/**
+ * cache_creation_input_tokens 顶层字段是缓存写入总量;某些版本额外拆到
+ * `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens` 两档 ttl 明细,
+ * 顶层字段存在时已经是二者之和,不重复相加。
+ */
+function readCacheCreation(o: Record<string, unknown>): number {
+  const top = o["cache_creation_input_tokens"];
+  if (typeof top === "number" && Number.isFinite(top)) return top;
+  const detail = o["cache_creation"];
+  if (detail && typeof detail === "object") {
+    const d = detail as Record<string, unknown>;
+    const five = typeof d["ephemeral_5m_input_tokens"] === "number" ? (d["ephemeral_5m_input_tokens"] as number) : 0;
+    const hour = typeof d["ephemeral_1h_input_tokens"] === "number" ? (d["ephemeral_1h_input_tokens"] as number) : 0;
+    return five + hour;
+  }
+  return 0;
 }
 
 // ───────────────────────── compaction 标记 ─────────────────────────
@@ -145,6 +164,7 @@ export function parseClaudeCodeTranscript(raw: string | undefined): ParsedTransc
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
   let requests = 0;
   let compactions = 0;
   let parseSuccess = true;
@@ -154,7 +174,7 @@ export function parseClaudeCodeTranscript(raw: string | undefined): ParsedTransc
   const skillCallIds = new Set<string>();
 
   if (!raw || !raw.trim()) {
-    return { events, usage: { inputTokens: 0, outputTokens: 0 }, compactions: 0, parseSuccess: true };
+    return { events, usage: {}, compactions: 0, parseSuccess: true };
   }
 
   const addUsageFrom = (data: unknown): void => {
@@ -163,6 +183,7 @@ export function parseClaudeCodeTranscript(raw: string | undefined): ParsedTransc
     inputTokens += u.input;
     outputTokens += u.output;
     cacheReadTokens += u.cacheRead;
+    cacheCreationTokens += u.cacheCreation;
     requests += 1;
   };
 
@@ -265,8 +286,11 @@ export function parseClaudeCodeTranscript(raw: string | undefined): ParsedTransc
     }
   }
 
-  const usage: Usage = { inputTokens, outputTokens };
+  // requests > 0 意味着至少一行真的带回了 usage;整份 transcript 没有任何 usage 行时
+  // (比如純工具调用、无模型请求的边角 fixture)input/output 也不该垫成 0。
+  const usage: Usage = requests > 0 ? { inputTokens, outputTokens } : {};
   if (cacheReadTokens > 0) usage.cacheReadTokens = cacheReadTokens;
+  if (cacheCreationTokens > 0) usage.cacheCreationTokens = cacheCreationTokens;
   if (requests > 0) usage.requests = requests;
 
   return { events, usage, compactions, parseSuccess };

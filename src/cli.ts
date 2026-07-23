@@ -22,6 +22,7 @@ import { drainExperimentTeardowns } from "./runner/experiment-cleanup-registry.t
 import { CLEANUP_TIMEOUT_MS, withCleanupTimeout } from "./runner/cleanup-timeout.ts";
 import type { ExperimentHookContext } from "./runner/types.ts";
 import { evalLevelStats } from "./shared/verdict.ts";
+import { recordFact } from "./shared/facts.ts";
 import { prepareRunSandboxes, resolvedSandboxRecommendedConcurrency } from "./runner/sandbox-selection.ts";
 import { JUnit } from "./runner/reporters/json.ts";
 import { Artifacts as ArtifactsReporter } from "./runner/reporters/artifacts.ts";
@@ -765,6 +766,11 @@ async function main(): Promise<void> {
           signal: new AbortController().signal,
           progress: () => {},
           diagnostic: (input) => process.stderr.write(`${input.message}\n`),
+          // 独立 `--teardown` 路径不派发任何 attempt、不打开快照,没有 `SnapshotMeta.facts`
+          // 这条落盘去处可写(见 runner/types.ts 的 ExperimentHookContext.fact 注释)。仍然复用
+          // 共享校验(非法 key / 非标量 value 照样抛错——诚实优于静默),校验通过后丢弃写入:
+          // 这是有意的 no-op,不是遗漏。
+          fact: (key, value) => recordFact({}, key, value),
         };
         const registrations = await readTeardownRegistrations(niceevalRootForTeardown).catch(() => []);
         const matching = registrations.filter(({ entry }) => entry.experimentId === exp.id);

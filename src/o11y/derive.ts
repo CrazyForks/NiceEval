@@ -185,18 +185,22 @@ export function extractUsageFromSpans(spans: readonly TraceSpan[]): Usage | unde
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
 
   for (const span of spans) {
     const a = span.attributes ?? {};
-    // OpenTelemetry GenAI 语义约定(新旧两套 key 都认)
+    // OpenTelemetry GenAI 语义约定(新旧两套 key 都认);cache_read/cache_creation 是
+    // 常见 vendor instrumentation(如 Anthropic OTel 插桩)对同一约定族的扩展属性。
     inputTokens += numAttr(a, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens");
     outputTokens += numAttr(a, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens");
     cacheReadTokens += numAttr(a, "gen_ai.usage.cache_read_input_tokens");
+    cacheCreationTokens += numAttr(a, "gen_ai.usage.cache_creation_input_tokens");
   }
 
   if (inputTokens === 0 && outputTokens === 0) return undefined;
   const u: Usage = { inputTokens, outputTokens };
   if (cacheReadTokens > 0) u.cacheReadTokens = cacheReadTokens;
+  if (cacheCreationTokens > 0) u.cacheCreationTokens = cacheCreationTokens;
   return u;
 }
 

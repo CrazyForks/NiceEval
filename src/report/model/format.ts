@@ -72,6 +72,28 @@ function formatDollars(abs: number): string {
   return abs.toFixed(4);
 }
 
+/**
+ * 轴刻度标签:精度按刻度步长自适应。契约(metric-views.md「图轴值域」)要求「标签始终显示
+ * 真实值」——极小量程(如成本 ~0.0001)下固定小数位会把相邻刻度折叠成同一个字符串,
+ * 读者据此无法区分刻度。步长已知时取恰好能区分相邻刻度的小数位(整齐刻度是 1/2/5×10^k,
+ * toFixed(⌈-log10(step)⌉) 恒精确),再裁掉尾零;步长不可用(单刻度)回退通用格式化。
+ */
+export function formatTickValue(value: number, step: number, unit?: string): string {
+  if (!(step > 0) || !Number.isFinite(step)) return formatMetricValue(value, unit);
+  // 精度 = 步长自身的十进制小数位数(nice 步长是 1/2/2.5/5×10^k,如 0.25 需要 2 位,不是 ⌈-log10⌉ 的 1 位)。
+  let decimals = 0;
+  while (decimals < 10 && Math.abs(Math.round(step * 10 ** decimals) - step * 10 ** decimals) > 1e-9 * 10 ** decimals) decimals++;
+  if (decimals === 0) return formatMetricValue(value, unit);
+  // 精确到步长的定点展示,去尾零——整齐刻度是 1/2/5×10^k,toFixed(⌈-log10(step)⌉) 恒无损。
+  const fixed = (n: number, d: number) => n.toFixed(d).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (unit === "%") return `${sign}${fixed(abs * 100, Math.max(0, decimals - 2))}%`;
+  if (unit === "ms") return formatMetricValue(value, unit);
+  if (unit === "$") return `${sign}$${fixed(abs, decimals)}`;
+  return unit ? `${sign}${fixed(abs, decimals)} ${unit}` : `${sign}${fixed(abs, decimals)}`;
+}
+
 export function formatMetricValue(value: number, unit?: string): string {
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);

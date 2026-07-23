@@ -9,12 +9,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentSetupManifest, DiagnosticRecord, EvalResult, ExperimentRunInfo, LocalizedText } from "../types.ts";
-import type { DiffArtifact, O11ySummary, SourceArtifact, StreamEvent, TraceSpan } from "../types.ts";
+import type { DiffArtifact, FailedCommandEvidence, O11ySummary, SourceArtifact, StreamEvent, TraceSpan } from "../types.ts";
 import { RESULTS_FORMAT, RESULTS_SCHEMA_VERSION } from "../types.ts";
 import { RESULT_FILE, SNAPSHOT_FILE, artifactFileOf, attemptDirOf, experimentDirOf } from "./format.ts";
 import { encodeAttemptLocator } from "./locator.ts";
 import { hashEvalSource, normalizeEvalSource } from "./source-hash.ts";
-import { truncateEvents, truncateSpans } from "./truncate.ts";
+import { truncateCommands, truncateEvents, truncateSpans } from "./truncate.ts";
 import type { Producer, SnapshotMeta } from "./types.ts";
 
 export interface ResultsWriterOptions {
@@ -68,6 +68,7 @@ export type AttemptEntry = Omit<
   | "trace"
   | "agentSetup"
   | "diff"
+  | "commands"
   | "rawTranscript"
   | "artifactBase"
   | "artifacts"
@@ -82,6 +83,8 @@ export interface AttemptArtifacts {
   agentSetup?: AgentSetupManifest;
   diff?: DiffArtifact;
   sources?: SourceArtifact[];
+  /** 非零 Sandbox 命令的 stdout/stderr 证据(见 docs/feature/results/architecture.md「commandsjson」)。 */
+  commands?: FailedCommandEvidence[];
 }
 
 export interface SnapshotWriter {
@@ -249,8 +252,21 @@ export function createResultsWriter(root: string, opts: ResultsWriterOptions): R
       // startedAt 已经不在本轮快照里了,重算会用错的 snapshotStartedAt 算出不同的字符串,
       // 让已经发布/引用过的 locator 失效。真缺失(没经过 openResults 的手工构造)时如实留空,
       // 交给读取面按当前身份兜底算(见 open.ts 的 locator 回填),不在这里瞎猜。
-      const { agent, model, experimentId, experiment, events, sources, o11y, trace, agentSetup, diff, rawTranscript, ...rest } =
-        result;
+      const {
+        agent,
+        model,
+        experimentId,
+        experiment,
+        events,
+        sources,
+        o11y,
+        trace,
+        agentSetup,
+        diff,
+        commands,
+        rawTranscript,
+        ...rest
+      } = result;
       void agent;
       void model;
       void experimentId;
@@ -261,6 +277,7 @@ export function createResultsWriter(root: string, opts: ResultsWriterOptions): R
       void trace;
       void agentSetup;
       void diff;
+      void commands;
       void rawTranscript;
       const attemptDir = join(snap.dir, attemptDirOf(result));
       await mkdir(attemptDir, { recursive: true });
@@ -280,6 +297,7 @@ export function createResultsWriter(root: string, opts: ResultsWriterOptions): R
       trace,
       agentSetup,
       diff,
+      commands,
       rawTranscript,
       artifactBase,
       artifacts,
@@ -294,7 +312,7 @@ export function createResultsWriter(root: string, opts: ResultsWriterOptions): R
     // startedAt 是 attempt 级事实(每条各异,view 靠它显示「何时跑的」),原样落盘;
     // 读取面只在记录缺失时才回退快照的 startedAt。
     const record = { ...entry, ...(startedAt !== undefined ? { startedAt } : {}) };
-    await snap.writeAttempt(record as AttemptEntry, { events, sources, o11y, trace, agentSetup, diff });
+    await snap.writeAttempt(record as AttemptEntry, { events, sources, o11y, trace, agentSetup, diff, commands });
   }
 
   return {
@@ -321,6 +339,7 @@ async function writeAttemptFiles(
   const attemptDir = join(snapDir, attemptDirOf(entry));
   await mkdir(attemptDir, { recursive: true });
 
+  const hasCommands = !!(artifacts?.commands && artifacts.commands.length);
   const hasEvents = !!(artifacts?.events && artifacts.events.length);
   const hasSources = !!(artifacts?.sources && artifacts.sources.length);
   const hasTrace = !!(artifacts?.trace && artifacts.trace.length);
@@ -329,9 +348,14 @@ async function writeAttemptFiles(
   const hasDiff = !!artifacts?.diff;
 
   const writes: Promise<unknown>[] = [];
-  // 大值截断只发生在这里(序列化的那一刻):events 的事件字段与 trace 的 span 属性里的任意
-  // 字符串值按 ARTIFACT_VALUE_MAX_BYTES 截断并留结构化 truncated 标记;运行时(断言 / o11y
-  // 派生)看到的始终是完整值。sources 与 diff 不截断(见 docs/feature/results/architecture.md)。
+  // 大值截断只发生在这里(序列化的那一刻):events 的事件字段、trace 的 span 属性与 commands
+  // 的 stdout/stderr 里的任意字符串值按 ARTIFACT_VALUE_MAX_BYTES 截断并留结构化 truncated
+  // 标记;运行时(断言 / o11y 派生)看到的始终是完整值。sources 与 diff 不截断(见
+  // docs/feature/results/architecture.md)。
+  if (hasCommands)
+    writes.push(
+      writeFile(join(attemptDir, artifactFileOf("commands")), JSON.stringify(truncateCommands(artifacts!.commands!)), "utf-8"),
+    );
   if (hasEvents)
     writes.push(writeFile(join(attemptDir, "events.json"), JSON.stringify(truncateEvents(artifacts!.events!)), "utf-8"));
   if (hasSources) writes.push(writeSourcesRef(snapDir, attemptDir, artifacts!.sources!, sourceStore));
@@ -361,10 +385,11 @@ async function writeAttemptFiles(
       attempt: entry.attempt,
     });
 
-  // artifacts 词干列表:writer 实际写出的按需 artifact,顺序与证据 registry 表一致
-  // (commands 词干尚未有 writer,不在这条落盘路径里出现);省略等价于空列表。
+  // artifacts 词干列表:writer 实际写出的按需 artifact,顺序与证据 registry 表一致;
+  // 省略等价于空列表。
   const artifactStems = (
     [
+      ["commands", hasCommands],
       ["events", hasEvents],
       ["trace", hasTrace],
       ["o11y", hasO11y],

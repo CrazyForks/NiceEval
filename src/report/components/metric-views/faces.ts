@@ -18,7 +18,7 @@ import type {
 } from "../../model/types.ts";
 import type { TextContext } from "../../definition/tree.ts";
 import type { TableColumn, TableRow } from "../../definition/primitives.tsx";
-import { formatMetricValue, formatPlainNumber, formatPoints, verdictMark } from "../../model/format.ts";
+import { formatMetricValue, formatPlainNumber, formatPoints, formatTickValue, verdictMark } from "../../model/format.ts";
 import { countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../../model/locale.ts";
 import { padDisplay, stringWidth, textBar } from "../../model/text-layout.ts";
 import { renderTableText } from "../../definition/table-text.ts";
@@ -333,8 +333,8 @@ export function scatterText(data: ScatterData, ctx: TextContext, opts?: ScatterT
     lines: [],
     xLabel: axes.x,
     yLabel: axes.y,
-    formatX: (v) => formatMetricValue(v, data.x.unit),
-    formatY: (v) => formatMetricValue(v, data.y.unit),
+    formatX: (v, step) => (step !== undefined && Number.isFinite(step) ? formatTickValue(v, step, data.x.unit) : formatMetricValue(v, data.x.unit)),
+    formatY: (v, step) => (step !== undefined && Number.isFinite(step) ? formatTickValue(v, step, data.y.unit) : formatMetricValue(v, data.y.unit)),
     // 轴方向跟随 better(与 web 面同规则):lower 反向,higher 与未声明正向。
     invertX: data.x.better === "lower",
     invertY: data.y.better === "lower",
@@ -421,8 +421,8 @@ export function lineText(data: LineData, ctx: TextContext): string {
     lines: lines.filter((l) => l.length > 1),
     xLabel,
     yLabel: axisLabel(data.y, locale),
-    formatX: (v) => formatMetricValue(v, data.x.unit),
-    formatY: (v) => formatMetricValue(v, data.y.unit),
+    formatX: (v, step) => (step !== undefined && Number.isFinite(step) ? formatTickValue(v, step, data.x.unit) : formatMetricValue(v, data.x.unit)),
+    formatY: (v, step) => (step !== undefined && Number.isFinite(step) ? formatTickValue(v, step, data.y.unit) : formatMetricValue(v, data.y.unit)),
   });
   const legend = seriesKeys
     .map((key, i) => `${POINT_MARKS[i]} ${key === "" ? axisLabel(data.y, locale) : key}`)

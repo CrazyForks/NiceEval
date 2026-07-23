@@ -221,6 +221,10 @@ export function validateErrorData(data: unknown): string | null {
   if (typeof data.code !== "string") return '"code" must be a string';
   if (typeof data.message !== "string") return '"message" must be a string';
   if (typeof data.phase !== "string") return '"phase" must be a string';
+  if (typeof data.locator !== "string") return 'missing "locator" (string)';
+  if (data.commandEvidenceHint !== undefined && data.commandEvidenceHint !== true) {
+    return '"commandEvidenceHint" must be true or omitted';
+  }
   return null;
 }
 
@@ -487,10 +491,25 @@ function conversationRoundProblem(value: unknown, path: string): string | null {
   return arrayProblem(value.replies, `${path}.replies`, conversationReplyProblem);
 }
 
+/** FailedCommandEvidence(src/runner/types.ts):commands.json 的一条落盘记录。 */
+function failedCommandEvidenceProblem(value: unknown, path: string): string | null {
+  if (!isObject(value)) return `"${path}" must be a FailedCommandEvidence { timingNodeId, phase, display, exitCode, stdout, stderr }`;
+  if (typeof value.timingNodeId !== "string") return `"${path}.timingNodeId" must be a string`;
+  if (typeof value.phase !== "string") return `"${path}.phase" must be a string`;
+  if (typeof value.display !== "string") return `"${path}.display" must be a string`;
+  if (typeof value.exitCode !== "number") return `"${path}.exitCode" must be a number`;
+  if (typeof value.stdout !== "string") return `"${path}.stdout" must be a string`;
+  if (typeof value.stderr !== "string") return `"${path}.stderr" must be a string`;
+  return null;
+}
+
 export function validateConversationData(data: unknown): string | null {
   if (!isObject(data)) return "expected an object";
   if (typeof data.locator !== "string") return 'missing "locator" (string)';
-  return arrayProblem(data.rounds, "rounds", conversationRoundProblem);
+  const roundsProblem = arrayProblem(data.rounds, "rounds", conversationRoundProblem);
+  if (roundsProblem !== null) return roundsProblem;
+  if (data.failedCommands === undefined) return null;
+  return arrayProblem(data.failedCommands, "failedCommands", failedCommandEvidenceProblem);
 }
 
 export const AttemptConversation = makeAttemptComponent<AttemptConversationData>({
@@ -540,7 +559,15 @@ export const AttemptDiagnostics = makeAttemptComponent<AttemptDiagnosticsData>({
 /** Usage(落盘形状,src/types.ts):每个字段只在协议真实提供时存在,不校验必填。 */
 function usageProblem(value: unknown, path: string): string | null {
   if (!isObject(value)) return `"${path}" must be a Usage object`;
-  for (const key of ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "requests"] as const) {
+  for (const key of [
+    "inputTokens",
+    "outputTokens",
+    "cacheReadTokens",
+    "cacheCreationTokens",
+    "reasoningTokens",
+    "requests",
+    "costUSD",
+  ] as const) {
     if (value[key] !== undefined && typeof value[key] !== "number") return `"${path}.${key}" must be a number`;
   }
   return null;

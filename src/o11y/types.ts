@@ -3,22 +3,29 @@
 
 import type { JsonValue, SourceLoc } from "../shared/types.ts";
 
-/** 一次运行的 token 用量(沙箱型从 transcript/OTel span 的 `gen_ai.usage.*` 属性抠,remote 由 send 的 `Turn.usage` 直接返回)。 */
+/**
+ * 一次运行的 token 用量(沙箱型从 transcript/OTel span 的 `gen_ai.usage.*` 属性抠,remote 由
+ * send 的 `Turn.usage` 直接返回)。每个字段只在协议真实提供该值时存在——原始协议没有 usage 时
+ * 省略,不编造数值;不存在「默认 0」或「默认 1」的字段(docs/feature/results/architecture.md#usage)。
+ */
 export interface Usage {
-  /** 输入(prompt)token 数,不含缓存命中部分。 */
-  inputTokens: number;
+  /** 计费口径的输入 token 总量(协议报什么记什么,含 cache read 时如实包含,不换算)。 */
+  inputTokens?: number;
   /** 输出(completion)token 数。 */
-  outputTokens: number;
-  /** 命中 prompt 缓存、按缓存价读取的 token 数(省略表示该 agent 不上报此项)。 */
+  outputTokens?: number;
+  /** 从缓存命中的输入部分;与 inputTokens 同一计量口径(省略表示该 agent 不上报此项)。 */
   cacheReadTokens?: number;
-  /** 写入 prompt 缓存的 token 数(省略表示该 agent 不上报此项)。 */
-  cacheWriteTokens?: number;
-  /** 本次运行触发的模型请求次数(多轮/重试可能大于 1)。 */
+  /** 写入 prompt 缓存创建的 token 数(省略表示该 agent 不上报此项)。 */
+  cacheCreationTokens?: number;
+  /** 推理(thinking)token 数,只在协议真实提供时存在(省略表示该 agent 不上报此项)。 */
+  reasoningTokens?: number;
+  /** 真实发生的模型请求数。协议不提供请求计数就省略,绝不写 1 凑数。 */
   requests?: number;
   /**
    * 网关/adapter 实测的真实美元成本(只能由 `Turn.usage.costUSD` 显式带回,从不从
-   * token 用量或 OTel span 反推得到)。存在时优先于按价格表(`defineConfig({ pricing })`)
-   * 估算的成本——见 `estimateCost` 的 `usage.costUSD ?? estimateCost(...)` 兜底顺序。
+   * token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表估算)是两个事实:
+   * 存在时优先于按价格表(`defineConfig({ pricing })`)估算的成本——见 `estimateCost` 的
+   * `usage.costUSD ?? estimateCost(...)` 兜底顺序。
    */
   costUSD?: number;
 }

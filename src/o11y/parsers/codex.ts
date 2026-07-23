@@ -70,7 +70,7 @@ function extractReasoning(item: unknown): string {
 // ───────────────────────── usage 聚合 ─────────────────────────
 
 /** 从一个 usage-like 对象读出增量(支持 input/output_tokens 与 prompt/completion_tokens 两套命名)。 */
-function readUsage(u: unknown): { input: number; output: number; cacheRead: number } | null {
+function readUsage(u: unknown): { input: number; output: number; cacheRead: number; reasoning: number } | null {
   if (!u || typeof u !== "object") return null;
   const o = u as Record<string, unknown>;
   const num = (...keys: string[]): number => {
@@ -88,8 +88,11 @@ function readUsage(u: unknown): { input: number; output: number; cacheRead: numb
     "cache_read_tokens",
     "cacheReadTokens",
   );
-  if (input === 0 && output === 0 && cacheRead === 0) return null;
-  return { input, output, cacheRead };
+  // codex-rs TokenUsage 结构体与 Responses API usage.output_tokens_details 都拆出这项:
+  // 推理模型(o-series/gpt-5 系列)的思考 token,已计入 output 但值得单列展示。
+  const reasoning = num("reasoning_output_tokens", "reasoning_tokens", "reasoningOutputTokens", "reasoningTokens");
+  if (input === 0 && output === 0 && cacheRead === 0 && reasoning === 0) return null;
+  return { input, output, cacheRead, reasoning };
 }
 
 /** 防御式地从一行事件里找到第一处 usage(优先级顺序,每行至多取一次,避免重复计数)。 */
@@ -128,12 +131,13 @@ export function parseCodexTranscript(raw: string | undefined): ParsedTranscript 
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheReadTokens = 0;
+  let reasoningTokens = 0;
   let requests = 0;
   let compactions = 0;
   let parseSuccess = true;
 
   if (!raw || !raw.trim()) {
-    return { events, usage: { inputTokens: 0, outputTokens: 0 }, compactions: 0, parseSuccess: true };
+    return { events, usage: {}, compactions: 0, parseSuccess: true };
   }
 
   // 配对状态:已 started 的 callId(命令类工具的 started/completed 收口),
@@ -149,6 +153,7 @@ export function parseCodexTranscript(raw: string | undefined): ParsedTranscript 
     inputTokens += u.input;
     outputTokens += u.output;
     cacheReadTokens += u.cacheRead;
+    reasoningTokens += u.reasoning;
     requests += 1;
   };
 
@@ -410,8 +415,11 @@ export function parseCodexTranscript(raw: string | undefined): ParsedTranscript 
     }
   }
 
-  const usage: Usage = { inputTokens, outputTokens };
+  // requests > 0 意味着至少一行真的带回了 usage;整份 transcript 没有任何 usage 行时
+  // input/output 也不该垫成 0(见 docs/feature/results/architecture.md#usage)。
+  const usage: Usage = requests > 0 ? { inputTokens, outputTokens } : {};
   if (cacheReadTokens > 0) usage.cacheReadTokens = cacheReadTokens;
+  if (reasoningTokens > 0) usage.reasoningTokens = reasoningTokens;
   if (requests > 0) usage.requests = requests;
 
   return { events, usage, compactions, parseSuccess };

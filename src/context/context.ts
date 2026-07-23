@@ -568,7 +568,9 @@ function makeTurnHandle(
 ): TurnHandle {
   const message = lastAssistantText(turn.events) ?? "";
   const facts = deriveRunFacts(turn.events);
-  const usage = turn.usage ?? { inputTokens: 0, outputTokens: 0 };
+  // ScoringContext.usage 是必填对象,但字段本身可选(见 src/o11y/types.ts 的 Usage)——
+  // 协议没报 usage 时给空对象,不拿 0 冒充「实测就是 0」。
+  const usage = turn.usage ?? {};
 
   const scoped = (spec: Spec) =>
     collector.record({

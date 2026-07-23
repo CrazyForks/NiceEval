@@ -79,6 +79,7 @@ function snap(experimentId: string, results: EvalResult[], runStartedAt?: string
     ref: { snapshot: `${experimentId}/snap-${runSeq}`, attempt: `${r.id}/a${r.attempt}` },
     snapshot,
     carried: false,
+    commands: async () => null,
     events: async () => null,
     trace: async () => null,
     o11y: async () => null,

@@ -2,7 +2,7 @@
 // 以及调度器的编排类型(AgentRun / RunOptions / Attempt)。
 
 import type { JsonValue, LocalizedText, ScopedFeedback, SourceArtifact } from "../shared/types.ts";
-import type { O11ySummary, StreamEvent, TraceSpan, Usage } from "../o11y/types.ts";
+import type { O11ySummary, StreamEvent, TraceSpan, Truncation, Usage } from "../o11y/types.ts";
 import type { Agent, AgentSetupManifest } from "../agents/types.ts";
 import type { Sandbox, SandboxHookContext, SandboxOption } from "../sandbox/types.ts";
 import type {
@@ -109,6 +109,8 @@ export interface TimingNode {
   turnId?: string;
   traceId?: string;
   traceAttribution?: "traceparent" | "window" | "none";
+  /** kind=turn 时存在,该轮 `Turn.usage` 落盘原样(有记录才写);show `--execution`/`--timing` 的 turn 头行 usage 摘要读这里。 */
+  usage?: Usage;
 
   /** kind=command 时的有界脱敏摘要;环境变量值与 stdout/stderr 不进入时间树。 */
   command?: {
@@ -127,6 +129,30 @@ export interface PhaseTiming {
   /** Runner 直接观察到的阶段内时间树;只供单 attempt 诊断,不做跨实验聚合。 */
   children?: TimingNode[];
 }
+
+/**
+ * `commands.json` 的一条落盘记录(见 docs/feature/results/architecture.md「commandsjson」):
+ * 公开 `Sandbox.runCommand()` / `runShell()` 的最外层调用返回非零 `exitCode` 时,Runner 在
+ * `CommandResult` 交还调用方**之前**登记的完整证据——Eval 后续即使只把 `.slice(-N)` 拼进
+ * 异常消息,这份证据仍然完整。只记非零退出;成功命令的输出不进第二份 artifact,provider 内部
+ * 实现步骤与 Agent 自己调用的 shell 不经过这层包装,不伪装成这里的命令。
+ */
+export interface FailedCommandEvidence {
+  /** 与 `PhaseTiming.children` 中 `kind === "command"` 的 `TimingNode.id` 相同,唯一关联失败命令卡与 `--timing` 的 command 节点。 */
+  timingNodeId: string;
+  /** runner 在命令返回那一刻已经打开的生命周期阶段。 */
+  phase: LifecyclePhase;
+  /** 与该 `TimingNode.command.display` 同一份有界脱敏命令摘要;不含 env value。 */
+  display: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  /** stdout / stderr 被 256 KiB 落盘上限截断时逐字段声明(见「大值截断」)。 */
+  truncated?: Truncation[];
+}
+
+/** `commands.json` 的落盘形状。 */
+export type CommandsArtifact = FailedCommandEvidence[];
 
 /**
  * 使 attempt 无法正常完成的唯一致命执行错误(见 docs/feature/results/architecture.md 的
@@ -234,6 +260,8 @@ export interface EvalResult {
   sandbox?: { provider: string; sandboxId: string; kept?: true };
   /** agent 归因增量:逐 send 窗口的 delta 序列(落盘为 diff.json;文件级视图由读取面派生)。 */
   diff?: DiffArtifact;
+  /** 非零 Sandbox 命令的 stdout/stderr 证据(落盘为 commands.json);只记非零退出,见 `FailedCommandEvidence`。 */
+  commands?: FailedCommandEvidence[];
   rawTranscript?: string;
   /** 携带条目(--resume 合入)专用:artifact 目录(相对结果根目录),指向原快照里的落盘。 */
   artifactBase?: string;
@@ -469,10 +497,13 @@ export interface ExperimentHookContext extends ScopedFeedback {
    * 第三条反馈通道:上报整场实验的环境观测,与 `completedAt` 同批在快照封口补写进
    * `SnapshotMeta.facts`。key 匹配 `[a-z0-9._-]{1,64}`,value 是标量;同 key 后写覆盖先写,
    * 非法 key 或非标量 value 抛错。不影响判定,不参与 verdict / 评分 / 指纹。形状与归属语义见
-   * docs/feature/results/architecture.md#facts运行事实。可选:`niceeval exp --teardown` 的
-   * 独立收尾路径不落任何 Snapshot,该入口暂不提供此方法(见 runner/run.ts 的构造点)。
+   * docs/feature/results/architecture.md#facts运行事实。`niceeval exp --teardown` 的独立收尾
+   * 路径不派发 attempt、不落任何 Snapshot,没有 `SnapshotMeta.facts` 可写——该路径下这个方法仍然
+   * 校验入参(非法 key / 非标量 value 照样抛错),校验通过后丢弃写入(no-op:诚实优于
+   * 静默——非法调用照样报错、不被这条路径悄悄吞掉,但也不假装有地方落盘),见 cli.ts 的
+   * `--teardown` 构造点。
    */
-  fact?(key: string, value: string | number | boolean): void;
+  fact(key: string, value: string | number | boolean): void;
 }
 
 export interface ExperimentDef {

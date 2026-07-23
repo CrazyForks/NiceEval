@@ -5,7 +5,7 @@
 // 盘上。全部纯函数(时间经 now 显式传入),证据数据由调用方 await 好了递进来。
 
 import { join, relative } from "node:path";
-import type { AssertionResult, DiffData, EvalResult, LocalizedText, TimingNode, TraceSpan, Usage, Verdict } from "../types.ts";
+import type { AssertionResult, DiffData, EvalResult, FailedCommandEvidence, LocalizedText, TimingNode, TraceSpan, Verdict } from "../types.ts";
 import type { AttemptEvidence, AttemptHandle } from "../results/index.ts";
 import type { AnnotatedSourceLine, SendAnnotation } from "../results/index.ts";
 import { groupIncompatibleVersionSkips } from "../results/index.ts";
@@ -456,21 +456,6 @@ interface TurnSection {
   cards: AgentCard[];
 }
 
-/**
- * `commands.json` 的投影(docs/feature/results/architecture.md「commands.json」)。AttemptEvidence
- * 目前还没有 `commands` 字段(落盘写入未接线,见本函数头注的节点说明)——duck-type 读取,字段不存在
- * 时零输出,不是这里的判定逻辑本身有缺口。
- */
-interface FailedCommandEvidence {
-  timingNodeId: string;
-  phase: string;
-  display: string;
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  truncated?: { path: string; originalBytes: number }[];
-}
-
 /** 失败 Sandbox 命令卡:句柄 `cmd<序号>`,按关联 timing 节点的 startOffsetMs 排序后从 1 编号。 */
 interface CommandCard {
   handle: string;
@@ -478,8 +463,9 @@ interface CommandCard {
   timingNode?: TimingNode;
 }
 
+/** `commands.json` 的投影(docs/feature/results/architecture.md「commandsjson」);没有失败命令时 evidence.commands 为 null。 */
 function failedCommandsOf(evidence: AttemptEvidence): readonly FailedCommandEvidence[] {
-  return (evidence as unknown as { commands?: readonly FailedCommandEvidence[] }).commands ?? [];
+  return evidence.commands ?? [];
 }
 
 function findTimingNodeById(nodes: readonly TimingNode[] | undefined, id: string): TimingNode | undefined {
@@ -619,8 +605,8 @@ function commandCardHeader(entry: CommandCard): string {
 }
 
 /** turn 头行:`标签 · status · 该轮墙钟 · 该轮 usage`(usage 有记录才出现;docs/feature/reports/
- *  show/execution.md)。usage 通过 duck-type 读取 TimingNode 上的可选 `usage` 字段——运行时目前
- *  还没有把 Turn.usage 写进 result.json 的 timing 树,字段不存在时这一段照常省略。 */
+ *  show/execution.md)。usage 读 TimingNode.usage(该轮 `Turn.usage` 落盘原样),字段不存在时
+ *  这一段照常省略。 */
 function turnHeadLine(section: TurnSection): string {
   const label = section.turn?.label ?? `t${section.turnNumber}`;
   const status = section.turn?.failed ? "failed" : "completed";
@@ -632,11 +618,11 @@ function turnHeadLine(section: TurnSection): string {
 }
 
 function turnUsageText(turn: TimingNode | undefined): string | undefined {
-  const usage = (turn as unknown as { usage?: Usage } | undefined)?.usage;
+  const usage = turn?.usage;
   if (!usage) return undefined;
   const parts: string[] = [];
   if (usage.inputTokens !== undefined && usage.outputTokens !== undefined) {
-    const total = usage.inputTokens + usage.outputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    const total = usage.inputTokens + usage.outputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheCreationTokens ?? 0);
     parts.push(`${formatMetricValue(total)} tok`);
   }
   if (usage.costUSD !== undefined) parts.push(formatUSD(usage.costUSD));
@@ -825,8 +811,8 @@ export interface ExecutionRenderOptions {
  * 有 OTel 时同一节点补相对时间与耗时;没有 OTel 时节点、顺序与内容不变,只去掉时间列,并在结尾
  * 如实标 timing unavailable(ExecutionTree 的契约:骨架不因时间有无而变形,见
  * o11y/execution-tree.ts 头注)。除 Agent 事件外,attempt 节末尾追加失败 Sandbox 命令卡
- * (`cmd<N>`,来自 `commands.json`——AttemptEvidence 尚未接线这个字段,读取面已就绪、无数据时
- * 这一段自然零输出,见 `failedCommandsOf`)。
+ * (`cmd<N>`,来自 `commands.json`,经 `evidence.commands` 读取;没有失败命令时这一段自然
+ * 零输出,见 `failedCommandsOf`)。
  *
  * 卡片正文是 8 KiB(UTF-8 字节,按字符边界回退)的有界预览,截断尾巴带被折字符数与展开句柄；
  * `options.expand` 精确定位一张卡片输出完整落盘内容;`options.grep` 只输出匹配面(角色文本/

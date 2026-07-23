@@ -28,15 +28,15 @@ The full field set of `usage` (the `Usage` type):
 #### `inputTokens`
 
 ```ts
-inputTokens: number;
+inputTokens?: number;
 ```
 
-Input (prompt) token count, excluding cache hits.
+Total input tokens at billing granularity (whatever the protocol reports; includes cache reads as-is, no conversion).
 
 #### `outputTokens`
 
 ```ts
-outputTokens: number;
+outputTokens?: number;
 ```
 
 Output (completion) token count.
@@ -47,15 +47,23 @@ Output (completion) token count.
 cacheReadTokens?: number;
 ```
 
-Token count read at cache pricing from a prompt cache hit (omitted means the agent does not report this).
+The portion of input served from cache hits; same accounting basis as `inputTokens` (omitted means the agent does not report this).
 
-#### `cacheWriteTokens`
+#### `cacheCreationTokens`
 
 ```ts
-cacheWriteTokens?: number;
+cacheCreationTokens?: number;
 ```
 
-Token count written to the prompt cache (omitted means the agent does not report this).
+Tokens written to create a prompt cache entry (omitted means the agent does not report this).
+
+#### `reasoningTokens`
+
+```ts
+reasoningTokens?: number;
+```
+
+Reasoning (thinking) token count, present only when the protocol actually reports it (omitted means the agent does not report this).
 
 #### `requests`
 
@@ -63,7 +71,7 @@ Token count written to the prompt cache (omitted means the agent does not report
 requests?: number;
 ```
 
-Number of model requests triggered by this run (multi-turn/retries may push it above 1).
+The actual number of model requests that occurred. Omitted when the protocol doesn't provide a request count — never padded to 1.
 
 #### `costUSD`
 
@@ -72,8 +80,9 @@ costUSD?: number;
 ```
 
 The actual dollar cost measured by the gateway/adapter (can only be brought back explicitly via `Turn.usage.costUSD`; it is
-never inferred from token usage or an OTel span). When present, it takes priority over the cost estimated from the price
-table (`defineConfig({ pricing })`) — see the fallback order `usage.costUSD ?? estimateCost(...)` in `estimateCost`.
+never inferred from token usage or an OTel span). This is a separate fact from the top-level `estimatedCostUSD` (price-table
+estimate): when present, it takes priority over the cost estimated from the price table (`defineConfig({ pricing })`) — see
+the fallback order `usage.costUSD ?? estimateCost(...)` in `estimateCost`.
 
 {/* GENERATED:END usage-fields */}
 

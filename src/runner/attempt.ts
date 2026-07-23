@@ -38,6 +38,7 @@ import type {
   DiagnosticInput,
   DiffArtifact,
   EvalResult,
+  FailedCommandEvidence,
   JudgeConfig,
   Sandbox,
   SandboxHook,
@@ -162,6 +163,12 @@ export function runAttemptEffect(
   // 收尾时并入结果;dedupeKey 相同的并发诊断折叠成一条并累计 count。
   const diagnostics: DiagnosticRecord[] = [];
   const dedupeIndex = new Map<string, DiagnosticRecord>();
+  // 非零 Sandbox 命令证据的累加器(与 diagnostics/facts 同一种「共享容器」模式):
+  // withCommandTiming 在 CommandResult 交还调用方之前把每条非零退出命令 push 进来,
+  // runAttemptBody 的 finally 与本函数的超时/中断兜底分支都读同一个数组引用
+  // (见 docs/feature/results/architecture.md「commandsjson」「证据在 CommandResult 返回
+  // 调用方之前写入内存」)。
+  const commands: FailedCommandEvidence[] = [];
   const recordDiagnostic = (input: DiagnosticInput) => {
     const phase = (sendActive ? "agent.run" : lastPhase) ?? "eval.run";
     if (input.dedupeKey !== undefined) {
@@ -420,6 +427,7 @@ export function runAttemptEffect(
           feedback: scopedFeedback,
           diagnostics,
           facts,
+          commands,
           concurrencySlot,
           registerEvidence: (getEvents, getUsage) => {
             liveEvents = getEvents;
@@ -523,6 +531,9 @@ export function runAttemptEffect(
           error,
           ...(events !== undefined ? { events: [...events], o11y: buildO11ySummary(events) } : {}),
           ...(usage !== undefined ? { usage: { ...usage } } : {}),
+          // 超时前已经登记的非零命令证据(见 withCommandTiming)不因中断而丢失——它们在
+          // CommandResult 返回调用方那一刻就已经写进了这个共享数组。
+          ...(commands.length > 0 ? { commands: [...commands] } : {}),
         };
       },
     }),
@@ -536,6 +547,7 @@ export function runAttemptEffect(
             ...base,
             durationMs: Date.now() - t0,
             error: errorFromThrown(Cause.squash(cause), sendActive ? "agent.run" : lastPhase),
+            ...(commands.length > 0 ? { commands: [...commands] } : {}),
           }),
     ),
     // 结果封口在 Scope release 完成之后:sandbox.stop 已由 finalizer 写进 recorder,
@@ -604,6 +616,12 @@ interface AttemptResources {
    * 挂到即将返回的结果上(见 diagnostics 的并入点)。
    */
   facts: Record<string, FactValue>;
+  /**
+   * attempt 级非零 Sandbox 命令证据累加(runAttemptEffect 持有的同一个数组引用,与
+   * diagnostics/facts 同一种「共享容器」模式):`withCommandTiming` 往这里 push,
+   * finally 挂到即将返回的结果上(见 diagnostics 的并入点)。
+   */
+  commands: FailedCommandEvidence[];
   /** turn 级重试退避期间释放/收回的全局并发槽位;透传给 createEvalContext。 */
   concurrencySlot?: ConcurrencySlot;
   /** SessionManager 一建好就登记事件/用量的读取句柄回外层(超时证据保全用,见
@@ -640,6 +658,7 @@ async function runAttemptBody(
     feedback,
     diagnostics,
     facts,
+    commands,
     concurrencySlot,
     registerEvidence,
     registerLedger,
@@ -650,7 +669,7 @@ async function runAttemptBody(
   const usesSandbox = run.agent.kind === "sandbox";
   // 命令时间树:所有经这个包装 sandbox 发出的 runCommand/runShell 都挂成当前阶段(或当前 hook
   // 节点)下的 command 子节点。包装只在最外层公开调用记录一次——provider 内部转调不经过它。
-  const sandbox = usesSandbox ? withCommandTiming(rawSandbox, recorder) : rawSandbox;
+  const sandbox = usesSandbox ? withCommandTiming(rawSandbox, recorder, getPhase, commands) : rawSandbox;
   // 在两个 return 前赋值,好让 finally 把 diagnostics 挂到即将返回的同一个对象上(见 finally 末尾)。
   let result: EvalResult | undefined;
   // 整个 attempt 共用一份 agent ctx(sandbox 钩子 / agent setup / tracing configure / teardown 都用它)。
@@ -820,7 +839,9 @@ async function runAttemptBody(
         : undefined,
       onSendActive: setSendActive,
       // 每次 send 一个 turn 节点:本地单调时钟测得的端到端包络 + session/turn 身份;
-      // OTel 接入时再带 traceId,trace.json 的 spans 由消费方按它临时挂到 turn 下。
+      // OTel 接入时再带 traceId,trace.json 的 spans 由消费方按它临时挂到 turn 下。usage 有记录
+      // 才带(show `--execution`/`--timing` 的 turn 头行读 TimingNode.usage,见 docs/feature/
+      // results/architecture.md「result.json」TimingNode.usage)。
       onTurn: (info) =>
         recorder.child({
           kind: "turn",
@@ -832,6 +853,7 @@ async function runAttemptBody(
           turnIndex: info.turnIndex,
           ...(info.traceId !== undefined ? { traceId: info.traceId } : {}),
           ...(info.traceAttribution !== undefined ? { traceAttribution: info.traceAttribution } : {}),
+          ...(info.usage !== undefined ? { usage: info.usage } : {}),
         }),
     });
     // 登记回外层:超时中断后由 onTimeout 直接读这两个句柄组装 events/usage(见
@@ -1092,6 +1114,7 @@ async function runAttemptBody(
     // 抛了、result 还没赋值)静默跳过,不掩盖原始异常。
     if (diagnostics.length > 0 && result) result.diagnostics = diagnostics;
     if (Object.keys(facts).length > 0 && result) result.facts = facts;
+    if (commands.length > 0 && result) result.commands = commands;
   }
 }
 
@@ -1110,16 +1133,26 @@ function teardownDiagnostic(phase: LifecyclePhase, e: unknown): DiagnosticRecord
 /**
  * 命令时间树包装:runCommand / runShell 的最外层公开调用各记一个 command 子节点
  * (有界脱敏摘要 + exitCode;env 值与 stdout/stderr 不进入时间树)。Proxy 只拦这两个方法,
- * provider 内部 `this.runCommand(...)` 转调不经过它——不形成重复节点。
+ * provider 内部 `this.runCommand(...)` 转调不经过它——不形成重复节点。非零退出的命令额外
+ * 把完整 `CommandResult` 登记进 `commands` 累加器,登记发生在把结果交还调用方**之前**
+ * (docs/feature/results/architecture.md「commandsjson」);登记不改变 `runCommand` 的
+ * 返回/抛错语义,调用方可以处理非零退出并继续,证据仍保留。只记录成功拿到 `CommandResult`
+ * 且 `exitCode !== 0` 的情形——`fn()` 本身抛错(如传输失败)不产出 `CommandResult`,不在这
+ * 条证据线里,那类失败只落进时间树的 `failed` 标记。
  */
-function withCommandTiming(sandbox: Sandbox, recorder: TimingRecorder): Sandbox {
+function withCommandTiming(
+  sandbox: Sandbox,
+  recorder: TimingRecorder,
+  getPhase: () => LifecyclePhase | undefined,
+  commands: FailedCommandEvidence[],
+): Sandbox {
   const wrap = async <T>(display: string, fn: () => Promise<T>): Promise<T> => {
     const startOffsetMs = recorder.offsetNow();
     const t0 = Date.now();
     try {
       const result = await fn();
       const exitCode = (result as { exitCode?: unknown })?.exitCode;
-      recorder.child(
+      const node = recorder.child(
         commandNode({
           display,
           startOffsetMs,
@@ -1127,6 +1160,17 @@ function withCommandTiming(sandbox: Sandbox, recorder: TimingRecorder): Sandbox 
           ...(typeof exitCode === "number" ? { exitCode, failed: exitCode !== 0 } : {}),
         }),
       );
+      if (typeof exitCode === "number" && exitCode !== 0 && node) {
+        const stdout = result as { stdout?: unknown; stderr?: unknown };
+        commands.push({
+          timingNodeId: node.id,
+          phase: getPhase() ?? "eval.run",
+          display,
+          exitCode,
+          stdout: typeof stdout.stdout === "string" ? stdout.stdout : "",
+          stderr: typeof stdout.stderr === "string" ? stdout.stderr : "",
+        });
+      }
       // CommandResult.command:最外层公开调用恰好是「eval 实际跑了什么」的定义点,摘要
       // 与时间树节点同一份;provider 自己填过就不覆盖。
       if (result !== null && typeof result === "object" && !("command" in result)) {

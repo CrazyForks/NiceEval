@@ -8,9 +8,9 @@
 import type { ReactElement } from "react";
 import type { LineData } from "../../model/types.ts";
 import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../../model/locale.ts";
-import { formatMetricValue } from "../../model/format.ts";
+import { formatMetricValue, formatTickValue } from "../../model/format.ts";
 import { colorIndicesForKeys } from "../../assets/colors.ts";
-import { axisScale } from "./chart-math.ts";
+import { axisScale, tickStepOf } from "./chart-math.ts";
 import { cx } from "../shared.ts";
 
 const WIDTH = 640;
@@ -129,12 +129,12 @@ export function MetricLine({
 
         {xScale.ticks.map((v) => (
           <text key={`x${v}`} className="nre-line-tick" x={xScale.scale(v)} y={PLOT.bottom + 16} textAnchor="middle">
-            {formatMetricValue(v, data.x.unit)}
+            {formatTickValue(v, tickStepOf(xScale.ticks), data.x.unit)}
           </text>
         ))}
         {yScale.ticks.map((v) => (
           <text key={`y${v}`} className="nre-line-tick" x={PLOT.left - 6} y={yScale.scale(v) + 4} textAnchor="end">
-            {formatMetricValue(v, data.y.unit)}
+            {formatTickValue(v, tickStepOf(yScale.ticks), data.y.unit)}
           </text>
         ))}
 

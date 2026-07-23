@@ -676,6 +676,73 @@ describe("--usage", () => {
   });
 });
 
+// ───────────────────────── --usage 对照矩阵(--exp 出现两次以上) ─────────────────────────
+// cases: docs/engineering/testing/unit/reports.md「show 的范围 × 切片正交」——对照范围下
+// `--usage` 输出逐 eval 的用量矩阵(docs/feature/reports/show/usage.md「范围化的用量表」),
+// 配对/占位规则同对照矩阵(docs/feature/reports/show/compare.md)。覆盖:配对身份是 eval id、
+// 缺席条件整组落 `—`、与单条件表(逐 attempt、逐 experiment 分节)的区分。
+
+describe("--usage 对照矩阵(重复 --exp)", () => {
+  async function seedUsageCompareRoot(): Promise<string> {
+    const root = await makeRoot();
+    await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/usage-a", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("weather/brooklyn", "passed", { estimatedCostUSD: 0.05, usage: { inputTokens: 100, outputTokens: 20, requests: 3 } }),
+      res("weather/queens", "passed", { estimatedCostUSD: 0.02, usage: { inputTokens: 40, outputTokens: 8, requests: 1 } }),
+    ]);
+    await writeSnapshot(root, "2026-07-08T10-00-00-000Z", { experimentId: "compare/usage-b", startedAt: "2026-07-08T10:00:00.000Z" }, [
+      res("weather/brooklyn", "passed", { estimatedCostUSD: 0.09, usage: { inputTokens: 300, outputTokens: 60, requests: 7 } }),
+    ]);
+    return root;
+  }
+
+  it("配对身份是 eval id:同一 eval 在两个条件下的用量落在同一行,各自一组列", async () => {
+    const root = await seedUsageCompareRoot();
+    const { out, err, code } = await show(root, [], { experiment: ["compare/usage-a", "compare/usage-b"], usage: true });
+    expect(code).toBe(0);
+    expect(err).toBe("");
+    expect(out).toContain("usage · 2 conditions · paired by eval id · baseline compare/usage-a");
+    // 头行下面的表格以条件 id 分组、eval id 配对成行——两个条件各自的成本都出现在同一行里。
+    const lines = out.split("\n");
+    const brooklynLine = lines.find((l) => l.includes("weather/brooklyn"))!;
+    expect(brooklynLine).toBeDefined();
+    expect(brooklynLine).toContain("$0.05");
+    expect(brooklynLine).toContain("$0.09");
+  });
+
+  it("condition 在这道题上没有 attempt 时,该条件的整组 7 列都落 —(不是逐字段各自判断缺失)", async () => {
+    const root = await seedUsageCompareRoot();
+    const { out, code } = await show(root, [], { experiment: ["compare/usage-a", "compare/usage-b"], usage: true });
+    expect(code).toBe(0);
+    const lines = out.split("\n");
+    // weather/queens 只有 compare/usage-a 跑过,compare/usage-b 缺席这道题。
+    const queensLine = lines.find((l) => l.includes("weather/queens"))!;
+    expect(queensLine).toBeDefined();
+    expect(queensLine).toContain("$0.02");
+    const afterBaseline = queensLine.slice(queensLine.indexOf("$0.02") + "$0.02".length);
+    const missingGroup = afterBaseline.trim().split(/\s+/).filter(Boolean);
+    expect(missingGroup).toEqual(["—", "—", "—", "—", "—", "—", "—"]);
+  });
+
+  it("与单条件表的区分:0/1 个 --exp 时仍是逐 attempt、逐 experiment 分节的表,不是矩阵", async () => {
+    const root = await seedUsageCompareRoot();
+    const { out, code } = await show(root, [], { experiment: ["compare/usage-a"], usage: true });
+    expect(code).toBe(0);
+    expect(out).toContain("usage · compare/usage-a · 2 attempts");
+    expect(out).not.toContain("paired by eval id");
+  });
+
+  it("--json 不受对照范围影响:恒为 usageTableData 行数组,不输出矩阵形状", async () => {
+    const root = await seedUsageCompareRoot();
+    const { out, code } = await show(root, [], { experiment: ["compare/usage-a", "compare/usage-b"], usage: true, json: true });
+    expect(code).toBe(0);
+    const doc = JSON.parse(out);
+    expect(doc.view).toBe("usage");
+    expect(Array.isArray(doc.data)).toBe(true);
+    expect(doc.data).toHaveLength(3);
+    expect(doc.data.map((r: { evalId: string }) => r.evalId).sort()).toEqual(["weather/brooklyn", "weather/brooklyn", "weather/queens"]);
+  });
+});
+
 // ───────────────────────── facts: 行 ─────────────────────────
 // cases: docs/engineering/testing/unit/reports.md「usage 组装与 facts 投影」——attempt 级
 // facts 的读取投影:usage: 行后紧邻 facts: 行,没有 facts 时该行不出现。

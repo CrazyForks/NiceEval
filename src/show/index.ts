@@ -481,6 +481,102 @@ async function renderUsageSlice(attempts: readonly AttemptHandle[]): Promise<str
   return [...byExperiment.entries()].map(([experimentId, list]) => usageSectionText(experimentId, list)).join("\n\n");
 }
 
+/** `--usage` 对照矩阵每条件一组的用量列:usage.md 单条件表 `USAGE_COLUMNS` 去掉 locator/eval/
+ *  result 后剩下的 7 项(docs/feature/reports/show/usage.md「范围化的用量表」)。 */
+const USAGE_MATRIX_METRIC_COLUMNS = USAGE_COLUMNS.slice(3);
+const USAGE_MATRIX_METRIC_ALIGN: readonly ColumnAlign[] = USAGE_ALIGN.slice(3);
+
+/** 对照矩阵一格的用量合计:同一 evalId × condition 下全部 attempt 的合计,不是均值——与
+ *  `DeltaCell.totalTokens`/`totalCostUSD` 同一条纪律(docs/feature/reports/library/
+ *  metric-views.md「DeltaTable」)。字段各自缺失时求和跳过缺失项(`sumUsageColumn`),整格
+ *  是否存在(该条件在这道题上有没有 attempt)由调用方按 `deltaTableData` 的 `cells[condition]`
+ *  判定,不在这里重复判定——避免两套「缺席」判据分岔。 */
+interface UsageMatrixCell {
+  turns?: number;
+  toolCalls?: number;
+  uncachedIn?: number;
+  cacheRead?: number;
+  out?: number;
+  requests?: number;
+  costUSD?: number;
+}
+
+function sumUsageColumn(values: readonly (number | undefined)[]): number | undefined {
+  const defined = values.filter((v): v is number => v !== undefined);
+  return defined.length === 0 ? undefined : defined.reduce((a, b) => a + b, 0);
+}
+
+function usageMatrixCellOf(rows: readonly UsageTableData[]): UsageMatrixCell {
+  return {
+    turns: sumUsageColumn(rows.map((r) => r.turns)),
+    toolCalls: sumUsageColumn(rows.map((r) => r.toolCalls)),
+    uncachedIn: sumUsageColumn(rows.map(uncachedInOf)),
+    cacheRead: sumUsageColumn(rows.map((r) => r.usage?.cacheReadTokens)),
+    out: sumUsageColumn(rows.map((r) => r.usage?.outputTokens)),
+    requests: sumUsageColumn(rows.map((r) => r.usage?.requests)),
+    costUSD: sumUsageColumn(rows.map((r) => r.estimatedCostUSD)),
+  };
+}
+
+/** 一格的 7 列文案;`historical` 时在最后一列(成本)追加 `↩`——与 `DeltaTable` 把 `↩` 叠在
+ *  同一格末尾同一条排版纪律(faces.ts `deltaConditionCellText`),不是新发明的标注位置。 */
+function usageMatrixCellText(cell: UsageMatrixCell, historical: boolean): string[] {
+  const cost = cell.costUSD !== undefined ? formatUSD(cell.costUSD) : MISSING_MARK;
+  return [
+    cell.turns !== undefined ? String(cell.turns) : MISSING_MARK,
+    cell.toolCalls !== undefined ? String(cell.toolCalls) : MISSING_MARK,
+    cell.uncachedIn !== undefined ? formatMetricValue(cell.uncachedIn) : MISSING_MARK,
+    cell.cacheRead !== undefined ? formatMetricValue(cell.cacheRead) : MISSING_MARK,
+    cell.out !== undefined ? formatMetricValue(cell.out) : MISSING_MARK,
+    cell.requests !== undefined ? String(cell.requests) : MISSING_MARK,
+    historical ? `${cost} ↩` : cost,
+  ];
+}
+
+/**
+ * `--usage` 在对照范围(`--exp` 出现两次以上)下的逐 eval 用量矩阵
+ * (docs/feature/reports/show/usage.md「范围化的用量表」)。配对身份、缺席占位、跨快照携带的
+ * `↩` 时效标注,复用 `deltaTableData` 已经算好的这份判定——与 `renderCompareSlice` 消费同一次
+ * 计算(条件解析、eval id 配对、watermark/carried 派生的 `historical`),不重新实现一遍;这个
+ * pivot 只在它之上叠一层用量字段的逐条件合计,数据源是 `usageRowsOf` 已有的逐 attempt 行,按
+ * experimentId + evalId 分组求和。每个条件一组 7 列(`USAGE_MATRIX_METRIC_COLUMNS`),缺席
+ * 条件整组落 `—`。
+ */
+async function renderUsageCompareSlice(
+  selection: Scope,
+  conditions: readonly [string, string, ...string[]],
+): Promise<string> {
+  const { deltaTableData } = await import("../../dist/report/index.js");
+  const data: DeltaData = await deltaTableData(selection, { by: "experiment", conditions });
+  const head = `usage · ${conditions.length} conditions · paired by eval id · baseline ${conditions[0]}`;
+  if (data.rows.length === 0) return `${head} · no attempts matched this range`;
+
+  const usageRows = await usageRowsOf(selection.attempts);
+  const byConditionByEval = new Map<string, UsageTableData[]>();
+  for (const row of usageRows) {
+    const key = `${row.experimentId} ${row.evalId}`;
+    const list = byConditionByEval.get(key);
+    if (list) list.push(row);
+    else byConditionByEval.set(key, [row]);
+  }
+
+  const headGroup = ["", ...conditions.flatMap((c) => [c, ...USAGE_MATRIX_METRIC_COLUMNS.slice(1).map(() => "")])];
+  const headLabels = ["eval", ...conditions.flatMap(() => USAGE_MATRIX_METRIC_COLUMNS)];
+  const align: ColumnAlign[] = ["left", ...conditions.flatMap(() => USAGE_MATRIX_METRIC_ALIGN)];
+  const body = data.rows.map((row) => {
+    const cellsText = conditions.flatMap((condition) => {
+      const deltaCell = row.cells[condition];
+      if (!deltaCell) return USAGE_MATRIX_METRIC_COLUMNS.map(() => MISSING_MARK);
+      const usageCell = usageMatrixCellOf(byConditionByEval.get(`${condition} ${row.key}`) ?? []);
+      return usageMatrixCellText(usageCell, deltaCell.historical);
+    });
+    return [row.key, ...cellsText];
+  });
+
+  const table = renderAlignedRows([headGroup, headLabels, ...body], align);
+  return `${head}\n\n${table}`;
+}
+
 /**
  * attempt 诊断首页在 `usage:` 行后追加的 `facts:` 行(docs/feature/reports/show/attempt.md
  * 「facts: 行」)。`usage:`、`facts:`、`trace:` 都是「一个事实的摘要」,本来就不是
@@ -518,6 +614,22 @@ function assertExperimentSelectors(experimentIds: readonly string[], selectors: 
       throw new ShowError(t("cli.show.expAmbiguous", { arg: raw, matched: matches.length, candidates: matches.join(", ") }));
     }
   }
+}
+
+/**
+ * 对照条件解析:`assertExperimentSelectors` 已经校验过每个 selector 恰好命中一个 experiment,
+ * 这里只做映射,顺序即条件顺序、首个是基准。缺省切片的对照矩阵分支与 `--usage` 的对照矩阵
+ * 分支共用同一份解析,不各自重复调用 `matchExperimentSelector`。
+ */
+function resolveCompareConditions(
+  experimentIds: readonly string[],
+  selectors: readonly string[],
+): [string, string, ...string[]] {
+  return selectors.map((sel) => matchExperimentSelector(experimentIds, sel.replace(/\/+$/, ""))[0]!) as [
+    string,
+    string,
+    ...string[],
+  ];
 }
 
 export async function runShow(
@@ -832,10 +944,11 @@ async function show(
     );
   }
 
-  // `--usage`:UsageTable 逐 attempt 装配的表(docs/feature/reports/show/usage.md)。对照范围
-  // (`--exp` 出现两次以上)下暂时沿用同一份「逐 experiment 分节」通用表,不是 usage.md 描述的
-  // 逐 eval 用量矩阵那个特化版式——那个版式是明确的后续接线点,这里先给正确但更朴素的输出,
-  // 不拿一个占位错误挡住 --usage 本身。
+  // `--usage`:UsageTable 逐 attempt 装配的表(docs/feature/reports/show/usage.md)。`--json`
+  // 恒是 usageTableData 行数组——pivot 只是 text 渲染面的排布,不造第二种 data 形状
+  // (docs/feature/reports/show/json.md「data:按 view 找组件声明」)。text 面:对照范围(`--exp`
+  // 出现两次以上)下是逐 eval 的用量矩阵(renderUsageCompareSlice,配对/占位/时效复用
+  // `deltaTableData`);否则是逐 attempt、逐 experiment 分节的通用表(renderUsageSlice)。
   if (flags.usage) {
     if (flags.json) {
       const rows = await usageRowsOf(selection.attempts);
@@ -850,7 +963,11 @@ async function show(
       );
       return;
     }
-    io.out((await renderUsageSlice(selection.attempts)) + "\n");
+    const text =
+      expSelectors.length >= 2
+        ? await renderUsageCompareSlice(selection, resolveCompareConditions(experimentIds, expSelectors))
+        : await renderUsageSlice(selection.attempts);
+    io.out(text + "\n");
     return;
   }
 
@@ -925,11 +1042,7 @@ async function show(
   // 且没有被 `--report` 接管时是对照矩阵,不是报告槽的裸榜单——与 `--report` 互斥(缺省切片被
   // 报告树替换时对照矩阵不再适用)。
   if (flags.report === undefined && expSelectors.length >= 2) {
-    const conditions = expSelectors.map((sel) => matchExperimentSelector(experimentIds, sel.replace(/\/+$/, ""))[0]!) as [
-      string,
-      string,
-      ...string[],
-    ];
+    const conditions = resolveCompareConditions(experimentIds, expSelectors);
     if (flags.json) {
       const { deltaTableData } = await import("../../dist/report/index.js");
       const data = await deltaTableData(selection, { by: "experiment", conditions });

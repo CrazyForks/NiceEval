@@ -207,7 +207,7 @@ artifact 是机器可读的,可回放、可二次分析、可喂给下游 dashbo
 
 ### 用量从哪来
 
-`Usage`(`{ inputTokens, outputTokens, cacheReadTokens?, cacheWriteTokens?, requests? }`)按 transport 取得,作者通常**什么都不用做**:
+`Usage`(`{ inputTokens?, outputTokens?, cacheReadTokens?, cacheCreationTokens?, reasoningTokens?, requests?, costUSD? }`,字段契约见 [Results · Usage](feature/results/architecture.md#usage))按 transport 取得,作者通常**什么都不用做**:
 
 - **远程 agent** —— 你在 `send` 里把模型返回的 usage(或你服务响应里带的 usage,若它回了)一并返回。
 - **沙箱 coding agent** —— **不必手填**:agent 的 JSONL transcript 里本就逐条带 token 用量,transcript 解析器(`o11y/parsers/<agent>.ts`)抠出来。这正是 agent-eval 留下的 TODO。

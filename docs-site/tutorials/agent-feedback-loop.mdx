@@ -175,6 +175,49 @@ The goal of the loop isn't to make a command exit green — it's to form and ver
     | How an attempt's time breaks down phase by phase | `niceeval show @<id> --timing` | A unified time tree from lifecycle → hook/turn → shell → OTel; an errored attempt marks the deepest known failing node |
     | What the Sandbox workspace's files turned into | `niceeval show @<id> --diff` | A file summary, added/removed line counts, the actual patch, and the original diff path; explicitly unavailable when there's no file workspace |
   </Step>
+  <Step title="Hand structured evidence to a script or the next agent">
+    Add `--json` to any `show` command above, and it prints the same range, sliced the same way, as one structured JSON document on stdout instead of formatted text. Field names match the stored types, so a coding agent doesn't need to parse the human-readable format:
+
+    ```bash
+    npx niceeval show @1puv8ydu --json
+    ```
+
+    ```json
+    {
+      "format": "niceeval.show",
+      "schemaVersion": 1,
+      "view": "attempt",
+      "scope": { "resultsRoot": "…", "experiments": ["compare/claude-mempal"], "fresh": false },
+      "data": {
+        "summary": {
+          "locator": "@1puv8ydu",
+          "identity": { "experimentId": "compare/claude-mempal", "evalId": "react-datepicker/pr-6058", "attempt": 0 },
+          "verdict": "failed",
+          "durationMs": 29800,
+          "costUSD": 0.07,
+          "capabilities": { "source": false, "execution": true, "timing": false, "diff": false }
+        },
+        "assertions": {
+          "attention": [
+            {
+              "name": "fixes month navigation year sync",
+              "detail": "judge(\"month navigation year sync\")",
+              "severity": "gate",
+              "outcome": "failed",
+              "score": 0,
+              "expected": ">= 0.7",
+              "received": "0.4 / 1 · fix still off by one month at year boundary"
+            }
+          ],
+          "passedGroups": []
+        },
+        "fixPrompt": { "prompt": "Fix the failing eval from this niceeval run.\n\n## Failure\n…" }
+      }
+    }
+    ```
+
+    `--json` is a data superset: fields the text form trims or truncates for the attention budget (full strings, full trees) stay complete here. `--source`, `--execution`, `--timing`, `--diff`, `--usage`, `--stats`, and the comparison matrix all accept `--json` the same way — it's the same rule, not a special case for the attempt view. When you need to hand a failure's structured facts to another agent, wire them into your own analysis script, or feed a CI check, read from here — don't re-scan the raw `.niceeval/` files, which would just reinvent a second, inconsistent selection and dedup convention.
+  </Step>
   <Step title="Form a hypothesis, then fix">
     Based on the evidence, change only the side that's most likely at fault:
 

@@ -12,6 +12,7 @@ import type {
   AttemptError,
   DiagnosticRecord,
   ExperimentRunInfo,
+  FailedCommandEvidence,
   InputRequest,
   JsonValue,
   PhaseTiming,
@@ -637,8 +638,18 @@ export interface AttemptSummaryData {
   totalScore?: number;
 }
 
-/** `AttemptError` 的 data:结构化 error 一层原因 + cause + stack;没有 error 时 null。 */
-export type AttemptErrorData = AttemptError;
+/**
+ * `AttemptError` 的 data:结构化 error 一层原因 + cause + stack;没有 error 时 null。
+ * `commandEvidenceHint` 只在 `error.message` 疑似只剩某条非零命令 stdout/stderr 的截断尾部
+ * (message 是该字段去首尾空白后的真严格后缀)且存在失败命令证据时为 `true`——两面渲染据此在
+ * 错误摘要后提示 `failed command evidence: niceeval show <locator> --execution`
+ * (docs/feature/reports/show/execution.md)。
+ */
+export interface AttemptErrorData extends AttemptError {
+  /** text 面拼 `niceeval show <locator> --execution` 提示命令用;web 面不需要。 */
+  locator: AttemptLocator;
+  commandEvidenceHint?: true;
+}
 
 /**
  * `AttemptAssertions` 的 data:非 passed 条目默认展开,passed 按 group 折叠计数;没有 assertion
@@ -762,6 +773,13 @@ export interface AttemptConversationData {
   /** text 面拼 `niceeval show <locator> --execution` 下钻命令用;web 面不需要。 */
   locator: AttemptLocator;
   rounds: AttemptConversationRound[];
+  /**
+   * `commands.json` 的投影(见 docs/feature/results/architecture.md#commandsjson):按关联
+   * timing 节点(`timingNodeId` 对应 `PhaseTiming.children` 中 `kind === "command"` 的节点)
+   * 的 `startOffsetMs` 排序;关联不到 timing 节点的排在最后,不按数组偶然顺序猜时间。没有失败
+   * 命令时字段省略,不摆空数组。
+   */
+  failedCommands?: FailedCommandEvidence[];
 }
 
 /** `AttemptDiagnostics` 的 data:按 lifecycle phase 分组;没有 diagnostics 时 null。 */

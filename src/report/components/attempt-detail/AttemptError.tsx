@@ -15,6 +15,8 @@ export function AttemptError({ data, className }: { data: AttemptErrorData | nul
   ];
   if (data.cause) rows.push(["cause", data.cause.name ? `${data.cause.name} · ${data.cause.message}` : data.cause.message]);
   const stack = data.stack?.replace(/\n+$/, "") ?? "";
+  // message 疑似只剩截断尾部时,提示失败命令证据的完整下钻入口(docs/feature/reports/show/execution.md)。
+  const commandEvidenceHint = data.commandEvidenceHint ? `niceeval show ${data.locator} --execution` : undefined;
   return (
     <div className={cx("nre", "nre-attempt-error", className)}>
       <dl className="nre-attempt-error-fields">
@@ -26,6 +28,7 @@ export function AttemptError({ data, className }: { data: AttemptErrorData | nul
         ))}
       </dl>
       {stack ? <pre className="nre-attempt-error-stack">{stack}</pre> : null}
+      {commandEvidenceHint ? <div className="nre-attempt-error-command-hint">failed command evidence: {commandEvidenceHint}</div> : null}
     </div>
   );
 }

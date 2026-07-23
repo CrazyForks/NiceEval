@@ -196,6 +196,105 @@ describe("SessionManager.send() 进度行", () => {
   });
 });
 
+/** 逐 send 依次吐出预设 Turn(不重试,纯序列 —— 与 scriptedRetryAgent 不同,不接分类器)。 */
+function sequentialAgent(turns: Turn[]): Agent {
+  let i = 0;
+  return {
+    name: "sequential-agent",
+    kind: "remote",
+    async send(): Promise<Turn> {
+      const turn = turns[Math.min(i, turns.length - 1)] as Turn;
+      i++;
+      return turn;
+    },
+  };
+}
+
+function makeManagerWithTurns(turns: Turn[], overrides: Partial<ConstructorParameters<typeof SessionManager>[0]> = {}) {
+  const manager = new SessionManager({
+    agent: sequentialAgent(turns),
+    sandbox: fakeSandbox(),
+    flags: {},
+    signal: new AbortController().signal,
+    log: () => {},
+    ...overrides,
+  });
+  return manager;
+}
+
+// cases: docs/engineering/testing/unit/eval.md「多轮 Usage 累计的诚实口径」——
+// adapter 未报告的字段(requests、cache 计数)累计后保持省略,不得以 0/每轮 +1 凑数,
+// fixture 要区分「报了 0」与「没报」两态。
+describe("SessionManager · 多轮 Usage 累计", () => {
+  it("字段全程没有任何一轮上报时,累计结果保持省略(不拿 0/1 凑数)", async () => {
+    const manager = makeManagerWithTurns([
+      { status: "completed", events: [], usage: { inputTokens: 10, outputTokens: 5 } },
+      { status: "completed", events: [], usage: { inputTokens: 20, outputTokens: 8 } },
+    ]);
+    await manager.send(manager.primary, "one");
+    await manager.send(manager.primary, "two");
+
+    expect(manager.usage.inputTokens).toBe(30);
+    expect(manager.usage.outputTokens).toBe(13);
+    // 两轮都没报 requests/cacheReadTokens:累计后整个字段缺席,不是 0。
+    expect(manager.usage.requests).toBeUndefined();
+    expect(manager.usage.cacheReadTokens).toBeUndefined();
+    expect("requests" in manager.usage).toBe(false);
+    expect("cacheReadTokens" in manager.usage).toBe(false);
+  });
+
+  it("某一轮真的报了显式 0 时如实计入并保留字段,与「没报」区分开", async () => {
+    const manager = makeManagerWithTurns([
+      { status: "completed", events: [], usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0 } },
+      { status: "completed", events: [], usage: { inputTokens: 20, outputTokens: 8 } },
+    ]);
+    await manager.send(manager.primary, "one");
+    await manager.send(manager.primary, "two");
+
+    // 第一轮显式报了 cacheReadTokens: 0 —— 字段因此存在(值为 0),不是像 requests 那样整个缺席。
+    expect(manager.usage.cacheReadTokens).toBe(0);
+    expect("cacheReadTokens" in manager.usage).toBe(true);
+  });
+
+  it("requests 只在协议真实提供时累计,不同轮各自的计数原样相加", async () => {
+    const manager = makeManagerWithTurns([
+      { status: "completed", events: [], usage: { inputTokens: 1, outputTokens: 1, requests: 3 } },
+      { status: "completed", events: [], usage: { inputTokens: 1, outputTokens: 1, requests: 4 } },
+    ]);
+    await manager.send(manager.primary, "one");
+    await manager.send(manager.primary, "two");
+
+    expect(manager.usage.requests).toBe(7);
+  });
+});
+
+// turn 级 usage 挂接:该轮 Turn.usage 经 onTurn 回报给 runner,由 runner 挂上 TimingNode
+// (src/runner/attempt.ts 的 onTurn → recorder.child({ usage })),show `--execution`/
+// `--timing` 的 turn 头行读 TimingNode.usage(见 docs/feature/results/architecture.md
+// 「result.json」TimingNode.usage,src/show/render.ts 的 turnUsageText)。这里只测
+// session.ts 这一端:onTurn 收到的 usage 与该轮 Turn.usage 同值;没有 usage 的轮不传该字段。
+describe("SessionManager · onTurn 回报的 usage(turn 挂接 TimingNode 的数据来源)", () => {
+  it("轮带 usage 时,onTurn 收到的 info.usage 与 Turn.usage 同值", async () => {
+    const turn: Turn = { status: "completed", events: [], usage: { inputTokens: 12, outputTokens: 34, costUSD: 0.01 } };
+    const reported: Array<{ usage?: import("../types.ts").Usage }> = [];
+    const manager = makeManagerWithTurns([turn], { onTurn: (info) => reported.push(info) });
+    await manager.send(manager.primary, "hi");
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]!.usage).toEqual({ inputTokens: 12, outputTokens: 34, costUSD: 0.01 });
+  });
+
+  it("轮没有 usage 时,onTurn 的 info.usage 是 undefined(不拿空对象或 0 值凑数)", async () => {
+    const turn: Turn = { status: "completed", events: [] };
+    const reported: Array<Record<string, unknown>> = [];
+    const manager = makeManagerWithTurns([turn], { onTurn: (info) => reported.push(info) });
+    await manager.send(manager.primary, "hi");
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]!.usage).toBeUndefined();
+  });
+});
+
 describe("createAgentSession", () => {
   describe("history()", () => {
     it("新线 get() 是空数组;commit 之后同一条线的 get() 能看见", () => {

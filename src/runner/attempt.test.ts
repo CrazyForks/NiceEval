@@ -11,6 +11,11 @@
 // 沙箱是内存 fake(记文件,不起容器)——这里要验的是运行器自己「何时读、读到什么、读不到
 // 怎么办」这段编排逻辑,不是 adapter 侧的 manifest 构造规则(那部分已在 agents/skills.test.ts
 // 覆盖)。
+//
+// cases: docs/engineering/testing/unit/sandbox.md「失败命令证据包装」——公开 `runCommand` /
+// `runShell` 最外层调用非零退出时,在把 `CommandResult` 交还调用方前登记 `FailedCommandEvidence`
+// 并与同一次 timing command 节点共用 id;成功命令不登记;调用方处理非零结果并继续不撤销证据,
+// 即使随后只把 stderr 尾部拼进自己的诊断。见文件末尾专用 describe 块。
 
 import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
@@ -737,5 +742,80 @@ describe("runAttemptEffect · ctx.fact() 的作用域归属落进 EvalResult.fac
     expect(result.verdict).toBe("errored");
     expect(result.error?.phase).toBe("eval.setup");
     expect(result.error?.message).toContain("object");
+  });
+});
+
+// cases: docs/engineering/testing/unit/sandbox.md「失败命令证据包装」
+describe("runAttemptEffect · 失败命令证据包装(公开 runCommand/runShell 非零退出登记 FailedCommandEvidence)", () => {
+  /** runCommand 恒返回同一个非零 CommandResult;runShell 沿用 FakeSandbox 的恒成功语义
+   *  (供 workspace.baseline 的 git 初始化用,不产生额外的失败命令证据)。 */
+  class FailingCommandSandbox extends FakeSandbox {
+    constructor(private readonly failing: CommandResult) {
+      super();
+    }
+    override async runCommand(): Promise<CommandResult> {
+      return this.failing;
+    }
+  }
+
+  it("非零退出:CommandResult 交还调用方前登记完整证据,timingNodeId 与 --timing 的 command 节点共用 id;调用方处理非零结果并继续、事后只把 stderr 截尾拼进自己的诊断也不影响已登记的完整证据", async () => {
+    const fullStderr = "npm error code EACCES\nnpm error path /usr/lib/node_modules/pnpm\n" + "y".repeat(600);
+    const box = new FailingCommandSandbox({ stdout: "", stderr: fullStderr, exitCode: 243 });
+    const agent = defineSandboxAgent({
+      name: "fake-agent-failing-command",
+      send: async () => ({ events: [], status: "completed" }),
+    });
+
+    let observedExitCode: number | undefined;
+    let observedStderrTail: string | undefined;
+    const result = await runOnce(agent, box, {
+      evalDefOverrides: {
+        test: async (t) => {
+          const r = await t.sandbox.runCommand("npm", ["install", "-g", "pnpm"]);
+          // 调用方读到真实非零退出(登记不改变 runCommand 的返回语义),处理它并继续——
+          // 不抛错、不中止 attempt。事后只把尾部拼进自己的诊断变量(模拟 .slice(-500) 场景)。
+          observedExitCode = r.exitCode;
+          observedStderrTail = r.stderr.slice(-500);
+        },
+      },
+    });
+
+    expect(result.error).toBeUndefined(); // 调用方处理了非零退出并继续,attempt 正常完成
+    expect(observedExitCode).toBe(243);
+    expect(observedStderrTail).not.toContain("EACCES"); // 调用方自己截掉的尾部确实丢了根因
+
+    // wrapper 登记的证据仍然完整——Eval 的自我阉割不影响它。
+    expect(result.commands).toBeDefined();
+    expect(result.commands).toHaveLength(1);
+    const evidence = result.commands![0];
+    expect(evidence.exitCode).toBe(243);
+    expect(evidence.stderr).toBe(fullStderr);
+    expect(evidence.stderr).toContain("EACCES");
+    expect(evidence.stderr).toContain("/usr/lib/node_modules/pnpm");
+    expect(evidence.display).toContain("npm install -g pnpm");
+    expect(evidence.phase).toBe("eval.run");
+
+    const evalRunPhase = result.phases?.find((p) => p.name === "eval.run");
+    const node = evalRunPhase?.children?.find((n) => n.kind === "command");
+    expect(node).toBeDefined();
+    expect(node?.id).toBe(evidence.timingNodeId);
+    expect(node?.command?.exitCode).toBe(243);
+  });
+
+  it("成功命令(exitCode 0)不登记输出:EvalResult.commands 整个不出现", async () => {
+    const box = new FakeSandbox(); // runCommand 恒返回 exitCode 0
+    const agent = defineSandboxAgent({
+      name: "fake-agent-successful-command",
+      send: async () => ({ events: [], status: "completed" }),
+    });
+    const result = await runOnce(agent, box, {
+      evalDefOverrides: {
+        test: async (t) => {
+          await t.sandbox.runCommand("echo", ["ok"]);
+        },
+      },
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.commands).toBeUndefined();
   });
 });

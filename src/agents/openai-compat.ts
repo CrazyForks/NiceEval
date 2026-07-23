@@ -39,6 +39,8 @@ export interface ChatCompletionUsageLike {
   prompt_tokens?: number;
   completion_tokens?: number;
   prompt_tokens_details?: { cached_tokens?: number };
+  /** 推理模型(o-series 等)经 Chat Completions 端点也会带回这项,拆自 completion_tokens。 */
+  completion_tokens_details?: { reasoning_tokens?: number };
 }
 
 export interface ChatCompletionLike {
@@ -50,6 +52,7 @@ function chatCompletionUsage(usage: ChatCompletionUsageLike | undefined): Usage 
   if (!usage) return undefined;
   const u: Usage = { inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0 };
   if (usage.prompt_tokens_details?.cached_tokens) u.cacheReadTokens = usage.prompt_tokens_details.cached_tokens;
+  if (usage.completion_tokens_details?.reasoning_tokens) u.reasoningTokens = usage.completion_tokens_details.reasoning_tokens;
   return u;
 }
 
@@ -111,6 +114,8 @@ export interface ResponseUsageLike {
   input_tokens?: number;
   output_tokens?: number;
   input_tokens_details?: { cached_tokens?: number };
+  /** 推理模型经 Responses 端点带回的思考 token 拆分,拆自 output_tokens。 */
+  output_tokens_details?: { reasoning_tokens?: number };
 }
 
 export interface ResponseLike {
@@ -122,6 +127,7 @@ function responsesUsage(usage: ResponseUsageLike | undefined): Usage | undefined
   if (!usage) return undefined;
   const u: Usage = { inputTokens: usage.input_tokens ?? 0, outputTokens: usage.output_tokens ?? 0 };
   if (usage.input_tokens_details?.cached_tokens) u.cacheReadTokens = usage.input_tokens_details.cached_tokens;
+  if (usage.output_tokens_details?.reasoning_tokens) u.reasoningTokens = usage.output_tokens_details.reasoning_tokens;
   return u;
 }
 

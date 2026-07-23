@@ -12,9 +12,9 @@
 
 import type { ReactElement } from "react";
 import type { MetricColumn, ScatterData } from "../../model/types.ts";
-import { formatMetricValue, shortestUniqueLabels } from "../../model/format.ts";
+import { formatMetricValue, formatTickValue, shortestUniqueLabels } from "../../model/format.ts";
 import { DEFAULT_REPORT_LOCALE, countText, localeText, resolveLocalizedText, resolveMetricLabel, type ReportLocale } from "../../model/locale.ts";
-import { axisScale, placePointLabels } from "./chart-math.ts";
+import { axisScale, placePointLabels, tickStepOf } from "./chart-math.ts";
 import { colorIndicesForKeys } from "../../assets/colors.ts";
 import { cx } from "../shared.ts";
 
@@ -168,14 +168,14 @@ export function MetricScatter({
         <g className="nre-scatter-axis nre-scatter-axis-y">
           {yScale.ticks.map((tick) => (
             <text key={`ay${tick}`} className="nre-scatter-tick" x={MARGIN.left - 8} y={yScale.scale(tick) + 3} textAnchor="end">
-              {formatMetricValue(tick, data.y.unit)}
+              {formatTickValue(tick, tickStepOf(yScale.ticks), data.y.unit)}
             </text>
           ))}
         </g>
         <g className="nre-scatter-axis nre-scatter-axis-x">
           {xScale.ticks.map((tick) => (
             <text key={`ax${tick}`} className="nre-scatter-tick" x={xScale.scale(tick)} y={MARGIN.top + PLOT_H + 16} textAnchor="middle">
-              {formatMetricValue(tick, data.x.unit)}
+              {formatTickValue(tick, tickStepOf(xScale.ticks), data.x.unit)}
             </text>
           ))}
         </g>

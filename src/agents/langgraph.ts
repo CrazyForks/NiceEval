@@ -157,15 +157,21 @@ export function fromLangGraphEvents(): LangGraphStream {
     if (input === 0 && output === 0) return;
     const details = isRecord(raw.input_token_details) ? raw.input_token_details : undefined;
     const cacheRead = typeof details?.cache_read === "number" ? details.cache_read : 0;
-    const cacheWrite = typeof details?.cache_creation === "number" ? details.cache_creation : 0;
+    const cacheCreation = typeof details?.cache_creation === "number" ? details.cache_creation : 0;
+    // LangChain UsageMetadata.output_token_details.reasoning:推理模型经 LangGraph 透传时带回。
+    const outputDetails = isRecord(raw.output_token_details) ? raw.output_token_details : undefined;
+    const reasoning = typeof outputDetails?.reasoning === "number" ? outputDetails.reasoning : 0;
     usage = {
       inputTokens: (usage?.inputTokens ?? 0) + input,
       outputTokens: (usage?.outputTokens ?? 0) + output,
       ...(cacheRead || usage?.cacheReadTokens
         ? { cacheReadTokens: (usage?.cacheReadTokens ?? 0) + cacheRead }
         : {}),
-      ...(cacheWrite || usage?.cacheWriteTokens
-        ? { cacheWriteTokens: (usage?.cacheWriteTokens ?? 0) + cacheWrite }
+      ...(cacheCreation || usage?.cacheCreationTokens
+        ? { cacheCreationTokens: (usage?.cacheCreationTokens ?? 0) + cacheCreation }
+        : {}),
+      ...(reasoning || usage?.reasoningTokens
+        ? { reasoningTokens: (usage?.reasoningTokens ?? 0) + reasoning }
         : {}),
       requests: (usage?.requests ?? 0) + 1,
     };

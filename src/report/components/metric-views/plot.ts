@@ -29,8 +29,8 @@ export interface CharPlotOptions {
   xLabel: string;
   yLabel: string;
   /** 值 → 刻度文案(已格式化的 display)。 */
-  formatX: (value: number) => string;
-  formatY: (value: number) => string;
+  formatX: (value: number, step?: number) => string;
+  formatY: (value: number, step?: number) => string;
   /** better: "lower" 的轴反向 —— 好的一端在右 / 上。 */
   invertX?: boolean;
   invertY?: boolean;
@@ -69,7 +69,7 @@ function drawLine(grid: string[][], a: { col: number; row: number }, b: { col: n
 
 export function renderCharPlot(opts: CharPlotOptions): string {
   const height = Math.max(4, opts.height ?? 9);
-  const yTickTexts = [opts.formatY(opts.yDomain[0]), opts.formatY(opts.yDomain[1])];
+  const yTickTexts = [opts.formatY(opts.yDomain[0]), opts.formatY(opts.yDomain[1])]; // 仅估 gutter 宽度,精度不参与展示
   const gutter = Math.max(...yTickTexts.map(stringWidth)) + 1;
   const plotWidth = Math.max(16, opts.width - gutter - 1);
 
@@ -95,8 +95,8 @@ export function renderCharPlot(opts: CharPlotOptions): string {
 
   // y 轴刻度:极值行标注 display,其余空
   const tickByRow = new Map<number, string>();
-  tickByRow.set(rowOf(yScale.lo), opts.formatY(yScale.lo));
-  tickByRow.set(rowOf(yScale.hi), opts.formatY(yScale.hi));
+  tickByRow.set(rowOf(yScale.lo), opts.formatY(yScale.lo, yScale.hi - yScale.lo));
+  tickByRow.set(rowOf(yScale.hi), opts.formatY(yScale.hi, yScale.hi - yScale.lo));
 
   const out: string[] = [];
   out.push(`${" ".repeat(gutter)}${opts.yLabel} ↑`);
@@ -109,7 +109,7 @@ export function renderCharPlot(opts: CharPlotOptions): string {
   // x 轴刻度:两端极值(反向轴时右端是 lo),标在真实位置上
   const ticksRow = Array.from({ length: plotWidth }, () => " ");
   for (const value of xScale.lo === xScale.hi ? [xScale.lo] : [xScale.lo, xScale.hi]) {
-    const label = opts.formatX(value);
+    const label = opts.formatX(value, xScale.hi - xScale.lo);
     let col = xScale.at(value);
     col = Math.min(col, plotWidth - stringWidth(label));
     for (let i = 0; i < label.length && col + i < plotWidth; i++) ticksRow[col + i] = label[i];

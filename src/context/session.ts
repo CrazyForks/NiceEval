@@ -88,7 +88,7 @@ export class RunSession implements AgentSession {
   lastStatus: "completed" | "failed" | "waiting" = "completed";
   readonly events: StreamEvent[] = [];
   readonly pendingInputRequests: InputRequest[] = [];
-  readonly usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  readonly usage: Usage = {};
   /** 本会话累计的证据覆盖(初值 = Agent 级默认,逐轮按 Turn.coverage 降级折叠)。 */
   coverage!: ResolvedCoverage;
   /** 本会话内的轮次计数(turn 时间树 / 展示标签 s<session>/t<turn> 用)。 */
@@ -119,7 +119,10 @@ export interface SessionDeps {
     beforeSend(label: string): Promise<void>;
     afterSend(label: string): Promise<void>;
   };
-  /** 每轮 send 结束后回报墙钟包络(runner 挂成 eval.run 下的 turn 时间树节点)。 */
+  /**
+   * 每轮 send 结束后回报墙钟包络(runner 挂成 eval.run 下的 turn 时间树节点)。`usage` 是该轮
+   * `Turn.usage` 落盘原样(有记录才传;`--execution`/`--timing` 的 turn 头行读 TimingNode.usage)。
+   */
   onTurn?: (info: {
     sessionIndex: number;
     turnIndex: number;
@@ -128,6 +131,7 @@ export interface SessionDeps {
     failed?: boolean;
     traceId?: string;
     traceAttribution?: "traceparent" | "window" | "none";
+    usage?: Usage;
   }) => void;
   /** 路径推导出的实验 id(经 send ctx 透给 adapter,见 AgentContext.experimentId)。 */
   experimentId?: string;
@@ -148,7 +152,7 @@ export interface SessionDeps {
 export class SessionManager {
   /** 整次运行(所有会话、所有轮)累计的标准事件流。 */
   readonly allEvents: StreamEvent[] = [];
-  readonly usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  readonly usage: Usage = {};
   lastStatus: "completed" | "failed" | "waiting" = "completed";
   /** Agent 级默认覆盖(全通道解析,未声明 = unknown)。 */
   readonly agentCoverage: ResolvedCoverage;
@@ -316,6 +320,7 @@ export class SessionManager {
       failed: turn.status === "failed" ? true : undefined,
       traceId: sentTraceId,
       traceAttribution: sentAttribution,
+      usage: turn.usage,
     });
 
     this.allEvents.push(...turn.events);
@@ -408,19 +413,21 @@ export function lastAssistantText(events: readonly StreamEvent[]): string | unde
 }
 
 /**
- * inputTokens/outputTokens 是 Usage 的必填字段,始终累加。其余字段只在某一轮真的带回该值时才
- * 累加,协议不提供就保持省略(见 docs/feature/results/architecture.md「Usage」:「协议不提供请求
- * 计数就省略,绝不写 1 凑数」)。此前 `requests` 用 `add.requests ?? 1` 累加,会让转录解析型
- * adapter(整个 attempt 只在末尾解析一次 transcript、天然不报每轮请求数)的一轮 send 被硬算成
- * 1 个请求,一个内部发起了 21 次工具调用的 codex session 因此落盘 `requests: 1`——不是真值,是
- * 轮数的误代理(见 memory 的 show-scope-slice-json-ruling 条目)。`cacheReadTokens` /
- * `cacheWriteTokens` 同理:不支持 prompt cache 的 adapter 不应该在这里被垫成 0。
+ * 每个字段只在某一轮真的带回该值时才累加,协议不提供就保持省略(见
+ * docs/feature/results/architecture.md「Usage」:「每个字段只在协议真实提供该值时存在……
+ * 不存在『默认 0』或『默认 1』的字段」)。此前 `requests` 用 `add.requests ?? 1` 累加,会让
+ * 转录解析型 adapter(整个 attempt 只在末尾解析一次 transcript、天然不报每轮请求数)的一轮
+ * send 被硬算成 1 个请求,一个内部发起了 21 次工具调用的 codex session 因此落盘
+ * `requests: 1`——不是真值,是轮数的误代理(见 memory 的 show-scope-slice-json-ruling 条目)。
+ * `inputTokens`/`outputTokens` 此前是 Usage 的必填字段、始终累加(缺省视同 0);现在两者也
+ * 可选化,同一条纪律统一适用:任何字段缺席就保持缺席,不拿「大概率是 0」去凑。
  */
 function accumulateUsage(acc: Usage, add: Usage): void {
-  acc.inputTokens += add.inputTokens ?? 0;
-  acc.outputTokens += add.outputTokens ?? 0;
+  if (add.inputTokens !== undefined) acc.inputTokens = (acc.inputTokens ?? 0) + add.inputTokens;
+  if (add.outputTokens !== undefined) acc.outputTokens = (acc.outputTokens ?? 0) + add.outputTokens;
   if (add.cacheReadTokens !== undefined) acc.cacheReadTokens = (acc.cacheReadTokens ?? 0) + add.cacheReadTokens;
-  if (add.cacheWriteTokens !== undefined) acc.cacheWriteTokens = (acc.cacheWriteTokens ?? 0) + add.cacheWriteTokens;
+  if (add.cacheCreationTokens !== undefined) acc.cacheCreationTokens = (acc.cacheCreationTokens ?? 0) + add.cacheCreationTokens;
+  if (add.reasoningTokens !== undefined) acc.reasoningTokens = (acc.reasoningTokens ?? 0) + add.reasoningTokens;
   if (add.requests !== undefined) acc.requests = (acc.requests ?? 0) + add.requests;
   if (add.costUSD !== undefined) acc.costUSD = (acc.costUSD ?? 0) + add.costUSD;
 }

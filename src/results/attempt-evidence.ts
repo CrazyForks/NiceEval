@@ -33,7 +33,7 @@ import { type AttemptIdentity, type AttemptLocator, encodeAttemptLocator } from 
 import { loadAnnotatedEvalSource } from "./attempt-source.ts";
 import { deriveSendAnnotations, type AnnotatedEvalSource } from "./annotated-source.ts";
 import { buildExecutionTree, type ExecutionTree } from "../o11y/execution-tree.ts";
-import type { DiffData, EvalResult, StreamEvent } from "../types.ts";
+import type { DiffData, EvalResult, FailedCommandEvidence, StreamEvent } from "../types.ts";
 
 /**
  * 一个 Attempt 的 artifact 落盘位置。单一目录足够:一个 attempt 的全部 artifact
@@ -91,6 +91,8 @@ export interface AttemptEvidence {
   diff: DiffData | null;
   /** OTel spans(`--timing` 把 turn 节点下的 agent/model/tool spans 挂回时间树);没有 trace 就是 null。 */
   trace: import("../types.ts").TraceSpan[] | null;
+  /** 非零 Sandbox 命令的 stdout/stderr 证据(`--execution` 末尾的失败命令卡);原样透传 attempt.commands()。 */
+  commands: readonly FailedCommandEvidence[] | null;
   artifactPaths: EvidencePaths;
   capabilities: AttemptEvidenceCapabilities;
 }
@@ -115,10 +117,11 @@ export async function loadAttemptEvidence(attempt: AttemptHandle): Promise<Attem
   };
   const locator = attempt.locator ?? encodeAttemptLocator(identity);
 
-  const [events, trace, diff] = await Promise.all([
+  const [events, trace, diff, commands] = await Promise.all([
     attempt.events(),
     attempt.trace(),
     attempt.diff(),
+    attempt.commands(),
   ]);
   // send 标注要拿事件流里用户消息的 loc 与阶段时间树里的 turn 节点配对,所以在 events
   // 就绪后再装配 evalSource;派生与分桶都是纯函数(annotated-source.ts),这里只接线。
@@ -146,6 +149,7 @@ export async function loadAttemptEvidence(attempt: AttemptHandle): Promise<Attem
     execution,
     diff,
     trace,
+    commands,
     artifactPaths: { dir: attemptArtifactDir(attempt) },
     capabilities: {
       source: evalCapable,

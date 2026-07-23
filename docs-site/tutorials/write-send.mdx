@@ -147,7 +147,7 @@ An agent that answers correctly but burns ten times the tokens should not get th
     };
 ```
 
-The full `Usage` fields also include the optional `cacheReadTokens` / `cacheWriteTokens`, the request count `requests`, and `costUSD` — if a gateway returns measured cost, fill that in; it takes precedence over price-table estimation. If the interface returns no usage, leave `usage` out entirely; other assertions are unaffected. This hand-copying is also transitional: the official converter in the next step fills in `usage` along with everything else.
+The full `Usage` fields also include the optional `cacheReadTokens` / `cacheCreationTokens`, the reasoning token count `reasoningTokens`, the request count `requests`, and `costUSD` — if a gateway returns measured cost, fill that in; it takes precedence over price-table estimation. Each field is only filled when the interface actually reports it; if the interface returns no usage, leave `usage` out entirely, and other assertions are unaffected. This hand-copying is also transitional: the official converter in the next step fills in `usage` along with everything else.
 
 **This step unlocks**: the `t.maxTokens()` / `t.maxCost()` scorers (`maxCost` uses `costUSD` or the price table in the config), plus usage in reports and `niceeval view`.
 

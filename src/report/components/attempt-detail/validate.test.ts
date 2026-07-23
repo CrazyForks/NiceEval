@@ -56,14 +56,26 @@ describe("validateSummaryData", () => {
 });
 
 describe("validateErrorData", () => {
-  const valid = { code: "unexpected-error", message: "boom", phase: "eval.run" };
+  const valid = { code: "unexpected-error", message: "boom", phase: "eval.run", locator: "@1abcdef2" };
 
   it("合规 literal 通过", () => {
     expect(validateErrorData(valid)).toBeNull();
   });
 
+  it("带 commandEvidenceHint: true 的 literal 通过", () => {
+    expect(validateErrorData({ ...valid, commandEvidenceHint: true })).toBeNull();
+  });
+
+  it("commandEvidenceHint 不是 true 时报错", () => {
+    expect(validateErrorData({ ...valid, commandEvidenceHint: false })).toMatch(/"commandEvidenceHint"/);
+  });
+
+  it("缺 locator 报错", () => {
+    expect(validateErrorData({ code: "x", message: "boom", phase: "eval.run" })).toMatch(/"locator"/);
+  });
+
   it("缺 phase 报错", () => {
-    expect(validateErrorData({ code: "x", message: "boom" })).toMatch(/"phase"/);
+    expect(validateErrorData({ code: "x", message: "boom", locator: "@1abcdef2" })).toMatch(/"phase"/);
   });
 });
 
@@ -235,6 +247,19 @@ describe("validateConversationData — AttemptConversationReply 判别联合", (
     expect(validateConversationData(withLoc)).toBeNull();
     const badLoc = { locator: "@1abcdef2", rounds: [{ loc: { file: "eval.ts" }, sentText: "go", replies: [] }] };
     expect(validateConversationData(badLoc)).toMatch(/"rounds\[0\]\.loc\.line"/);
+  });
+
+  it("failedCommands 省略合法(没有失败命令);存在时逐项校验 FailedCommandEvidence", () => {
+    expect(validateConversationData(valid)).toBeNull(); // valid 本身没有 failedCommands 字段
+    const withCommands = {
+      ...valid,
+      failedCommands: [
+        { timingNodeId: "n1", phase: "eval.setup", display: "npm ci", exitCode: 1, stdout: "", stderr: "boom" },
+      ],
+    };
+    expect(validateConversationData(withCommands)).toBeNull();
+    const missingExitCode = { ...valid, failedCommands: [{ timingNodeId: "n1", phase: "eval.setup", display: "npm ci", stdout: "", stderr: "boom" }] };
+    expect(validateConversationData(missingExitCode)).toMatch(/"failedCommands\[0\]\.exitCode"/);
   });
 });
 

@@ -18,12 +18,14 @@ import { hashEvalSource, normalizeEvalSource } from "./source-hash.ts";
 import { PUBLISH_FILE_MAX_BYTES } from "./publish.ts";
 import type { ArtifactKind, AttemptHandle, Scope, Snapshot, SnapshotMeta } from "./types.ts";
 
-/** 缺省携带的 artifact:events / trace / o11y / agentSetup / sources;diff 不截断、可达百 MB,缺省不带。 */
-const DEFAULT_PUBLISH_ARTIFACTS: ArtifactKind[] = ["events", "trace", "o11y", "agentSetup", "sources"];
-const VALID_ARTIFACTS: ArtifactKind[] = ["events", "trace", "o11y", "agentSetup", "diff", "sources"];
+/** 缺省携带的 artifact:commands / events / trace / o11y / agentSetup / sources;diff 不截断、
+ *  可达百 MB,缺省不带。commands 缺省带的理由单独交代:失败命令证据是 errored attempt 的主要
+ *  下钻面,不能默认发布拷贝时静默删掉(见 docs/feature/results/library.md「复制与瘦身」)。 */
+const DEFAULT_PUBLISH_ARTIFACTS: ArtifactKind[] = ["commands", "events", "trace", "o11y", "agentSetup", "sources"];
+const VALID_ARTIFACTS: ArtifactKind[] = ["commands", "events", "trace", "o11y", "agentSetup", "diff", "sources"];
 
 export interface CopySnapshotsOptions {
-  /** 要带上的 artifact 种类;缺省带 events / trace / o11y / agentSetup / sources,不带 diff。 */
+  /** 要带上的 artifact 种类;缺省带 commands / events / trace / o11y / agentSetup / sources,不带 diff。 */
   artifacts?: ArtifactKind[];
 }
 
@@ -257,6 +259,7 @@ function slimForCopy(r: EvalResult, copied: Set<ArtifactKind>): Record<string, u
     trace,
     agentSetup,
     diff,
+    commands,
     rawTranscript,
     artifactBase,
     artifacts: _artifacts,
@@ -272,6 +275,7 @@ function slimForCopy(r: EvalResult, copied: Set<ArtifactKind>): Record<string, u
   void trace;
   void agentSetup;
   void diff;
+  void commands;
   void rawTranscript;
   void artifactBase;
   void _artifacts;

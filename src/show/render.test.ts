@@ -71,6 +71,7 @@ function evidenceOf(overrides: Partial<AttemptEvidence> = {}): AttemptEvidence {
     execution: overrides.execution ?? null,
     diff: overrides.diff ?? null,
     trace: overrides.trace ?? null,
+    commands: overrides.commands ?? null,
     artifactPaths: overrides.artifactPaths ?? { dir: "/results/exp/a/eval-one/a0" },
     capabilities: overrides.capabilities ?? { source: false, execution: true, timing: false, diff: false },
   };
@@ -139,15 +140,15 @@ describe("--execution:轮内卡片句柄 t<N>.c<M> 从事件序确定性派生",
     expect(text).toContain("s1/t2 · completed · 800ms");
   });
 
-  it("turn 头行有 usage 时带 token/成本(usage 有记录才出现)", () => {
-    const turnWithUsage = {
+  it("turn 头行有 usage 时带 token/成本(usage 有记录才出现;TimingNode.usage 是该轮 Turn.usage 落盘原样)", () => {
+    const turnWithUsage: TimingNode = {
       id: "turn-1",
       kind: "turn",
       label: "s1/t1",
       startOffsetMs: 0,
       durationMs: 1200,
       usage: { inputTokens: 2000, outputTokens: 10400, costUSD: 0.02 },
-    } as unknown as TimingNode;
+    };
     const phases: PhaseTiming[] = [
       {
         name: "eval.run" as PhaseTiming["name"],
@@ -240,14 +241,14 @@ describe("--execution:失败 Sandbox 命令卡 cmd<N> 按 timing node 时序派�
         ],
       },
     ];
-    const evidence = evidenceOf({ execution: null, result: resultOf({ phases }) });
-    return {
-      ...evidence,
+    return evidenceOf({
+      execution: null,
+      result: resultOf({ phases }),
       commands: [
         { timingNodeId: "cmd-node-b", phase: "eval.setup", display: "npm ci", exitCode: 1, stdout: "", stderr: "npm error EACCES" },
         { timingNodeId: "cmd-node-a", phase: "eval.setup", display: "git fetch", exitCode: 128, stdout: "", stderr: "fatal: could not read" },
       ],
-    } as AttemptEvidence;
+    });
   }
 
   it("按关联 timing 节点的 startOffsetMs 排序编号(不是 commands.json 里的原始数组顺序)", () => {
@@ -272,7 +273,7 @@ describe("--execution:失败 Sandbox 命令卡 cmd<N> 按 timing node 时序派�
     expect(text).not.toContain("no events recorded");
   });
 
-  it("AttemptEvidence 未接线 commands 字段时(现状)命令卡路径零输出,不报错", () => {
+  it("没有失败命令(evidence.commands 为 null)时命令卡路径零输出,不报错", () => {
     const evidence = evidenceOf({ execution: buildExecutionTree(twoTurnEvents(), []), result: resultOf({ phases: twoTurnPhases() }) });
     const { text } = executionText(evidence, OPTS);
     expect(text).not.toContain("FAILED COMMAND");
@@ -289,11 +290,11 @@ describe("--grep:匹配面覆盖角色文本、工具名、input、result 与失
         children: [{ id: "cmd-node", kind: "command", label: "npm", startOffsetMs: 0, durationMs: 50, command: { display: "npm ci", exitCode: 1 } }],
       },
     ];
-    const evidence = evidenceOf({ execution: buildExecutionTree(twoTurnEvents(), []), result: resultOf({ phases }) });
-    return {
-      ...evidence,
+    return evidenceOf({
+      execution: buildExecutionTree(twoTurnEvents(), []),
+      result: resultOf({ phases }),
       commands: [{ timingNodeId: "cmd-node", phase: "eval.setup", display: "npm ci", exitCode: 1, stdout: "", stderr: "EACCES permission denied" }],
-    } as AttemptEvidence;
+    });
   }
 
   it("按工具名命中(input/result 里没有出现的词也能命中)", () => {

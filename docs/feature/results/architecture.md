@@ -285,6 +285,8 @@ interface TimingNode {
   turnId?: string;
   traceId?: string;
   traceAttribution?: "traceparent" | "window" | "none";
+  /** kind=turn 时存在,该轮 `Turn.usage` 落盘原样(有记录才写),字段契约见上方 Usage 小节。 */
+  usage?: Usage;
 
   /** kind=command 时的有界脱敏摘要;环境变量值与 stdout/stderr 不进入时间树。 */
   command?: {

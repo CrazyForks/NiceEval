@@ -174,6 +174,49 @@ AI 通常按任务选择这些入口：
     | 检查 Attempt 各阶段耗时 | `niceeval show @<id> --timing` | lifecycle → hook/turn → shell → OTel 的统一时间树；出错的 Attempt 标出已知的最深失败节点 |
     | 检查 Sandbox 工作区改动 | `niceeval show @<id> --diff` | 文件摘要、增删行数、具体补丁和原始 diff 路径；无文件工作区时明确 unavailable |
   </Step>
+  <Step title="需要时把证据交给脚本或下一个 agent">
+    以上任何一条 `show` 命令加 `--json`，都会把同一范围、同一切片选出的同一批实体输出成一份结构化 JSON 文档到 stdout，而不是排好版的文本。字段名与落盘类型保持一致，Coding Agent 不用再解析人读格式：
+
+    ```bash
+    npx niceeval show @1puv8ydu --json
+    ```
+
+    ```json
+    {
+      "format": "niceeval.show",
+      "schemaVersion": 1,
+      "view": "attempt",
+      "scope": { "resultsRoot": "…", "experiments": ["compare/claude-mempal"], "fresh": false },
+      "data": {
+        "summary": {
+          "locator": "@1puv8ydu",
+          "identity": { "experimentId": "compare/claude-mempal", "evalId": "react-datepicker/pr-6058", "attempt": 0 },
+          "verdict": "failed",
+          "durationMs": 29800,
+          "costUSD": 0.07,
+          "capabilities": { "source": false, "execution": true, "timing": false, "diff": false }
+        },
+        "assertions": {
+          "attention": [
+            {
+              "name": "fixes month navigation year sync",
+              "detail": "judge(\"月份切换后年份同步\")",
+              "severity": "gate",
+              "outcome": "failed",
+              "score": 0,
+              "expected": ">= 0.7",
+              "received": "0.4 / 1 · fix still off by one month at year boundary"
+            }
+          ],
+          "passedGroups": []
+        },
+        "fixPrompt": { "prompt": "Fix the failing eval from this niceeval run.\n\n## Failure\n…" }
+      }
+    }
+    ```
+
+    `--json` 是数据超集：text 面为注意力预算省略或截断的字段（完整字符串、完整树）在这里保留完整。`--source`、`--execution`、`--timing`、`--diff`、`--usage`、`--stats` 与对照矩阵同样接受 `--json`，是同一条规则，不是 attempt 视图的特例。需要把某次失败的结构化事实转交给另一个 agent、拼进自己的分析脚本，或喂进 CI 判定时，读这里，不要重新扫 `.niceeval/` 原始文件——那样会复刻出第二套不一致的选择和去重口径。
+  </Step>
   <Step title="提出假设并修改">
     根据证据只修改最可能出错的一侧：
 

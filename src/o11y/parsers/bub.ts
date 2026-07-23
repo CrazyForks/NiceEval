@@ -80,7 +80,7 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   let parseSuccess = true;
 
   if (!raw || !raw.trim()) {
-    return { events, usage: { inputTokens: 0, outputTokens: 0 }, compactions: 0, parseSuccess: true };
+    return { events, usage: {}, compactions: 0, parseSuccess: true };
   }
 
   // tape 的 tool_result 与上一条 tool_call 按位对齐;记下上一批 callId。
@@ -233,7 +233,9 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
     }
   }
 
-  const usage: Usage = { inputTokens, outputTokens };
+  // requests > 0 意味着至少一次 addUsage 真的读到了非零字段;整份 tape 没有任何 usage 时
+  // input/output 也不该垫成 0(见 docs/feature/results/architecture.md#usage)。
+  const usage: Usage = requests > 0 ? { inputTokens, outputTokens } : {};
   if (cacheReadTokens > 0) usage.cacheReadTokens = cacheReadTokens;
   if (requests > 0) usage.requests = requests;
   if (costUSD > 0) usage.costUSD = costUSD;

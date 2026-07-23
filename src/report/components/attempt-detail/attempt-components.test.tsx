@@ -88,6 +88,7 @@ function evidenceOf(overrides: Partial<AttemptEvidence> = {}): AttemptEvidence {
     execution: overrides.execution ?? null,
     diff: overrides.diff ?? null,
     trace: overrides.trace ?? null,
+    commands: overrides.commands ?? null,
     artifactPaths: overrides.artifactPaths ?? { dir: "/results/exp/a/eval-one/a0" },
     capabilities: overrides.capabilities ?? NO_CAPS,
   };
@@ -168,8 +169,33 @@ describe("Attempt 详情组件族:非空/空证据矩阵", () => {
     const withError = evidenceOf({
       result: resultOf({ verdict: "errored", error: { code: "timeout", message: "boom", phase: "eval.run" } }),
     });
-    expect(attemptErrorData(withError)).toEqual({ code: "timeout", message: "boom", phase: "eval.run" });
+    expect(attemptErrorData(withError)).toEqual({ code: "timeout", message: "boom", phase: "eval.run", locator: withError.locator });
     expect(validateErrorData(attemptErrorData(withError))).toBeNull();
+  });
+
+  it("AttemptError:message 疑似只剩失败命令 stdout/stderr 的截断尾部时带 commandEvidenceHint,提示 --execution 完整证据", () => {
+    const stderr = "npm error code EACCES\nnpm error path /usr/lib/node_modules/pnpm\n" + "x".repeat(600);
+    const truncatedMessage = stderr.slice(-500); // Eval 自己 .slice(-500) 拼进异常 —— 只剩尾部
+    const withTruncatedError = evidenceOf({
+      result: resultOf({ verdict: "errored", error: { code: "turn-failed", message: truncatedMessage, phase: "eval.run" } }),
+      commands: [{ timingNodeId: "n1", phase: "eval.setup", display: "npm install -g pnpm", exitCode: 243, stdout: "", stderr }],
+    });
+    const data = attemptErrorData(withTruncatedError);
+    expect(data?.commandEvidenceHint).toBe(true);
+    expect(validateErrorData(data)).toBeNull();
+
+    // message 是完整 stderr(没有被截掉任何内容)时不提示——没有「更多证据」可看。
+    const withFullError = evidenceOf({
+      result: resultOf({ verdict: "errored", error: { code: "turn-failed", message: stderr, phase: "eval.run" } }),
+      commands: [{ timingNodeId: "n1", phase: "eval.setup", display: "npm install -g pnpm", exitCode: 243, stdout: "", stderr }],
+    });
+    expect(attemptErrorData(withFullError)?.commandEvidenceHint).toBeUndefined();
+
+    // 没有失败命令证据时同样不提示,即使 message 碰巧很短。
+    const withoutCommands = evidenceOf({
+      result: resultOf({ verdict: "errored", error: { code: "turn-failed", message: "boom", phase: "eval.run" } }),
+    });
+    expect(attemptErrorData(withoutCommands)?.commandEvidenceHint).toBeUndefined();
   });
 
   it("AttemptAssertions:没有 assertion 时 null,有时按 attention/passedGroups 分桶", () => {

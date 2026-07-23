@@ -182,7 +182,7 @@ export function fromClaudeSdkMessages(): ClaudeSdkStream {
               inputTokens: frame.usage.input_tokens,
               outputTokens: frame.usage.output_tokens,
               cacheReadTokens: frame.usage.cache_read_input_tokens ?? undefined,
-              cacheWriteTokens: frame.usage.cache_creation_input_tokens ?? undefined,
+              cacheCreationTokens: frame.usage.cache_creation_input_tokens ?? undefined,
               requests: frame.num_turns,
               costUSD: frame.total_cost_usd,
             };
@@ -309,7 +309,7 @@ export function fromPiAgentEvents(): PiAgentStream {
               inputTokens: (usage?.inputTokens ?? 0) + u.input,
               outputTokens: (usage?.outputTokens ?? 0) + u.output,
               cacheReadTokens: (usage?.cacheReadTokens ?? 0) + u.cacheRead,
-              cacheWriteTokens: (usage?.cacheWriteTokens ?? 0) + u.cacheWrite,
+              cacheCreationTokens: (usage?.cacheCreationTokens ?? 0) + u.cacheWrite,
               requests: (usage?.requests ?? 0) + 1,
               costUSD: (usage?.costUSD ?? 0) + u.cost.total,
             };
@@ -487,6 +487,11 @@ export function fromCodexThreadEvents(): CodexThreadStream {
               inputTokens: (usage?.inputTokens ?? 0) + num(u.input_tokens),
               outputTokens: (usage?.outputTokens ?? 0) + num(u.output_tokens),
               cacheReadTokens: (usage?.cacheReadTokens ?? 0) + num(u.cached_input_tokens),
+              // codex-rs TokenUsage 结构体同一份字段(与 o11y/parsers/codex.ts 的
+              // transcript 解析同源),只在这次 turn 真的带回时累加。
+              ...(typeof u.reasoning_output_tokens === "number" || usage?.reasoningTokens !== undefined
+                ? { reasoningTokens: (usage?.reasoningTokens ?? 0) + num(u.reasoning_output_tokens) }
+                : {}),
               requests: (usage?.requests ?? 0) + 1,
             };
           }
