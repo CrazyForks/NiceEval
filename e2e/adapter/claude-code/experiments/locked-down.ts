@@ -13,5 +13,5 @@ export default defineExperiment({
   agent,
   model: "deepseek-v4-flash",
   runs: 1,
-  evals: (id) => id === "websearch-denied",
+  evals: (e) => e.id === "websearch-denied",
 });

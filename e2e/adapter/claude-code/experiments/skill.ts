@@ -14,5 +14,5 @@ export default defineExperiment({
   agent,
   model: "deepseek-v4-flash",
   runs: 1,
-  evals: (id) => id === "skill-used",
+  evals: (e) => e.id === "skill-used",
 });

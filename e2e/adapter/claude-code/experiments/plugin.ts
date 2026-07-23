@@ -23,5 +23,5 @@ export default defineExperiment({
   agent,
   model: "deepseek-v4-flash",
   runs: 1,
-  evals: (id) => id === "plugin-mcp",
+  evals: (e) => e.id === "plugin-mcp",
 });
