@@ -120,8 +120,10 @@ function fallbackFeedback(): ScopedFeedback {
   return {
     progress: (u) =>
       reportActivity(u.current !== undefined && u.total !== undefined ? `${u.message} (${u.current}/${u.total})` : u.message),
+    // key 只管折叠到多细(dedupeKey 里常编进 sandboxId 之类的实例细节),对外的稳定词法
+    // 一律是 code —— 不带 code 时 json.ts 会回落成 `code ?? key`,把复合去重串当成词法透出去。
     diagnostic: (d) =>
-      reportDiagnostic({ key: d.dedupeKey ?? d.code, severity: d.level, message: d.message, data: d.data }),
+      reportDiagnostic({ key: d.dedupeKey ?? d.code, code: d.code, severity: d.level, message: d.message, data: d.data }),
   };
 }
 
