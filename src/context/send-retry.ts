@@ -102,7 +102,7 @@ function appendToLastErrorEvent(turn: Turn, suffix: string): Turn | undefined {
 
 /**
  * turn 级重试执行体:反复调 `callOnce()`(每次都是原样重发同一个 `TurnInput`),对失败结果
- * 走三道分类链(见 turn-errors.ts 的 `resolveTurnErrorClass`),可重试则退避后重试,否则把
+ * 走分类链(见 turn-errors.ts 的 `resolveTurnFailureClass`),可重试则退避后重试,否则把
  * 失败原样(或带耗尽摘要)浮出。
  */
 export async function sendWithTurnRetry<T>(
