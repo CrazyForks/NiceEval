@@ -939,7 +939,9 @@ async function main(): Promise<void> {
   // 人读 `--dry` 首行的携入摘要(见 docs/feature/experiments/cli.md 开头示例与「事件与计划
   // 文档的 TypeScript 形状」),口径必须与真正开跑时一致。
   const priorResults = flags.force ? undefined : await loadLatestResultsPerEval(join(cwd, ".niceeval"));
-  const carryPlan = priorResults?.length ? await planCarry(evals, agentRuns, priorResults, config.sandbox) : undefined;
+  const carryPlan = priorResults?.length
+    ? await planCarry(evals, agentRuns, priorResults, config.sandbox, config.timeoutMs)
+    : undefined;
 
   if (flags.dry) {
     // --dry 只按所选形态打印计划,不运行、不落盘——一次完成的读取,不是事件流
