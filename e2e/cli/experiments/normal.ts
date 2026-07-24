@@ -8,7 +8,7 @@ const agent = aiSdkAgent<ModelMessage>({
   name: "cli-mechanism",
   generate: ({ messages, model, signal }) =>
     generateText({
-      model: resolveModel(model ?? "gpt5.6-luna"),
+      model: resolveModel(model ?? "gpt-5.6-luna"),
       messages,
       tools: weatherTools(),
       stopWhen: stepCountIs(3),
@@ -21,6 +21,6 @@ const agent = aiSdkAgent<ModelMessage>({
 export default defineExperiment({
   description: "normal:真实 Chat Completions 网关,问候 + 工具调用两条正例",
   agent,
-  model: "gpt5.6-luna",
+  model: "gpt-5.6-luna",
   evals: ["greet", "tool"],
 });

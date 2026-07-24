@@ -10,6 +10,6 @@ export default defineConfig({
   name: { en: "results E2E", "zh-CN": "results E2E" },
   timeoutMs: 60_000,
   pricing: {
-    "gpt5.6-luna": { inputPerMTok: 0.14, outputPerMTok: 0.28, cacheReadPerMTok: 0.0028 },
+    "gpt-5.6-luna": { inputPerMTok: 0.14, outputPerMTok: 0.28, cacheReadPerMTok: 0.0028 },
   },
 });
