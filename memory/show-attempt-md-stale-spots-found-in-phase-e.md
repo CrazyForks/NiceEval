@@ -45,3 +45,9 @@ Phase H 重写 `docs/feature/reports/show/attempt.md` 时:
 - 同时核对 `docs/feature/reports/show.md` 有没有引用同一套旧措辞(未逐句核对,Phase H 一并查)。
 
 关联:[attempt-detail-component-level-green-composite-broken](attempt-detail-component-level-green-composite-broken.md)(同一轮走查发现的组件实现缺陷,那条是代码要修,这条是文档要改)。
+
+# 已修(2026-07-24 复核)
+
+Phase H 已按上面三条重写 `docs/feature/reports/show/attempt.md`:判据是 `attemptOverviewText`
+与 `failureDiagnostics` 两个旧 renderer 名在 `docs/feature/reports/show/` 全目录零命中——三处陈旧
+叙述都是照抄这两个已删除函数的输出,名字消失即叙述已换。

@@ -6,4 +6,10 @@
 
 **否决理由**:两套独立 renderer 强迫读者(尤其是要自主判断的 agent)手动把"发生了什么"(事件)和"花了多长时间"(span)对应起来——同一次工具调用要在 transcript 里找一遍、再去 trace 里找耗时,两份输出没有共享的锚点。而两者描述的本来就是同一次执行:合并成一棵树、事件当骨架、span 补时间,读者一次遍历就拿到完整信息;没有 OTel 时骨架仍然完整,只是缺时间标注,不会因为合并而丢失"没有 timing 时还能看到发生了什么"的能力。
 
-**日期**:2026-07-12。设计出处:`plan/attempt-evidence-feedback-loop.md`。这是对 `docs/observability.md` 现行"events 与 spans 独立、不合并"决定的显式推翻,重写该文档时需要明确写出这次反转,不能悄悄改掉旧结论。设计已定稿,代码尚未实现。
+**日期**:2026-07-12。设计出处:`plan/attempt-evidence-feedback-loop.md`。这是对 `docs/observability.md` 现行"events 与 spans 独立、不合并"决定的显式推翻,重写该文档时需要明确写出这次反转,不能悄悄改掉旧结论。
+
+**已实现**(2026-07 复核):`buildExecutionTree` 落在 `src/o11y/execution-tree.ts`,引入 commit
+`60512063`(「合并事件流与 OTel span 为 ExecutionTree,skill.loaded 一等事件」)。`show` 的
+`--execution` 切面与报告 web 面都经这棵树取数(`src/show/render.ts` 一侧的调用见
+`src/show/render.test.ts`),旧的 `Trace.tsx`/`Transcript.tsx` 双 renderer 已随 view 证据室重写移除
+(见 [view-client-fetch-machinery-fully-removed](view-client-fetch-machinery-fully-removed.md))。

@@ -35,4 +35,13 @@ diff.json      39B   ← 对比:文档里被点名"可达百 MB"的那个,实际
 
 这只修 niceeval 的持久化爆炸。bub/tape 在把工具输出送进模型请求前仍需独立字节预算;否则 50 MB action.result 仍会先触发 413,results 只能保证这次失败不会再产出 101 MB trace。
 
-代码实现未落地(文档契约先行),落点见上。相关:[[view-sources-artifact-serving-not-dereferenced]]、[[static-site-export-drops-sources]]。
+**已修**(2026-07 复核):代码在 `5e7549eb`(results schema v8)随落盘截断一起实现,与上面的契约逐条对上——
+`src/results/truncate.ts` 的 `ARTIFACT_VALUE_MAX_BYTES = 256 * 1024`(按 UTF-8 字节边界回退)、
+`truncateEvents`/`truncateSpans`/`truncateCommands` 逐值截断并追加
+`[niceeval] truncated <orig> → <kept> bytes` 文本 marker + 结构化 `truncated: [{path, originalBytes}]`;
+落点唯一在 writer 侧(`src/results/writer.ts:352` 起的序列化路径),adapter / OTLP 解析 / 事件归一化
+均未加削减,「运行时全量、落盘截断」的支点成立。`src/o11y/types.ts` 的 `Truncation` 注释也写明
+「只由 results writer 在落盘时刻写入,adapter 不产出它」。回归覆盖:`src/results/results.test.ts`
+「commands:stdout/stderr 超 256 KiB 时逐值截断并打结构化 truncated 标记」。
+
+相关:[[view-sources-artifact-serving-not-dereferenced]]、[[static-site-export-drops-sources]]。

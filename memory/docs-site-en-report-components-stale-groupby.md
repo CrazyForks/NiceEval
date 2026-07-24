@@ -12,3 +12,11 @@ metadata:
 **修法（未做，留给下次专项 sweep）**：不要照抄现有英文段落小修，要对照 `docs/feature/reports/library/summaries.md` 与 `docs-site/zh/reference/report-components.mdx` 的 `ExperimentComparison` 一节重写；同时检查同文件里其它组件段落（`MetricScatter` 等）是否也在讲这个旧 grouping 模型（第 338 行同样提到"默认 ExperimentComparison first narrows to one comparable group, then calls it once per group"）。改完在 dogfood repo（`/Users/ctrdh/Code/coding-agent-memory-evals`）用 `niceeval show --report` 验证示例代码可执行。
 
 关联：[[docs-renames-dont-auto-propagate-to-docs-site]]、[[experimentcomparison-relativeto-cosmetic-vs-groupby]]（本次顺带发现，未修复）。
+
+**已修（2026-07-24 复核）**：`docs-site/reference/report-components.mdx` 里 `groupBy` 与
+`.data()` 两个字面量均已零命中——被否决的按父目录分组叙述与虚构的静态方法调用示例都不在了。
+同文件里 `MetricScatter` 一节引用同一 grouping 模型的那处(原第 338 行)一并消失。
+
+**仍未做的邻项**：同一份 reference 页（中英两份）都还完全没有 attempt-detail 组件族一节，
+见 [report-components-reference-missing-attempt-detail-family](report-components-reference-missing-attempt-detail-family.md)
+——那是「从未写过」，不是这条的「写错了」，两者不要混为一次 sweep。

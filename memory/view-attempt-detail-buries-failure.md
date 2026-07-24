@@ -17,4 +17,14 @@
 ## 修法
 
 - 测试方案(已落):`docs/engineering/testing/unit/reports.md`「Attempt 详情(view 证据室)」分区四行 + `docs/engineering/testing/unit/reports.md`「view 证据室的观察面」——证据室按确定性渲染语义在单元层测 DOM 结构事实,折叠态用原生 `<details>` 表达使静态 render 可断言;不进 E2E 层。
-- 实现修复(待做):`plan/view-attempt-detail-evidence-first.md`——补断言区组件、时间树 children 默认收合、artifact 拉取移出纯渲染组件;改完记得 `pnpm run view:build`(先例:codeview-perline-hidden-scrollbar-clips-text)。
+- 实现修复(已做,但走的是另一条路):没有按 `plan/view-attempt-detail-evidence-first.md`「给旧弹窗补断言区」修,而是把整个旧弹窗**替换掉**了——那份 plan 与 `src/view/app/components/AttemptModal.tsx` / `CodeView.tsx` 现均已不存在。
+
+## 已修(2026-07-24 复核):整棵旧弹窗被换成 attempt-detail 组件族
+
+判据(三条各自可查):
+
+1. **根因里点名的两个文件都没了**:`src/view/` 下 `AttemptModal*` / `CodeView*` 零命中,整棵客户端手渲染树随 [view-client-fetch-machinery-fully-removed](view-client-fetch-machinery-fully-removed.md) 删除,attempt 详情改为 fetch 一份独立文档塞进 dialog。
+2. **断言区作为一等组件存在**:`src/report/components/attempt-detail/AttemptAssertions.tsx` 头注即「全量 assertion,非 passed 默认展开、passed 按 group 折叠计数」——正是契约要求、当时 view 里不存在的那个行为;它与另外十个叶子一起装进 `standardAttemptPage`(`src/report/built-in/standard.tsx`),show 与 view 共用同一份。
+3. **测试脱节的结构原因已消除**:`docs/engineering/testing/unit/reports.md` 有 Attempt 详情的登记行,组件族的渲染矩阵覆盖见 [render-matrix-not-just-data-matrix](render-matrix-not-just-data-matrix.md)。
+
+复盘价值:这条与 [attempt-detail-component-level-green-composite-broken](attempt-detail-component-level-green-composite-broken.md) 同属「组件对、组合层缺」——当时选了「重建组合层」而不是「给旧组合层打补丁」,事后看是对的,因为原根因的三次变更叠加(`26e967e`/`792aae0`/`74affaf`)本身就说明旧组合层没有可维护的契约。

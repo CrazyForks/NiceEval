@@ -14,4 +14,8 @@ metadata:
 **修法 / 适用场景**：
 1. 给这四个 origin 示例写 niceeval eval 集成时，默认只做 T0（`t.send()`，返回最终文本），不要假设能白嫖 T1；要 T1 就得照 authoring.md 手写 mapper（claude-agent-sdk / codex-sdk 的 SDK message stream 结构化程度高，手写映射成本低；custom-genai/langgraph/openllmetry/openinference 的"结构化数据"目前只存在于 OTel span 里，手写映射等于要重新实现 otel-mixin 提案的核心逻辑，工作量超出"minimal non-invasive"的范围）。
 2. 下次 touch `docs-site/zh/guides/connect-otel.mdx` 时要么把它标成"设计提案，未实现"（对齐 `otel-mixin.md`），要么把 otel-mixin 真正实现出来再保留现状——不要让它继续以"用户文档"的身份存在但描述不存在的 API。
-3. 该文档里所有 `examples/zh/before/langgraph` 等链接在这些示例真正迁移到 `zh/before/<name>` 之前都是死链，见 [[examples-before-after-layout]]。
+3. 该文档里所有 `examples/zh/before/langgraph` 等链接在这些示例真正迁移到 `zh/before/<name>` 之前都是死链。（原文引的 `[[examples-before-after-layout]]` 条目已不存在于 `memory/`，这条 wiki 链接是断的，留作出处记录。）
+
+**已修（2026-07-24 复核）**：走的是第 2 点里的第一条路——把 API 从用户文档里撤掉，而不是把它实现出来。判据：`otelEvents` 这个符号在 `src/`、`docs/`、`docs-site/`、`examples/` 全仓零命中，`docs-site/{,zh/}tutorials/connect-otel.mdx`（页面已从 `guides/` 移到 `tutorials/`）既不提 `otelEvents` 也不再链 `examples/zh/before/*`。设计文档 `docs/adapters/otel-mixin.md` 连同整个 `docs/adapters/` 目录也已不在，`docs/roadmap/adapters/` 只剩 README。
+
+**连带失效**：其它几条 memory 正文里仍写着 `events: otelEvents({dialects:[...]})` 的示例代码（`ai-sdk-otel-needsapproval-no-execute-tool-span`、`codex-mapcodexspans-not-publicly-exported`、`langsmith-dialect-langchain-completion-shape-gap`），那些是记录当时形态的历史片段，**照抄会 import 不存在的符号**——读到时先按本条核对 API 是否还在。

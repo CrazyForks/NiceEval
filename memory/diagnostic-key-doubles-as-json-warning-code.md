@@ -38,12 +38,18 @@
 不为闸另造第三条通路,也不为了让身份透出去而伪造一个 attempt 级 identity。
 
 落点:`src/runner/feedback/sink.ts`、`src/runner/types.ts`、`src/runner/feedback/{coordinator,reducer,json,human}.ts`、
-`src/runner/run.ts` 各调用点(节点 C3)。**注意 `src/sandbox/**` 的调用点没有跟改**(`resolve.ts` 是
-`key: d.dedupeKey ?? d.code`),它们仍走回落分支;真要收口得连沙箱侧的 `SandboxDiagnostic` 一起过一遍。
+`src/runner/run.ts` 各调用点(节点 C3)。
 
-`src/cli.ts` 的 `assembleInvocationCompletion` 按 `d.key.startsWith("dispatch-halted:")` 归类未派发数,
-依赖的是 `key` 不是 `code`,这次改动没动它——新增 `code` 时别顺手把身份从 key 里摘掉,那会静默打断
-completion 的记账。
+当时留的两处遗留**均已闭合**(2026-07-24 复核):
+
+- `src/sandbox/**`:`resolve.ts:126` 现在是
+  `reportDiagnostic({ key: d.dedupeKey ?? d.code, code: d.code, … })`,`code` 与 `key` 各归各位
+  (commit `2e53660f`「fallbackFeedback 补 code,别把复合去重串当稳定词法透出去」)。
+- `src/cli.ts` 的 `assembleInvocationCompletion`:归类改按 `code`,不按 `key` 前缀——
+  `const code = d.code ?? d.key.split(":", 1)[0]`,后面逐个比 `interrupted` / `budget-exhausted` /
+  `fail-fast` / `dispatch-halted` / `reporter-error`(commit `eb1b05d8`)。同一改动一并修了
+  `src/runner/feedback/eval-conclusions.ts` 里同形的 `fail-fast` 判定。原来那句「别顺手把身份从
+  key 里摘掉」的告诫因此作废:记账不再依赖 key 的形状。
 
 ## 补漏:`src/runner/attempt.ts` 的调用点同样漏改(已修)
 
@@ -63,4 +69,6 @@ C3 只改了 `run.ts` 的调用点,`attempt.ts` 的 `recordDiagnostic` 转发 `r
 `ScopedFeedback` 两个方法都不收 phase 参数是同一条纪律。
 
 教训:给一个跨多处调用点的接口加字段时,`code?: string` 这类**可选**槽位不会在漏改的调用点编译报错,
-只会静默走回落分支。加可选字段时要把调用点数出来逐个过,不能指望 typecheck 提醒。
+只会静默走回落分支。加可选字段时要把调用点数出来逐个过,不能指望 typecheck 提醒。这一条同日在四个
+调用点各撞一次,已单独复盘成
+[optional-field-additions-need-call-site-census](optional-field-additions-need-call-site-census.md)。

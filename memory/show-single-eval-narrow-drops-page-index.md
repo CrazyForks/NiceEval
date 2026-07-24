@@ -23,3 +23,16 @@ eval 聚焦视图长什么样」这件事本身时才特意用单 eval 前缀，
 已知会踩这个坑的场景：`e2e/report/scripts/verify-readback.ts`（B2，测 `--page`
 索引命令），后续 B3（渲染结构/排版）、B5（自定义报告多页验收）如果也用位置参数收窄
 到单一 eval 再检查页索引，会复现同一个"断言失败但其实是正常分支"的困惑。
+
+## 已失效（2026-07-24 复核）
+
+现象消失，但不是被修的——承载它的那条分支随 show 管线重写整个没了。判据：
+`src/show/index.ts` 里已找不到任何「Scope 只剩一个 eval 就换渲染分支」的判定
+（`length === 1` 只出现在无关的 per-attempt 折叠与 usage 表头复数处理上）；页索引尾块
+现在是无条件的——只要 `report.pages` 里还剩可导航的其它页就追加 `otherPagesText`
+（`src/show/index.ts:1138-1149`），与收窄到几个 eval 无关。背景是
+[show-slices-are-components-ruling](show-slices-are-components-ruling.md)：show 切片收敛为
+报告组件装配，「自动钻进单题聚焦视图」这种隐式分支不再存在。
+
+写 `--page` 相关 E2E 断言时的选前缀建议因此作废；但**反过来仍值得留意**——现在单 eval 前缀
+也会走标准报告页，如果某条老断言是按「单 eval = 聚焦视图」写的，它现在测的是另一样东西。

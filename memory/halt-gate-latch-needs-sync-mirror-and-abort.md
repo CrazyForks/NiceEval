@@ -49,6 +49,14 @@ Effect fiber 和 Promise 世界的 `AbortSignal` 链。一个 latch 只覆盖后
    `--force` 路径上曾经漏发 resolved 是同一个坑)。所以中止只作用于轮询的 `delayOrAbort`,
    不作用于窗口本身。
 
+## 落地状态(2026-07-24 复核:已实现)
+
+三件套全部在 `src/runner/run.ts` 里:`interface HaltGate`(约第 795 行)三个字段
+`latch: Effect.Latch` / `halted: boolean` / `abort: AbortController` 齐备,`haltGateOf()` 用
+`Effect.unsafeMakeLatch(false)` + `new AbortController()` 预先建闸(不懒建,好让等待中的 fiber
+先订阅),落闸路径 `gate.latch.unsafeOpen()`。上面那段「先置 `halted` 再 `unsafeOpen()`」的顺序
+约束已写进 run.ts 的紧邻注释,不靠这条 memory 传递。
+
 ## 适用场景
 
 任何要给「跑到一半的调度」加一道**只停新派发、不抢占在飞**的闸时:先分清检查点是「问」还是
