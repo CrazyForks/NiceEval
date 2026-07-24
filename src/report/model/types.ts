@@ -766,9 +766,9 @@ export interface AttemptDiagnosticsData {
  *
  * - `turns`/`toolCalls`:events 派生(与 `o11y.json` 行为摘要同源),只在有非空 events 时出现,
  *   哪怕派生值恰好是 0(有 events 但零轮/零工具调用是观测到的事实,不是缺失)。
- * - `usage`:落盘 `Usage` 原样,只在 `result.usage` 存在时出现。
- * - `uncachedInputTokens`:`usage.inputTokens − usage.cacheReadTokens`,只在两个输入都存在时派生;
- *   缺任一个不回退猜 0,整字段省略(text 面回退显示原始 `inputTokens`)。
+ * - `usage`:落盘 `Usage` 原样,只在 `result.usage` 存在时出现。桶恒互斥,`inputTokens` 本身
+ *   就是未缓存输入(契约见 docs/feature/results/architecture.md#usage);"uncached in" 标注只在
+ *   `cacheReadTokens` 在场时由 face 层给出,不派生第二个字段。
  * - `estimatedCostUSD`:能算出成本(`usage.costUSD` 或 `result.estimatedCostUSD`)时才出现。
  *
  * `turns`/`toolCalls`/`usage` 三者全部缺失时(没有 events 也没有落盘 usage)整个 data 为
@@ -783,7 +783,6 @@ export interface UsageTableData {
   turns?: number;
   toolCalls?: number;
   usage?: Usage;
-  uncachedInputTokens?: number;
   estimatedCostUSD?: number;
 }
 

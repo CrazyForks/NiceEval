@@ -43,7 +43,7 @@ type AttemptJson = AttemptRecord & {
 };
 ```
 
-字段名复用 [Results 落盘类型](../../results/architecture.md)，不为 JSON 输出发明第二套命名；派生量（通过率、`uncachedInputTokens`、delta 等）是显式命名字段，与落盘事实可区分——这条命名纪律由各组件的 `*Data` 声明履行，本页不重复定义。
+字段名复用 [Results 落盘类型](../../results/architecture.md)，不为 JSON 输出发明第二套命名；派生量（通过率、delta 等）是显式命名字段，与落盘事实可区分——这条命名纪律由各组件的 `*Data` 声明履行，本页不重复定义。
 
 ## `data`：按 view 找组件声明
 

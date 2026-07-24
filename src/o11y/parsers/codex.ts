@@ -80,14 +80,17 @@ function readUsage(u: unknown): { input: number; output: number; cacheRead: numb
     }
     return 0;
   };
-  const input = num("input_tokens", "prompt_tokens", "inputTokens", "promptTokens");
-  const output = num("output_tokens", "completion_tokens", "outputTokens", "completionTokens");
+  const rawInput = num("input_tokens", "prompt_tokens", "inputTokens", "promptTokens");
   const cacheRead = num(
     "cached_input_tokens",
     "cache_read_input_tokens",
     "cache_read_tokens",
     "cacheReadTokens",
   );
+  // codex-rs TokenUsage 的 cached_input_tokens 是 input_tokens 的子集,落互斥桶前扣掉
+  // (docs/feature/adapters/sdk/codex-cli/cost.md)
+  const input = Math.max(0, rawInput - cacheRead);
+  const output = num("output_tokens", "completion_tokens", "outputTokens", "completionTokens");
   // codex-rs TokenUsage 结构体与 Responses API usage.output_tokens_details 都拆出这项:
   // 推理模型(o-series/gpt-5 系列)的思考 token,已计入 output 但值得单列展示。
   const reasoning = num("reasoning_output_tokens", "reasoning_tokens", "reasoningOutputTokens", "reasoningTokens");

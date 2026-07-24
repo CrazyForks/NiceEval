@@ -93,12 +93,15 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   // 从 event/run 的 data.usage(或 legacy 顶层 usage)累加用量。
   const addUsage = (usage: unknown): void => {
     if (!usage || typeof usage !== "object") return;
-    const input = num(usage, "input_tokens", "prompt_tokens", "inputTokens");
+    const rawInput = num(usage, "input_tokens", "prompt_tokens", "inputTokens");
     const output = num(usage, "output_tokens", "completion_tokens", "outputTokens");
     let cache = num(usage, "cached_input_tokens", "cache_read_input_tokens", "cacheReadTokens");
     if (cache === 0) cache = num(get(usage, "prompt_tokens_details"), "cached_tokens");
     const cost = num(usage, "cost");
-    if (input === 0 && output === 0 && cache === 0 && cost === 0) return;
+    if (rawInput === 0 && output === 0 && cache === 0 && cost === 0) return;
+    // Chat Completions 口径的 prompt_tokens 含缓存命中,cached_tokens 是其子集;
+    // 落互斥桶前扣掉(docs/feature/adapters/sdk/bub/cost.md)
+    const input = Math.max(0, rawInput - cache);
     inputTokens += input;
     outputTokens += output;
     cacheReadTokens += cache;

@@ -492,7 +492,7 @@ locator     eval                                 result       turns   tools   un
 total                                            6/8 passed      16      16        880.6k        3.5M*   54.8k        131   $4.05
 ```
 
-`uncached in` and `cache read` are two halves of the same `inputTokens` split apart. When a protocol resends the whole context every turn, the growth shows up in `cache read` — that split, not the raw token total, is what actually answers "where's the cost going." A missing field shows `—` and is excluded from the total (not counted as zero); a total column with any missing input is marked with `*`.
+`uncached in` (`inputTokens`, input that missed the cache) and `cache read` (`cacheReadTokens`, cache hits) are two mutually exclusive billing buckets — their sum is the full context actually sent to the model each turn. When a protocol resends the whole context every turn, the growth shows up in `cache read` — that split, not any single number, is what actually answers "where's the cost going." A missing field shows `—` and is excluded from the total (not counted as zero); a total column with any missing input is marked with `*`.
 
 ### Whether the agent actually searched: `--execution --grep`
 
@@ -538,8 +538,7 @@ niceeval show --exp compare/claude-mempal --usage --json
       "locator": "@1xc8bnj5",
       "evalId": "memory/agent-037-updatetag-cache",
       "verdict": "passed",
-      "usage": { "inputTokens": 249700, "outputTokens": 5100, "cacheReadTokens": 201500, "requests": 13 },
-      "uncachedInputTokens": 48200,
+      "usage": { "inputTokens": 48200, "outputTokens": 5100, "cacheReadTokens": 201500, "requests": 13 },
       "estimatedCostUSD": 0.44
     }
   ]

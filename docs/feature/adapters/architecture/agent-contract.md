@@ -37,6 +37,8 @@ interface Turn {
 
 `kind` 由 `defineAgent` / `defineSandboxAgent` 固定写入。进程内调用仍属于 remote kind，不形成第三种运行器分支。
 
+`usage` 的 token 桶按恒互斥口径落值：`inputTokens` 是未缓存输入，OpenAI 系协议报的「含缓存输入总量」要先扣掉缓存命中子集再落桶（契约与理由见 [Results · Usage](../../results/architecture.md#usage)，各协议的原生口径与扣减明细见各 adapter 的 cost 文档）；网关实测成本只经 `usage.costUSD` 显式带回，core 从不从 token 反推。
+
 Adapter 只负责把行为落进 `events` 单源，`send` 返回的 `Turn` 不含消息便利字段；core 在把结果交给 eval 作者前，把本轮 assistant `message` 事件的文本按序折叠成便利字段 `turn.message` 补上（作者面字段表见 [Context · 读取结果](../../eval/library/context.md#读取结果)）。`thinking`、`compaction`、`context.injected` 不获得同类便利字段，按 `type` 过滤 `events` 读取（见[标准事件模型](events.md#派生事实)）。
 
 ## AgentContext

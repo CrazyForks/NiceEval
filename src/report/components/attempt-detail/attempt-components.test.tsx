@@ -422,15 +422,12 @@ describe("Attempt 详情组件族:非空/空证据矩阵", () => {
     expect("turns" in data).toBe(true);
   });
 
-  it("UsageTable:uncachedInputTokens 只在 inputTokens 与 cacheReadTokens 都存在时派生,缺任一不猜 0", () => {
+  it("UsageTable:桶恒互斥,inputTokens 落盘原样透传,不派生第二个输入字段", () => {
+    // inputTokens 本身就是未缓存输入(docs/feature/results/architecture.md#usage),
+    // "uncached in" 只是 face 层在 cacheReadTokens 在场时给的标注,data 不多一个字段。
     const both = usageTableData(evidenceOf({ result: resultOf({ usage: { inputTokens: 100, outputTokens: 1, cacheReadTokens: 40 } }) }))!;
-    expect(both.uncachedInputTokens).toBe(60);
-
-    // 只缺 cacheReadTokens(该 agent 不上报缓存命中):不派生,整字段省略(不回退猜 0)——
-    // text 面此时回退显示原始 inputTokens,见 faces.ts::usageTableText。
-    const noCacheRead = usageTableData(evidenceOf({ result: resultOf({ usage: { inputTokens: 100, outputTokens: 1 } }) }))!;
-    expect(noCacheRead.uncachedInputTokens).toBeUndefined();
-    expect("uncachedInputTokens" in noCacheRead).toBe(false);
+    expect(both.usage?.inputTokens).toBe(100);
+    expect("uncachedInputTokens" in both).toBe(false);
   });
 
   it("UsageTable:requests 缺失时不出现在 usage 对象里(落盘原样透传,不由 usageTableData 凑值)", () => {

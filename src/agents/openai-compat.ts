@@ -50,8 +50,14 @@ export interface ChatCompletionLike {
 
 function chatCompletionUsage(usage: ChatCompletionUsageLike | undefined): Usage | undefined {
   if (!usage) return undefined;
-  const u: Usage = { inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0 };
-  if (usage.prompt_tokens_details?.cached_tokens) u.cacheReadTokens = usage.prompt_tokens_details.cached_tokens;
+  // prompt_tokens 含缓存命中,cached_tokens 是其子集;落互斥桶前扣掉
+  // (docs/feature/adapters/sdk/openai-compat/cost.md)
+  const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const u: Usage = {
+    inputTokens: Math.max(0, (usage.prompt_tokens ?? 0) - cached),
+    outputTokens: usage.completion_tokens ?? 0,
+  };
+  if (cached) u.cacheReadTokens = cached;
   if (usage.completion_tokens_details?.reasoning_tokens) u.reasoningTokens = usage.completion_tokens_details.reasoning_tokens;
   return u;
 }
@@ -125,8 +131,14 @@ export interface ResponseLike {
 
 function responsesUsage(usage: ResponseUsageLike | undefined): Usage | undefined {
   if (!usage) return undefined;
-  const u: Usage = { inputTokens: usage.input_tokens ?? 0, outputTokens: usage.output_tokens ?? 0 };
-  if (usage.input_tokens_details?.cached_tokens) u.cacheReadTokens = usage.input_tokens_details.cached_tokens;
+  // input_tokens 含缓存命中,cached_tokens 是其子集;落互斥桶前扣掉
+  // (docs/feature/adapters/sdk/openai-compat/cost.md)
+  const cached = usage.input_tokens_details?.cached_tokens ?? 0;
+  const u: Usage = {
+    inputTokens: Math.max(0, (usage.input_tokens ?? 0) - cached),
+    outputTokens: usage.output_tokens ?? 0,
+  };
+  if (cached) u.cacheReadTokens = cached;
   if (usage.output_tokens_details?.reasoning_tokens) u.reasoningTokens = usage.output_tokens_details.reasoning_tokens;
   return u;
 }

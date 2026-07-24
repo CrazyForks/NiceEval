@@ -31,7 +31,7 @@ t.calledTool("get_weather", { count: 2 }); // 全 attempt
 | `event(type, opts?)` / `notEvent(type)` | 出现或未出现事件 |
 | `eventOrder(types)` | 事件类型按给定子序出现 |
 | `eventsSatisfy(label, predicate)` | 用谓词检查事件流 |
-| `maxTokens(max)` / `maxCost(usd)` | token 或估算成本不超上限 |
+| `maxTokens(max)` / `maxCost(usd)` | token（`inputTokens + outputTokens`，cache 桶不计——护栏花钱用 `maxCost`）或估算成本不超上限 |
 
 负断言和上限断言依赖完整证据；所需通道非 complete 时这些断言记为 `unavailable`（非 `.optional()` 断言评不了使 attempt `errored`），不会按空证据静默通过；正断言在非 complete 通道上没找到匹配同样记 `unavailable` 而不是 failed。`count` 为精确数字且实测已超出时是确凿失败（partial 通道只会少采，超出不可能是采集造成的）；`count` 为谓词且不满足时，非 complete 通道上一律记 `unavailable`——缺证据的计数没有可信的判定。覆盖声明与消费规则见 [证据与完整性](../architecture/evidence.md)。
 

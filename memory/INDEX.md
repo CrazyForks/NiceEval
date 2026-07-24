@@ -95,10 +95,12 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 - [scoped-feedback-finalized](scoped-feedback-finalized.md) — 裁决(2026-07-14):ScopedFeedback(progress/diagnostic)定稿为 feature 契约、单一归属 experiments/library.md,roadmap 提案页删除;三个遗留分歧逐条裁决(ctx 注入签名、core 中立属实现纪律、`ctx.log` = progress 别名);07-13 的推迟裁决仍约束实现排期,不再约束文档定稿状态
 - [experiment-gate-tenure-ruling](experiment-gate-tenure-ruling.md) — 裁决(2026-07-23):两级并发闸按持有期分工——全局位吞吐(等待让位)、实验闸全程持有(退避不释放,maxConcurrency:1 即严格临界区);否决 serial:true 拆字段与全局位也不释放;同场裁定 docs 改用例手册体裁,统一归 docs/feature/experiments/use-case/
 - [live-dashboard-full-width-ruling](live-dashboard-full-width-ruling.md) — 裁决(2026-07-23):live 面板默认占满终端全宽(豁免 100 列上限,scrollback 面板照旧封顶),ACTIVE 身份列按实际最长值定宽只放宽不回缩、detail 拿走其余全部;否决固定比例分配与按计划集合预算列宽
+- [case-lock-wait-not-skip-ruling](case-lock-wait-not-skip-ruling.md) — 裁决(2026-07-24):并发 Invocation 用例锁((exp,eval) 粒度、.niceeval/locks/ 心跳 10s/过期 30s/rename 接管)撞新鲜锁=等待+锁释放后重查携带,等待计独立 `elsewhere` 状态;否决跳过记 incomplete 与计数混进 queued
 - [judge-precheck-run-level-line-not-transient](judge-precheck-run-level-line-not-transient.md) — 裁决(2026-07-24):judge 预检从「运行级瞬时通知」升格为运行级生命周期行(ACTIVE 区 `● prechecking judge config <elapsed>`,新增 `precheck` 事件+`activePrecheck` 状态,不复用 experiment-hook 伪造 id);起因=慢判分网关(x1api.top ~14s)让面板冻在 `1 queued` 像卡死;同批给 `probeJudge` fetch 加 20s 超时(TimeoutError→专门的「无响应」错误,根治「永久挂」)
 
 ### 台账
 
+- 已修 [backoff-slot-release-defeats-agent-user-concurrency-cap](backoff-slot-release-defeats-agent-user-concurrency-cap.md) — 退避让位使 ACTIVE running 行数可超 `--max-concurrency`(睡眠者不持位),且空位立喂新 attempt,agent 侧 per-user 并发限额恒饱和、重试预算白烧;调度机制无 bug,修在 docs(runner.md/error-classification architecture/两篇 use-case 补限额类型路由与面板读法);配置侧用实验级 maxConcurrency 或全局降档
 - 已修 [turn-retry-backoff-releases-experiment-serial-lock](turn-retry-backoff-releases-experiment-serial-lock.md) — turn 级重试退避把实验级 runSem 一并释放,`maxConcurrency: 1` 的串行契约被击穿(下游 mempal 记忆回存竞态、running=2 实证);修法=退避只释放 globalSem,退避期间继续持有 runSem(裁决见 experiment-gate-tenure-ruling,commit `9d7b352`+`6953d51`);MemoryBench 真机回归三条判据全过
 - 已修 [live-dashboard-active-row-width-clamp-mismatch](live-dashboard-active-row-width-clamp-mismatch.md) — 宽终端(>100 列)live 面板 ACTIVE 行 phase/detail 被框截断完全不可见:human.ts 手写 width-4 漏过 MAX_BOX_WIDTH 钳制,该用 panelContentWidth;修为 panel.ts 新增 `capWidth` 豁免声明 + 身份列按实际最长值定宽跨帧单调、detail 拿全部剩余宽度(`src/report/model/panel.ts` + `src/runner/feedback/human.ts`)
 - 已修 [exp-eval-prefix-segment-drift](exp-eval-prefix-segment-drift.md) — `exp` 把「eval ID 前缀」实现成路径段匹配，和文档/show/view 分叉；统一为裸字符串 prefix
@@ -228,6 +230,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## o11y 采集
 
+- 已修 [estimatecost-openai-inclusive-cache-double-billed](estimatecost-openai-inclusive-cache-double-billed.md) — OpenAI 系 adapter 的 cacheReadTokens 曾是 inputTokens 子集,estimateCost 按互斥桶相加把 cache 命中按全价+缓存价计两次,codex 成本虚高 ~5.5x;修为 Usage 桶恒互斥、七个 OpenAI 系生产点落桶前扣减(旧 run 落盘口径断代,对比需换算)
 - 已修 [insandbox-otlp-port-wait-3s-no-retry](insandbox-otlp-port-wait-3s-no-retry.md) — 远程沙箱内 OTLP collector 端口等待固定 3s、全链路零重试,冷启动抖动就把 attempt 打成 errored(还误标 phase=sandbox.create),重跑即过;修为墙钟 20s 预算 + 进程死了早退 + 换路径重试一轮,阶段归 telemetry.configure
 - [ai-sdk-otel-needsapproval-no-execute-tool-span](ai-sdk-otel-needsapproval-no-execute-tool-span.md) — @ai-sdk/otel 不给 `needsApproval:true` 的工具产 execute_tool span,action 断言派生不出
 - [ai-sdk-agent-otel-timing-subtree-unlinked](ai-sdk-agent-otel-timing-subtree-unlinked.md) — `aiSdkAgent` 的 attempt-scope tracing 下 `show --execution` 的 span↔节点关联正常工作,但 `show --timing` 的 OTel 子树永远挂不出来:turn 从未拿到 `traceId`(shared-pool 才会赋值),就算强制走 shared-pool,window-attribution 生成的合成 traceId 也从不匹配真实 span traceId;未修,e2e/adapter/ai-sdk 的 verify.ts 已写成非 gating 断言;根因与 Agent 工厂无关,迁到 HTTP 传输层后同一缺口原样复现

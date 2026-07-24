@@ -524,7 +524,7 @@ locator     eval                                 result       turns   tools   un
 total                                            6/8 passed      16      16        880.6k        3.5M*   54.8k        131   $4.05
 ```
 
-`uncached in` 与 `cache read` 是同一份 `inputTokens` 的两半拆分：协议逐轮重发上下文时，膨胀多在 `cache read`，这层拆分才能回答「贵在哪」，只看总 token 数看不出来。缺字段的格显示 `—`，不按 0 计入合计；合计列有缺失参与时标 `*`。
+`uncached in`（`inputTokens`，未命中缓存的输入）与 `cache read`（`cacheReadTokens`，缓存命中）是两个互斥的计价桶，相加才是每轮真正送进模型的上下文量：协议逐轮重发上下文时，膨胀多在 `cache read`，这层拆分才能回答「贵在哪」，只看单个数字看不出来。缺字段的格显示 `—`，不按 0 计入合计；合计列有缺失参与时标 `*`。
 
 ### agent 到底 search 了没：`--execution --grep`
 
@@ -570,8 +570,7 @@ niceeval show --exp compare/claude-mempal --usage --json
       "locator": "@1xc8bnj5",
       "evalId": "memory/agent-037-updatetag-cache",
       "verdict": "passed",
-      "usage": { "inputTokens": 249700, "outputTokens": 5100, "cacheReadTokens": 201500, "requests": 13 },
-      "uncachedInputTokens": 48200,
+      "usage": { "inputTokens": 48200, "outputTokens": 5100, "cacheReadTokens": 201500, "requests": 13 },
       "estimatedCostUSD": 0.44
     }
   ]

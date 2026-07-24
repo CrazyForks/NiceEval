@@ -68,7 +68,7 @@ export default defineReport({
 
 - **行为计数来自标准事件流**：轮数（`turns`）与工具调用数（`toolCalls`）从 `events.json` 派生，与 [`o11y.json` 行为摘要](../../results/architecture.md#o11yjson)同源。
 - **token 与请求计数来自落盘 `Usage`**：字段契约见 [Results · Usage](../../results/architecture.md#usage)。每个字段只在协议真实提供时存在；`requests` 是真实发生的模型请求数，协议不提供就整个不显示——绝不显示一个凑数的 1。
-- **`uncachedInputTokens` 是派生量**：`inputTokens − cacheReadTokens`，仅当两个输入都存在时派生并显示；缺任何一个就回退显示原始 `inputTokens`，不猜 0。缓存命中的输入同样计费，效率对比必须能看到这层拆分。
+- **`inputTokens` 就是未缓存输入**（token 桶恒互斥，契约见 [Results · Usage](../../results/architecture.md#usage)）：`cacheReadTokens` 在场时 token 片段显示为 `X uncached in + Y cache read`，把拆分摆在明面；`cacheReadTokens` 缺席时显示 `X in`，不给没有拆分事实的数字贴 "uncached" 标注。缓存命中的输入同样计费，效率对比必须能看到这层拆分。
 
 text 面的单行装配形态——attempt 详情首页的 `usage:` 行就是这一形态本身，不是它的近似摘要：
 
@@ -90,7 +90,6 @@ interface UsageTableData {
   turns?: number;                // 事件流派生；无 events 时省略
   toolCalls?: number;
   usage?: Usage;                 // 落盘原样，字段契约见 Results · Usage
-  uncachedInputTokens?: number;  // 派生：两个输入都在才出现
   estimatedCostUSD?: number;
 }
 ```

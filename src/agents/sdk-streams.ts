@@ -484,7 +484,9 @@ export function fromCodexThreadEvents(): CodexThreadStream {
           if (isRecord(u)) {
             const num = (v: unknown): number => (typeof v === "number" ? v : 0);
             usage = {
-              inputTokens: (usage?.inputTokens ?? 0) + num(u.input_tokens),
+              // codex-rs TokenUsage 的 cached_input_tokens 是 input_tokens 的子集,
+              // 落互斥桶前扣掉(docs/feature/adapters/sdk/codex-sdk/cost.md)
+              inputTokens: (usage?.inputTokens ?? 0) + Math.max(0, num(u.input_tokens) - num(u.cached_input_tokens)),
               outputTokens: (usage?.outputTokens ?? 0) + num(u.output_tokens),
               cacheReadTokens: (usage?.cacheReadTokens ?? 0) + num(u.cached_input_tokens),
               // codex-rs TokenUsage 结构体同一份字段(与 o11y/parsers/codex.ts 的

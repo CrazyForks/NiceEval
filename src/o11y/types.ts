@@ -6,18 +6,21 @@ import type { JsonValue, SourceLoc } from "../shared/types.ts";
 /**
  * 一次运行的 token 用量(沙箱型从 transcript/OTel span 的 `gen_ai.usage.*` 属性抠,remote 由
  * send 的 `Turn.usage` 直接返回)。每个字段只在协议真实提供该值时存在——原始协议没有 usage 时
- * 省略,不编造数值;不存在「默认 0」或「默认 1」的字段(docs/feature/results/architecture.md#usage)。
+ * 省略,不编造数值;不存在「默认 0」或「默认 1」的字段。三个输入侧桶恒互斥:相加才是送进模型的
+ * 完整上下文量;把协议原生口径归一到互斥是 adapter 的落值义务——OpenAI 系报「含缓存的输入总量 +
+ * 缓存命中子集」,落 inputTokens 前先扣掉子集(docs/feature/results/architecture.md#usage,
+ * 各协议明细见 docs/feature/adapters/sdk/<name>/cost.md)。
  */
 export interface Usage {
-  /** 计费口径的输入 token 总量(协议报什么记什么,含 cache read 时如实包含,不换算)。 */
+  /** 未命中缓存、按全价计费的输入 token;与两个 cache 桶互斥。 */
   inputTokens?: number;
   /** 输出(completion)token 数。 */
   outputTokens?: number;
-  /** 从缓存命中的输入部分;与 inputTokens 同一计量口径(省略表示该 agent 不上报此项)。 */
+  /** 从提示缓存命中的输入 token;独立计价桶,不包含在 inputTokens 里(省略表示该 agent 不上报此项)。 */
   cacheReadTokens?: number;
-  /** 写入 prompt 缓存创建的 token 数(省略表示该 agent 不上报此项)。 */
+  /** 写入提示缓存的输入 token;独立计价桶,不包含在 inputTokens 里(省略表示该 agent 不上报此项)。 */
   cacheCreationTokens?: number;
-  /** 推理(thinking)token 数,只在协议真实提供时存在(省略表示该 agent 不上报此项)。 */
+  /** 推理(thinking)token 数,outputTokens 的已含明细,单列展示用;只在协议真实提供时存在。 */
   reasoningTokens?: number;
   /** 真实发生的模型请求数。协议不提供请求计数就省略,绝不写 1 凑数。 */
   requests?: number;

@@ -31,7 +31,7 @@ interface Turn {
 inputTokens?: number;
 ```
 
-计费口径的输入 token 总量(协议报什么记什么,含 cache read 时如实包含,不换算)。
+未命中缓存、按全价计费的输入 token;与两个 cache 桶互斥。
 
 #### `outputTokens`
 
@@ -47,7 +47,7 @@ outputTokens?: number;
 cacheReadTokens?: number;
 ```
 
-从缓存命中的输入部分;与 inputTokens 同一计量口径(省略表示该 agent 不上报此项)。
+从提示缓存命中的输入 token;独立计价桶,不包含在 inputTokens 里(省略表示该 agent 不上报此项)。
 
 #### `cacheCreationTokens`
 
@@ -55,7 +55,7 @@ cacheReadTokens?: number;
 cacheCreationTokens?: number;
 ```
 
-写入 prompt 缓存创建的 token 数(省略表示该 agent 不上报此项)。
+写入提示缓存的输入 token;独立计价桶,不包含在 inputTokens 里(省略表示该 agent 不上报此项)。
 
 #### `reasoningTokens`
 
@@ -63,7 +63,7 @@ cacheCreationTokens?: number;
 reasoningTokens?: number;
 ```
 
-推理(thinking)token 数,只在协议真实提供时存在(省略表示该 agent 不上报此项)。
+推理(thinking)token 数,outputTokens 的已含明细,单列展示用;只在协议真实提供时存在。
 
 #### `requests`
 

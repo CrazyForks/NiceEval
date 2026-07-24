@@ -594,9 +594,6 @@ export function validateUsageData(data: unknown): string | null {
     const usageProb = usageProblem(data.usage, "usage");
     if (usageProb !== null) return usageProb;
   }
-  if (data.uncachedInputTokens !== undefined && typeof data.uncachedInputTokens !== "number") {
-    return '"uncachedInputTokens" must be a number';
-  }
   if (data.estimatedCostUSD !== undefined && typeof data.estimatedCostUSD !== "number") {
     return '"estimatedCostUSD" must be a number';
   }

@@ -12,12 +12,10 @@ export function UsageTable({ data, className }: { data: UsageTableData | null; c
   const rows: [string, string][] = [];
   if (data.turns !== undefined) rows.push(["turns", String(data.turns)]);
   if (data.toolCalls !== undefined) rows.push(["tool calls", String(data.toolCalls)]);
-  // 未缓存输入是消费端派生量,只在两个输入都在场时显示;缺任一个回退显示原始
-  // inputTokens(不猜 0),两种来源用不同行标签区分。
-  if (data.uncachedInputTokens !== undefined) {
-    rows.push(["uncached in", data.uncachedInputTokens.toLocaleString()]);
-  } else if (usage?.inputTokens !== undefined) {
-    rows.push(["in", usage.inputTokens.toLocaleString()]);
+  // 桶恒互斥,inputTokens 就是未缓存输入;"uncached in" 标签只在 cache 拆分在场时用,
+  // cache 桶缺席的数字不贴标注。
+  if (usage?.inputTokens !== undefined) {
+    rows.push([usage.cacheReadTokens !== undefined ? "uncached in" : "in", usage.inputTokens.toLocaleString()]);
   }
   if (usage?.cacheReadTokens !== undefined) rows.push(["cache read", usage.cacheReadTokens.toLocaleString()]);
   if (usage?.outputTokens !== undefined) rows.push(["out", usage.outputTokens.toLocaleString()]);

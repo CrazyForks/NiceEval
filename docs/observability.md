@@ -233,7 +233,7 @@ token 数能可靠拿到;难点是 token→$ 的价格表 —— 价格会随时
    ```
 3. **未知模型 → 只报 token、不报 $,并打一行 warning** 列出没映射的模型(绝不静默瞎猜)。
 
-`estimatedCostUSD = inputTokens×单价 + outputTokens×单价 + cache…`,落进每个 attempt 的 `result.json`。字段名带 **estimated** 是有意的:它是估算,真实账单以 provider 发票为准 —— 这也正是「网关实测」和「用户覆盖」两条通道存在的原因。
+`estimatedCostUSD = inputTokens×in价 + outputTokens×out价 + cacheReadTokens×cacheRead价 + cacheCreationTokens×cacheWrite价`,落进每个 attempt 的 `result.json`。逐桶乘单价直接相加成立的前提是 token 桶**恒互斥**——`inputTokens` 是未缓存输入,cache 桶不在其中重复出现;把各协议五花八门的原生口径归一到互斥,是 adapter 的落值义务(契约见 [Results · Usage](feature/results/architecture.md#usage),各协议明细见各 adapter 的 cost 文档)。cache 桶缺专门单价时按 in 价计——宁可高估,不静默低估。字段名带 **estimated** 是有意的:它是估算,真实账单以 provider 发票为准 —— 这也正是「网关实测」和「用户覆盖」两条通道存在的原因。
 
 > 设计取舍:价格是**会过期的数据**,所以内置快照只为「零配置能用」,不写死进核心逻辑;准确性靠用户覆盖与网关实测兜底,未知则诚实降级。快照随版本更新,也可考虑 `pricing: "auto"` 从社区维护的价目拉取(默认仍用离线快照,保证确定性)。
 

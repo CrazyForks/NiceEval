@@ -327,13 +327,16 @@ function unwrapToolOutput(output: unknown): { output?: JsonValue; status: "compl
 function readUsage(result: AiSdkResultLike, stepCount: number): Usage | undefined {
   const u = result.totalUsage ?? result.usage;
   if (!u) return undefined;
-  const inputTokens = num(u.inputTokens) ?? num(u.promptTokens) ?? 0;
+  const rawInput = num(u.inputTokens) ?? num(u.promptTokens) ?? 0;
   const outputTokens = num(u.outputTokens) ?? num(u.completionTokens) ?? 0;
-  if (inputTokens === 0 && outputTokens === 0) return undefined;
+  if (rawInput === 0 && outputTokens === 0) return undefined;
+  const cacheRead = num(u.cachedInputTokens) ?? num(u.inputTokenDetails?.cacheReadTokens) ?? 0;
+  const cacheCreation = num(u.inputTokenDetails?.cacheWriteTokens) ?? 0;
+  // AI SDK 的 inputTokens 是含缓存明细的输入总量,落互斥桶前扣掉在场的明细
+  // (docs/feature/adapters/sdk/ai-sdk/cost.md)
+  const inputTokens = Math.max(0, rawInput - cacheRead - cacheCreation);
   const usage: Usage = { inputTokens, outputTokens, requests: Math.max(stepCount, 1) };
-  const cacheRead = num(u.cachedInputTokens) ?? num(u.inputTokenDetails?.cacheReadTokens);
   if (cacheRead) usage.cacheReadTokens = cacheRead;
-  const cacheCreation = num(u.inputTokenDetails?.cacheWriteTokens);
   if (cacheCreation) usage.cacheCreationTokens = cacheCreation;
   const reasoning = num(u.reasoningTokens);
   if (reasoning) usage.reasoningTokens = reasoning;

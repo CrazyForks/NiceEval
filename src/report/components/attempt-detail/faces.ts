@@ -314,14 +314,14 @@ export function usageTableText(data: UsageTableData | null, _ctx: TextContext): 
   if (data === null) return "";
   const usage = data.usage;
 
-  // 未缓存输入是消费端派生量,只在两个输入都在场时显示;缺任一个回退显示原始 inputTokens
-  // (不猜 0),这里用 label 区分"派生值"与"原始值",不假装两者是同一件事。
+  // 桶恒互斥,inputTokens 就是未缓存输入;"uncached" 标注只在 cache 拆分真实在场时给,
+  // cache 桶缺席的数字不贴标注——不给没有拆分事实的数字暗示拆分。
   const inFragment =
-    data.uncachedInputTokens !== undefined
-      ? `${formatMetricValue(data.uncachedInputTokens)} uncached in`
-      : usage?.inputTokens !== undefined
-        ? `${formatMetricValue(usage.inputTokens)} in`
-        : undefined;
+    usage?.inputTokens !== undefined
+      ? usage.cacheReadTokens !== undefined
+        ? `${formatMetricValue(usage.inputTokens)} uncached in`
+        : `${formatMetricValue(usage.inputTokens)} in`
+      : undefined;
   const cacheFragment = usage?.cacheReadTokens !== undefined ? `${formatMetricValue(usage.cacheReadTokens)} cache read` : undefined;
   const outFragment = usage?.outputTokens !== undefined ? `${formatMetricValue(usage.outputTokens)} out` : undefined;
   const inCache = [inFragment, cacheFragment].filter((s): s is string => s !== undefined).join(" + ");

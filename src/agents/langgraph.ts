@@ -152,12 +152,15 @@ export function fromLangGraphEvents(): LangGraphStream {
       }
       return 0;
     };
-    const input = num("input_tokens", "inputTokens");
+    const rawInput = num("input_tokens", "inputTokens");
     const output = num("output_tokens", "outputTokens");
-    if (input === 0 && output === 0) return;
+    if (rawInput === 0 && output === 0) return;
     const details = isRecord(raw.input_token_details) ? raw.input_token_details : undefined;
     const cacheRead = typeof details?.cache_read === "number" ? details.cache_read : 0;
     const cacheCreation = typeof details?.cache_creation === "number" ? details.cache_creation : 0;
+    // LangChain usage_metadata 的 input_tokens 是含缓存读写的输入总量,落互斥桶前扣掉明细
+    // (docs/feature/adapters/sdk/langgraph/cost.md)
+    const input = Math.max(0, rawInput - cacheRead - cacheCreation);
     // LangChain UsageMetadata.output_token_details.reasoning:推理模型经 LangGraph 透传时带回。
     const outputDetails = isRecord(raw.output_token_details) ? raw.output_token_details : undefined;
     const reasoning = typeof outputDetails?.reasoning === "number" ? outputDetails.reasoning : 0;

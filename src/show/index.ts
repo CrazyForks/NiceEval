@@ -391,11 +391,10 @@ const MISSING_MARK = "—";
 const USAGE_COLUMNS = ["locator", "eval", "result", "turns", "tools", "uncached in", "cache read", "out", "requests", "cost"];
 const USAGE_ALIGN: readonly ColumnAlign[] = ["left", "left", "left", "right", "right", "right", "right", "right", "right", "right"];
 
-/** uncached in 列的取值:与 `usage:` 行同一条回退口径(见 docs/feature/reports/library/
- *  attempt-detail.md#usagetable-组装口径单源)——优先派生的 uncachedInputTokens,两个输入
- *  缺一个就回退显示原始 inputTokens,不猜 0。 */
+/** uncached in 列的取值:桶恒互斥,inputTokens 本身就是未缓存输入(见 docs/feature/reports/
+ *  library/attempt-detail.md#usagetable-组装口径单源)。 */
 function uncachedInOf(row: UsageTableData): number | undefined {
-  return row.uncachedInputTokens ?? row.usage?.inputTokens;
+  return row.usage?.inputTokens;
 }
 
 /**

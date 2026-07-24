@@ -17,7 +17,7 @@ const agent = defineAgent({
 return fromResponses(await client.responses.create({ model, input: message }));
 ```
 
-两个转换器接受结构化的 `*Like` 类型，不依赖 `openai` 包——任何声明自己走这两种协议形状的服务（网关、代理、兼容实现）都能用。`tool_calls` / `function_call` 变成 `action.called`，`content` / `output_text` 变成 `message`，`usage` 顺手带上（含 cached tokens）。
+两个转换器接受结构化的 `*Like` 类型，不依赖 `openai` 包——任何声明自己走这两种协议形状的服务（网关、代理、兼容实现）都能用。`tool_calls` / `function_call` 变成 `action.called`，`content` / `output_text` 变成 `message`，`usage` 按恒互斥桶落值（cached 子集从输入总量里扣出，口径见 [cost](cost.md)）。
 
 两种形状对负断言的可信度不同：
 

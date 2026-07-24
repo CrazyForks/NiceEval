@@ -486,8 +486,8 @@ export function attemptDiagnosticsData(evidence: AttemptEvidence): AttemptDiagno
  * identity 字段(locator/experimentId/evalId/attempt/verdict)恒有;turns/toolCalls 是 events
  * 派生(与 o11y.json 行为摘要同源,buildO11ySummary 与 o11y.json 落盘走同一份纯函数),没有
  * events 就整对省略——不因为其中一个恰好是 0 就当作"缺失"处理,0 是观测到的事实。
- * uncachedInputTokens 只在 inputTokens 与 cacheReadTokens 都存在时派生,缺任一个不猜 0
- * (text 面回退显示原始 inputTokens)。turns/toolCalls/usage 三者全部缺失时返回 null——
+ * token 桶恒互斥,inputTokens 本身就是未缓存输入,不派生第二个字段。
+ * turns/toolCalls/usage 三者全部缺失时返回 null——
  * 没有任何用量事实可摆,与其余叶子同一条"没有 usage 时零输出"规则。
  */
 export function usageTableData(evidence: AttemptEvidence): UsageTableData | null {
@@ -498,10 +498,6 @@ export function usageTableData(evidence: AttemptEvidence): UsageTableData | null
   const usage = result.usage;
   if (turns === undefined && toolCalls === undefined && usage === undefined) return null;
 
-  const uncachedInputTokens =
-    usage && typeof usage.inputTokens === "number" && typeof usage.cacheReadTokens === "number"
-      ? usage.inputTokens - usage.cacheReadTokens
-      : undefined;
   const estimatedCostUSD = attemptCostUSD(result);
 
   return {
@@ -513,7 +509,6 @@ export function usageTableData(evidence: AttemptEvidence): UsageTableData | null
     ...(turns !== undefined ? { turns } : {}),
     ...(toolCalls !== undefined ? { toolCalls } : {}),
     ...(usage !== undefined ? { usage } : {}),
-    ...(uncachedInputTokens !== undefined ? { uncachedInputTokens } : {}),
     ...(estimatedCostUSD !== null ? { estimatedCostUSD } : {}),
   };
 }
