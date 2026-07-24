@@ -73,7 +73,7 @@ export const codexNowledge = defineExperiment({
 
 ## adapter 作者:`classifyTurnError`
 
-类型形状单源在 [Architecture · 类型](architecture.md#类型)。写分类器主要回答时间轴问题:**这个错误能否证明「这次输入未被 agent 受理」?** 能证明才返回 `{ retryable: true, reason: "..." }`——`reason` 是开放词表,用你协议里最贴切的词;拿不准返回 `undefined` 交给后续链路(实验分类器、保守兜底)——不要返回 `{ retryable: false }` 把它们短路掉,兜底认得的通用形状(429、DNS 失败、拒连)你不必重复。
+类型形状单源在 [Architecture · 类型](architecture.md#类型)。写分类器主要回答时间轴问题:**这个错误能否证明「这次输入未被 agent 受理」?** 能证明才返回 `{ retryable: true, reason: "..." }`——`reason` 是开放词表,用你协议里最贴切的词;拿不准返回 `undefined` 交给保守兜底——不要返回 `{ retryable: false }` 把兜底短路掉,它认得的通用形状(429、DNS 失败、拒连)你不必重复。实验分类器排在你之前(决议序见 [Architecture · 分类链](architecture.md#分类链)),实验作者认领的失败问不到你,不冲突。
 
 ```ts
 import { defineSandboxAgent, turnErrorText } from "niceeval/adapter";
@@ -88,7 +88,7 @@ export function acmeAgent() {
       if (failure.type === "turn-failed" && turnErrorText(failure.turn)?.includes("ACME_QUEUE_FULL")) {
         return { retryable: true, reason: "acme_queue_full" };
       }
-      return undefined; // 其余交给后续链路
+      return undefined; // 其余交给保守兜底
     },
   });
 }

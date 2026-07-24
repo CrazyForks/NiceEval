@@ -80,8 +80,8 @@ export function failureClassOf(error: unknown): FailureClass | undefined;
 **turn 失败**(`send()` 抛出,或返回 `failed` Turn),五道:
 
 1. **抛出点携带的分类**:`failureClassOf` 命中即定——作者知识优先级最高,不再询问任何分类器。
-2. **adapter 分类器**(可选):最懂自家协议的错误形状,返回 `FailureClass` 或 `undefined` 回落。
-3. **实验分类器**(可选):识别以协议错误形态浮出的共享基建死因(对自家隧道 host 的拒连)。
+2. **实验分类器**(可选):识别以协议错误形态浮出的共享基建死因(对自家隧道 host 的拒连)。排在 adapter 之前:它按自家坐标(host、路径)过滤,特异性高于协议通用形状;两者同时认领的失败恰是 scope 必须赢的场景——adapter 只有时间轴答案,先问它会把实验级死因留在 `"attempt"` 档,止损闸永远落不下。
+3. **adapter 分类器**(可选):最懂自家协议的错误形状,返回 `FailureClass` 或 `undefined` 回落。
 4. **保守兜底分类器**:对失败文本做正则匹配——限流关键字、明示 "retry later" → `{ retryable: true, reason: "rate_limit" }`;连接建立层错误 → `{ retryable: true, reason: "network" }`;其余 → `{ retryable: false }`。兜底永不给出超出 `"attempt"` 的 scope:框架无法从文案证明兄弟必死。失败文本与报错文案同源(`thrown` 取错误链 message 串接,`turn-failed` 取 `turnErrorText(turn)`)——同一段文本既给人读也给分类器看,不出现「报错说 A、分类看 B」。
 5. **受理证据门**(执行体的否决权,只裁时间轴):失败 Turn 的 `events` 里已出现任何 agent 侧产出(message / thinking / `action.called` / `action.result`)即证明 agent 已受理,`retryable` 强制降为 `false`——文本再像限流也不重发。这道门把「只有能证明未受理才重试」从判据文字变成机器不变量,不信任何分类器。它不触碰 `scope`:证据门裁的是重发安全性,不是波及范围。`thrown` 形态没有事件可查,由前四道的判据独自把关。
 

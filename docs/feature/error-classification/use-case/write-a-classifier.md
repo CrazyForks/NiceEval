@@ -48,7 +48,7 @@
      if (failure.type === "turn-failed" && turnErrorText(failure.turn)?.includes("ACME_QUEUE_FULL")) {
        return { retryable: true, reason: "acme_queue_full" };
      }
-     return undefined; // 其余交给后续链路(实验分类器、保守兜底)
+     return undefined; // 其余交给保守兜底
    },
    ```
 

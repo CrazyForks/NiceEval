@@ -1,5 +1,7 @@
 # 用例锁改派发时刻取锁 + 实验闸跨进程租约:实现 TODO
 
+> 本篇 TODO 已整体并入 `plan/runner-dispatch-spine-refactor.md`(与失败分类止损闸合并为一次派发脊柱重构),以该篇为准;本篇保留作契约落点索引。
+
 契约已定稿,一律以 docs 为准,本 plan 只列落点。本篇取代 `plan/exp-case-lock.md` TODO B 里「携带规划之后逐用例取锁」的取锁时机描述,其余条目(锁原语、释放路径、反馈)不变:
 
 - 取锁时机(派发时刻、非阻塞、排队用例不持锁)、撞锁挂起并转派并发位、实验闸跨 Invocation 名额域:`docs/feature/experiments/architecture.md#并发-invocation用例锁`(「取锁在派发时刻」「撞上新鲜锁」「实验级 maxConcurrency 的名额域跨 Invocation」三条 + 重写后的非目标段)
