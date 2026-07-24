@@ -1,0 +1,201 @@
+// cases: docs/engineering/testing/unit/experiments-runner.md
+// bug: memory/insandbox-otlp-port-wait-3s-no-retry.md
+// 沙箱内 OTLP 采集器的启动韧性:这条路径外面没有任何重试兜底(命令执行不进 IO 重试、
+// provision 重试只覆盖 create、runner 没有 attempt 级重试),起不来就是一条 errored attempt。
+// 两层 fixture:
+//   · 脚本化 fake sandbox —— 重试轮次、每轮换路径、重试前杀上一轮,确定性断言;
+//   · 真实 /bin/sh 执行 —— 生成的 shell 脚本本身能跑(语法、算术、退出边),以及采集器进程
+//     一起来就死时不空等满预算(观察实测耗时,不看脚本字节)。
+
+import { mkdtemp, rm, writeFile, chmod, readdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Effect, Exit, Cause } from "effect";
+import { afterEach, describe, expect, it } from "vitest";
+import type { CommandResult, Sandbox } from "../../types.ts";
+import { createInSandboxTraceReceiver } from "./sandbox-receiver.ts";
+
+const notUsed = () => {
+  throw new Error("not used by the in-sandbox receiver");
+};
+
+function baseSandbox(overrides: Partial<Sandbox>): Sandbox {
+  return {
+    workdir: "/work",
+    sandboxId: "fake",
+    otlpHost: null,
+    runCommand: notUsed,
+    runShell: notUsed,
+    readFile: notUsed,
+    fileExists: notUsed,
+    writeFiles: async () => {},
+    uploadFiles: notUsed,
+    uploadDirectory: notUsed,
+    downloadDirectory: notUsed,
+    downloadFile: notUsed,
+    uploadFile: notUsed,
+    stop: async () => {},
+    ...overrides,
+  } as Sandbox;
+}
+
+const isStart = (script: string) => script.includes("niceeval-otlp-collector") && script.includes("&");
+const isKill = (script: string) => script.trimStart().startsWith("kill ");
+
+/**
+ * 启动脚本按轮次回放一条预置 stdout(`PID\n端口`,端口空表示这一轮没等到),日志读取回放
+ * 固定内容,kill 一律成功。按脚本形态派发而不是按调用序号——被测实现每轮发几条命令是它自己
+ * 的事,fixture 不该把这个数字焊死。
+ */
+function scriptedSandbox(startOutputs: string[], log = "") {
+  const shells: string[] = [];
+  const written: string[] = [];
+  const sandbox = baseSandbox({
+    writeFiles: async (files: Record<string, string>) => {
+      written.push(...Object.keys(files));
+    },
+    runShell: async (script: string): Promise<CommandResult> => {
+      shells.push(script);
+      const stdout = isStart(script) ? (startOutputs.shift() ?? "") : script.startsWith("cat ") ? log : "";
+      return { stdout, stderr: "", exitCode: 0 };
+    },
+  });
+  return { sandbox, shells, written };
+}
+
+/** 在 Scope 内取端点,并把「此刻为止发过的命令」快照出来——release 阶段的收尾 kill 不混进来。 */
+async function receiverExit(sandbox: Sandbox, shells: string[] = []) {
+  return Effect.runPromiseExit(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const receiver = yield* createInSandboxTraceReceiver(sandbox);
+        return { endpoint: receiver.endpoint(""), shells: [...shells] };
+      }),
+    ),
+  );
+}
+
+describe("沙箱内 OTLP 采集器启动:脚本化 fixture", () => {
+  it("第一轮拿不到端口时重试,换一套路径并先杀掉上一轮的进程", async () => {
+    // 第一轮:拿到 PID 但端口行为空(采集器慢/死);第二轮:端口写回来了。
+    const { sandbox, shells, written } = scriptedSandbox(["4242\n", "4243\n61000"]);
+
+    const exit = await receiverExit(sandbox, shells);
+
+    expect(Exit.isSuccess(exit) && exit.value.endpoint).toBe("http://127.0.0.1:61000/v1/traces");
+    const sent = Exit.isSuccess(exit) ? exit.value.shells : [];
+    expect(sent.filter(isStart)).toHaveLength(2);
+    // 上一轮那个「慢但还活着」的采集器必须被杀掉:留着它会占内存,还会在重试之后才把端口
+    // 写进它自己那份文件。
+    expect(sent.filter(isKill)).toEqual([expect.stringContaining("kill 4242")]);
+    // 每轮换一套带随机后缀的脚本路径:上一轮迟到的采集器写不进新一轮的端口 / spans 文件。
+    expect(written).toHaveLength(2);
+    expect(written[0]).not.toBe(written[1]);
+  });
+
+  it("首轮就拿到端口时只起一次,不杀任何进程", async () => {
+    const { sandbox, shells } = scriptedSandbox(["4242\n61001"]);
+
+    const exit = await receiverExit(sandbox, shells);
+
+    expect(Exit.isSuccess(exit) && exit.value.endpoint).toBe("http://127.0.0.1:61001/v1/traces");
+    const sent = Exit.isSuccess(exit) ? exit.value.shells : [];
+    expect(sent.filter(isStart)).toHaveLength(1);
+    expect(sent.filter(isKill)).toEqual([]);
+  });
+
+  it("重试用尽后抛错,带上预算、轮次与采集器自己的日志", async () => {
+    const { sandbox, shells } = scriptedSandbox(["4242\n", "4243\n"], "node: not found");
+
+    const exit = await receiverExit(sandbox, shells);
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    const message = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
+    expect(String(message)).toContain("within 20s");
+    expect(String(message)).toContain("2 attempts");
+    expect(String(message)).toContain("node: not found");
+    expect(shells.filter(isStart)).toHaveLength(2);
+  });
+});
+
+describe("沙箱内 OTLP 采集器启动:真实 /bin/sh 执行", () => {
+  const dirs: string[] = [];
+  const pids: number[] = [];
+
+  afterEach(async () => {
+    for (const pid of pids.splice(0)) {
+      try {
+        process.kill(pid);
+      } catch {
+        // 已经退出
+      }
+    }
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+    // 本用例真的会往 /tmp 写采集器脚本 / 端口文件,跑完清掉自己那批。
+    for (const name of await readdir(tmpdir())) {
+      if (name.startsWith(".niceeval-otlp-")) await rm(join(tmpdir(), name), { force: true }).catch(() => {});
+    }
+  });
+
+  /** runShell 真的交给 /bin/sh 跑,writeFiles 真的落盘——生成的脚本语法错误在这里现形。 */
+  function shellSandbox(pathPrefix?: string) {
+    return baseSandbox({
+      writeFiles: async (files: Record<string, string>) => {
+        for (const [path, content] of Object.entries(files)) await writeFile(path, content);
+      },
+      runShell: (script: string) =>
+        new Promise<CommandResult>((resolve) => {
+          const child = spawn("/bin/sh", ["-c", script], {
+            env: { ...process.env, ...(pathPrefix ? { PATH: `${pathPrefix}:${process.env.PATH}` } : {}) },
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (c) => (stdout += c));
+          child.stderr.on("data", (c) => (stderr += c));
+          child.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
+        }),
+    });
+  }
+
+  it("真实 shell 下起得来:端口写回宿主,采集器确实在监听", async () => {
+    const sandbox = shellSandbox();
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const receiver = yield* createInSandboxTraceReceiver(sandbox);
+          const endpoint = receiver.endpoint("");
+          const status = yield* Effect.promise(async () => {
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: "{}",
+            });
+            return res.status;
+          });
+          return { endpoint, status };
+        }),
+      ),
+    );
+
+    expect(result.endpoint).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/traces$/);
+    expect(result.status).toBe(200);
+  });
+
+  it("采集器一起来就死时不空等满预算,错误里带着它的日志", async () => {
+    const shimDir = await mkdtemp(join(tmpdir(), "niceeval-node-shim-"));
+    dirs.push(shimDir);
+    await writeFile(join(shimDir, "node"), '#!/bin/sh\necho "node: simulated crash" >&2\nexit 1\n');
+    await chmod(join(shimDir, "node"), 0o755);
+
+    const startedAt = Date.now();
+    const exit = await receiverExit(shellSandbox(shimDir));
+    const elapsed = Date.now() - startedAt;
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(String(Exit.isFailure(exit) ? Cause.squash(exit.cause) : "")).toContain("node: simulated crash");
+    // 进程已死时循环立刻 break,两轮加起来也远小于一轮的等待预算(20s)。
+    expect(elapsed).toBeLessThan(5_000);
+  });
+});

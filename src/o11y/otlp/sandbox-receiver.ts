@@ -11,7 +11,8 @@
 //   6. close() 尝试 kill PID(沙箱本身也会停,所以 best-effort)
 //
 // 文件路径带随机后缀:同一沙箱跨 eval 复用时,每个 receiver 实例的脚本 / spans /
-// 端口文件互不串扰,collector 也不会读到上一个 eval 的 span。
+// 端口文件互不串扰,collector 也不会读到上一个 eval 的 span。启动重试同样每轮换一套后缀
+// (见 startCollector)。
 
 import { randomUUID } from "node:crypto";
 import { Effect } from "effect";
@@ -56,6 +57,16 @@ server.listen(0, '127.0.0.1', () => {
 `;
 }
 
+// 端口等待预算。这条路径外面没有任何一层重试兜着——`runShell` 不进 `withSandboxIoRetry`
+// (命令执行有不可重复副作用),`withProvisionRetry` 只覆盖沙箱 create,runner 也没有
+// attempt 级重试:等不到端口就是一条 errored attempt,agent 一次都没跑
+// (memory/insandbox-otlp-port-wait-3s-no-retry.md)。所以预算按冷沙箱首次起 node 的最坏
+// 情况给,而不是按热沙箱的常见值给。
+const PORT_WAIT_MS = 20_000;
+// 启动整体的重试次数。慢不需要重试(一次等满预算就够),这里兜的是 collector 起来就死
+// (镜像里没有 node、脚本被 OOM kill 等)——那种情况下沙箱侧循环会立刻 break,重试很便宜。
+const START_ATTEMPTS = 2;
+
 export function createInSandboxTraceReceiver(sandbox: Sandbox) {
   return Effect.acquireRelease(
     Effect.promise(() => makeInSandboxReceiver(sandbox)),
@@ -63,35 +74,70 @@ export function createInSandboxTraceReceiver(sandbox: Sandbox) {
   );
 }
 
+interface StartedCollector {
+  pid: number;
+  port: number;
+  spansPath: string;
+}
+
+/**
+ * 上传脚本 + 后台起 collector + 等端口文件,失败重试。每一轮换一套带随机后缀的路径:
+ * 上一轮那个「慢但还活着」的 collector 如果在重试之后才起来,会写回它自己那份端口 / spans
+ * 文件,不会污染新一轮。
+ */
+async function startCollector(sandbox: Sandbox): Promise<StartedCollector> {
+  let lastLog = "";
+  for (let attempt = 1; ; attempt++) {
+    const tag = randomUUID().slice(0, 8);
+    const collectorPath = `/tmp/.niceeval-otlp-collector-${tag}.cjs`;
+    const spansPath = `/tmp/.niceeval-otlp-spans-${tag}.jsonl`;
+    const portPath = `/tmp/.niceeval-otlp-port-${tag}`;
+    const logPath = `/tmp/.niceeval-otlp-collector-${tag}.log`;
+
+    await sandbox.writeFiles({ [collectorPath]: collectorScript(spansPath, portPath) });
+
+    // 后台启动 + 等端口文件,折进一次 shell 往返(远程沙箱一次 exec 要 100-500ms,
+    // host 侧逐次轮询会把几秒的启动等待放大成 N 个 API round-trip)。循环两条退出边:
+    //   · `kill -0` 失败 → collector 已经死了,别再空等满预算,立刻回 host 重试;
+    //   · 到 deadline → 真的太慢。
+    // 预算按 `date +%s` 的墙钟算而不是数 tick:`sleep` 的小数秒支持因镜像而异,数 tick 会让
+    // 不支持小数的镜像瞬间跑完循环、伪装成「等了 20s」。
+    // 输出两行:PID、端口(等不到则空)。
+    const startResult = await sandbox.runShell(
+      `node ${collectorPath} >${logPath} 2>&1 & pid=$!; echo $pid; ` +
+        `end=$(( $(date +%s) + ${Math.ceil(PORT_WAIT_MS / 1000)} )); ` +
+        `while [ ! -s ${portPath} ]; do ` +
+        `kill -0 $pid 2>/dev/null || break; ` +
+        `[ "$(date +%s)" -lt "$end" ] || break; ` +
+        `sleep 0.1 2>/dev/null || sleep 1; ` +
+        `done; ` +
+        `cat ${portPath} 2>/dev/null || true`,
+    );
+    const [pidLine, portLine] = startResult.stdout.trim().split("\n");
+    const pid = parseInt((pidLine ?? "").trim(), 10);
+    const port = parseInt((portLine ?? "").trim(), 10) || 0;
+    if (port) return { pid, port, spansPath };
+
+    const log = await sandbox.runShell(`cat ${logPath} 2>/dev/null || true`).catch(() => undefined);
+    lastLog = log?.stdout.trim() ?? "";
+    // 这一轮可能只是慢、进程还活着:重试前先杀掉,不留孤儿 collector 占内存
+    //(沙箱复用 / --keep-sandbox 下它会一直在)。
+    if (Number.isFinite(pid) && pid > 0) {
+      await sandbox.runShell(`kill ${pid} 2>/dev/null || true`).catch(() => {});
+    }
+    if (attempt >= START_ATTEMPTS) {
+      throw new Error(
+        `in-sandbox OTLP collector failed to report its port within ${Math.round(PORT_WAIT_MS / 1000)}s ` +
+          `(${attempt} attempts). Collector log:\n${lastLog || "(empty)"}`,
+      );
+    }
+  }
+}
+
 async function makeInSandboxReceiver(sandbox: Sandbox): Promise<TraceReceiver> {
   let cached: TraceSpan[] = [];
 
-  const tag = randomUUID().slice(0, 8);
-  const collectorPath = `/tmp/.niceeval-otlp-collector-${tag}.cjs`;
-  const spansPath = `/tmp/.niceeval-otlp-spans-${tag}.jsonl`;
-  const portPath = `/tmp/.niceeval-otlp-port-${tag}`;
-  const logPath = `/tmp/.niceeval-otlp-collector-${tag}.log`;
-
-  // 上传 collector 脚本
-  await sandbox.writeFiles({ [collectorPath]: collectorScript(spansPath, portPath) });
-
-  // 后台启动 + 等端口文件,折进一次 shell 往返(远程沙箱一次 exec 要 100-500ms,
-  // host 侧逐次轮询会把几秒的启动等待放大成 N 个 API round-trip)。
-  // 输出两行:PID、端口(等不到则空)。
-  const startResult = await sandbox.runShell(
-    `node ${collectorPath} >${logPath} 2>&1 & echo $!; ` +
-      `i=0; while [ $i -lt 30 ] && [ ! -s ${portPath} ]; do sleep 0.1; i=$((i+1)); done; ` +
-      `cat ${portPath} 2>/dev/null || true`,
-  );
-  const [pidLine, portLine] = startResult.stdout.trim().split("\n");
-  const pid = parseInt((pidLine ?? "").trim(), 10);
-  const port = parseInt((portLine ?? "").trim(), 10) || 0;
-  if (!port) {
-    const log = await sandbox.runShell(`cat ${logPath} 2>/dev/null || true`).catch(() => undefined);
-    throw new Error(
-      `in-sandbox OTLP collector failed to report its port within 3s. Collector log:\n${log?.stdout.trim() || "(empty)"}`,
-    );
-  }
+  const { pid, port, spansPath } = await startCollector(sandbox);
 
   return {
     endpoint: (_host) => `http://127.0.0.1:${port}/v1/traces`,

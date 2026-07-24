@@ -228,6 +228,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## o11y 采集
 
+- 已修 [insandbox-otlp-port-wait-3s-no-retry](insandbox-otlp-port-wait-3s-no-retry.md) — 远程沙箱内 OTLP collector 端口等待固定 3s、全链路零重试,冷启动抖动就把 attempt 打成 errored(还误标 phase=sandbox.create),重跑即过;修为墙钟 20s 预算 + 进程死了早退 + 换路径重试一轮,阶段归 telemetry.configure
 - [ai-sdk-otel-needsapproval-no-execute-tool-span](ai-sdk-otel-needsapproval-no-execute-tool-span.md) — @ai-sdk/otel 不给 `needsApproval:true` 的工具产 execute_tool span,action 断言派生不出
 - [ai-sdk-agent-otel-timing-subtree-unlinked](ai-sdk-agent-otel-timing-subtree-unlinked.md) — `aiSdkAgent` 的 attempt-scope tracing 下 `show --execution` 的 span↔节点关联正常工作,但 `show --timing` 的 OTel 子树永远挂不出来:turn 从未拿到 `traceId`(shared-pool 才会赋值),就算强制走 shared-pool,window-attribution 生成的合成 traceId 也从不匹配真实 span traceId;未修,e2e/adapter/ai-sdk 的 verify.ts 已写成非 gating 断言;根因与 Agent 工厂无关,迁到 HTTP 传输层后同一缺口原样复现
 - [ai-sdk-official-entry-points-narrowed](ai-sdk-official-entry-points-narrowed.md) — 设计裁决:AI SDK 官方接入面收窄为 `uiMessageStreamAgent`/`fromAiSdk` 两个,`aiSdkAgent` 降级为进程内调用窄例外;e2e/adapter/ai-sdk 删 in-process 覆盖,OTel 证明改挂 HTTP 路径

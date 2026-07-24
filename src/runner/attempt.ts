@@ -355,7 +355,12 @@ export function runAttemptEffect(
           const proto = run.agent.tracing?.protocol;
           log(t("runner.otlpReceiver", { endpoint, proto: proto ? ` (${proto})` : "" }));
         } else {
-          // 远程沙箱(e2b / vercel):在沙箱内起 collector,agent 往 localhost 端口发
+          // 远程沙箱(e2b / vercel):在沙箱内起 collector,agent 往 localhost 端口发。
+          // 这一步是「创建本次 tracing 出口」(telemetry.configure 的定义,见
+          // docs/feature/experiments/cli.md 的阶段表),而且是唯一一条要往沙箱里传脚本、
+          // 起进程、等端口的 tracing 出口——秒级耗时与失败都归它自己,不能顺着上一个还开着的
+          // 阶段记成 sandbox.create(那样 collector 起不来会伪装成「起沙箱失败」)。
+          enterPhase("telemetry.configure");
           receiver = yield* createInSandboxTraceReceiver(sandbox);
           const endpoint = receiver.endpoint("");
           const env = run.agent.tracing?.env?.(endpoint);
