@@ -44,3 +44,23 @@
 `src/cli.ts` 的 `assembleInvocationCompletion` 按 `d.key.startsWith("dispatch-halted:")` 归类未派发数,
 依赖的是 `key` 不是 `code`,这次改动没动它——新增 `code` 时别顺手把身份从 key 里摘掉,那会静默打断
 completion 的记账。
+
+## 补漏:`src/runner/attempt.ts` 的调用点同样漏改(已修)
+
+C3 只改了 `run.ts` 的调用点,`attempt.ts` 的 `recordDiagnostic` 转发 `reportDiagnostic` 时既没传
+`code` 也没把 `phase` 放进 `data`,于是**全部 attempt 级诊断**(`ScopedFeedback.diagnostic` 的
+唯一出口:sandbox provider、sandbox hook、eval setup/teardown、adapter)双双中招:
+
+- 作者不传 `dedupeKey` 时 key 缺省成 `` `${code}:${encodeAttemptKey(identity)}` ``,`code` 缺席后
+  human 标题与 `--json` 的 `code` 一起回落成 `memory-warmup-degraded:compare/codex|memory/x|1` ——
+  正是本条目要防的那种值;
+- `WarningEvent.phase` 对 attempt 级诊断恒缺席(json renderer 读 `event.data?.phase`,而调用点只
+  透传作者的 `data`)。
+
+修法:`reportDiagnostic({ code: input.code, …, data: { ...input.data, phase } })`。**框架的 `phase`
+写在展开之后、压过作者的同名字段**——`WarningEvent.phase` 是 `LifecyclePhase` 闭集,取值只能由运行器
+当前所处阶段决定;作者 `data` 是开放词表,让它盖住等于允许从 eval 代码里冒充阶段,与
+`ScopedFeedback` 两个方法都不收 phase 参数是同一条纪律。
+
+教训:给一个跨多处调用点的接口加字段时,`code?: string` 这类**可选**槽位不会在漏改的调用点编译报错,
+只会静默走回落分支。加可选字段时要把调用点数出来逐个过,不能指望 typecheck 提醒。

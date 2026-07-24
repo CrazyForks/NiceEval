@@ -20,6 +20,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
 import { runAttemptEffect } from "./attempt.ts";
+import { activateFeedbackSink, type DiagnosticInput, type FeedbackSink } from "./feedback/sink.ts";
 import { defineSandboxAgent, defineSandbox } from "../define.ts";
 import { writeAgentSetupManifest, AGENT_SETUP_MANIFEST_PATH } from "../agents/manifest.ts";
 import { equals } from "../expect/index.ts";
@@ -919,5 +920,120 @@ describe("runAttemptEffect · 失败命令证据包装(公开 runCommand/runShel
     });
     expect(result.error).toBeUndefined();
     expect(result.commands).toBeUndefined();
+  });
+});
+
+// cases: docs/engineering/testing/unit/experiments-runner.md「attempt 级诊断的对外词法与阶段标注」
+// bug: memory/diagnostic-key-doubles-as-json-warning-code.md
+describe("runAttemptEffect · attempt 级诊断进反馈流的 code 与 phase", () => {
+  /** 捕获 reportDiagnostic 的入参:其余 sink 方法一律 no-op,这里只关心诊断这一条通路。 */
+  function captureDiagnostics(): { seen: DiagnosticInput[]; deactivate: () => void } {
+    const seen: DiagnosticInput[] = [];
+    const noop = () => {};
+    const sink: FeedbackSink = {
+      activity: noop,
+      diagnostic: (input) => {
+        seen.push(input);
+      },
+      interrupted: noop,
+      reporterError: noop,
+      failure: noop,
+      budgetExhausted: noop,
+      kept: noop,
+      experimentHook: noop,
+      precheck: noop,
+      lockWait: noop,
+      experimentProgress: noop,
+      lifecycle: noop,
+    };
+    return { seen, deactivate: activateFeedbackSink(sink) };
+  }
+
+  it("作者不传 dedupeKey:折叠 key 编进 attempt 身份,code 仍是作者给的干净字面量,phase 是报上来那一刻的阶段", async () => {
+    const agent = defineSandboxAgent({
+      name: "fake-agent-diagnostic-code",
+      send: async () => ({ events: [], status: "completed" }),
+    });
+    const { seen, deactivate } = captureDiagnostics();
+    try {
+      await runOnce(agent, new FakeSandbox(), {
+        experimentId: "compare/codex",
+        evalDefOverrides: {
+          setup: async (_sandbox, ctx) => {
+            ctx.diagnostic({
+              code: "memory-warmup-degraded",
+              level: "warning",
+              message: "Memory warmup failed; continuing with a cold index",
+            });
+          },
+        },
+      });
+    } finally {
+      deactivate();
+    }
+
+    expect(seen).toHaveLength(1);
+    const [forwarded] = seen;
+    expect(forwarded!.code).toBe("memory-warmup-degraded");
+    expect(forwarded!.key).toBe("memory-warmup-degraded:compare/codex|fake/eval|0");
+    expect(forwarded!.data?.phase).toBe("eval.setup");
+    expect(forwarded!.identity).toEqual({ experimentId: "compare/codex", evalId: "fake/eval", attempt: 0 });
+  });
+
+  it("作者传了 dedupeKey:折叠按作者的 key,code 与 phase 不受影响", async () => {
+    const agent = defineSandboxAgent({
+      name: "fake-agent-diagnostic-dedupe-key",
+      send: async () => ({ events: [], status: "completed" }),
+    });
+    const { seen, deactivate } = captureDiagnostics();
+    try {
+      await runOnce(agent, new FakeSandbox(), {
+        experimentId: "compare/codex",
+        evalDefOverrides: {
+          test: async (t) => {
+            t.diagnostic({
+              code: "index-rebuilt",
+              level: "warning",
+              message: "rebuilt the index",
+              dedupeKey: "index-rebuilt:compare/codex",
+            });
+          },
+        },
+      });
+    } finally {
+      deactivate();
+    }
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.key).toBe("index-rebuilt:compare/codex");
+    expect(seen[0]!.code).toBe("index-rebuilt");
+    expect(seen[0]!.data?.phase).toBe("eval.run");
+  });
+
+  it("作者 data 里冒充的 phase 被运行器的实际阶段压过,其余 data 字段原样保留", async () => {
+    const agent = defineSandboxAgent({
+      name: "fake-agent-diagnostic-forged-phase",
+      send: async () => ({ events: [], status: "completed" }),
+    });
+    const { seen, deactivate } = captureDiagnostics();
+    try {
+      await runOnce(agent, new FakeSandbox(), {
+        evalDefOverrides: {
+          setup: async (_sandbox, ctx) => {
+            ctx.diagnostic({
+              code: "warmup-degraded",
+              level: "warning",
+              message: "cold index",
+              data: { phase: "scoring.evaluate", indexAgeDays: 12 },
+            });
+          },
+        },
+      });
+    } finally {
+      deactivate();
+    }
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.data).toEqual({ phase: "eval.setup", indexAgeDays: 12 });
   });
 });

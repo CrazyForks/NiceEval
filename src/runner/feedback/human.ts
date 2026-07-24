@@ -257,7 +257,13 @@ function buildDiagnosticLines(event: DurableFeedbackEvent & { type: "diagnostic"
   // 标题用稳定词法(`code`),不是把折叠身份一起编进去的去重 key —— 人读的一行要能一眼认出
   // 「这是哪一类诊断」,`compare/codex|memory/x` 那串身份属于 message 与机器面的具名字段。
   const suffix = count > 1 ? ` (${count} attempts)` : "";
-  return [`${sym} ${event.code ?? event.key}${suffix}`, `  ${event.message}`];
+  // 阶段标签走与失败行(`buildFailureLine`)同一个 `phaseLabel()` 投影:「在哪一步降级的」是
+  // 读者的第一个问题,message 里未必答得上。attempt 级诊断的 phase 由运行器写进 `data`
+  // (见 attempt.ts 的 recordDiagnostic);运行级诊断(止损闸、锁接管、budget)不属于任何
+  // 单条 attempt,天然没有 phase,标题退化成只有 code 一段。
+  const phase = typeof event.data?.phase === "string" ? (event.data.phase as LifecyclePhase) : undefined;
+  const heading = phase !== undefined ? `${phaseLabel(phase)} · ${event.code ?? event.key}` : (event.code ?? event.key);
+  return [`${sym} ${heading}${suffix}`, `  ${event.message}`];
 }
 
 /** 结束结论(`FAILED`/`PASSED`/…)+ `FAILURES`(有失败才出现)+ `KEPT SANDBOXES`(有留存才

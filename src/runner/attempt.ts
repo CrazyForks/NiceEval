@@ -226,12 +226,21 @@ export function runAttemptEffect(
     if (input.dedupeKey !== undefined) dedupeIndex.set(input.dedupeKey, record);
     diagnostics.push(record);
     // 同时进运行级永久事件流(human 撤下 dashboard 后追加、agent/ci 各追加一条,去重按 key)。
+    // `key` 只管折叠到多细(作者没给 dedupeKey 时折到「这一条 attempt 的这种诊断」,身份因此
+    // 编进去);对外稳定词法始终单独给 `code`,不让消费方从 key 反推(见 sink.ts 的
+    // DiagnosticInput.code、docs/feature/experiments/cli.md 的 WarningEvent)。
     reportDiagnostic({
       key: input.dedupeKey ?? `${input.code}:${encodeAttemptKey(identity)}`,
+      code: input.code,
       severity: input.level,
       message: input.message,
       identity,
-      data: input.data,
+      // phase 由运行器给,且**压过**作者 `data` 里的同名字段:`WarningEvent.phase` 是
+      // `LifecyclePhase` 闭集,取值只能由「这条诊断报上来时运行器正处在哪一步」决定。
+      // 作者的 `data` 是开放词表,让它盖住这个字段等于允许从 eval / adapter 代码里冒充一个
+      // 别的(甚至不在闭集里的)阶段,消费方按 phase 分支就此失效——与 ScopedFeedback
+      // 「两个方法都不接受 phase」是同一条纪律(见 src/shared/types.ts 的接口注释)。
+      data: { ...input.data, phase },
     });
   };
   // 作用域反馈:progress 走 attempt:progress(短命状态,归因由 runner 的当前阶段决定),
