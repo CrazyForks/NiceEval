@@ -2054,24 +2054,51 @@ async function lockFilesRemaining(root: string): Promise<string[]> {
   }
 }
 
+/** 模块装载期抓住的真实 setTimeout / Date.now:`vi.useFakeTimers()` 换掉的是全局绑定,
+ *  这两个函数引用仍指向原生实现,假时钟场景里用它们换真实的宏任务轮次与真实墙钟。 */
+const realSetTimeout = globalThis.setTimeout;
+const realDateNow = Date.now;
+
+/** 把真实事件循环喂到 `isDone()` 成立或真实墙钟预算用完为止。 */
+async function realTicksFor(isDone: () => boolean, budgetMs: number): Promise<void> {
+  const until = realDateNow() + budgetMs;
+  while (!isDone() && realDateNow() < until) {
+    await new Promise<void>((resolve) => realSetTimeout(resolve, 0));
+  }
+}
+
 /**
- * 用例锁的等待轮询每一轮都在"定时器回调恢复"和"注册下一轮定时器"之间插了真实磁盘 I/O
- * (`readEntryFile` / `claimEntryFile` / `createLockFileExclusive`)。`vi.advanceTimersByTimeAsync`
- * 只会推进*当前已经挂起*的定时器——如果在它跑的这一刻,上一轮回调触发的真实 I/O 还没来得及
- * 把下一轮的 `setTimeout` 重新挂上,它就会在"看不到待处理定时器"的那一刻直接返回,让那个稍后
- * 才补挂上的定时器永远等不到下一次推进(见本文件末尾对这个调试过程的记录)。一次性推过整个
- * 30s 陈旧窗口(单次 `advanceTimersByTimeAsync(40_000)`)在这个真实 I/O 密集的轮询链路上不可靠
- * ——每次只推一个心跳周期,推完用 `vi.waitFor` 等真实 I/O 把下一轮定时器重新挂上(或等
- * `isDone()` 已经成立)再继续推,规避这条竞争。
+ * 假时钟上跨过一段等待窗口(用例锁的 30s 判死线、锁与租约的 10s 轮询周期)的唯一可靠姿势。
+ *
+ * 两条都要满足,少一条就 flaky:
+ * - **分步推,不一步推到底**:轮询链路每一轮都在"定时器回调恢复"和"注册下一轮定时器"之间
+ *   插了真实磁盘 I/O(`readEntryFile` / `claimEntryFile` / `createLockFileExclusive`)。
+ *   `advanceTimersByTimeAsync` 只推进*当前已挂起*的定时器,一次推过整个 30s 窗口会在"看不到
+ *   待处理定时器"的那一刻直接返回,把稍后才补挂上的定时器永远晾着(测试挂到超时,不是变慢)。
+ * - **每步之间按真实墙钟让出宏任务轮次**:`advanceTimersByTimeAsync` 只喂微任务,真实磁盘
+ *   I/O 拿不到轮次就会被饿死。让出的量必须按真实墙钟算而不是固定圈数——并行跑整个测试套件
+ *   时 I/O 慢一个量级,固定圈数在本机够、在负载下必然不够(本条就是这么被抓出来的)。
+ *
+ * 踩坑同源:memory/case-lock-gate-reorders-global-semaphore-queue.md「旁支」。
  */
-async function advancePastCaseLockPolling(isDone: () => boolean, stepMs = 10_000, maxSteps = 8): Promise<void> {
+async function advanceOnFakeClock(
+  isDone: () => boolean,
+  stepMs = 10_000,
+  maxSteps = 8,
+  perStepRealMs = 300,
+  tailRealMs = 15_000,
+): Promise<void> {
   for (let i = 0; i < maxSteps && !isDone(); i++) {
     await vi.advanceTimersByTimeAsync(stepMs);
-    if (isDone()) return;
-    await vi.waitFor(() => {
-      if (isDone()) return;
-      expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1);
-    });
+    await realTicksFor(isDone, perStepRealMs);
+  }
+  // 要跨的虚拟窗口到这里都跨过了,剩下的是纯真实 I/O 的收尾进度(取锁、跑 attempt、落盘、
+  // 放锁)。只喂真实轮次,每轮顺手推 1ms 假时钟接住收尾链上可能挂的短定时器——步长必须小,
+  // 否则慢机器上轮数一多会把 attempt 的外层超时也推过去。
+  const until = realDateNow() + tailRealMs;
+  while (!isDone() && realDateNow() < until) {
+    await vi.advanceTimersByTimeAsync(1);
+    await realTicksFor(isDone, 20);
   }
 }
 
@@ -2161,7 +2188,7 @@ describe("runEvals · 用例锁: 取锁时机", () => {
       expect(setupCalls).toBe(0);
 
       // 继续推过判死线,接管发生 —— setup 此刻才第一次执行。
-      await advancePastCaseLockPolling(() => setupCalls === 1);
+      await advanceOnFakeClock(() => setupCalls === 1);
       expect(setupCalls).toBe(1);
 
       const { summary } = await runPromise;
@@ -2230,10 +2257,9 @@ describe("runEvals · 用例锁: 等待语义", () => {
         const mid = coordinator.state;
         expect(mid.total).toBe(mid.reused + mid.running + mid.elsewhere + mid.queued + mid.completed);
 
-        // 推过 30s 判死线:种下的心跳没有任何进程真的在续租,过期后必须被接管。逐个心跳
-        // 周期推进(见 advancePastCaseLockPolling 注释)——一次性推过整个陈旧窗口在轮询链路
-        // 掺了真实磁盘 I/O 的情况下不可靠。
-        await advancePastCaseLockPolling(() => lockedCalls === 1);
+        // 推过 30s 判死线:种下的心跳没有任何进程真的在续租,过期后必须被接管。
+        // 分步推 + 每步让出真实事件循环,理由见 advanceOnFakeClock 注释。
+        await advanceOnFakeClock(() => lockedCalls === 1);
         expect(lockedCalls).toBe(1); // 确认真的走到了"接管后派发",不是轮询步数耗尽仍未接管
 
         const { summary } = await runPromise;
@@ -2508,27 +2534,16 @@ function probeRun(
   };
 }
 
-/** 模块装载期抓住的真实 setTimeout —— vi.useFakeTimers() 之后 globalThis.setTimeout 是假的,
- *  下面 advanceWithRealYield 要靠它换一个真实的宏任务轮次。 */
-const realSetTimeout = globalThis.setTimeout;
-
-/**
- * 分步推进假时钟,**每步之间让出真实事件循环**。`advanceTimersByTimeAsync` 只喂微任务,而
- * runner 的取锁 / 落盘 / 租约续期全是真实磁盘 I/O(宏任务):一路推假时钟会把它们饿死,
- * 表现为「推了几百秒虚拟时间,锁却一直没释放、名额一直交接不出去」。
- *
- * 与 `advancePastCaseLockPolling` 的分工:那个 helper 靠「等下一轮定时器重新挂上」隐式让出
- * 真实时间,只在等待方**没有**别的挂起定时器时才有效;实验闸租约的等待方全程挂着心跳定时器,
- * `getTimerCount()` 恒 ≥ 1,于是它一次也不让 —— 必须像这里一样显式让。
- */
-async function advanceWithRealYield(isDone: () => boolean, stepMs: number, maxSteps: number): Promise<void> {
-  for (let i = 0; i < maxSteps && !isDone(); i++) {
-    await vi.advanceTimersByTimeAsync(stepMs);
-    for (let k = 0; k < 10 && !isDone(); k++) {
-      await new Promise<void>((resolve) => realSetTimeout(resolve, 0));
-    }
-  }
+/** 等一个只靠真实事件循环就会成立的条件(不需要推假时钟:撞锁挂起、attempt 起跑这些都发生
+ *  在当下)。`vi.waitFor` 只让出真实轮次、**不推假时钟** —— 需要跨虚拟等待窗口的地方一律用
+ *  `advanceOnFakeClock`。真实超时放宽到 30s:并行跑整个测试套件时默认 1s 不够。 */
+async function waitForRealProgress(check: () => void): Promise<void> {
+  await vi.waitFor(check, { timeout: 30_000, interval: 20 });
 }
+
+/** 这组调度用例的 vitest 超时:要么在假时钟上跨 30s 锁判死线 / 10s 租约轮询周期(靠真实
+ *  轮次驱动),要么等两条 runEvals 真的并行推进;并行跑整个测试套件时真实墙钟开销远大于默认 5s。 */
+const SCHEDULING_TEST_TIMEOUT_MS = 60_000;
 
 describe("runEvals · 用例锁: 排队用例不持锁", () => {
   afterEach(() => {
@@ -2547,7 +2562,7 @@ describe("runEvals · 用例锁: 排队用例不持锁", () => {
 
     const runPromise = runWithPriorResults(evals, [agentRun], { priorResults: [], root, maxConcurrency: 2 });
     try {
-      await vi.waitFor(() => expect(probe.inFlight).toBe(2), { timeout: 5_000 });
+      await waitForRealProgress(() => expect(probe.inFlight).toBe(2));
 
       // 关键断言:计划里有 4 条,此刻只有 2 条在跑 —— 锁目录也只有 2 条。取锁发生在派发时刻,
       // 排队中的两条还没摸过锁目录(旧的「计划期一次性全量取锁」在这里会是 4)。
@@ -2561,7 +2576,7 @@ describe("runEvals · 用例锁: 排队用例不持锁", () => {
     expect(summary.results).toHaveLength(4);
     expect([...probe.started].sort()).toEqual([...ids].sort());
     expect(await lockFilesRemaining(root)).toEqual([]);
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
 
 describe("runEvals · 用例锁: 撞锁转派", () => {
@@ -2595,7 +2610,7 @@ describe("runEvals · 用例锁: 撞锁转派", () => {
         return r;
       });
       try {
-        await vi.waitFor(() => expect(probe.inFlight).toBe(2), { timeout: 5_000 });
+        await waitForRealProgress(() => expect(probe.inFlight).toBe(2));
 
         // 峰值没有因为一条撞锁就塌成 1:让出来的位子当场被下一条没被锁的用例接手。
         expect(probe.peak).toBe(2);
@@ -2606,8 +2621,7 @@ describe("runEvals · 用例锁: 撞锁转派", () => {
       }
 
       // 种下的心跳没人续租,推过 30s 判死线后被接管,这条用例照常补跑。
-      // 种下的心跳没人续租,推过 30s 判死线后被接管,这条用例照常补跑。
-      await advanceWithRealYield(() => done, 10_000, 12);
+      await advanceOnFakeClock(() => done, 10_000, 12);
       expect(probe.started).toContain(lockedId);
 
       const { summary } = await runPromise;
@@ -2617,7 +2631,7 @@ describe("runEvals · 用例锁: 撞锁转派", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
 
 describe("runEvals · 用例锁: 多开分工", () => {
@@ -2662,14 +2676,14 @@ describe("runEvals · 用例锁: 多开分工", () => {
         aDone = true;
         return r;
       });
-      await vi.waitFor(() => expect(sideA.inFlight).toBe(2), { timeout: 5_000 });
+      await waitForRealProgress(() => expect(sideA.inFlight).toBe(2));
 
       const pb = runWithPriorResults(evalsB, [runB], { priorResults: [], root, maxConcurrency: 2 }).then((r) => {
         bDone = true;
         return r;
       });
       try {
-        await vi.waitFor(() => expect(sideB.inFlight).toBe(2), { timeout: 5_000 });
+        await waitForRealProgress(() => expect(sideB.inFlight).toBe(2));
 
         // ① 两边真实派发的用例集不相交;② 并集覆盖两边选择集的并集;③ 全局在飞峰值 = 2 + 2。
         expect([...sideA.started].sort()).toEqual([...sharedIds].sort());
@@ -2681,7 +2695,7 @@ describe("runEvals · 用例锁: 多开分工", () => {
         release();
       }
 
-      await advanceWithRealYield(() => aDone && bDone, 10_000, 12);
+      await advanceOnFakeClock(() => aDone && bDone, 10_000, 12);
       const [ra, rb] = await Promise.all([pa, pb]);
 
       // 重叠的两条在 B 侧是携入(A 释放锁后重查携带命中),不是重跑:全局每条用例恰好被
@@ -2694,7 +2708,7 @@ describe("runEvals · 用例锁: 多开分工", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
 
 describe("runEvals · 实验闸租约跨 runEvals 共享名额", () => {
@@ -2753,7 +2767,7 @@ describe("runEvals · 实验闸租约跨 runEvals 共享名额", () => {
       });
 
       // 名额交接跨 runEvals 走租约轮询(周期 = 心跳周期),必须分步推假时钟。
-      await advanceWithRealYield(() => aDone && bDone, 5_000, 40);
+      await advanceOnFakeClock(() => aDone && bDone, 5_000, 40);
       const [ra, rb] = await Promise.all([pa, pb]);
 
       expect(all.peak).toBe(1);
@@ -2765,7 +2779,7 @@ describe("runEvals · 实验闸租约跨 runEvals 共享名额", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
 
 describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁", () => {
@@ -2788,7 +2802,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
       maxConcurrency: 3,
     });
     try {
-      await vi.waitFor(() => expect(probe.inFlight).toBe(3), { timeout: 5_000 });
+      await waitForRealProgress(() => expect(probe.inFlight).toBe(3));
       expect(await lockFilesRemaining(root)).toHaveLength(1);
     } finally {
       release();
@@ -2797,7 +2811,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
     const { summary } = await runPromise;
     expect(summary.results.map((r) => r.attempt).sort()).toEqual([0, 1, 2]);
     expect(await lockFilesRemaining(root)).toEqual([]);
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 
   it("别人持有时整组挂在同一个等待窗口上:只开一条 lock_wait、elsewhere 计为 3 且与 queued 互斥,接管后三条一起派发", async () => {
     vi.useFakeTimers();
@@ -2829,7 +2843,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
           return r;
         });
 
-        await vi.waitFor(() => expect(coordinator.state.elsewhere).toBe(3), { timeout: 5_000 });
+        await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(3));
         // 三条兄弟共享一次试锁与一个等待窗口:等待条目是「一条用例」而不是「三个 attempt」,
         // 但 elsewhere 计的是 attempt 数(五项恒等式的口径)。
         expect(coordinator.state.lockWaits.get(experimentId)?.waiting.size).toBe(1);
@@ -2838,7 +2852,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
         expect(mid.total).toBe(mid.reused + mid.running + mid.elsewhere + mid.queued + mid.completed);
         expect(calls).toBe(0);
 
-        await advanceWithRealYield(() => done, 10_000, 12);
+        await advanceOnFakeClock(() => done, 10_000, 12);
         const { summary } = await runPromise;
 
         expect(calls).toBe(3);
@@ -2851,7 +2865,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
 
 describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () => {
@@ -2904,12 +2918,12 @@ describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () =>
           return r;
         });
 
-        await vi.waitFor(() => expect(coordinator.state.elsewhere).toBe(2), { timeout: 5_000 });
+        await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(2));
         expect(coordinator.state.reused).toBe(0); // 静态携带规划(priorResults 为空)一条都没命中
 
         // 持有方正常收尾:锁文件消失 —— 等待窗口下一轮轮询就结束,并重新做一次携带规划。
         await rm(caseLockPath(root, experimentId, evalId), { force: true });
-        await advanceWithRealYield(() => done, 10_000, 12);
+        await advanceOnFakeClock(() => done, 10_000, 12);
         const { summary } = await runPromise;
 
         expect(calls).toBe(1); // 只有缺的序号 1 自跑,序号 0 是携入
@@ -2924,5 +2938,5 @@ describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () =>
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
 });
