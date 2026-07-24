@@ -31,4 +31,8 @@ const lines = failed.map((a) => `  ${assertionLine(a)}`);
 
 ## 修法
 
-未修。指向：`src/report/components/attempt-detail/faces.ts` 的 `attemptSourceText`（需要把 `data.lines` 展开的 assertions 按 outcome 分流、passed 部分按 `groupPath` 聚合成计数行，可复用 `compute.ts` 里 `attemptAssertionsData` 已有的 `groupByPath` 逻辑）；web 面 `AttemptSource.tsx` 是否有同样缺口待核实。适用场景：任何检查 `show`/`--report` 默认输出"是否如实反映全通过"的工作。
+已修（`b7d274c6`，2026-07-23）。落点 `src/report/components/attempt-detail/faces.ts` 的 `attemptSourceText`：`AttemptSourceData` 补了 `passedGroups`（`compute.ts` 复用 `attemptAssertionsData` 同一份 `groupByPath`，得分点豁免收纳的规则也共用），text 面据此改成二选一——有失败可看就平铺 attention 条目，否则输出 `  ✓ passed · <group> · <count>` 摘要行。同批修掉一个相邻缺口：判定"有没有失败可看"时 unmapped 区（没有 loc、指向别的文件或越界的断言）也要一起检查，否则"unmapped 里藏着真实失败、行内 attention 恰好为空"的 attempt 会被错折成一条 `✓ passed`。
+
+web 面 `AttemptSource.tsx` 复核结论：**没有同样的缺口**。它逐行渲染整份源码，passed 断言所在行照常带 `good` 色调标记与可展开的 `AssertionDetail`，全通过时页面上看得见每一条；`✓ passed · <group> · <count>` 这条折叠规则本来就只是 text 面的紧凑化手段，不是双面共同契约。
+
+适用场景：任何检查 `show`/`--report` 默认输出"是否如实反映全通过"的工作。
