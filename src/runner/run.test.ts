@@ -25,7 +25,8 @@ import { pendingHeldGateLeaseCount } from "./gate-lease.ts";
 import { slugHashEntryId } from "../shared/entry-file-store.ts";
 import type { CapturedEvalSource } from "./eval-source.ts";
 import type { CarryPlan } from "./fingerprint.ts";
-import type { AgentRun, RunFeedbackPlan, RunOptions } from "./types.ts";
+import { ExperimentFatalError, EvalFatalError } from "../shared/failure-class.ts";
+import type { AgentRun, DiagnosticRecord, RunFeedbackPlan, RunFeedbackState, RunOptions } from "./types.ts";
 import type {
   Agent,
   CommandResult,
@@ -2938,5 +2939,722 @@ describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () =>
     } finally {
       vi.useRealTimers();
     }
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+// ═══════════════════════ 止损闸(空间轴消费) ═══════════════════════
+// 覆盖规范:docs/engineering/testing/unit/experiments-runner.md「止损闸(空间轴消费)」
+// 契约:docs/feature/error-classification/README.md「止损语义」、architecture.md「止损执行体」
+//
+// 断言面全部是可观察的调度事实:test() 被真实调用了几次(启动集合)、`summary.results` 有几条、
+// 反馈状态的五项计数与诊断、`snapshot.json` 的实验域诊断。闸的内部形态(latch / AbortController /
+// 检查点次数)不进断言 —— 覆盖规范「观察面与边界」明确不锁内部信号量与 Promise 图。
+
+/** 两条通路共用的折叠键(run.ts 的 haltGateKey);反馈流按 key 取,持久化侧按 code 过滤。 */
+const experimentHaltKey = (experimentId: string): string => `dispatch-halted:experiment:${experimentId}`;
+const evalHaltKey = (experimentId: string, evalId: string): string =>
+  `dispatch-halted:eval:${experimentId}|${evalId}`;
+
+/** 持久化通路:snapshot.json 里该 Experiment 的 dispatch-halted 诊断(可能一条都没有)。 */
+async function snapshotHaltDiagnostics(root: string, experimentId: string): Promise<DiagnosticRecord[]> {
+  const results = await openResults(root);
+  const exp = results.experiments.find((e) => e.id === experimentId);
+  return (exp?.latest.diagnostics ?? []).filter((d) => d.code === "dispatch-halted");
+}
+
+/** 五项计数恒等式(docs/feature/experiments/cli.md):任何一帧都必须成立。 */
+function expectFiveCountIdentity(state: RunFeedbackState): void {
+  expect(state.total).toBe(state.reused + state.running + state.elsewhere + state.queued + state.completed);
+}
+
+describe("runEvals · 止损闸: 触发", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  // 触发(experiment 档)+ 记账 + 不连坐三面一次跑完:全局并发 1 让派发严格串行,被 halt 的
+  // 实验只可能跑掉第一条;同批另一个实验的用例照常跑完,证明闸是按实验隔离的。
+  it("ExperimentFatalError:同实验剩余 attempt 全停、计 unstarted,同批其它实验不连坐;errored 的 error code 不被 scope 改写", async () => {
+    const haltedExp = "halt-trigger-exp";
+    const bystanderExp = "halt-bystander-exp";
+    const startedHalted: string[] = [];
+    const startedBystander: string[] = [];
+    const haltedEvals = ["a-fatal", "a-2", "a-3"].map((id) =>
+      makeEval(id, () => {
+        startedHalted.push(id);
+        if (id === "a-fatal") throw new ExperimentFatalError("shared tunnel is down; run `make tunnel` and retry");
+      }),
+    );
+    // 同批的对照实验:一条抛普通 Error(证明 error code 与 scope 声明无关,两边同为
+    // unexpected-error),另一条照常通过 —— 普通 Error 不落任何闸,这个实验一条都不少跑。
+    const bystanderEvals = ["b-plain-throw", "b-ok"].map((id) =>
+      makeEval(id, () => {
+        startedBystander.push(id);
+        if (id === "b-plain-throw") throw new Error("just a normal failure");
+      }),
+    );
+    const haltedRun = probeRun(makeAgent("agent-halt-trigger"), haltedExp, ["a-fatal", "a-2", "a-3"]);
+    const bystanderRun = probeRun(makeAgent("agent-halt-bystander"), bystanderExp, ["b-plain-throw", "b-ok"]);
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 5, configs: 2, totalAttempts: 5, maxConcurrency: 1 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const { summary, root } = await runWithPriorResults([...haltedEvals, ...bystanderEvals], [haltedRun, bystanderRun], {
+        priorResults: [],
+        maxConcurrency: 1,
+      });
+
+      // 触发:撞死的那条照常跑完并落账,同实验剩下两条一次都没进过 test()。
+      expect(startedHalted).toEqual(["a-fatal"]);
+      // 不连坐:另一个实验的两条全跑了(其中一条自己也 errored,照样不影响同批第三方)。
+      expect([...startedBystander].sort()).toEqual(["b-ok", "b-plain-throw"]);
+
+      const halted = summary.results.filter((r) => r.experimentId === haltedExp);
+      expect(halted).toHaveLength(1); // 不为没跑过的 attempt 制造 errored 记录
+      expect(halted[0]!.verdict).toBe("errored");
+      const bystander = summary.results.filter((r) => r.experimentId === bystanderExp);
+      expect(bystander).toHaveLength(2);
+      // error code 保持所属阶段的原有值:scope 是路由标记,不改写 AttemptError 的公开形状 ——
+      // 声明了 scope 的那条与只抛普通 Error 的那条 code/phase 完全一致。
+      const plainThrow = bystander.find((r) => r.id === "b-plain-throw")!;
+      expect(halted[0]!.error?.code).toBe(plainThrow.error?.code);
+      expect(halted[0]!.error?.code).toBe("unexpected-error");
+      expect(halted[0]!.error?.phase).toBe(plainThrow.error?.phase);
+
+      // 记账:两条未派发计 unstarted(cli.ts 的 assembleInvocationCompletion 读的就是这条诊断的
+      // data.unstarted,unstarted > 0 即完成状态 incomplete),五项计数恒等式收束时仍成立。
+      const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(haltedExp));
+      expect(notice).toBeDefined();
+      expect(notice!.severity).toBe("error");
+      expect(notice!.data?.unstarted).toBe(2);
+      expect(coordinator.state.diagnostics.some((d) => d.key.startsWith("dispatch-halted:eval:"))).toBe(false);
+      expectFiveCountIdentity(coordinator.state);
+      expect(coordinator.state.queued).toBe(0);
+      expect(coordinator.state.elsewhere).toBe(0);
+
+      // 同批其它实验的 snapshot 上不留任何 dispatch-halted。
+      expect(await snapshotHaltDiagnostics(root, bystanderExp)).toEqual([]);
+      expect(await lockFilesRemaining(root)).toEqual([]);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+
+  // 触发(eval 档)+ 诊断双通路:runs: 3 下只停本 eval 剩余的两个 attempt,同实验另一个 eval 的
+  // 三个 attempt 一个不少;两条通路(反馈流通知 / snapshot.json)各自带齐 scope、evalId 与 phase。
+  it("EvalFatalError:只停本 eval 剩余 attempt(同实验另一个 eval 的 3 个 attempt 照跑);双通路的 scope/evalId/phase 同源", async () => {
+    const experimentId = "halt-eval-scope-exp";
+    const message = "fixture corrupted: regenerate data/fixtures";
+    let fatalCalls = 0;
+    let okCalls = 0;
+    const evalFatal = makeEval("f-fatal", () => {
+      fatalCalls += 1;
+      throw new EvalFatalError(message);
+    });
+    const evalOk = makeEval("f-ok", () => {
+      okCalls += 1;
+    });
+    const agentRun = probeRun(makeAgent("agent-halt-eval-scope"), experimentId, ["f-fatal", "f-ok"], { runs: 3 });
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 2, configs: 1, totalAttempts: 6, maxConcurrency: 1 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const { summary, root } = await runWithPriorResults([evalFatal, evalOk], [agentRun], {
+        priorResults: [],
+        maxConcurrency: 1,
+      });
+
+      expect(fatalCalls).toBe(1); // 序号 1、2 被闸拦下
+      expect(okCalls).toBe(3); // 同实验另一个 eval 完全不受影响
+      expect(summary.results.filter((r) => r.id === "f-fatal")).toHaveLength(1);
+      expect(summary.results.filter((r) => r.id === "f-ok").map((r) => r.attempt).sort()).toEqual([0, 1, 2]);
+
+      // 通路一:运行期反馈流。
+      const notice = coordinator.state.diagnostics.find((d) => d.key === evalHaltKey(experimentId, "f-fatal"));
+      expect(notice).toBeDefined();
+      expect(notice!.code).toBe("dispatch-halted");
+      expect(notice!.message).toContain(message);
+      expect(notice!.data).toMatchObject({ scope: "eval", evalId: "f-fatal", phase: "eval.run" });
+      expect(notice!.data?.unstarted).toBe(2);
+      // 实验闸没落下:同实验其它 eval 的派发不该被 eval 档声明连带停掉。
+      expect(coordinator.state.diagnostics.some((d) => d.key === experimentHaltKey(experimentId))).toBe(false);
+      expectFiveCountIdentity(coordinator.state);
+
+      // 通路二:snapshot.json 的实验域诊断。同源(同一份 message/phase/scope),但各自累计 ——
+      // 反馈流那条含未派发记账刷新的 count,持久化这条只按声明次数折叠(这里只声明过一次)。
+      const persisted = await snapshotHaltDiagnostics(root, experimentId);
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]).toMatchObject({
+        code: "dispatch-halted",
+        level: "error",
+        phase: "eval.run",
+        data: { scope: "eval", evalId: "f-fatal" },
+      });
+      expect(persisted[0]!.message).toContain(message);
+      expect(await lockFilesRemaining(root)).toEqual([]);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+describe("runEvals · 止损闸: 组合(时间轴先走,空间轴只对终局失败生效)", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  // 同一份 { retryable: true, scope: "experiment" } 声明,两个方向各一条区分力场景:被重试
+  // 吸收就到不了闸(本例),重试耗尽的终局失败才读 scope(下一例)。
+  it("可重试失败被重试吸收:同一份带 scope 的声明重试成功后不落闸,同实验后续用例照常派发", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.9);
+    try {
+      const experimentId = "halt-absorbed-exp";
+      let sendCalls = 0;
+      const agent = defineSandboxAgent({
+        name: "agent-halt-absorbed",
+        send: async () => {
+          sendCalls += 1;
+          // 只有第一次 send 撞限流:退避一次后成功,失败 Turn 从不外泄给 expectOk()。
+          return sendCalls === 1 ? retryableFailureTurn("rate limited, please retry later") : okTurn();
+        },
+      });
+      const started: string[] = [];
+      const evals = ["c-1", "c-2"].map((id) =>
+        makeEval(id, async (t) => {
+          started.push(id);
+          (await t.send("go")).expectOk();
+        }),
+      );
+      const agentRun = probeRun(agent, experimentId, ["c-1", "c-2"], {
+        maxConcurrency: 1,
+        // 实验分类器排在 adapter / 兜底之前:同一段限流文本被认领成「可重试 + 实验级」。
+        classifyFailure: (f) =>
+          f.text.includes("rate limited") ? { retryable: true, reason: "rate_limit", scope: "experiment" } : undefined,
+      });
+      const plan: RunFeedbackPlan = {
+        shape: { evals: 2, configs: 1, totalAttempts: 2, maxConcurrency: 1 },
+        reused: 0,
+        reusedFailures: [],
+      };
+
+      await withCoordinator(plan, async (coordinator) => {
+        let done = false;
+        const runPromise = runWithPriorResults(evals, [agentRun], {
+          priorResults: [],
+          maxConcurrency: 1,
+        }).then((r) => {
+          done = true;
+          return r;
+        });
+
+        await advanceOnFakeClock(() => done, 10_000, 12);
+        const { summary, root } = await runPromise;
+
+        expect([...started].sort()).toEqual(["c-1", "c-2"]); // 闸没落下:第二条照常派发
+        expect(summary.results).toHaveLength(2);
+        expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+        expect(sendCalls).toBe(3); // c-1 失败 1 次 + 重试成功 1 次,c-2 成功 1 次
+        expect(coordinator.state.diagnostics.some((d) => d.key.startsWith("dispatch-halted:"))).toBe(false);
+        expect(await snapshotHaltDiagnostics(root, experimentId)).toEqual([]);
+      });
+    } finally {
+      vi.useRealTimers();
+      randomSpy.mockRestore();
+    }
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+
+  it("重试耗尽后的终局失败才读 scope:同一份声明在耗尽路径上照常落闸,同实验剩余用例停派发", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.9);
+    try {
+      const experimentId = "halt-exhausted-exp";
+      let sendCalls = 0;
+      const agent = defineSandboxAgent({
+        name: "agent-halt-exhausted",
+        send: async () => {
+          sendCalls += 1;
+          return retryableFailureTurn("rate limited, please retry later"); // 永远撞限流,重试必耗尽
+        },
+      });
+      const started: string[] = [];
+      const evals = ["d-1", "d-2"].map((id) =>
+        makeEval(id, async (t) => {
+          started.push(id);
+          (await t.send("go")).expectOk();
+        }),
+      );
+      const agentRun = probeRun(agent, experimentId, ["d-1", "d-2"], {
+        maxConcurrency: 1,
+        classifyFailure: (f) =>
+          f.text.includes("rate limited") ? { retryable: true, reason: "rate_limit", scope: "experiment" } : undefined,
+      });
+      const plan: RunFeedbackPlan = {
+        shape: { evals: 2, configs: 1, totalAttempts: 2, maxConcurrency: 1 },
+        reused: 0,
+        reusedFailures: [],
+      };
+
+      await withCoordinator(plan, async (coordinator) => {
+        let done = false;
+        const runPromise = runWithPriorResults(evals, [agentRun], {
+          priorResults: [],
+          maxConcurrency: 1,
+        }).then((r) => {
+          done = true;
+          return r;
+        });
+
+        // send 级预算封顶 4 次尝试,退避 4.5s / 9s / 18s(Math.random 定量成 0.9)。
+        await advanceOnFakeClock(() => done, 10_000, 20);
+        const { summary } = await runPromise;
+
+        expect(started).toEqual(["d-1"]); // 耗尽后的终局失败落闸:d-2 不再派发
+        expect(sendCalls).toBe(4);
+        expect(summary.results).toHaveLength(1);
+        expect(summary.results[0]!.verdict).toBe("errored");
+        const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(experimentId));
+        expect(notice).toBeDefined();
+        expect(notice!.data?.unstarted).toBe(1);
+      });
+    } finally {
+      vi.useRealTimers();
+      randomSpy.mockRestore();
+    }
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+describe("runEvals · 止损闸: 幂等与不可逆", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("并发三条同时声明同一死因:两条通路各折叠成一条 dispatch-halted、count 累加到 3", async () => {
+    const experimentId = "halt-idempotent-exp";
+    const { barrier, release } = makeBarrier();
+    const probe = newDispatchProbe();
+    const ids = ["i-1", "i-2", "i-3"];
+    // 三条一起挂在同一个 barrier 上:释放的瞬间三条并发抛出同一个实验级声明,这正是
+    // 「并发 attempt 同时声明同一死因」的常态形状。
+    const evals = ids.map((id) =>
+      makeEval(id, async () => {
+        probe.started.push(id);
+        probe.inFlight += 1;
+        probe.peak = Math.max(probe.peak, probe.inFlight);
+        await barrier;
+        probe.inFlight -= 1;
+        throw new ExperimentFatalError("shared credentials expired; refresh .env");
+      }),
+    );
+    const agentRun = probeRun(makeAgent("agent-halt-idempotent"), experimentId, ids);
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 3, configs: 1, totalAttempts: 3, maxConcurrency: 3 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const runPromise = runWithPriorResults(evals, [agentRun], { priorResults: [], maxConcurrency: 3 });
+      try {
+        await waitForRealProgress(() => expect(probe.inFlight).toBe(3));
+      } finally {
+        release();
+      }
+      const { summary, root } = await runPromise;
+
+      expect(summary.results).toHaveLength(3);
+      expect(summary.results.every((r) => r.verdict === "errored")).toBe(true);
+
+      const notices = coordinator.state.diagnostics.filter((d) => d.key.startsWith("dispatch-halted:"));
+      expect(notices).toHaveLength(1); // 三次声明折叠成一条(dedupeKey 相同)
+      expect(notices[0]!.count).toBe(3);
+      expect(notices[0]!.data?.unstarted).toBe(0); // 三条都在飞,一条都没被拦下
+
+      const persisted = await snapshotHaltDiagnostics(root, experimentId);
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]!.count).toBe(3);
+      expect(persisted[0]!.data).toMatchObject({ scope: "experiment" });
+      expect(persisted[0]!.data?.evalId).toBeUndefined(); // 实验闸没有 evalId
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+
+  it("落闸后在飞 attempt 成功也不重开派发:在飞的照常跑完落账,排队的仍然全停", async () => {
+    const experimentId = "halt-irreversible-exp";
+    const fatal = makeBarrier();
+    const survivor = makeBarrier();
+    const started: string[] = [];
+    const ids = ["n-fatal", "n-survivor", "n-late-1", "n-late-2"];
+    const evals = ids.map((id) =>
+      makeEval(id, async () => {
+        started.push(id);
+        if (id === "n-fatal") {
+          await fatal.barrier;
+          throw new ExperimentFatalError("shared service died mid-run");
+        }
+        if (id === "n-survivor") await survivor.barrier;
+      }),
+    );
+    const agentRun = probeRun(makeAgent("agent-halt-irreversible"), experimentId, ids);
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 4, configs: 1, totalAttempts: 4, maxConcurrency: 2 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const runPromise = runWithPriorResults(evals, [agentRun], { priorResults: [], maxConcurrency: 2 });
+      try {
+        // 全局并发 2:前两条在飞,后两条排队。
+        await waitForRealProgress(() => expect(started).toHaveLength(2));
+        fatal.release();
+        // 等闸真的落下(诊断出现)再放行幸存者,确保它的成功发生在落闸之后。
+        await waitForRealProgress(() =>
+          expect(coordinator.state.diagnostics.some((d) => d.key === experimentHaltKey(experimentId))).toBe(true),
+        );
+      } finally {
+        survivor.release();
+      }
+      const { summary } = await runPromise;
+
+      // 不抢占:在飞的 n-survivor 照常跑完并如实落账(passed);它的成功不重开派发。
+      expect([...started].sort()).toEqual(["n-fatal", "n-survivor"]);
+      expect(summary.results).toHaveLength(2);
+      expect(summary.results.find((r) => r.id === "n-survivor")!.verdict).toBe("passed");
+      expect(summary.results.find((r) => r.id === "n-fatal")!.verdict).toBe("errored");
+      const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(experimentId));
+      expect(notice!.data?.unstarted).toBe(2);
+      expectFiveCountIdentity(coordinator.state);
+      expect(coordinator.state.queued).toBe(0);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+describe("runEvals · 止损闸: 不抢占(等待集经 interruption 中止)", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  // 挂在 elsewhere 上的用例等的是「别人的锁什么时候放」,轮询周期是 10s 心跳。闸落下时它必须
+  // 经既有 interruption 通路当场退出等待集,而不是陪着等满一个周期 —— 所以这条用真实时钟跑,
+  // 断言面是硬墙钟耗时。
+  it("落闸时挂在 elsewhere 的用例立刻退出等待集(远早于 10s 轮询周期),计 unstarted 且五项恒等式不破", async () => {
+    const root = await makeRoot();
+    const experimentId = "halt-elsewhere-exp";
+    const lockedId = "w-locked";
+    await seedCaseLock(root, freshLockRecord(experimentId, lockedId));
+
+    let lockedCalls = 0;
+    const evalLocked = makeEval(lockedId, () => {
+      lockedCalls += 1;
+    });
+    const evalFatal = makeEval("w-fatal", () => {
+      throw new ExperimentFatalError("shared svc down");
+    });
+    const agentRun = probeRun(makeAgent("agent-halt-elsewhere"), experimentId, [lockedId, "w-fatal"]);
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 2, configs: 1, totalAttempts: 2, maxConcurrency: 2 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const startedAt = Date.now();
+      const { summary } = await runWithPriorResults([evalLocked, evalFatal], [agentRun], {
+        priorResults: [],
+        root,
+        maxConcurrency: 2,
+      });
+      const elapsedMs = Date.now() - startedAt;
+
+      // 硬时间断言:锁等待轮询周期是 10s,不走中止通路的话整段至少要拖满一个周期。
+      expect(elapsedMs).toBeLessThan(8_000);
+      expect(lockedCalls).toBe(0); // 等待集里的那条从没被派发
+      expect(summary.results).toHaveLength(1); // 不为没跑过的 attempt 制造 errored 记录
+      expect(summary.results[0]!.id).toBe("w-fatal");
+      expect(summary.results[0]!.verdict).toBe("errored");
+
+      const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(experimentId));
+      expect(notice!.data?.unstarted).toBe(1);
+      // elsewhere 收支平账:进过等待集的那条必须被原数报回来,恒等式不留悬空的差额。
+      expect(coordinator.state.elsewhere).toBe(0);
+      expect(coordinator.state.queued).toBe(0);
+      expectFiveCountIdentity(coordinator.state);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+describe("runEvals · 止损闸: teardown 边界", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("实验级 teardown 抛声明:降级为普通 teardown 诊断,不落闸", async () => {
+    const experimentId = "halt-exp-teardown";
+    const started: string[] = [];
+    const ids = ["t-1", "t-2"];
+    const evals = ids.map((id) =>
+      makeEval(id, () => {
+        started.push(id);
+      }),
+    );
+    const agentRun = probeRun(makeAgent("agent-halt-exp-teardown"), experimentId, ids, {
+      maxConcurrency: 1,
+      setup: () => {},
+      teardown: () => {
+        throw new ExperimentFatalError("shared db handle leaked; restart the stack");
+      },
+    });
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 2, configs: 1, totalAttempts: 2, maxConcurrency: 1 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const { summary, root } = await runWithPriorResults(evals, [agentRun], {
+        priorResults: [],
+        maxConcurrency: 1,
+      });
+
+      expect([...started].sort()).toEqual(ids);
+      expect(summary.results).toHaveLength(2);
+      expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+      // 降级:只留既有的 teardown 失败诊断,一条 dispatch-halted 都不产生(两条通路都不产生)。
+      const teardownDiag = coordinator.state.diagnostics.find(
+        (d) => d.key === `experiment-teardown-failed:${experimentId}`,
+      );
+      expect(teardownDiag).toBeDefined();
+      expect(teardownDiag!.message).toContain("shared db handle leaked");
+      expect(coordinator.state.diagnostics.some((d) => d.key.startsWith("dispatch-halted:"))).toBe(false);
+      expect(await snapshotHaltDiagnostics(root, experimentId)).toEqual([]);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+
+  it("per-attempt teardown 抛声明:照常落闸(剩余两条计 unstarted),但 verdict 仍是 passed", async () => {
+    const experimentId = "halt-attempt-teardown";
+    const started: string[] = [];
+    const ids = ["k-1", "k-2", "k-3"];
+    const evals = ids.map((id) =>
+      makeEval(id, () => {
+        started.push(id);
+      }),
+    );
+    // eval.teardown 是 attempt 收尾链的第一段,失败只记诊断、不改判定;空间轴声明照常落闸。
+    evals[0]!.teardown = () => {
+      throw new ExperimentFatalError("shared db handle leaked; restart the stack");
+    };
+    const agentRun = probeRun(makeAgent("agent-halt-attempt-teardown"), experimentId, ids);
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 3, configs: 1, totalAttempts: 3, maxConcurrency: 1 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const { summary, root } = await runWithPriorResults(evals, [agentRun], {
+        priorResults: [],
+        maxConcurrency: 1,
+      });
+
+      expect(started).toEqual(["k-1"]);
+      expect(summary.results).toHaveLength(1);
+      expect(summary.results[0]!.verdict).toBe("passed"); // 落闸不改 verdict
+      expect(summary.results[0]!.diagnostics?.some((d) => d.phase === "eval.teardown")).toBe(true);
+
+      const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(experimentId));
+      expect(notice).toBeDefined();
+      expect(notice!.data?.unstarted).toBe(2);
+      expect(notice!.data?.phase).toBe("eval.teardown"); // 触发失败所在的生命周期阶段
+      const persisted = await snapshotHaltDiagnostics(root, experimentId);
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]!.phase).toBe("eval.teardown");
+      expectFiveCountIdentity(coordinator.state);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+// ─────────────── 用例锁:elsewhere 收支平账的两条回归(五项恒等式的守护) ───────────────
+// 覆盖规范:docs/engineering/testing/unit/experiments-runner.md「用例锁与并发 Invocation」的
+// 「挂起用例……计入独立的 `elsewhere` 计数且与 `queued` 互斥、五项计数恒等式成立」与
+// 「执行模式组合——`--force` 等待后全部自跑」两分句。
+//
+// 上面「执行模式组合」那组走的是过期锁接管路径,压根没进过挂起窗口;这里的三条专测窗口本身
+// 的收支:报进 elsewhere 多少条,收尾就要原数报回多少条 —— 差额挂住即恒等式当场破。
+
+describe("runEvals · 用例锁: --force 撞新鲜锁的挂起窗口", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  // bug: --force 下撞**新鲜**锁只发 started 不发 resolved,elsewhere 永久挂住、五项恒等式当场破。
+  // 上面「执行模式组合」那条走的是 stale 锁接管(从没进过挂起窗口),盖不住这个窗口。
+  it("--force + 新鲜锁 + 持有方释放:窗口照常收 resolved,elsewhere 归零、恒等式成立,用例全部自跑", async () => {
+    const root = await makeRoot();
+    const experimentId = "force-fresh-lock-exp";
+    const evalId = "force-fresh-eval";
+    const agent = makeAgent("agent-force-fresh");
+    const sandbox = fakeSandboxSpec();
+
+    // 先落一条指纹匹配的 passed 终态:--force 下它不该被消费,等完窗口照样自跑。
+    const producerRun = probeRun(agent, experimentId, [evalId], { sandbox });
+    const { summary: produced } = await run([makeEval(evalId, () => {})], [producerRun], { root });
+    expect(produced.results[0]!.verdict).toBe("passed");
+
+    // 另一条 Invocation 此刻正持有这把锁(心跳新鲜:走真实的挂起窗口,不是过期接管)。
+    await seedCaseLock(root, freshLockRecord(experimentId, evalId));
+
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const subjectEval = makeEval(evalId, () => {
+        calls += 1;
+      });
+      const plan: RunFeedbackPlan = {
+        shape: { evals: 1, configs: 1, totalAttempts: 1, maxConcurrency: 2 },
+        reused: 0,
+        reusedFailures: [],
+      };
+
+      await withCoordinator(plan, async (coordinator) => {
+        let done = false;
+        // force 模式:cli.ts 在 --force 时整段不传 priorResults(不是传空数组)。
+        const runPromise = runWithPriorResults([subjectEval], [producerRun], { root, maxConcurrency: 2 }).then((r) => {
+          done = true;
+          return r;
+        });
+
+        await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(1));
+        expect(coordinator.state.queued).toBe(0); // elsewhere 与 queued 互斥
+        expectFiveCountIdentity(coordinator.state);
+
+        // 持有方正常收尾:锁文件消失,下一轮轮询即结束等待。
+        await rm(caseLockPath(root, experimentId, evalId), { force: true });
+        await advanceOnFakeClock(() => done, 10_000, 12);
+        const { summary } = await runPromise;
+
+        expect(calls).toBe(1); // --force:等完窗口后自跑,不消费磁盘上那条匹配终态
+        expect(coordinator.state.reused).toBe(0);
+        expect(coordinator.state.elsewhere).toBe(0); // 报进去 1 条,原数报了回来
+        expectFiveCountIdentity(coordinator.state);
+        expect(summary.results).toHaveLength(1);
+        expect(summary.results[0]!.verdict).toBe("passed");
+        expect(await lockFilesRemaining(root)).toEqual([]);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+});
+
+describe("runEvals · 用例锁: 等待窗口的 elsewhere 收支平账", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  // 报进 elsewhere 的条数必须原数报回:等待期间被中断而提前 settle 的 attempt 会让「本组还剩
+  // 几条没收尾」缩水,收尾时拿当下的剩余条数当迁移数,差额就永远挂在 elsewhere 上。
+  it("挂起期间用户中断:runs: 2 整组报进 elsewhere 的两条被原数报回,elsewhere 归零、恒等式成立", async () => {
+    const root = await makeRoot();
+    const experimentId = "elsewhere-interrupt-exp";
+    const evalId = "elsewhere-interrupt-eval";
+    await seedCaseLock(root, freshLockRecord(experimentId, evalId));
+
+    let calls = 0;
+    const evalDef = makeEval(evalId, () => {
+      calls += 1;
+    });
+    const agentRun = probeRun(makeAgent("agent-elsewhere-interrupt"), experimentId, [evalId], { runs: 2 });
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 1, configs: 1, totalAttempts: 2, maxConcurrency: 2 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const ac = new AbortController();
+      const runPromise = runWithPriorResults([evalDef], [agentRun], {
+        priorResults: [],
+        root,
+        maxConcurrency: 2,
+        signal: ac.signal,
+      });
+
+      await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(2));
+      ac.abort();
+      await runPromise;
+
+      // 窗口的收尾事件是被中断唤醒后才发的,可能晚于 runEvals 结算一个事件循环轮次。
+      await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(0));
+      expectFiveCountIdentity(coordinator.state);
+      expect(coordinator.state.queued).toBe(2); // 两条都退回 queued(中断路径不派发)
+      expect(calls).toBe(0);
+    });
+  }, SCHEDULING_TEST_TIMEOUT_MS);
+
+  // 接管 / 多开下补的那对瞬时 started+resolved 只报**真正携入**的那几条:runs > 1 时没携入的
+  // 兄弟从没离开 queued,把整组都报一遍会把 queued 扣穿成负数、reused 多记一条。
+  it("接管后重查携带命中一条:只有那一条走 elsewhere → reused,兄弟照常自跑且 queued 不被扣穿", async () => {
+    const root = await makeRoot();
+    const experimentId = "recheck-partial-count-exp";
+    const evalId = "recheck-partial-count-eval";
+    const agent = makeAgent("agent-recheck-partial-count");
+    const sandbox = fakeSandboxSpec();
+
+    // 先落一条序号 0 的 passed 终态(指纹由生产路径自己算)。
+    const producerRun = probeRun(agent, experimentId, [evalId], { sandbox });
+    const { summary: produced } = await run([makeEval(evalId, () => {})], [producerRun], { root });
+    expect(produced.results[0]!.verdict).toBe("passed");
+
+    // 产出方写完结果还没释放锁就死了:留一把过期锁,续接方接管时重查携带。
+    await seedCaseLock(root, staleLockRecord(experimentId, evalId));
+
+    const { barrier, release } = makeBarrier();
+    const probe = newDispatchProbe();
+    const subjectRun = probeRun(agent, experimentId, [evalId], { sandbox, runs: 2 });
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 1, configs: 1, totalAttempts: 2, maxConcurrency: 2 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const runPromise = runWithPriorResults([gatedEval(evalId, barrier, probe)], [subjectRun], {
+        priorResults: [],
+        root,
+        maxConcurrency: 2,
+      });
+      try {
+        // 冻结在「序号 0 已携入、序号 1 正在跑」这一帧上取样 —— 扣穿是瞬时中间态,跑完再看
+        // 计数已经自愈,只有这一帧能证明。
+        await waitForRealProgress(() => {
+          expect(coordinator.state.reused).toBe(1);
+          expect(probe.inFlight).toBe(1);
+        });
+        const mid = coordinator.state;
+        expect(mid.reused).toBe(1); // 只有真正携入的那一条迁进 reused
+        expect(mid.running).toBe(1);
+        expect(mid.queued).toBe(0); // 没携入的兄弟从没离开 queued,不被多扣一次
+        expect(mid.elsewhere).toBe(0);
+        expectFiveCountIdentity(mid);
+      } finally {
+        release();
+      }
+
+      const { summary } = await runPromise;
+      expect(probe.started).toEqual([evalId]); // 只有缺的序号 1 真的派发过
+      expect(summary.results.map((r) => r.attempt).sort()).toEqual([0, 1]);
+      expect(coordinator.state.elsewhere).toBe(0);
+      expectFiveCountIdentity(coordinator.state);
+      expect(await lockFilesRemaining(root)).toEqual([]);
+    });
   }, SCHEDULING_TEST_TIMEOUT_MS);
 });
