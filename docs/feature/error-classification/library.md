@@ -9,7 +9,7 @@
 - **重试中**:attempt 的 activity 行短暂显示 `turn retry 2/4 (rate_limit) — waiting 8s` 一类进度;退避中的 attempt 会让出并发槽位给别的 attempt。
 - **重试成功**:结果里零痕迹——事件流、turn 数、判定与一次成功的 send 无异。
 - **重试耗尽**:attempt 照常 `errored`,错误 message 带 `retries exhausted (4 attempts, rate_limit)` 一类摘要(以及耗尽的是单 send 封顶还是 attempt 总预算);没有摘要的 `errored` 说明该错误被判为不可重试、从未重试(为什么见[用例:读懂 errored](use-case/reading-errored.md))。
-- **落闸**:某条失败携带 `scope: "eval"` / `"experiment"` 时,反馈流一条 `halted` 通知带着失败 message,同 eval / 同实验还没跑的 attempt 不再派发、计入 `unstarted`,完成状态 `incomplete`;`snapshot.json` 里留一条 `dispatch-halted` 诊断。
+- **落闸**:某条失败携带 `scope: "eval"` / `"experiment"` 时,反馈流出一条 error 级 `dispatch-halted` 诊断带着失败 message(人读 `✗ experiment halted (dispatch-halted): <message>` / `✗ eval halted: <message>`,`--json` 是同一条诊断的 `warning` 事件),只在首次落闸时出现一行;同 eval / 同实验还没跑的 attempt 不再派发、计入 `unstarted`,完成状态 `incomplete`;`snapshot.json` 里留同一个 `dispatch-halted` 诊断(形状见[止损执行体](architecture.md#止损执行体))。
 - **恢复**:`errored` 与 `unstarted` 都不进指纹缓存——修好环境后重跑同一条命令,只补跑死掉与没跑的部分。
 
 ## 实验 / eval 作者:声明死因的波及范围

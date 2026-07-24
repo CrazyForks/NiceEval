@@ -114,6 +114,19 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
   `start()` 之前调用抛错；`sink.ts` 的 `reportXxx()` 系列只在 coordinator 活跃期间（`start()`
   之后、`finish()`
   之前）转发给它，之外退回 bootstrap 出口。观察面是「renderer 的哪个方法按什么顺序、被调用几次」，不是它具体写出的字节。
+- **attempt 级诊断的对外词法与阶段标注（`runner/attempt.ts` 的 `recordDiagnostic` +
+  `runner/feedback/human.ts` 的诊断行）**：经 `ScopedFeedback.diagnostic`
+  报上来的一条诊断进反馈流时，`code` 恒是作者给的干净字面量——作者省略
+  `dedupeKey` 时折叠 key 里编进的 attempt 身份不得泄漏成 `code`（`// bug:
+  memory/diagnostic-key-doubles-as-json-warning-code.md`）；`phase`
+  恒是运行器此刻所处的 `LifecyclePhase`，压过作者 `data`
+  里的同名字段（作者不能冒充阶段，与 `ScopedFeedback` 不收 phase
+  参数同一条纪律），`data` 其余字段原样保留。人读诊断行的标题是「阶段标签 ·
+  `code`」，阶段标签复用失败行同一个投影；没有 phase 的运行级诊断（止损闸、锁接管、budget）标题只有
+  `code`，不留空的分隔符。区分力要覆盖有/无
+  `dedupeKey`、有/无作者 `data`、`data` 里带一个冒充 `phase`
+  三面。`--json` 侧同一份 `code`/`phase` 的透出归「形态解析与 `--json`
+  流不变量」类别，字节渲染归 [E2E · CLI](../e2e/cli.md)「反馈输出格式」。
 - **human renderer 的面板接线到 `panel.ts`（`runner/feedback/human.ts`）**：面板几何本身由
   [Reports 的「面板几何」类别](reports.md#覆盖规范)覆盖，这里只证明 `renderDurableLines`/live
   dashboard 真的把内容交给 `renderPanel` 而不是各自拼框字符——`panelCapabilityOf(io)` 按
