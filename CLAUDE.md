@@ -99,6 +99,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 项目使用 ESM + TypeScript，公共类型优先放在 `src/types.ts`，公共 API 从 `src/index.ts` 或现有子路径导出。沿用现有模块边界，不为单个 case 提前抽象新层。错误信息要直接说明问题和下一步，尤其是 CLI、配置和 eval 发现错误。注释可以用中文，但只解释不显然的设计约束或复杂流程。
 
+**给共享接口加可选字段：数着调用点过。** 跨多个调用点的接口 / 回调签名新增**可选**字段时，类型系统一次都拦不住：生产侧漏填是合法省略，消费侧不读新字段旧字段还在，两侧的回落分支（`x.code ?? x.key.split(":")[0]` 这类）让漏改在大多数 fixture 上恰好正确。加字段的那次改动必须包含一次**调用点普查**——grep 出全部构造点与消费点（消费点要 grep **旧**字段名，不是新字段名），逐个判定「该填 / 有意不填」，并配一条真正跑该字段生效路径的行为测试。`pnpm run typecheck` 绿不构成「所有实现方都接住了」的证据。能做成必选就别做成可选。详见 [memory 条目](memory/optional-field-additions-need-call-site-census.md)。
+
 ## CLI Model
 
 CLI 只有两类输入：位置参数选择“跑哪些 eval”（eval id 前缀），flag 选择“对着哪个 agent、怎么跑”。不要把 agent 名字、URL 或运行配置混进位置参数语义里；新增命令或报错时保持这个模型清晰。
