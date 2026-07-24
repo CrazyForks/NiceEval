@@ -314,7 +314,10 @@ function feedbackOutputFormats(): void {
   assert.match(human.stdout, /PASSED/);
   assert.doesNotMatch(human.stdout, /"event":"result"/, "human output must not silently switch to NDJSON");
 
-  const tty = shPty("pnpm --silent exec niceeval exp normal");
+  // --force:上面两次调用已经复用了第 7 步缓存下的 passed 结果(全程 0 running),而全量
+  // 命中缓存时刻意不画 dashboard(src/runner/feedback/human.ts 的「不画一块只有 0 running
+  // 的 dashboard」)——这次调用需要真实在跑的 attempt,才有活的东西可断言。
+  const tty = shPty("pnpm --silent exec niceeval exp normal --force");
   assert.ok(tty.includes(ESC), "real PTY run did not emit dashboard cursor/control sequences");
   assert.match(tty, /[╭╮╰╯]/, "real PTY run did not render boxed dashboard panels");
   assert.match(tty, /PASSED/, "real PTY run did not reach the same passed completion state");
@@ -363,7 +366,13 @@ export async function runVerify(): Promise<void> {
   const baseline = exitCodeFoldingNormal();
   cliReadBack(baseline.greetLine);
   feedbackOutputFormats();
-  cacheThreeStep(baseline);
+  // feedbackOutputFormats() 的 PTY smoke 调用带 --force(见其内部注释),所以 attempt 计数
+  // 基线要在它之后重新采样,不能沿用它之前的值。
+  cacheThreeStep({
+    greet: attemptCount("greet/hello"),
+    tool: attemptCount("tool/weather"),
+    greetLine: baseline.greetLine,
+  });
 
   console.log("\ncli: all assertions passed.");
 }
