@@ -256,7 +256,8 @@ export const en = {
   "feedback.human.active": "ACTIVE",
   "feedback.human.budgetExhausted": "budget exhausted for {{experimentId}} (spent {{spent}}, unstarted {{unstarted}})",
   "feedback.human.compare": "Compare: niceeval view",
-  "feedback.human.counts": "{{total}} total · {{reused}} reused · {{running}} running · {{queued}} queued · {{completed}} completed",
+  "feedback.human.counts":
+    "{{total}} total · {{reused}} reused · {{running}} running · {{queued}} queued · {{passed}} passed · {{failed}} failed · {{errored}} errored · {{skipped}} skipped",
   "feedback.human.diffHint": "Diff:    niceeval show {{locator}} --diff",
   "feedback.human.evalHint": "Eval:    niceeval show {{locator}} --source",
   "feedback.human.failuresHeader": "FAILURES",
@@ -289,7 +290,8 @@ export const en = {
   "feedback.human.hookFailed": "failed",
   "feedback.human.precheckJudge": "prechecking judge config",
   "feedback.human.precheckJudgeDone": "judge config ok",
-  "feedback.human.countsWithElsewhere": "{{total}} total · {{reused}} reused · {{running}} running · {{elsewhere}} elsewhere · {{queued}} queued · {{completed}} completed",
+  "feedback.human.countsWithElsewhere":
+    "{{total}} total · {{reused}} reused · {{running}} running · {{elsewhere}} elsewhere · {{queued}} queued · {{passed}} passed · {{failed}} failed · {{errored}} errored · {{skipped}} skipped",
   "feedback.human.waitingOnAnotherRun": "waiting on another run",
   "feedback.human.lockWaitDetail": "{{count}} evals · pid {{pid}}",
   "feedback.human.lockWaitStarted": "waiting on another run · {{experimentId}} ({{count}} evals, pid {{pid}})",

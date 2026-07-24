@@ -472,11 +472,17 @@ function experimentHookLabel(hook: ExperimentHookName): string {
   return hook === "setup" ? t("feedback.phase.experimentSetup") : t("feedback.phase.experimentTeardown");
 }
 
-/** 首行守恒计数的文案:`elsewhere` 只在非零时出现,没有并发 run 的场景与旧的四项形态无异
- *  (见 cli.md「框内首行固定使用 total / reused / running / elsewhere / queued / completed；
- *  … elsewhere … 只在非零时出现,没有并发 run 的场景首行与四项形态无异」)。两个调用点
- *  (live dashboard 首行、非 TTY heartbeat)共用这一份,不各自维护一份键选择逻辑。 */
+/** 首行守恒计数的文案(见 cli.md「运行中的 live 面板」)。四项结局恒显示、零值不省略——
+ *  「0 errored」是一句有价值的肯定;`elsewhere` 只在非零时出现,没有并发 run 的场景少一项。
+ *  行长不是压缩它的理由:首行跟随终端全宽,九项写满仍是一行。两个调用点(live dashboard
+ *  首行、非 TTY heartbeat)共用这一份,不各自维护一份键选择逻辑。 */
 function countsText(state: RunFeedbackState): string {
+  const outcomes = {
+    passed: state.passed,
+    failed: state.failed,
+    errored: state.errored,
+    skipped: state.skipped,
+  };
   return state.elsewhere > 0
     ? t("feedback.human.countsWithElsewhere", {
         total: state.total,
@@ -484,14 +490,14 @@ function countsText(state: RunFeedbackState): string {
         running: state.running,
         elsewhere: state.elsewhere,
         queued: state.queued,
-        completed: state.completed,
+        ...outcomes,
       })
     : t("feedback.human.counts", {
         total: state.total,
         reused: state.reused,
         running: state.running,
         queued: state.queued,
-        completed: state.completed,
+        ...outcomes,
       });
 }
 

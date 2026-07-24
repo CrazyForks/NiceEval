@@ -158,9 +158,19 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
   清空残留行。用例见[环境预置与收尾怎么放](../../../feature/experiments/use-case/lifecycle.md)。字节渲染归
   [E2E · CLI](../e2e/cli.md)。
 - **Judge 预检的运行级行**：`precheck` 起止事件归约进 `RunFeedbackState.activePrecheck`。`started`
-  建行，`done` 清行。预检发生在派发前，因此 Attempt 始终保持 `queued`，不改变
-  `total = reused + running + queued + completed`。live 面板把它排在实验生命周期 Hook 与 Attempt 行之前。这里断言 reducer 状态与事件序；字节渲染归
+  建行，`done` 清行。预检发生在派发前，因此 Attempt 始终保持 `queued`，不改变计数恒等式。live 面板把它排在实验生命周期 Hook 与 Attempt 行之前。这里断言 reducer 状态与事件序；字节渲染归
   [E2E · CLI](../e2e/cli.md)。
+- **已了结 attempt 按 verdict 分项**：reducer 不保留笼统的完成数，每一条了结的 attempt 落进
+  `passed` / `failed` / `errored` / `skipped` 之一（契约见
+  [CLI · 运行中的 live 面板](../../../feature/experiments/cli.md#运行中的-live-面板)）。断言面：`attempt:complete`
+  按事件携带的 `verdict` 落项，四值都要有区分力场景（同一批事件里换 verdict，落项跟着变，不是恒落同一项）；`attempt:early-exit`
+  与 `budget-exhausted` 落 `skipped` 而非 `passed`／`failed`——未跑出 verdict 的了结不冒充结论；携入结果的
+  verdict 留在 `reused`、不摊进四项（`plan` 事件带 `reusedFailures`
+  时四项仍全为零）；`lock-wait` resolved 的 `carried` 迁 `reused`、`dispatched` 迁 `queued`，两者都不直接落结局项。恒等式
+  `total = reused + running + elsewhere + queued + passed + failed + errored + skipped`
+  在每一个事件之后逐步断言，不只在末尾断言一次。字面渲染（首行九项的顺序、零值不省略、窄终端下按
+  `skipped` → `errored` → `passed` 丢弃零值项）归
+  [E2E · CLI](../e2e/cli.md)「反馈输出格式」。
 - **Invocation 公共回调面**：`Reporter.onInvocationStart` 只接收 `(evals, shape?)`
   两个参数——类型层用编译 fixture 证明，三参数或裹带 `agent`
   的旧签名不能编译；tsx 直接运行一次最小 Invocation 时 `onInvocationStart` 与 `onInvocationComplete`
@@ -185,7 +195,7 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
 - **用例锁与并发 Invocation**：取锁时机——派发时刻逐用例非阻塞取锁、排队用例不持锁（以「锁目录条目数不超过在跑用例数」为断言面）、全携带用例不取锁、等锁用例不触发实验级 setup、`--dry`
   只读锁目录不取锁（计划行 `locked`
   标注）；等待语义——撞新鲜锁的用例挂起、并发位转派给下一条未被锁的用例（以在飞峰值与启动集合为断言面），挂起用例不占全局并发位，计入独立的
-  `elsewhere` 计数且与 `queued` 互斥、五项计数恒等式成立；多开分工——两条 runEvals 指向同一
+  `elsewhere` 计数且与 `queued` 互斥、计数恒等式成立；多开分工——两条 runEvals 指向同一
   `niceevalRoot`、选择重叠时各自认领不同用例并行推进（两边真实派发的用例集不相交、并集覆盖选择集、总在飞峰值可达两边全局上限之和）；实验闸租约——声明
   `maxConcurrency` 的实验名额域跨 runEvals 共享（同一 `niceevalRoot` 两条并行 runEvals 且
   `maxConcurrency: 1`
@@ -226,7 +236,7 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
   超线的旧终态重跑(fixture 两个方向都要有区分力场景)；携带以 attempt 为粒度、未收尾快照是合法来源；执行模式 flag 的携带豁免——`--keep-sandbox`
   下留存档内的历史终态不携带、照常派发（failed 档豁免 `failed`、all 档连 `passed`
   一起豁免），档外照常携带；`--force`/`--dry` 语义；计数恒等式
-  `total = reused + running + queued + completed`。
+  `total = reused + running + elsewhere + queued + passed + failed + errored + skipped`。
 - **汇总与退出码**：verdict 四值互斥、failed 只统计断言不过；退出码按 `(experiment, eval)`
   最终判定折叠、完整退出码矩阵（0/1/130、strict、required reporter）；分组通过率的分母口径。
 - **启动期错误格式**：coordinator 激活前的错误恒为 `error:` + `fix:`

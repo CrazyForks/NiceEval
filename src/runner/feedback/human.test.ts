@@ -182,7 +182,8 @@ describe("live dashboard — 接线到 panel.ts", () => {
       reused: 6,
       running: 19,
       queued: 12,
-      completed: 8,
+      passed: 6,
+      failed: 2,
       elapsedMs: 134_000,
       estimatedCostUSD: 0.84,
       active: new Map([[key, { identity, who: "compare/bub-e2b", phase: "eval.run", phaseStartedAt: 0 }]]),
@@ -260,7 +261,8 @@ describe("live dashboard — 宽终端下 ACTIVE 行与身份列分配", () => {
       reused: 6,
       running: 19,
       queued: 12,
-      completed: 8,
+      passed: 6,
+      failed: 2,
       elapsedMs: 134_000,
       active: new Map([
         [key, { identity, who: "compare/bub-e2b", phase: "eval.run", phaseStartedAt: 0, detail: longDetail }],
@@ -358,7 +360,7 @@ describe("live dashboard — 宽终端下 ACTIVE 行与身份列分配", () => {
       ...createInitialRunFeedbackState(),
       total: 2,
       running: 1,
-      completed: 1,
+      passed: 1,
       active: new Map([[shortKey, { identity: shortIdentity, who, phase: "eval.run", phaseStartedAt: 1 }]]),
     };
     renderer.onLifecycle?.(

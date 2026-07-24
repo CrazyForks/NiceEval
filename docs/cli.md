@@ -74,7 +74,7 @@ JSON、JUnit、Braintrust、用户自定义平台);`cli.ts` 不再构造 `Consol
 runner/feedback/
 ├─ io.ts          可注入 FeedbackIO(stdout/stderr、isTTY/columns/rows、clock)——测试用假实现,不 monkey-patch 全局 process
 ├─ profile.ts     resolveOutputForm() 纯函数:`--json` 即机器面,否则人读文本(TTY 决定版式)
-├─ reducer.ts     纯 reducer:RunFeedbackEvent → RunFeedbackState(total = reused + running + queued + completed 不变量)
+├─ reducer.ts     纯 reducer:RunFeedbackEvent → RunFeedbackState(total = reused + running + elsewhere + queued + passed + failed + errored + skipped 不变量)
 ├─ renderer.ts    FeedbackRenderer 接口(appendDurable 必需;clearDynamic / redrawDynamic / activity / onTick / onLifecycle 可选)
 ├─ human.ts       TTY dashboard + 非 TTY 追加流两种模式,共用同一份 renderDurableLines() 保证文案一致
 ├─ json.ts       NDJSON 单一有序 stdout 事件流,30 秒空闲才 progress 心跳,收尾 result 事件;computeExitCode() 统一算退出码

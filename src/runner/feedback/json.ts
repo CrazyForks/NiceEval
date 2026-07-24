@@ -241,7 +241,12 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
         running: state.running,
         elsewhere: state.elsewhere,
         queued: state.queued,
-        completed: state.completed,
+        // 与 human 首行同一份状态、同一套划分:已了结的 attempt 按 verdict 分项,消费方不必
+        // 自己从合计数里猜成败(契约见 docs/feature/experiments/cli.md 的 ProgressEvent)。
+        passed: state.passed,
+        failed: state.failed,
+        errored: state.errored,
+        skipped: state.skipped,
       });
     },
 

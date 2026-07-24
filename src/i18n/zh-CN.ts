@@ -249,7 +249,8 @@ export const zhCN = {
   "feedback.human.active": "ACTIVE",
   "feedback.human.budgetExhausted": "{{experimentId}} 预算已耗尽(已花 {{spent}},未跑 {{unstarted}})",
   "feedback.human.compare": "Compare: niceeval view",
-  "feedback.human.counts": "共 {{total}} · 复用 {{reused}} · 运行中 {{running}} · 排队 {{queued}} · 已完成 {{completed}}",
+  "feedback.human.counts":
+    "共 {{total}} · 复用 {{reused}} · 运行中 {{running}} · 排队 {{queued}} · 通过 {{passed}} · 失败 {{failed}} · 出错 {{errored}} · 跳过 {{skipped}}",
   "feedback.human.diffHint": "Diff:    niceeval show {{locator}} --diff",
   "feedback.human.evalHint": "Eval:    niceeval show {{locator}} --source",
   "feedback.human.failuresHeader": "FAILURES",
@@ -282,7 +283,8 @@ export const zhCN = {
   "feedback.human.hookFailed": "失败",
   "feedback.human.precheckJudge": "预检 judge 配置",
   "feedback.human.precheckJudgeDone": "judge 配置就绪",
-  "feedback.human.countsWithElsewhere": "共 {{total}} · 复用 {{reused}} · 运行中 {{running}} · 等待中 {{elsewhere}} · 排队 {{queued}} · 已完成 {{completed}}",
+  "feedback.human.countsWithElsewhere":
+    "共 {{total}} · 复用 {{reused}} · 运行中 {{running}} · 等待中 {{elsewhere}} · 排队 {{queued}} · 通过 {{passed}} · 失败 {{failed}} · 出错 {{errored}} · 跳过 {{skipped}}",
   "feedback.human.waitingOnAnotherRun": "等待另一个并行 run",
   "feedback.human.lockWaitDetail": "{{count}} 条用例 · pid {{pid}}",
   "feedback.human.lockWaitStarted": "等待另一个并行 run · {{experimentId}}({{count}} 条用例,pid {{pid}})",

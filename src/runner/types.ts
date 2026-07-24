@@ -853,7 +853,7 @@ export type ExperimentHookName = "setup" | "teardown";
 /**
  * dashboard 当前可见的一个实验级钩子运行级行(见 docs/feature/experiments/cli.md
  * 「实验级钩子的显示」)。与 `ActiveAttempt` 分开建模:钩子不属于任何单个 attempt、不占并发位,
- * 也不参与 `total = reused + running + queued + completed` 的计数不变量——等待 setup 的
+ * 也不参与 `RunFeedbackState` 的计数不变量——等待 setup 的
  * attempt 保持 `queued`,这行就是「为什么它们还在排队」的解释。`detail` 来自实验级
  * `ctx.progress`,后一条覆盖前一条。
  */
@@ -970,10 +970,11 @@ export interface InvocationCompletion {
  * cost 累计、failure/diagnostic 去重都只在 reducer 里算一次;三种 profile 的 renderer 只读取
  * 这份状态,不各自维护第二份推导。
  *
- * `total = reused + running + elsewhere + queued + completed`(五项恒等式,见
- * docs/feature/experiments/cli.md「等待并发 run 的显示」)在处理完每一个事件之后都成立,是
- * reducer 的不变量:任何一次迁移都是「从一项减 x、往另一项加 x」,不存在两项同时计数或都不
- * 计数的中间态(见 reducer.test.ts 的表驱动用例,每一步都断言,不只在流程末尾断言一次)。
+ * `total = reused + running + elsewhere + queued + passed + failed + errored + skipped`
+ * (八项恒等式,见 docs/feature/experiments/cli.md「等待并发 run 的显示」)在处理完每一个事件
+ * 之后都成立,是 reducer 的不变量:任何一次迁移都是「从一项减 x、往另一项加 x」,不存在两项
+ * 同时计数或都不计数的中间态(见 reducer.test.ts 的表驱动用例,每一步都断言,不只在流程末尾
+ * 断言一次)。
  */
 export interface RunFeedbackState {
   total: number;
@@ -982,11 +983,19 @@ export interface RunFeedbackState {
   /** 正被并行 Invocation 持锁运行、本次在等待中的用例的 attempt 数(用例锁,见 `lock-wait`
    *  变体与 docs/feature/experiments/cli.md「等待并发 run 的显示」);与 `queued` 互斥——
    *  `queued` 是「等本进程并发位/setup」,`elsewhere` 是「等别的进程」。
-   *  `total = reused + running + elsewhere + queued + completed` 是五项恒等式,在处理完
-   *  每一个事件之后都成立。 */
+   *  恒等式(见接口注释)在处理完每一个事件之后都成立。 */
   elsewhere: number;
   queued: number;
-  completed: number;
+  /** 以下四项是本次派发并已了结的 attempt 按 verdict 的划分——reducer 不保留一个笼统的
+   *  「完成数」:盯着运行的人问的是「到现在为止挂了几个」,一个合计数回答不了。携入结果的
+   *  verdict 留在 `reused`,不摊进这四项(计数口径与成本口径一致地区分「本次派发」与
+   *  「缓存携入」,见 docs/feature/experiments/cli.md「运行中的 live 面板」)。 */
+  passed: number;
+  failed: number;
+  errored: number;
+  /** 本次不产生 verdict 的了结:eval 自身 skip、首过即停省略的轮次、budget 未派发。
+   *  它们不冒充 `passed`/`failed`;三者彼此的区别由结束结论与题目级 `eval` 事件给出。 */
+  skipped: number;
   /** attempt:early-exit 事件的累计次数(首过即停省略 + fail-fast 未派发;后者由 fail-fast
    *  diagnostic 的 count 单独区分,见 cli.ts 的 assembleRunCompletion)。 */
   earlyExitSkipped: number;
@@ -1047,7 +1056,7 @@ export interface RunFeedbackPlan {
  * 只影响 dashboard 当前帧、reducer 不为它保留历史的事件:新值使旧值失去意义,所以覆盖而不是
  * 追加(见 docs/feature/experiments/cli.md「什么动态更新,什么逐条追加」的判断标准)。
  * `attempt:early-exit` 同样折进这一组 —— 它不打印永久行,只把已知 verdict 的省略次数收进
- * `completed`(见 reducer 实现)。
+ * `skipped`(见 reducer 实现)。
  */
 export type AttemptLifecycleEvent =
   | { type: "attempt:queued"; at: number; identity: AttemptRef; who: string }

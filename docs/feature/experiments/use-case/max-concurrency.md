@@ -14,10 +14,10 @@
 
 2. 全局并发上限的解析链是 `--max-concurrency` → `NICEEVAL_MAX_CONCURRENCY` → 配置 `maxConcurrency` → 该沙箱 provider 的推荐默认值(`docker` 10 / `e2b` 20 / `vercel` 1 / `local` 1)。推荐值反映 provider 侧约束;你的 agent API 限速自己用 `--max-concurrency` 压(见 [Runner · 调度](../../../runner.md#调度有界并发))。
 3. 实验级 `maxConcurrency` 是另一道闸:只让该实验自己的 attempt 排队,不参与全局解析——两道都过才真正开跑。收全局不解除实验闸,反之亦然;串行化有共享状态的实验(如跨 eval 累积记忆)靠实验文件里的 `maxConcurrency: 1`,不靠这个 flag。
-4. 在 live 面板观察并发是否落到位:`PLAN` 面板给出本次并发(`concurrency 19`),live 面板首行的互斥计数任何一帧都满足 `total = reused + running + queued + completed`:
+4. 在 live 面板观察并发是否落到位:`PLAN` 面板给出本次并发(`concurrency 19`),live 面板首行的互斥计数任何一帧都满足 `total = reused + running + queued + passed + failed + errored + skipped`:
 
    ```text
-   │ 45 total · 6 reused · 19 running · 12 queued · 8 completed                     │
+   │ 45 total · 6 reused · 19 running · 12 queued · 6 passed · 2 failed · 0 errored · 0 skipped   │
    ```
 
    `running` 稳定顶在上限、`queued` 逐步消化,说明并发位是瓶颈;`running` 长期不满则瓶颈在别处(实验级闸、provider 独占串行或等待实验级 setup)。

@@ -670,9 +670,10 @@ describe("runEvals · budget-exhausted 永久事件按每个被跳过的 attempt
       expect(diag?.count).toBe(3); // 三个 attempt 各发一次,去重折成同一个 key、count 累加到 3
       expect(diag?.data).toMatchObject({ experimentId, spent: 0, unstarted: 3 });
 
-      // reducer 不变量:每条 budget-exhausted 把一个 attempt 从 queued 挪进 completed
-      // (与 assembleInvocationCompletion() 读取 count 折算 InvocationCompletion.unstarted 的口径一致)。
-      expect(coordinator.state).toMatchObject({ total: 3, reused: 0, running: 0, queued: 0, completed: 3 });
+      // reducer 不变量:每条 budget-exhausted 把一个 attempt 从 queued 挪进 skipped —— 没派发就
+      // 没有 verdict,不冒充 passed/failed(与 assembleInvocationCompletion() 读取 count 折算
+      // InvocationCompletion.unstarted 的口径一致)。
+      expect(coordinator.state).toMatchObject({ total: 3, reused: 0, running: 0, queued: 0, passed: 0, failed: 0, errored: 0, skipped: 3 });
     });
   });
 });
@@ -822,8 +823,8 @@ describe("runEvals · 携入数量少于本次请求的 runs 时,差额必须真
       expect(matches[0]!.locator).toBe(staleLocator); // 携入结果原样透传
 
       // 不变量:携入 1 + early-exit 回填 2 == 本次请求的 runs:3,不留没有解释的差额
-      // (queued 必须真正归零,不能停在「还差 2 个不知道去哪」)。
-      expect(coordinator.state).toMatchObject({ total: 3, reused: 1, running: 0, queued: 0, completed: 2 });
+      // (queued 必须真正归零,不能停在「还差 2 个不知道去哪」)。回填的两轮没真跑,进 skipped。
+      expect(coordinator.state).toMatchObject({ total: 3, reused: 1, running: 0, queued: 0, passed: 0, failed: 0, errored: 0, skipped: 2 });
     });
   });
 
@@ -892,7 +893,8 @@ describe("runEvals · 携入数量少于本次请求的 runs 时,差额必须真
       expect(matches.map((r) => r.attempt).sort()).toEqual([0, 1, 2]);
       expect(matches.every((r) => r.verdict === "failed")).toBe(true);
 
-      expect(coordinator.state).toMatchObject({ total: 3, reused: 1, running: 0, queued: 0, completed: 2 });
+      // 差额两次真的跑了,各自落进 failed —— 携入那条的 verdict 留在 reused,不摊进结局项。
+      expect(coordinator.state).toMatchObject({ total: 3, reused: 1, running: 0, queued: 0, passed: 0, failed: 2, errored: 0, skipped: 0 });
       // InvocationSummary 的三条 failed（1 carry + 2 fresh）与终局 handoff 的 FailureNotice 清单同口径。
       // carry 不能只进 summary 计数而从 FAILURES / agent handoff 消失。
       expect(coordinator.state.failures).toHaveLength(3);
@@ -2301,7 +2303,7 @@ describe("runEvals · 用例锁: 等待语义", () => {
         expect(coordinator.state.lockWaits.get(experimentId)?.waiting.has(evalIdLocked)).toBe(true);
         expect(coordinator.state.elsewhere).toBeGreaterThanOrEqual(1);
         const mid = coordinator.state;
-        expect(mid.total).toBe(mid.reused + mid.running + mid.elsewhere + mid.queued + mid.completed);
+        expectCountIdentity(mid);
 
         // 推过 30s 判死线:种下的心跳没有任何进程真的在续租,过期后必须被接管。
         // 分步推 + 每步让出真实事件循环,理由见 advanceOnFakeClock 注释。
@@ -2832,7 +2834,7 @@ describe("runEvals · 用例锁: 多开分工", () => {
       // reused —— 少发这一对,五项恒等式当场破。
       expect(coordinator.state.reused).toBe(1);
       expect(coordinator.state.elsewhere).toBe(0);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(await lockFilesRemaining(root)).toEqual([]);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
@@ -2891,7 +2893,7 @@ describe("runEvals · 用例锁: 干净取锁下的执行模式组合", () => {
       expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
       expect(coordinator.state.reused).toBe(0);
       expect(coordinator.state.elsewhere).toBe(0);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(await lockFilesRemaining(root)).toEqual([]);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
@@ -3035,7 +3037,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
         expect(coordinator.state.lockWaits.get(experimentId)?.waiting.size).toBe(1);
         expect(coordinator.state.queued).toBe(0); // elsewhere 与 queued 互斥
         const mid = coordinator.state;
-        expect(mid.total).toBe(mid.reused + mid.running + mid.elsewhere + mid.queued + mid.completed);
+        expectCountIdentity(mid);
         expect(calls).toBe(0);
 
         await advanceOnFakeClock(() => done, 10_000, 12);
@@ -3045,7 +3047,7 @@ describe("runEvals · 用例锁: runs > 1 的兄弟 attempt 共享同一把锁",
         expect(summary.results.map((r) => r.attempt).sort()).toEqual([0, 1, 2]);
         expect(coordinator.state.elsewhere).toBe(0);
         const end = coordinator.state;
-        expect(end.total).toBe(end.reused + end.running + end.elsewhere + end.queued + end.completed);
+        expectCountIdentity(end);
         expect(await lockFilesRemaining(root)).toEqual([]);
       });
     } finally {
@@ -3116,7 +3118,7 @@ describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () =>
         expect(coordinator.state.reused).toBe(1); // elsewhere → reused
         expect(coordinator.state.elsewhere).toBe(0);
         const end = coordinator.state;
-        expect(end.total).toBe(end.reused + end.running + end.elsewhere + end.queued + end.completed);
+        expectCountIdentity(end);
         expect(summary.results.map((r) => r.attempt).sort()).toEqual([0, 1]);
         expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
         expect(await lockFilesRemaining(root)).toEqual([]);
@@ -3179,7 +3181,7 @@ describe("runEvals · 用例锁: 释放后重查携带逐 attempt 判定", () =>
       expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
       expect(coordinator.state.reused).toBe(1); // 只有序号 0 迁进 reused
       expect(coordinator.state.elsewhere).toBe(0);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(await lockFilesRemaining(root)).toEqual([]);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
@@ -3246,9 +3248,18 @@ async function snapshotHaltDiagnostics(root: string, experimentId: string): Prom
   return (exp?.latest.diagnostics ?? []).filter((d) => d.code === "dispatch-halted");
 }
 
-/** 五项计数恒等式(docs/feature/experiments/cli.md):任何一帧都必须成立。 */
-function expectFiveCountIdentity(state: RunFeedbackState): void {
-  expect(state.total).toBe(state.reused + state.running + state.elsewhere + state.queued + state.completed);
+/** 八项计数恒等式(docs/feature/experiments/cli.md):任何一帧都必须成立。 */
+function expectCountIdentity(state: RunFeedbackState): void {
+  expect(state.total).toBe(
+    state.reused +
+      state.running +
+      state.elsewhere +
+      state.queued +
+      state.passed +
+      state.failed +
+      state.errored +
+      state.skipped,
+  );
 }
 
 describe("runEvals · 止损闸: 触发", () => {
@@ -3316,7 +3327,7 @@ describe("runEvals · 止损闸: 触发", () => {
       expect(notice!.severity).toBe("error");
       expect(notice!.data?.unstarted).toBe(2);
       expect(coordinator.state.diagnostics.some((d) => d.key.startsWith("dispatch-halted:eval:"))).toBe(false);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(coordinator.state.queued).toBe(0);
       expect(coordinator.state.elsewhere).toBe(0);
 
@@ -3367,7 +3378,7 @@ describe("runEvals · 止损闸: 触发", () => {
       expect(notice!.data?.unstarted).toBe(2);
       // 实验闸没落下:同实验其它 eval 的派发不该被 eval 档声明连带停掉。
       expect(coordinator.state.diagnostics.some((d) => d.key === experimentHaltKey(experimentId))).toBe(false);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
 
       // 通路二:snapshot.json 的实验域诊断。同源(同一份 message/phase/scope),但各自累计 ——
       // 反馈流那条含未派发记账刷新的 count,持久化这条只按声明次数折叠(这里只声明过一次)。
@@ -3612,7 +3623,7 @@ describe("runEvals · 止损闸: 幂等与不可逆", () => {
       expect(summary.results.find((r) => r.id === "n-fatal")!.verdict).toBe("errored");
       const notice = coordinator.state.diagnostics.find((d) => d.key === experimentHaltKey(experimentId));
       expect(notice!.data?.unstarted).toBe(2);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(coordinator.state.queued).toBe(0);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
@@ -3668,7 +3679,7 @@ describe("runEvals · 止损闸: 不抢占(等待集经 interruption 中止)", (
       // elsewhere 收支平账:进过等待集的那条必须被原数报回来,恒等式不留悬空的差额。
       expect(coordinator.state.elsewhere).toBe(0);
       expect(coordinator.state.queued).toBe(0);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
 });
@@ -3759,7 +3770,7 @@ describe("runEvals · 止损闸: teardown 边界", () => {
       const persisted = await snapshotHaltDiagnostics(root, experimentId);
       expect(persisted).toHaveLength(1);
       expect(persisted[0]!.phase).toBe("eval.teardown");
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
 });
@@ -3817,7 +3828,7 @@ describe("runEvals · 用例锁: --force 撞新鲜锁的挂起窗口", () => {
 
         await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(1));
         expect(coordinator.state.queued).toBe(0); // elsewhere 与 queued 互斥
-        expectFiveCountIdentity(coordinator.state);
+        expectCountIdentity(coordinator.state);
 
         // 持有方正常收尾:锁文件消失,下一轮轮询即结束等待。
         await rm(caseLockPath(root, experimentId, evalId), { force: true });
@@ -3827,7 +3838,7 @@ describe("runEvals · 用例锁: --force 撞新鲜锁的挂起窗口", () => {
         expect(calls).toBe(1); // --force:等完窗口后自跑,不消费磁盘上那条匹配终态
         expect(coordinator.state.reused).toBe(0);
         expect(coordinator.state.elsewhere).toBe(0); // 报进去 1 条,原数报了回来
-        expectFiveCountIdentity(coordinator.state);
+        expectCountIdentity(coordinator.state);
         expect(summary.results).toHaveLength(1);
         expect(summary.results[0]!.verdict).toBe("passed");
         expect(await lockFilesRemaining(root)).toEqual([]);
@@ -3878,7 +3889,7 @@ describe("runEvals · 用例锁: 等待窗口的 elsewhere 收支平账", () => 
 
       // 窗口的收尾事件是被中断唤醒后才发的,可能晚于 runEvals 结算一个事件循环轮次。
       await waitForRealProgress(() => expect(coordinator.state.elsewhere).toBe(0));
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(coordinator.state.queued).toBe(2); // 两条都退回 queued(中断路径不派发)
       expect(calls).toBe(0);
     });
@@ -3928,7 +3939,7 @@ describe("runEvals · 用例锁: 等待窗口的 elsewhere 收支平账", () => 
         expect(mid.running).toBe(1);
         expect(mid.queued).toBe(0); // 没携入的兄弟从没离开 queued,不被多扣一次
         expect(mid.elsewhere).toBe(0);
-        expectFiveCountIdentity(mid);
+        expectCountIdentity(mid);
       } finally {
         release();
       }
@@ -3937,7 +3948,7 @@ describe("runEvals · 用例锁: 等待窗口的 elsewhere 收支平账", () => 
       expect(probe.started).toEqual([evalId]); // 只有缺的序号 1 真的派发过
       expect(summary.results.map((r) => r.attempt).sort()).toEqual([0, 1]);
       expect(coordinator.state.elsewhere).toBe(0);
-      expectFiveCountIdentity(coordinator.state);
+      expectCountIdentity(coordinator.state);
       expect(await lockFilesRemaining(root)).toEqual([]);
     });
   }, SCHEDULING_TEST_TIMEOUT_MS);
