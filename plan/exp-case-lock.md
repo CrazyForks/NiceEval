@@ -10,7 +10,8 @@
 
 ## TODO
 
-- [ ] **A. 锁原语**(新模块 `src/runner/lock.ts`):文件名 slug + 身份哈希(平铺 `.niceeval/locks/`)、O_EXCL 原子创建、心跳续租(10s,tmp+rename 重写 `heartbeatAt`)、过期判据(落后 30s)、过期锁 rename 接管(rename 赢家获得执行权)、删除释放;锁文件形状 `{ experimentId, evalId, pid, host, startedAt, heartbeatAt }`
+- [ ] **A0. 逐条目原子文件原语抽共享层**(先于 A;评审裁定,2026-07-24):`src/runner/teardown-registry.ts` 与 `src/sandbox/keep-registry.ts` 已是「同一套原子写纪律」的两份手工拷贝(前者头注释自证),lock.ts 不做第三份。把与语义无关的原语抽到 `src/shared/entry-file-store.ts`(runner 与 sandbox 都能依赖的中性层):entry 命名(slug+身份哈希)、原子写(tmp → fsync → rename → fsync 目录)、损坏跳过的全目录扫描、rename 墓碑认领(领取/接管共用一个原子操作,teardown-registry.ts 的墓碑注释里那套「谁先删到 + 异步 delete 语义」论证只证一次)。两个既有注册表就地改为消费共享层(行为零变化,靠既有单测护);**语义留在各消费方**:登记=死后存续+删除认领,锁=心跳存活+过期接管,keep=留存清单——三者不合并成一个带 flag 的机制,存续策略相反(登记必须活过进程死亡,锁必须随进程死亡过期)
+- [ ] **A. 锁原语**(新模块 `src/runner/lock.ts`,依赖 A0):在共享层之上只写锁独有语义——O_EXCL 原子创建取锁、心跳续租(10s,共享层原子写重写 `heartbeatAt`)、过期判据(落后 30s)、过期锁经共享层 rename 接管、删除释放;锁文件形状 `{ experimentId, evalId, pid, host, startedAt, heartbeatAt }`
 - [ ] **B. 调度接线**(`src/runner/run.ts` + `planCarry`):携带规划之后逐用例取锁;全携带用例不取锁;撞新鲜锁进等待集——不占全局并发位、不触发实验级 setup、每心跳周期重读锁文件;锁释放/接管后对该用例重查携带(复用 planCarry 的逐 attempt 判定),携入补齐、缺失序号取锁补跑;`--force` / `--reuse-sandbox` 等待照旧、等完自跑;`--dry` 只读锁目录出 `locked` 标注
 - [ ] **C. 释放路径**:用例全部 attempt 收尾后删锁;中断/强清路径挂进既有的宿主机侧兜底排空(与 teardown 注册表同一条退出链);接管时记 `lock-taken-over` warning 级 diagnostic(按 dedupeKey 折叠)
 - [ ] **D. 反馈**:`elsewhere` 计数状态(与 queued 互斥,五项恒等式;非零才进 human 首行)、每实验一行运行级 `waiting on another run` 行(TTY)/按实验聚合起止行(非 TTY)、`--json` 逐用例 `lock_wait` started/resolved 事件、`ProgressEvent.elsewhere` 字段、`ExpPlanRow.locked`
