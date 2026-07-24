@@ -1,11 +1,15 @@
 // 留存沙箱的持久注册表:`.niceeval/sandboxes/` 下的逐条目文件(不是多个 attempt 竞争改写的
-// 一份 JSON)。entry id 由 provider + sandboxId 做稳定散列;每条先写同目录临时文件、fsync 文件后
-// rename 成 <entry-id>.json,再 fsync 目录——不同 attempt 与不同 niceeval 进程不会覆盖彼此。
+// 一份 JSON)。entry id 由 provider + sandboxId 做稳定散列;每条走 shared/entry-file-store.ts
+// 的原子写纪律(临时文件 → fsync 文件 → rename → fsync 目录)——不同 attempt 与不同 niceeval
+// 进程不会覆盖彼此。
 // 契约见 docs/feature/sandbox/architecture.md「留存(keep)与注册表」。
+//
+// 条目旁独立的 `.lease` 文件是另一套机制(短命的操作互斥,见 acquireKeptLease 一节),不走
+// entry-file-store 的原子写纪律——lease 的持有点是 `wx` 独占创建本身,不需要 tmp+rename。
 
-import { createHash } from "node:crypto";
-import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fsyncDir, hashEntryId, readEntryFile, writeEntryFile } from "../shared/entry-file-store.ts";
 import type { Verdict } from "../types.ts";
 
 /** 一条留存登记项(逐条目文件的 JSON 形状)。 */
@@ -37,7 +41,7 @@ export interface KeptSandboxLease {
 
 /** entry id:provider + sandboxId 的稳定散列(条目文件名)。 */
 export function keptEntryId(provider: string, sandboxId: string): string {
-  return createHash("sha256").update(`${provider}\n${sandboxId}`).digest("hex").slice(0, 12);
+  return hashEntryId([provider, sandboxId]);
 }
 
 export function sandboxesDirOf(niceevalRoot: string): string {
@@ -124,25 +128,17 @@ export async function findNiceevalRoot(cwd: string): Promise<string | undefined>
   }
 }
 
-/** 原子写入一条登记项:临时文件 → fsync → rename → fsync 目录。 */
+/** 原子写入一条登记项(委托给共享层的 write-tmp-then-rename 纪律)。 */
 export async function writeKeptEntry(niceevalRoot: string, entry: KeptSandboxEntry): Promise<void> {
-  const dir = sandboxesDirOf(niceevalRoot);
-  await mkdir(dir, { recursive: true });
   const id = keptEntryId(entry.provider, entry.sandboxId);
-  const tmpPath = join(dir, `.${id}.${process.pid}.tmp`);
-  const finalPath = join(dir, `${id}.json`);
-  const handle = await open(tmpPath, "w");
-  try {
-    await handle.writeFile(JSON.stringify(entry, null, 2), "utf-8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  await rename(tmpPath, finalPath);
-  await fsyncDir(dir);
+  await writeEntryFile(sandboxesDirOf(niceevalRoot), id, entry);
 }
 
-/** 读全部登记项(坏条目跳过并记名,不整体失败)。 */
+/**
+ * 读全部登记项(坏条目跳过并记名,不整体失败)。逐条目解析走共享层的 `readEntryFile`(损坏
+ * 返回 undefined、不抛错);目录扫描与 malformed 文件名收集是留存注册表自己的诊断需求
+ * (`readAllEntryFiles` 只做静默跳过,不回传坏文件名),因此这里保留自己的扫描循环。
+ */
 export async function readKeptEntries(
   niceevalRoot: string,
 ): Promise<{ entries: { id: string; entry: KeptSandboxEntry }[]; malformed: string[] }> {
@@ -157,12 +153,10 @@ export async function readKeptEntries(
   const malformed: string[] = [];
   for (const file of files) {
     if (!file.endsWith(".json") || file.startsWith(".")) continue;
-    try {
-      const raw = await readFile(join(dir, file), "utf-8");
-      entries.push({ id: file.slice(0, -".json".length), entry: JSON.parse(raw) as KeptSandboxEntry });
-    } catch {
-      malformed.push(file);
-    }
+    const id = file.slice(0, -".json".length);
+    const entry = await readEntryFile<KeptSandboxEntry>(dir, id);
+    if (entry === undefined) malformed.push(file);
+    else entries.push({ id, entry });
   }
   entries.sort((a, b) => a.entry.keptAt.localeCompare(b.entry.keptAt));
   return { entries, malformed };
@@ -174,13 +168,8 @@ export async function updateKeptEntry(
   id: string,
   patch: Partial<KeptSandboxEntry> | ((entry: KeptSandboxEntry) => KeptSandboxEntry),
 ): Promise<boolean> {
-  const path = join(sandboxesDirOf(niceevalRoot), `${id}.json`);
-  let entry: KeptSandboxEntry;
-  try {
-    entry = JSON.parse(await readFile(path, "utf-8")) as KeptSandboxEntry;
-  } catch {
-    return false;
-  }
+  const entry = await readEntryFile<KeptSandboxEntry>(sandboxesDirOf(niceevalRoot), id);
+  if (entry === undefined) return false;
   const next = typeof patch === "function" ? patch(entry) : { ...entry, ...patch };
   await writeKeptEntry(niceevalRoot, next);
   return true;
@@ -191,17 +180,4 @@ export async function removeKeptEntry(niceevalRoot: string, id: string): Promise
   const dir = sandboxesDirOf(niceevalRoot);
   await rm(join(dir, `${id}.json`), { force: true });
   await fsyncDir(dir);
-}
-
-async function fsyncDir(dir: string): Promise<void> {
-  try {
-    const handle = await open(dir, "r");
-    try {
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    // 平台不支持目录 fsync(如 Windows)时静默降级;rename 本身已是原子替换。
-  }
 }

@@ -32,6 +32,7 @@ import { stringWidth } from "../../report/model/text-layout.ts";
 import type {
   ActiveAttempt,
   ActiveExperimentHook,
+  ActiveLockWait,
   ActivePrecheck,
   AttemptKey,
   ExperimentHookName,
@@ -139,6 +140,40 @@ export function renderDurableLines(
       if (event.status === "started") return [t("feedback.human.precheckJudge")];
       const duration = event.durationMs !== undefined ? ` (${formatElapsed(event.durationMs)})` : "";
       return [`${t("feedback.human.precheckJudgeDone")}${duration}`];
+    }
+    case "lock-wait": {
+      // 只服务非 TTY 退化流(TTY dashboard 的 appendDurable 对这个事件直接返回,运行级行由
+      // state.lockWaits 驱动,不进 scrollback,见 cli.md「等待并发 run 的显示」)。按实验聚合
+      // ——同一实验可能有多个用例先后撞锁,只在这个「有等待用例」窗口第一次打开(这是当前
+      // 唯一一条等待中的用例)与最后一次关闭(等待全部解决)各打印一行,中途加入/解决的用例
+      // 不逐条刷屏,与诊断按 dedupeKey 折叠同一种克制(state 已经是这条事件 reduce 之后的
+      // 快照,size 天然反映"这条事件之后"的计数)。
+      const agg = state.lockWaits.get(event.experimentId);
+      if (event.status === "started") {
+        if (!agg || agg.waiting.size !== 1) return []; // 不是这个窗口的第一条,静默
+        const holder = agg.waiting.get(event.evalId);
+        return [
+          t("feedback.human.lockWaitStarted", {
+            experimentId: event.experimentId,
+            count: agg.waiting.size,
+            pid: holder?.holderPid ?? "?",
+          }),
+        ];
+      }
+      if (!agg || agg.waiting.size !== 0) return []; // 窗口还没关闭,静默
+      const parts: string[] = [];
+      if (agg.resolvedCarried > 0) parts.push(t("feedback.human.lockWaitCarried", { count: agg.resolvedCarried }));
+      if (agg.resolvedDispatched > 0) {
+        parts.push(t("feedback.human.lockWaitDispatched", { count: agg.resolvedDispatched }));
+      }
+      const summary = parts.length > 0 ? parts.join(" · ") : t("feedback.human.lockWaitCarried", { count: 0 });
+      return [
+        t("feedback.human.lockWaitResolved", {
+          experimentId: event.experimentId,
+          summary,
+          elapsed: formatElapsed(event.waitedMs ?? 0),
+        }),
+      ];
     }
     case "summary":
       return buildSummaryLines(event, state, panel);
@@ -418,14 +453,31 @@ function experimentHookLabel(hook: ExperimentHookName): string {
   return hook === "setup" ? t("feedback.phase.experimentSetup") : t("feedback.phase.experimentTeardown");
 }
 
+/** 首行守恒计数的文案:`elsewhere` 只在非零时出现,没有并发 run 的场景与旧的四项形态无异
+ *  (见 cli.md「框内首行固定使用 total / reused / running / elsewhere / queued / completed；
+ *  … elsewhere … 只在非零时出现,没有并发 run 的场景首行与四项形态无异」)。两个调用点
+ *  (live dashboard 首行、非 TTY heartbeat)共用这一份,不各自维护一份键选择逻辑。 */
+function countsText(state: RunFeedbackState): string {
+  return state.elsewhere > 0
+    ? t("feedback.human.countsWithElsewhere", {
+        total: state.total,
+        reused: state.reused,
+        running: state.running,
+        elsewhere: state.elsewhere,
+        queued: state.queued,
+        completed: state.completed,
+      })
+    : t("feedback.human.counts", {
+        total: state.total,
+        reused: state.reused,
+        running: state.running,
+        queued: state.queued,
+        completed: state.completed,
+      });
+}
+
 function formatCounts(state: RunFeedbackState): string {
-  const counts = t("feedback.human.counts", {
-    total: state.total,
-    reused: state.reused,
-    running: state.running,
-    queued: state.queued,
-    completed: state.completed,
-  });
+  const counts = countsText(state);
   if (state.estimatedCostUSD === undefined || state.estimatedCostUSD <= 0) return counts;
   return `${counts}  ${formatCost(state.estimatedCostUSD)}`;
 }
@@ -479,30 +531,23 @@ function createDashboardRenderer(io: FeedbackIO, command: string): FeedbackRende
     // renderPanel 内部按另一个宽度钳制,行尾会被框吃掉——这正是 memory/
     // live-dashboard-active-row-width-clamp-mismatch.md 的根因类别。
     const contentWidth = panelContentWidth(capability.width, capability.mode, false);
-    const rows: PanelRow[] = [
-      {
-        kind: "line",
-        text: t("feedback.human.counts", {
-          total: state.total,
-          reused: state.reused,
-          running: state.running,
-          queued: state.queued,
-          completed: state.completed,
-        }),
-      },
-    ];
-    // 运行级行(judge 预检 + 实验钩子)排在 attempt 行前面(见 cli.md「judge 预检的显示」/
-    // 「实验级钩子的显示」):它们解释了为什么后面的 attempt 还停在 queued。预检又排在实验
-    // 钩子前面——它发生在最前(任何 attempt 派发之前)。Map 按插入序迭代,天然满足稳定 slot。
+    const rows: PanelRow[] = [{ kind: "line", text: countsText(state) }];
+    // 运行级行(judge 预检 + 实验钩子 + 用例锁等待)排在 attempt 行前面(见 cli.md「judge 预检
+    // 的显示」/「实验级钩子的显示」/「等待并发 run 的显示」):它们解释了为什么后面的 attempt
+    // 还停在 queued。预检排最前(发生在任何 attempt 派发之前),其次实验钩子,再是锁等待
+    // (排在实验钩子行之后、attempt 行之前)。Map 按插入序迭代,天然满足稳定 slot。
     const precheck = state.activePrecheck;
     const hookRows = [...state.experimentHooks.values()];
-    if (activeOrder.length > 0 || hookRows.length > 0 || precheck) {
+    // 只有仍在等待(waiting 非空)的实验才占运行级行;窗口已关闭(全部 resolved)的条目只是
+    // 给非 TTY 聚合收尾行留的历史计数,TTY 不展示。
+    const lockWaitRows = [...state.lockWaits.values()].filter((w) => w.waiting.size > 0);
+    if (activeOrder.length > 0 || hookRows.length > 0 || lockWaitRows.length > 0 || precheck) {
       rows.push({ kind: "divider", title: t("feedback.human.active") });
       // 固定开销:上边框 + counts 行 + ACTIVE 横隔 + 下边框(boxed);plain 时同样按 4 行估算,
       // 差一两行不影响「窄/矮终端先减 active slots」这条大方向。
       const rowBudget = Math.max(0, io.stderr.rows - 4 - DASHBOARD_ROW_RESERVE);
       const precheckCount = precheck ? 1 : 0;
-      const total = precheckCount + hookRows.length + activeOrder.length;
+      const total = precheckCount + hookRows.length + lockWaitRows.length + activeOrder.length;
       // 窄/矮终端先减 active slots(减少行数),而不是先压缩单行内容 ——
       // 单行内容的截断在 formatActiveRow 里按 contentWidth 单独处理。
       const showCount = total <= rowBudget ? total : Math.max(0, rowBudget - 1);
@@ -512,7 +557,11 @@ function createDashboardRenderer(io: FeedbackIO, command: string): FeedbackRende
       // 的行又观测到更长的值再推宽,导致同一帧内本该对齐的列错位。
       const shownPrecheck = precheck && showCount > 0 ? precheck : undefined;
       const shownHooks = hookRows.slice(0, Math.max(0, showCount - (shownPrecheck ? 1 : 0)));
-      const shownRunLevel = (shownPrecheck ? 1 : 0) + shownHooks.length;
+      const shownLockWaits = lockWaitRows.slice(
+        0,
+        Math.max(0, showCount - (shownPrecheck ? 1 : 0) - shownHooks.length),
+      );
+      const shownRunLevel = (shownPrecheck ? 1 : 0) + shownHooks.length + shownLockWaits.length;
       const shownActive: ActiveAttempt[] = [];
       for (const key of activeOrder) {
         if (shownRunLevel + shownActive.length >= showCount) break;
@@ -532,6 +581,9 @@ function createDashboardRenderer(io: FeedbackIO, command: string): FeedbackRende
       if (shownPrecheck) activeLines.push(formatPrecheckRow(shownPrecheck, io, contentWidth));
       for (const hookRow of shownHooks) {
         activeLines.push(formatExperimentHookRow(hookRow, io, contentWidth, evalWidth, whoWidth));
+      }
+      for (const lockWaitRow of shownLockWaits) {
+        activeLines.push(formatLockWaitRow(lockWaitRow, io, contentWidth));
       }
       for (const active of shownActive) {
         activeLines.push(formatActiveRow(active, io, contentWidth, evalWidth, whoWidth));
@@ -584,8 +636,9 @@ function createDashboardRenderer(io: FeedbackIO, command: string): FeedbackRende
       // 更新,coordinator 紧接着的 redrawDynamic 会画出来);成功钩子不写 scrollback 永久行
       // (见 cli.md「实验级钩子的显示」)。非 TTY 退化流才逐行追加(见 renderDurableLines)。
       // judge 预检同理:TTY 下只驱动 state.activePrecheck 的运行级 active 行(coordinator 紧接着的
-      // redrawDynamic 会画出来),不写 scrollback 永久行(见 cli.md「judge 预检的显示」)。
-      if (event.type === "experiment-hook" || event.type === "precheck") return;
+      // redrawDynamic 会画出来),不写 scrollback 永久行(见 cli.md「judge 预检的显示」)。用例锁
+      // 等待同理:TTY 下由 state.lockWaits 驱动运行级 active 行(见 cli.md「等待并发 run 的显示」)。
+      if (event.type === "experiment-hook" || event.type === "precheck" || event.type === "lock-wait") return;
       writeDurable(io, event, state, false);
     },
     activity(text) {
@@ -682,6 +735,26 @@ function formatExperimentHookRow(
   return prefix + (hook.detail ?? "").slice(0, budget);
 }
 
+/** 用例锁等待的运行级行:`● waiting on another run · <exp>   <elapsed>  <n> evals · pid <pid>`
+ *  (cli.md「等待并发 run 的显示」)。elapsed 从最早一条等待的 startedAt 算(存活性证明,
+ *  与其它运行级行同一约定);pid 取最早一条等待对应的持有方——一个实验可能同时撞上多把不同
+ *  持有方的锁,这里选一个稳定的代表值展示,不逐条列出(与 earlyExit 代表 attempt 的选法同一
+ *  种「挑一个确定性代表」思路)。不吃 evalWidth/whoWidth 身份列宽约束——与 `formatPrecheckRow`
+ *  同理:选中用例全在等锁时,本实验没有派发中的 attempt,那两个宽度还压在初始值 0,会把
+ *  label 截成 "w…"(与 memory/live-dashboard-active-row-width-clamp-mismatch.md 同一根因类别,
+ *  只是发生在锁等待场景);label 直接用整行宽度。 */
+function formatLockWaitRow(wait: ActiveLockWait, io: FeedbackIO, columns: number): string {
+  const entries = [...wait.waiting.values()].sort((a, b) => a.startedAt - b.startedAt);
+  const earliest = entries[0]!;
+  const elapsed = formatElapsed(io.clock.now() - earliest.startedAt).padStart(6);
+  const sym = "● ";
+  const label = `${t("feedback.human.waitingOnAnotherRun")} · ${wait.experimentId}`;
+  const prefix = `${sym}${label}  ${elapsed}  `;
+  const budget = Math.max(0, columns - prefix.length);
+  const detail = t("feedback.human.lockWaitDetail", { count: entries.length, pid: earliest.holderPid ?? "?" });
+  return padTrunc(prefix + detail.slice(0, budget), columns);
+}
+
 // ───────────────────────── 非 TTY:human 文案的纯追加流 ─────────────────────────
 //
 // 单一 stdout 有序流(见 memory/exp-output-two-forms-ruling.md 的补充裁决):从 start 到结束
@@ -730,6 +803,9 @@ function createPlainRenderer(io: FeedbackIO): FeedbackRenderer {
 export interface HumanDryPlanRow {
   experimentId: string;
   evalId: string;
+  /** 该用例正被另一条并行 Invocation 持锁运行(见 docs/feature/experiments/architecture.md
+   *  「并发 Invocation:用例锁」);计划行尾如实标注,`--dry` 本身不取锁、不等待。 */
+  locked?: boolean;
 }
 
 export interface HumanDryPlanInput {
@@ -772,7 +848,8 @@ export function renderHumanDryPlan(input: HumanDryPlanInput): string {
   }
   const idWidth = Math.max(0, ...input.rows.map((row) => stringWidth(row.experimentId)));
   for (const row of input.rows) {
-    lines.push(`${row.experimentId}${" ".repeat(idWidth - stringWidth(row.experimentId) + 2)}${row.evalId}`);
+    const base = `${row.experimentId}${" ".repeat(idWidth - stringWidth(row.experimentId) + 2)}${row.evalId}`;
+    lines.push(row.locked ? `${base}  ${t("feedback.human.lockedRowSuffix")}` : base);
   }
   return `${lines.join("\n")}\n`;
 }

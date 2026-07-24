@@ -19,6 +19,7 @@ export function createInitialRunFeedbackState(): RunFeedbackState {
     total: 0,
     reused: 0,
     running: 0,
+    elsewhere: 0,
     queued: 0,
     completed: 0,
     earlyExitSkipped: 0,
@@ -26,6 +27,7 @@ export function createInitialRunFeedbackState(): RunFeedbackState {
     elapsedMs: 0,
     active: new Map(),
     experimentHooks: new Map(),
+    lockWaits: new Map(),
     failures: [],
     freshFailureCount: 0,
     diagnostics: [],
@@ -48,10 +50,12 @@ export function reduceRunFeedback(state: RunFeedbackState, event: RunFeedbackEve
         // 逐个把它们移进 running,不必等每条 attempt:queued 事件才累加(见类型注释)。
         queued: Math.max(0, total - reused),
         running: 0,
+        elsewhere: 0,
         completed: 0,
         active: new Map(),
         activePrecheck: undefined,
         experimentHooks: new Map(),
+        lockWaits: new Map(),
         failures: (event.plan.reusedFailures ?? []).map((failure) => ({ ...failure, at: event.at })),
         freshFailureCount: 0,
         diagnostics: [],
@@ -158,6 +162,54 @@ export function reduceRunFeedback(state: RunFeedbackState, event: RunFeedbackEve
       const experimentHooks = new Map(state.experimentHooks);
       experimentHooks.set(event.experimentId, { ...existing, detail: event.detail });
       return { ...state, experimentHooks };
+    }
+
+    case "lock-wait": {
+      // 粒度是单个 (experimentId, evalId):"started" 把这次撞锁需要等待的 attempt 数从
+      // queued 移入 elsewhere,"resolved" 按 carried/dispatched 分别迁入 reused/queued——
+      // 两者之和不必等于 "started" 时的 attempts(同一批等待可能分批 resolve,虽然当前
+      // emitter 恒一次性给出全部,reducer 不假设这一点,只按事件携带的数字增减)。
+      const existing = state.lockWaits.get(event.experimentId);
+      // 上一个「有等待用例」窗口已经完全关闭(waiting 为空)时,新窗口的累计计数从零开始——
+      // 不把上一窗口 resolved 的历史计数带进这一窗口的非 TTY 聚合收尾行。
+      const priorWindowClosed = !existing || existing.waiting.size === 0;
+      const lockWaits = new Map(state.lockWaits);
+      if (event.status === "started") {
+        const attempts = event.attempts ?? 1;
+        const waiting = new Map(priorWindowClosed ? [] : existing!.waiting);
+        waiting.set(event.evalId, {
+          startedAt: event.at,
+          ...(event.holderPid !== undefined ? { holderPid: event.holderPid } : {}),
+          ...(event.holderHost !== undefined ? { holderHost: event.holderHost } : {}),
+        });
+        lockWaits.set(event.experimentId, {
+          experimentId: event.experimentId,
+          waiting,
+          resolvedCarried: priorWindowClosed ? 0 : existing!.resolvedCarried,
+          resolvedDispatched: priorWindowClosed ? 0 : existing!.resolvedDispatched,
+        });
+        return { ...state, queued: state.queued - attempts, elsewhere: state.elsewhere + attempts, lockWaits };
+      }
+      // "resolved":没有对应的等待条目时静默忽略(防御,同 experiment:progress 对未知
+      // experimentId 的处理),不让一次乱序/重复事件把计数推负。
+      if (!existing || !existing.waiting.has(event.evalId)) return state;
+      const carried = event.carried ?? 0;
+      const dispatched = event.dispatched ?? 0;
+      const waiting = new Map(existing.waiting);
+      waiting.delete(event.evalId);
+      lockWaits.set(event.experimentId, {
+        experimentId: event.experimentId,
+        waiting,
+        resolvedCarried: existing.resolvedCarried + carried,
+        resolvedDispatched: existing.resolvedDispatched + dispatched,
+      });
+      return {
+        ...state,
+        elsewhere: state.elsewhere - (carried + dispatched),
+        reused: state.reused + carried,
+        queued: state.queued + dispatched,
+        lockWaits,
+      };
     }
 
     case "attempt:early-exit": {

@@ -74,6 +74,8 @@ export const en = {
     "experiment {{experimentId}}'s teardown was not triggered by the normal countdown path; it has been executed by the end-of-run sweep instead. Results are unaffected; seeing this line means an unlocated intermittent scheduling issue fired — please record this run in the memory ledger.\n",
   "runner.teardownRegistrationWriteFailed":
     "writing the crash-recovery teardown registration for experiment {{experimentId}} failed: {{message}}. The run continues normally, but a SIGKILL during this run cannot be recovered via `niceeval exp --teardown` or the startup self-heal — check disk space/permissions under .niceeval/teardowns/.\n",
+  "runner.lockTakenOver":
+    "took over an expired case lock for {{experimentId}}/{{evalId}} (previously held by pid {{pid}} on {{host}}; its heartbeat went stale) — that run likely died without releasing it; this run now owns dispatching this case.\n",
   "judge.modelMissing":
     "No judge model configured. Set it in defineConfig({ judge: { model: \"...\" } }), the eval's judge config, or the NICEEVAL_JUDGE_MODEL environment variable (there is no built-in default model).\n" +
     "  Docs: node_modules/niceeval/docs-site/zh/tutorials/scoring-guide.mdx",
@@ -282,6 +284,14 @@ export const en = {
   "feedback.human.hookFailed": "failed",
   "feedback.human.precheckJudge": "prechecking judge config",
   "feedback.human.precheckJudgeDone": "judge config ok",
+  "feedback.human.countsWithElsewhere": "{{total}} total · {{reused}} reused · {{running}} running · {{elsewhere}} elsewhere · {{queued}} queued · {{completed}} completed",
+  "feedback.human.waitingOnAnotherRun": "waiting on another run",
+  "feedback.human.lockWaitDetail": "{{count}} evals · pid {{pid}}",
+  "feedback.human.lockWaitStarted": "waiting on another run · {{experimentId}} ({{count}} evals, pid {{pid}})",
+  "feedback.human.lockWaitResolved": "lock wait resolved · {{experimentId}} ({{summary}}, {{elapsed}})",
+  "feedback.human.lockWaitCarried": "{{count}} carried",
+  "feedback.human.lockWaitDispatched": "{{count}} to run",
+  "feedback.human.lockedRowSuffix": "locked",
   "feedback.phase.sandboxSetup": "sandbox setup",
   "feedback.phase.scoring": "scoring",
   "feedback.phase.teardown": "cleaning up",

@@ -24,16 +24,17 @@ function replay(events: readonly RunFeedbackEvent[]): RunFeedbackState {
     state = reduceRunFeedback(state, event);
     expect(
       state.total,
-      `after event #${i} (${event.type}): total should equal reused+running+queued+completed`,
-    ).toBe(state.reused + state.running + state.queued + state.completed);
+      `after event #${i} (${event.type}): total should equal reused+running+elsewhere+queued+completed`,
+    ).toBe(state.reused + state.running + state.elsewhere + state.queued + state.completed);
     expect(
       state.active.size,
       `after event #${i} (${event.type}): active map size should equal running count`,
     ).toBe(state.running);
-    // 四个桶(reused/running/queued/completed)本身永远非负 —— 负数意味着某个事件把不存在的
-    // attempt 又"完成"了一次,是 reducer 或 emitter 的 bug,不该被吞掉。
+    // 五个桶(reused/running/elsewhere/queued/completed)本身永远非负 —— 负数意味着某个事件把
+    // 不存在的 attempt 又"完成"(或"迁移")了一次,是 reducer 或 emitter 的 bug,不该被吞掉。
     expect(state.reused, `after event #${i}: reused must not go negative`).toBeGreaterThanOrEqual(0);
     expect(state.running, `after event #${i}: running must not go negative`).toBeGreaterThanOrEqual(0);
+    expect(state.elsewhere, `after event #${i}: elsewhere must not go negative`).toBeGreaterThanOrEqual(0);
     expect(state.queued, `after event #${i}: queued must not go negative`).toBeGreaterThanOrEqual(0);
     expect(state.completed, `after event #${i}: completed must not go negative`).toBeGreaterThanOrEqual(0);
   }
@@ -501,5 +502,250 @@ describe("reduceRunFeedback: 实验级钩子", () => {
     expect(state.experimentHooks.size).toBe(1);
     state = reduceRunFeedback(state, plan);
     expect(state.experimentHooks.size).toBe(0);
+  });
+});
+
+// cases: docs/engineering/testing/unit/experiments-runner.md「用例锁与并发 Invocation」——
+// 「等待语义……计入独立的 elsewhere 计数且与 queued 互斥、五项计数恒等式成立」与
+// 「释放后续接……指纹匹配携入且计数 elsewhere 迁 reused、不匹配转 queued 自跑、runs 部分携入
+// 部分补跑,三面都要有区分力场景」。lock.ts 本身(取锁/心跳/接管)与 run.ts 的调度接线不在
+// 这里覆盖(run.test.ts / lock.test.ts 各自的范畴),这里只证 reducer 的纯状态归约。
+describe("reduceRunFeedback: 用例锁等待(elsewhere)", () => {
+  const plan: RunFeedbackEvent = {
+    type: "plan",
+    at: 0,
+    plan: { shape: { evals: 2, configs: 1, totalAttempts: 5, maxConcurrency: 5 }, reused: 0, reusedFailures: [] },
+  };
+
+  it("started 把撞锁的 attempt 数从 queued 移入 elsewhere,与 queued 互斥;五项恒等式成立", () => {
+    const afterStart = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "started",
+        holderPid: 41267,
+        holderHost: "mba.local",
+        attempts: 3,
+      },
+    ]);
+    expect(afterStart).toMatchObject({ total: 5, reused: 0, running: 0, elsewhere: 3, queued: 2, completed: 0 });
+    expect(afterStart.lockWaits.get("compare/codex")?.waiting.get("memory/retention")).toMatchObject({
+      startedAt: 1,
+      holderPid: 41267,
+      holderHost: "mba.local",
+    });
+  });
+
+  it("resolved 全部携入(carried):elsewhere 迁入 reused,不落回 queued", () => {
+    const afterResolved = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "started",
+        attempts: 3,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      {
+        type: "lock-wait",
+        at: 20,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "resolved",
+        carried: 3,
+        dispatched: 0,
+        waitedMs: 19_000,
+      },
+    ]);
+    expect(afterResolved).toMatchObject({ total: 5, reused: 3, running: 0, elsewhere: 0, queued: 2, completed: 0 });
+    // 等待条目从 waiting 里摘除,但窗口聚合状态(供非 TTY 收尾行读取)仍保留在 map 里。
+    expect(afterResolved.lockWaits.get("compare/codex")?.waiting.size).toBe(0);
+    expect(afterResolved.lockWaits.get("compare/codex")).toMatchObject({ resolvedCarried: 3, resolvedDispatched: 0 });
+  });
+
+  it("resolved 转自跑(dispatched):elsewhere 迁入 queued,照常经 running 进 completed", () => {
+    const a = ref("memory/retention", 0, "compare/codex");
+    const state = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "started",
+        attempts: 3,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      {
+        type: "lock-wait",
+        at: 20,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "resolved",
+        carried: 0,
+        dispatched: 3,
+        waitedMs: 19_000,
+      },
+      { type: "attempt:start", at: 21, identity: a, who: "compare/codex", phase: "eval.run" },
+      { type: "attempt:complete", at: 25, identity: a, who: "compare/codex", verdict: "passed" },
+    ]);
+    // plan 初始 5 - 3(撞锁的)= 2 个 queued;3 个从 elsewhere 转来的 attempt 也都进了 queued
+    // (合计 5),其中 1 个真的被派发跑完,4 个仍在 queued。
+    expect(state).toMatchObject({ total: 5, reused: 0, elsewhere: 0, queued: 4, running: 0, completed: 1 });
+  });
+
+  it("runs 部分携入部分补跑:同一 resolved 事件里 carried 与 dispatched 同时非零", () => {
+    const afterResolved = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "started",
+        attempts: 3,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      {
+        type: "lock-wait",
+        at: 20,
+        experimentId: "compare/codex",
+        evalId: "memory/retention",
+        status: "resolved",
+        carried: 2,
+        dispatched: 1,
+        waitedMs: 19_000,
+      },
+    ]);
+    // 原本 5 - 3(撞锁的)= 2 个 queued,加上这次转自跑的 1 个 = 3。
+    expect(afterResolved).toMatchObject({ elsewhere: 0, reused: 2, queued: 3, total: 5 });
+  });
+
+  it("同一实验多个用例各自撞锁:elsewhere 累加,各自 resolved 各自结算", () => {
+    const state = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/a",
+        status: "started",
+        attempts: 1,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      {
+        type: "lock-wait",
+        at: 2,
+        experimentId: "compare/codex",
+        evalId: "memory/b",
+        status: "started",
+        attempts: 1,
+        holderPid: 1,
+        holderHost: "h",
+      },
+    ]);
+    expect(state.elsewhere).toBe(2);
+    expect(state.lockWaits.get("compare/codex")?.waiting.size).toBe(2);
+
+    const afterOneResolves = replay([
+      plan,
+      {
+        type: "lock-wait",
+        at: 1,
+        experimentId: "compare/codex",
+        evalId: "memory/a",
+        status: "started",
+        attempts: 1,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      {
+        type: "lock-wait",
+        at: 2,
+        experimentId: "compare/codex",
+        evalId: "memory/b",
+        status: "started",
+        attempts: 1,
+        holderPid: 1,
+        holderHost: "h",
+      },
+      { type: "lock-wait", at: 5, experimentId: "compare/codex", evalId: "memory/a", status: "resolved", carried: 1, dispatched: 0, waitedMs: 4_000 },
+    ]);
+    // 只有 memory/a 解决了;memory/b 仍在等,窗口(waiting)非空。
+    expect(afterOneResolves.elsewhere).toBe(1);
+    expect(afterOneResolves.reused).toBe(1);
+    expect(afterOneResolves.lockWaits.get("compare/codex")?.waiting.size).toBe(1);
+    expect(afterOneResolves.lockWaits.get("compare/codex")?.waiting.has("memory/b")).toBe(true);
+  });
+
+  it("resolved 事件在没有对应等待条目时静默忽略(防御,不把计数推负)", () => {
+    const state = replay([plan, { type: "lock-wait", at: 1, experimentId: "compare/codex", evalId: "memory/ghost", status: "resolved", carried: 1, dispatched: 0 }]);
+    expect(state).toMatchObject({ elsewhere: 0, reused: 0, queued: 5 });
+  });
+
+  it("plan 事件清空残留的 elsewhere 计数与等待行(reducer 复用于多次 run 时不带上一次的状态)", () => {
+    let state = createInitialRunFeedbackState();
+    state = reduceRunFeedback(state, plan);
+    state = reduceRunFeedback(state, {
+      type: "lock-wait",
+      at: 1,
+      experimentId: "compare/codex",
+      evalId: "memory/retention",
+      status: "started",
+      attempts: 1,
+      holderPid: 1,
+      holderHost: "h",
+    });
+    expect(state.elsewhere).toBe(1);
+    state = reduceRunFeedback(state, plan);
+    expect(state.elsewhere).toBe(0);
+    expect(state.lockWaits.size).toBe(0);
+  });
+
+  it("窗口关闭后重新撞锁:非 TTY 聚合计数(resolvedCarried/resolvedDispatched)从零重新累计", () => {
+    let state = createInitialRunFeedbackState();
+    state = reduceRunFeedback(state, plan);
+    state = reduceRunFeedback(state, {
+      type: "lock-wait",
+      at: 1,
+      experimentId: "compare/codex",
+      evalId: "memory/a",
+      status: "started",
+      attempts: 1,
+      holderPid: 1,
+      holderHost: "h",
+    });
+    state = reduceRunFeedback(state, {
+      type: "lock-wait",
+      at: 5,
+      experimentId: "compare/codex",
+      evalId: "memory/a",
+      status: "resolved",
+      carried: 1,
+      dispatched: 0,
+      waitedMs: 4_000,
+    });
+    expect(state.lockWaits.get("compare/codex")).toMatchObject({ resolvedCarried: 1, resolvedDispatched: 0 });
+    // 新的一批用例再次撞锁:上一窗口的累计不该带进这一窗口。
+    state = reduceRunFeedback(state, {
+      type: "lock-wait",
+      at: 10,
+      experimentId: "compare/codex",
+      evalId: "memory/b",
+      status: "started",
+      attempts: 1,
+      holderPid: 1,
+      holderHost: "h",
+    });
+    expect(state.lockWaits.get("compare/codex")).toMatchObject({ resolvedCarried: 0, resolvedDispatched: 0 });
   });
 });

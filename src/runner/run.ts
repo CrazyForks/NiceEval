@@ -21,6 +21,7 @@ import {
   reportExperimentProgress,
   reportFailure,
   reportInterrupted,
+  reportLockWait,
   reportPrecheck,
 } from "./feedback/sink.ts";
 import { failureDetailFromResult } from "./feedback/failure.ts";
@@ -38,6 +39,8 @@ import {
   teardownEntryId,
   writeTeardownRegistration,
 } from "./teardown-registry.ts";
+import { acquireCaseLock, readCaseLock, type CaseLockClaim } from "./lock.ts";
+import { loadLatestResultsPerEval } from "../view/data.ts";
 import type {
   DiagnosticRecord,
   EvalResult,
@@ -274,6 +277,11 @@ export async function runEvals(opts: RunOptions): Promise<InvocationSummary> {
   });
 
   const results: EvalResult[] = [];
+  // 用例锁释放/接管后重查携带命中的结果(见下方「用例锁」分组与 resolveCaseLockGate)。与
+  // 静态 carriedResults 同一种身份:不触发 onEvalComplete / eval:complete(它们已经在另一次
+  // Invocation 里被报告过一次),只随 allResults 一起进入本次快照与 experiment:complete 的
+  // carriedResults 字段——见 docs/runner.md「并发 Invocation 靠用例锁把续跑扩展到多开」。
+  const lateCarriedResults: EvalResult[] = [];
   const passedKeys = new Set<string>();
   // errored = 框架/环境层面的意外(超时、adapter 崩、eval 脚本抛异常……),不是 agent 表现的信号。
   // 同 key 一旦 errored 就会确定性地重复 error,再跑 runs 里剩下的次数纯烧钱;只有 failed(断言
@@ -728,6 +736,172 @@ export async function runEvals(opts: RunOptions): Promise<InvocationSummary> {
     await recoverStaleTeardownRegistration(run, run.experimentId);
   }
 
+  // 用例锁(docs/feature/experiments/architecture.md「并发 Invocation:用例锁」):按
+  // (experimentId, evalId) 给这批已经确定要真实派发的 attempt 分组——被静态携带筛掉的组合
+  // 从不出现在 attempts[] 里,天然满足「全携带用例不取锁」;裸 run(无 experimentId)不接入。
+  const caseLockGroups = new Map<string, Attempt[]>();
+  for (const a of attempts) {
+    if (!a.run.experimentId) continue;
+    const key = cacheKey(a.run, a.evalDef.id);
+    let group = caseLockGroups.get(key);
+    if (!group) caseLockGroups.set(key, (group = []));
+    group.push(a);
+  }
+  // 每组第一个到达的 attempt 触发取锁/等待(memoized,同组其余 attempt 等同一个 promise),
+  // 严格早于该组任何 attempt 的 preflight / 实验级 setup 触发点——等锁的用例因此既不占全局
+  // 并发位,也不会让本实验的 setup 提前跑起来(见下方 gated 对 resolveCaseLockGate 的调用点)。
+  const caseLockGates = new Map<string, Promise<ReadonlySet<number>>>();
+  const caseLockClaims = new Map<string, CaseLockClaim>();
+  const caseLockRemaining = new Map<string, number>();
+  for (const [key, group] of caseLockGroups) caseLockRemaining.set(key, group.length);
+
+  // 取锁本身是真实磁盘 I/O(mkdir/open/write/fsync/rename),多个不同 key 并发发起时其完成
+  // 顺序不保证等于到达顺序——这会打乱「同一批到达的 attempt 应按瓶颈优先算出的静态顺序
+  // 排队拿全局并发位」这条既有不变量(见 docs/runner.md「派发顺序」):没有这道闸时,先完成
+  // 磁盘 I/O 的 key 抢先进入 preflight/globalSem,而不是数组序在前的 key。用一把 permit=1 的
+  // 互斥量把"一次非阻塞取锁尝试"串行化——只序列化这一步,不序列化真正的等待:一旦
+  // 判定为需要等待(onWaitStart 触发),立刻把互斥量交还,让下一个到达的 key 接着走它自己的
+  // 非阻塞尝试;不同 key 的真实等待可以完全并发,只有"抢着做非阻塞尝试"这一刻互斥。
+  const caseLockAcquireMutex = Effect.runSync(Effect.makeSemaphore(1));
+
+  const resolveCaseLockGate = (a: Attempt): Promise<ReadonlySet<number>> => {
+    const experimentId = a.run.experimentId!;
+    const evalId = a.evalDef.id;
+    const key = cacheKey(a.run, evalId);
+    const existing = caseLockGates.get(key);
+    if (existing) return existing;
+    const gate = (async (): Promise<ReadonlySet<number>> => {
+      await Effect.runPromise(caseLockAcquireMutex.take(1));
+      let mutexHeld = true;
+      const releaseMutexOnce = (): void => {
+        if (!mutexHeld) return;
+        mutexHeld = false;
+        void Effect.runPromise(caseLockAcquireMutex.release(1));
+      };
+      // 接管诊断要报"原持有者是谁",但 acquireCaseLock 只回传 takenOver 布尔值——取锁前先
+      // 无副作用地读一眼当前记录;若随后确实接管了,用这份快照填充诊断消息与(可能瞬时的)
+      // "started" 事件的持有方字段(纯尽力而为:极端时序下这份快照可能已经不是真正被接管的
+      // 那条记录,但诊断/展示本来就是人读提示,不是判定依据)。
+      const priorHolder = await readCaseLock(niceevalRoot, experimentId, evalId).catch(() => undefined);
+      let waitStartedAt: number | undefined;
+      let acquireResult;
+      try {
+        acquireResult = await acquireCaseLock(
+          niceevalRoot,
+          experimentId,
+          evalId,
+          { pid: process.pid, host: currentHost },
+          {
+            signal: opts.signal,
+            onWaitStart: (holder) => {
+              waitStartedAt = Date.now();
+              // 确认需要真的等待:交还互斥量,不拖住排在后面的其它 key 的非阻塞尝试。
+              releaseMutexOnce();
+              reportLockWait({
+                experimentId,
+                evalId,
+                status: "started",
+                holderPid: holder.pid,
+                holderHost: holder.host,
+                attempts: caseLockGroups.get(key)?.length ?? 1,
+              });
+            },
+          },
+        );
+      } finally {
+        // 非阻塞尝试直接命中(fresh acquire 或 solo takeover,onWaitStart 从未触发)时,互斥量
+        // 到这里才交还——这一刻之前,下一个 key 的非阻塞尝试不会开始,保证了完成顺序即到达顺序。
+        releaseMutexOnce();
+      }
+      const { claim, takenOver } = acquireResult;
+      caseLockClaims.set(key, claim);
+
+      if (takenOver) {
+        const message = t("runner.lockTakenOver", {
+          experimentId,
+          evalId,
+          pid: priorHolder?.pid ?? "?",
+          host: priorHolder?.host ?? "?",
+        }).trimEnd();
+        reportDiagnostic({
+          key: `lock-taken-over:${key}`,
+          severity: "warning",
+          message,
+          data: { experimentId, evalId },
+        });
+        recordExperimentDiagnostic({
+          experimentId,
+          code: "lock-taken-over",
+          level: "warning",
+          message,
+          phase: "eval.run",
+          dedupeKey: `lock-taken-over:${key}`,
+          data: { experimentId, evalId },
+        });
+      }
+
+      // 只有真正撞过锁(等待过)或接管过期锁,才值得重新读盘查携带——无竞争的全新取锁场景
+      // 没有任何别的进程碰过这个 key,静态携带规划的结论不可能过时,不必再扫一遍磁盘(这是
+      // 最常见的单开场景,必须便宜)。`--force` 下 opts.priorResults 恒为 undefined,复用这个
+      // 信号短路重查——force 关掉的是缓存,等完同样全部自跑,不消费任何携带。
+      const needsRecheck = (takenOver || waitStartedAt !== undefined) && opts.priorResults !== undefined;
+      if (!needsRecheck) return new Set<number>();
+
+      // 接管一把无人等待的过期锁也算「需要重查」,但此刻还没有对应的 "started" 事件——这批
+      // attempt 此刻仍停在 queued(从没被标记过 elsewhere),必须先补一个瞬时的 "started"
+      // 才能让下面的 "resolved" 把它们正确迁走,否则会永远卡在 queued、打破五项恒等式。
+      if (waitStartedAt === undefined) {
+        waitStartedAt = Date.now();
+        reportLockWait({
+          experimentId,
+          evalId,
+          status: "started",
+          holderPid: priorHolder?.pid,
+          holderHost: priorHolder?.host,
+          attempts: caseLockGroups.get(key)?.length ?? 1,
+        });
+      }
+
+      const freshPrior = await loadLatestResultsPerEval(niceevalRoot).catch((): EvalResult[] => []);
+      const recheck = await planCarry([a.evalDef], [a.run], freshPrior, opts.config.sandbox, opts.config.timeoutMs);
+      const carriedIndices = recheck.carriedAttemptsByKey.get(key) ?? new Set<number>();
+
+      const group = caseLockGroups.get(key) ?? [];
+      const carriedInGroup = group.filter((ga) => carriedIndices.has(ga.attempt));
+      const dispatchedInGroup = group.filter((ga) => !carriedIndices.has(ga.attempt));
+      for (const r of recheck.carriedResults) {
+        lateCarriedResults.push(r);
+        if (r.verdict === "passed") {
+          passedKeys.add(`${experimentId}|${a.run.agent.name}|${a.run.model ?? ""}|${evalId}`);
+        }
+      }
+
+      reportLockWait({
+        experimentId,
+        evalId,
+        status: "resolved",
+        carried: carriedInGroup.length,
+        dispatched: dispatchedInGroup.length,
+        waitedMs: Date.now() - waitStartedAt,
+      });
+
+      return carriedIndices;
+    })();
+    caseLockGates.set(key, gate);
+    return gate;
+  };
+
+  /** 用例全部 attempt(不论真实派发还是被锁释放后重查携带命中而跳过)都 settle 后删锁;与
+   *  expLifecycles.remaining 归零触发 teardown 同一种「逐 attempt 收尾时递减,归零触发」模式。 */
+  const releaseCaseLockIfDone = async (key: string): Promise<void> => {
+    const remaining = (caseLockRemaining.get(key) ?? 1) - 1;
+    caseLockRemaining.set(key, remaining);
+    if (remaining > 0) return;
+    const claim = caseLockClaims.get(key);
+    caseLockClaims.delete(key);
+    if (claim) await claim.release().catch(() => {});
+  };
+
   // earlyExit:为每个 key 各建一个 AbortController。某 attempt 通过或 errored 时 abort 它,
   // 让并发进行中的同 key attempt 通过 signal 尽早退出,而不只是等排队的才能被跳过。
   const evalAbortControllers = new Map<string, AbortController>();
@@ -1034,6 +1208,13 @@ export async function runEvals(opts: RunOptions): Promise<InvocationSummary> {
         // globalSem 的「等待不占位」纪律保持一致(见上面 exclusiveSemFor 的注释)。
         const exclusiveSem = exclusiveSemFor(a.sandboxSpec);
         const gated = Effect.gen(function* () {
+          // 用例锁:严格在 preflight / 实验级 setup 之前——等锁的用例既不占全局并发位,也不
+          // 触发本实验的 setup(见上方 resolveCaseLockGate 的分组注释)。等待期间对方已经跑完
+          // 这个具体 attempt 序号时(锁释放后重查携带命中),直接返回,不真的派发。
+          if (a.run.experimentId) {
+            const carriedIndices = yield* Effect.promise(() => resolveCaseLockGate(a));
+            if (carriedIndices.has(a.attempt)) return;
+          }
           const proceed = yield* preflight;
           if (!proceed) return;
           // 实验级 setup:第一个走到这里的 attempt 真正执行,其余等同一个 memoized promise
@@ -1045,20 +1226,31 @@ export async function runEvals(opts: RunOptions): Promise<InvocationSummary> {
         });
         const runSem = runSems.get(a.run);
         const withRunSem = runSem ? runSem.withPermits(1)(gated) : gated;
-        if (!a.run.setup && !a.run.teardown) return withRunSem;
-        // 实验级 teardown 计数:每个 attempt 收尾(含被 preflight 跳过、被中断的)都递减,
-        // 归零触发 ExperimentDef.teardown。ensuring 在中断路径同样执行,teardown 因此必跑。
-        return withRunSem.pipe(
-          Effect.ensuring(
-            Effect.promise(async () => {
-              const lc = expLifecycles.get(a.run)!;
-              lc.remaining -= 1;
-              if (lc.remaining === 0 && !lc.tornDown) {
-                lc.tornDown = true;
-                await runExperimentTeardown(a.run, lc);
-              }
-            }),
-          ),
+        // 实验级 teardown 计数:每个 attempt 收尾(含被 preflight 跳过、被中断的、被用例锁
+        // late-carry 跳过的)都递减,归零触发 ExperimentDef.teardown。ensuring 在中断路径
+        // 同样执行,teardown 因此必跑。
+        const withExpLifecycle =
+          !a.run.setup && !a.run.teardown
+            ? withRunSem
+            : withRunSem.pipe(
+                Effect.ensuring(
+                  Effect.promise(async () => {
+                    const lc = expLifecycles.get(a.run)!;
+                    lc.remaining -= 1;
+                    if (lc.remaining === 0 && !lc.tornDown) {
+                      lc.tornDown = true;
+                      await runExperimentTeardown(a.run, lc);
+                    }
+                  }),
+                ),
+              );
+        if (!a.run.experimentId) return withExpLifecycle;
+        // 用例锁释放:这个 key 的全部 attempt(真实派发的与被 late-carry 跳过的)都 settle 后
+        // 删锁,与上面的实验级 teardown 计数同一种「逐 attempt 收尾时递减,归零触发」模式,
+        // 挂在最外层确保晚于实验级 teardown 计数结算(docs「用例全部 attempt 收尾(含沙箱销毁)
+        // 后删除自己的锁」)。
+        return withExpLifecycle.pipe(
+          Effect.ensuring(Effect.promise(() => releaseCaseLockIfDone(cacheKey(a.run, a.evalDef.id)))),
         );
       },
       { concurrency: "unbounded", discard: true },
@@ -1134,16 +1326,19 @@ export async function runEvals(opts: RunOptions): Promise<InvocationSummary> {
       type: "experiment:complete",
       experimentId,
       completedAt: experimentCompletedAt.get(experimentId) ?? new Date().toISOString(),
-      carriedResults: carriedResults.filter((r) => r.experimentId === experimentId),
+      // 静态携带(启动时已知)与用例锁释放/接管后重查携带命中的迟到携带(lateCarriedResults)
+      // 对 Artifacts 封口而言是同一种东西——都是"这个 Experiment 本次没有真实执行、但要计入
+      // 快照的终态结果",合并后一起按 experimentId 过滤。
+      carriedResults: [...carriedResults, ...lateCarriedResults].filter((r) => r.experimentId === experimentId),
       diagnostics: experimentDiagnostics.get(experimentId) ?? [],
       ...(experimentFacts.has(experimentId) ? { facts: experimentFacts.get(experimentId) } : {}),
       name: opts.config.name,
     });
   }
 
-  // 稳定排序:按发现顺序 + attempt;携带结果并入后一起排
+  // 稳定排序:按发现顺序 + attempt;携带结果(静态 + 用例锁迟到携带)并入后一起排
   const order = new Map(opts.evals.map((e, i) => [e.id, i]));
-  const allResults = [...carriedResults, ...results];
+  const allResults = [...carriedResults, ...lateCarriedResults, ...results];
   allResults.sort(
     (a, b) =>
       (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0) ||

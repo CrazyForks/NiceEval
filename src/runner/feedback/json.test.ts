@@ -101,6 +101,22 @@ describe("renderJsonPlanDocument:单个 ExpPlanDocument,不是事件流", () => 
     expect(doc.matrix).toHaveLength(2);
   });
 
+  it("locked 为 true 的行原样透传;省略的行不出现 locked 字段(JSON.stringify 丢弃 undefined 属性)", () => {
+    const text = renderJsonPlanDocument({
+      total: 2,
+      evals: 2,
+      configs: 1,
+      runs: 1,
+      matrix: [
+        { experimentId: "compare/codex", evalId: "memory/a", reused: false, locked: true },
+        { experimentId: "compare/codex", evalId: "memory/b", reused: false },
+      ],
+    });
+    const doc = JSON.parse(text);
+    expect(doc.matrix[0]).toMatchObject({ evalId: "memory/a", locked: true });
+    expect(doc.matrix[1]).not.toHaveProperty("locked");
+  });
+
   it("reused 是 matrix 逐行 reused 之和(命中数量,不是 attempt 数)", () => {
     const text = renderJsonPlanDocument({
       total: 3,

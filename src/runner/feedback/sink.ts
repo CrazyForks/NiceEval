@@ -77,6 +77,22 @@ export interface PrecheckInput {
   durationMs?: number;
 }
 
+/** `sink.lockWait()` 的输入 —— 与 `DurableFeedbackEvent` 的 "lock-wait" 变体字段一致,省略
+ *  `type`/`at`(由 coordinator 补上)。调用方(run.ts)只在真正探测到撞上新鲜锁、需要等待时才
+ *  调一次 "started"(取锁立即成功或接管成功都不调用这个函数);等待解决(锁释放/接管后重查
+ *  携带完毕)时调一次 "resolved"。 */
+export interface LockWaitInput {
+  experimentId: string;
+  evalId: string;
+  status: "started" | "resolved";
+  holderPid?: number;
+  holderHost?: string;
+  attempts?: number;
+  carried?: number;
+  dispatched?: number;
+  waitedMs?: number;
+}
+
 /** `sink.kept()` 的输入 —— 与 `DurableFeedbackEvent` 的 "kept" 变体字段一致,省略 type/at。 */
 export interface KeptInput {
   locator: AttemptLocator;
@@ -106,6 +122,8 @@ export interface FeedbackSink {
   experimentHook(input: ExperimentHookInput): void;
   /** judge 预检的起止(见 `PrecheckInput`)。整次运行至多一次,发生在任何 attempt 派发之前。 */
   precheck(input: PrecheckInput): void;
+  /** 用例锁等待的起止(见 `LockWaitInput`)。 */
+  lockWait(input: LockWaitInput): void;
   /** 实验级 `ctx.progress` 的短命投影:只更新运行级行的 detail。与 `lifecycle` 同级别的
    *  「只服务正在画着的 dashboard」信号,没有活跃 coordinator 时静默丢弃是安全的。 */
   experimentProgress(input: ExperimentProgressInput): void;
@@ -219,6 +237,21 @@ export function reportPrecheck(input: PrecheckInput): void {
     input.status === "started"
       ? `${t("feedback.human.precheckJudge")}\n`
       : `${t("feedback.human.precheckJudgeDone")}${duration}\n`,
+  );
+}
+
+/** 用例锁等待的起止(见 `LockWaitInput`)。没有活跃 coordinator 时退回一行 stderr ——
+ *  长等待期间的可见性正是这条通道存在的理由,不能像 lifecycle 那样静默丢弃。 */
+export function reportLockWait(input: LockWaitInput): void {
+  const sink = current();
+  if (sink) {
+    sink.lockWait(input);
+    return;
+  }
+  writeStderrLine(
+    input.status === "started"
+      ? `waiting on another run · ${input.experimentId} ${input.evalId}\n`
+      : `lock wait resolved · ${input.experimentId} ${input.evalId}\n`,
   );
 }
 

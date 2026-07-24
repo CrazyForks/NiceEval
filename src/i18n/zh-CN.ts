@@ -71,6 +71,8 @@ export const zhCN = {
     "实验 {{experimentId}} 的 teardown 未被正常计数路径触发,已在运行收尾兜底执行。结果不受影响;这行出现说明命中了一个未定位的调度间歇问题,请把本次运行信息记入 memory 台账。\n",
   "runner.teardownRegistrationWriteFailed":
     "实验 {{experimentId}} 的强杀恢复收尾登记写入失败:{{message}}。本次运行照常继续,但这次运行期间若被 SIGKILL,`niceeval exp --teardown` 与启动自愈都无法找到它——检查 .niceeval/teardowns/ 下的磁盘空间或权限。\n",
+  "runner.lockTakenOver":
+    "接管了 {{experimentId}}/{{evalId}} 的过期用例锁(原持有者 pid {{pid}}@{{host}},心跳已过期)——那次运行大概率没能正常释放它;本次运行现在接手派发这条用例。\n",
   "judge.modelMissing":
     "judge 未配置模型:在 defineConfig({ judge: { model: \"...\" } })、eval 的 judge 配置或环境变量 NICEEVAL_JUDGE_MODEL 里指定裁判模型(没有内置默认模型)。\n" +
     "  文档:node_modules/niceeval/docs-site/zh/tutorials/scoring-guide.mdx",
@@ -275,6 +277,14 @@ export const zhCN = {
   "feedback.human.hookFailed": "失败",
   "feedback.human.precheckJudge": "预检 judge 配置",
   "feedback.human.precheckJudgeDone": "judge 配置就绪",
+  "feedback.human.countsWithElsewhere": "共 {{total}} · 复用 {{reused}} · 运行中 {{running}} · 等待中 {{elsewhere}} · 排队 {{queued}} · 已完成 {{completed}}",
+  "feedback.human.waitingOnAnotherRun": "等待另一个并行 run",
+  "feedback.human.lockWaitDetail": "{{count}} 条用例 · pid {{pid}}",
+  "feedback.human.lockWaitStarted": "等待另一个并行 run · {{experimentId}}({{count}} 条用例,pid {{pid}})",
+  "feedback.human.lockWaitResolved": "等待结束 · {{experimentId}}({{summary}},{{elapsed}})",
+  "feedback.human.lockWaitCarried": "{{count}} 条携入",
+  "feedback.human.lockWaitDispatched": "{{count}} 条自跑",
+  "feedback.human.lockedRowSuffix": "locked",
   "feedback.phase.sandboxSetup": "沙箱预置",
   "feedback.phase.scoring": "评分",
   "feedback.phase.teardown": "清理中",

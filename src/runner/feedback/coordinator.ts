@@ -28,6 +28,7 @@ import {
   type ExperimentHookInput,
   type ExperimentProgressInput,
   type PrecheckInput,
+  type LockWaitInput,
   type FailureInput,
   type FeedbackSink,
   type KeptInput,
@@ -272,6 +273,22 @@ export function createFeedbackCoordinator(options: FeedbackCoordinatorOptions): 
     });
   }
 
+  function lockWait(input: LockWaitInput): void {
+    emit({
+      type: "lock-wait",
+      at: io.clock.now(),
+      experimentId: input.experimentId,
+      evalId: input.evalId,
+      status: input.status,
+      ...(input.holderPid !== undefined ? { holderPid: input.holderPid } : {}),
+      ...(input.holderHost !== undefined ? { holderHost: input.holderHost } : {}),
+      ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
+      ...(input.carried !== undefined ? { carried: input.carried } : {}),
+      ...(input.dispatched !== undefined ? { dispatched: input.dispatched } : {}),
+      ...(input.waitedMs !== undefined ? { waitedMs: input.waitedMs } : {}),
+    });
+  }
+
   function reporterError(input: { reporter: string; required: boolean; message: string }): void {
     emit({
       type: "reporter-error",
@@ -313,6 +330,7 @@ export function createFeedbackCoordinator(options: FeedbackCoordinatorOptions): 
       experimentHook,
       experimentProgress,
       precheck,
+      lockWait,
       lifecycle,
     });
     emit({ type: "plan", at: startedAtMs, plan });
@@ -378,6 +396,7 @@ export function createFeedbackCoordinator(options: FeedbackCoordinatorOptions): 
     experimentHook,
     experimentProgress,
     precheck,
+    lockWait,
     lifecycle,
     stopDynamic,
     finish,
@@ -404,8 +423,10 @@ function fallbackTextFor(event: DurableFeedbackEvent): string | undefined {
     case "saved":
     case "experiment-hook":
     case "precheck":
-      // 钩子/预检起止不是失败证据:setup 失败的每条 attempt 另有 "failure" 事件兜底,
-      // 预检失败以既有错误路径中止运行,renderer 崩溃丢一行起止不丢数据。
+    case "lock-wait":
+      // 钩子/预检/锁等待起止都不是失败证据:setup 失败的每条 attempt 另有 "failure" 事件
+      // 兜底,预检失败以既有错误路径中止运行,锁等待解决与否不改变任何 verdict——
+      // renderer 崩溃丢一行起止不丢数据。
       return undefined;
   }
 }

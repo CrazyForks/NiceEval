@@ -865,6 +865,24 @@ export interface ActiveExperimentHook {
 }
 
 /**
+ * dashboard 当前可见的一个「等待并行 run」运行级行(见 docs/feature/experiments/cli.md
+ * 「等待并发 run 的显示」)。用例锁的等待粒度是单个 `(experimentId, evalId)`,但运行级行按
+ * experimentId 聚合展示——一个实验可能同时有多个用例撞锁,只占一行,给出条数与代表持有方。
+ */
+export interface ActiveLockWait {
+  experimentId: string;
+  /** 当前仍在等待的 evalId → 该用例开始等待的时间与持有方身份。`size` 就是运行级行要展示的
+   *  等待条数;为空表示这个实验当前没有在等的用例(条目仍保留在 map 里,供非 TTY 聚合文案
+   *  读取下面两个累计字段,直到下一次 "started" 事件开启新窗口时清零)。 */
+  waiting: ReadonlyMap<string, { startedAt: number; holderPid?: number; holderHost?: string }>;
+  /** 本次「有等待用例」窗口内,累计已经 resolved 且携入 reused 的 attempt 数——供非 TTY 聚合
+   *  收尾行(如 `lock wait resolved · compare/codex (2 carried · 1 to run, 1m 34s)`)读取。 */
+  resolvedCarried: number;
+  /** 同上,累计已经 resolved 且转为自跑(进入 queued)的 attempt 数。 */
+  resolvedDispatched: number;
+}
+
+/**
  * 一次失败/错误的永久通知:human 撤下 dashboard 后追加一行、agent/ci 立即追加一行,都读它。
  * 字段全部结构化(locator / identity / verdict / phase 都是具名字段),profile renderer 不需要
  * 解析 `reason` 之外的任何文本就能拼出机器可读的输出。
@@ -936,6 +954,12 @@ export interface RunFeedbackState {
   total: number;
   reused: number;
   running: number;
+  /** 正被并行 Invocation 持锁运行、本次在等待中的用例的 attempt 数(用例锁,见 `lock-wait`
+   *  变体与 docs/feature/experiments/cli.md「等待并发 run 的显示」);与 `queued` 互斥——
+   *  `queued` 是「等本进程并发位/setup」,`elsewhere` 是「等别的进程」。
+   *  `total = reused + running + elsewhere + queued + completed` 是五项恒等式,在处理完
+   *  每一个事件之后都成立。 */
+  elsewhere: number;
   queued: number;
   completed: number;
   /** attempt:early-exit 事件的累计次数(首过即停省略 + fail-fast 未派发;后者由 fail-fast
@@ -962,6 +986,9 @@ export interface RunFeedbackState {
   /** 在飞的实验级钩子(experimentId → 运行级行状态),由 "experiment-hook" 事件增删、
    *  "experiment:progress" 更新 detail(见 docs/feature/experiments/cli.md「实验级钩子的显示」)。 */
   experimentHooks: ReadonlyMap<string, ActiveExperimentHook>;
+  /** 在飞的用例锁等待,按 experimentId 聚合(见 `ActiveLockWait`、docs/feature/experiments/cli.md
+   *  「等待并发 run 的显示」)。由 "lock-wait" 事件增删/累计;没有等待用例的实验不出现在这个 map 里。 */
+  lockWaits: ReadonlyMap<string, ActiveLockWait>;
   failures: readonly FailureNotice[];
   /** 本次实际派发后产生的去重失败数；复用失败不消耗 profile 的流式输出上限。 */
   freshFailureCount: number;
@@ -1111,6 +1138,36 @@ export type DurableFeedbackEvent =
    * 预检失败不走这个事件——它以既有错误路径中止本次运行。
    */
   | { type: "precheck"; at: number; status: "started" | "done"; durationMs?: number }
+  /**
+   * 用例锁等待的起止(见 docs/feature/experiments/cli.md「等待并发 run 的显示」)。粒度是单个
+   * `(experimentId, evalId)`——同一 eval 的全部 attempt 作为一个整体一起等、一起解决,不按
+   * attempt 拆分。emitter(run.ts)只在这批 attempt 需要重查携带时才发这对事件:全携带用例
+   * 不取锁、无竞争的全新取锁(锁目录里从没出现过这个 key)都不发——静态携带规划的结论不可能
+   * 过时,没有理由重新读盘。撞上新鲜锁(真正等待)与接管一把无人竞争的过期锁(从未真正等待,
+   * `waitedMs` 因此可能接近 0)都算「需要重查」,统一走这对事件——即便是瞬时接管,这批
+   * attempt 也必须先经 "started" 迁入 `elsewhere`,"resolved" 才能把它们正确迁回
+   * `reused`/`queued`,否则它们会永远卡在 `queued`、打破五项恒等式。
+   */
+  | {
+      type: "lock-wait";
+      at: number;
+      experimentId: string;
+      evalId: string;
+      status: "started" | "resolved";
+      /** status 为 "started" 时给出:锁持有方身份,以及这次撞锁进入 elsewhere 等待的 attempt 数
+       *  (该 eval 本轮需要真实派发、被这把锁挡住的 attempt 数;省略按 1 处理)。 */
+      holderPid?: number;
+      holderHost?: string;
+      attempts?: number;
+      /** status 为 "resolved" 时给出:锁释放后重查携带,分别有多少 attempt 从 elsewhere 迁入
+       *  reused(carried)、多少迁入 queued 转为自跑(dispatched)——`runs` 下可能两者都非零
+       *  (部分携入部分补跑)。`--json` 的 `lock_wait` 事件把两者折成单一 `resolution` 字段:
+       *  `dispatched > 0` 记 "dispatched"(这个用例仍需要真实派发,等待没有让它完全免于执行),
+       *  否则记 "carried"(全部由携带满足,零新成本)。 */
+      carried?: number;
+      dispatched?: number;
+      waitedMs?: number;
+    }
   | { type: "interrupted"; at: number }
   | { type: "reporter-error"; at: number; reporter: string; required: boolean; message: string }
   | { type: "summary"; at: number; summary: InvocationSummary; completion: InvocationCompletion }

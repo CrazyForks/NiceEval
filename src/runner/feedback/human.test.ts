@@ -5,7 +5,7 @@
 // boxed 能力下产生可识别的框线字符与正确的面板顺序/分隔,plain/非 TTY 下不产生任何框字符。
 
 import { afterEach, describe, expect, it } from "vitest";
-import { createHumanRenderer, renderDurableLines } from "./human.ts";
+import { createHumanRenderer, renderDurableLines, renderHumanDryPlan } from "./human.ts";
 import { createFakeFeedbackIO } from "./testing.ts";
 import { createInitialRunFeedbackState } from "./reducer.ts";
 import { encodeAttemptKey } from "../types.ts";
@@ -416,5 +416,172 @@ describe("live dashboard — 宽终端下 ACTIVE 行与身份列分配", () => {
     const framedLines = summaryLines.filter((l) => /^[╭╰├]/.test(l));
     expect(framedLines.length).toBeGreaterThan(0);
     for (const l of framedLines) expect(stringWidth(l)).toBe(100);
+  });
+});
+
+// cases: docs/engineering/testing/unit/experiments-runner.md「用例锁与并发 Invocation」——
+// 字节级精确渲染归 E2E · CLI「反馈输出格式」;这里只做与 precheck/experiment-hook 同等级别
+// 的最小 smoke 断言(行是否出现、关键子串是否存在),不断言列宽算术。
+describe("用例锁等待(elsewhere)的显示", () => {
+  it("TTY:等待期间显示运行级行,面板首行的 elsewhere 计数非零", () => {
+    const { io, stderr } = createFakeFeedbackIO({ stderr: { isTTY: true, columns: 100, rows: 30 } });
+    const renderer = createHumanRenderer({ io, command: "niceeval exp compare/codex" });
+    const state: RunFeedbackState = {
+      ...createInitialRunFeedbackState(),
+      total: 3,
+      elsewhere: 2,
+      queued: 1,
+      lockWaits: new Map([
+        [
+          "compare/codex",
+          {
+            experimentId: "compare/codex",
+            waiting: new Map([
+              ["memory/a", { startedAt: 0, holderPid: 41267, holderHost: "mba.local" }],
+              ["memory/b", { startedAt: 5, holderPid: 41267, holderHost: "mba.local" }],
+            ]),
+            resolvedCarried: 0,
+            resolvedDispatched: 0,
+          },
+        ],
+      ]),
+    };
+    renderer.redrawDynamic?.(state);
+
+    const plain = stripAnsi(stderr.writes.join(""));
+    expect(plain).toMatch(/├─ ACTIVE ─+┤/);
+    expect(plain).toContain("waiting on another run");
+    expect(plain).toContain("compare/codex");
+    expect(plain).toContain("2 evals");
+    expect(plain).toContain("pid 41267");
+    expect(plain).toContain("2 elsewhere");
+  });
+
+  it("TTY appendDurable 对 lock-wait 直接返回,不写 scrollback 永久行(运行级行由 state.lockWaits 驱动)", () => {
+    const { io, stdout, stderr } = createFakeFeedbackIO({ stderr: { isTTY: true, columns: 100, rows: 30 } });
+    const renderer = createHumanRenderer({ io, command: "niceeval exp compare/codex" });
+    const state: RunFeedbackState = { ...createInitialRunFeedbackState(), total: 1, elsewhere: 1 };
+    renderer.appendDurable(
+      { type: "lock-wait", at: 0, experimentId: "compare/codex", evalId: "memory/a", status: "started", attempts: 1, holderPid: 1, holderHost: "h" },
+      state,
+    );
+    expect(stdout.writes.join("") + stderr.writes.join("")).toBe("");
+  });
+
+  it("非 TTY:started 只在窗口第一次打开(唯一等待用例)时追加一行,中途加入的用例不逐条刷屏", () => {
+    const { io, stdout } = createFakeFeedbackIO({ stderr: { isTTY: false } });
+    const renderer = createHumanRenderer({ io, command: "niceeval exp compare/codex" });
+    const firstState: RunFeedbackState = {
+      ...createInitialRunFeedbackState(),
+      total: 2,
+      elsewhere: 1,
+      lockWaits: new Map([
+        [
+          "compare/codex",
+          {
+            experimentId: "compare/codex",
+            waiting: new Map([["memory/a", { startedAt: 0, holderPid: 41267 }]]),
+            resolvedCarried: 0,
+            resolvedDispatched: 0,
+          },
+        ],
+      ]),
+    };
+    renderer.appendDurable(
+      { type: "lock-wait", at: 0, experimentId: "compare/codex", evalId: "memory/a", status: "started", attempts: 1, holderPid: 41267, holderHost: "h" },
+      firstState,
+    );
+    const secondState: RunFeedbackState = {
+      ...firstState,
+      elsewhere: 2,
+      lockWaits: new Map([
+        [
+          "compare/codex",
+          {
+            ...firstState.lockWaits.get("compare/codex")!,
+            waiting: new Map([
+              ["memory/a", { startedAt: 0, holderPid: 41267 }],
+              ["memory/b", { startedAt: 1, holderPid: 41267 }],
+            ]),
+          },
+        ],
+      ]),
+    };
+    renderer.appendDurable(
+      { type: "lock-wait", at: 1, experimentId: "compare/codex", evalId: "memory/b", status: "started", attempts: 1, holderPid: 41267, holderHost: "h" },
+      secondState,
+    );
+
+    const out = stdout.writes.join("");
+    expect(out).toContain("waiting on another run · compare/codex");
+    // 只出现一次:第二条(memory/b 加入)是同一窗口内的非首条,静默不刷屏。
+    expect(out.split("waiting on another run").length - 1).toBe(1);
+  });
+
+  it("非 TTY:resolved 只在窗口最后一次关闭(全部等待用例都已解决)时追加聚合收尾行", () => {
+    const { io, stdout } = createFakeFeedbackIO({ stderr: { isTTY: false } });
+    const renderer = createHumanRenderer({ io, command: "niceeval exp compare/codex" });
+    // 还剩一个用例没解决:窗口未关闭,静默。
+    const stillWaitingState: RunFeedbackState = {
+      ...createInitialRunFeedbackState(),
+      lockWaits: new Map([
+        [
+          "compare/codex",
+          {
+            experimentId: "compare/codex",
+            waiting: new Map([["memory/b", { startedAt: 1, holderPid: 1 }]]),
+            resolvedCarried: 2,
+            resolvedDispatched: 0,
+          },
+        ],
+      ]),
+    };
+    renderer.appendDurable(
+      { type: "lock-wait", at: 5, experimentId: "compare/codex", evalId: "memory/a", status: "resolved", carried: 2, dispatched: 0, waitedMs: 5_000 },
+      stillWaitingState,
+    );
+    expect(stdout.writes.join("")).toBe("");
+
+    // 最后一个也解决了:窗口关闭,打印聚合收尾行(carried + dispatched 混合的措辞两面都要覆盖)。
+    const closedState: RunFeedbackState = {
+      ...createInitialRunFeedbackState(),
+      lockWaits: new Map([
+        [
+          "compare/codex",
+          {
+            experimentId: "compare/codex",
+            waiting: new Map(),
+            resolvedCarried: 2,
+            resolvedDispatched: 1,
+          },
+        ],
+      ]),
+    };
+    renderer.appendDurable(
+      { type: "lock-wait", at: 94_000, experimentId: "compare/codex", evalId: "memory/b", status: "resolved", carried: 0, dispatched: 1, waitedMs: 94_000 },
+      closedState,
+    );
+    const out = stdout.writes.join("");
+    expect(out).toContain("lock wait resolved · compare/codex");
+    expect(out).toContain("2 carried");
+    expect(out).toContain("1 to run");
+  });
+});
+
+describe("renderHumanDryPlan: locked 标注", () => {
+  it("locked 为 true 的行尾标注 locked;false/省略的行不受影响", () => {
+    const text = renderHumanDryPlan({
+      totalAttempts: 2,
+      evals: 2,
+      configs: 1,
+      runs: 1,
+      rows: [
+        { experimentId: "compare/codex", evalId: "memory/a", locked: true },
+        { experimentId: "compare/codex", evalId: "memory/b" },
+      ],
+    });
+    const lines = text.trim().split("\n");
+    expect(lines.find((l) => l.includes("memory/a"))).toContain("locked");
+    expect(lines.find((l) => l.includes("memory/b"))).not.toContain("locked");
   });
 });

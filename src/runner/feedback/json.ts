@@ -148,6 +148,26 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
           return;
         }
 
+        case "lock-wait": {
+          noteCheckpoint(event.at);
+          writeEvent(io, {
+            event: "lock_wait",
+            experimentId: event.experimentId,
+            evalId: event.evalId,
+            status: event.status,
+            ...(event.holderPid !== undefined ? { holderPid: event.holderPid } : {}),
+            ...(event.holderHost !== undefined ? { holderHost: event.holderHost } : {}),
+            // 折叠 carried/dispatched 两个内部计数为一个公开 resolution:仍有 attempt 需要真实
+            // 派发(dispatched > 0)记 "dispatched",全部由携带满足才记 "carried"
+            // (见 ../types.ts 里 DurableFeedbackEvent "lock-wait" 变体的字段注释)。
+            ...(event.status === "resolved"
+              ? { resolution: (event.dispatched ?? 0) > 0 ? "dispatched" : "carried" }
+              : {}),
+            ...(event.waitedMs !== undefined ? { waitedMs: event.waitedMs } : {}),
+          });
+          return;
+        }
+
         case "interrupted": {
           noteCheckpoint(event.at);
           if (!isFirstOccurrence(state, "interrupted")) return;
@@ -208,6 +228,7 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
         total: state.total,
         reused: state.reused,
         running: state.running,
+        elsewhere: state.elsewhere,
         queued: state.queued,
         completed: state.completed,
       });
@@ -346,6 +367,11 @@ export interface JsonPlanRow {
   evalId: string;
   /** 命中缓存指纹,本次不会派发新 attempt。 */
   reused: boolean;
+  /** 该用例正被另一条并行 Invocation 持锁运行,真实运行时将等待后携带或补跑(见
+   *  docs/feature/experiments/architecture.md「并发 Invocation:用例锁」)。`--dry` 只读锁
+   *  目录,不取锁、不等待;省略等于 `false`(JSON.stringify 丢弃 `undefined` 属性,
+   *  天然满足这条省略语义,不需要显式写 `locked: false`)。 */
+  locked?: boolean;
 }
 
 export interface JsonPlanInput {

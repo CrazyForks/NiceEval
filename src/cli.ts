@@ -19,6 +19,7 @@ import { fingerprintEvalsFilter, resolveExperimentEvals, selectedEvalsForRun, sp
 import { failureDetailFromResult } from "./runner/feedback/failure.ts";
 import { stopAllSandboxes, liveSandboxCount } from "./sandbox/registry.ts";
 import { drainExperimentTeardowns } from "./runner/experiment-cleanup-registry.ts";
+import { drainHeldCaseLocks, isCaseLockStale, readCaseLock } from "./runner/lock.ts";
 import { CLEANUP_TIMEOUT_MS, withCleanupTimeout } from "./runner/cleanup-timeout.ts";
 import type { ExperimentHookContext } from "./runner/types.ts";
 import { evalLevelStats } from "./shared/verdict.ts";
@@ -933,14 +934,27 @@ async function main(): Promise<void> {
     // (见 docs/feature/experiments/cli.md「机器怎么读:--json」)。两种形态共用同一份摊平
     // 矩阵——(experimentId, evalId) 逐行,携带同一口径的 reused 预测——不是各自重算一遍。
     const dryRuns = Math.max(1, ...agentRuns.map((r) => r.runs));
-    const matrix: JsonPlanRow[] = [];
+    const rowInputs: { experimentId: string; evalId: string; reused: boolean }[] = [];
     for (let i = 0; i < agentRuns.length; i++) {
       const run = agentRuns[i]!;
       for (const e of matchedByRun[i]!) {
         const carriedCount = carryPlan?.carriedAttemptsByKey.get(cacheKey(run, e.id))?.size ?? 0;
-        matrix.push({ experimentId: run.experimentId ?? "", evalId: e.id, reused: carriedCount >= run.runs });
+        rowInputs.push({ experimentId: run.experimentId ?? "", evalId: e.id, reused: carriedCount >= run.runs });
       }
     }
+    // 只读锁目录,不取锁、不等待(见 docs/feature/experiments/architecture.md「并发
+    // Invocation:用例锁」);过期(无人续心跳)的锁不算"正被持锁运行",不标注。裸 run(没有
+    // experimentId)不参与锁,恒不标注。并行读——矩阵行数可能不小,不逐行串行等磁盘。
+    const niceevalRootForDry = resolvePath(cwd, ".niceeval");
+    const now = Date.now();
+    const lockedFlags = await Promise.all(
+      rowInputs.map(async (row) => {
+        if (!row.experimentId) return false;
+        const lock = await readCaseLock(niceevalRootForDry, row.experimentId, row.evalId).catch(() => undefined);
+        return lock !== undefined && !isCaseLockStale(lock, now);
+      }),
+    );
+    const matrix: JsonPlanRow[] = rowInputs.map((row, i) => ({ ...row, ...(lockedFlags[i] ? { locked: true } : {}) }));
     if (outputForm === "json") {
       process.stdout.write(
         renderJsonPlanDocument({
@@ -959,7 +973,7 @@ async function main(): Promise<void> {
           configs: agentRuns.length,
           runs: dryRuns,
           reused: carryPlan?.carriedResults.length ?? 0,
-          rows: matrix.map((row) => ({ experimentId: row.experimentId, evalId: row.evalId })),
+          rows: matrix.map((row) => ({ experimentId: row.experimentId, evalId: row.evalId, locked: row.locked })),
         }),
       );
     }
@@ -1025,6 +1039,7 @@ async function main(): Promise<void> {
       const settled = Promise.allSettled([
         ...(runInFlight ? [runInFlight] : []),
         drainExperimentTeardowns(),
+        drainHeldCaseLocks(),
       ]);
       await Promise.race([
         settled.then(() => {}),
@@ -1101,9 +1116,11 @@ async function main(): Promise<void> {
   }
 
   // 正常返回(含被中断后走部分汇总)后再兜一刀:Scope finalizer 没停掉的残留沙箱、没被运行
-  // 路径消费的实验级 cleanup 在这里强清。跑顺利时两份登记表都已空,是 no-op。
+  // 路径消费的实验级 cleanup、没被 per-attempt Effect.ensuring 释放的用例锁在这里强清。
+  // 跑顺利时三份登记表都已空,是 no-op。
   await stopAllSandboxes();
   await drainExperimentTeardowns();
+  await drainHeldCaseLocks();
 
   // completion 要先算好,--junit 是否"这次真的写出"才有依据(见下)。
   const completion = assembleInvocationCompletion(coordinator.state);
@@ -1140,8 +1157,9 @@ async function main(): Promise<void> {
 
 main().catch(async (e) => {
   process.stderr.write(t("cli.error", { error: formatThrown(e) }));
-  // 真·崩溃路径也别留孤儿:强清还活着的沙箱(带超时)、排空实验级 cleanup 注册表,再退。
+  // 真·崩溃路径也别留孤儿:强清还活着的沙箱(带超时)、排空实验级 cleanup 注册表与用例锁,再退。
   await stopAllSandboxes();
   await drainExperimentTeardowns();
+  await drainHeldCaseLocks();
   process.exit(2);
 });

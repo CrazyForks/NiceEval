@@ -1,6 +1,6 @@
 // cases: docs/engineering/testing/unit/experiments-runner.md
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,9 @@ import {
   type ExperimentProgressInput,
 } from "./feedback/sink.ts";
 import { drainExperimentTeardowns, pendingExperimentTeardownCount } from "./experiment-cleanup-registry.ts";
+import { computeFingerprint } from "./fingerprint.ts";
+import { locksDirOf, pendingHeldCaseLockCount, type CaseLockRecord } from "./lock.ts";
+import { slugHashEntryId } from "../shared/entry-file-store.ts";
 import type { CapturedEvalSource } from "./eval-source.ts";
 import type { CarryPlan } from "./fingerprint.ts";
 import type { AgentRun, RunFeedbackPlan, RunOptions } from "./types.ts";
@@ -1168,6 +1171,7 @@ describe("runEvals · 实验级 setup/teardown", () => {
         progressEvents.push(input);
       },
       precheck() {},
+      lockWait() {},
       lifecycle() {},
     });
     try {
@@ -1414,6 +1418,7 @@ describe("runEvals · 强杀后的启动自愈(收尾登记的补执行)", () =>
       },
       experimentProgress() {},
       precheck() {},
+      lockWait() {},
       lifecycle() {},
     });
 
@@ -1538,6 +1543,7 @@ describe("runEvals · 强杀后的启动自愈(收尾登记的补执行)", () =>
       },
       experimentProgress() {},
       precheck() {},
+      lockWait() {},
       lifecycle() {},
     });
 
@@ -1599,6 +1605,7 @@ describe("runEvals · 强杀后的启动自愈(收尾登记的补执行)", () =>
       },
       experimentProgress() {},
       precheck() {},
+      lockWait() {},
       lifecycle() {},
     });
 
@@ -1976,5 +1983,466 @@ describe("runEvals · 全局并发位在退避期间确实让给别的实验", (
       vi.useRealTimers();
       randomSpy.mockRestore();
     }
+  });
+});
+
+// ═══════════════════════ 用例锁与并发 Invocation ═══════════════════════
+// 契约:docs/feature/experiments/architecture.md「并发 Invocation:用例锁」
+// 裁决出处:memory/case-lock-wait-not-skip-ruling.md(撞锁等待而非跳过、粒度是单条用例)
+// 覆盖规范:docs/engineering/testing/unit/experiments-runner.md「用例锁与并发 Invocation」
+//
+// 这里只覆盖 run.ts 对 lock.ts 的调度层接线:取锁时机(携带规划之后、preflight/实验级
+// setup 之前)、等待语义(不占位、elsewhere 计数)、释放后重查携带(carried/dispatched/
+// 部分携入)、执行模式组合(--force)、释放路径(即使合成 errored 结果也要放锁)。心跳续租 /
+// 过期判据 / 接管 rename 互斥等锁原语自身的机制由 lock.test.ts 覆盖,不在这里重复。
+
+function caseLockPath(root: string, experimentId: string, evalId: string): string {
+  // 必须与 lock.ts 私有的 caseLockEntryId 用完全相同的方式构造,否则读写的不是同一个文件。
+  const id = slugHashEntryId(`${experimentId}-${evalId}`, [experimentId, evalId]);
+  return join(locksDirOf(root), `${id}.json`);
+}
+
+/** 直接写一条锁记录,绕开 acquireCaseLock —— 模拟"另一个进程持有/曾经持有这把锁";心跳
+ *  完全由测试摆布,不会被本进程续租,陈旧与否只取决于种下的 heartbeatAt,不依赖真实时间流逝。 */
+async function seedCaseLock(root: string, record: CaseLockRecord): Promise<void> {
+  const dir = locksDirOf(root);
+  await mkdir(dir, { recursive: true });
+  await writeFile(caseLockPath(root, record.experimentId, record.evalId), JSON.stringify(record, null, 2), "utf-8");
+}
+
+function freshLockRecord(experimentId: string, evalId: string, overrides: Partial<CaseLockRecord> = {}): CaseLockRecord {
+  const now = new Date().toISOString();
+  return { experimentId, evalId, pid: 999_111, host: "other-host", startedAt: now, heartbeatAt: now, ...overrides };
+}
+
+function staleLockRecord(experimentId: string, evalId: string, overrides: Partial<CaseLockRecord> = {}): CaseLockRecord {
+  // 落后 CASE_LOCK_STALE_MS(30_000ms)以上 —— 稳稳越过判死边界(严格 `>`,不是 `>=`)。
+  const staleHeartbeat = new Date(Date.now() - 40_000).toISOString();
+  return { experimentId, evalId, pid: 999_222, host: "dead-host", startedAt: staleHeartbeat, heartbeatAt: staleHeartbeat, ...overrides };
+}
+
+/** 共享的 run() helper 不透传 priorResults;用例锁"释放后重查携带"分支专门按
+ *  RunOptions.priorResults 是否为 undefined 分支(force 模式整段跳过重查,见 cli.ts 的
+ *  `flags.force ? undefined : ...`),需要直接控场,故另建一个不影响其它测试的 helper。 */
+async function runWithPriorResults(
+  evals: DiscoveredEval[],
+  agentRuns: AgentRun[],
+  opts: { priorResults?: EvalResult[]; root?: string; signal?: AbortSignal; maxConcurrency?: number } = {},
+): Promise<{ summary: InvocationSummary; root: string }> {
+  const root = opts.root ?? (await makeRoot());
+  const config: Config = {};
+  const runOpts: RunOptions = {
+    config,
+    evals,
+    agentRuns,
+    reporters: [{ reporter: Artifacts(root), name: "artifacts", required: false }],
+    maxConcurrency: opts.maxConcurrency ?? 3,
+    niceevalRoot: root,
+    ...(opts.priorResults !== undefined ? { priorResults: opts.priorResults } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  };
+  const summary = await runEvals(runOpts);
+  return { summary, root };
+}
+
+async function lockFilesRemaining(root: string): Promise<string[]> {
+  try {
+    return await readdir(locksDirOf(root));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 用例锁的等待轮询每一轮都在"定时器回调恢复"和"注册下一轮定时器"之间插了真实磁盘 I/O
+ * (`readEntryFile` / `claimEntryFile` / `createLockFileExclusive`)。`vi.advanceTimersByTimeAsync`
+ * 只会推进*当前已经挂起*的定时器——如果在它跑的这一刻,上一轮回调触发的真实 I/O 还没来得及
+ * 把下一轮的 `setTimeout` 重新挂上,它就会在"看不到待处理定时器"的那一刻直接返回,让那个稍后
+ * 才补挂上的定时器永远等不到下一次推进(见本文件末尾对这个调试过程的记录)。一次性推过整个
+ * 30s 陈旧窗口(单次 `advanceTimersByTimeAsync(40_000)`)在这个真实 I/O 密集的轮询链路上不可靠
+ * ——每次只推一个心跳周期,推完用 `vi.waitFor` 等真实 I/O 把下一轮定时器重新挂上(或等
+ * `isDone()` 已经成立)再继续推,规避这条竞争。
+ */
+async function advancePastCaseLockPolling(isDone: () => boolean, stepMs = 10_000, maxSteps = 8): Promise<void> {
+  for (let i = 0; i < maxSteps && !isDone(); i++) {
+    await vi.advanceTimersByTimeAsync(stepMs);
+    if (isDone()) return;
+    await vi.waitFor(() => {
+      if (isDone()) return;
+      expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1);
+    });
+  }
+}
+
+describe("runEvals · 用例锁: 取锁时机", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("全部 attempt 都可携带的用例不取锁,不真的派发", async () => {
+    const experimentId = "lock-timing-full-carry-exp";
+    const evalId = "carried-eval";
+    const evalDef = makeEval(evalId, () => {
+      throw new Error("carried attempt must not be dispatched");
+    });
+    const agentRun: AgentRun = {
+      agent: makeAgent("agent-lock-timing-carry"),
+      flags: {},
+      runs: 1,
+      earlyExit: true,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+    };
+    // 指纹依赖 evalDef.sourcePath 的文件内容(makeEval 统一指向本测试文件)与 run 的配置字段,
+    // 不依赖 test() 闭包本身 —— 用真实的 computeFingerprint 算,而不是随便编一个字符串,
+    // 才能真的驱动到"指纹匹配"这条携带路径。
+    const fingerprint = await computeFingerprint(evalDef, agentRun);
+    const prior: EvalResult = {
+      id: evalId,
+      experimentId,
+      agent: agentRun.agent.name,
+      verdict: "passed",
+      attempt: 0,
+      fingerprint,
+      startedAt: new Date().toISOString(),
+      durationMs: 1,
+      assertions: [],
+    };
+
+    const { summary, root } = await runWithPriorResults([evalDef], [agentRun], { priorResults: [prior] });
+
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0]!.verdict).toBe("passed");
+    // 被静态携带规划筛掉的 (experimentId, evalId) 组合从不出现在 attempts[] 里,天然不会
+    // 走到取锁那一步 —— 磁盘上不该留下任何锁文件。
+    expect(await lockFilesRemaining(root)).toEqual([]);
+  });
+
+  it("等锁用例不触发实验级 setup:等待期间 setup 计数保持 0,接管后才恰好执行一次", async () => {
+    vi.useFakeTimers();
+    try {
+      const root = await makeRoot();
+      const experimentId = "lock-timing-setup-exp";
+      const evalId = "setup-gated-eval";
+      await seedCaseLock(root, freshLockRecord(experimentId, evalId));
+
+      let setupCalls = 0;
+      let testCalls = 0;
+      const evalDef = makeEval(evalId, () => {
+        testCalls += 1;
+      });
+      const agentRun: AgentRun = {
+        agent: makeAgent("agent-lock-timing-setup"),
+        flags: {},
+        runs: 1,
+        earlyExit: false,
+        sandbox: fakeSandboxSpec(),
+        timeoutMs: 30_000,
+        selectedEvalIds: [evalId],
+        experimentId,
+        setup: () => {
+          setupCalls += 1;
+        },
+      };
+
+      const runPromise = runWithPriorResults([evalDef], [agentRun], { priorResults: [], root });
+
+      // 等到轮询真的挂起下一次心跳定时器(真实磁盘 I/O 已经跑过一轮),此刻还远没到 30s
+      // 判死线:setup 不该被触发,eval 也不该被派发。
+      await vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1));
+      expect(setupCalls).toBe(0);
+      expect(testCalls).toBe(0);
+      await vi.advanceTimersByTimeAsync(10_000); // 再推一个心跳周期,仍然远短于判死线
+      await vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1));
+      expect(setupCalls).toBe(0);
+
+      // 继续推过判死线,接管发生 —— setup 此刻才第一次执行。
+      await advancePastCaseLockPolling(() => setupCalls === 1);
+      expect(setupCalls).toBe(1);
+
+      const { summary } = await runPromise;
+      expect(summary.results).toHaveLength(1);
+      expect(summary.results[0]!.verdict).toBe("passed");
+      expect(setupCalls).toBe(1);
+      expect(testCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("runEvals · 用例锁: 等待语义", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("撞新鲜锁的用例不派发、不占全局并发位;elsewhere/queued 五项恒等式成立;过期后接管并真实派发(无匹配可携带)", async () => {
+    vi.useFakeTimers();
+    try {
+      const root = await makeRoot();
+      const experimentId = "lock-wait-exp";
+      const evalIdLocked = "locked-eval";
+      const evalIdFree = "free-eval";
+      await seedCaseLock(root, freshLockRecord(experimentId, evalIdLocked));
+
+      let lockedCalls = 0;
+      let freeCalls = 0;
+      const evalLocked = makeEval(evalIdLocked, () => {
+        lockedCalls += 1;
+      });
+      const evalFree = makeEval(evalIdFree, () => {
+        freeCalls += 1;
+      });
+      const agentRun: AgentRun = {
+        agent: makeAgent("agent-lock-wait"),
+        flags: {},
+        runs: 1,
+        earlyExit: false,
+        sandbox: fakeSandboxSpec(),
+        timeoutMs: 30_000,
+        selectedEvalIds: [evalIdLocked, evalIdFree],
+        experimentId,
+      };
+      const plan: RunFeedbackPlan = {
+        shape: { evals: 2, configs: 1, totalAttempts: 2, maxConcurrency: 1 },
+        reused: 0,
+        reusedFailures: [],
+      };
+
+      await withCoordinator(plan, async (coordinator) => {
+        // maxConcurrency: 1(全局唯一名额)——只有在名额紧张到只有一个的情况下,free-eval
+        // 仍能跑完,才证明 locked-eval 的等待确实没有占着这个唯一的全局位;宽松并发会掩盖这一点。
+        const runPromise = runWithPriorResults([evalLocked, evalFree], [agentRun], {
+          priorResults: [],
+          root,
+          maxConcurrency: 1,
+        });
+
+        await vi.waitFor(() => expect(freeCalls).toBe(1));
+        expect(lockedCalls).toBe(0); // 撞锁的用例仍未派发
+        expect(coordinator.state.lockWaits.get(experimentId)?.waiting.has(evalIdLocked)).toBe(true);
+        expect(coordinator.state.elsewhere).toBeGreaterThanOrEqual(1);
+        const mid = coordinator.state;
+        expect(mid.total).toBe(mid.reused + mid.running + mid.elsewhere + mid.queued + mid.completed);
+
+        // 推过 30s 判死线:种下的心跳没有任何进程真的在续租,过期后必须被接管。逐个心跳
+        // 周期推进(见 advancePastCaseLockPolling 注释)——一次性推过整个陈旧窗口在轮询链路
+        // 掺了真实磁盘 I/O 的情况下不可靠。
+        await advancePastCaseLockPolling(() => lockedCalls === 1);
+        expect(lockedCalls).toBe(1); // 确认真的走到了"接管后派发",不是轮询步数耗尽仍未接管
+
+        const { summary } = await runPromise;
+        expect(summary.results).toHaveLength(2);
+        expect(summary.results.every((r) => r.verdict === "passed")).toBe(true);
+        expect(coordinator.state.elsewhere).toBe(0);
+        expect(await lockFilesRemaining(root)).toEqual([]);
+        expect(
+          coordinator.state.diagnostics.some((d) => d.key === `lock-taken-over:${experimentId}|${evalIdLocked}`),
+        ).toBe(true);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("runEvals · 用例锁: 释放后续接", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("指纹匹配携入(carried):产出方落盘终态后来不及释放锁就死掉,续接方接管后直接携入、不重新派发", async () => {
+    const root = await makeRoot();
+    const experimentId = "lock-release-carry-exp";
+    const evalId = "carry-release-eval";
+    const producerRun: AgentRun = {
+      agent: makeAgent("agent-lock-release-carry"),
+      flags: {},
+      runs: 1,
+      earlyExit: true,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+    };
+    const producerEval = makeEval(evalId, () => {});
+    // 用真实 run() 走一遍完整调度,把一条正确 fingerprint 的终态结果落到 root 上 ——
+    // 比手工拼 EvalResult 更省事也更可信(fingerprint / artifactBase 这些字段很容易拼错)。
+    const { summary: producerSummary } = await run([producerEval], [producerRun], { root });
+    expect(producerSummary.results[0]!.verdict).toBe("passed");
+
+    // 模拟"产出方刚写完结果、还没来得及释放锁就被强杀":种一把过期锁,而不是等它自然释放。
+    await seedCaseLock(root, staleLockRecord(experimentId, evalId));
+
+    const subjectEval = makeEval(evalId, () => {
+      throw new Error("carried attempt must not be redispatched");
+    });
+    const plan: RunFeedbackPlan = {
+      shape: { evals: 1, configs: 1, totalAttempts: 1, maxConcurrency: 3 },
+      reused: 0,
+      reusedFailures: [],
+    };
+
+    await withCoordinator(plan, async (coordinator) => {
+      const { summary } = await runWithPriorResults([subjectEval], [producerRun], {
+        priorResults: [],
+        root,
+      });
+
+      expect(summary.results).toHaveLength(1);
+      expect(summary.results[0]!.verdict).toBe("passed");
+      expect(coordinator.state.reused).toBe(1);
+      expect(coordinator.state.elsewhere).toBe(0);
+      expect(await lockFilesRemaining(root)).toEqual([]);
+    });
+  });
+
+  it("不匹配转自跑(dispatched):磁盘上没有任何终态结果时,接管过期锁后真实派发", async () => {
+    const root = await makeRoot();
+    const experimentId = "lock-release-dispatch-exp";
+    const evalId = "dispatch-release-eval";
+    await seedCaseLock(root, staleLockRecord(experimentId, evalId));
+
+    let calls = 0;
+    const evalDef = makeEval(evalId, () => {
+      calls += 1;
+    });
+    const agentRun: AgentRun = {
+      agent: makeAgent("agent-lock-release-dispatch"),
+      flags: {},
+      runs: 1,
+      earlyExit: true,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+    };
+
+    const { summary } = await runWithPriorResults([evalDef], [agentRun], { priorResults: [], root });
+
+    expect(calls).toBe(1);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0]!.verdict).toBe("passed");
+    expect(await lockFilesRemaining(root)).toEqual([]);
+  });
+
+  it("runs 部分携入部分补跑:已有 1 条终态时,续接方 runs:2 只补差额序号,不重跑已携入的序号", async () => {
+    const root = await makeRoot();
+    const experimentId = "lock-release-partial-exp";
+    const evalId = "partial-release-eval";
+    const producerRun: AgentRun = {
+      agent: makeAgent("agent-lock-release-partial"),
+      flags: {},
+      runs: 1,
+      earlyExit: false,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+    };
+    const producerEval = makeEval(evalId, () => {});
+    const { summary: producerSummary } = await run([producerEval], [producerRun], { root });
+    expect(producerSummary.results[0]!.verdict).toBe("passed");
+
+    await seedCaseLock(root, staleLockRecord(experimentId, evalId));
+
+    let calls = 0;
+    const subjectEval = makeEval(evalId, () => {
+      calls += 1;
+    });
+    // earlyExit: false —— 携入的 passed 会预置进 passedKeys(见 run.ts 对 lateCarriedResults
+    // 的处理),开着 earlyExit 会让差额序号也被当成"已知会通过"提前省略,测不出"差额真的被
+    // 重新派发"这件事本身。
+    const subjectRun: AgentRun = { ...producerRun, runs: 2, earlyExit: false };
+
+    const { summary } = await runWithPriorResults([subjectEval], [subjectRun], { priorResults: [], root });
+
+    expect(calls).toBe(1); // 只有差额(序号 1)真的跑了一次,序号 0 被携入、没有重跑
+    const results = summary.results.filter((r) => r.id === evalId);
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => r.verdict === "passed")).toBe(true);
+    expect(results.map((r) => r.attempt).sort()).toEqual([0, 1]);
+  });
+});
+
+describe("runEvals · 用例锁: 执行模式组合", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("--force(RunOptions.priorResults 为 undefined)下,等待/接管后不消费携带 —— 即使指纹匹配的终态结果确实存在,也全部自跑", async () => {
+    const root = await makeRoot();
+    const experimentId = "lock-force-exp";
+    const evalId = "force-eval";
+    const producerRun: AgentRun = {
+      agent: makeAgent("agent-lock-force"),
+      flags: {},
+      runs: 1,
+      earlyExit: true,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+    };
+    const producerEval = makeEval(evalId, () => {});
+    const { summary: producerSummary } = await run([producerEval], [producerRun], { root });
+    expect(producerSummary.results[0]!.verdict).toBe("passed");
+
+    await seedCaseLock(root, staleLockRecord(experimentId, evalId));
+
+    let calls = 0;
+    const subjectEval = makeEval(evalId, () => {
+      calls += 1;
+    });
+
+    // force 模式:cli.ts 在 --force 时整段不传 priorResults(不是传空数组) —— 这里同样
+    // 省略 priorResults 字段,而不是传 []。
+    const { summary } = await runWithPriorResults([subjectEval], [producerRun], { root });
+
+    expect(calls).toBe(1); // 真正重新派发了一次,不是悄悄吞成携入的旧结果
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0]!.verdict).toBe("passed");
+    expect(await lockFilesRemaining(root)).toEqual([]);
+  });
+});
+
+describe("runEvals · 用例锁: 释放路径", () => {
+  afterEach(() => {
+    expect(activeFeedbackSinkCount()).toBe(0);
+    expect(pendingHeldCaseLockCount()).toBe(0);
+  });
+
+  it("实验级 setup 抛错、全部 attempt 合成 errored 结果时,锁仍必须被释放", async () => {
+    const experimentId = "lock-setup-fail-exp";
+    const evalId = "setup-fail-eval";
+    const evalDef = makeEval(evalId, () => {});
+    const agentRun: AgentRun = {
+      agent: makeAgent("agent-lock-setup-fail"),
+      flags: {},
+      runs: 1,
+      earlyExit: true,
+      sandbox: fakeSandboxSpec(),
+      timeoutMs: 5_000,
+      selectedEvalIds: [evalId],
+      experimentId,
+      setup: () => {
+        throw new Error("tunnel refused to start");
+      },
+    };
+
+    // 无竞争的全新取锁(没有种任何锁),证明即便本实验一个 attempt 都没有真正派发过 agent
+    // (body 走的是合成 errored 的分支),外层 Effect.ensuring 挂的用例锁释放仍然会触发。
+    const { summary, root } = await runWithPriorResults([evalDef], [agentRun], {});
+
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0]!.verdict).toBe("errored");
+    expect(summary.results[0]!.error?.code).toBe("experiment-setup-failed");
+    expect(await lockFilesRemaining(root)).toEqual([]);
   });
 });
