@@ -69,7 +69,7 @@ import {
   recordAttemptOutcome,
 } from "./record/attachments.ts";
 import { adapterUsageForResult } from "./adapter-usage.ts";
-import { adapterAttachmentsForResult } from "./adapter-attachments.ts";
+import { adapterAttachmentsForResult, releaseAdapterAttachments } from "./adapter-attachments.ts";
 import {
   adapterExecutionTracesForResult,
   validateExecutionTracePublication,
@@ -834,6 +834,7 @@ export function openRunnerRecordCoordinator(input: {
           );
           return undefined;
         })),
+        Effect.ensuring(Effect.promise(() => releaseAdapterAttachments(result))),
       ),
       markNotDispatched: (attempt: Attempt) => {
         const targetSlot = targetForAttempt(attempt);

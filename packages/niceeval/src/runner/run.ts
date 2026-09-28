@@ -2817,6 +2817,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
                   attemptOptions,
                   sandboxSem,
                   {
+                    attachmentScope: invocationScope,
                     buildLocators,
                     ...(setupPrefixPreparation.preparedByPair.get(cacheKey(a.run, a.evalDef.id)) === undefined
                       ? {}

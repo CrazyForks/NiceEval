@@ -330,7 +330,13 @@ function readArtifact(
 ): InspectionArtifactBytes {
   const cached = state.artifacts.get(artifactId);
   if (cached !== undefined) return cached;
-  const read = readInspectionArtifactBytes(resolved, artifactId);
+  const read = readInspectionArtifactBytes(resolved, artifactId, Math.min(
+    64 * 1024 * 1024,
+    ExecutionTraceRecordLimits.maximumEvidenceSourceBytes - state.sourceBytes,
+  ));
+  if (Result.isFailure(read) && read.failure.code === "inspection-request-invalid") {
+    throw new InspectionExecutionTraceError("evidence-budget-exceeded", "Execution evidence source budget exceeded.");
+  }
   if (Result.isFailure(read) || read.success === undefined) throw integrity(`Execution evidence artifact ${artifactId} is unavailable.`);
   state.sourceBytes += read.success.byteLength;
   if (state.sourceBytes > ExecutionTraceRecordLimits.maximumEvidenceSourceBytes) {

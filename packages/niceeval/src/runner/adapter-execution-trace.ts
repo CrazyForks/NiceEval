@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { openSync, readSync, closeSync } from "node:fs";
 
 import { Data, Result, Schema } from "effect";
 
@@ -214,14 +215,34 @@ function parseArtifactJson(artifact: CapturedAdapterAttachment): unknown {
       `Evidence artifact ${artifact.artifactId} is not application/json.`,
     );
   }
+  if (artifact.byteLength > 64 * 1024 * 1024) {
+    throw traceError("execution-trace-limit", "JSON evidence attachment exceeds the 64 MiB parsing limit.");
+  }
+  let bytes: Uint8Array;
+  try {
+    if (artifact.filePath === undefined) bytes = artifact.bytes;
+    else {
+      const fd = openSync(artifact.filePath, "r");
+      try {
+        const bounded = new Uint8Array(artifact.byteLength + 1);
+        let read = 0;
+        while (read < bounded.byteLength) {
+          const count = readSync(fd, bounded, read, bounded.byteLength - read, null);
+          if (count === 0) break;
+          read += count;
+        }
+        bytes = bounded.subarray(0, read);
+      } finally { closeSync(fd); }
+    }
+    if (bytes.byteLength !== artifact.byteLength || digest(bytes) !== artifact.sha256) throw new Error("Attachment integrity check failed");
+  } catch {
+    throw traceError("execution-trace-evidence-missing", `Evidence artifact ${artifact.artifactId} integrity check failed.`);
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(artifact.bytes)) as unknown;
+    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
   } catch {
-    throw traceError(
-      "execution-trace-evidence-missing",
-      `Evidence artifact ${artifact.artifactId} is not valid UTF-8 JSON.`,
-    );
+    throw traceError("execution-trace-evidence-missing", `Evidence artifact ${artifact.artifactId} is not valid UTF-8 JSON.`);
   }
   return parsed;
 }
@@ -354,8 +375,7 @@ export function createAdapterExecutionTraceCollector(
 
       const byArtifactId = new Map(artifacts().map((artifact) => [artifact.artifactId, artifact] as const));
       const parsedArtifacts = new Map<string, unknown>();
-      const verifiedArtifacts = new Set<string>();
-      const verifiedTargets = new Map<string, VerifiedEvidenceTarget>();
+        const verifiedTargets = new Map<string, VerifiedEvidenceTarget>();
       let evidenceSourceBytes = 0;
       let evidenceTargetBytes = 0;
       const pendingIds = new Set<string>();
@@ -389,15 +409,9 @@ export function createAdapterExecutionTraceCollector(
             throw traceError("execution-trace-evidence-missing", `Evidence artifact ${evidence.artifactId} is not attached to this Attempt.`);
           }
           const artifactCacheKey = `${artifact.artifactId}\u0000${artifact.sha256}`;
-          if (!verifiedArtifacts.has(artifactCacheKey)) {
-            if (digest(artifact.bytes) !== artifact.sha256) {
-              throw traceError("execution-trace-evidence-missing", `Evidence artifact ${artifact.artifactId} digest is invalid.`);
-            }
-            verifiedArtifacts.add(artifactCacheKey);
-          }
           let artifactJson = parsedArtifacts.get(artifactCacheKey);
           if (artifactJson === undefined) {
-            evidenceSourceBytes += artifact.bytes.byteLength;
+            evidenceSourceBytes += artifact.byteLength;
             if (evidenceSourceBytes > ExecutionTraceRecordLimits.maximumEvidenceSourceBytes) {
               throw traceError("evidence-budget-exceeded", "Execution trace evidence source budget exceeded.");
             }
@@ -529,7 +543,6 @@ export function validateExecutionTracePublication(
 ): void {
   const byArtifactId = new Map(artifacts.map((artifact) => [artifact.artifactId, artifact] as const));
   const parsedArtifacts = new Map<string, unknown>();
-  const verifiedArtifacts = new Set<string>();
   const verifiedTargets = new Map<string, VerifiedEvidenceTarget>();
   let sourceBytes = 0;
   let targetBytes = 0;
@@ -606,15 +619,9 @@ export function validateExecutionTracePublication(
           throw traceError("execution-trace-evidence-missing", "Execution trace evidence artifact closure is invalid.");
         }
         const artifactCacheKey = `${artifact.artifactId}\u0000${artifact.sha256}`;
-        if (!verifiedArtifacts.has(artifactCacheKey)) {
-          if (digest(artifact.bytes) !== evidence.artifactSha256) {
-            throw traceError("execution-trace-evidence-missing", "Execution trace evidence artifact closure is invalid.");
-          }
-          verifiedArtifacts.add(artifactCacheKey);
-        }
         let artifactJson = parsedArtifacts.get(artifactCacheKey);
         if (artifactJson === undefined) {
-          sourceBytes += artifact.bytes.byteLength;
+          sourceBytes += artifact.byteLength;
           if (sourceBytes > ExecutionTraceRecordLimits.maximumEvidenceSourceBytes) {
             throw traceError("evidence-budget-exceeded", "Execution trace evidence source budget exceeded at publication.");
           }

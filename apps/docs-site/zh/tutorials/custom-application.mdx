@@ -221,6 +221,37 @@ niceeval show @<attempt> --execution --expand <eventId>
 缺少日志时使用 partial 并列出 limitations；不要用空集合表示未知。窗口外事件保留为 excluded 或 unknown，轨迹导入本身不产生评分。
 已保存的轨迹与证据随 Record 搬迁，查看时不调用原应用或模型。
 
+## 归档大附件
+
+应用可把文件、网络响应或生成器作为原始字节流交给 `ctx.attach`。NiceEval 不解析日志格式：
+
+```ts
+import { createReadStream } from "node:fs";
+
+const receipt = await ctx.attach({
+  name: "journal.ndjson",
+  mediaType: "application/x-ndjson",
+  body: {
+    stream: signal => createReadStream(localPath, {
+      signal,
+      highWaterMark: 64 * 1024,
+    }),
+  },
+  signal: ctx.signal,
+});
+```
+
+先关闭本地日志的写入端，再提交归档；读取期间保持源文件稳定。
+成功回执包含 `artifactId`、原始 bytes 的 `sha256` 和 `byteLength`，此后删除或改写源文件不会改变附件。
+回执只表示内容已接管；Attempt 发布后，附件才能随 Record 持久保存。这不表示上传到了远端服务。
+
+流每块最多 1 MiB、单件最多 1 GiB，每个 Attempt 的附件总量最多 2 GiB，同时最多归档 4 个流。
+字符串和数组仍是单件 64 MiB、累计 256 MiB。自定义来源必须响应传入的取消信号，释放自己的文件或连接。
+框架逐块复制并写入后才拉取下一块，不收集整件内容。大附件可以分块读取；作为 trace 的 JSON pointer 证据时，单件仍须不超过 64 MiB。
+
+在 `ctx.onCleanup` 内归档时，使用 cleanup 回调提供的 `signal`，不要使用已取消的 `ctx.signal`。
+归档失败即使被捕获，也会留下采集失败；此前成功接管的附件保留。大文件应在执行期归档，cleanup 总窗口仍是 30 秒。
+
 ## 阅读结果
 
 应用结果交给 `t.check` 后，NiceEval 保存有界检查材料和判定。

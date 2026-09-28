@@ -3,7 +3,8 @@
 // 沙箱编排的固定段在 runAttemptBody(基线→setup→驱动 test→采 diff→评分→判定→收 trace),
 // adapter 只填「把 agent 跑起来」一段。
 
-import { Data, Effect, Cause, Duration, Result, Exit, Fiber, Option, Semaphore } from "effect";
+import { Data, Effect, Cause, Duration, Result, Exit, Fiber, Option, Semaphore, Scope } from "effect";
+import { recordRootPaths } from "../record/platform/root.ts";
 import {
   acquireSandboxRunPlan,
   prepareMaterializedSandboxRunPlan,
@@ -285,6 +286,8 @@ export function attemptFailureDeclaration(
 }
 
 export interface RunAttemptEffectOptions<SealRequirements = never> {
+  /** Retains staged attachment files through publication and releases them on every Invocation exit. */
+  readonly attachmentScope: Scope.Scope;
   /** Run 级构建执行产出的 locator；key 集合必须与 Attempt.plan 的完成态物理计划完全一致。 */
   readonly buildLocators: ReadonlyMap<string, JsonValue>;
   /** Run-level prepared prefix already materialized as this Attempt's starting sandbox. */
@@ -368,6 +371,7 @@ export function runAttemptEffect<
   opts: RunOptions<AttachmentError, AttachmentRequirements>,
   sandboxSem: Semaphore.Semaphore,
   {
+    attachmentScope,
     buildLocators,
     preparedSetupPrefix,
     runTiming,
@@ -822,7 +826,9 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
         });
         adapterResources = resources;
         adapterUsage = new AdapterUsageCollector(() => resources.assertCaptureOpen(), config.pricing);
-        adapterAttachments = createAdapterAttachmentCollector();
+        adapterAttachments = createAdapterAttachmentCollector(`${recordRootPaths(opts.recordRoot)!.portableRoot}/attachment-staging`);
+        const ownedAttachments = adapterAttachments;
+        yield* Scope.addFinalizer(attachmentScope, Effect.promise(() => ownedAttachments.dispose()));
         adapterExecutionTraces = createAdapterExecutionTraceCollector(adapterAttachments.artifacts);
 
         // Scope LIFO freezes Assertions before releasing author resources.
@@ -1808,7 +1814,7 @@ function runAdapterAttemptBody(
         log,
         onCleanup: (cleanup) => resources.onCleanup(cleanup),
         recordUsage: usage.record,
-        attach: attachments.attach,
+        attach: (input) => resources.trackHandoff(attachments.attach(input)),
         recordTrace: executionTraces.recordTrace,
       });
       // A synchronous plain object is validated before Promise assimilation;

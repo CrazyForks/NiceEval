@@ -85,3 +85,21 @@ Adapter 附件随 Record 搬迁后经公开目录与分块读取保留字节及 
 Contract: [docs/feature/adapters/README.md](../../../feature/adapters/README.md)
 
 附件非法输入与容量限制明确失败，已接管内容仍可读取。
+## 文件附件以有界内存接管，源文件改写后 receipt 与公开分块读取仍保留原 bytes。 {#file-attachment-archive}
+
+<!-- niceeval.e2e-owner-contract/v1 -->
+Contract: [docs/feature/adapters/library.md](../../../feature/adapters/library.md)
+
+文件附件以有界内存接管，源文件改写后 receipt 与公开分块读取仍保留原 bytes。
+## 文件归档取消、输入失败与 cleanup 关闭释放文件并保留已接纳附件及 partial 结果。 {#file-attachment-failure}
+
+<!-- niceeval.e2e-owner-contract/v1 -->
+Contract: [docs/feature/adapters/library.md](../../../feature/adapters/library.md)
+
+文件归档取消、输入失败与 cleanup 关闭释放文件并保留已接纳附件及 partial 结果。
+## Attempt 超时取消流后，独立 cleanup 时段仍可归档诊断附件且释放暂存文件。 {#stream-attachment-timeout}
+
+<!-- niceeval.e2e-owner-contract/v1 -->
+Contract: [docs/feature/adapters/library.md](../../../feature/adapters/library.md)
+
+Attempt 超时取消流后，独立 cleanup 时段仍可归档诊断附件且释放暂存文件。

@@ -255,7 +255,7 @@ complete 的 limitations 必须为空，partial 必须有原因；从未提交�
 同 trace 的 key、scopeId 唯一；同事件的 evidence key 与 membership 不重复。
 
 一次接纳或读取最多处理 256 MiB 原始附件内容与 128 MiB 规范化证据目标，相同附件及 pointer 复用校验结果。
-超过预算明确失败，不返回未经验证的预览。单件附件仍受附件入口的 64 MiB 限制。
+超过预算明确失败，不返回未经验证的预览。作为 JSON pointer 证据的单件附件最多 64 MiB，读取前检查大小。
 
 接纳在返回 Promise 前完成验证与复制，不绑定已取消的执行 signal。Adapter 可在独立 cleanup 接纳时段结束前提交
 已验证的 partial；正常和失败路径应共享一次 finish。接纳时段结束后的调用拒绝且不改变封存事实。
@@ -273,18 +273,58 @@ const receipt = await ctx.attach({
 });
 ```
 
-输入 `body` 为 `Uint8Array | string`；字符串按 UTF-8 编码。`name` 是显示标签，允许同名，不用作磁盘路径，
-也不替换同名附件。框架为每次成功接管分配独立 `artifactId`，返回
-`{ artifactId, name, mediaType, byteLength, sha256 }`。
+公开输入与回执形状如下：
 
-调用在返回 Promise 前复制 bytes；调用方随后修改原数组不会改写已接管内容。Promise 成功只证明接管，
-持久性由 Attempt publication 提供。附件 bytes 随 Record 保存，搬走 Record 后无需保留源文件或应用工作目录。
+```ts
+interface AdapterAttachmentInput {
+  readonly name: string;
+  readonly mediaType: string;
+  readonly body: Uint8Array | string | {
+    readonly stream: (signal: AbortSignal) => AsyncIterable<Uint8Array>;
+  };
+  readonly signal?: AbortSignal;
+}
 
-每个 Attempt 最多接管 4000 件、累计 256 MiB，每件最多 64 MiB，边界值可用。非法输入、超限和关闭后的调用明确拒绝；
-采集失败不会丢弃此前已接管的内容。关闭前发生的失败保留为 Attempt 执行错误，collection 标为 partial，即使作者捕获了拒绝。
+interface AdapterAttachmentReceipt {
+  readonly artifactId: string;
+  readonly name: string;
+  readonly mediaType: string;
+  readonly byteLength: number;
+  readonly sha256: string;
+}
+```
 
-Attempt 取消不立刻关闭附件入口。已登记 cleanup 在独立 cleanup 时限内仍可附加诊断材料；cleanup 完成或截止时关闭入口并封存快照。
-关闭后的迟到调用不能修改封存事实。读取使用 [Inspection 的附件 operation](../inspection/architecture.md#附件分块读取)。
+字符串按 UTF-8 编码。`name` 是显示标签，允许同名，不用作磁盘路径，也不替换同名附件。
+每次成功接管分配独立 `artifactId`。`mediaType` 是内容标签；归档不做内容解码、转换或业务格式推断。
+
+字符串和数组在返回 Promise 前复制，调用方随后修改原数组不会改写已接管内容。
+流工厂只调用一次；框架把取消信号传给字节 producer，每次只拉取一块，复制并写完当前块才请求下一块。
+每块必须是至多 1 MiB 的 `Uint8Array`，字节 producer在下一次拉取前不得修改它。
+文件可由调用方使用 `stream: signal => createReadStream(path, { signal })` 提供，路径不进入附件事实。
+
+流的 Promise 成功前，框架已完成原始 bytes 的独立归档并关闭自己的写入文件。
+字节 producer必须提供有限内容；调用方在读取期间保持源文件稳定，收到成功回执后可立即修改或删除源文件。
+`byteLength` 与 `sha256` 来自实际接管的原始 bytes，不来自调用方声明或路径。
+Promise 成功只证明接管，持久性由 Attempt publication 提供；本地暂存不是远端上传。
+附件随 Record 保存，搬走 Record 后无需保留源文件或应用工作目录。
+
+每个 Attempt 最多接管 4000 件。字符串和数组单件最多 64 MiB，累计最多 256 MiB。
+流单件最多 1 GiB；所有字节 producer连同正在写入的内容累计最多 2 GiB。
+每个 Attempt 最多同时归档 4 个流，额外调用明确拒绝，不启动字节 producer。边界值可用。
+暂存目录位于 Record 的项目存储目录，使用私有目录与文件权限；并发磁盘预算是单 Attempt 上限乘以执行并发数。
+分块和并发上限限制框架持有的内存与文件句柄；字节 producer自己的预取、缓存和外部资源由字节 producer负责。
+
+非法输入、超限、字节 producer异常、调用方取消和关闭后的调用明确拒绝，不返回部分内容的成功回执。
+失败释放该次部分归档，保留此前成功接管的附件。关闭前的失败保留为 Attempt 执行错误，collection 标为 partial，即使作者捕获了拒绝。
+
+Attempt 取消不立刻关闭附件入口。已登记 cleanup 在独立时限内仍可附加诊断材料；cleanup 完成或截止时关闭入口并封存快照。
+调用方可通过 `signal` 提前取消单次归档；流收到的信号同时受入口关闭控制。
+取消或失败时框架停止拉取，发出取消信号并请求迭代器 `return()`，关闭自己的文件并删除部分归档。
+字节 producer必须响应信号并释放自己的资源；不协作的 `next()` 或 `return()` 不阻塞框架关闭，也不能在迟到后改变封存结果。
+
+已发起但未等待的归档仍进入既有 30 秒 cleanup 总时限；到期即取消，流式归档不延长该时限。归档成功不等于发布成功；发布失败不能返回成功的持久 Record。
+发布成功或失败后立即释放暂存副本，未走到发布的异常路径在 Invocation 退出时删除暂存副本。
+读取使用 [Inspection 的附件 operation](../inspection/architecture.md#附件分块读取)。
 
 ## 上报外部调用用量
 

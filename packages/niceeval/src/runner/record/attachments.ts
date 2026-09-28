@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
+import { createReadStream } from "node:fs";
+import * as NodeStream from "@effect/platform-node/NodeStream";
 
-import { Effect, Result, Schema } from "effect";
+import { Effect, Result, Schema, Stream } from "effect";
 
 import type { SealedAttemptAssertions } from "../../assertions/api.ts";
 import {
@@ -138,16 +140,56 @@ export function createRunnerAssertionsAttachment(
   }));
 }
 
-interface ArtifactCapture {
+interface ArtifactCaptureMetadata {
   readonly artifactId?: string;
   readonly mediaType: string;
   readonly label: string;
-  readonly bytes: Uint8Array;
 }
+type ArtifactCapture = ArtifactCaptureMetadata & (
+  | { readonly bytes: Uint8Array; readonly filePath?: never }
+  | { readonly filePath: string; readonly byteLength: number; readonly sha256: string; readonly bytes?: never }
+);
 
 export type ArtifactsAttachmentBuild = (
   build: RecordAttachmentSessionBuilder,
 ) => ArtifactsAttachment;
+
+/** The stream scope is the publication read lease; it closes before staging disposal. */
+function archivedContentStream(artifact: { readonly filePath: string; readonly byteLength: number; readonly sha256: string }) {
+  return Stream.unwrap(Effect.gen(function* () {
+    const readable = yield* Effect.acquireRelease(
+      Effect.sync(() => createReadStream(artifact.filePath, { highWaterMark: 64 * 1024 })),
+      (source) => Effect.promise(async () => {
+        if (source.closed) return;
+        const closed = new Promise<void>((resolve) => source.once("close", resolve));
+        source.destroy();
+        await closed;
+      }),
+    );
+    const hash = createHash("sha256");
+    let byteLength = 0;
+    const bytes = NodeStream.fromReadable<Uint8Array, Error>({
+      evaluate: () => readable,
+      onError: (cause) => new Error("Archived attachment could not be read", { cause }),
+    }).pipe(Stream.mapEffect((chunk) => Effect.try({
+      try: () => {
+        byteLength += chunk.byteLength;
+        if (byteLength > artifact.byteLength) throw new Error("Archived attachment length changed");
+        hash.update(chunk);
+        return chunk;
+      },
+      catch: (cause) => new Error("Archived attachment integrity check failed", { cause }),
+    })));
+    return Stream.concat(bytes, Stream.drain(Stream.fromEffect(Effect.try({
+      try: () => {
+        if (byteLength !== artifact.byteLength || hash.digest("hex") !== artifact.sha256) {
+          throw new Error("Archived attachment integrity check failed");
+        }
+      },
+      catch: (cause) => new Error("Archived attachment integrity check failed", { cause }),
+    }))));
+  }));
+}
 
 function artifactsAttachment(input: {
   readonly artifacts: readonly ArtifactCapture[];
@@ -155,12 +197,14 @@ function artifactsAttachment(input: {
   readonly captureFailed?: boolean;
 }): ArtifactsAttachmentBuild {
   const captures = Object.freeze(input.artifacts.map((artifact) => {
+    if (artifact.filePath !== undefined) return Object.freeze({ ...artifact, artifactId: artifact.artifactId ?? `art_${randomBytes(10).toString("hex")}` });
     const bytes = artifact.artifactId === undefined ? new Uint8Array(artifact.bytes) : artifact.bytes;
     return Object.freeze({
       artifactId: artifact.artifactId ?? `art_${randomBytes(10).toString("hex")}`,
       mediaType: artifact.mediaType,
       label: artifact.label,
       bytes,
+      filePath: undefined,
       byteLength: bytes.byteLength,
       sha256: createHash("sha256").update(bytes).digest("hex"),
     });
@@ -190,7 +234,9 @@ function artifactsAttachment(input: {
         label: artifact.label,
         byteLength: artifact.byteLength,
         sha256: artifact.sha256,
-        content: build.content.bytes(artifact.bytes),
+        content: artifact.filePath === undefined
+          ? build.content.bytes(artifact.bytes)
+          : build.content.stream(archivedContentStream(artifact)),
       }))),
     });
     const decoded = Schema.decodeUnknownResult(
@@ -212,7 +258,9 @@ export function createAttemptArtifactsAttachment(
     artifactId: artifact.artifactId,
     mediaType: artifact.mediaType,
     label: artifact.name,
-    bytes: artifact.bytes,
+    ...(artifact.filePath === undefined
+      ? { bytes: artifact.bytes }
+      : { filePath: artifact.filePath, byteLength: artifact.byteLength, sha256: artifact.sha256 }),
   }));
   let omittedAtLeast = 0;
   const appendJson = (label: string, value: unknown): void => {
@@ -232,7 +280,7 @@ export function createAttemptArtifactsAttachment(
       return;
     }
     const bytes = new TextEncoder().encode(encoded);
-    if (bytes.byteLength > ArtifactsLimits.maximumContentBytes) {
+    if (bytes.byteLength > 64 * 1024 * 1024) {
       omittedAtLeast += 1;
       return;
     }

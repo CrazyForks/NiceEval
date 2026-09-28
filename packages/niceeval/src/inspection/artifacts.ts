@@ -145,6 +145,7 @@ export function projectAttemptArtifact(
 export function readInspectionArtifactBytes(
   resolved: ResolvedInspectionAttempt,
   artifactId: string,
+  maximumBytes: number,
 ): Result.Result<InspectionArtifactBytes | undefined, InspectionArtifactError> {
   if (Result.isFailure(decodeRequest({ artifactId }))) return requestInvalid("Invalid artifact ID.");
   try {
@@ -199,6 +200,7 @@ export function readInspectionArtifactBytes(
       artifact.byteLength < 0) {
       throw new Error("Artifact descriptor does not match sealed content metadata.");
     }
+    if (artifact.byteLength > maximumBytes) return requestInvalid("Artifact exceeds the evidence parsing budget.");
     return Result.succeed(Object.freeze({
       artifactId,
       name: artifact.label,
