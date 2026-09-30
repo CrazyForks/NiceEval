@@ -77,6 +77,16 @@ test.concurrent("暂停的 owner 不会因 heartbeat 年龄失权，等待者可
 
           expect(holder.signal("SIGSTOP")).toBe(true);
 
+          // The last running sample can advance before SIGSTOP takes effect.
+          // Establish the frozen baseline through the same public inspection.
+          const pausedBaselineInspection = await niceeval.run([
+            "exp", "shared-state-pause-holder", "--teardown",
+            "--recover-shared-state", "runner/shared-state-pause",
+          ]);
+          expect(pausedBaselineInspection.exitCode, pausedBaselineInspection.diagnostic()).toBe(1);
+          const pausedHeartbeat = heartbeatFromPublicRecoveryInspection(pausedBaselineInspection.stderr);
+          expect(Date.parse(pausedHeartbeat)).toBeGreaterThanOrEqual(Date.parse(advancedHeartbeat));
+
           waiter = niceeval.start(["exp", "shared-state-pause-waiter", "--rerun", "all", "--json"], {
             env: { NICEEVAL_SHARED_STATE_BARRIER: barrierRoot },
             timeoutMs: 75_000,
@@ -91,7 +101,7 @@ test.concurrent("暂停的 owner 不会因 heartbeat 年龄失权，等待者可
           // Wait for that age as a positive clock condition after observing the
           // public wait event; marker absence alone is not the rendezvous.
           await pollUntil(
-            async () => Date.now() - Date.parse(advancedHeartbeat) >= 35_000 ? true : undefined,
+            async () => Date.now() - Date.parse(pausedHeartbeat) >= 35_000 ? true : undefined,
             { timeoutMs: 40_000, intervalMs: 50, label: "paused owner exceeds the former heartbeat expiry" },
           );
           expect(await exists(join(barrierRoot, "pause-waiter-setup-attempted"))).toBe(false);
@@ -103,7 +113,7 @@ test.concurrent("暂停的 owner 不会因 heartbeat 年龄失权，等待者可
           // SIGSTOP prevents the holder from writing another sidecar update;
           // its stale diagnostic timestamp is never an automatic-takeover
           // condition, as proved by the blocked waiter above.
-          expect(heartbeatFromPublicRecoveryInspection(pausedInspection.stderr)).toBe(advancedHeartbeat);
+          expect(heartbeatFromPublicRecoveryInspection(pausedInspection.stderr)).toBe(pausedHeartbeat);
 
           const interruptedAt = Date.now();
           expect(waiter.signal("SIGINT")).toBe(true);
