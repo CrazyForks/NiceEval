@@ -118,6 +118,8 @@ Function 的 Record、cutoff 和摘要来自同一已验证私有 generation；s
 
 同一 contribution 关闭 Netlify context identity，形成发布 closure 与 build receipt。`netlify.toml` 只调用入口并声明 publish directory 与 response headers。部署后的只读验收从 `pnpm preview:accept -- --input <file>` 进入，不把 Netlify token 或 GitHub token 交给领域命令。
 
+PR 的文档与源码审阅由 [Concord 变更预览](concord-preview.md)提供。Preview contribution 取得实际目标分支与提交身份，将只读页面纳入同一发布目录；产品页读取 Record，差异页读取 Git 提交。
+
 ## 验收
 
 Repository Tools 不建立独立测试 project，也不签入用于复述实现的 fake。行为验收直接运行正式入口：只读命令核对退出码与该领域 receipt；写命令在临时目录或获准隔离消费仓库核对精确 Git diff、锁释放和子进程终止。
