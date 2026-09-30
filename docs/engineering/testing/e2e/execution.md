@@ -318,7 +318,11 @@ main push、schedule、release 验收和显式 full dispatch 固定传 `--no-dif
 - `packages/niceeval/bin/**` 与 `packages/niceeval/scripts/package-runtime/**`；
 - `packages/repo-tools/src/docs/reference-compiler.ts`、`INDEX.md` 与 `INDEX.template.md`；
 - `apps/docs-site/zh/**`、`apps/docs-site/images/**` 与 `dist/**`；
-- root `.npmrc`、`.npmignore`、`.gitignore`、自动纳入文件、pnpm 配置、package metadata 与 root tsconfig。
+- root `.npmrc`、`.npmignore`、`.gitignore`、自动纳入文件、pnpm 全局配置、非依赖 package metadata 与 root tsconfig。
+
+根 lockfile 按各 importer 的完整依赖闭包选择对应 project 下游。
+根 manifest 的站点专用 `next` 依赖由产品站拥有；其它根依赖仍属于共享输入。
+精确比较、异常回退与候选包依赖边界见[依赖更新](../../task-orchestration/README.md#依赖更新)。
 
 本地 diff 同时读取 staged、unstaged、tracked 删除和未忽略 untracked 路径；rename 按 delete 与 add 处理。
 多个显式 Repo 中有任一不属于 lane 时，plan 失败，不能静默删掉它。`--no-diff` 与显式

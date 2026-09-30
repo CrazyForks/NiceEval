@@ -145,9 +145,26 @@ mutation 收据。
 planner 用 Nx 同一套 `.gitignore` + `.nxignore` 语义交叉校验 changed paths，不能在 workflow 或 planner 里再复制 glob 表。
 修改 `.nxignore` 自身会触发全量，分类边界的变化必须先经过完整无密钥 lane。
 
-共享输入不建伪产品域。Testkit、`packages/e2e-runner/**`、package root / runtime builder、lockfile、workspace / Nx 配置以及
+共享输入不建伪产品域。Testkit、`packages/e2e-runner/**`、package root / runtime builder、workspace / Nx 配置以及
 E2E workflow 的变化属于所有 `e2e` target 的 workspace inputs，必须产生当前 lane 全量。单个 `e2e/<id>/**` 仍只影响该叶子；
 多个叶子同时变化时取并集，只有共享 runner、选择器、注入或 receipt 设施变化才扩为全量。
+
+### 依赖更新
+
+根 `pnpm-lock.yaml` 按 base 与 head 的 importer 分别比较依赖声明和完整 resolution 闭包。
+直接版本、传递依赖、peer resolution、integrity 与补丁变化都属于依赖变化。
+每个受影响 importer 使用其 `package.json` 所属 project 的下游集合；产品包、Testkit 和共享 runner 的依赖变化仍选择全量。
+单个场景的独立 lockfile 只影响该场景。
+
+根 manifest 的 `devDependencies.next` 由 `apps/site` 拥有，不参与产品 E2E。
+根其它依赖和非依赖字段变化仍属于共享输入；lockfile 的全局设置变化也选择全量。
+这个例外只作用于根 importer，不能跳过产品包或测试设施的同名依赖。
+
+planner 将依赖差异映射到这些 project 的 `project.json`，再交给 Nx 传播和交叉校验。
+原始 changed paths 与 base/head 保留在计划收据中。
+本地 dirty 内容与 `HEAD` 比较；显式路径只声明变化但没有内容差异时，保留原路径的保守选择。
+缺少版本、lockfile 解码失败或依赖闭包不完整时进入 `fail-open-full`。
+未知 importer 必须有 project 归属，不能作为合法空选择。
 
 ## Changed path 完整性
 
@@ -220,6 +237,10 @@ base/head 和 Nx graph JSON：
 | 变更样本 | 预期 |
 |---|---|
 | `apps/site/**`、`docs/**` | `affected`，零产品 E2E |
+| 根 `next` 与站点 importer 的直接或传递依赖更新 | `affected`，零产品 E2E |
+| 候选包、Testkit、共享 runner 或根共享工具的依赖更新 | 当前 lane 全量 |
+| lockfile 全局设置变化 | 当前 lane 全量 |
+| lockfile 解码失败、缺少 snapshot 或未知 importer | `fail-open-full`，当前 lane 全量 |
 | `.agents/**`、`memory/**` 等 `.nxignore` 路径 | `affected`，零产品 E2E |
 | `apps/docs-site/zh/**` | 只选 Package owner |
 | `record/**` | `eval`、`migrate`、`report`、`runner` |
