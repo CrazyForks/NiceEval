@@ -11,6 +11,8 @@ node_modules/
 /.repo-tools/test-evidence/
 /.netlify-view-preview/
 /.playwright-mcp/
+# 本地下游安装包
+/artifacts/dev-links/
 *.log
 .DS_Store
 dist/
