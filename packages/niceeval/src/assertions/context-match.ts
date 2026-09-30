@@ -1,11 +1,17 @@
 import { Predicate } from "effect";
 import { assertManagedValueMatch, isManagedToolMatch, isManagedEventMatch, type BooleanMatch, type ScoreMatch, type ManagedToolCalls, type ManagedEventOccurrences, type ToolMatch, type EventMatch, type ToolOccurrenceView, type EventOccurrenceView } from "./match.ts";
 
+// A named container keeps recursive array elements deferred until they are read.
+interface ReadonlyMaterialArray<T> extends ReadonlyArray<ReadonlyMaterial<T>> {}
+
 export type ReadonlyMaterial<T> =
   T extends ManagedToolCalls | ManagedEventOccurrences ? T
   : T extends (...args: infer A) => infer R ? (...args: A) => ReadonlyMaterial<R>
   : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<K, ReadonlyMaterial<V>>
   : T extends ReadonlySet<infer V> ? ReadonlySet<ReadonlyMaterial<V>>
+  : T extends readonly unknown[] ? ReadonlyArray<T[number]> extends Readonly<T>
+    ? ReadonlyMaterialArray<T[number]>
+    : { readonly [K in keyof T]: ReadonlyMaterial<T[K]> }
   : T extends object ? { readonly [K in keyof T]: ReadonlyMaterial<T[K]> } : T;
 export type MatchContext<C> = ReadonlyMaterial<C>;
 export interface MaterialItem<T> { readonly id: string; readonly value: T }
