@@ -39,18 +39,15 @@ export default defineEval({
   async test(t) {
     const operation = "完成数据导入";
     const turn = await t.send(operation);
-    t.closeQA({
-      input: operation,
-      output: turn.message,
-      context: "操作完成后，回复必须明确说明数据导入成功。",
-    })
+    turn.closeQA("这轮是否清楚汇报执行情况和数据导入结果？")
       .gate(0.8)
       .label("成功表达");
   },
 });
 ```
 
-`t.closeQA` 在登记时快照显式材料，`.gate(0.8)` 在同一 `MeasurementAssertionHandle` 上形成条件并参与通过制判定。它等价于 `t.check(material, closeQA())`，不会创建第二条 Assertion。
+`turn.closeQA(question)` 在登记时捕获当前 Turn 的完整正式历史，组合受管评分 Match 并交给同一 `check`。`.gate(0.8)` 在同一个 measurement handle 上形成质量门。完整空集为0且零调用；证据不足为 `unavailable`。
+只检查特定消息或工具时，显式传领域 Match；不同应用的业务材料使用自定义 MaterialMatch。
 
 ## 附加图片材料
 

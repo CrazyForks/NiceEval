@@ -227,7 +227,7 @@ function toolMatchEvaluation(
   return result;
 }
 
-function toolMatcherQuery(
+export function toolMatcherQuery(
   match: ToolMatch,
   summary: import("./api.ts").AssertionSnapshotValue = Object.freeze({
     matcher: match.name,
@@ -245,7 +245,7 @@ function toolMatcherQuery(
   });
 }
 
-function eventMatcherQuery(
+export function eventMatcherQuery(
   match: EventMatch,
   summary: import("./api.ts").AssertionSnapshotValue = Object.freeze({ matcher: match.name }),
 ): MatcherQuery<ProjectedMatcherCandidate<EventOccurrenceView>> {

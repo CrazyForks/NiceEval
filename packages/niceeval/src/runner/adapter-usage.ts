@@ -1,3 +1,4 @@
+import { projectAdapterEvalUsage, type EvalUsage } from "../o11y/eval-usage.ts";
 import { Result, Schema } from "effect";
 import type { AdapterUsageInput } from "../adapter-usage.ts";
 import { createAdapterCallPriceReceipts } from "../o11y/adapter-call-price.ts";
@@ -36,7 +37,7 @@ export class AdapterUsageCollector {
         cacheWriteTokens: input.cacheWriteTokens ?? null,
       });
       if (Result.isFailure(decoded)) throw new Error("Invalid Adapter usage snapshot");
-      const call = Object.freeze(decoded.success);
+      const call = deepFreeze(structuredClone(decoded.success));
       const prior = this.calls.get(call.callId);
       if (prior !== undefined) {
         if (JSON.stringify(prior) !== JSON.stringify(call)) throw new Error("Conflicting Adapter usage snapshot for callId");
@@ -53,8 +54,12 @@ export class AdapterUsageCollector {
       throw cause;
     }
   };
+  snapshot(): EvalUsage { return projectAdapterEvalUsage(deepFreeze(structuredClone(this.capture()))); }
   close(): AdapterUsageAttachment {
     this.closed = true;
+    return this.capture();
+  }
+  private capture(): AdapterUsageAttachment {
     const calls = Object.freeze([...this.calls.values()]);
     return Object.freeze({
       collection: this.failed === undefined
@@ -64,4 +69,9 @@ export class AdapterUsageCollector {
       priceReceipts: createAdapterCallPriceReceipts(calls, this.pricing),
     });
   }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") { for (const child of Object.values(value)) deepFreeze(child); Object.freeze(value); }
+  return value;
 }

@@ -56,12 +56,14 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
             name: `custom-${implementation}`,
             contract: "e2e/native-workflow/v1",
             behaviorRevision: "1",
+            cleanupTimeoutMs: 30_000,
           },
         });
         expect(execution?.adapter).toEqual({
           name: `custom-${implementation}`,
           contract: "e2e/native-workflow/v1",
           behaviorRevision: "1",
+            cleanupTimeoutMs: 30_000,
         });
         expect(execution?.adapter).not.toHaveProperty("kind");
         expect(execution).not.toHaveProperty("application");
@@ -91,6 +93,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
               name: `custom-${implementation}`,
               contract: "e2e/native-workflow/v1",
               behaviorRevision: "1",
+            cleanupTimeoutMs: 30_000,
             });
             expect(entry.adapter).not.toHaveProperty("kind");
           }

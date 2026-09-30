@@ -3,6 +3,33 @@
 Adapter 作者从 `niceeval/adapter` 导入构造器、转换器与流式组合件。
 这一页从可运行代码开始；内部数据结构和不变量见 [Architecture](architecture.md)。
 
+## Attempt 取消与资源释放预算
+
+普通应用以 Attempt 为运行边界，Session 与 Turn 仅属于 Agent 应用协议。
+应用可以自行提供 start、waitUntil 与 finalize；框架不生成隐式轮次。
+Agent 的 send 等待一次应用交互完成，即时应用可以等待业务事件或状态条件成立。
+两者都在等待事实后继续评估；应用决定交互与观察边界，通用 Match 不订阅事件，也不承担等待循环。
+
+`defineAdapter` 与 `AdapterContract.implement` 的 `cleanupTimeoutMs` 声明该实现的整个 cleanup 时段。
+默认 30000 ms，允许整数 1–300000 ms。预算由实现固定，不接受 Experiment、Config 或 CLI 替换。
+它进入公开 Adapter identity 和配置指纹；不同预算不能默默复用相同运行配置。
+
+`AdapterCreateContext.signal` 为 `AttemptSignal`，未取消时 reason 为 undefined。
+取消后 reason 是冻结的判别联合：timeout 包含 timeoutMs、source 和 Unix 毫秒 deadlineAt；cancelled 表示外部或 Host Effect 取消。
+source 使用执行时限的 flag、experiment、eval、config 四层词表，不通过异常文案猜测。
+
+`onCleanup` 的冻结 context 提供独立 signal、timeoutMs 与 deadlineAt。
+预算从实际进入 cleanup 开始，全部回调、晚到注册、handoff 和归档共享同一截止，不逐项重新计时。
+预算到期先关闭所有采集入口，再通知取消。应用自建 signal 不能延长框架时段。
+
+正常路径先停止输入、排空并封存事实，再执行最终 check/judge。
+执行取消时先关闭断言登记，cleanup 只允许上报用量、附件、trace 和诊断。
+abort 不证明物理请求已结束，真实完成必须来自应用回执。
+游戏测量截止与排空尾部分开，cleanup 不延长已固定的业务时间。
+
+普通 cleanup 回调抛错保留 warning 并继续其它释放。总时段超时产生 adapter-cleanup-timeout 执行错误。
+需要排空成功才能评分时，作者在正常 test 中等待 finalize。第二次 OS signal 仍可强制退出。
+
 ## Direct Agent
 
 被测对象通过 HTTP、RPC 或其它进程外协议提供服务时，使用 `defineAgent`：
@@ -322,7 +349,7 @@ Attempt 取消不立刻关闭附件入口。已登记 cleanup 在独立时限内
 取消或失败时框架停止拉取，发出取消信号并请求迭代器 `return()`，关闭自己的文件并删除部分归档。
 字节 producer必须响应信号并释放自己的资源；不协作的 `next()` 或 `return()` 不阻塞框架关闭，也不能在迟到后改变封存结果。
 
-已发起但未等待的归档仍进入既有 30 秒 cleanup 总时限；到期即取消，流式归档不延长该时限。归档成功不等于发布成功；发布失败不能返回成功的持久 Record。
+已发起但未等待的归档仍进入该 Adapter 的 cleanup 总时限；到期即取消，流式归档不延长该时限。归档成功不等于发布成功；发布失败不能返回成功的持久 Record。
 发布成功或失败后立即释放暂存副本，未走到发布的异常路径在 Invocation 退出时删除暂存副本。
 读取使用 [Inspection 的附件 operation](../inspection/architecture.md#附件分块读取)。
 
@@ -401,3 +428,55 @@ Overview 的 token 指标逐次调用选择可用输入总量：`inputTotalToken
 
 用量入口与附件入口共用 Attempt 的有界 cleanup 生命周期。取消后 cleanup 未结束时仍可上报；
 关闭后的调用拒绝且不能改写已封存事实。关闭前的采集错误即使被作者捕获，也保留为最终执行错误。
+
+## 读取官方用量与耗时
+
+Adapter 用 `ctx.recordUsage(call)` 上报每个物理请求的最终快照，评估从同一账本读取，不汇总应用 journal。
+
+
+
+```ts
+const usage = t.usage;
+if (usage.source === "adapter") {
+  t.check(usage.totalTokens, atMost(10_000)).gate();
+  t.check(usage, customUsageScore).score(30);
+}
+t.maxTokens(10_000).gate();
+t.maxCost(0.1).gate();
+t.check(t.elapsedMs, atMost(60_000)).gate();
+```
+
+usage 的 source 为 adapter、agent 或 unavailable；Adapter 的 basis 为 recorded-calls。
+
+Adapter快照范围是本 Attempt 在调用处已上报的全部物理请求，包括失败与重试。
+
+
+快照深度冻结且与账本隔离；后续 cleanup 上报不修改已登记断言。
+
+Agent 使用同一 EvalUsage 形状，其 basis 为 reported-sends，按 Turn、Session 或 Attempt 选择实际 invoke 的用量贡献。
+
+
+inputTotalTokens 优先于互斥输入/缓存桶求和；totalTokens再加outputTokens，不重复计算输入。
+
+
+数量为 exact、lower-bound 或 unavailable。
+
+未知字段不补0；超出 safe integer 为 unavailable。
+
+
+NumericMaterial 保留 provenance 的 source/scope/unit/cut；字段提取后仍可复核范围。
+
+
+
+maxCost 比较USD有效成本：优先实扣金额（包括0），否则仅用显式pricing的封存估算。
+
+十进制精确比较，不隐式兑换币种。
+
+
+已知超额可失败；只有全部请求都有完整USD金额才通过；混合币种或缺失金额为下界或 unavailable。
+
+
+elapsedMs使用runtime的Attempt单调时钟起点到调用处的墙钟毫秒，包含setup和等待，不包含未来cleanup。
+
+
+游戏时钟或首次完成时间由应用事实提供，不能用墙钟代替。

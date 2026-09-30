@@ -1,3 +1,4 @@
+import { AdapterCleanupTimeoutMsSchema } from "../../shared/adapter-cleanup.ts";
 import { Result, Schema } from "effect";
 import {
   canonicalRecordJsonText,
@@ -37,6 +38,8 @@ export type AdapterIdentity = {
   readonly contract: string;
   /** `null` means the author did not claim a stable behavior revision. */
   readonly behaviorRevision: string | null;
+  /** Custom Adapter cleanup budget; absent when not applicable or not recorded. */
+  readonly cleanupTimeoutMs?: number;
 };
 
 export interface RunExecutionContext {
@@ -86,6 +89,7 @@ export const AdapterIdentitySchema: Schema.Codec<AdapterIdentity> = Schema.Struc
   name: NonEmptyStringSchema,
   contract: NonEmptyStringSchema,
   behaviorRevision: Schema.NullOr(NonEmptyStringSchema),
+  cleanupTimeoutMs: Schema.optionalKey(AdapterCleanupTimeoutMsSchema),
 });
 
 const RunExecutionContextSchema: Schema.Codec<RunExecutionContext> = Schema.Struct({

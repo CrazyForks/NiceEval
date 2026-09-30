@@ -26,7 +26,15 @@ NiceEval 是一个 Agent-Native 的评估工具。Dataset / golden 那一套「�
 
 ## 架构
 
-NiceEval 支持两种接入方式，取决于被测 agent 是否需要隔离的沙箱文件系统。
+### 统一评估层
+
+游戏和工作流 Adapter 与 Agent 属于同一应用层。应用负责事实与领域 sugar：Agent 的 `usedNoTools()` 和游戏自定义判据都通过共享的 Match 与 `check` 登记。Match、`check`、`closeQA`、Assertion handle、托管 Judge 和审计属于通用评估层。
+
+`closeQA(materialMatch, question)` 跨应用评估全部命中材料。Agent 封装当前 scope 的完整材料，提供 `closeQA(question)` 简写。`usedNoTools()` 完全零参数，不收 Match。完整契约见 [API 设计](docs/api-design.md#通用评估与应用断言) 和 [自定义 Match](docs/feature/assertions/library/custom-assertions.md)。
+
+### Agent 接入
+
+Sandbox 和 Direct 是 Agent 应用的两种接入方式，取决于被测 agent 是否需要隔离的沙箱文件系统。其它应用通过自己的 Adapter 操作使用同一评估层。
 
 **模式一：Sandbox（Docker、E2B）—— 跑 Codex、Claude Code 等需要 sandbox 的 coding agent**
 
@@ -68,7 +76,7 @@ NiceEval 支持两种接入方式，取决于被测 agent 是否需要隔离的�
 ```
 
 - **NiceEval 核心** 负责发现 eval、调度运行、打分、生成报告与 artifacts。
-- **Agent 适配器** 是开放的边界：你来决定如何调用被测系统。
+- **应用 Adapter** 是开放的边界：你来决定如何调用被测系统。
 - 需要文件系统隔离的 coding agent 走 **Docker Sandbox**；自有的 AI Agent 可以直连，无需 Docker。
 
 ## 核心概念一览
@@ -77,7 +85,7 @@ NiceEval 支持两种接入方式，取决于被测 agent 是否需要隔离的�
 |---|---|
 | Eval | 一个测试用例：写在 `evals/*.eval.ts` 里，描述测什么。 |
 | Experiment | 可签入的运行配置：决定连哪个 Adapter、什么 model、什么 flags。 |
-| Adapter | 连接被测系统的适配层：实现一个 `send`，把返回翻译成标准事件流。 |
+| Adapter | 连接被测系统，提供应用操作与事实；Agent 在此基础上提供 Session、Turn 与标准事件。 |
 | Sandbox | 需要隔离工作区的 coding agent 才用得到；直连 Web Agent 不需要。 |
 | Tier | 接入 Adapter 的三档投入：Tier 1 只接 send，Tier 2 加 OTel 换调用瀑布图，Tier 3 侵入改造做 feature A/B。 |
 

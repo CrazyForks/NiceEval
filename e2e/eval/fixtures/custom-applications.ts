@@ -182,8 +182,18 @@ export const customCreateFailure = lifecycleContract.implement({
 export const customTimeoutCancellation = lifecycleContract.implement({
   name: "custom-timeout-cancellation",
   behaviorRevision: "1",
+  cleanupTimeoutMs: 1_000,
   async create(context) {
     await writeJournal({ scenario: "timeout", event: "acquired", attempt: context.attempt });
+    context.signal.addEventListener("abort", () => {
+      const reason = context.signal.reason;
+      void writeJournal({
+        scenario: "timeout", attempt: context.attempt,
+        event: reason?.kind === "timeout" && reason.timeoutMs === 500 && reason.source === "experiment" &&
+          Number.isFinite(reason.deadlineAt) && reason.deadlineAt <= Date.now() && Object.isFrozen(reason)
+          ? "typed-attempt-timeout" : `invalid-attempt-reason:${JSON.stringify(reason)}:now=${Date.now()}:frozen=${Object.isFrozen(reason)}`,
+      });
+    }, { once: true });
     registerAfterTimeout = () => context.onCleanup(() => {});
     let acknowledgeLateObservation!: () => void;
     const lateObservation = new Promise<void>((resolve) => { acknowledgeLateObservation = resolve; });
@@ -279,5 +289,28 @@ export const successfulSlowCleanup = defineAdapter({
         return Promise.reject(new Error("Invalid async assertion return")) as unknown as ReturnType<typeof check>;
       },
     };
+  },
+});
+
+// Resource acquisition completes after execution cancellation. Releasing it lets
+// the in-flight create callback finish; cleanup must wake for the late registration.
+export const lateCreateCleanup = defineAdapter({
+  name: "late-create-cleanup",
+  cleanupTimeoutMs: 2_000,
+  async create(ctx) {
+    await new Promise<void>((resolve) => {
+      if (ctx.signal.aborted) resolve();
+      else ctx.signal.addEventListener("abort", () => resolve(), { once: true });
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    let released!: () => void;
+    const release = new Promise<void>((resolve) => { released = resolve; });
+    ctx.onCleanup(async () => {
+      await writeJournal({ scenario: "late-create", event: "released", attempt: ctx.attempt });
+      released();
+    });
+    await release;
+    await writeJournal({ scenario: "late-create", event: "create-settled", attempt: ctx.attempt });
+    return { ready: true };
   },
 });

@@ -77,7 +77,7 @@ export function defineJudge(options: JudgeOptions): JudgeDefinition {
     anchors.push(Object.freeze({ measurement, description: boundedText(anchor.description, `Judge anchors[${index}].description`, 1024) }));
   }
   if (anchors[0]?.measurement !== 0 || anchors.at(-1)?.measurement !== 1) throw new TypeError("Judge anchors must include 0 and 1");
-  const maxMaterialBytes = input.maxMaterialBytes === undefined ? 32 * 1024 : positiveInteger(input.maxMaterialBytes, "Judge maxMaterialBytes", 48 * 1024);
+  const maxMaterialBytes = input.maxMaterialBytes === undefined ? 32 * 1024 : positiveInteger(input.maxMaterialBytes, "Judge maxMaterialBytes", 4 * 1024 * 1024);
   const definition = defineScoreMatch<unknown>({
     name,
     version: "1",
@@ -85,7 +85,7 @@ export function defineJudge(options: JudgeOptions): JudgeDefinition {
     llm: {
       maxMaterialBytes,
       ...(input.maxCalls === undefined ? {} : { maxCalls: positiveInteger(input.maxCalls, "Judge maxCalls", 16) }),
-      ...(input.maxAuditBytes === undefined ? {} : { maxAuditBytes: positiveInteger(input.maxAuditBytes, "Judge maxAuditBytes", 256 * 1024) }),
+      ...(input.maxAuditBytes === undefined ? {} : { maxAuditBytes: positiveInteger(input.maxAuditBytes, "Judge maxAuditBytes", 8 * 1024 * 1024) }),
     },
     score: (material, context) => context.llm.score({ rubric, anchors, material: material as JudgeMaterial })
       .pipe(Effect.map((result) => ({ state: "measured" as const, ...result }))),
@@ -105,8 +105,8 @@ export interface CapturedImageReference {
 interface SnapshotState { nodes: number; readonly ancestors: WeakSet<object>; readonly images?: Map<JudgeImage, { imageId: string; evidenceIndex: number; paths: string[] }>; imageBytes?: number; imageReferences?: number; }
 function snapshotMaterial(value: unknown, state: SnapshotState, depth = 0, path = ""): unknown {
   state.nodes += 1;
-  if (state.nodes > 16_384) throw new TypeError("Judge material exceeds 16,384 traversal nodes");
-  if (depth > 32) throw new TypeError("Judge material exceeds depth 32");
+  if (state.nodes > 2_097_152) throw new TypeError("Judge material exceeds 2,097,152 traversal nodes");
+  if (depth > 72) throw new TypeError("Judge material exceeds depth 72");
   if (isJudgeImage(value)) {
     if (state.images === undefined) throw new TypeError("Judge image is only valid in material");
     const image = readJudgeImage(value);

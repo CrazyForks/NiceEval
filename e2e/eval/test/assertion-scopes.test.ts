@@ -121,8 +121,15 @@ test("大量真实工具事件的 scope Assertion 仍以 passed 终态发布 [ne
           operation: "attempt.assertion.detail",
           assertion: { entryId: detail.entry.entryId, display: detail.entry.display },
         });
+
         return assertionEntry(detail.document, detail.receipt.diagnostic());
       });
+      expect(labeled(assertions, "managed tool selection", inspected.receipt.diagnostic()).decision.result).toBe("matched");
+      for (const label of ["usage snapshot isolated", "turn usage owner", "session usage owner", "attempt usage owner", "attempt runtime elapsed", "attempt context selection", "session context selection"]) {
+        expect(labeled(assertions, label, inspected.receipt.diagnostic()).decision.result).toBe("matched");
+      }
+
+      expect(labeled(assertions, "managed event selection", inspected.receipt.diagnostic()).decision.result).toBe("matched");
       for (const assertion of assertions) {
         expect(assertion.criterion.state).toBeTruthy();
         expect(assertion.materials).toBeTruthy();

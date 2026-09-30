@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { only } from "@niceeval/testkit";
+import { defineAdapter } from "niceeval/adapter";
 import { expect, test } from "vitest";
 import { customLifecycleJournal } from "../fixtures/custom-applications.ts";
 import { evalE2E } from "./context.ts";
@@ -20,6 +21,11 @@ async function journalEntries(projectRoot: string): Promise<readonly JournalEntr
 }
 
 test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion [necase_KVGC223S45HDV8SX]", async () => {
+  for (const cleanupTimeoutMs of [0, -1, 0.5, 300_001, NaN, Infinity]) {
+    expect(() => defineAdapter({
+      name: "invalid-cleanup-budget", cleanupTimeoutMs, create: () => ({}),
+    })).toThrow(TypeError);
+  }
   await evalE2E.case(
     "custom-application-lifecycle",
     { artifacts: [{ source: ".niceeval", target: ".niceeval", optional: true }] },
@@ -46,6 +52,13 @@ test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且�
         { scenario: "create-failure", event: "acquired", attempt: 0 },
         { scenario: "create-failure", event: "cleanup-inner-live-frozen", attempt: 0 },
         { scenario: "create-failure", event: "cleanup-outer-shared-live-frozen", attempt: 0 },
+      ]);
+
+      const lateCreate = await niceeval.run(["exp", "custom-late-cleanup", "--rerun", "all", "--json"]);
+      expect(lateCreate.exitCode, lateCreate.diagnostic()).toBe(1);
+      expect((await journalEntries(projectRoot)).filter(({ scenario }) => scenario === "late-create")).toEqual([
+        { scenario: "late-create", event: "released", attempt: 0 },
+        { scenario: "late-create", event: "create-settled", attempt: 0 },
       ]);
 
       const cancelled = await niceeval.run([
@@ -93,6 +106,7 @@ test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且�
       const afterCancellation = await journalEntries(projectRoot);
       expect(afterCancellation.filter(({ scenario }) => scenario === "timeout")).toEqual([
         { scenario: "timeout", event: "acquired", attempt: 0 },
+        { scenario: "timeout", event: "typed-attempt-timeout", attempt: 0 },
         { scenario: "timeout", event: "abort-check-rejected", attempt: 0 },
         { scenario: "timeout", event: "abort-handle-rejected", attempt: 0 },
         { scenario: "timeout", event: "abort-method-rejected", attempt: 0 },

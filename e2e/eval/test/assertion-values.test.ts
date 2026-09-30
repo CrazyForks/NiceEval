@@ -7,6 +7,10 @@ import { evalE2E } from "./context.ts";
 import { assertionEntry, inspectAssertionEntries, inspectAttempt } from "./inspection.ts";
 
 const MATCHED_LABELS = [
+  "inOrder.adjacent:matched", "inOrder.subsequence:matched", "inOrder.distinct-items:matched",
+  "inOrder.known-witness:matched", "inOrder.alternatives:matched", "inOrder.not:matched",
+  "inOrder.step-known-witness:matched", "inOrder.heard-movement:matched",
+  "countWhere:matched", "countWhere.empty:matched", "filterWhere.mapEach:matched", "mapValue:matched",
   "includes:matched", "excludes:matched", "pattern:matched", "includesUrl:matched",
   "hasSections:matched", "isDefined:matched", "isTrue:matched", "isFalse:matched",
   "equals:matched", "matches:matched", "satisfies:matched", "defineValueMatch:matched",
@@ -22,6 +26,9 @@ const MATCHED_LABELS = [
 ] as const;
 
 const MISMATCHED_LABELS = [
+  "inOrder.reverse:mismatched", "inOrder.empty:mismatched", "inOrder.single-item:mismatched",
+  "inOrder.impossible:mismatched", "inOrder.not:mismatched", "inOrder.heard-movement:mismatched",
+  "countWhere:mismatched", "filterWhere.mapEach:mismatched", "mapValue:mismatched",
   "includes:mismatched", "excludes:mismatched", "pattern:mismatched", "includesUrl:mismatched",
   "hasSections:mismatched", "isDefined:mismatched", "isTrue:mismatched", "isFalse:mismatched",
   "equals:mismatched", "matches:mismatched", "satisfies:mismatched", "defineValueMatch:mismatched",
@@ -34,6 +41,14 @@ const MISMATCHED_LABELS = [
   "commandMatch.executable:mismatched", "commandMatch.argsStart:mismatched",
   "commandMatch.excludes:mismatched", "commandMatch.status:mismatched", "eventMatch:mismatched",
   "eventMatch.tool:mismatched", "eventMatch.finished:mismatched", "eventOrder:mismatched",
+] as const;
+
+const UNAVAILABLE_LABELS = [
+  "inOrder.possible:unavailable", "inOrder.nonfinite:unavailable", "inOrder.null:unavailable",
+  "inOrder.hole:unavailable", "inOrder.not:unavailable", "inOrder.step:unavailable",
+  "inOrder.partial:unavailable", "inOrder.source:unavailable",
+  "countWhere.nan:unavailable", "countWhere.partial:unavailable", "countWhere.item:unavailable",
+  "filterWhere.item:unavailable", "mapEach.nan:unavailable", "mapValue.nan:unavailable",
 ] as const;
 
 function assertionOutcomeMap(entries: readonly { display: unknown; decision: unknown }[]): Map<string, string> {
@@ -95,9 +110,18 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果 [necase_1PKK4
         return assertionEntry(detail.document, detail.receipt.diagnostic());
       });
       const states = assertionOutcomeMap(entries);
-      expect([...states.keys()].sort()).toEqual([...MATCHED_LABELS, ...MISMATCHED_LABELS].sort());
+      expect([...states.keys()].sort()).toEqual([...MATCHED_LABELS, ...MISMATCHED_LABELS, ...UNAVAILABLE_LABELS].sort());
       for (const label of MATCHED_LABELS) expect(states.get(label), label).toBe("matched");
       for (const label of MISMATCHED_LABELS) expect(states.get(label), label).toBe("mismatched");
+      for (const label of UNAVAILABLE_LABELS) expect(states.get(label), label).toBe("unavailable");
+      const composed = entries.find(entry => entry.display.label === "filterWhere.mapEach:matched");
+      expect(JSON.stringify(composed)).toContain("actor-a");
+      expect(JSON.stringify(composed)).toContain("actor-c");
+      expect(JSON.stringify(composed)).toContain("aggregate");
+      const ordered = entries.find(entry => entry.display.label === "inOrder.heard-movement:matched");
+      expect(JSON.stringify(ordered)).toContain("formally-heard");
+      expect(JSON.stringify(ordered)).toContain("adopted-movement");
+      expect(JSON.stringify(ordered)).toContain("heard-by-b");
     },
   );
 });

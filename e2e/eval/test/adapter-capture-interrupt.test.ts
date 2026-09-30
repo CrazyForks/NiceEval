@@ -1,6 +1,7 @@
 // rerun: pnpm e2e test --repo eval -- --run test/adapter-capture-interrupt.test.ts
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { defined, only, pollUntil } from "@niceeval/testkit";
 import { expect, test } from "vitest";
 import { evalE2E as adapterCaptureE2E } from "./context.ts";
@@ -18,6 +19,15 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
     await waitFor("capture-ready.txt", "ready");
     expect(process.signal("SIGINT")).toBe(true);
     await waitFor("capture-finish.txt", "start\n");
+    expect(await readFile(join(projectRoot, "capture-reason.txt"), "utf8")).toBe("cancelled");
+    await pollUntil(async () => {
+      const text = await readFile(join(projectRoot, "capture-deadline.txt"), "utf8").catch(() => "");
+      return text || undefined;
+    }, { timeoutMs: 10_000, intervalMs: 20, label: "cleanup deadline" });
+    expect(await readFile(join(projectRoot, "capture-deadline.txt"), "utf8")).toBe("valid");
+    // An external operation actually remains in flight beyond the former fixed budget.
+    await setTimeout(31_000);
+    expect(await readFile(join(projectRoot, "capture-finish.txt"), "utf8")).toBe("start\n");
     await writeFile(join(projectRoot, "capture-release.txt"), "release");
     const interrupted = await process.done;
     expect(interrupted.exitCode, interrupted.diagnostic()).toBe(130);

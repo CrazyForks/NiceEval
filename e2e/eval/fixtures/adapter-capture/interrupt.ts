@@ -5,6 +5,7 @@ import { defineAdapter } from "niceeval";
 export const interruptCapture = defineAdapter({
   name: "interrupt-capture",
   behaviorRevision: "1",
+  cleanupTimeoutMs: 95_000,
   create(ctx) {
     appendFileSync("capture-created.txt", `${ctx.attempt}\n`);
     const aborted = new Promise<void>((resolve) => {
@@ -15,6 +16,7 @@ export const interruptCapture = defineAdapter({
     // The external file barrier keeps capture pending until after real SIGINT.
     const finalization = (async () => {
       await aborted;
+      writeFileSync("capture-reason.txt", ctx.signal.reason?.kind ?? "missing");
       appendFileSync("capture-finish.txt", "start\n");
       while (!existsSync("capture-release.txt")) await setTimeout(20);
       ctx.recordUsage({
@@ -34,7 +36,9 @@ export const interruptCapture = defineAdapter({
       });
       appendFileSync("capture-finish.txt", "done\n");
     })();
-    ctx.onCleanup(async ({ signal }) => {
+    ctx.onCleanup(async ({ signal, timeoutMs, deadlineAt }) => {
+      writeFileSync("capture-deadline.txt", timeoutMs === 95_000 && Number.isFinite(deadlineAt) &&
+        deadlineAt > Date.now() && deadlineAt <= Date.now() + timeoutMs ? "valid" : "invalid");
       if (signal.aborted) throw new Error("cleanup inherited cancelled forward signal");
       await finalization;
     });

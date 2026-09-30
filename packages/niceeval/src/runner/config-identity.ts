@@ -239,6 +239,7 @@ function flatten(identity: ConfigIdentity): Map<string, JsonValue> {
   put("adapter.name", identity.adapter.name);
   put("adapter.contract", identity.adapter.contract);
   put("adapter.behaviorRevision", identity.adapter.behaviorRevision);
+  if (identity.adapter.cleanupTimeoutMs !== undefined) put("adapter.cleanupTimeoutMs", identity.adapter.cleanupTimeoutMs);
   putDeclared("model", identity.model);
   putDeclared("reasoningEffort", identity.reasoningEffort);
   put("sandboxReuse", identity.sandboxReuse);

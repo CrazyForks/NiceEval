@@ -72,6 +72,7 @@ const AssertionLimitationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("sampled"), captured: Schema.Number, knownTotal: Schema.optional(Schema.Number) }),
   Schema.Struct({ kind: Schema.Literal("truncated"), omittedBytes: Schema.Number }),
   Schema.Struct({ kind: Schema.Literal("provider-limited") }),
+  Schema.Struct({ kind: Schema.Literal("capacity-limited"), capturedItems: Schema.Number, knownTotalItems: Schema.Number, omittedBytes: Schema.NullOr(Schema.Number) }),
 ]);
 const OverviewIssueSchema = Schema.Union([
   Schema.Struct({
@@ -121,7 +122,7 @@ const OverviewCoverageSchema = Schema.Union([
     entryId: Schema.String,
     groupPath: Schema.Array(Schema.String),
     state: Schema.Literals(["complete", "partial", "unavailable", "not-applicable"]),
-    reason: Schema.optional(Schema.Literals(["sampled", "truncated", "redacted", "provider-limited", "not-collected", "source-unavailable", "producer-failed", "optional-material", "unsupported-subject"])),
+    reason: Schema.optional(Schema.Literals(["sampled", "truncated", "redacted", "provider-limited", "capacity-limited", "not-collected", "source-unavailable", "producer-failed", "optional-material", "unsupported-subject"])),
     limitations: Schema.Array(AssertionLimitationSchema),
   }),
 ]);
@@ -288,7 +289,7 @@ const AttemptLimitationSchema = Schema.Union([
   Schema.Struct({
     owner: Schema.Literal("assertion-material"),
     state: Schema.Literal("partial"),
-    reason: Schema.Literals(["sampled", "truncated", "redacted", "provider-limited"]),
+    reason: Schema.Literals(["sampled", "truncated", "redacted", "provider-limited", "capacity-limited"]),
     limitations: Schema.Array(AssertionLimitationSchema),
   }),
   Schema.Struct({

@@ -43,6 +43,4 @@ Factuality 先判定回答与参考答案的关系，再由代码把类别映射
 由于 TypeSafe System One 不提供 `extract`，`faithfulness()` 在 `TypesafeProvider` 上得到 `unavailable`。
 它不会改为整体估分、截断陈述或调用另一个辅助模型。
 
-`closeQA()` 检查回答是否只依据给定上下文。它接收 `{ input, output, context }`；完整有据的回答，或材料不足时
-准确拒答，得到 `1`。有据但遗漏必要内容得到 `0.5`。编造、矛盾、答非所问，或可答却拒答得到 `0`。冲突时先取
-incorrect，再取 incomplete，最后才取 correct。
+`closeQA(selector, question)` 根据全部匹配材料回答验收问题。满足条件为1，条件不成立为0，证据不足为 unavailable。完整空集为0且不调用模型。

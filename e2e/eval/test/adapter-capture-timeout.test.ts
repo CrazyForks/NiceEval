@@ -10,6 +10,7 @@ test.concurrent("cleanup 总预算耗尽后拒绝迟到采集并保留已得分�
     const completed = await niceeval.run(["exp", "adapter-capture/timeout", "--rerun", "all", "--json"], { timeoutMs: 90_000 });
     expect(completed.exitCode, completed.diagnostic()).toBe(1);
     expect(completed.expReceipt().completion).toBe("completed");
+    expect(await readFile(join(projectRoot, "capture-stream-late.txt"), "utf8")).toBe("rejected");
     expect(await readFile(join(projectRoot, "capture-late.txt"), "utf8")).toBe("usage-rejected\nattachment-rejected\ntrace-rejected\n");
     const runId = only(completed.expReceipt().createdRunIds, () => true, completed.diagnostic());
     const request = join(projectRoot, "capture-query.json");

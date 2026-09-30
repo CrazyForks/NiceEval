@@ -32,7 +32,7 @@ import {
   type InspectionOperationId,
   type InspectionSourceProvenance,
 } from "./codec.ts";
-import { INSPECTION_RESULT_BYTE_LIMIT } from "./limits.ts";
+import { INSPECTION_RESULT_BYTE_LIMIT, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT } from "./limits.ts";
 import { projectAttemptAssertionDetail, projectAttemptAssertionImage } from "./assertions.ts";
 import {
   attemptAttachment,
@@ -293,7 +293,7 @@ function selectOperation(
       }
       return Object.freeze({
         ...baseDocument(source, operation.kind, attemptRuns(resolved), [], [], [operation.locator]),
-        assertion: boundedJson(assertion),
+        assertion: boundedJson(assertion, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT),
       });
     }
     case "attempt.assertion.image": {
@@ -1633,14 +1633,14 @@ function closeJson(value: unknown): InspectionJson {
   return closed as InspectionJson;
 }
 
-function boundedJson(value: unknown): InspectionJson {
+function boundedJson(value: unknown, byteLimit = INSPECTION_RESULT_BYTE_LIMIT): InspectionJson {
   const closed = closeJson(value);
   const byteLength = utf8ByteLength(JSON.stringify(closed));
-  if (byteLength <= INSPECTION_RESULT_BYTE_LIMIT) return closed;
+  if (byteLength <= byteLimit) return closed;
   return closeJson(Object.freeze({
     state: "omitted",
     reason: "inspection-result-byte-limit",
-    byteLimit: INSPECTION_RESULT_BYTE_LIMIT,
+    byteLimit,
   }));
 }
 

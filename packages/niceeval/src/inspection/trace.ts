@@ -1,3 +1,4 @@
+import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial } from "../o11y/adapter-usage-projection.ts";
 import { createHash } from "node:crypto";
 
 import { Result, Schema } from "effect";
@@ -1335,26 +1336,7 @@ export function projectAttemptUsage(
       ...empty, state: read.state, limitations: read.state === "invalid" ? read.issues.map((issue) => ({ issue })) : [],
     };
     const all = read.value.calls;
-    const receipts = new Map((read.value.priceReceipts ?? []).map((receipt) => [receipt.callId, receipt]));
-    const calls = all.map((call) => {
-      const receipt = receipts.get(call.callId);
-      const effectiveCost = call.cost !== null
-        ? Object.freeze({
-            amount: call.cost.amount,
-            currency: call.cost.currency,
-            source: call.cost.source,
-            state: "complete" as const,
-          })
-        : receipt === undefined
-          ? null
-          : Object.freeze({
-              amount: receipt.amount,
-              currency: receipt.currency,
-              source: receipt.source,
-              state: receipt.state,
-            });
-      return Object.freeze({ ...call, effectiveCost });
-    });
+    const calls = effectiveUsageCalls(read.value);
     const numeric = (key: "inputTokens" | "inputTotalTokens" | "outputTokens") => {
       const known = all.flatMap((call) => call[key] === null ? [] : [call[key]]);
       const sum = known.reduce((total, value) => total + value, 0);
@@ -1393,36 +1375,6 @@ export function projectAttemptUsage(
   return projectUsage(readAgentTurns(attachments.agentTurns));
 }
 
-function effectiveCostTotals(
-  calls: readonly NonNullable<InspectionAttemptUsageResult["calls"]>[number][],
-  collectionState: "complete" | "partial",
-): NonNullable<InspectionAttemptUsageResult["totals"]["costs"]> {
-  const known = calls.flatMap((call) => call.effectiveCost === null ? [] : [call.effectiveCost]);
-  const kind = (values: readonly { readonly source: { readonly kind: "reported" | "estimated" } }[]) => {
-    const sources = new Set(values.map((value) => value.source.kind));
-    return sources.size === 0 ? null : sources.size === 1 ? [...sources][0]! : "mixed" as const;
-  };
-  const grouped = new Map<string, typeof known>();
-  for (const cost of known) grouped.set(cost.currency, [...(grouped.get(cost.currency) ?? []), cost]);
-  const complete = collectionState === "complete" && known.length === calls.length &&
-    known.every((cost) => cost.state === "complete");
-  return Object.freeze({
-    state: known.length === 0 ? "unavailable" as const : complete ? "complete" as const : "partial" as const,
-    source: kind(known),
-    values: Object.freeze([...grouped.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([currency, values]) => Object.freeze({
-        currency,
-        value: values.reduce((total, value) => addCanonicalDecimal(total, value.amount), "0"),
-        source: kind(values)!,
-        coveredCalls: values.filter((value) => value.state === "complete").length,
-        reportedCalls: values.filter((value) => value.source.kind === "reported").length,
-        estimatedCalls: values.filter((value) => value.source.kind === "estimated").length,
-      }))),
-    totalCalls: calls.length,
-  });
-}
-
 export function projectAdapterUsageTokens(
   attachment: TraceAttachmentInput,
 ): { readonly value: number | null; readonly state: "available" | "partial" | "unavailable" | "failed" } {
@@ -1433,27 +1385,8 @@ export function projectAdapterUsageTokens(
       state: read.state === "invalid" ? "failed" as const : "unavailable" as const,
     });
   }
-  const values = read.value.calls.flatMap((call) => {
-    const inputBuckets = [call.inputTokens, call.cacheReadTokens, call.cacheWriteTokens];
-    const knownInputBuckets = inputBuckets.filter((value): value is number => value !== null);
-    const input = call.inputTotalTokens ?? (knownInputBuckets.length === 0
-      ? null
-      : knownInputBuckets.reduce((total, current) => total + current, 0));
-    return [input, call.outputTokens].filter((value): value is number => value !== null);
-  });
-  const total = values.reduce((sum, current) => sum + current, 0);
-  if (!Number.isSafeInteger(total)) {
-    return Object.freeze({ value: null, state: "failed" as const });
-  }
-  const value = values.length === 0 ? null : total;
-  const complete = read.value.calls.length > 0 && read.value.collection.state === "complete" &&
-    read.value.calls.every((call) => call.status !== "unknown" && call.outputTokens !== null &&
-      (call.inputTotalTokens !== null ||
-        [call.inputTokens, call.cacheReadTokens, call.cacheWriteTokens].every((value) => value !== null)));
-  return Object.freeze({
-    value,
-    state: value === null ? "unavailable" as const : complete ? "available" as const : "partial" as const,
-  });
+  const material = adapterTokenMaterial(read.value, "totalTokens");
+  return Object.freeze({ value: material.state === "unavailable" ? null : material.value, state: material.state === "exact" ? "available" as const : material.state === "lower-bound" ? "partial" as const : material.reason === "usage-exceeds-safe-integer" ? "failed" as const : "unavailable" as const });
 }
 
 function projectUsage(
