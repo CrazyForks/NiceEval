@@ -1,3 +1,4 @@
+import { repositoryRoot } from "../root.js";
 import { createHash } from "node:crypto";
 import {
   cp,
@@ -33,7 +34,7 @@ import {
 import { requirePreviewSuccess, runPreviewProcess } from "./process.js";
 import { assertConcordComparison, exportConcordChanges, preparePullRequestHistory, readPullRequestComparison, type ConcordComparison } from "./concord.js";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = repositoryRoot();
 const PACKAGE_ROOT = join(ROOT, "packages/niceeval");
 const ALLOWED_EXTENSIONS = new Set([
   ".css", ".gif", ".html", ".ico", ".jpeg", ".jpg", ".js", ".json", ".mjs",

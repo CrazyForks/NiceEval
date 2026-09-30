@@ -1,3 +1,9 @@
+// @concord-file ne-eval-assertions-runtime
+// @concord-implements docs/feature/assertions/README.md
+// @concord-implements docs/feature/assertions/library.md
+// @concord-implements docs/feature/assertions/library/scoped-assertions.md
+// @concord-implements docs/feature/assertions/library/score-points.md
+// @concord-implements docs/feature/verdict/README.md
 import { validateMaterialQAInputs, captureContextualMatch, captureUnavailableContextualMatch, materialExistenceRegistration, materialQARegistration, contextBooleanRegistration, contextScoreRegistration } from "./material.ts";
 import { isContextualMatch, contextMatchDefinitionOf, type ContextualMatch, type MaterialMatch } from "./context-match.ts";
 import { optionsFor, type JudgePresetOptions } from "./judge-presets.ts";

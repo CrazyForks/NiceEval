@@ -1,14 +1,11 @@
 ---
-format: niceeval.docs-node/v1
+format: concord.document/v1
+id: assertions
+title: Assertions
+createdAt: 2026-07-27T18:06:14+08:00
 kind: feature
-relations: {}
 ---
 
----
-format: niceeval.docs-node/v1
-kind: feature
-relations: {}
----
 
 # Assertions
 

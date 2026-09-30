@@ -5,7 +5,9 @@ import { expect, test } from "vitest";
 import { inspectAttempt, inspectAssertionEntries, assertionEntry } from "./inspection.ts";
 import { evalE2E } from "./context.ts";
 
-test.concurrent("外部调用用量保留失败重试未知值且重复上报不增加计量 [necase_920FSWMBVEP3090H]", async () => {
+// @feature docs/feature/adapters/README.md
+// @regression memory/adapter-usage-overview-drops-token-facts.md
+test.concurrent("外部调用用量保留失败重试未知值且重复上报不增加计量", async () => {
   await evalE2E.case("external-usage", async ({ paths, commands: { niceeval } }) => {
     const run = await niceeval.run(["exp", "external-usage", "--rerun", "all", "--json"]);
     expect(run.exitCode, run.diagnostic()).toBe(1);
@@ -154,7 +156,8 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
   });
 });
 
-test.concurrent("调用身份冲突即使被捕获仍公开为执行错误并保留先前事实 [necase_P73V11ADFDNYEXTH]", async () => {
+// @feature docs/feature/adapters/README.md
+test.concurrent("调用身份冲突即使被捕获仍公开为执行错误并保留先前事实", async () => {
   await evalE2E.case("conflicting-usage", async ({ paths, commands: { niceeval } }) => {
     const run = await niceeval.run(["exp", "conflicting-usage", "--rerun", "all", "--json"]);
     expect(run.exitCode, run.diagnostic()).toBe(1);

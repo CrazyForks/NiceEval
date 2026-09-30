@@ -20,7 +20,9 @@ async function journalEntries(projectRoot: string): Promise<readonly JournalEntr
   return text.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as JournalEntry);
 }
 
-test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion [necase_KVGC223S45HDV8SX]", async () => {
+// @use-case docs/feature/eval/use-case/eval-native-operations.md
+
+test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion", async () => {
   for (const cleanupTimeoutMs of [0, -1, 0.5, 300_001, NaN, Infinity]) {
     expect(() => defineAdapter({
       name: "invalid-cleanup-budget", cleanupTimeoutMs, create: () => ({}),

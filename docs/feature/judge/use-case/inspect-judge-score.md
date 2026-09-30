@@ -1,7 +1,10 @@
 ---
-format: niceeval.docs-node/v1
+format: concord.document/v1
+id: inspect-judge-score
+title: 使用现成裁判并复核判分依据
+createdAt: 2026-09-13T21:49:17+08:00
 kind: use-case
-relations: {}
+feature: docs/feature/judge/README.md
 ---
 
 # 使用现成裁判并复核判分依据
