@@ -651,6 +651,7 @@
                 "group": "编写评估",
                 "pages": [
                   "zh/tutorials/authoring",
+                  "zh/tutorials/niceeval-taste",
                   "zh/tutorials/eval-groups",
                   "zh/tutorials/plugins",
                   "zh/tutorials/write-experiment",
