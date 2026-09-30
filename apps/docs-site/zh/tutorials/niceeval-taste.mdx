@@ -12,6 +12,8 @@ description: "用少量领域原子在正文组合身份、状态、数量与通
 
 把场景写成一句业务任务，再列出可独立失败的要求。每项注明观察对象、量词、时间范围和证据来源，最后分配权重。短注释解释为什么检查这一项，不复述调用名称。
 
+正文依次呈现“做了什么、检查什么、阈值与权重是什么”。按原因或约束写简短 `//` 注释，用空行分开观察前提、业务门槛和计分。少量可读的组合优先于节省遍历次数；不要为性能把判据压进难以解释的通用包装。
+
 例如，“确认收件人收到邮件”需要发送回执与收件记录的关联。生成了邮件正文只能证明有输出；发送请求被接受只能证明进入处理流程。两者都不能独自证明送达。
 
 | 责任 | 应当承担的工作 |
@@ -25,17 +27,27 @@ Adapter 读取应用已有的协议、执行与状态事实，不复制一套权
 
 领域抽象应让读者更容易解释判据。把三十行过滤移到另一个文件，再命名为 `journalMatches`，并没有解决问题。反过来，`runEverything()` 隐藏所有检查点与权重，也让读者无法审阅评估。NPC、游戏规则和 journal 属于应用；普通 Agent 的消息和工具调用使用相同的通用 Judge 能力。
 
+### reader 取事实，判断 Match 比较事实
+
+上下文 Match 中的 `read(ctx)` 读取当前 Attempt 有权访问的事实或完整材料，内层 `match` 决定怎样判断。框架在断言接收者处理 `check` 或裁判调用时注入 ctx，作者不把 ctx 或整个 journal 作为普通判分参数传入。签名见 [Match 参考](/zh/reference/expect)。
+
+应用词汇应贴近事实：人物、发言、抽象操作、原子操作、System One/Two、请求与返回选择。Adapter 负责把这些事实正式关联，声明完整性与测量窗口。不要让日志文件名或存储格式成为作者的主要语言。
+
+应用可通过 Adapter 的 `assertions` 提供 `t.systemOne(match)`、`t.said(match)` 或 `t.hp(selector, collectionMatch)`，读取事实后转交同一个 `check`。这些都是应用自定义方法，不是 NiceEval 内置；调用即检查，不要求作者先拿到“范围”再判断。无需另建 `defineMaterialSource`、`bindMaterialSource` 注册流程，也不增加 `t.observation` 或 `usageSnapshot`。
+
 ## 正文组合条件，函数名不代替判据
 
 `胜者有自主战斗行动()` 也不是合格的简化。读者仍需打开函数实现，才能知道它检查了身份、模型成功、决策采用，还是只找到一条包含战斗文字的日志。把整句业务结论写成函数名，不会让判据变得可见。
 
 领域原子可以有领域名，例如人物、生命值、决策和操作。每个原子只负责一个可解释的条件；相等、计数、组合与失败诊断由通用能力承担。当前场景选择谁、要求几项、哪些状态必须同时满足，都写在评估正文。
 
-下面仅用伪代码表达写作目标，**不是 SDK 用法示例，不可直接运行**。`t.hp`、`t.systemOne` 与领域 Match 的具体接口由应用和 SDK 契约确定；集合组合签名仍需按正式参考核对。
+下面是应用接入后的正文片段。`and`、`countWhere` 与 `equals` 是 `niceeval/expect` 的公开组合器；`t.hp`、`t.systemOne`、`npcMatch`、`modelMatch`、`decisionMatch` 与 `operationMatch` 由应用定义，必须先按该应用的 Adapter 契约接入。
 
-```text
+```ts
+import { and, countWhere, equals } from "niceeval/expect";
+
 // 指定人物中，生命值恰为 0 的有 3 个。
-t.hp(npcMatch({ ids }), countWhere(equals(0), equals(3)));
+t.hp(npcMatch({ ids }), countWhere(equals(0), equals(3))).gate();
 
 // 同一行动的身份、模型结果、决策采用与操作类型必须同时满足。
 t.systemOne(and(
@@ -43,12 +55,27 @@ t.systemOne(and(
   modelMatch({ outcome: "succeeded" }),
   decisionMatch({ outcome: "adopted" }),
   operationMatch({ ids: operationIds }),
-));
+)).gate();
 ```
 
 这里的 `ids` 是本场景检查的人物集合，`id` 是被检查的人物，`operationIds` 是允许的操作类型。它们应在场景声明处可见。生命值与数量条件不隐藏在“全部败退”中，模型成功与决策采用也不隐藏在“自主行动”中。
 
 Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一个候选。不要为了表达这些条件，在正文创建临时数据结构或展开 journal 过滤；也不要让 Adapter 直接返回某个 case 的综合通过结论。已采用的决策仍不等于操作执行成功，任务需要执行结果时另写对应检查。
+
+模型请求成功、决策被采用、操作执行成功和目标达成是四个事实。不能用甲的成功请求、乙的采用决定与丙的操作拼出一次通过；也不能将一次模型成功解释为整场任务成功。
+
+### 集合组合保留数量与完整性
+
+| 框架组合器 | 作用 |
+| --- | --- |
+| `mapValue(label, project, match)` | 从单个事实投影一个值，再交给内层判断；适合定义人物身份、模型结果等原子 |
+| `filterWhere(selector, aggregate)` | 对完整集合选择确定命中项，保序交给集合判断 |
+| `mapEach(project, aggregate)` | 从每项投影同一种值，保留材料身份与顺序，再交给集合判断 |
+| `countWhere(item, count)` | 判断每项，将精确命中数量交给数量 Match |
+
+人数齐全应另验。三个生命值为 0，不能证明所有指定人物都已出现；完整空集合的计数为 0，也不能证明“全员满足”。Adapter 必须保留缺人物或缺测量的未知状态，不能删除未知项后宣称集合完整。
+
+这些集合组合器对 `partial` 或 `unavailable` 返回不可判定，不把已知小计当精确数量。存在性检查中一个确定见证足够成立的规则，不能推广到精确计数。
 
 ## 明确量词与完整性前提
 
@@ -123,6 +150,10 @@ Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一�
 
 同样的方法适用于工具调用、操作请求和返回结果：操作记录保留失败与调整，requests 保留实际发出的正文，choices 保留未采用的模型输出。选择、执行、结果分开观察，不能拿其中一层代替另一层。
 
+`closeQA(材料Match, 问题)` 可以评价一个人物的全部发言、操作、匹配请求或返回选择。框架保序把完整命中材料交给同一个受管 Judge，不在正文逐条调用模型。只传第一条命中、摘要或成功样本，都不能代表全量表现。
+
+正式封存的末态位置只证明结束时在哪里。即使应用把末态投影到每个操作上，它也不是每次操作当时的位置；要评价路线或逐次轨迹，必须读取对应时点的正式事实。
+
 ## 用上下文 Match 编写客服任务评估
 
 下面三段按顺序组成一个 `support-review.ts` 模块。它导出项目侧工厂 `createSupportReview`，接收应用已有的观测函数，返回同一个 Adapter 与评估定义。这个工厂不是 SDK 的新入口；它让接入代码与评估正文分别可读。
@@ -138,9 +169,9 @@ Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一�
 ```ts
 import { defineAdapter, type AdapterCreateContext } from "niceeval";
 import {
-  atMost, defineContextMatch, defineMaterialMatch,
-  defineScoreMatch, defineValueMatch,
-  type MaterialCollection, type MatchFact,
+  atLeast, atMost, countWhere, defineContextMatch, defineMaterialMatch,
+  defineScoreMatch, equals, filterWhere, mapEach, mapValue,
+  type BooleanMatch, type CollectionValue, type MaterialCollection, type MatchFact,
 } from "niceeval/expect";
 
 export type Speech = {
@@ -165,14 +196,14 @@ export type SupportFacts = {
 完成效率读取一个业务事实，复用 `ScoreMatch`。完整观察确定未完成时给 0；事实不可用时，框架不调用评分函数。它不把整个 journal 作为断言材料，也不顺便判定身份、模型来源、送达或任务整体通过。时间尺度由正文传入，权重仍写在正文。
 
 ```ts
-export const 人物发言 = (actorId: string) =>
+export const 人物 = (actorId: string) =>
+  mapValue("人物", (speech: Speech) => speech.actorId, equals(actorId));
+
+export const 发言材料 = (match: BooleanMatch<Speech, Speech>) =>
   defineMaterialMatch<SupportFacts, Speech>({
     name: "actor-speeches",
     read: ctx => ctx.speeches,
-    match: defineValueMatch<Speech>({
-      name: "speech-by-actor",
-      evaluate: speech => speech.actorId === actorId,
-    }),
+    match,
     capture: { maxItems: 1024, maxBytes: 512 * 1024,
       maxNodes: 65536, maxDepth: 32 },
   });
@@ -196,21 +227,50 @@ export const 完成耗时效率 = (withinSeconds: number) => {
 
 ### 正文保留独立判据与权重
 
-表达质量与完成效率各占 50 分，token 与运行耗时只设通过门槛。`closeQA` 的显式预算用于全部命中材料和裁判审计，不替代 Match 的读取预算。这里的预算是例子选择，不代表任何长度的任务都能装下。
+参与计 5 分，表达质量占 45 分，完成效率占 50 分。本场景还要求至少一条客服发言送达；token 与运行耗时只设通过门槛。`closeQA` 的显式预算用于全部命中材料和裁判审计，不替代 Match 的读取预算。这里的预算是例子选择，不代表任何长度的任务都能装下。
+
+`said` 与 `speechDelivery` 是本例 Adapter 自定义的直接检查方法。前者检查存在性，后者把同一份正式集合交给框架筛选、投影与计数；它们都不预先决定场景的通过条件。`speechDelivery` 把原集合交给组合器，保留其中的 partial 或 unavailable。
 
 ```ts
 export function createSupportReview(
   observe: (ctx: AdapterCreateContext) => Promise<SupportFacts>,
 ) {
-  const adapter = defineAdapter({ name: "support-review", create: observe });
+  const adapter = defineAdapter({
+    name: "support-review",
+    create: observe,
+    assertions({ check }) {
+      return {
+        said(match: BooleanMatch<Speech, Speech>) {
+          return check(发言材料(match));
+        },
+        speechDelivery(
+          selector: BooleanMatch<Speech, Speech>,
+          aggregate: BooleanMatch<CollectionValue<boolean>, CollectionValue<boolean>>,
+        ) {
+          return check(defineContextMatch<SupportFacts, MaterialCollection<Speech>>({
+            name: "speech-delivery",
+            read: ctx => ({ state: "available", value: ctx.speeches }),
+            match: filterWhere(selector, mapEach(
+              (speech: Speech) => speech.delivered, aggregate,
+            )),
+          }));
+        },
+      };
+    },
+  });
   const evaluation = adapter.defineScoreEval({
     description: "客服正式发言质量与任务完成效率",
     test(t) {
+      // 参与是加分；至少一次送达是这道题独立的业务门槛。
+      t.said(人物("agent")).score(5).label("参与交流");
+      t.speechDelivery(人物("agent"), countWhere(equals(true), atLeast(1)))
+        .gate().label("至少一次送达");
+
       // 全部发言参与质量判断；不按送达或模型来源筛选。
-      t.closeQA(人物发言("agent"), "每句发言是否自然完整、意思清楚？", {
+      t.closeQA(发言材料(人物("agent")), "每句发言是否自然完整、意思清楚？", {
         maxMaterialBytes: 256 * 1024,
         maxAuditBytes: 1024 * 1024,
-      }).score(50).label("表达质量");
+      }).score(45).label("表达质量");
 
       // 完成事实不可用时不能伪造 0；业务时间与运行耗时分开。
       t.check(完成耗时效率(180)).score(50).label("完成效率");
@@ -226,7 +286,15 @@ export function createSupportReview(
 
 `usage` 与 `elapsedMs` 是属性，不调用快照方法。读取的用量保留当时已知的值与未知状态；未上报 token 不能使预算检查通过。`elapsedMs` 是本次评估运行墙钟，完成效率使用应用的业务时间，两者不互换。
 
-若任务在第 90 个业务秒完成，效率贡献 25 分；表达质量需由 Judge 另行判定。Judge 不可用或材料超限时，不能声称取得完整总分。这个例子不判断送达或模型自主性；业务要求这些条件时，另登记确定性检查，不能靠表达得分推断。
+若任务在第 90 个业务秒完成，效率贡献 25 分；表达质量需由 Judge 另行判定。Judge 不可用或材料超限时，不能声称取得完整总分。送达检查不证明模型自主性；业务要求模型自主表达时，另登记确定性检查，不能靠表达得分推断。
+
+## 分别声明停止、通过门槛与计分
+
+`check` 登记判断，handle 再配置该判断的用途。在 Score Eval 中，普通断言默认只保存结果；`.score(weight)` 才贡献分数，`.gate()` 才建立 Boolean 通过门槛。Pass Eval 的 Boolean 默认影响通过判定，不要把两种题型的默认规则混用。
+
+后续步骤依赖完整性或配置前提时，使用 `await handle.orStop()`；它负责停止后续执行，不自动替代业务 gate。measurement 用 `.orStop(minimum)`，或在 `.gate(minimum)` 后无参复用条件。证据不可用应保持 unavailable，不先改写成 `false` 或 `0` 再停止。
+
+参与加分和所有人必须行动不是同一要求。不要把每个人的 `.score(5)` 改成 `.gate()` 来缩短代码；这会改变业务标准。低分与正式未完成的零分可以是有效结果，不能为了绿色报告降低阈值或删除失败项。具体题型规则见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
 
 ## 改写容易误导的表达
 
@@ -249,6 +317,8 @@ export function createSupportReview(
 | `reply.includes("抱歉")` 判断合理拒绝 | 关键词不能解释对话意义 | 给 Judge 完整上下文，询问拒绝理由是否符合业务限制 |
 
 调用次数、token 与价格是不同指标。Adapter 上报正式用量，框架聚合；评估正文不重复维护模型计价表。未知费用不补零，已知下限也不能冒充完整总量。
+
+上报发生在正式物理调用边界，保留失败和重试。`t.usage`、`t.elapsedMs` 用于框架的通用用量与墙钟测量；业务上的“完成前调用数”“到完成用了多少游戏时间”由应用 reader 明确观察窗口。不要把一次读取的累计用量改名为“完成前用量”，也不要用游戏时间替代运行耗时。
 
 ## 保住证据与失败解释
 
@@ -276,6 +346,18 @@ Judge 问题必须能根据给定材料回答。外部地图、规则或参考�
 
 复用领域 Match 时，同时审阅其名称、充分证据与失败解释。保留业务检查点与独立权重，避免为相同能力增加多套别名或注册步骤。接口具体形状以安装版本参考为准，不把设计草案当作可运行 API。
 
+## 从公开入口验证真实证据链
+
+先确认安装版本的导出与类型，再通过公开 CLI 运行评估，让 `check` 注入真实 Adapter ctx。不要私调 Match 的 evaluator，也不要伪造核心断言上下文。构造和类型检查能发现写法错误，但不能证明材料读取、取消、审计或业务判断正确。
+
+针对集合检查完整非空、完整空集、缺项和 partial 分支；组合检查不同人物的条件不能混合成立。需要判断胜负时，唯一幸存、尚未决胜和同归于尽分别列为业务情形，不能把所有非胜利分支都当成技术错误。
+
+有外部 HTTP 或持续运行应用时，验证真实取消、等待在途操作结束、封存证据的顺序。检查取消后的迟到事件是否被正确处理，封存后是否仍有写入，以及不完整观察是否被如实标记。局部 Fixture 通过不能证明真实应用的整个生命周期通过。
+
+从同一个 Attempt 的公开结果区分三类问题：调用或解析异常属于技术错误；缺失、partial 和 unavailable 表示证据不足；证据完整但门槛不满足属于业务失败。低分本身不是框架错误，零分也不自动等于证据缺失。修正对应层的问题，不通过削弱断言追求绿色。
+
+交付时分别报告发现或 dry run、类型与构造检查、局部运行和真实端到端运行的范围。文档构建通过不等于 Judge 验收；少量样本通过不等于长材料或整组任务通过。运行与读回使用[反馈闭环](/zh/tutorials/agent-feedback-loop)中的公开命令。
+
 ## 写作自检
 
 提交评估前，用这些问题检查正文，并用同一 Attempt 的结果核对答案：
@@ -292,5 +374,7 @@ Judge 问题必须能根据给定材料回答。外部地图、规则或参考�
 - Match 是否只提供可复用的领域原子或单项测量，而不是某个 case 的整条验收结论？
 - 合理拒绝、无需发言的协作、失败后的调整是否按本场景规则处理？
 - 得分与通过门槛是否独立可见？前提失败是否停止依赖它的后续检查？
+- 封存末态是否被误当成逐次轨迹？业务测量窗口是否与通用用量混淆？
+- 验证是否经过真实 ctx 与公开结果，且明确区分局部检查和真实运行？
 
 运行与读回步骤见 [Coding Agent 反馈闭环](/zh/tutorials/agent-feedback-loop)。计分与停止控制的具体用法见[通过制与计分制](/zh/tutorials/evaluation-kinds)，Judge 的配置与验证见[验证 Judge](/zh/tutorials/verify-judge)。
