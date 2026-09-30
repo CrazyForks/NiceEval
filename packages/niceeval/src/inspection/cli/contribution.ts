@@ -23,6 +23,7 @@ import {
   type InspectionRequest,
 } from "../index.ts";
 import { explainInspectionOperation } from "../select.ts";
+import { SqliteRecordError } from "../../record/sqlite/errors.ts";
 
 const help = (summary: string) => Object.freeze({ summary, visibility: "public" as const });
 const option = (value: CliOptionDefinition): CliOptionDefinition => Object.freeze(value);
@@ -248,10 +249,18 @@ function queryFailureDetail(error: Error): InspectionFailureDocument["failure"] 
     });
   }
   if (cause instanceof InspectionSourceError) {
+    const recordError = cause.cause instanceof SqliteRecordError ? cause.cause : undefined;
+    const operationalFailure = recordError?.code === "record-write-busy" || recordError?.code === "record-resource-limit-exceeded";
+    const migrationRequired = recordError?.code === "record-schema-migration-required";
+    const diagnostic = recordError === undefined ? cause.reason : `[${recordError.code}; ${recordError.operation}] ${cause.reason}`;
     return Object.freeze({
-      code: "inspection-source-invalid" as const,
-      reason: "The selected Record source could not be opened. If this is a Record from an older NiceEval version, stop old NiceEval processes and run a normal experiment in the original project to upgrade supported formats before retrying --record. External Records are never migrated in place.",
-      correction: "fix-record-source" as const,
+      code: operationalFailure ? "inspection-operation-failed" as const : "inspection-source-invalid" as const,
+      reason: `The selected Record source could not be opened: ${diagnostic}${migrationRequired
+        ? " Stop old NiceEval processes and run a normal experiment in the original project to upgrade this supported format. External Records are never migrated in place."
+        : ""}`,
+      correction: recordError?.code === "record-write-busy" ? "retry" as const
+        : recordError?.code === "record-resource-limit-exceeded" || recordError?.code === "record-runtime-unsupported"
+          ? "upgrade-or-report" as const : "fix-record-source" as const,
     });
   }
   if (isInspectionCodecFailure(cause)) {

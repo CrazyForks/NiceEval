@@ -120,6 +120,7 @@ export const inspectionProtocolRegistry = Object.freeze({
     traceId: Schema.optional(Schema.String),
     sourceId: Schema.optional(Schema.String),
     actorId: Schema.optional(Schema.String),
+    eventType: Schema.optional(Schema.String),
     continuation: Schema.optional(Schema.String),
   }), result: { trace: InspectionTraceResultSchema }, factKinds: ["execution-traces", "agent-turns", "turn-contexts", "sandbox-commands", "runner-activities", "runner-diagnostics"] }),
   "attempt.trace.detail": spec({ request: operation("attempt.trace.detail", { locator: AttemptLocatorSchema, selector: Schema.Union([

@@ -132,6 +132,7 @@ export function projectAttemptTrace(
     readonly traceId?: string;
     readonly sourceId?: string;
     readonly actorId?: string;
+    readonly eventType?: string;
     readonly continuation?: string;
   } = {},
 ): InspectionTraceResult {
@@ -262,6 +263,7 @@ function projectAgentItemsAsExecution(
     ...(request.traceId === undefined ? {} : { traceId: request.traceId }),
     ...(request.sourceId === undefined ? {} : { sourceId: request.sourceId }),
     ...(request.actorId === undefined ? {} : { actorId: request.actorId }),
+    ...(request.eventType === undefined ? {} : { eventType: request.eventType }),
   });
   const continuationContext = Object.freeze({
     source,
@@ -338,6 +340,7 @@ function projectAgentItemsAsExecution(
         if (!traceSelected || !sourceSelected) continue;
         const actorId = rawItem.kind === "message" ? rawItem.role : "assistant";
         if (filters.actorId !== undefined && actorId !== filters.actorId) continue;
+        if (filters.eventType !== undefined && `agent.${rawItem.kind}` !== filters.eventType) continue;
         totalMatching += 1;
         if (ordinal <= resumeAfter) {
           priorMatches += 1;
@@ -376,7 +379,7 @@ function projectAgentItemsAsExecution(
   return Object.freeze({
     state,
     limitations,
-    traces: traceSelected && sourceSelected
+    traces: traceSelected
       ? Object.freeze([Object.freeze({
           kind: "trace-header" as const,
           traceId,
@@ -389,7 +392,7 @@ function projectAgentItemsAsExecution(
                 limitations: [{ code: "legacy-source-state", message: "The Agent Turns source is partial." }] as const,
               }),
           scopes: Object.freeze([]),
-          eventCount: totalMatching,
+          eventCount: totalSourceEvents,
         })])
       : Object.freeze([]),
     events: Object.freeze(events),

@@ -2,6 +2,8 @@
 
 import { only, type ProcessHandle } from "@niceeval/testkit";
 import { expect, test } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   expectLoopbackReadyUrl,
   insightCaseArtifacts,
@@ -37,6 +39,81 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
     "view-snapshot-browser",
     { artifacts: insightCaseArtifacts() },
     async ({ paths: { projectRoot }, commands: { niceeval } }) => {
+      const scoreRun = await niceeval.run(["exp", "verdict-scores", "--rerun", "all", "--json"]);
+      expect(scoreRun.exitCode, scoreRun.diagnostic()).toBe(1);
+      expect(scoreRun.expReceipt(), scoreRun.diagnostic()).toMatchObject({ completion: "completed" });
+      const scoreRunId = only(scoreRun.expReceipt().createdRunIds, () => true, scoreRun.diagnostic());
+      const scoreEvents = scoreRun.expEvalEvents();
+      const scoreLocators = new Map<string, string>();
+      for (const [evalId, verdict] of [
+        ["verdict-scores/failed", "failed"],
+        ["verdict-scores/zero", "failed"],
+        ["verdict-scores/partial", "errored"],
+        ["verdict-scores/unavailable", "errored"],
+      ] as const) {
+        const event = only(scoreEvents, (item) => item.evalId === evalId, scoreRun.diagnostic());
+        expect(event).toMatchObject({ verdict, attempts: 1 });
+        scoreLocators.set(evalId, withAt(event.locator));
+      }
+
+      const scoreRequestPath = join(projectRoot, "verdict-scores.request.json");
+      await writeFile(scoreRequestPath, JSON.stringify({
+        protocol: "niceeval.query/v1",
+        operation: { kind: "run.summary", runId: scoreRunId },
+      }));
+      const scoreSummary = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
+      expect(scoreSummary.exitCode, scoreSummary.diagnostic()).toBe(0);
+      const scoreMembers = scoreSummary.querySuccess("run.summary").summary.members;
+      // These same public facts must survive the Overview aggregation and View.
+      for (const [evalId, earned, possible] of [
+        ["verdict-scores/failed", 61, 100],
+        ["verdict-scores/zero", 0, 200],
+      ] as const) {
+        expect(only(scoreMembers, (member) => member.evalId === evalId, scoreSummary.diagnostic()))
+          .toMatchObject({ verdict: "failed", score: { state: "complete", earned, possible } });
+      }
+
+      await writeFile(scoreRequestPath, JSON.stringify({
+        protocol: "niceeval.query/v1",
+        operation: { kind: "overview.get", runIds: [scoreRunId] },
+      }));
+      const scoreOverview = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
+      expect(scoreOverview.exitCode, scoreOverview.diagnostic()).toBe(0);
+      const scoreOverviewDocument = scoreOverview.querySuccess("overview.get");
+      for (const [evalId, earned, possible] of [
+        ["verdict-scores/failed", 61, 100],
+        ["verdict-scores/zero", 0, 200],
+      ] as const) {
+        const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());
+        expect(cell.verdict.tally).toEqual({ passed: 0, failed: 1, errored: 0, skipped: 0 });
+        expect(cell.score).toMatchObject({
+          state: "available", value: earned, samples: 1, total: 1, basis: "slot",
+          bounds: { min: 0, max: possible },
+        });
+        expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({
+          state: "published",
+          attemptLocator: scoreLocators.get(evalId),
+          score: { state: "available", value: earned, samples: 1, total: 1, bounds: { min: 0, max: possible } },
+        });
+      }
+      for (const [evalId, memberState, memberValue] of [
+        ["verdict-scores/partial", "partial", 9],
+        ["verdict-scores/unavailable", "unavailable", null],
+      ] as const) {
+        const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());
+        expect(cell.score).toMatchObject({ state: "unavailable", value: null, samples: 0, total: 1 });
+        expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({
+          state: "published", score: { state: memberState, value: memberValue, samples: 0, total: 1 },
+        });
+      }
+      const completeSubtotal = {
+        state: "partial", value: 61, samples: 2, total: 4, basis: "eval",
+        bounds: { min: 0, max: 300 },
+      };
+      expect(only(scoreOverviewDocument.overview.experiments, (item) => item.experimentId === "verdict-scores", scoreOverview.diagnostic()).score)
+        .toMatchObject(completeSubtotal);
+      expect(scoreOverviewDocument.overview.totals.score).toMatchObject(completeSubtotal);
+
       const inspection = await niceeval.run(["exp", "main", "--rerun", "all", "--json"]);
       expect(inspection.exitCode, inspection.diagnostic()).toBe(0);
       expect(inspection.expReceipt(), inspection.diagnostic()).toMatchObject({ completion: "completed" });
@@ -184,6 +261,52 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         await externalUsage.getByText("Sealed pricing evidence", { exact: true }).click();
         await expect(externalUsage).toContainText("tokens-unknown");
         await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+        await experimentSelector.selectOption("/group/singleton/verdict-scores");
+        const scoreExperiment = page.locator("summary.niceeval-table-hierarchy-summary").filter({
+          hasText: /^verdict-scores \(\d+\/4\)/u,
+        });
+        const scoreTotal = scoreExperiment.locator(".niceeval-table-hierarchy-cell").last();
+        await expect(scoreTotal.locator(".niceeval-value")).toHaveText("61 points");
+        await expect(scoreTotal.locator(".niceeval-cell-detail")).toHaveText("Result coverage 2/4");
+        await scoreExperiment.click();
+        const scoreDetails = scoreExperiment.locator("xpath=..");
+        for (const [name, expectedScore, expectedDetailScore] of [
+          ["failed", "61 points", "61 pts"],
+          ["zero", "0 points", "0 pts"],
+        ] as const) {
+          const evalSummary = scoreDetails.locator("summary.niceeval-table-hierarchy-summary").filter({
+            hasText: new RegExp(`^verdict-scores/${name}\\b`, "u"),
+          });
+          await expect(evalSummary.locator(".niceeval-table-hierarchy-cell").last().locator(".niceeval-value"))
+            .toHaveText(expectedScore);
+          await expect(evalSummary).toContainText("failed");
+          await evalSummary.click();
+          const attemptRow = evalSummary.locator("xpath=..").locator(".niceeval-table-hierarchy-row");
+          await attemptRow.getByRole("link", { name: scoreLocators.get(`verdict-scores/${name}`)!, exact: true }).click();
+          const scoreDialog = page.getByRole("dialog");
+          await expect(scoreDialog.locator(".niceeval-verdict-pill").first()).toHaveText("failed");
+          const scoreKpi = scoreDialog.locator(".niceeval-kpi").filter({
+            has: page.getByText("Score", { exact: true }),
+          });
+          await expect(scoreKpi.locator(".niceeval-kpi-value")).toHaveText(expectedDetailScore);
+          await scoreDialog.getByRole("button", { name: "Close", exact: true }).click();
+        }
+        for (const name of ["partial", "unavailable"] as const) {
+          const evalSummary = scoreDetails.locator("summary.niceeval-table-hierarchy-summary").filter({
+            hasText: new RegExp(`^verdict-scores/${name}\\b`, "u"),
+          });
+          await expect(evalSummary.locator(".niceeval-table-hierarchy-cell").last()).toContainText("unavailable");
+          await evalSummary.click();
+          await evalSummary.locator("xpath=..").getByRole("link", {
+            name: scoreLocators.get(`verdict-scores/${name}`)!, exact: true,
+          }).click();
+          const scoreDialog = page.getByRole("dialog");
+          await expect(scoreDialog.locator(".niceeval-verdict-pill").first()).toHaveText("errored");
+          await expect(scoreDialog.locator(".niceeval-kpi").filter({
+            has: page.getByText("Score", { exact: true }),
+          })).toHaveCount(0);
+          await scoreDialog.getByRole("button", { name: "Close", exact: true }).click();
+        }
         await experimentSelector.selectOption("/group/named/classic");
         await expect(page).toHaveURL(/#\/group\/named\/classic$/u);
 

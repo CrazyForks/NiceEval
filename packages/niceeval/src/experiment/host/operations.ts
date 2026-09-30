@@ -1,3 +1,4 @@
+import type { ExperimentHostRequirements } from "./requirements.ts";
 import { resolve } from "node:path";
 
 import { Clock, Data, Effect, Result } from "effect";
@@ -76,7 +77,6 @@ import type {
   ExperimentHostRenamePlan,
   ExperimentHostRenameRequest,
   ExperimentHostRenameResult,
-  ExperimentHostRequirements,
   ExperimentHostRunOverrides,
   ExperimentHostSelectionInput,
   ExperimentHostSelectionProblem,

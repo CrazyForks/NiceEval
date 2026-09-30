@@ -734,42 +734,58 @@ export function renderTrace(value: TraceView): string {
     },
     {
       kind: "panel",
-      title: `Generic execution traces · ${value.execution.state}`,
+      title: "Generic execution traces",
       blocks: [
         {
           kind: "keyValue",
           entries: [
+            { key: "Capture", value: value.execution.state },
             { key: "Traces", value: String(value.execution.traces.length) },
             {
               key: "Events",
-              value: boundedPreview(
-                value.execution.events.length,
-                value.execution.hasMore,
-                value.execution.omittedEventCount,
-              ),
+              value: `${value.execution.events.length} shown; ${value.execution.omittedEventCount} remaining in this selection`,
             },
-            { key: "Continuation", value: value.execution.continuation ?? "complete" },
+            { key: "Page", value: value.execution.hasMore ? "more events available" : "end of selected events" },
+            ...(value.execution.continuation === undefined ? [] : [{ key: "Continuation", value: value.execution.continuation }]),
           ],
         },
         {
           kind: "table",
-          columns: [
-            { header: "Event ID" },
-            { header: "Type" },
-            { header: "Source" },
-            { header: "Actor" },
-            { header: "Time" },
-            { header: "Summary" },
-          ],
-          rows: value.execution.events.map((event) => [
-            event.eventId,
-            event.type,
-            event.source.id,
-            event.actor?.label ?? event.actor?.id ?? "not-recorded",
-            event.time === undefined ? "not-recorded" : `${event.time.clockId}: ${event.time.value} ${event.time.unit}`,
-            event.summary,
-          ]),
+          columns: [{ header: "Capture limitation" }],
+          rows: value.execution.limitations.map((limitation) => [JSON.stringify(limitation)]),
+          overflow: "wrap",
         },
+        ...value.execution.traces.flatMap<TerminalPanelContentBlock>((trace) => [
+          { kind: "divider", title: `Trace ${trace.sourceTraceId}` },
+          {
+            kind: "keyValue",
+            entries: [
+              { key: "Trace ID", value: trace.traceId },
+              { key: "Producer collection", value: trace.collection.state },
+              { key: "Recorded events", value: String(trace.eventCount) },
+            ],
+          },
+          {
+            kind: "table",
+            columns: [{ header: "Producer limitation" }, { header: "Reason" }],
+            rows: trace.collection.limitations.map((limitation) => [limitation.code, limitation.message]),
+            overflow: "wrap",
+          },
+        ]),
+        { kind: "divider", title: "Event page" },
+        ...value.execution.events.flatMap<TerminalPanelContentBlock>((event) => [
+          { kind: "divider", title: event.type },
+          {
+            kind: "keyValue",
+            entries: [
+              { key: "Event ID", value: event.eventId },
+              { key: "Actor", value: event.actor?.label ?? event.actor?.id ?? "not-recorded" },
+              { key: "Source", value: event.source.id },
+              ...(event.time === undefined ? [] : [{ key: "Time", value: `${event.time.clockId}: ${event.time.value} ${event.time.unit}` }]),
+              { key: "Summary", value: event.summary },
+            ],
+          },
+        ]),
       ],
     },
     {

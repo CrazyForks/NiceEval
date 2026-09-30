@@ -172,7 +172,10 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
       expect(overview.exitCode, overview.diagnostic()).toBe(0);
       const cells = overview.querySuccess("overview.get").overview.cells;
       expect(only(cells, (cell) => cell.evalId === "assertion-score/gated", overview.diagnostic()).score)
-        .toMatchObject({ value: null, samples: 0 });
+        .toMatchObject({
+          state: "available", value: 30, samples: 2, total: 2,
+          bounds: { min: 0, max: 43 },
+        });
     },
   );
 });

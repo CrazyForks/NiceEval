@@ -1,0 +1,32 @@
+{
+  "artifactRoot": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/inspection-final-green",
+  "summaryPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/inspection-final-green/summary.json",
+  "results": [
+    {
+      "id": "inspection",
+      "exitCode": 1,
+      "category": "regression",
+      "detail": "test invocation 1 failed",
+      "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/inspection-final-green/inspection",
+      "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/inspection-final-green/inspection/receipt.json"
+    }
+  ],
+  "passed": 0,
+  "regression": 1,
+  "infra": 0,
+  "configuration": 0,
+  "cancelled": 0,
+  "total": 1,
+  "category": "regression",
+  "detail": "test invocation 1 failed",
+  "runner": {
+    "category": "pass",
+    "detail": "removed /tmp/niceeval-e2e-scratch-al02ba",
+    "scratchDisposition": {
+      "kind": "removed",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-al02ba",
+      "detail": "removed /tmp/niceeval-e2e-scratch-al02ba"
+    }
+  }
+}

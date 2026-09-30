@@ -426,7 +426,10 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
               attempt: expect.objectContaining({ originRunId: origin.runId }),
             }),
           ]);
-          expect(acceptedDocument.run.value.context?.execution.adapter).toEqual(experiment.adapter);
+          expect(acceptedDocument.run.value.context?.execution.adapter).toEqual({
+            ...experiment.adapter,
+            ...(experiment.id === "migration-custom" ? { cleanupTimeoutMs: 30_000 } : {}),
+          });
         }
 
         // Reopening the now-current Record is a no-op: identities and references

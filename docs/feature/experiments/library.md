@@ -6,9 +6,15 @@ Core 表达身份、引用与 action。
 运行事实只能进入 NiceEval Record catalog 中具名、owner 固定的 family。
 
 本页定义 `defineExperiment` 作者 API。执行 Host 使用公开、受支持的 `niceeval/experiment/host` 与
-`experimentHost.list()`、`plan()`、`run()`、`accept()` 组合 CLI 或深度应用集成。这个 Host entry 不开放
+`experimentHost.catalog()`、`invocation.plan()`、`invocation.run()`、`accept()` 组合 CLI 或深度应用集成。这个 Host entry 不开放
 Runner、selector、Record family 或 migration registration；普通 Experiment 作者通常不导入它。运行后的固定
 query 与 View 由 Inspection 和 Delivery 的 owner 组合，不从 Experiment Host 取得通用 selection API。
+
+此具名 Host entry 面向 Node：所有 operation 返回 requirement 为 `never` 的惰性 Effect，可直接交给
+`Effect.runPromise` 或 `Effect.runFork`，无需提供私有 Record Layer。每次执行独立拥有资源 Scope；
+调用函数本身不打开数据库。调用者可省略 `signal`，直接中断 invocation fiber；中断仍关闭 authoring、
+通知 Adapter 正式取消原因，并等待独立有界 cleanup，原 interruption Cause 保留。
+CLI 内部使用相同领域操作，由 bootstrap 统一提供平台资源，不嵌套运行另一套 Effect runtime。
 
 默认当前结果使用固定 `project.get`。Experiment Host 只提供一次求值后冻结的当前目标与适用性输入，
 Inspection 关闭分母与指标；固定 `overview.get`、`experiment.get`、Run 与 Attempt 读取不依赖当前项目定义。

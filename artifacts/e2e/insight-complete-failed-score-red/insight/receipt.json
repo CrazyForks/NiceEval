@@ -1,0 +1,201 @@
+{
+  "repoId": "insight",
+  "invocationIds": [
+    "6b754184-0d5f-4c7b-8353-2a104bb02785",
+    "8f7db1fa-be23-4171-a63b-23a56ac3d2d1"
+  ],
+  "testInvocations": 1,
+  "copyId": "red-single",
+  "sourceSnapshotDigest": "sha256:92fdea5789d32e422e42a991d3628a3c6373d57dbc934dc52e622ad3d6af16d3",
+  "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-red/insight",
+  "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-red/insight/receipt.json",
+  "stages": [
+    {
+      "stage": "preflight",
+      "ok": true,
+      "invocationId": "6b754184-0d5f-4c7b-8353-2a104bb02785",
+      "checks": [
+        {
+          "kind": "runtime",
+          "subject": "node>=24",
+          "ok": true,
+          "detail": "node>=24 available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "v24.19.0\n",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 972218,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 972218 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared host capabilities available"
+    },
+    {
+      "stage": "prepare",
+      "ok": true,
+      "assets": [],
+      "detail": "source clean; no harness assets declared"
+    },
+    {
+      "stage": "install",
+      "ok": true,
+      "invocationId": "6b754184-0d5f-4c7b-8353-2a104bb02785",
+      "command": [
+        "pnpm",
+        "install",
+        "--no-frozen-lockfile",
+        "--prefer-offline"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "✓ Lockfile passes supply-chain policies (verified 9d ago)\nProgress: resolved 1, reused 0, downloaded 0, added 0\nProgress: resolved 33, reused 18, downloaded 1, added 0\nPackages: +78\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nPackages are hard linked from the content-addressable store to the virtual store.\n  Content-addressable store is at: /home/ctrdh/.local/share/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nProgress: resolved 133, reused 77, downloaded 1, added 78, done\n. postinstall$ playwright install chromium\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: Done\n\ndependencies:\n+ effect 4.0.0-rc.112\n+ niceeval 0.0.0-development\n\ndevDependencies:\n+ @niceeval/testkit 0.1.0\n+ @playwright/test 1.63.0\n+ @types/node 24.13.3 (26.6.3 is available)\n+ typescript 5.9.3 (7.0.2 is available)\n+ vitest 4.1.11 (5.0.2 is available)\n\nDone in 2.9s using pnpm v11.18.0\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 972219,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 972219 has no running members after leader close"
+        }
+      },
+      "detail": "pnpm install ok"
+    },
+    {
+      "stage": "injection",
+      "ok": true,
+      "invocationId": "6b754184-0d5f-4c7b-8353-2a104bb02785",
+      "detail": "candidate integrity matches lockfile"
+    },
+    {
+      "stage": "browser",
+      "ok": true,
+      "invocationId": "6b754184-0d5f-4c7b-8353-2a104bb02785",
+      "checks": [
+        {
+          "kind": "browser",
+          "subject": "chromium",
+          "ok": true,
+          "detail": "Playwright browser chromium available",
+          "command": [
+            "/nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node",
+            "-e",
+            "const fs=require('node:fs');const p=require('playwright');const b=process.argv[1];const l=p[b];if(!l||typeof l.executablePath!=='function')process.exit(2);const x=process.env[b.toUpperCase()+'_EXECUTABLE_PATH']||l.executablePath();if(!x||!fs.existsSync(x))process.exit(3);",
+            "chromium"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 972299,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 972299 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared browser capabilities available"
+    },
+    {
+      "stage": "test",
+      "attempt": 1,
+      "invocationId": "8f7db1fa-be23-4171-a63b-23a56ac3d2d1",
+      "ok": false,
+      "command": [
+        "node",
+        "scripts/run-native.mjs",
+        "--reporter=json",
+        "test/view-snapshot.browser.spec.ts",
+        "--grep",
+        "(?:^| )view-snapshot\\.browser\\.spec\\.ts 读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证据，并始终读取同一 sealed cutoff$"
+      ],
+      "capture": {
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "{\n  \"config\": {\n    \"argv\": [\n      \"/nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node\",\n      \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/@playwright/test/cli.js\",\n      \"test\",\n      \"--reporter=json\",\n      \"test/view-snapshot.browser.spec.ts\",\n      \"--grep\",\n      \"(?:^| )view-snapshot\\\\.browser\\\\.spec\\\\.ts 读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证据，并始终读取同一 sealed cutoff$\"\n    ],\n    \"configFile\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/playwright.config.ts\",\n    \"rootDir\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test\",\n    \"failOnFlakyTests\": false,\n    \"forbidOnly\": false,\n    \"fullyParallel\": false,\n    \"globalSetup\": null,\n    \"globalTeardown\": null,\n    \"globalTimeout\": 0,\n    \"grep\": {},\n    \"grepInvert\": null,\n    \"maxFailures\": 0,\n    \"metadata\": {\n      \"actualWorkers\": 1\n    },\n    \"preserveOutput\": \"always\",\n    \"projects\": [\n      {\n        \"outputDir\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test-results\",\n        \"repeatEach\": 1,\n        \"retries\": 0,\n        \"metadata\": {\n          \"actualWorkers\": 1\n        },\n        \"id\": \"chromium\",\n        \"name\": \"chromium\",\n        \"testDir\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test\",\n        \"testIgnore\": [],\n        \"testMatch\": [\n          \"**/*.browser.spec.ts\"\n        ],\n        \"timeout\": 120000\n      }\n    ],\n    \"quiet\": false,\n    \"reporter\": [\n      [\n        \"json\"\n      ]\n    ],\n    \"reportSlowTests\": {\n      \"max\": 5,\n      \"threshold\": 300000\n    },\n    \"shard\": null,\n    \"tags\": [],\n    \"updateSnapshots\": \"missing\",\n    \"updateSourceMethod\": \"patch\",\n    \"version\": \"1.63.0\",\n    \"workers\": 8,\n    \"webServer\": null\n  },\n  \"suites\": [\n    {\n      \"title\": \"view-snapshot.browser.spec.ts\",\n      \"file\": \"view-snapshot.browser.spec.ts\",\n      \"column\": 0,\n      \"line\": 0,\n      \"specs\": [\n        {\n          \"title\": \"读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证据，并始终读取同一 sealed cutoff\",\n          \"ok\": false,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 240000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"chromium\",\n              \"projectName\": \"chromium\",\n              \"results\": [\n                {\n                  \"workerIndex\": 0,\n                  \"parallelIndex\": 0,\n                  \"status\": \"failed\",\n                  \"duration\": 5447,\n                  \"error\": {\n                    \"message\": \"Error: \\u001b[2mexpect(\\u001b[22m\\u001b[31mreceived\\u001b[39m\\u001b[2m).\\u001b[22mtoMatchObject\\u001b[2m(\\u001b[22m\\u001b[32mexpected\\u001b[39m\\u001b[2m)\\u001b[22m\\n\\n\\u001b[32m- Expected  - 4\\u001b[39m\\n\\u001b[31m+ Received  + 4\\u001b[39m\\n\\n\\u001b[2m  Object {\\u001b[22m\\n\\u001b[2m    \\\"basis\\\": \\\"slot\\\",\\u001b[22m\\n\\u001b[2m    \\\"bounds\\\": Object {\\u001b[22m\\n\\u001b[32m-     \\\"max\\\": 100,\\u001b[39m\\n\\u001b[31m+     \\\"max\\\": 0,\\u001b[39m\\n\\u001b[2m      \\\"min\\\": 0,\\u001b[22m\\n\\u001b[2m    },\\u001b[22m\\n\\u001b[32m-   \\\"samples\\\": 1,\\u001b[39m\\n\\u001b[32m-   \\\"state\\\": \\\"available\\\",\\u001b[39m\\n\\u001b[31m+   \\\"samples\\\": 0,\\u001b[39m\\n\\u001b[31m+   \\\"state\\\": \\\"unavailable\\\",\\u001b[39m\\n\\u001b[2m    \\\"total\\\": 1,\\u001b[22m\\n\\u001b[32m-   \\\"value\\\": 61,\\u001b[39m\\n\\u001b[31m+   \\\"value\\\": null,\\u001b[39m\\n\\u001b[2m  }\\u001b[22m\",\n                    \"stack\": \"Error: \\u001b[2mexpect(\\u001b[22m\\u001b[31mreceived\\u001b[39m\\u001b[2m).\\u001b[22mtoMatchObject\\u001b[2m(\\u001b[22m\\u001b[32mexpected\\u001b[39m\\u001b[2m)\\u001b[22m\\n\\n\\u001b[32m- Expected  - 4\\u001b[39m\\n\\u001b[31m+ Received  + 4\\u001b[39m\\n\\n\\u001b[2m  Object {\\u001b[22m\\n\\u001b[2m    \\\"basis\\\": \\\"slot\\\",\\u001b[22m\\n\\u001b[2m    \\\"bounds\\\": Object {\\u001b[22m\\n\\u001b[32m-     \\\"max\\\": 100,\\u001b[39m\\n\\u001b[31m+     \\\"max\\\": 0,\\u001b[39m\\n\\u001b[2m      \\\"min\\\": 0,\\u001b[22m\\n\\u001b[2m    },\\u001b[22m\\n\\u001b[32m-   \\\"samples\\\": 1,\\u001b[39m\\n\\u001b[32m-   \\\"state\\\": \\\"available\\\",\\u001b[39m\\n\\u001b[31m+   \\\"samples\\\": 0,\\u001b[39m\\n\\u001b[31m+   \\\"state\\\": \\\"unavailable\\\",\\u001b[39m\\n\\u001b[2m    \\\"total\\\": 1,\\u001b[22m\\n\\u001b[32m-   \\\"value\\\": 61,\\u001b[39m\\n\\u001b[31m+   \\\"value\\\": null,\\u001b[39m\\n\\u001b[2m  }\\u001b[22m\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts:89:28\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:145:30\\n    at withProjectCopy (/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/project-copy.js:73:18)\\n    at runCase (/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:104:20)\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts:38:3\",\n                    \"location\": {\n                      \"file\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts\",\n                      \"column\": 28,\n                      \"line\": 89\n                    },\n                    \"snippet\": \"  87 |         const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());\\n  88 |         expect(cell.verdict.tally).toEqual({ passed: 0, failed: 1, errored: 0, skipped: 0 });\\n> 89 |         expect(cell.score).toMatchObject({\\n     |                            ^\\n  90 |           state: \\\"available\\\", value: earned, samples: 1, total: 1, basis: \\\"slot\\\",\\n  91 |           bounds: { min: 0, max: possible },\\n  92 |         });\"\n                  },\n                  \"errors\": [\n                    {\n                      \"location\": {\n                        \"file\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts\",\n                        \"column\": 28,\n                        \"line\": 89\n                      },\n                      \"message\": \"Error: \\u001b[2mexpect(\\u001b[22m\\u001b[31mreceived\\u001b[39m\\u001b[2m).\\u001b[22mtoMatchObject\\u001b[2m(\\u001b[22m\\u001b[32mexpected\\u001b[39m\\u001b[2m)\\u001b[22m\\n\\n\\u001b[32m- Expected  - 4\\u001b[39m\\n\\u001b[31m+ Received  + 4\\u001b[39m\\n\\n\\u001b[2m  Object {\\u001b[22m\\n\\u001b[2m    \\\"basis\\\": \\\"slot\\\",\\u001b[22m\\n\\u001b[2m    \\\"bounds\\\": Object {\\u001b[22m\\n\\u001b[32m-     \\\"max\\\": 100,\\u001b[39m\\n\\u001b[31m+     \\\"max\\\": 0,\\u001b[39m\\n\\u001b[2m      \\\"min\\\": 0,\\u001b[22m\\n\\u001b[2m    },\\u001b[22m\\n\\u001b[32m-   \\\"samples\\\": 1,\\u001b[39m\\n\\u001b[32m-   \\\"state\\\": \\\"available\\\",\\u001b[39m\\n\\u001b[31m+   \\\"samples\\\": 0,\\u001b[39m\\n\\u001b[31m+   \\\"state\\\": \\\"unavailable\\\",\\u001b[39m\\n\\u001b[2m    \\\"total\\\": 1,\\u001b[22m\\n\\u001b[32m-   \\\"value\\\": 61,\\u001b[39m\\n\\u001b[31m+   \\\"value\\\": null,\\u001b[39m\\n\\u001b[2m  }\\u001b[22m\\n\\n  87 |         const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());\\n  88 |         expect(cell.verdict.tally).toEqual({ passed: 0, failed: 1, errored: 0, skipped: 0 });\\n> 89 |         expect(cell.score).toMatchObject({\\n     |                            ^\\n  90 |           state: \\\"available\\\", value: earned, samples: 1, total: 1, basis: \\\"slot\\\",\\n  91 |           bounds: { min: 0, max: possible },\\n  92 |         });\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts:89:28\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:145:30\\n    at withProjectCopy (/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/project-copy.js:73:18)\\n    at runCase (/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0d45806f69644bb91f856d11bf974fe2/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:104:20)\\n    at /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts:38:3\"\n                    }\n                  ],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-09-30T07:46:08.026Z\",\n                  \"annotations\": [],\n                  \"attachments\": [\n                    {\n                      \"name\": \"error-context\",\n                      \"contentType\": \"text/markdown\",\n                      \"path\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test-results/view-snapshot.browser-读者从层-7c865-pt-证据，并始终读取同一-sealed-cutoff-chromium/error-context.md\"\n                    },\n                    {\n                      \"name\": \"trace\",\n                      \"contentType\": \"application/zip\",\n                      \"path\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test-results/view-snapshot.browser-读者从层-7c865-pt-证据，并始终读取同一-sealed-cutoff-chromium/trace.zip\"\n                    }\n                  ],\n                  \"errorLocation\": {\n                    \"file\": \"/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight/test/view-snapshot.browser.spec.ts\",\n                    \"column\": 28,\n                    \"line\": 89\n                  }\n                }\n              ],\n              \"status\": \"unexpected\"\n            }\n          ],\n          \"id\": \"7f8437b91803ef9cfdb8-3d634cdd46f9d38a6ec3\",\n          \"file\": \"view-snapshot.browser.spec.ts\",\n          \"line\": 22,\n          \"column\": 1\n        }\n      ]\n    }\n  ],\n  \"errors\": [],\n  \"stats\": {\n    \"startTime\": \"2026-09-30T07:46:06.612Z\",\n    \"duration\": 7147.98,\n    \"expected\": 0,\n    \"skipped\": 0,\n    \"unexpected\": 1,\n    \"flaky\": 0\n  }\n}\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 972346,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 972346 has no running members after leader close"
+        }
+      },
+      "native": {
+        "caseCount": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "retries": 0
+      },
+      "detail": "test invocation 1 failed"
+    },
+    {
+      "stage": "collect",
+      "ok": true,
+      "collected": [
+        ".e2e-artifacts",
+        "test-results"
+      ],
+      "detail": "artifact collection completed"
+    },
+    {
+      "stage": "cleanup",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-rFL9g1/runs/insight",
+      "detail": "removed /tmp/niceeval-e2e-scratch-rFL9g1/runs/insight"
+    }
+  ],
+  "exitCode": 1,
+  "category": "regression",
+  "detail": "test invocation 1 failed",
+  "candidate": {
+    "sha256": "f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b",
+    "integrity": "sha512-gFzvkUdxoE5dYy4faA5Lre2auqwiYvo/yKPr3SsJ3/6GNh+Un5hrkrYiRJIugvb4Zhf8SEFnqtBFAhVHbg4o7Q==",
+    "artifactPath": "candidate/niceeval-candidate-f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b.tgz",
+    "reproduce": "pnpm e2e run --candidate /home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-red/candidate/niceeval-candidate-f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b.tgz --repo insight",
+    "exactReplay": true
+  },
+  "testkit": {
+    "version": "0.1.0",
+    "sourcePath": "packages/testkit",
+    "resolvedPath": "node_modules/@niceeval/testkit",
+    "digest": "b59b1e2782538e3f705d3322d538b9944f6cc8e934075ce2f523f003cdbad160"
+  }
+}

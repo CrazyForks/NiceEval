@@ -1,0 +1,153 @@
+{
+  "repoId": "eval",
+  "invocationIds": [
+    "f5a25d3c-81c5-4c54-befd-19f3369c2ddc",
+    "b607522a-0dee-4244-ae69-618c467c64ff"
+  ],
+  "testInvocations": 1,
+  "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-green/eval",
+  "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-green/eval/receipt.json",
+  "stages": [
+    {
+      "stage": "preflight",
+      "ok": true,
+      "invocationId": "f5a25d3c-81c5-4c54-befd-19f3369c2ddc",
+      "checks": [
+        {
+          "kind": "runtime",
+          "subject": "node>=24",
+          "ok": true,
+          "detail": "node>=24 available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "v24.19.0\n",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 1040537,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 1040537 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared host capabilities available"
+    },
+    {
+      "stage": "prepare",
+      "ok": true,
+      "assets": [],
+      "detail": "source clean; no harness assets declared"
+    },
+    {
+      "stage": "install",
+      "ok": true,
+      "invocationId": "f5a25d3c-81c5-4c54-befd-19f3369c2ddc",
+      "command": [
+        "pnpm",
+        "install",
+        "--no-frozen-lockfile",
+        "--prefer-offline"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "✓ Lockfile passes supply-chain policies (verified 34d ago)\nProgress: resolved 1, reused 0, downloaded 0, added 0\nProgress: resolved 5, reused 5, downloaded 0, added 0\nProgress: resolved 5, reused 5, downloaded 1, added 0\nPackages: +75\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nPackages are hard linked from the content-addressable store to the virtual store.\n  Content-addressable store is at: /home/ctrdh/.local/share/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nProgress: resolved 129, reused 74, downloaded 1, added 75, done\n\ndependencies:\n+ niceeval 0.0.0-development\n\ndevDependencies:\n+ @niceeval/testkit 0.1.0\n+ @types/node 24.13.3 (26.6.3 is available)\n+ effect 4.0.0-rc.112\n+ typescript 5.9.3 (7.0.2 is available)\n+ vitest 4.1.11 (5.0.2 is available)\n\nDone in 4s using pnpm v11.18.0\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1040540,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1040540 has no running members after leader close"
+        }
+      },
+      "detail": "pnpm install ok"
+    },
+    {
+      "stage": "injection",
+      "ok": true,
+      "invocationId": "f5a25d3c-81c5-4c54-befd-19f3369c2ddc",
+      "detail": "candidate integrity matches lockfile"
+    },
+    {
+      "stage": "test",
+      "attempt": 1,
+      "invocationId": "b607522a-0dee-4244-ae69-618c467c64ff",
+      "ok": true,
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--run",
+        "test/custom-application-lifecycle.test.ts"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "\n RUN  v4.1.11 /tmp/niceeval-e2e-scratch-8B6fTv/runs/eval\n\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  16:07:05\n   Duration  34.27s (transform 42ms, setup 0ms, import 985ms, tests 33.10s, environment 0ms)\n\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1040737,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1040737 has no running members after leader close"
+        }
+      },
+      "detail": "test invocation 1 exited 0"
+    },
+    {
+      "stage": "collect",
+      "ok": true,
+      "collected": [
+        ".e2e-artifacts"
+      ],
+      "detail": "artifact collection completed"
+    },
+    {
+      "stage": "cleanup",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-8B6fTv/runs/eval",
+      "detail": "removed /tmp/niceeval-e2e-scratch-8B6fTv/runs/eval"
+    }
+  ],
+  "exitCode": 0,
+  "category": "pass",
+  "detail": "clean pass",
+  "candidate": {
+    "sha256": "dd752ab021aab037be7a1843b5335fda1ccad5861a0f9e01c528a98afb91d72d",
+    "integrity": "sha512-fsmhiHqs+kjA33j7NARRyplKZFfBwZcq2mF/ISdYt9SE2E7RVP0uuES90bZSGAXB4oRZybI+6vgGSFzIxBvvqQ==",
+    "artifactPath": "candidate/niceeval-candidate-dd752ab021aab037be7a1843b5335fda1ccad5861a0f9e01c528a98afb91d72d.tgz",
+    "reproduce": "pnpm e2e run --candidate /home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-green/candidate/niceeval-candidate-dd752ab021aab037be7a1843b5335fda1ccad5861a0f9e01c528a98afb91d72d.tgz --repo eval",
+    "exactReplay": true
+  },
+  "testkit": {
+    "version": "0.1.0",
+    "sourcePath": "packages/testkit",
+    "resolvedPath": "node_modules/@niceeval/testkit",
+    "digest": "b59b1e2782538e3f705d3322d538b9944f6cc8e934075ce2f523f003cdbad160"
+  }
+}

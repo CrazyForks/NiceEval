@@ -137,6 +137,11 @@ client 或持久 adapter coordination。`Layer` 只负责在 bootstrap 组合这
 继续由 CLI bootstrap 提供资源，不经过这层公开包装。该具名入口不承诺非 Node 加载，
 也不授予其它 Host 在领域 handler 内选择 Live Layer 的能力。
 
+`niceeval/experiment/host` 同样是具名 Node composition edge。公开 operation 惰性提供完整的本地
+`NodeRecordLive`，requirement 为 `never`；内部 runtime 保留 Record 与 coordination 的真实 requirement，
+CLI contribution 继续消费 bootstrap 的资源。每次公开执行拥有独立 Scope，退出和中断都释放其连接与 worker，
+包括初始化尚未完成的 worker。包装不创建嵌套 runtime，不转换 interruption Cause，也不公开内部 Service tag。
+
 每个 contribution 连同 parser shape、help metadata 和 handler 一起冻结。根 router 聚合这些 schema，只为让
 `parseArgs` 在不知道命令位置时取得 indexed tokens；第一个 positional token 是 root，投影时只删除这一个
 token，root 前后的 option 与 `--` 都保持原顺序。聚合 parse 不是 option 的语义验收：命令取得投影后的 argv
@@ -315,7 +320,7 @@ CLI application 通过窄的 `ProjectConfiguration` facade 固定执行 `prepare
 
 - `ProjectCredentials` 只投递缺失的 `.env` 凭据，并按规范 cwd 缓存。
 - `ConfigModuleLoader` 只提供串行的 `loadOnce` 与 `rebuild`。
-- application 与平台中立的 Library Host 不隐式选择 Node Layer，也不以 `.env` 作为 Config layer；`niceeval/run/host` 的显式 Node composition 职责见上文。
+- application 与平台中立的 Library Host 不隐式选择 Node Layer，也不以 `.env` 作为 Config layer；`niceeval/run/host` 与 `niceeval/experiment/host` 的显式 Node composition 职责见上文。
 
 命令的 argv parse、选择、render 与 Effect 编排留在 platform-neutral command program。
 它只读取不可变的 `InvocationFacts`，并依赖 `CliOutput`、`ProjectInitializer`、

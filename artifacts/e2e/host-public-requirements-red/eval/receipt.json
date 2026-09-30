@@ -1,0 +1,153 @@
+{
+  "repoId": "eval",
+  "invocationIds": [
+    "8bae7b60-bcb3-47db-adf0-487950c99e52",
+    "32035e0d-dfe3-485c-9ab0-8ff2ed795571"
+  ],
+  "testInvocations": 1,
+  "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-red/eval",
+  "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-red/eval/receipt.json",
+  "stages": [
+    {
+      "stage": "preflight",
+      "ok": true,
+      "invocationId": "8bae7b60-bcb3-47db-adf0-487950c99e52",
+      "checks": [
+        {
+          "kind": "runtime",
+          "subject": "node>=24",
+          "ok": true,
+          "detail": "node>=24 available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "v24.19.0\n",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 1019371,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 1019371 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared host capabilities available"
+    },
+    {
+      "stage": "prepare",
+      "ok": true,
+      "assets": [],
+      "detail": "source clean; no harness assets declared"
+    },
+    {
+      "stage": "install",
+      "ok": true,
+      "invocationId": "8bae7b60-bcb3-47db-adf0-487950c99e52",
+      "command": [
+        "pnpm",
+        "install",
+        "--no-frozen-lockfile",
+        "--prefer-offline"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "✓ Lockfile passes supply-chain policies (verified 34d ago)\nProgress: resolved 1, reused 0, downloaded 0, added 0\nProgress: resolved 5, reused 5, downloaded 0, added 0\nPackages: +75\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nPackages are hard linked from the content-addressable store to the virtual store.\n  Content-addressable store is at: /home/ctrdh/.local/share/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nProgress: resolved 129, reused 74, downloaded 1, added 75, done\n\ndependencies:\n+ niceeval 0.0.0-development\n\ndevDependencies:\n+ @niceeval/testkit 0.1.0\n+ @types/node 24.13.3 (26.6.3 is available)\n+ effect 4.0.0-rc.112\n+ typescript 5.9.3 (7.0.2 is available)\n+ vitest 4.1.11 (5.0.2 is available)\n\nDone in 3s using pnpm v11.18.0\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1019376,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1019376 has no running members after leader close"
+        }
+      },
+      "detail": "pnpm install ok"
+    },
+    {
+      "stage": "injection",
+      "ok": true,
+      "invocationId": "8bae7b60-bcb3-47db-adf0-487950c99e52",
+      "detail": "candidate integrity matches lockfile"
+    },
+    {
+      "stage": "test",
+      "attempt": 1,
+      "invocationId": "32035e0d-dfe3-485c-9ab0-8ff2ed795571",
+      "ok": false,
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "--run",
+        "test/custom-application-lifecycle.test.ts"
+      ],
+      "capture": {
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "\n RUN  v4.1.11 /tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval\n\n ❯ test/custom-application-lifecycle.test.ts (1 test | 1 failed) 1873ms\n   × Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion 1872ms\n\n Test Files  1 failed (1)\n      Tests  1 failed (1)\n   Start at  15:59:20\n   Duration  3.03s (transform 369ms, setup 0ms, import 1.01s, tests 1.87s, environment 0ms)\n\n",
+        "stderr": "\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  test/custom-application-lifecycle.test.ts > Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion\nAssertionError: $ /nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node custom-host-consumer.ts success  (cwd: /tmp/niceeval-e2e-eval-gsTcbi)\nexit: 1  signal: null  timedOut: false  duration: 1838ms\n--- stdout ---\n\n--- stderr ---\nnode:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nError: Service not found: @niceeval/record/ProjectStateDatabase\n    at ProjectStateDatabase.evaluate [as ~effect/Effect/evaluate] (file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/niceeval@file+..+..+..+..+home+ctrdh+Code+NiceEval+NiceEval+artifacts+e2e+host-public-r_3d5ed093cfe8409760abd2f3fc118e04/node_modules/niceeval/node_modules/effect/dist/Context.js:92:26)\n    at FiberImpl.runLoop (file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/dist/internal/effect.js:462:107)\n    at FiberImpl.evaluate (file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/dist/internal/effect.js:422:23)\n    at file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/dist/internal/effect.js:2286:9\n    at file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/dist/internal/effect.js:2338:19\n    at Module.<anonymous> (file:///tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval/node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/dist/internal/effect.js:2349:31)\n    at file:///tmp/niceeval-e2e-eval-gsTcbi/custom-host-consumer.ts:31:39\n\nNode.js v24.19.0\n: expected 1 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1\n\n ❯ ProjectStateDatabase.evaluate [as ~effect/Effect/evaluate] node_modules/.pnpm/niceeval@file+..+..+..+..+home+ctrdh+Code+NiceEval+NiceEval+artifacts+e2e+host-public-r_3d5ed093cfe8409760abd2f3fc118e04/node_modules/niceeval/node_modules/effect/src/Context.ts:424:25\n ❯ FiberImpl.runLoop node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/src/internal/effect.ts:655:39\n ❯ FiberImpl.evaluate node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/src/internal/effect.ts:607:22\n ❯ node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/src/internal/effect.ts:5422:8\n ❯ node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/src/internal/effect.ts:5500:18\n ❯ Module.<anonymous> node_modules/.pnpm/effect@4.0.0-rc.112/node_modules/effect/src/internal/effect.ts:5519:4\n ❯ ../../../niceeval-e2e-eval-gsTcbi/custom-host-consumer.ts:31:39\n ❯ test/custom-application-lifecycle.test.ts:137:50\n    135|         });\n    136|         expect(host.timedOut, host.diagnostic()).toBe(false);\n    137|         expect(host.exitCode, host.diagnostic()).toBe(0);\n       |                                                  ^\n    138|       }\n    139|       const hostJournal = await journalEntries(projectRoot);\n ❯ node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0c0fc5094ec9332dd2a0916d6da510f0/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:145:30\n ❯ withProjectCopy node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0c0fc5094ec9332dd2a0916d6da510f0/node_modules/@niceeval/testkit/dist/esm/project-copy.js:73:18\n ❯ runCase node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_0c0fc5094ec9332dd2a0916d6da510f0/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:104:20\n ❯ test/custom-application-lifecycle.test.ts:31:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1019835,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1019835 has no running members after leader close"
+        }
+      },
+      "detail": "test invocation 1 failed"
+    },
+    {
+      "stage": "collect",
+      "ok": true,
+      "collected": [
+        ".e2e-artifacts"
+      ],
+      "detail": "artifact collection completed"
+    },
+    {
+      "stage": "cleanup",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval",
+      "detail": "removed /tmp/niceeval-e2e-scratch-yZu9IJ/runs/eval"
+    }
+  ],
+  "exitCode": 1,
+  "category": "regression",
+  "detail": "test invocation 1 failed",
+  "candidate": {
+    "sha256": "f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b",
+    "integrity": "sha512-gFzvkUdxoE5dYy4faA5Lre2auqwiYvo/yKPr3SsJ3/6GNh+Un5hrkrYiRJIugvb4Zhf8SEFnqtBFAhVHbg4o7Q==",
+    "artifactPath": "candidate/niceeval-candidate-f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b.tgz",
+    "reproduce": "pnpm e2e run --candidate /home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/host-public-requirements-red/candidate/niceeval-candidate-f11f0cff5d4ae13d545071b4abd97875ceb1955505007b10e7bb733ebf46145b.tgz --repo eval",
+    "exactReplay": true
+  },
+  "testkit": {
+    "version": "0.1.0",
+    "sourcePath": "packages/testkit",
+    "resolvedPath": "node_modules/@niceeval/testkit",
+    "digest": "b59b1e2782538e3f705d3322d538b9944f6cc8e934075ce2f523f003cdbad160"
+  }
+}

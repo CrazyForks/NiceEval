@@ -1,0 +1,151 @@
+{
+  "repoId": "inspection",
+  "invocationIds": [
+    "9e3b264b-3bf3-4691-8790-f2cc81bdefd2",
+    "52d2cfa8-b582-4a45-a788-c3092936dcbb"
+  ],
+  "testInvocations": 1,
+  "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/source-diagnostics-red/inspection",
+  "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/source-diagnostics-red/inspection/receipt.json",
+  "stages": [
+    {
+      "stage": "preflight",
+      "ok": true,
+      "invocationId": "9e3b264b-3bf3-4691-8790-f2cc81bdefd2",
+      "checks": [
+        {
+          "kind": "runtime",
+          "subject": "node>=24",
+          "ok": true,
+          "detail": "node>=24 available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "v24.19.0\n",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 1086975,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 1086975 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared host capabilities available"
+    },
+    {
+      "stage": "prepare",
+      "ok": true,
+      "assets": [],
+      "detail": "source clean; no harness assets declared"
+    },
+    {
+      "stage": "install",
+      "ok": true,
+      "invocationId": "9e3b264b-3bf3-4691-8790-f2cc81bdefd2",
+      "command": [
+        "pnpm",
+        "install",
+        "--no-frozen-lockfile",
+        "--prefer-offline"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "✓ Lockfile passes supply-chain policies (verified 32d ago)\nProgress: resolved 1, reused 0, downloaded 0, added 0\nProgress: resolved 5, reused 5, downloaded 0, added 0\nPackages: +75\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nPackages are hard linked from the content-addressable store to the virtual store.\n  Content-addressable store is at: /home/ctrdh/.local/share/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nProgress: resolved 130, reused 74, downloaded 1, added 75, done\n\ndependencies:\n+ effect 4.0.0-rc.112\n+ niceeval 0.0.0-development\n\ndevDependencies:\n+ @niceeval/testkit 0.1.0\n+ @types/node 24.13.3 (26.6.3 is available)\n+ typescript 5.9.3 (7.0.2 is available)\n+ vitest 4.1.11 (5.0.2 is available)\n\nDone in 2.6s using pnpm v11.18.0\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1086977,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1086977 has no running members after leader close"
+        }
+      },
+      "detail": "pnpm install ok"
+    },
+    {
+      "stage": "injection",
+      "ok": true,
+      "invocationId": "9e3b264b-3bf3-4691-8790-f2cc81bdefd2",
+      "detail": "candidate integrity matches lockfile"
+    },
+    {
+      "stage": "test",
+      "attempt": 1,
+      "invocationId": "52d2cfa8-b582-4a45-a788-c3092936dcbb",
+      "ok": false,
+      "command": [
+        "node",
+        "scripts/run-native.mjs",
+        "--run",
+        "test/source-diagnostics.test.ts"
+      ],
+      "capture": {
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "\n RUN  v4.1.11 /tmp/niceeval-e2e-scratch-rErhcZ/runs/inspection\n\n ❯ test/source-diagnostics.test.ts (1 test | 1 failed) 740ms\n   × Record 读取失败保留具体原因且不凭空归因旧版本 739ms\n\n Test Files  1 failed (1)\n      Tests  1 failed (1)\n   Start at  16:18:13\n   Duration  1.43s (transform 22ms, setup 0ms, import 558ms, tests 740ms, environment 0ms)\n\n",
+        "stderr": "\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  test/source-diagnostics.test.ts > Record 读取失败保留具体原因且不凭空归因旧版本\nAssertionError: expected 'The selected Record source could not …' to contain 'record-database-invalid'\n\nExpected: \"record-database-invalid\"\nReceived: \"The selected Record source could not be opened. If this is a Record from an older NiceEval version, stop old NiceEval processes and run a normal experiment in the original project to upgrade supported formats before retrying --record. External Records are never migrated in place.\"\n\n ❯ test/source-diagnostics.test.ts:17:28\n     15|     const failure = result.queryFailure().failure;\n     16|     expect(failure.code).toBe(\"inspection-source-invalid\");\n     17|     expect(failure.reason).toContain(\"record-database-invalid\");\n       |                            ^\n     18|     expect(failure.reason).not.toContain(\"older NiceEval\");\n     19|     expect(failure.reason).not.toContain(\"run a normal experiment\");\n ❯ node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_dfea098bdc4f0966c5b2a0de53dfffae/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:145:30\n ❯ withProjectCopy node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_dfea098bdc4f0966c5b2a0de53dfffae/node_modules/@niceeval/testkit/dist/esm/project-copy.js:73:18\n ❯ runCase node_modules/.pnpm/@niceeval+testkit@file+..+..+testkit+package_niceeval@file+..+..+..+..+home+ctrdh+Code+_dfea098bdc4f0966c5b2a0de53dfffae/node_modules/@niceeval/testkit/dist/esm/e2e-context.js:104:20\n ❯ test/source-diagnostics.test.ts:8:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1087283,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1087283 has no running members after leader close"
+        }
+      },
+      "detail": "test invocation 1 failed"
+    },
+    {
+      "stage": "collect",
+      "ok": true,
+      "collected": [
+        ".e2e-artifacts"
+      ],
+      "detail": "artifact collection completed"
+    },
+    {
+      "stage": "cleanup",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-rErhcZ/runs/inspection",
+      "detail": "removed /tmp/niceeval-e2e-scratch-rErhcZ/runs/inspection"
+    }
+  ],
+  "exitCode": 1,
+  "category": "regression",
+  "detail": "test invocation 1 failed",
+  "candidate": {
+    "sha256": "31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154",
+    "integrity": "sha512-XroLJOAPdHlShU3C/Mp68ZbPD7qi5dLiOHyaBZz4ig1ZRtRE1F62jk72RTqZC1kng41T0pVLeLhjgTJJW0EfyA==",
+    "artifactPath": "candidate/niceeval-candidate-31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154.tgz",
+    "reproduce": "pnpm e2e run --candidate /home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/source-diagnostics-red/candidate/niceeval-candidate-31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154.tgz --repo inspection",
+    "exactReplay": true
+  },
+  "testkit": {
+    "version": "0.1.0",
+    "sourcePath": "packages/testkit",
+    "resolvedPath": "node_modules/@niceeval/testkit",
+    "digest": "b59b1e2782538e3f705d3322d538b9944f6cc8e934075ce2f523f003cdbad160"
+  }
+}

@@ -62,6 +62,7 @@ export interface ExecutionTraceFilters {
   readonly traceId?: string;
   readonly sourceId?: string;
   readonly actorId?: string;
+  readonly eventType?: string;
 }
 
 export interface ExecutionTraceOutlineRequest extends ExecutionTraceFilters {
@@ -551,7 +552,8 @@ function scanCollection(
 function matches(event: ExecutionTraceEventRecord, filters: ExecutionTraceFilters): boolean {
   return (filters.traceId === undefined || event.traceId === filters.traceId) &&
     (filters.sourceId === undefined || event.source.id === filters.sourceId) &&
-    (filters.actorId === undefined || event.actor?.id === filters.actorId);
+    (filters.actorId === undefined || event.actor?.id === filters.actorId) &&
+    (filters.eventType === undefined || event.type === filters.eventType);
 }
 
 export const EXECUTION_TRACE_CONTINUATION_FAMILIES = Object.freeze({
@@ -567,7 +569,7 @@ interface ContinuationBinding {
   readonly sourceFamily: string;
   readonly familyRevision: number;
   readonly behaviorVersion: typeof INSPECTION_BEHAVIOR_VERSION;
-  readonly filters: { readonly traceId: string | null; readonly sourceId: string | null; readonly actorId: string | null };
+  readonly filters: { readonly traceId: string | null; readonly sourceId: string | null; readonly actorId: string | null; readonly eventType: string | null };
   readonly lastOrdinal: number;
 }
 
@@ -595,6 +597,7 @@ function continuationBinding(
       traceId: context.filters.traceId ?? null,
       sourceId: context.filters.sourceId ?? null,
       actorId: context.filters.actorId ?? null,
+      eventType: context.filters.eventType ?? null,
     }),
     lastOrdinal,
   });
@@ -675,6 +678,7 @@ export function projectExecutionTraceOutline(
     ...(request.traceId === undefined ? {} : { traceId: request.traceId }),
     ...(request.sourceId === undefined ? {} : { sourceId: request.sourceId }),
     ...(request.actorId === undefined ? {} : { actorId: request.actorId }),
+    ...(request.eventType === undefined ? {} : { eventType: request.eventType }),
   });
   const nativeAttachment = collectionAttachment(resolved);
   if (request.continuation !== undefined && nativeAttachment === undefined &&
@@ -693,11 +697,9 @@ export function projectExecutionTraceOutline(
   let matched = 0;
   let priorMatches = 0;
   let pageFull = false;
-  const matchedTraceIds = new Set<string>();
   const scanned = scanCollection(resolved, (record, collectionOrdinal) => {
     if (record.kind !== "event" || !matches(record, filters)) return;
     matched += 1;
-    matchedTraceIds.add(record.traceId);
     if (collectionOrdinal <= resumeAfter) {
       priorMatches += 1;
       return;
@@ -722,10 +724,9 @@ export function projectExecutionTraceOutline(
   });
   const remaining = Math.max(0, matched - priorMatches - retained.length);
   const lastOrdinal = retained.at(-1)?.collectionOrdinal;
-  const hasEventFilter = filters.sourceId !== undefined || filters.actorId !== undefined;
   const traceHeaders = [...scanned.state.headers.values()]
-    .filter((header) => (filters.traceId === undefined || header.traceId === filters.traceId) &&
-      (!hasEventFilter || matchedTraceIds.has(header.traceId)))
+    // An empty filtered page does not prove the producer captured all events.
+    .filter((header) => filters.traceId === undefined || header.traceId === filters.traceId)
     .map((header) => Object.freeze({
       ...header,
       eventCount: scanned.state.eventCounts.get(header.traceId) ?? 0,

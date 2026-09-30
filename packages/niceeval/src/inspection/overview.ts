@@ -836,8 +836,8 @@ function scoreForCell(slots: readonly SelectedSlot[]): InspectionMetricValue {
   const eligible = knownPoints.length === 0
     ? unknown
     : slots.filter(({ analysis }) => analysis.evaluationKind !== "pass");
+  // Earned-score coverage is independent of gate Verdict and ranking eligibility.
   const complete = eligible.filter(({ analysis }) =>
-    analysis.verdict === "passed" &&
     analysis.score.hasPoints &&
     analysis.score.hasValue &&
     analysis.score.complete);

@@ -82,6 +82,9 @@ export const SHOW_CLI_OPTIONS = Object.freeze({
     type: "boolean",
     help: help("Show the execution outline for one Attempt locator."),
   }),
+  actor: option({ type: "string", help: help("Filter execution events by exact actor ID.") }),
+  type: option({ type: "string", help: help("Filter execution events by exact event type.") }),
+  continuation: option({ type: "string", help: help("Read the next execution page with the same filters.") }),
   timing: option({
     type: "boolean",
     help: help("Show captured timing for one Attempt locator."),
@@ -110,6 +113,7 @@ Usage:
   niceeval show @<locator> [--record <file>]
   niceeval show @<locator> --source
   niceeval show @<locator> --execution [--expand <stable-id>]
+  niceeval show @<locator> --execution [--actor <id>] [--type <event-type>] [--continuation <token>]
   niceeval show @<locator> --timing
   niceeval show @<locator> --usage
   niceeval show @<locator> --diff
@@ -123,6 +127,9 @@ Selectors:
 Attempt details:
   --source                      Show captured sources and Assertion sites.
   --execution                   Show the bounded execution outline.
+  --actor <id>                  Filter execution events by exact actor ID.
+  --type <event-type>           Filter execution events by exact type.
+  --continuation <token>        Read the next page using the same filters.
   --expand <stable-id>          Expand an execution event/evidence ID, itemId,
                               toolOccurrenceId, or commandId.
   --timing                      Show captured timing activities.
@@ -207,6 +214,15 @@ function runShow(
       typeof parsed.values.expand === "string"
         ? parsed.values.expand
         : undefined;
+    const actorId = typeof parsed.values.actor === "string" ? parsed.values.actor : undefined;
+    const eventType = typeof parsed.values.type === "string" ? parsed.values.type : undefined;
+    const continuation = typeof parsed.values.continuation === "string" ? parsed.values.continuation : undefined;
+    const listOptions = [actorId === undefined ? undefined : "--actor", eventType === undefined ? undefined : "--type", continuation === undefined ? undefined : "--continuation"]
+      .filter((value) => value !== undefined);
+    if (listOptions.length > 0 && !execution)
+      return yield* usage(`${listOptions.join(", ")} require --execution.`);
+    if (listOptions.length > 0 && expand !== undefined)
+      return yield* usage(`--expand cannot be combined with ${listOptions.join(", ")}.`);
     if (detailModes > 1)
       return yield* usage(
         "--source, --execution, --timing, --usage, and --diff are mutually exclusive.",
@@ -354,6 +370,9 @@ function runShow(
             selectInspectionOperation(opened, {
               kind: "attempt.trace",
               locator: selectedLocator,
+              ...(actorId === undefined ? {} : { actorId }),
+              ...(eventType === undefined ? {} : { eventType }),
+              ...(continuation === undefined ? {} : { continuation }),
             }),
           );
           const trace = yield* project("attempt.trace", () =>

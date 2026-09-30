@@ -1,3 +1,5 @@
+import { rawExperimentHost as experimentHost } from "../runtime.ts";
+import type { ExperimentHostRequirements } from "../requirements.ts";
 import { Effect, Result } from "effect";
 
 import {
@@ -21,12 +23,10 @@ import { renderSessionListText, renderSessionShowText } from "../../../runner/se
 import type { CurrentReuseReadbackSnapshot } from "../../../runner/reuse-readback.ts";
 import { browsableExperimentPaths } from "../../../shared/aggregate.ts";
 import {
-  experimentHost,
   type ExperimentHostDebugPlan,
   type ExperimentHostRenamePlan,
   type ExperimentHostRenameReason,
   type ExperimentHostRenameResult,
-  type ExperimentHostRequirements,
   type ExperimentHostSharedStateEvidence,
   type ExperimentHostTeardownEvent,
   type ExperimentHostTeardownResult,

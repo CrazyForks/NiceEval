@@ -234,7 +234,7 @@ Evidence detail 返回该精确 JSON 值的规范 UTF-8 bytes，以 `base64` 编
 `offset` 与可空 `nextOffset` 一起交付。默认每次 64 KiB，最大 256 KiB，调用方按 `nextOffset` 续读。
 这不是整局附件的下载入口，也不重新调用外部系统。
 
-`attempt.trace` 的可选 `traceId`、`sourceId`、`actorId` 精确筛选通用轨迹；每页最多 32 个事件且事件摘要至多 64 KiB。
+`attempt.trace` 的可选 `traceId`、`sourceId`、`actorId`、`eventType` 精确筛选通用轨迹；每页最多 32 个事件且事件摘要至多 64 KiB。
 `execution.continuation` 绑定相同筛选、Attempt origin、source、publication cutoff、family revision 和 behavior version；
 续读时保留全部筛选参数，绑定改变返回 `restart-required`。identity index 的遗漏不妨碍按已知稳定 ID 精确展开。
 
@@ -302,7 +302,7 @@ niceeval show --run <run-id>...
 niceeval show --experiment <experiment-id>...
 niceeval show @<locator>
 niceeval show @<locator> --source
-niceeval show @<locator> --execution [--expand <stable-id>]
+niceeval show @<locator> --execution [--actor <id>] [--type <event-type>] [--continuation <token>] [--expand <stable-id>]
 niceeval show @<locator> --timing
 niceeval show @<locator> --usage
 niceeval show @<locator> --diff
@@ -370,6 +370,10 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
 
 `--source`、`--execution`、`--timing`、`--usage` 与 `--diff` 都要求一个 Attempt locator，且五者互斥。
 `--expand` 只能与 `--execution` 同用。
+`--actor`、`--type` 与 `--continuation` 同样只用于 `--execution`，分别交给 `actorId`、`eventType` 与原样 continuation。
+下一页必须保留同一筛选；`--expand` 直接定位稳定 ID，不接受列表筛选或 continuation。
+轨迹输出分别标明捕获状态、每条 trace 的 producer collection 状态及限制、当前页是否还有后续。
+`partial` 的空索引显示其限制，页尾不能被描述为生产者证据完整。
 `--all` 只适用于无 selector 的 Results，不能与 `--experiment`、`--run`、Attempt locator 或 Attempt detail flag 同用。
 
 ### 固定 Record 的历史 Results 示例
@@ -496,3 +500,5 @@ Current results · Experiment main
 `show` 不提供 `--json`、`--report`、history、stats、fresh、grep 或自由 statistics，也不接受 Page、theme、
 component、renderer、静态导出、显示位置 handle 或其它作者面。`query` 是唯一 JSON 入口；`view` 不接受 Attempt locator。
 CLI 不探测 locale，只输出由 Inspection CLI presenter 直接拥有的英语文本，不建立中文或英语 message catalog。
+
+读取失败保留底层 Record 错误分类、操作与原因。只有明确需要 schema migration 时才提示迁移；忙碌读取和资源限额表示本次读取未完成，不推断已发布数据损坏。

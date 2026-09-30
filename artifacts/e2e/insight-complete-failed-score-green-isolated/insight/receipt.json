@@ -1,0 +1,189 @@
+{
+  "repoId": "insight",
+  "invocationIds": [
+    "61ce69be-417c-4428-a921-7ec90f5fcf7e",
+    "dbbc6b05-7129-4f9b-8877-a94d36c609da"
+  ],
+  "testInvocations": 1,
+  "artifactDir": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-green-isolated/insight",
+  "receiptPath": "/home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-green-isolated/insight/receipt.json",
+  "stages": [
+    {
+      "stage": "preflight",
+      "ok": true,
+      "invocationId": "61ce69be-417c-4428-a921-7ec90f5fcf7e",
+      "checks": [
+        {
+          "kind": "runtime",
+          "subject": "node>=24",
+          "ok": true,
+          "detail": "node>=24 available",
+          "command": [
+            "node",
+            "--version"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "v24.19.0\n",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 1115008,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 1115008 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared host capabilities available"
+    },
+    {
+      "stage": "prepare",
+      "ok": true,
+      "assets": [],
+      "detail": "source clean; no harness assets declared"
+    },
+    {
+      "stage": "install",
+      "ok": true,
+      "invocationId": "61ce69be-417c-4428-a921-7ec90f5fcf7e",
+      "command": [
+        "pnpm",
+        "install",
+        "--no-frozen-lockfile",
+        "--prefer-offline"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "✓ Lockfile passes supply-chain policies (verified 9d ago)\nProgress: resolved 1, reused 0, downloaded 0, added 0\nProgress: resolved 6, reused 6, downloaded 0, added 0\nPackages: +78\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nPackages are hard linked from the content-addressable store to the virtual store.\n  Content-addressable store is at: /home/ctrdh/.local/share/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nProgress: resolved 133, reused 77, downloaded 1, added 78, done\n. postinstall$ playwright install chromium\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.\n. postinstall: Done\n\ndependencies:\n+ effect 4.0.0-rc.112\n+ niceeval 0.0.0-development\n\ndevDependencies:\n+ @niceeval/testkit 0.1.0\n+ @playwright/test 1.63.0\n+ @types/node 24.13.3 (26.6.3 is available)\n+ typescript 5.9.3 (7.0.2 is available)\n+ vitest 4.1.11 (5.0.2 is available)\n\nDone in 3.1s using pnpm v11.18.0\n",
+        "stderr": "",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1115011,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1115011 has no running members after leader close"
+        }
+      },
+      "detail": "pnpm install ok"
+    },
+    {
+      "stage": "injection",
+      "ok": true,
+      "invocationId": "61ce69be-417c-4428-a921-7ec90f5fcf7e",
+      "detail": "candidate integrity matches lockfile"
+    },
+    {
+      "stage": "browser",
+      "ok": true,
+      "invocationId": "61ce69be-417c-4428-a921-7ec90f5fcf7e",
+      "checks": [
+        {
+          "kind": "browser",
+          "subject": "chromium",
+          "ok": true,
+          "detail": "Playwright browser chromium available",
+          "command": [
+            "/nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node",
+            "-e",
+            "const fs=require('node:fs');const p=require('playwright');const b=process.argv[1];const l=p[b];if(!l||typeof l.executablePath!=='function')process.exit(2);const x=process.env[b.toUpperCase()+'_EXECUTABLE_PATH']||l.executablePath();if(!x||!fs.existsSync(x))process.exit(3);",
+            "chromium"
+          ],
+          "capture": {
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "cancelled": false,
+            "stdout": "",
+            "stderr": "",
+            "processGroupOwned": true,
+            "groupCleanup": {
+              "owned": true,
+              "checked": true,
+              "aliveAfterLeaderClose": false,
+              "groupId": 1115339,
+              "signalsSent": [],
+              "gone": true,
+              "detail": "owned process group 1115339 has no running members after leader close"
+            }
+          }
+        }
+      ],
+      "detail": "declared browser capabilities available"
+    },
+    {
+      "stage": "test",
+      "attempt": 1,
+      "invocationId": "dbbc6b05-7129-4f9b-8877-a94d36c609da",
+      "ok": true,
+      "command": [
+        "node",
+        "scripts/run-native.mjs",
+        "test/view-snapshot.browser.spec.ts"
+      ],
+      "capture": {
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "cancelled": false,
+        "stdout": "\nRunning 1 test using 1 worker\n\n  ✓  1 [chromium] › test/view-snapshot.browser.spec.ts:22:1 › 读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证据，并始终读取同一 sealed cutoff (1.0m)\n\n  1 passed (1.1m)\n",
+        "stderr": "(node:1115735) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
+        "processGroupOwned": true,
+        "groupCleanup": {
+          "owned": true,
+          "checked": true,
+          "aliveAfterLeaderClose": false,
+          "groupId": 1115484,
+          "signalsSent": [],
+          "gone": true,
+          "detail": "owned process group 1115484 has no running members after leader close"
+        }
+      },
+      "detail": "test invocation 1 exited 0"
+    },
+    {
+      "stage": "collect",
+      "ok": true,
+      "collected": [
+        ".e2e-artifacts",
+        "test-results"
+      ],
+      "detail": "artifact collection completed"
+    },
+    {
+      "stage": "cleanup",
+      "ok": true,
+      "path": "/tmp/niceeval-e2e-scratch-Yg5qf7/runs/insight",
+      "detail": "removed /tmp/niceeval-e2e-scratch-Yg5qf7/runs/insight"
+    }
+  ],
+  "exitCode": 0,
+  "category": "pass",
+  "detail": "clean pass",
+  "candidate": {
+    "sha256": "31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154",
+    "integrity": "sha512-XroLJOAPdHlShU3C/Mp68ZbPD7qi5dLiOHyaBZz4ig1ZRtRE1F62jk72RTqZC1kng41T0pVLeLhjgTJJW0EfyA==",
+    "artifactPath": "candidate/niceeval-candidate-31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154.tgz",
+    "reproduce": "pnpm e2e run --candidate /home/ctrdh/Code/NiceEval/NiceEval/artifacts/e2e/insight-complete-failed-score-green-isolated/candidate/niceeval-candidate-31a623b9ebf2a0bd8ea075d2cdb7ef4c28b636d9e5387e8849a6b8daf304a154.tgz --repo insight",
+    "exactReplay": true
+  },
+  "testkit": {
+    "version": "0.1.0",
+    "sourcePath": "packages/testkit",
+    "resolvedPath": "node_modules/@niceeval/testkit",
+    "digest": "b59b1e2782538e3f705d3322d538b9944f6cc8e934075ce2f523f003cdbad160"
+  }
+}

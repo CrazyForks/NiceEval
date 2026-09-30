@@ -80,6 +80,10 @@ MetricValue 保留 state、value、samples、total、basis、issues 与 refs。p
 earned/possible、USD cost，以及 member/cell/aggregate score 都由 selector 关闭；renderer 只 decode/relabel。Insight 的
 Results 散点图只把已关闭的 USD cost 作为横轴，并把已关闭的 pass rate 或 score 作为纵轴。
 
+普通 score 指标汇总完整的 earned score，独立于 Verdict。`failed + complete` 与完整的零分都计入样本数、
+均值、总分和评分完整性；失败标签仍保留。`partial` 与 `unavailable` 不补零，也不算完整评分样本。
+成功排名另以 `passed + complete` 判断资格，不能用排名资格代替 score 可用性或结果完整性。
+
 ## Source adapter 与交付边界
 
 Node adapter 为 `niceeval query` 和 `niceeval show` 打开短寿只读连接；本机 Insight Host 拥有 generation-bound
