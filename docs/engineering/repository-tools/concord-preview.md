@@ -14,7 +14,7 @@ Netlify deploy-preview 以 `REVIEW_ID` 定位 NiceEval PR，从 GitHub 的[公�
 
 ## 构建与托管
 
-Concord 使用仓库 vendor tarball 中的固定包，由 Concord 正式 build/pack 生成，包内容由 lockfile integrity 绑定。本地验证和 CI 消费相同 CLI；不得依赖全局安装、相邻源码 checkout 或未发布远端版本。
+Concord 使用仓库 `vendor/concord/` 中的固定发行包。包来自 Concord GitHub Release，更新时核对发行 SHA-256，安装由 lockfile integrity 绑定。本地验证和 CI 消费相同 CLI；不得依赖全局安装、相邻源码 checkout 或未发布远端版本。
 
 Preview contribution 调用 `concord view export`，显式传递 base SHA、head SHA、目标分支展示名与独占输出目录。导出完成后将目录纳入发布文件清单和摘要，校验通过才发布整个站点。
 

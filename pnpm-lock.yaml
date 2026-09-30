@@ -291,8 +291,8 @@ importers:
         specifier: workspace:*
         version: link:../e2e-runner
       concord-sdlc:
-        specifier: file:../../vendor/concord/concord-sdlc-dev.tgz
-        version: file:vendor/concord/concord-sdlc-dev.tgz(redis@6.2.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
+        specifier: file:../../vendor/concord/concord-sdlc-0.10.0.tgz
+        version: file:vendor/concord/concord-sdlc-0.10.0.tgz(redis@6.2.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
@@ -2738,9 +2738,9 @@ packages:
   compare-versions@6.1.1:
     resolution: {integrity: sha512-4hm4VPpIecmlg59CHXnRDnqGplJFrbLG4aFEl5vl6cK1u76ws3LLvX7ikFnTDl5vo39sjWD6AaDPYodJp/NNHg==}
 
-  concord-sdlc@file:vendor/concord/concord-sdlc-dev.tgz:
-    resolution: {integrity: sha512-t0v5IOGo7O58qFyWjGAL7HqMwLslpMvks95jjKT12HRL9ZAcAyGFsCvJ5Rf/YSijEIjfVKZpFE/W40svrxOg4Q==, tarball: file:vendor/concord/concord-sdlc-dev.tgz}
-    version: dev
+  concord-sdlc@file:vendor/concord/concord-sdlc-0.10.0.tgz:
+    resolution: {integrity: sha512-SurH2xpTdbaErMbNWLVXKGGRTOZkHHwoB/holcuoE8Rff+YCSArCN4Prt+Z16bOxWNFJ4ZSlr1laUCoLboDIbg==, tarball: file:vendor/concord/concord-sdlc-0.10.0.tgz}
+    version: 0.10.0
     engines: {node: '>=24.15.0'}
     hasBin: true
 
@@ -6917,7 +6917,7 @@ snapshots:
 
   compare-versions@6.1.1: {}
 
-  concord-sdlc@file:vendor/concord/concord-sdlc-dev.tgz(redis@6.2.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2):
+  concord-sdlc@file:vendor/concord/concord-sdlc-0.10.0.tgz(redis@6.2.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2):
     dependencies:
       '@effect/platform-node': 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
