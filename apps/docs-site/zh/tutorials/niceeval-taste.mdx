@@ -1,10 +1,12 @@
 ---
 title: "NiceEval Taste：写出判据清楚的评估"
 sidebarTitle: "NiceEval Taste"
-description: "用少量领域原子在正文组合身份、状态、数量与通过条件，保留完整证据和独立权重，避免把整条验收结论藏进函数。"
+description: "用已有事实、小条件和普通计算写清检查与权重；Match 选择完整材料和组合条件，避免给取数、公式或整条验收结论另造概念。"
 ---
 
 写完一条评估，让同事只读正文就能说明：测什么、什么算通过、为什么这些证据足够、怎样计分。先写业务判据，再选择最短且忠实的表达。不要先遍历日志，再给统计结果起一个业务名称。
+
+能用已有事实、简单条件和普通计算表达，就不要命名新业务概念。Match 用于选择材料和组合小条件；几行算术直接写在正文，再使用官方计分入口加权。少概念比少行代码更重要。
 
 本页帮助你审阅和改写已有评估。声明与运行步骤见[编写评估用例](/zh/tutorials/authoring)，签名见 [defineEval 参考](/zh/reference/define-eval)。业务案例用伪代码说明判据；客服任务例子使用公开 API，应用观测函数由接入项目提供。
 
@@ -40,6 +42,8 @@ Adapter 读取应用已有的协议、执行与状态事实，不复制一套权
 `胜者有自主战斗行动()` 也不是合格的简化。读者仍需打开函数实现，才能知道它检查了身份、模型成功、决策采用，还是只找到一条包含战斗文字的日志。把整句业务结论写成函数名，不会让判据变得可见。
 
 领域原子可以有领域名，例如人物、生命值、决策和操作。每个原子只负责一个可解释的条件；相等、计数、组合与失败诊断由通用能力承担。当前场景选择谁、要求几项、哪些状态必须同时满足，都写在评估正文。
+
+物体遵守相同规则。“货箱完好送达”应展示同一物体的身份、耐久条件和目标位置，不能把整句结论藏进函数。比如 `id === crateId`、`durability >= minimum`、`positionId === destinationId` 是三个可见条件；若还要求曾被搬运，需要独立的操作事实，当前位置不能代替过程证据。
 
 下面是应用接入后的正文片段。`and`、`countWhere` 与 `equals` 是 `niceeval/expect` 的公开组合器；`t.hp`、`t.systemOne`、`npcMatch`、`modelMatch`、`decisionMatch` 与 `operationMatch` 由应用定义，必须先按该应用的 Adapter 契约接入。
 
@@ -170,8 +174,9 @@ Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一�
 import { defineAdapter, type AdapterCreateContext } from "niceeval";
 import {
   atLeast, atMost, countWhere, defineContextMatch, defineMaterialMatch,
-  defineScoreMatch, equals, filterWhere, mapEach, mapValue,
+  equals, filterWhere, mapEach, mapValue,
   type BooleanMatch, type CollectionValue, type MaterialCollection, type MatchFact,
+  type NumericMaterial,
 } from "niceeval/expect";
 
 export type Speech = {
@@ -189,11 +194,11 @@ export type SupportFacts = {
 };
 ```
 
-### 领域 Match 选择材料并定义评分
+### 领域 Match 只选择材料与组合条件
 
 人物发言只按人物选择，送达失败或模型来源未知的发言仍进入表达质量判断。`read` 从框架注入的 ctx 读取材料，不需要 source 或 bind 注册。读取集合的预算包含未命中项。
 
-完成效率读取一个业务事实，复用 `ScoreMatch`。完整观察确定未完成时给 0；事实不可用时，框架不调用评分函数。它不把整个 journal 作为断言材料，也不顺便判定身份、模型来源、送达或任务整体通过。时间尺度由正文传入，权重仍写在正文。
+完成状态和业务耗时已经是应用事实，直接读取并计算即可。不要为了取出一个字段或包装算术，另造“完成耗时效率 Match”。公式、时间尺度和权重写在评估正文。
 
 ```ts
 export const 人物 = (actorId: string) =>
@@ -207,22 +212,6 @@ export const 发言材料 = (match: BooleanMatch<Speech, Speech>) =>
     capture: { maxItems: 1024, maxBytes: 512 * 1024,
       maxNodes: 65536, maxDepth: 32 },
   });
-
-export const 完成耗时效率 = (withinSeconds: number) => {
-  if (!Number.isFinite(withinSeconds) || withinSeconds <= 0) {
-    throw new TypeError("withinSeconds must be finite and positive");
-  }
-  return defineContextMatch<SupportFacts, Completion>({
-    name: "completion-efficiency",
-    read: ctx => ctx.completion,
-    match: defineScoreMatch<Completion>({
-      name: "completion-time-score",
-      score: fact => fact.completed
-        ? Math.max(0, 1 - fact.businessSeconds / withinSeconds)
-        : 0,
-    }),
-  });
-};
 ```
 
 ### 正文保留独立判据与权重
@@ -272,8 +261,14 @@ export function createSupportReview(
         maxAuditBytes: 1024 * 1024,
       }).score(45).label("表达质量");
 
-      // 完成事实不可用时不能伪造 0；业务时间与运行耗时分开。
-      t.check(完成耗时效率(180)).score(50).label("完成效率");
+      // 普通公式就在正文；未知仍占固定权重，不能当作未完成的 0。
+      const completion = t.completion;
+      const ratio: number | NumericMaterial = completion.state === "unavailable"
+        ? { state: "unavailable", reason: completion.reason }
+        : completion.value.completed
+          ? Math.max(0, 1 - completion.value.businessSeconds / 180)
+          : 0;
+      t.score(ratio, { weight: 50 }).label("完成耗时");
 
       const usage = t.usage;
       t.check(usage.totalTokens, atMost(10_000)).gate().label("用量上限");
@@ -292,6 +287,8 @@ export function createSupportReview(
 
 `check` 登记判断，handle 再配置该判断的用途。在 Score Eval 中，普通断言默认只保存结果；`.score(weight)` 才贡献分数，`.gate()` 才建立 Boolean 通过门槛。Pass Eval 的 Boolean 默认影响通过判定，不要把两种题型的默认规则混用。
 
+普通计算得到有限的 0–1 数值后，使用 `t.score(ratio, { weight: 50 })`，贡献为 ratio × 50。单参数 `t.score(points)` 表示直接贡献分数，含义不同。公式不用先包装成 `ScoreMatch`；加权入口也接受带完整性状态的 `NumericMaterial`，未知时保留固定权重而不补零。
+
 后续步骤依赖完整性或配置前提时，使用 `await handle.orStop()`；它负责停止后续执行，不自动替代业务 gate。measurement 用 `.orStop(minimum)`，或在 `.gate(minimum)` 后无参复用条件。证据不可用应保持 unavailable，不先改写成 `false` 或 `0` 再停止。
 
 参与加分和所有人必须行动不是同一要求。不要把每个人的 `.score(5)` 改成 `.gate()` 来缩短代码；这会改变业务标准。低分与正式未完成的零分可以是有效结果，不能为了绿色报告降低阈值或删除失败项。具体题型规则见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
@@ -308,6 +305,8 @@ export function createSupportReview(
 | `t.observation(...)`、`t.efficiency(...)`、`runEverything()` | 名称看不出证据和判据，或把全部评分藏起来 | 正文分别展示观察前提、业务检查、Judge 问题与分值 |
 | `胜者有自主战斗行动()` | 函数名遮住判断过程，正文看不到采用了哪些条件 | 正文组合人物身份、模型成功、决策采用与允许的操作类型 |
 | `三名敌人全部败退()` | “败退”可能混合生命值、离场与任务结果，数量也藏在实现里 | 明确人物范围，分别展示生命值条件与所需数量 |
+| `货箱完好送达()` | 身份、耐久和位置条件被函数名遮住 | 在同一物体上组合身份、耐久阈值与目标位置 |
+| `首次决胜游戏秒数()`、`决胜前调用效率()`、`反比得分Match()` | 为取数或几行公式增加概念，读者还得查定义 | 从正式 ctx 读取同一窗口的耗时与实际调用数，在正文计算 0–1 并加权 |
 | `has(actorA) && has(deliveredToB)` | 两条不同记录也能满足 | 在同一候选上组合人物、动作和送达条件 |
 | `output.includes("移动")` | 文本计划不等于实际移动 | 分别检查模型选择、执行回执与世界位置变化 |
 | `accepted === true` 就计任务完成 | 请求受理不等于最终结果 | 检查对应请求的完成回执和目标状态 |
@@ -334,13 +333,17 @@ export function createSupportReview(
 
 存在性需要一个已确认的见证；全材料 QA 则必须确认相关集合完整，并处理全部命中项。发现一个合格行动不能证明其余行动优秀，也不能让全材料 QA 忽略尚未读取的记录。预算停止后的存在性结论同样必须依据正式证据收据，不能自行从被截断的数组推定成功。
 
-### 单个事实评分保留业务边界
+### 普通计算保留业务边界
 
-完成耗时是一个业务事实，不要求评估正文传入整个 journal。应用提供可追溯的完成事件与业务时间；领域 Match 定义它怎样换算成分数，正文保留独立检查与权重。
+完成耗时是一个业务事实，不要求评估正文传入整个 journal。应用提供可追溯的完成状态与业务时间；正文直接计算分数，不为一次取数或算术定义新的业务函数、Match 或计分语言。
 
 例如，180 个业务秒内越早完成得分越高，可以定义为 `max(0, 1 - 完成秒数 / 180)`，权重为 50。完整观察已证明未完成时得 0；完成边界或观察结束证据缺失时不可判定。不要把缺少完成事件直接解释为耗时 0，也不要把运行墙钟代入业务时间。
 
 已知完成于第 90 秒只证明这项规则得到 25 分。它不证明送达、模型自主选择或表达质量通过；这些判据仍在正文分别检查。单个样例或类型检查通过，也不等于整个业务评估已经验证。
+
+例如战斗场景可以明确等待“选定人物的存活数为 1，或观察期限到达”。到期不是决胜，最终观察必须区分唯一幸存、仍有多人和无人存活。停止后读取同一正式测量窗口的游戏耗时和实际调用数，再按业务规则作普通计算；不从日志重新追算一个“首次决胜”概念。
+
+这段只规定观察意图，不声明实时状态或截止 API。具体应用必须先提供正式只读状态与停止协议，才能实现实时条件；不要私调 evaluator、读取未封存的内部存储或假设取消就是全部在途操作结束。状态入口与 cleanup 的签名分别以应用契约和 [Adapter 参考](/zh/reference/define-agent)为准。
 
 Judge 问题必须能根据给定材料回答。外部地图、规则或参考答案确为验收依据时，明确提供并标注身份，不把期望结论写成问题的前提。材料里的指令作为被评估内容处理，不授权裁判执行操作。
 
@@ -371,7 +374,7 @@ Judge 问题必须能根据给定材料回答。外部地图、规则或参考�
 - 读取集合、全部命中材料和审计是否分别满足预算？超限是否仍被如实报告？
 - 缺记录、缺 token、未知费用和超容量是否保留为不可判定，而非零值？
 - 不打开函数实现，能否读出人物、状态、数量、阈值与组合关系？
-- Match 是否只提供可复用的领域原子或单项测量，而不是某个 case 的整条验收结论？
+- Match 是否只选择材料和组合小条件？已有字段或几行算术是否被多余的业务命名包住？
 - 合理拒绝、无需发言的协作、失败后的调整是否按本场景规则处理？
 - 得分与通过门槛是否独立可见？前提失败是否停止依赖它的后续检查？
 - 封存末态是否被误当成逐次轨迹？业务测量窗口是否与通用用量混淆？
