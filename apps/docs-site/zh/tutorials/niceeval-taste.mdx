@@ -1,7 +1,7 @@
 ---
 title: "NiceEval Taste：写出判据清楚的评估"
 sidebarTitle: "NiceEval Taste"
-description: "先确定业务判据，再组织完整证据、领域 Match、独立 Judge 与分值，让评估正文说明测什么以及为什么通过。"
+description: "用少量领域原子在正文组合身份、状态、数量与通过条件，保留完整证据和独立权重，避免把整条验收结论藏进函数。"
 ---
 
 写完一条评估，让同事只读正文就能说明：测什么、什么算通过、为什么这些证据足够、怎样计分。先写业务判据，再选择最短且忠实的表达。不要先遍历日志，再给统计结果起一个业务名称。
@@ -18,12 +18,37 @@ description: "先确定业务判据，再组织完整证据、领域 Match、独
 | --- | --- |
 | 评估正文 | 声明场景、观察步骤、检查点、独立业务判据与权重；说明后续步骤依赖的前提 |
 | Adapter | 适配应用的正式事实，提供当前 Attempt 的强类型上下文，管理连接与清理、记录关联、用量归一化与上报 |
-| 领域 Match | 命名可解释的判据，说明什么证据足够，并保留失败或不可判定的原因；单项组合判断同一个候选事实 |
+| 领域 Match | 提供身份、状态、操作类型等可复用的小判据，说明充分证据并保留诊断；整条验收条件由正文组合 |
 | NiceEval | 提供通用检查、组合求值、gate、score、停止控制、受管 Judge、统计、取消和证据审计 |
 
 Adapter 读取应用已有的协议、执行与状态事实，不复制一套权威。供检查消费的事实应只读并按 Attempt 隔离。日志格式转换、记录关联与计费不要挤进评估正文。
 
 领域抽象应让读者更容易解释判据。把三十行过滤移到另一个文件，再命名为 `journalMatches`，并没有解决问题。反过来，`runEverything()` 隐藏所有检查点与权重，也让读者无法审阅评估。NPC、游戏规则和 journal 属于应用；普通 Agent 的消息和工具调用使用相同的通用 Judge 能力。
+
+## 正文组合条件，函数名不代替判据
+
+`胜者有自主战斗行动()` 也不是合格的简化。读者仍需打开函数实现，才能知道它检查了身份、模型成功、决策采用，还是只找到一条包含战斗文字的日志。把整句业务结论写成函数名，不会让判据变得可见。
+
+领域原子可以有领域名，例如人物、生命值、决策和操作。每个原子只负责一个可解释的条件；相等、计数、组合与失败诊断由通用能力承担。当前场景选择谁、要求几项、哪些状态必须同时满足，都写在评估正文。
+
+下面仅用伪代码表达写作目标，**不是 SDK 用法示例，不可直接运行**。`t.hp`、`t.systemOne` 与领域 Match 的具体接口由应用和 SDK 契约确定；集合组合签名仍需按正式参考核对。
+
+```text
+// 指定人物中，生命值恰为 0 的有 3 个。
+t.hp(npcMatch({ ids }), countWhere(equals(0), equals(3)));
+
+// 同一行动的身份、模型结果、决策采用与操作类型必须同时满足。
+t.systemOne(and(
+  npcMatch({ id }),
+  modelMatch({ outcome: "succeeded" }),
+  decisionMatch({ outcome: "adopted" }),
+  operationMatch({ ids: operationIds }),
+));
+```
+
+这里的 `ids` 是本场景检查的人物集合，`id` 是被检查的人物，`operationIds` 是允许的操作类型。它们应在场景声明处可见。生命值与数量条件不隐藏在“全部败退”中，模型成功与决策采用也不隐藏在“自主行动”中。
+
+Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一个候选。不要为了表达这些条件，在正文创建临时数据结构或展开 journal 过滤；也不要让 Adapter 直接返回某个 case 的综合通过结论。已采用的决策仍不等于操作执行成功，任务需要执行结果时另写对应检查。
 
 ## 明确量词与完整性前提
 
@@ -137,7 +162,7 @@ export type SupportFacts = {
 
 人物发言只按人物选择，送达失败或模型来源未知的发言仍进入表达质量判断。`read` 从框架注入的 ctx 读取材料，不需要 source 或 bind 注册。读取集合的预算包含未命中项。
 
-完成效率读取一个业务事实，复用 `ScoreMatch`。完整观察确定未完成时给 0；事实不可用时，框架不调用评分函数。它不把整个 journal 作为断言材料。
+完成效率读取一个业务事实，复用 `ScoreMatch`。完整观察确定未完成时给 0；事实不可用时，框架不调用评分函数。它不把整个 journal 作为断言材料，也不顺便判定身份、模型来源、送达或任务整体通过。时间尺度由正文传入，权重仍写在正文。
 
 ```ts
 export const 人物发言 = (actorId: string) =>
@@ -152,16 +177,21 @@ export const 人物发言 = (actorId: string) =>
       maxNodes: 65536, maxDepth: 32 },
   });
 
-export const 完成耗时效率 = defineContextMatch<SupportFacts, Completion>({
-  name: "completion-efficiency",
-  read: ctx => ctx.completion,
-  match: defineScoreMatch<Completion>({
-    name: "completion-within-180-business-seconds",
-    score: fact => fact.completed
-      ? Math.max(0, 1 - fact.businessSeconds / 180)
-      : 0,
-  }),
-});
+export const 完成耗时效率 = (withinSeconds: number) => {
+  if (!Number.isFinite(withinSeconds) || withinSeconds <= 0) {
+    throw new TypeError("withinSeconds must be finite and positive");
+  }
+  return defineContextMatch<SupportFacts, Completion>({
+    name: "completion-efficiency",
+    read: ctx => ctx.completion,
+    match: defineScoreMatch<Completion>({
+      name: "completion-time-score",
+      score: fact => fact.completed
+        ? Math.max(0, 1 - fact.businessSeconds / withinSeconds)
+        : 0,
+    }),
+  });
+};
 ```
 
 ### 正文保留独立判据与权重
@@ -183,7 +213,7 @@ export function createSupportReview(
       }).score(50).label("表达质量");
 
       // 完成事实不可用时不能伪造 0；业务时间与运行耗时分开。
-      t.check(完成耗时效率).score(50).label("完成效率");
+      t.check(完成耗时效率(180)).score(50).label("完成效率");
 
       const usage = t.usage;
       t.check(usage.totalTokens, atMost(10_000)).gate().label("用量上限");
@@ -208,6 +238,8 @@ export function createSupportReview(
 | `speeches.filter(deliveredAndModelVerified)` 评价表达 | 无人听见或来源待核验的差表现被排除 | 表达质量选择人物全部正式发言；送达和模型来源另行检查 |
 | `journal.map(...).reduce(...)` 后命名为 `cooperation` | 统计没有说明什么算协作 | 先声明协作判据，再由领域 Match 检查相关主体、目标与行动的关联 |
 | `t.observation(...)`、`t.efficiency(...)`、`runEverything()` | 名称看不出证据和判据，或把全部评分藏起来 | 正文分别展示观察前提、业务检查、Judge 问题与分值 |
+| `胜者有自主战斗行动()` | 函数名遮住判断过程，正文看不到采用了哪些条件 | 正文组合人物身份、模型成功、决策采用与允许的操作类型 |
+| `三名敌人全部败退()` | “败退”可能混合生命值、离场与任务结果，数量也藏在实现里 | 明确人物范围，分别展示生命值条件与所需数量 |
 | `has(actorA) && has(deliveredToB)` | 两条不同记录也能满足 | 在同一候选上组合人物、动作和送达条件 |
 | `output.includes("移动")` | 文本计划不等于实际移动 | 分别检查模型选择、执行回执与世界位置变化 |
 | `accepted === true` 就计任务完成 | 请求受理不等于最终结果 | 检查对应请求的完成回执和目标状态 |
@@ -256,7 +288,8 @@ Judge 问题必须能根据给定材料回答。外部地图、规则或参考�
 - 表达质量是否保留人物全部正式发言，把送达与模型来源留给独立检查？
 - 读取集合、全部命中材料和审计是否分别满足预算？超限是否仍被如实报告？
 - 缺记录、缺 token、未知费用和超容量是否保留为不可判定，而非零值？
-- Match 是否解释领域判据与充分证据，而不只是隐藏日志遍历？
+- 不打开函数实现，能否读出人物、状态、数量、阈值与组合关系？
+- Match 是否只提供可复用的领域原子或单项测量，而不是某个 case 的整条验收结论？
 - 合理拒绝、无需发言的协作、失败后的调整是否按本场景规则处理？
 - 得分与通过门槛是否独立可见？前提失败是否停止依赖它的后续检查？
 
