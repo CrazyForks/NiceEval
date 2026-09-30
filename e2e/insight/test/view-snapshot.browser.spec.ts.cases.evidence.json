@@ -4,20 +4,20 @@
     "neref_b837639ed5650fdfbc1c8e0680cf3b4a": {
       "memory/inspection-complete-failed-scores.md": {
         "red": {
-          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/red.json",
-          "digest": "sha256:20a2049cf7d2cc3b08b62586614334def89725504b18ce00d4add28d3d19c6c3"
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_400M2PYZSDWMTD93-netake_CW1G54H1SAMFZW4N/red.json",
+          "digest": "sha256:a13b2a5f8838720b965cc1276d118fb79e7dba441cd3e663f9aef962fc62edd5"
         },
         "green": {
-          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/green.json",
-          "digest": "sha256:d0f0a76dcd5e2ff8860cd57a4ae1ac6194938f9f617bf72ff82bf67d554d99f8"
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_400M2PYZSDWMTD93-netake_CW1G54H1SAMFZW4N/green.json",
+          "digest": "sha256:0c49a5ad113be6201e19e8229bbcbd989bc151290f35629b170d97bb6bd18c7a"
         },
         "certificate": {
-          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/certificate.json",
-          "digest": "sha256:dde92e7a20f7c449a59680a194e47f572781bc1cdb13e2720944b843bb8fd1ff"
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_400M2PYZSDWMTD93-netake_CW1G54H1SAMFZW4N/certificate.json",
+          "digest": "sha256:f7f7c58ce7215ba6f7cf676f76514fe455ecfd8b77b7f63ea21708c166450441"
         },
         "inventory": {
-          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/inventory.json",
-          "digest": "sha256:8c3a1dd12f8e42cc33dab0a7dcf558dfd3db7a5d048a01844eece3ff3126e299"
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_400M2PYZSDWMTD93-netake_CW1G54H1SAMFZW4N/inventory.json",
+          "digest": "sha256:1b9933e2f19431c0bbfb4d3e58bd9c4032a2c1389a9122bb72a81f0282687035"
         }
       }
     }
@@ -70,6 +70,30 @@
       },
       "reason": "Archived during explicit neutral-governance migration; legacy evidence is historical and is not current proof.",
       "retiredAtCommit": "05dec8c7f1795e13212d424ee472874d62d84345"
+    },
+    {
+      "caseId": "neref_b837639ed5650fdfbc1c8e0680cf3b4a",
+      "memory": "memory/inspection-complete-failed-scores.md",
+      "evidence": {
+        "red": {
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/red.json",
+          "digest": "sha256:20a2049cf7d2cc3b08b62586614334def89725504b18ce00d4add28d3d19c6c3"
+        },
+        "green": {
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/green.json",
+          "digest": "sha256:d0f0a76dcd5e2ff8860cd57a4ae1ac6194938f9f617bf72ff82bf67d554d99f8"
+        },
+        "certificate": {
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/certificate.json",
+          "digest": "sha256:dde92e7a20f7c449a59680a194e47f572781bc1cdb13e2720944b843bb8fd1ff"
+        },
+        "inventory": {
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts.case-evidence/neref_b837639ed5650fdfbc1c8e0680cf3b4a/memory_inspection-complete-failed-scores.md/nered_SN9A4TR2KJQ54PRM-netake_3H1EKFJ4F6F7JP02/inventory.json",
+          "digest": "sha256:8c3a1dd12f8e42cc33dab0a7dcf558dfd3db7a5d048a01844eece3ff3126e299"
+        }
+      },
+      "reason": "Refresh failed complete score proof against final usage UI sources with explicit Playwright suite routing.",
+      "refreshedAtCommit": "0bde4166f53bb3d2b7a3a0e3b8be1530a75ca4fa"
     }
   ]
 }
