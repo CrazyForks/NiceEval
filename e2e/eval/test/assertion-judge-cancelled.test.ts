@@ -5,7 +5,8 @@ import { expect, test } from "vitest";
 import { evalE2E } from "./context.ts";
 import { assertionEntry, inspectAssertion, inspectAttempt } from "./inspection.ts";
 
-test.concurrent("Attempt 取消终止 Judge 请求并保留尝试发送事实 [necase_2TCX4FPX8TA9NV88]", async () => {
+// @use-case docs/feature/eval/use-case/judge-quality.md
+test.concurrent("Attempt 取消终止 Judge 请求并保留尝试发送事实", async () => {
   let measurementCalls = 0;
   let measurementConnectionClosed = false;
   const provider = createServer((request, response) => {

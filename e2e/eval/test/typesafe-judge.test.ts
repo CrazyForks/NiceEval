@@ -6,7 +6,8 @@ import { assertionEntry, inspectAssertion, inspectAttempt } from "./inspection.t
 
 // The external fixture returns fixed probabilities; the installed candidate owns
 // weighting, preset aggregation, capability refusal and retained audit decoding.
-test.concurrent("TypeSafe 概率映射与批量分类可复核且提取能力明确不可用 [necase_8C7V56HSWJDNXH9B]", async () => {
+// @use-case docs/feature/judge/use-case/inspect-judge-score.md
+test.concurrent("TypeSafe 概率映射与批量分类可复核且提取能力明确不可用", async () => {
   const requests: Array<{ url: string | undefined; authorization: string | undefined; body: string }> = [];
   let malformed = false;
   const server = createServer(async (request, response) => {

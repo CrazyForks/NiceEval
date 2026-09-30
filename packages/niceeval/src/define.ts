@@ -1,3 +1,5 @@
+// @concord-file ne-surface-definition-entry
+// @concord-implements docs/feature/plugins/library.md
 import type { Adapter } from "./adapter.ts";
 import { parseAdapterFlags } from "./adapter-flags.ts";
 import { decodeExperimentFlags } from "./experiment/flags.ts";
@@ -230,6 +232,8 @@ type EvalFactoryInput<Sandbox extends SandboxLayer | undefined> =
   };
 
 /** @internal Shared normalization and provenance path for root and Adapter-bound Eval factories. */
+// @concord-code ne-surface-define-eval-context
+// @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineEvalForContext<
   Kind extends "pass" | "score",
   Context,
@@ -267,6 +271,8 @@ export function defineEvalForContext<
 
 /** 实验:可签入的运行配置(怎么跑这批 eval)。 */
 export function defineExperiment<const A extends Adapter>(def: ExperimentInput<A>): ExperimentDefinition<A>;
+// @concord-code ne-surface-define-experiment
+// @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonly flags?: unknown }): ExperimentDefinition {
   if (Object.hasOwn(def, "id")) {
     throw new Error(`defineExperiment does not accept id; ids are derived from file paths.`);
@@ -401,6 +407,8 @@ function normalizeEvalFields<
   };
 }
 
+// @concord-code ne-surface-normalize-plugins
+// @concord-implements docs/feature/plugins/library.md
 function normalizePlugins<Owner extends PluginOwner>(
   value: readonly PluginInstance<Owner>[],
   label: string,

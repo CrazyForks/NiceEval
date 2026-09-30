@@ -5,7 +5,8 @@ import { defined, only, pollUntil } from "@niceeval/testkit";
 import { expect, test } from "vitest";
 import { evalE2E as adapterCaptureE2E } from "./context.ts";
 
-test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前发布 errored Attempt [necase_0GXNKG5JBPHFTZ15]", async () => {
+// @feature docs/feature/run/README.md
+test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前发布 errored Attempt", async () => {
   await adapterCaptureE2E.case("adapter-capture-interrupt", async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const process = niceeval.start(["exp", "adapter-capture/interrupt", "--rerun", "all", "--json"], { timeoutMs: 90_000 });
     const waitFor = (file: string, content: string) => Promise.race([

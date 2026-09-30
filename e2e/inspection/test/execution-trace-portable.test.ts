@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
-test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外的事件与请求证据 [necase_82VJD2KZ52Y4S486]", async () => {
+// @feature docs/feature/adapters/README.md
+test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外的事件与请求证据", async () => {
   await inspectionE2E.case("execution-trace-portable", { artifacts: inspectionCaseArtifacts() }, async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const run = await niceeval.run(["exp", "execution-trace", "--rerun", "all", "--json"]);
     expect(run.exitCode, run.diagnostic()).toBe(0);

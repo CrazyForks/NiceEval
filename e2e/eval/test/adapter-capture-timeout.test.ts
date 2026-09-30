@@ -5,7 +5,8 @@ import { defined, only } from "@niceeval/testkit";
 import { expect, test } from "vitest";
 import { evalE2E as adapterCaptureE2E } from "./context.ts";
 
-test.concurrent("cleanup 总预算耗尽后拒绝迟到采集并保留已得分和成功附件 [necase_A8MF18FNMHPRDD81]", async () => {
+// @feature docs/feature/run/README.md
+test.concurrent("cleanup 总预算耗尽后拒绝迟到采集并保留已得分和成功附件", async () => {
   await adapterCaptureE2E.case("adapter-capture-timeout", async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const completed = await niceeval.run(["exp", "adapter-capture/timeout", "--rerun", "all", "--json"], { timeoutMs: 90_000 });
     expect(completed.exitCode, completed.diagnostic()).toBe(1);
