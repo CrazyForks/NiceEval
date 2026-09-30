@@ -34,6 +34,7 @@ import {
   acceptPreview,
   buildPreview,
   canonicalJson,
+  exportConcordChanges,
   type PreviewError,
   renderPreviewError,
 } from "./preview/index.js";
@@ -982,7 +983,10 @@ const previewBuild = Command.make("build", {
     Options.withDefault(false),
     Options.withDescription("Run explicitly as a local build without reading or fabricating Netlify identity."),
   ),
-}, ({ local }) => runPreviewReceipt(buildPreview({ local }))).pipe(
+  base: Options.string("base").pipe(Options.optional),
+  head: Options.string("head").pipe(Options.withDefault("HEAD")),
+  baseLabel: Options.string("base-label").pipe(Options.optional),
+}, ({ local, base, head, baseLabel }) => runPreviewReceipt(buildPreview({ local, ...(Option.isSome(base) ? { comparison: { base: base.value, head, ...(Option.isSome(baseLabel) ? { baseLabel: baseLabel.value } : {}) } } : {}) }))).pipe(
   Command.withDescription("Build and seal the pinned Preview repository with the exact current NiceEval tarball."),
 );
 
@@ -994,9 +998,19 @@ const previewAccept = Command.make("accept", {
   Effect.flatMap((value) => runPreviewReceipt(acceptPreview(value))),
 )).pipe(Command.withDescription("Verify an immutable deployed Preview manifest and emit an acceptance receipt."));
 
+const previewChanges = Command.make("changes", {
+  root: Options.string("root").pipe(Options.withDefault(ROOT)),
+  base: Options.string("base"),
+  head: Options.string("head").pipe(Options.withDefault("HEAD")),
+  baseLabel: Options.string("base-label").pipe(Options.optional),
+  out: Options.string("out"),
+}, ({ root, base, head, baseLabel, out }) => runPreviewReceipt(exportConcordChanges({ root, base, head, ...(Option.isSome(baseLabel) ? { baseLabel: baseLabel.value } : {}), out }))).pipe(
+  Command.withDescription("Export and verify a static Concord comparison using the installed pinned package; no platform query or deployment."),
+);
+
 const preview = Command.make("preview").pipe(
   Command.withDescription("Build and accept NiceEval pull request and production previews."),
-  Command.withSubcommands([previewBuild, previewAccept]),
+  Command.withSubcommands([previewBuild, previewAccept, previewChanges]),
 );
 
 const root = Command.make("niceeval-repo").pipe(
