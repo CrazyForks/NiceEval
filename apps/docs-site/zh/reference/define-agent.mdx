@@ -141,11 +141,27 @@ readonly signal: AbortSignal;
 
 ### `AdapterCreateContext`
 
+#### `models`
+
+```ts
+readonly models: ResolvedModelSlots;
+```
+
+Frozen application model selections for this Attempt.
+
 #### `recordUsage`
 
 ```ts
 recordUsage(input: import("./adapter-usage.ts").AdapterUsageInput): void;
 ```
+
+#### `sealUsage`
+
+```ts
+sealUsage(input: import("./adapter-usage.ts").AdapterUsageSeal): void;
+```
+
+Close application usage admission and declare whether the recorded collection is complete.
 
 #### `attach`
 

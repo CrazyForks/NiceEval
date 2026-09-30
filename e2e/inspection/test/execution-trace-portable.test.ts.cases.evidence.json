@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_3f72bc690bb378720f29dbb3dc36e6c6": {
+      "memory/execution-producer-partial-hidden.md": {
+        "red": {
+          "path": "e2e/inspection/test/execution-trace-portable.test.ts.case-evidence/neref_3f72bc690bb378720f29dbb3dc36e6c6/memory_execution-producer-partial-hidden.md/nered_S9JWTY8BXJ687TX7-netake_EYNXG2TJTEZR9Q2M/red.json",
+          "digest": "sha256:c38f7b601c5d0f748639b1aa79606776a232298faa99af1a49b83817a5e134b0"
+        },
+        "green": {
+          "path": "e2e/inspection/test/execution-trace-portable.test.ts.case-evidence/neref_3f72bc690bb378720f29dbb3dc36e6c6/memory_execution-producer-partial-hidden.md/nered_S9JWTY8BXJ687TX7-netake_EYNXG2TJTEZR9Q2M/green.json",
+          "digest": "sha256:428aed0a8d4e579b5f741f1abd778c29defb53b0a12da0477943362d21dc596d"
+        },
+        "certificate": {
+          "path": "e2e/inspection/test/execution-trace-portable.test.ts.case-evidence/neref_3f72bc690bb378720f29dbb3dc36e6c6/memory_execution-producer-partial-hidden.md/nered_S9JWTY8BXJ687TX7-netake_EYNXG2TJTEZR9Q2M/certificate.json",
+          "digest": "sha256:47093e40f6d58b3a8e1da88b729044f7424c142628b0b72da308681bf1b248f7"
+        },
+        "inventory": {
+          "path": "e2e/inspection/test/execution-trace-portable.test.ts.case-evidence/neref_3f72bc690bb378720f29dbb3dc36e6c6/memory_execution-producer-partial-hidden.md/nered_S9JWTY8BXJ687TX7-netake_EYNXG2TJTEZR9Q2M/inventory.json",
+          "digest": "sha256:a1bebaff86f1a0d150dc4b52cad5b5f2c3a966653d297585c5551db64da587a0"
+        }
+      }
+    }
+  }
+}

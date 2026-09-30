@@ -172,11 +172,14 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
           const usageReceipt = await niceeval.run(["query", "run", "--request", usageRequest]);
           expect(usageReceipt.exitCode, usageReceipt.diagnostic()).toBe(0);
           const usage = usageReceipt.attemptUsage().usage;
+          expect(usage.source).toBe("adapter");
+          expect(usage.calls).toEqual([]);
           expect(usage.totals).toEqual({
             inputTokens: { state: "unavailable", value: null, observationCount: 0 },
+            inputTotalTokens: { state: "unavailable", value: null, observationCount: 0 },
             outputTokens: { state: "unavailable", value: null, observationCount: 0 },
-            requests: { state: "unavailable", value: null, observationCount: 0 },
-            providerCosts: { state: "unavailable", values: [], observationCount: 0 },
+            requests: { state: "partial", value: 0, observationCount: 0 },
+            costs: { state: "unavailable", source: null, values: [], totalCalls: 0 },
           });
         }
       }

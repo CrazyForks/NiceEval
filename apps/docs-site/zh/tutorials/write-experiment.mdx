@@ -398,3 +398,26 @@ export default defineExperiment({
 没有 profile registry，也没有按 source kind 登记的 Sandbox creator 表。每个 factory 同时拥有支持声明与实现，physical planning 会在创建任何 Sandbox 前校验所有选中评估用例。重复 template 用普通 TypeScript 辅助函数共享。同一个 Experiment 仍能覆盖全部评估用例，link planning 会逐条把评估用例 layer 与 Experiment layer 配对。
 
 跨配置比较的设计建议见[实验矩阵](/zh/tutorials/experiments)。Adapter 对 `ctx.model` 和 `ctx.flags` 的用法见 [Adapter](/zh/explanation/adapter)。
+
+
+## 为普通 Adapter 选择多个模型
+
+一个应用需要多个模型时，用命名用途分别选择它们：
+
+```ts
+export default defineExperiment({
+  adapter: workflowAdapter,
+  models: {
+    planner: { model: "provider/model-a" },
+    responder: { model: "provider/model-b" },
+    reviewer: { model: "provider/model-a" },
+  },
+});
+```
+
+Adapter 从 `ctx.models` 读取冻结配置，将选择交给应用，并在每次物理请求的 `ctx.recordUsage` 中传入对应 `modelSlot`。
+用途与实际模型分别保存：回退模型仍按真实回执上报，未调用的 reviewer 保留配置但不制造调用费用。
+`models` 与单模型的 `model`、`reasoningEffort` 互斥；Agent 使用单模型入口。
+
+运行后用 `niceeval show --experiment <id>` 查看选中 Attempt 的配置与实际用量，用 `niceeval show @attempt --usage` 查看一局的模型分组和费用完整度。
+已知费用与未知部分分开；Judge 用量未登记时明确显示不可用，总费用只显示带缺口的已知小计。

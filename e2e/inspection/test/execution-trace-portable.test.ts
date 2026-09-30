@@ -199,6 +199,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
 });
 
 // @feature docs/feature/inspection/README.md
+// @regression memory/execution-producer-partial-hidden.md
 test.concurrent("producer partial 轨迹在空事件、非空事件与分页完成后仍保留采集原因", async () => {
   for (const { label, eventCount, firstPageCount, omittedEventCount } of [
     { label: "空事件", eventCount: 0, firstPageCount: 0, omittedEventCount: 0 },

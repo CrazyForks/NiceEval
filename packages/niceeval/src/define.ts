@@ -1,6 +1,7 @@
 // @concord-file ne-surface-definition-entry
 // @concord-implements docs/feature/plugins/library.md
 import type { Adapter } from "./adapter.ts";
+import { normalizeModelSlots } from "./model-slots.ts";
 import { parseAdapterFlags } from "./adapter-flags.ts";
 import { decodeExperimentFlags } from "./experiment/flags.ts";
 // 定义入口:把用户对象规格化成核心认得的形状。路径即身份 —— 这里禁止手写 id,
@@ -281,6 +282,10 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
     throw new Error(`defineExperiment requires exactly one of agent or adapter.`);
   }
   const adapter = def.adapter ?? def.agent!;
+  if (adapter.kind !== "custom" && def.models !== undefined) {
+    throw new TypeError("Experiment models is only supported by custom Adapters.");
+  }
+  const models = adapter.kind === "custom" ? normalizeModelSlots(def) : undefined;
   const judgeRuntime = def.judgeRuntime === undefined
     ? undefined
     : normalizeDefinitionJudge(def.judgeRuntime, "defineExperiment() judgeRuntime");
@@ -325,11 +330,17 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
     adapter: _adapter,
     sharedState: _sharedState,
     sandboxCache: _sandboxCache,
+    models: _models,
     ...author
   } = def;
   const flags = decodeExperimentFlags(def.flags === undefined ? {} : def.flags);
   return brandExperimentDefinition({
     ...author,
+    ...(models === undefined ? {} : {
+      models,
+      model: models.default?.model ?? undefined,
+      reasoningEffort: models.default?.reasoningEffort ?? undefined,
+    }),
     adapter,
     ...(adapter.kind === "custom" ? {} : { agent: adapter }),
     flags: adapter.kind === "custom" && adapter.parseFlags !== undefined

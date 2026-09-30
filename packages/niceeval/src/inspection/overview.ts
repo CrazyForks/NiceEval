@@ -496,6 +496,7 @@ function attemptOperationalMetrics(resolved: ResolvedInspectionAttempt): Pick<At
     NiceEvalRecordAttachments.adapterUsage.family,
   );
   const usage = projectAttemptUsage(Object.freeze({
+    models: resolved.origin.run.context.execution.models,
     agentTurns: attemptAttachment(resolved, NiceEvalRecordAttachments.agentTurns.family),
     ...(adapterUsage === undefined ? {} : { adapterUsage }),
   }));
@@ -514,7 +515,7 @@ function attemptOperationalMetrics(resolved: ResolvedInspectionAttempt): Pick<At
               ? "available" as const
               : "partial" as const,
       })
-    : projectAdapterUsageTokens(adapterUsage);
+    : projectAdapterUsageTokens(adapterUsage, resolved.origin.run.context.execution.models);
   return Object.freeze({
     durationMs: Object.freeze({
       value: durationMs,
@@ -622,7 +623,7 @@ function costUSDOf(resolved: ResolvedInspectionAttempt): AttemptAnalysis["costUS
     NiceEvalRecordAttachments.adapterUsage.family,
   );
   if (adapterUsage !== undefined) {
-    const usage = projectAttemptUsage(Object.freeze({ adapterUsage }));
+    const usage = projectAttemptUsage(Object.freeze({ adapterUsage, models: resolved.origin.run.context.execution.models }));
     const costs = usage.totals.costs;
     const usd = costs?.values.find((value) => value.currency === "USD");
     if (costs === undefined || usd === undefined) return unavailableAttemptCost();

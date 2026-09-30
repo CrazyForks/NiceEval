@@ -1,3 +1,4 @@
+import type { ModelSlotSelection, ResolvedModelSlots } from "../model-slots.ts";
 import type { AdapterFlagsParser, AdapterFlagsOutput, AdapterFlagsValue } from "../adapter-flags.ts";
 // runner 域类型:结果 / 汇总 / reporter 契约,eval / experiment / config 定义,
 // 以及调度器的编排类型(AgentRun / RunOptions / Attempt)。
@@ -37,6 +38,7 @@ import type { PluginInstance, PluginOnUnavailable } from "../plugin/contracts.ts
  * 这里不复制(见 docs/feature/record/architecture.md「run.json」)。
  */
 export interface ExperimentRunInfo {
+  readonly models?: ResolvedModelSlots;
   description?: string;
   reasoningEffort?: string;
   flags?: globalThis.Record<string, JsonValue>;
@@ -924,6 +926,8 @@ export function resolveSandboxSetupCache(
 
 /** Experiment 作者自行选择的字段；不包含路径 id 与 factory 品牌。 */
 export interface ExperimentAuthorFields {
+  /** Named model selections for a custom Adapter; exclusive with the single-model shorthand. */
+  models?: Readonly<Record<string, ModelSlotSelection>>;
   /** 一句话描述,展示在 view / CLI 里;纯说明,不影响调度或打分。 */
   description?: string;
   /** Conversation Adapter shorthand. Exactly one of `agent` and `adapter` is required. */
@@ -1045,13 +1049,19 @@ type ExperimentAdapterSelection<A extends Adapter> =
   | { readonly adapter: A; readonly agent?: never }
   | { readonly agent: A & Agent; readonly adapter?: never };
 
-export type ExperimentInput<A extends Adapter = Adapter> = Omit<ExperimentAuthorFields, "agent" | "adapter" | "flags"> &
+type ExperimentModelFields<A extends Adapter> = A extends { readonly kind: "custom" }
+  ? ({ readonly models: Readonly<Record<string, ModelSlotSelection>>; readonly model?: never; readonly reasoningEffort?: never }
+    | { readonly models?: never; readonly model?: string; readonly reasoningEffort?: string })
+  : { readonly models?: never; readonly model?: string; readonly reasoningEffort?: string };
+
+export type ExperimentInput<A extends Adapter = Adapter> = Omit<ExperimentAuthorFields, "agent" | "adapter" | "flags" | "models" | "model" | "reasoningEffort"> & ExperimentModelFields<A> &
   ExperimentAdapterSelection<A> & ExperimentFlagsFields<NoInfer<A>> & {
   id?: ExperimentIdComesFromFilePath;
 };
 
 /** Factory 完成默认归一后的 Experiment 字段；无默认语义的 Hook 仍保持作者声明。 */
 export interface ExperimentDefinition<A extends Adapter = Adapter> {
+  readonly models?: ResolvedModelSlots;
   readonly description?: string;
   readonly adapter: A;
   /** Present when the selected Adapter is an Agent, regardless of the input shorthand. */
@@ -1230,6 +1240,7 @@ export function runWho(run: { agentName: string; model?: string; experimentId?: 
 
 /** 一个 (agent, model, flags) 的运行配置 —— 由 CLI / 实验展开。 */
 export interface AdapterRun {
+  readonly models?: ResolvedModelSlots;
   readonly adapter: Adapter;
   /** Present exactly when `adapter` is an Agent implementation. */
   readonly agent?: Agent;

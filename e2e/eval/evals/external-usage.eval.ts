@@ -59,6 +59,7 @@ export default externalUsage.defineEval({
         outputTokens: 1,
       });
     }
+    t.finishUsage();
     const usage = t.usage;
     t.check(usage, defineValueMatch({ name: "official-usage-snapshot", evaluate: (value: typeof usage) => value.source === "adapter" && value.costs.totalContributions === 415 && value.totalTokens.state === "lower-bound" && value.totalTokens.value === 1150 && value.costs.values[0]?.value === "0.0000854" && Object.isFrozen(value.costs.values[0]) })).gate().label("Official usage snapshot");
     if (usage.source === "adapter") {

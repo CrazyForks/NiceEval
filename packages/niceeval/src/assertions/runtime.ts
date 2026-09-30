@@ -798,6 +798,7 @@ class AssertionsRuntimeImplementation {
     private readonly executeStop: AssertionStopExecutor,
     private readonly judge: ResolvedJudgeConfig | undefined,
     private readonly signal: AbortSignal | undefined,
+    private readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector,
   ) {
     const check = (...args: readonly unknown[]) => this.checkFor(check, args);
     const base = {
@@ -855,10 +856,10 @@ class AssertionsRuntimeImplementation {
         const cut = admitted ? receiver.cut?.() : undefined;
         prepared = admitted ? captureContextualMatch(definition, receiver.read(), { owner: receiver.owner, ...(cut === undefined ? {} : { cut }) }) : captureUnavailableContextualMatch(definition, "assertion-retention-budget");
       } finally { this.readingContext = false; }
-      const registration = qa !== undefined && prepared.kind === "material" ? materialQARegistration(prepared, qa.question, qa.options, this.judge, this.signal)
+      const registration = qa !== undefined && prepared.kind === "material" ? materialQARegistration(prepared, qa.question, qa.options, this.judge, this.signal, this.judgeUsage?.forEntry(this.entries.length))
         : prepared.kind === "material" ? materialExistenceRegistration(prepared)
         : prepared.kind === "context-boolean" ? contextBooleanRegistration(prepared)
-        : contextScoreRegistration(prepared, this.judge, this.signal);
+        : contextScoreRegistration(prepared, this.judge, this.signal, this.judgeUsage?.forEntry(this.entries.length));
       const actual = "actualRetainedBytes" in registration && typeof registration.actualRetainedBytes === "function" ? registration.actualRetainedBytes : () => prepared.sourceBytes;
       const retainedBytes = (registration.retainedBytes ?? prepared.sourceBytes) + 64 * 1024;
       this.retainedProducerBytes -= reserved; reserved = 0;
@@ -951,6 +952,7 @@ class AssertionsRuntimeImplementation {
         options: managedScore,
         material: value,
         judge: this.judge,
+        ...(this.judgeUsage === undefined ? {} : { usage: this.judgeUsage.forEntry(this.entries.length) }),
         ...(this.signal === undefined ? {} : { signal: this.signal }),
       }));
     }
@@ -1947,18 +1949,21 @@ export function createAssertionsRuntime(input: {
   readonly executeStop?: AssertionStopExecutor;
   readonly judge?: ResolvedJudgeConfig;
   readonly signal?: AbortSignal;
+  readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector;
 }): AssertionsRuntime<"pass">;
 export function createAssertionsRuntime(input: {
   readonly evaluationKind: "score";
   readonly executeStop?: AssertionStopExecutor;
   readonly judge?: ResolvedJudgeConfig;
   readonly signal?: AbortSignal;
+  readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector;
 }): AssertionsRuntime<"score">;
 export function createAssertionsRuntime(input: {
   readonly evaluationKind: AssertionEvaluationKind;
   readonly executeStop?: AssertionStopExecutor;
   readonly judge?: ResolvedJudgeConfig;
   readonly signal?: AbortSignal;
+  readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector;
 }): AssertionsRuntime<AssertionEvaluationKind> {
   if (input.evaluationKind !== "pass" && input.evaluationKind !== "score") {
     throw new TypeError("Assertions runtime evaluationKind must be \"pass\" or \"score\"");
@@ -1971,6 +1976,7 @@ export function createAssertionsRuntime(input: {
     executeStop,
     input.judge,
     input.signal,
+    input.judgeUsage,
   );
   return runtime as unknown as AssertionsRuntime<AssertionEvaluationKind>;
 }

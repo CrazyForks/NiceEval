@@ -298,6 +298,7 @@ function summaryOfExperiment(
     id: experiment.id,
     ...(experiment.description === undefined ? {} : { description: experiment.description }),
     adapter: experiment.adapter.name,
+    ...(experiment.models === undefined ? {} : { models: experiment.models }),
     ...(experiment.model === undefined ? {} : { model: experiment.model }),
     attempts: experiment.attempts ?? 1,
     evalIds: freezeArray(evalIds),
@@ -335,6 +336,7 @@ function agentRunFromExperiment(
   return Object.freeze({
     adapter: experiment.adapter,
     ...(experiment.agent === undefined ? {} : { agent: experiment.agent }),
+    ...(experiment.models === undefined ? {} : { models: experiment.models }),
     model: experiment.model,
     reasoningEffort: experiment.reasoningEffort,
     flags: experiment.flags ?? {},

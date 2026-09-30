@@ -23,6 +23,7 @@ export const interruptCapture = defineAdapter({
         callId: "cancelled-request", provider: "fixture", model: null,
         status: "cancelled", inputTokens: 13, outputTokens: 5,
       });
+      ctx.sealUsage({ state: "complete" });
       await ctx.attach({ name: "tail.txt", mediaType: "text/plain", body: "cancelled-tail" });
       await ctx.recordTrace({
         traceId: "cancelled-complete", schema: { id: "example.capture" },

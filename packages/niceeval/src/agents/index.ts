@@ -213,3 +213,5 @@ export type {
   McpServer,
   SkillSpec,
 } from "../types.ts";
+
+export type { ModelSlotSelection, ResolvedModelSlot, ResolvedModelSlots } from "../model-slots.ts";

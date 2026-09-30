@@ -100,7 +100,7 @@ const spec = <Request extends Schema.Constraint, ResultFields extends Schema.Str
 /** The sole 16-operation protocol owner. Every request, result and descriptor projection is derived from this registry. */
 export const inspectionProtocolRegistry = Object.freeze({
   "overview.get": spec({ request: operation("overview.get", { runIds: Schema.optional(RunIdsSchema) }), result: { overview: InspectionOverviewResultSchema }, factKinds: ["core", "assertions", "attempt-cost"] }),
-  "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "assertions", "attempt-cost"] }),
+  "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "assertions", "attempt-cost", "agent-turns", "adapter-usage", "judge-usage"] }),
   "runs.list": spec({ request: operation("runs.list", { continuation: Schema.optional(Schema.String) }), result: { runs: Schema.Array(SealedRunSummarySchema), continuation: Schema.optional(Schema.String) }, factKinds: ["core"] }),
   "run.get": spec({ request: operation("run.get", { runId: RunIdSchema }), result: { run: InspectionRunResultSchema }, factKinds: ["core"] }),
   "run.summary": spec({ request: operation("run.summary", { runId: RunIdSchema }), result: { summary: InspectionRunSummaryResultSchema }, factKinds: ["core", "assertions", "agent-turns"] }),
@@ -135,7 +135,7 @@ export const inspectionProtocolRegistry = Object.freeze({
     operation("command", { commandId: CommandIdSchema }),
   ]) }), result: { detail: InspectionTraceDetailResultSchema }, factKinds: ["execution-traces", "agent-turns", "sandbox-commands", "artifacts"] }),
   "attempt.timing": spec({ request: operation("attempt.timing", { locator: AttemptLocatorSchema }), result: { timing: InspectionAttemptTimingResultSchema }, factKinds: ["runner-activities"] }),
-  "attempt.usage": spec({ request: operation("attempt.usage", { locator: AttemptLocatorSchema }), result: { usage: InspectionAttemptUsageResultSchema }, factKinds: ["agent-turns", "adapter-usage"] }),
+  "attempt.usage": spec({ request: operation("attempt.usage", { locator: AttemptLocatorSchema }), result: { usage: InspectionAttemptUsageResultSchema }, factKinds: ["agent-turns", "adapter-usage", "judge-usage"] }),
   "attempt.diff": spec({ request: operation("attempt.diff", { locator: AttemptLocatorSchema }), result: { diff: InspectionAttemptDiffResultSchema }, factKinds: ["file-changes"] }),
   "attempt.sources": spec({ request: operation("attempt.sources", { locator: AttemptLocatorSchema }), result: { sources: InspectionSourcesResultSchema }, factKinds: ["assertions", "sources"] }),
   "attempt.artifacts": spec({ request: operation("attempt.artifacts", { locator: AttemptLocatorSchema, offset: Schema.optional(InspectionArtifactOffsetSchema), limit: Schema.optional(InspectionArtifactsPageLimitSchema) }), result: { artifacts: ArtifactsResultSchema }, factKinds: ["artifacts"] }),

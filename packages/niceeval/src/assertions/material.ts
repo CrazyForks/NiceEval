@@ -365,7 +365,7 @@ export function validateMaterialQAInputs(question: unknown, options: JudgePreset
   const declared = optionsFor("close-qa", options ?? {}); identifier(declared.name); exactLlmOptions(declared.llm);
 }
 
-export function materialQARegistration(prepared: PreparedMaterial, question: string, options: JudgePresetOptions | undefined, judge: ResolvedJudgeConfig | undefined, signal?: AbortSignal): MeasurementAssertionRegistration & { readonly actualRetainedBytes: () => number; readonly terminalCriterion?: () => AssertionCriterion } {
+export function materialQARegistration(prepared: PreparedMaterial, question: string, options: JudgePresetOptions | undefined, judge: ResolvedJudgeConfig | undefined, signal?: AbortSignal, usage?: import("../o11y/judge-usage.ts").JudgeUsageEntry): MeasurementAssertionRegistration & { readonly actualRetainedBytes: () => number; readonly terminalCriterion?: () => AssertionCriterion } {
   validateMaterialQAInputs(question, options);
   const selected = selection(prepared, "qa");
   const criterion = valueCriterion(`close-qa(${prepared.source}, ${prepared.predicate})`);
@@ -403,7 +403,7 @@ export function materialQARegistration(prepared: PreparedMaterial, question: str
       return { state: "unavailable" as const, reason: "source-unavailable" as const, detail: problemDetail(selectionProblem), receipt: selected.terminal() };
     }
     // The source belongs to subject; only the selected group enters the LLM material budget.
-    gateway = prepareManagedScoreMatch({ match: definition, options: managed, material: { question }, judge, ...(signal === undefined ? {} : { signal }) });
+    gateway = prepareManagedScoreMatch({ match: definition, options: managed, material: { question }, judge, ...(signal === undefined ? {} : { signal }), ...(usage === undefined ? {} : { usage }) });
     const evaluation = yield* gateway.evaluate();
     return { ...evaluation, receipt: selected.terminal() };
   });
@@ -422,7 +422,7 @@ export function contextBooleanRegistration(prepared: PreparedFact): BooleanAsser
     return Effect.tryPromise({ try: () => evaluateBooleanMatch(prepared.match as BooleanMatch<unknown, unknown>, prepared.value), catch: (cause) => cause }).pipe(Effect.map((result) => result.state === "matched" ? { state: "matched" as const, value: undefined, ...(result.diagnostic === undefined ? {} : { diagnostic: result.diagnostic }) } : result.state === "mismatched" ? result : { ...result, reason: "source-unavailable" as const }));
   } };
 }
-export function contextScoreRegistration(prepared: PreparedFact, judge: ResolvedJudgeConfig | undefined, signal?: AbortSignal): MeasurementAssertionRegistration & { readonly actualRetainedBytes: () => number } {
+export function contextScoreRegistration(prepared: PreparedFact, judge: ResolvedJudgeConfig | undefined, signal?: AbortSignal, usage?: import("../o11y/judge-usage.ts").JudgeUsageEntry): MeasurementAssertionRegistration & { readonly actualRetainedBytes: () => number } {
   if (prepared.kind !== "context-score") throw new TypeError("Context Score registration requires a ScoreMatch");
   const match = prepared.match as ScoreMatch<unknown>;
   const managed = managedScoreMatchOf(match);
@@ -431,7 +431,7 @@ export function contextScoreRegistration(prepared: PreparedFact, judge: Resolved
       if (!(error instanceof CaptureRejected)) throw error;
       return unavailableFactScore(prepared, error.problem);
     }
-    const registration = prepareManagedScoreMatch({ match, options: managed, material: prepared.value, judge, ...(signal === undefined ? {} : { signal }) });
+    const registration = prepareManagedScoreMatch({ match, options: managed, material: prepared.value, judge, ...(signal === undefined ? {} : { signal }), ...(usage === undefined ? {} : { usage }) });
     const originalSubjectBytes = fullAssertionContentByteLength(registration.subject)!;
     return { ...registration, ...registrationBase(prepared), retainedBytes: registration.retainedBytes! - originalSubjectBytes + prepared.sourceBytes, actualRetainedBytes: () => registration.actualRetainedBytes() - originalSubjectBytes + prepared.sourceBytes };
   }

@@ -1,3 +1,4 @@
+import type { ResolvedModelSlots } from "./model-slots.ts";
 import { resolveAdapterCleanupTimeoutMs } from "./shared/adapter-cleanup.ts";
 import type { AttemptSignal } from "./shared/attempt-lifecycle.ts";
 export type { AttemptCancellation, AttemptSignal } from "./shared/attempt-lifecycle.ts";
@@ -185,7 +186,11 @@ export interface AdapterCleanupContext {
 }
 
 export interface AdapterCreateContext<Flags = ExperimentFlags> {
+  /** Frozen application model selections for this Attempt. */
+  readonly models: ResolvedModelSlots;
   recordUsage(input: import("./adapter-usage.ts").AdapterUsageInput): void;
+  /** Close application usage admission and declare whether the recorded collection is complete. */
+  sealUsage(input: import("./adapter-usage.ts").AdapterUsageSeal): void;
   attach(input: import("./adapter-attachments.ts").AdapterAttachmentInput): Promise<import("./adapter-attachments.ts").AdapterAttachmentReceipt>;
   recordTrace<Event extends import("./adapter-execution-trace.ts").ExecutionTraceEvent>(
     input: import("./adapter-execution-trace.ts").ExecutionTraceInput<Event>,

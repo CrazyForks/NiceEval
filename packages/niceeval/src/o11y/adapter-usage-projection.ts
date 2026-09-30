@@ -1,6 +1,7 @@
 import type { ReadableAdapterUsageAttachment, AdapterUsageCall, AdapterCallPriceReceipt } from "../record/family/adapter-usage/schema.ts";
 import { addCanonicalDecimals } from "../record/family/adapter-usage/pricing.ts";
 import type { NumericMaterial } from "../assertions/match.ts";
+import type { ResolvedModelSlots } from "../model-slots.ts";
 export interface EffectiveCallCost { readonly amount: string; readonly currency: string; readonly source: { readonly kind: "reported" | "estimated"; readonly id: string }; readonly state: "complete" | "partial" }
 export type EffectiveUsageCall = AdapterUsageCall & { readonly effectiveCost: EffectiveCallCost | null };
 export function effectiveUsageCalls(usage: ReadableAdapterUsageAttachment): readonly EffectiveUsageCall[] {
@@ -39,6 +40,99 @@ export function adapterTokenMaterial(usage: ReadableAdapterUsageAttachment, metr
     if ((metric === "totalTokens" || metric === "inputTotalTokens") && !input.complete) complete = false;
   }
   return Object.freeze(!Number.isSafeInteger(value) ? { state: "unavailable", reason: "usage-exceeds-safe-integer", provenance } : observations === 0 ? { state: "unavailable", reason: "usage-not-recorded", provenance } : { state: complete ? "exact" : "lower-bound", value, provenance });
+}
+
+export function adapterInspectionTokenTotal(
+  usage: ReadableAdapterUsageAttachment,
+  metric: "inputTotalTokens" | "outputTokens" | "totalTokens",
+) {
+  const material = adapterTokenMaterial(usage, metric);
+  const observationCount = usage.calls.filter((call) => metric === "outputTokens"
+    ? call.outputTokens !== null
+    : inputTotal(call).value !== null || (metric === "totalTokens" && call.outputTokens !== null)).length;
+  return Object.freeze({
+    state: material.state === "exact" ? "available" as const
+      : material.state === "lower-bound" ? "partial" as const : "unavailable" as const,
+    value: material.state === "unavailable" ? null : material.value,
+    observationCount,
+  });
+}
+
+/** Tuple order is stable across hosts, with missing identities before strings. */
+export function compareAdapterModelGroups(
+  left: Pick<AdapterUsageCall, "modelSlot" | "provider" | "model">,
+  right: Pick<AdapterUsageCall, "modelSlot" | "provider" | "model">,
+): number {
+  for (const key of ["modelSlot", "provider", "model"] as const) {
+    const a = left[key]; const b = right[key];
+    if (a === b) continue;
+    if (a === null) return -1;
+    if (b === null) return 1;
+    return a < b ? -1 : 1;
+  }
+  return 0;
+}
+
+/** Configuration counts and grouped statistics both consume the complete sealed ledger. */
+export function projectAdapterModelUsage(
+  usage: ReadableAdapterUsageAttachment | null,
+  models: ResolvedModelSlots | undefined,
+  unavailable: {
+    readonly basis: "recorded-calls" | "reported-sends" | "unavailable";
+    readonly reason: "source-invalid" | "usage-not-recorded" | "physical-call-identity-not-recorded";
+  } = { basis: "unavailable", reason: "usage-not-recorded" },
+) {
+  const counts = new Map<string, number>();
+  for (const call of usage?.calls ?? []) {
+    if (call.modelSlot !== null) counts.set(call.modelSlot, (counts.get(call.modelSlot) ?? 0) + 1);
+  }
+  const configuredModels = models === undefined
+    ? Object.freeze({ state: "not-recorded" as const })
+    : Object.freeze({
+        state: "available" as const,
+        bindings: Object.freeze(Object.keys(models).sort().map((modelSlot) => Object.freeze({
+          modelSlot, ...models[modelSlot]!,
+          recordedCalls: usage === null ? null : counts.get(modelSlot) ?? 0,
+        }))),
+      });
+  if (usage === null) return Object.freeze({
+    configuredModels,
+    modelGroups: Object.freeze({
+      state: "unavailable" as const, ...unavailable,
+      groups: Object.freeze([]) as readonly [], totalGroupCount: null,
+      groupsTruncated: false as const, omittedGroupCount: 0 as const,
+    }),
+  });
+  const grouped = new Map<string, EffectiveUsageCall[]>();
+  for (const call of effectiveUsageCalls(usage)) {
+    const identity = JSON.stringify([call.modelSlot, call.provider, call.model]);
+    const group = grouped.get(identity);
+    if (group === undefined) grouped.set(identity, [call]);
+    else group.push(call);
+  }
+  const allGroups = [...grouped.values()].sort((left, right) => compareAdapterModelGroups(left[0]!, right[0]!));
+  const groups = allGroups.slice(0, 64).map((calls) => {
+    const { modelSlot, provider, model } = calls[0]!;
+    const groupUsage = { ...usage, calls };
+    return Object.freeze({
+      modelSlot, provider, model, recordedCalls: calls.length,
+      tokens: Object.freeze({
+        inputTotalTokens: adapterInspectionTokenTotal(groupUsage, "inputTotalTokens"),
+        outputTokens: adapterInspectionTokenTotal(groupUsage, "outputTokens"),
+        totalTokens: adapterInspectionTokenTotal(groupUsage, "totalTokens"),
+      }),
+      costs: effectiveCostTotals(calls, usage.collection.state),
+    });
+  });
+  return Object.freeze({
+    configuredModels,
+    modelGroups: Object.freeze({
+      state: "available" as const, basis: "recorded-calls" as const,
+      groups: Object.freeze(groups), totalGroupCount: allGroups.length,
+      groupsTruncated: allGroups.length > groups.length,
+      omittedGroupCount: allGroups.length - groups.length,
+    }),
+  });
 }
 export interface AdapterAttemptUsageSnapshot {
   readonly source: "adapter";

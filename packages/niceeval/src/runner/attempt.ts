@@ -24,6 +24,8 @@ import { makeSandboxAuthorFacade } from "../sandbox/paths.ts";
 import { makeSandboxRequestExecutor } from "../sandbox/request-executor.ts";
 import { CLEANUP_TIMEOUT_MS, cleanupCallback, withCleanupTimeout } from "./cleanup-timeout.ts";
 import { AdapterUsageCollector, retainAdapterUsage } from "./adapter-usage.ts";
+import { JudgeUsageCollector } from "../o11y/judge-usage.ts";
+import { retainJudgeUsage } from "./judge-usage.ts";
 import { createAdapterAttachmentCollector, retainAdapterAttachments, type AdapterAttachmentCollector } from "./adapter-attachments.ts";
 import {
   createAdapterExecutionTraceCollector,
@@ -689,6 +691,11 @@ export function runAttemptEffect<
     },
   };
 
+  const judgeUsage = new JudgeUsageCollector(config.pricing, signal, () => recordDiagnostic({
+    code: "judge-transport-cleanup-incomplete", level: "warning",
+    message: "Judge transport cleanup did not settle before its local deadline; remote completion is unknown.",
+  }));
+
   const sealExecutionError = (): Effect.Effect<
     SealedAttemptAssertions,
     import("../assertions/api.ts").AssertionSealError
@@ -696,8 +703,8 @@ export function runAttemptEffect<
     SealRequirements
   > => {
     const runtime = liveAssertions ?? (evalDef.evaluationKind === "score"
-      ? createAssertionsRuntime({ evaluationKind: "score" })
-      : createAssertionsRuntime({ evaluationKind: "pass" }));
+      ? createAssertionsRuntime({ evaluationKind: "score", judgeUsage })
+      : createAssertionsRuntime({ evaluationKind: "pass", judgeUsage }));
     if (liveAssertions === undefined) {
       // Sandbox acquire/prepare may fail before TestContext exists. It is still
       // an executed Attempt, so seal its empty assertion set with the same
@@ -827,6 +834,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       // execution deadline, Assertion seal, feedback sink, and publication
       // callback. The driver below contributes only its own preparation,
       // author context, and observations.
+      yield* Effect.addFinalizer(() => Effect.promise(() => judgeUsage.closeAndDrain()));
       const assertFirst = yield* makeAssertFirstAttemptBridge<unknown>();
       if (adapter.kind === "custom") {
         const resources = new AdapterAttemptResources(() => {
@@ -835,7 +843,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
           adapterAttachments!.close();
         });
         adapterResources = resources;
-        adapterUsage = new AdapterUsageCollector(() => resources.assertCaptureOpen(), config.pricing);
+        adapterUsage = new AdapterUsageCollector(() => resources.assertCaptureOpen(), config.pricing, run.models ?? Object.freeze({}));
         adapterAttachments = createAdapterAttachmentCollector(`${recordRootPaths(opts.recordRoot)!.portableRoot}/attachment-staging`);
         const ownedAttachments = adapterAttachments;
         yield* Scope.addFinalizer(attachmentScope, Effect.promise(() => ownedAttachments.dispose()));
@@ -882,6 +890,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
           adapter,
           resources,
           usage: adapterUsage,
+          judgeUsage,
           attachments: adapterAttachments,
           executionTraces: adapterExecutionTraces,
           signal,
@@ -1383,6 +1392,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       const bodyFiber = yield* Effect.forkChild(
         tryPromiseAsDefect((interruptSignal) =>
           runAttemptBody(a, config, t0, base, {
+            judgeUsage,
             sandbox,
             sourceRegistry,
             sourceCapture,
@@ -1713,6 +1723,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       if (capture !== undefined) {
         retainRunnerAttemptFileChangesCapture(finalResult, capture);
       }
+      retainJudgeUsage(finalResult, judgeUsage.snapshot());
       if (adapterUsageSnapshot !== undefined) retainAdapterUsage(finalResult, adapterUsageSnapshot);
       if (adapterAttachments !== undefined) retainAdapterAttachments(finalResult, adapterAttachments.snapshot());
       if (adapterExecutionTraces !== undefined) retainAdapterExecutionTraces(finalResult, adapterExecutionTraces.snapshot());
@@ -1737,6 +1748,7 @@ interface AdapterAttemptBodyInput {
   readonly adapter: AdapterRuntimeDefinition;
   readonly resources: AdapterAttemptResources;
   readonly usage: AdapterUsageCollector;
+  readonly judgeUsage: JudgeUsageCollector;
   readonly attachments: AdapterAttachmentCollector;
   readonly executionTraces: AdapterExecutionTraceCollector;
   readonly signal: AttemptSignal;
@@ -1801,6 +1813,7 @@ function runAdapterAttemptBody(
   return Effect.gen(function* () {
     const { context: core, state } = createAssertFirstCoreContext({
       readUsage: () => usage.snapshot(),
+      judgeUsage: input.judgeUsage,
       elapsedMs: recorder.offsetNow,
       evaluationKind: a.evalDef.evaluationKind ?? "pass",
       model: a.run.model,
@@ -1827,6 +1840,7 @@ function runAdapterAttemptBody(
         experimentId: a.run.experimentId,
         attempt: a.attempt,
         signal,
+        models: a.run.models ?? Object.freeze({}),
         model: a.run.model,
         reasoningEffort: a.run.reasoningEffort,
         flags: a.run.flags,
@@ -1835,6 +1849,7 @@ function runAdapterAttemptBody(
         log,
         onCleanup: (cleanup) => resources.onCleanup(cleanup),
         recordUsage: usage.record,
+        sealUsage: usage.seal,
         attach: (input) => resources.trackHandoff(attachments.attach(input)),
         recordTrace: executionTraces.recordTrace,
       });
@@ -2199,6 +2214,7 @@ function assertDeadlineFitsPlan(
 }
 
 interface AttemptResources {
+  judgeUsage: JudgeUsageCollector;
   sandbox: Sandbox;
   /** Fresh provider-owned backend; setup-prefix capability mutates this stable object across rebases. */
   materializedCase?: MaterializedSandboxCase;
@@ -3242,6 +3258,7 @@ async function runAttemptBody(
       } }),
       model: run.model,
       reasoningEffort: run.reasoningEffort,
+      judgeUsage: res.judgeUsage,
       // maxCost 断言的估算价目表;与 observed usage.costUSD 互不兜底。
       pricing: config.pricing,
       flags: run.flags,
@@ -4173,6 +4190,7 @@ export function experimentRunInfo(
 ): EvalResult["experiment"] {
   const runLevelTimeoutMs = run.timeoutMs ?? config?.timeoutMs;
   return {
+    ...(run.models === undefined ? {} : { models: run.models }),
     ...(run.description !== undefined ? { description: run.description } : {}),
     ...(run.reasoningEffort !== undefined ? { reasoningEffort: run.reasoningEffort } : {}),
     ...(Object.keys(run.flags).length > 0 ? { flags: run.flags } : {}),

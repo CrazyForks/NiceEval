@@ -6,6 +6,7 @@
 import { Data, Result, Schema } from "effect";
 import { projectAttemptArtifact } from "./artifacts.ts";
 import { projectArtifactsListing } from "./artifact-list.ts";
+import { combineTotalUsageCosts, summarizeJudgeUsage, takeJudgeUsagePreview } from "../o11y/judge-usage-projection.ts";
 
 import { encodeAttemptLocator } from "../attempt-locator.ts";
 import {
@@ -37,7 +38,7 @@ import {
   type InspectionOperationId,
   type InspectionSourceProvenance,
 } from "./codec.ts";
-import { INSPECTION_RESULT_BYTE_LIMIT, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT } from "./limits.ts";
+import { INSPECTION_RESULT_BYTE_LIMIT, INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT } from "./limits.ts";
 import { projectAttemptAssertionDetail, projectAttemptAssertionImage } from "./assertions.ts";
 import {
   attemptAttachment,
@@ -225,18 +226,68 @@ function selectOperation(
           `Experiment ${operation.experimentId} was not found`,
         );
       }
-      return Object.freeze({
-        ...resultMetadata(source, operation.kind, selected, [], [], locators(selected)),
+      const experimentCells = Object.freeze(overview.cells.filter(({ experimentId }) => experimentId === operation.experimentId));
+      const usageAttempts = new Map<string, ResolvedInspectionAttempt>();
+      let unresolvedAttemptCount = 0;
+      let selectedSlotCount = 0;
+      let resolvedSlotCount = 0;
+      for (const cell of experimentCells) {
+        for (const member of cell.members) {
+          selectedSlotCount++;
+          if (member.publication.state !== "published") { unresolvedAttemptCount++; continue; }
+          const identity = member.publication;
+          const origin = selected.find(({ run }) => run.runId === identity.originRunId);
+          const attempt = origin?.attempts.find((candidate) => candidate.attemptId === identity.attemptId &&
+            candidate.originRunId === identity.originRunId);
+          if (origin === undefined || attempt === undefined) { unresolvedAttemptCount++; continue; }
+          const resolved: ResolvedInspectionAttempt = Object.freeze({ origin, attempt,
+            locator: encodeAttemptLocator(attempt.attemptId), targets: Object.freeze([]) });
+          resolvedSlotCount++;
+          usageAttempts.set(`${resolved.attempt.originRunId}\u0000${resolved.attempt.attemptId}`, resolved);
+        }
+      }
+      const orderedUsageAttempts = [...usageAttempts.values()].sort((left, right) =>
+        left.attempt.originRunId.localeCompare(right.attempt.originRunId) || left.locator.localeCompare(right.locator));
+      const metadata = resultMetadata(source, operation.kind, selected, [], [], locators(selected));
+      const allAttempts = Object.freeze(orderedUsageAttempts.map((resolved) => {
+        const { state, configuredModels, modelGroups, judgeUsage, totalCosts, totals } = projectAttemptUsage(traceAttachments(resolved));
+        return Object.freeze({
+          locator: resolved.locator,
+          originRunId: resolved.attempt.originRunId,
+          usage: Object.freeze({ state, configuredModels, modelGroups, judgeUsage: summarizeJudgeUsage(judgeUsage), totalCosts, totals }),
+        });
+      }));
+      const costSummary = Object.freeze({
+        scope: "latest-recorded-slots" as const,
+        totalCosts: combineTotalUsageCosts(allAttempts.map(({ usage }) => usage.totalCosts), unresolvedAttemptCount > 0),
+        coverage: Object.freeze({ selectedSlotCount, resolvedSlotCount,
+          originAttemptCount: allAttempts.length,
+          completeAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "complete").length,
+          partialAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "partial").length,
+          unavailableAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "unavailable").length,
+          unresolvedSlotCount: unresolvedAttemptCount }),
+      });
+      let attempts = Object.freeze(allAttempts.slice(0, 64));
+      const experimentResult = () => Object.freeze({
+        experiment, cells: experimentCells, costSummary,
+        modelUsage: Object.freeze({
+          attempts, totalAttemptCount: orderedUsageAttempts.length,
+          omittedAttemptCount: orderedUsageAttempts.length - attempts.length,
+          unresolvedAttemptCount,
+        }),
+      });
+      while (utf8ByteLength(JSON.stringify({ ...metadata, experiment: experimentResult() })) > INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT &&
+        attempts.length > 0) {
+        attempts = Object.freeze(attempts.slice(0, -1));
+      }
+      return requireInspectionResultBudget(operation.kind, Object.freeze({
+        ...metadata,
         experiment: decodeRequiredResult(
           operation.kind,
           InspectionExperimentResultSchema,
-          Object.freeze({
-            experiment,
-            cells: Object.freeze(overview.cells.filter(({ experimentId }) =>
-              experimentId === operation.experimentId)),
-          }),
+          experimentResult(),
         ),
-      });
+      }));
     }
     case "runs.list": return runsListDocument(source, operation);
     case "run.get": {
@@ -391,14 +442,21 @@ function selectOperation(
     }
     case "attempt.usage": {
       const resolved = requireAttemptFromSource(source, operation.kind, operation.locator);
-      return Object.freeze({
-        ...resultMetadata(source, operation.kind, attemptRuns(resolved), [], [], [operation.locator]),
+      const metadata = resultMetadata(source, operation.kind, attemptRuns(resolved), [], [], [operation.locator]);
+      let usage = projectAttemptUsage(traceAttachments(resolved));
+      while (utf8ByteLength(JSON.stringify({ ...metadata, usage })) > INSPECTION_RESULT_BYTE_LIMIT &&
+        (usage.judgeUsage.state === "complete" || usage.judgeUsage.state === "partial") && usage.judgeUsage.calls.length > 0) {
+        usage = Object.freeze({ ...usage,
+          judgeUsage: takeJudgeUsagePreview(usage.judgeUsage, usage.judgeUsage.calls.length - 1) });
+      }
+      return requireInspectionResultBudget(operation.kind, Object.freeze({
+        ...metadata,
         usage: decodeRequiredResult(
           operation.kind,
           InspectionAttemptUsageResultSchema,
-          projectAttemptUsage(traceAttachments(resolved)),
+          usage,
         ),
-      });
+      }));
     }
     case "attempt.diff": {
       const resolved = requireAttemptFromSource(source, operation.kind, operation.locator);
@@ -828,7 +886,9 @@ function traceAttachments(
   resolved: ResolvedInspectionAttempt,
 ): AttemptTraceAttachments {
   return Object.freeze({
+    models: resolved.origin.run.context.execution.models,
     adapterUsage: attemptAttachment(resolved, NiceEvalRecordAttachments.adapterUsage.family),
+    judgeUsage: attemptAttachment(resolved, NiceEvalRecordAttachments.judgeUsage.family),
     agentTurns: attemptAttachment(resolved, NiceEvalRecordAttachments.agentTurns.family),
     turnContexts: attemptAttachment(resolved, NiceEvalRecordAttachments.turnContexts.family),
     sandboxCommands: attemptAttachment(resolved, NiceEvalRecordAttachments.sandboxCommands.family),
@@ -1629,6 +1689,15 @@ function decodeRequiredResult<S extends Schema.ConstraintDecoder<unknown>>(
     });
   }
   return decoded.success;
+}
+
+function requireInspectionResultBudget<Value>(operation: InspectionOperationId, value: Value): Value {
+  const byteLimit = operation === "experiment.get" ? INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT : INSPECTION_RESULT_BYTE_LIMIT;
+  if (utf8ByteLength(JSON.stringify(value)) > byteLimit) {
+    throw new InspectionOperationError({ code: "evidence-budget-exceeded", operation,
+      reason: "Inspection result cannot fit in the result byte limit." });
+  }
+  return value;
 }
 
 function locators(runs: readonly LoadedInspectionRun[]): readonly string[] {

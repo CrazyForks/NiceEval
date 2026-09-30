@@ -438,10 +438,13 @@ function runShow(
             locator: selectedLocator,
           }),
         );
+        const usage = yield* select("attempt.usage", () =>
+          selectInspectionOperation(opened, { kind: "attempt.usage", locator: selectedLocator }),
+        );
         yield* write(
           "stdout",
           renderAttempt(
-            yield* project("attempt.get", () => projectAttempt(document)),
+            yield* project("attempt.get", () => projectAttempt(document, usage)),
           ),
         );
         return 0;

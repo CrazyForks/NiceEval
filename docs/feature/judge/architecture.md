@@ -377,3 +377,15 @@ TypeSafe未提供引用时不生成引用。
 
 
 详见 [定案](../../design/matched-material/PLAN-1/architecture.md)。
+
+
+## Judge 物理用量账本
+
+每个已执行 Attempt 封存独立 Judge 调用账本；发送前登记每次实际 HTTP 传输，重试各计一次。
+费用和 token 在传输回执边界接纳，先于判分解码，失败或取消不抹除已经接纳的事实。
+未发送为完整空集；历史缺源、未收到回执及缺字段保持未知。应用用量与 Judge 用量分别保留，总费用显式列出缺失的账本。
+
+持久形状、容量与价证遵守[物理账本定案](../../design/judge-physical-usage/plans/plan-1/architecture.md)，
+逐次传输的回执截止与资源释放遵守[生命周期](../../design/judge-physical-usage/plans/plan-1/lifecycle.md)，
+公共 Query、Show 与 View 使用同一[读面契约](../../design/judge-physical-usage/plans/plan-1/library.md)。
+Vercel Chat 未证实的费用及 serving provider 路径保持未知；显式 pricing 可产生带完整性状态的封存估价。

@@ -344,15 +344,16 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   标题为 `Current results`，先显示 `Covered N/M` 与 `Gaps K`。
   分母来自当前目标；缺口显示具名原因、可用的旧 locator 与下一步。已删除的 Experiment 只出现在 `History`，不计当前分数。
   不用 `Observed` 把历史发布数量暗示成当前结果可用性；目标求值失败显示错误与历史读取命令。
-- 一个或多个 `--experiment` 通过同一个 `project.get` 的 exact `experimentIds` 收窄当前目标，完整格式化当前 coverage、cells 与 gaps。
-  任一 ID 未命中时整次失败。已删除的 Experiment 可经 `experiment.get` 的固定 query 或 exact Run 读取历史。
+- 一个或多个 `--experiment` 逐个读取 exact `experiment.get`；任一 ID 未命中时整次失败。
+  首先显示官方 costSummary 的实验总费用或已知小计、完整度和数量，再显示各评估结果与 Attempt 明细。
+  范围是各槽位最新已发布结果，明确标注 Latest recorded slots；不表示全部历史支出或当前源码中的目标集合。
 - 显式 `--record <file>` 使用历史 `overview.get`，标题为 `Recorded results`；与 `--experiment` 搭配时使用 exact `experiment.get`。
   这些路径不发现或求值当前项目。`--run` 与 Attempt locator 也始终读取固定历史事实。
 - 一个或多个 `--run` 逐个调用 exact `run.overview`，并且只消费这一份闭合 result。
   它显示指定 Run 的 identity、时间、denominator、Member/Attempt locators、Verdict、score、coverage、usage 与 limitations。
   CLI 不得组合 `run.get` 与 `run.summary`。重复 flag 的输入顺序不是业务排序 authority。
-- `@<locator>` 默认调用 `attempt.get`，显示精确身份、Verdict、score、coverage、Assertion
-  摘要、section states 与 limitations，并给出可复制的 source、execution、timing、usage 和 diff 后续命令。
+- `@<locator>` 在同一读取 cut 调用 `attempt.get` 和 `attempt.usage`，首先显示该 Attempt 的总费用，再显示精确身份、Verdict、score、coverage、Assertion
+  摘要、section states 与 limitations。另给出可复制的 source、execution、timing、usage 和 diff 后续命令。
 - `@<locator> --source` 调用 `attempt.sources`，显示已封存 source 与 Assertion facts，保留
   source state、location、limitations 与 Evidence；不从文本推断断言或运行时原文。
 - `@<locator> --execution` 调用 `attempt.trace` 显示有界 outline。`--expand <stable-id>`
@@ -360,7 +361,8 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   直接调用 `attempt.trace.detail`。目标可以位于默认摘要之外。导入 key、原生 source eventId、
   `t<N>.c<M>`、`cmd<N>` 或数组位置不能替代持久身份；找不到时返回 selection error，不猜测相邻项。
 - `@<locator> --timing` 调用 `attempt.timing`，显示 activity 层级、phase、offset、duration、outcome、limitations 与 omitted count。
-- `@<locator> --usage` 调用 `attempt.usage`，只显示其关闭的 input/output token、request 与 cost typed totals，以及每项 total 的 state/coverage。renderer 不得从 observations 聚合 totals，也不得将缺失或 omitted 按零补齐。
+- `@<locator> --usage` 调用 `attempt.usage`，首先显示该局 totalCosts，再显示应用用途、实际模型和 Judge 明细。全账本费用完整时显示 Total costs；存在缺项时显示 Known subtotal、Incomplete 和 Missing sources，不把已知小计称为整局价格。实验中的每个 origin Attempt 复用同一总费用投影，不累加分页预览。
+  input/output token、request 与 cost typed totals 均保留各自 state/coverage。renderer 不得从 observations 聚合 totals，也不得将缺失或 omitted 按零补齐。
 - `@<locator> --diff` 调用 `attempt.diff`，显示已封存 window 与 file changes，并保留 binary、oversized、capture failure 等边界。
 
 ### selector 与 flag 组合
@@ -370,10 +372,13 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
 
 `--source`、`--execution`、`--timing`、`--usage` 与 `--diff` 都要求一个 Attempt locator，且五者互斥。
 `--expand` 只能与 `--execution` 同用。
+
 `--actor`、`--type` 与 `--continuation` 同样只用于 `--execution`，分别交给 `actorId`、`eventType` 与原样 continuation。
 下一页必须保留同一筛选；`--expand` 直接定位稳定 ID，不接受列表筛选或 continuation。
+
 轨迹输出分别标明捕获状态、每条 trace 的 producer collection 状态及限制、当前页是否还有后续。
 `partial` 的空索引显示其限制，页尾不能被描述为生产者证据完整。
+
 `--all` 只适用于无 selector 的 Results，不能与 `--experiment`、`--run`、Attempt locator 或 Attempt detail flag 同用。
 
 ### 固定 Record 的历史 Results 示例
@@ -502,3 +507,13 @@ component、renderer、静态导出、显示位置 handle 或其它作者面。`
 CLI 不探测 locale，只输出由 Inspection CLI presenter 直接拥有的英语文本，不建立中文或英语 message catalog。
 
 读取失败保留底层 Record 错误分类、操作与原因。只有明确需要 schema migration 时才提示迁移；忙碌读取和资源限额表示本次读取未完成，不推断已发布数据损坏。
+
+## 模型用途与成本
+
+`show @attempt --usage` 区分模型配置、实际调用、应用费用、Judge 缺口与总费用已知小计。
+单模型保持简洁摘要；多模型按用途逐行列配置模型、effort 和 recordedCalls，另表列实际 serving provider、model、调用数、tokens 与费用完整度。
+只有全账本 recordedCalls 为 0 才标 no recorded calls；费用未知不显示成零，未调用配置不制造用量快照。
+
+`show --experiment <id>` 的 Models and usage 区按当前已选 origin Attempt 展示同一读面，标明 locator 和 origin Run。
+重复 origin 只展示一次，不合并不同局的配置；超出 64 个 Attempt 时说明省略数，未找到的成员另列。
+此区域不从调用或模型组预览重算实验总费用。旧应用 costUSD 口径不变，Judge 未登记与带缺口合计保持显式状态。

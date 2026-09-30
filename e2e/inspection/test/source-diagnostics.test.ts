@@ -4,6 +4,7 @@ import { expect, test } from "vitest";
 import { inspectionE2E } from "./support.ts";
 
 // @feature docs/feature/inspection/README.md
+// @regression memory/inspection-source-diagnostics-hidden.md
 test.concurrent("Record 读取失败保留具体原因且不凭空归因旧版本", async () => {
   await inspectionE2E.case("source-diagnostics", async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const record = join(projectRoot, "invalid.sqlite");

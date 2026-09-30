@@ -152,6 +152,7 @@ export interface AssertFirstCoreContextState {
 }
 
 export interface AssertFirstCoreContextDeps {
+  readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector;
   readonly readUsage?: () => EvalUsage;
   readonly elapsedMs?: () => number;
   readonly model?: string;
@@ -189,6 +190,7 @@ export type AssertFirstCoreTestContext<Kind extends RuntimeKind = RuntimeKind> =
 
 /** The Runner-facing dependencies retain the current SessionManager boundary. */
 export interface AssertFirstContextDeps {
+  readonly judgeUsage?: import("../o11y/judge-usage.ts").JudgeUsageCollector;
   readonly agent: Agent;
   readonly sandbox: Sandbox;
   readonly evalId?: string;
@@ -1541,8 +1543,8 @@ export function createAssertFirstCoreContext(
   readonly state: AssertFirstCoreContextState;
 } {
   const runtime: AssertionsRuntime<RuntimeKind> = deps.evaluationKind === "score"
-    ? createAssertionsRuntime({ evaluationKind: "score", executeStop: deps.executeStop, ...(deps.judge === undefined ? {} : { judge: deps.judge }), signal: deps.signal })
-    : createAssertionsRuntime({ evaluationKind: "pass", executeStop: deps.executeStop, ...(deps.judge === undefined ? {} : { judge: deps.judge }), signal: deps.signal });
+    ? createAssertionsRuntime({ evaluationKind: "score", executeStop: deps.executeStop, ...(deps.judge === undefined ? {} : { judge: deps.judge }), signal: deps.signal, ...(deps.judgeUsage === undefined ? {} : { judgeUsage: deps.judgeUsage }) })
+    : createAssertionsRuntime({ evaluationKind: "pass", executeStop: deps.executeStop, ...(deps.judge === undefined ? {} : { judge: deps.judge }), signal: deps.signal, ...(deps.judgeUsage === undefined ? {} : { judgeUsage: deps.judgeUsage }) });
   const check = runtime.t.check;
   const judge = ((subject: unknown, definition: unknown, ...extra: readonly unknown[]) => {
     if (extra.length > 0) throw new TypeError("judge() accepts exactly (subject, definition)");

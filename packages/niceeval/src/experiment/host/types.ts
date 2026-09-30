@@ -1,3 +1,4 @@
+import type { ResolvedModelSlots } from "../../model-slots.ts";
 import { Data, type Effect } from "effect";
 
 import type { Config } from "../../types.ts";
@@ -54,6 +55,7 @@ export interface ExperimentHostEvalSummary {
 }
 
 export interface ExperimentHostExperimentSummary {
+  readonly models?: ResolvedModelSlots;
   readonly id: string;
   readonly description?: string;
   readonly adapter: string;

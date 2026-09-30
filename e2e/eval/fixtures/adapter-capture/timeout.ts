@@ -10,6 +10,7 @@ export const timeoutCapture = defineAdapter<{ ready: boolean }>({
       callId: "accepted-request", provider: "fixture", model: null,
       status: "succeeded", inputTokens: 3, outputTokens: 2,
     });
+    ctx.sealUsage({ state: "complete" });
     await ctx.attach({ name: "accepted.txt", mediaType: "text/plain", body: "accepted-before-timeout" });
     await ctx.recordTrace({
       traceId: "before-timeout", schema: { id: "example.capture" },

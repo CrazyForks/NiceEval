@@ -1,3 +1,4 @@
+import { ResolvedModelSlotsSchema, type ResolvedModelSlots } from "../../model-slots.ts";
 import { AdapterCleanupTimeoutMsSchema } from "../../shared/adapter-cleanup.ts";
 import { Result, Schema } from "effect";
 import {
@@ -43,6 +44,7 @@ export type AdapterIdentity = {
 };
 
 export interface RunExecutionContext {
+  readonly models?: ResolvedModelSlots;
   readonly adapter: AdapterIdentity;
   readonly model: string | null;
   readonly reasoningEffort: string | null;
@@ -93,6 +95,7 @@ export const AdapterIdentitySchema: Schema.Codec<AdapterIdentity> = Schema.Struc
 });
 
 const RunExecutionContextSchema: Schema.Codec<RunExecutionContext> = Schema.Struct({
+  models: Schema.optionalKey(ResolvedModelSlotsSchema),
   adapter: AdapterIdentitySchema,
   model: Schema.NullOr(Schema.String),
   reasoningEffort: Schema.NullOr(Schema.String),
@@ -102,7 +105,9 @@ const RunExecutionContextSchema: Schema.Codec<RunExecutionContext> = Schema.Stru
     setup: Schema.Literals(["absent", "opaque"]),
     teardown: Schema.Literals(["absent", "opaque"]),
   })),
-});
+}).check(Schema.makeFilter((value) => value.models === undefined ||
+  (value.model === (value.models.default?.model ?? null) &&
+   value.reasoningEffort === (value.models.default?.reasoningEffort ?? null))));
 
 const RunLabelsSchema: Schema.Codec<Readonly<Record<string, string>>> = Schema.Record(
   Schema.String,

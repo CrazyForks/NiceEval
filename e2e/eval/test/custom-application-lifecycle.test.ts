@@ -21,6 +21,7 @@ async function journalEntries(projectRoot: string): Promise<readonly JournalEntr
 }
 
 // @use-case docs/feature/eval/use-case/eval-native-operations.md
+// @regression memory/experiment-host-private-requirements.md
 
 test.concurrent("Adapter 创建部分失败与 Attempt 取消均清理资源且拒绝迟到 Assertion", async () => {
   for (const cleanupTimeoutMs of [0, -1, 0.5, 300_001, NaN, Infinity]) {

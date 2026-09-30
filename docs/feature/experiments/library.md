@@ -274,3 +274,15 @@ interface ExperimentHostRenameRequest {
 
 `plan` 返回 source Run、派生旧名、目标名、逐成员映射或具名阻断原因；不写业务事实。
 `apply` 返回发布的 Invocation、Run 和 source locator，或预检拒绝。source Run 不可读时派生旧名为 `null`，不从用户输入推断旧名。
+
+## 普通 Adapter 的命名模型用途
+
+`models?: Readonly<Record<string, { model: string; reasoningEffort?: string }>>` 为普通 Adapter 声明模型用途。
+例如 `models: { planner: { model: "provider/model-a" }, responder: { model: "provider/model-b" } }`。
+它与顶层 model、reasoningEffort 互斥，Agent Experiment 不接受 models。
+用途键匹配 `[A-Za-z][A-Za-z0-9_-]{0,63}`，非空映射最多 64 项，每项 model 非空。路由仍属于应用 flags。
+
+框架将单模型简写归一到固定 default 用途；仅 effort 时 default.model 为 null，完全省略时为空映射。
+具名 default 与相同单模型简写具有相同配置身份；新普通 Adapter 的配置身份包含 models version 1，历史未登记配置保持原身份域。
+映射按键排序并深度冻结。Adapter 的 ctx.model、ctx.reasoningEffort 只派生自 default，缺席时为 undefined。
+Adapter 使用 ctx.models 执行选择，不支持的 effort 在应用启动前拒绝，实际模型回退仍可按真实调用上报。

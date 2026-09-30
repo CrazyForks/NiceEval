@@ -22,8 +22,15 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
     const budgetAttempt = await inspectAttempt(niceeval, paths.projectRoot, budget.locator!, "attempt.get");
     const budgetDetails = await inspectAssertionEntries(niceeval, paths.projectRoot, budget.locator!, budgetAttempt.document.attempt.assertions.entries);
     const budgetEntries = budgetDetails.map((detail) => assertionEntry(detail.document, detail.receipt.diagnostic()));
-    for (const [label, result] of [["Exact decimal exceeded", "mismatched"], ["Exact decimal within", "matched"], ["Complete tokens", "matched"], ["Mixed currency unknown", "unavailable"], ["Mixed currency exceeded", "mismatched"]]) {
+    for (const [label, result] of [["Prior usage snapshot unchanged", "matched"], ["Exact decimal exceeded", "mismatched"], ["Exact decimal within", "matched"], ["Complete tokens", "matched"]]) {
       expect(only(budgetEntries, (entry) => entry.display.label === label, run.diagnostic()).decision.result).toBe(result);
+    }
+    const mixed = only(run.expEvalEvents(), (item) => item.evalId === "usage-budget-mixed", run.diagnostic());
+    const mixedAttempt = await inspectAttempt(niceeval, paths.projectRoot, mixed.locator, "attempt.get");
+    const mixedDetails = await inspectAssertionEntries(niceeval, paths.projectRoot, mixed.locator, mixedAttempt.document.attempt.assertions.entries);
+    const mixedEntries = mixedDetails.map((detail) => assertionEntry(detail.document, detail.receipt.diagnostic()));
+    for (const [label, result] of [["Mixed currency unknown", "unavailable"], ["Mixed currency exceeded", "mismatched"]]) {
+      expect(only(mixedEntries, (entry) => entry.display.label === label, run.diagnostic()).decision.result).toBe(result);
     }
     const request = join(paths.projectRoot, "usage.request.json");
     await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
@@ -86,7 +93,7 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
       },
     });
     expect(usage.priceReceipts).toHaveLength(61);
-    expect(usage.priceReceipts[0]).toMatchObject({
+    expect(usage.priceReceipts?.[0]).toMatchObject({
       kind: "adapter-call-price-estimate",
       callId: "request-355",
       state: "complete",

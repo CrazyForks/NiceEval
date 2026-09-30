@@ -283,6 +283,8 @@ function decodeTypesafeOutput<K extends Exclude<Operation, "extract">>(operation
   return snapshotScoreMatchMaterial({ items: items.map((item, index) => ({ id: item.id, ...decodeChoice(`q${index}`) })) }) as PrimitiveResult<K>;
 }
 
+class JudgeUsageAdmissionError extends Error {}
+
 /** A managed Match contributes one ordinary measurement entry and terminal Content. */
 export function prepareManagedScoreMatch(input: {
   readonly match: ScoreMatch<unknown>;
@@ -290,8 +292,10 @@ export function prepareManagedScoreMatch(input: {
   readonly material: unknown;
   readonly judge: ResolvedJudgeConfig | undefined;
   readonly signal?: AbortSignal;
+  readonly usage?: import("../o11y/judge-usage.ts").JudgeUsageEntry;
 }): MeasurementAssertionRegistration & { readonly terminalEvidence: () => readonly AssertionMaterial[]; readonly actualRetainedBytes: () => number } {
   const { options } = input;
+  let deadlineAt = Infinity;
   const snapshot = snapshotJudgeMaterial(input.material as JudgeMaterial);
   const material = snapshot.material;
   const imageByValue = snapshot.imageByValue;
@@ -407,6 +411,12 @@ export function prepareManagedScoreMatch(input: {
           let received: Awaited<ReturnType<typeof requestScoreMatchProvider>>;
           const sent = Effect.tryPromise({
             try: (signal) => {
+              if (signal.aborted) return Promise.reject(new DOMException("Judge request cancelled", "AbortError"));
+              const usage = input.usage?.begin({
+                logicalOrdinal: index + 1, transmissionOrdinal: attempt, operation,
+                requestModel: profile.model, transportProvider: profile.provider,
+              });
+              if (input.usage !== undefined && usage === undefined) return Promise.reject(new JudgeUsageAdmissionError());
               attempts.push({ ordinal: attempt, transport: "attempted", result: { state: "interrupted" } });
               update();
               return requestScoreMatchProvider({
@@ -416,6 +426,8 @@ export function prepareManagedScoreMatch(input: {
                 body: prepared.request,
                 maxBytes: responseCap,
                 signal,
+                ...(usage === undefined ? {} : { usage }),
+                deadlineAt,
               });
             },
             catch: (error) => error,
@@ -425,6 +437,11 @@ export function prepareManagedScoreMatch(input: {
             ? Object.assign(new Error(`HTTP ${outcome.value.status}`), { status: outcome.value.status, headers: outcome.value.headers })
             : outcome.ok ? undefined : outcome.error;
           if (error !== undefined) {
+            if (error instanceof JudgeUsageAdmissionError) {
+              const problem = latch(failure("unavailable", "judge-usage-capacity-exceeded", "Judge usage cannot retain another physical transmission"));
+              callResult = problem; update();
+              return yield* Effect.fail(typedFailure(problem));
+            }
             attempts[attempt - 1] = { ordinal: attempt, transport: "attempted", result: { state: "failed", code: "judge-call-failed", message: errorSummary(error) } };
             update();
             if (isTransientJudgeFailure(error) && attempt < 3) {
@@ -503,6 +520,7 @@ export function prepareManagedScoreMatch(input: {
     const callback = Effect.suspend((): Effect.Effect<ScoreMatchResult, unknown> => {
       if (evaluationStarted || closed) return Effect.die(new Error("Managed ScoreMatch may only evaluate once"));
       evaluationStarted = true;
+      deadlineAt = Date.now() + (input.judge?.timeoutMs ?? 180_000);
       if (latched !== undefined) return Effect.succeed({ state: "unavailable" as const, reason: latched.message });
       return options.score(material, context);
     }).pipe(
@@ -518,6 +536,7 @@ export function prepareManagedScoreMatch(input: {
       }),
       Effect.ensuring(Effect.gen(function* () {
         // Stop escaped child calls and await their finalizers before terminal Content.
+        input.usage?.close();
         yield* Fiber.interruptAll([...pending]);
         closed = true;
       })),
@@ -536,6 +555,7 @@ export function prepareManagedScoreMatch(input: {
     evaluate,
     terminalEvidence: () => {
       if (sealed !== undefined) return sealed;
+      input.usage?.close();
       closed = true;
       const payload = canRetainAudit ? envelopeOf(audit()) : { failure: latched };
       sealed = Object.freeze([captureFullAssertionSnapshot(payload).material]);

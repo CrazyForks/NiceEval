@@ -12,6 +12,7 @@ import {
 } from "./support.ts";
 // @use-case docs/feature/insight/use-case/insight-review-run-adoption.md
 // @regression memory/insight-aggregate-hides-partial-state.md
+// @regression memory/inspection-complete-failed-scores.md
 // @regression memory/report-header-experiment-selector-regression.md
 // @regression memory/report-match-details-obscure-score-and-collection.md
 // @regression memory/report-result-cell-exposes-float-noise-and-unlabeled-coverage.md
@@ -226,6 +227,11 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
           "singleton/partial-usage",
         ]);
         await experimentSelector.selectOption("/group/singleton/partial-usage");
+        const experimentCosts = page.getByRole("region", { name: "Experiment known subtotal", exact: true });
+        await expect(experimentCosts).toBeVisible();
+        await expect(experimentCosts.getByText("0.000001 USD · reported + estimated", { exact: true })).toBeVisible();
+        await expect(experimentCosts.getByText("Incomplete", { exact: true })).toBeVisible();
+        await expect(experimentCosts.getByText("Missing sources: Application cost", { exact: true })).toBeVisible();
         const partialUsageSummary = page.locator("summary.niceeval-table-hierarchy-summary").filter({
           hasText: /^partial-usage /u,
         });
@@ -255,8 +261,42 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         await expect(partialUsageAttempt.locator(".niceeval-table-hierarchy-cell").nth(5).locator(".niceeval-coverage")).toHaveText("partial");
         await partialUsageAttempt.getByRole("link", { name: /^@/u }).click();
         const externalUsage = page.getByRole("region", { name: "External call usage", exact: true });
+        await expect(externalUsage.getByRole("heading", { name: "Attempt known subtotal", exact: true })).toBeVisible();
+        await expect(externalUsage.getByText("Incomplete", { exact: true })).toBeVisible();
+        await expect(externalUsage.getByText("Missing sources: Application cost", { exact: true })).toBeVisible();
+        await expect(externalUsage.getByText("0.000001 USD · reported + estimated", { exact: true })).toBeVisible();
+        await externalUsage.getByText("External call usage", { exact: true }).click();
         await expect(externalUsage).toContainText("1/2 calls fully costed");
-        await externalUsage.getByText(/^Recorded calls/u).click();
+        const configuredModels = externalUsage.getByRole("table", { name: "Configured model slots", exact: true });
+        await expect(configuredModels.getByRole("row")).toHaveCount(4);
+        for (const [slot, model, calls] of [
+          ["primary", "typesafe-ai/requested", "1"],
+          ["secondary", "openai/gpt-6-luna", "1"],
+          ["unused", "typesafe-ai/unused", "0 (no recorded calls)"],
+        ] as const) {
+          const row = configuredModels.getByRole("row").filter({
+            has: page.getByRole("rowheader", { name: slot, exact: true }),
+          });
+          await expect(row.getByRole("cell")).toHaveText([model, "—", calls]);
+        }
+        const actualModels = externalUsage.getByRole("table", { name: "Actual model usage", exact: true });
+        await expect(actualModels.getByRole("row")).toHaveCount(3);
+        await expect(actualModels.getByRole("rowheader", { name: "unused", exact: true })).toHaveCount(0);
+        for (const [slot, provider, model, cost] of [
+          ["primary", "typesafe-ai", "typesafe-ai/jev", "0 USD · reported · complete"],
+          ["secondary", "openai", "openai/gpt-6-luna", "0.000001 USD · estimated · partial · known subtotal"],
+        ] as const) {
+          const row = actualModels.getByRole("row").filter({
+            has: page.getByRole("rowheader", { name: slot, exact: true }),
+          });
+          await expect(row.getByRole("cell").nth(0)).toHaveText(provider);
+          await expect(row.getByRole("cell").nth(1)).toHaveText(model);
+          await expect(row.getByRole("cell").nth(2)).toHaveText("1");
+          await expect(row.getByRole("cell").nth(4)).toContainText(cost);
+        }
+        await expect(externalUsage.getByRole("heading", { name: "Judge usage", exact: true })).toBeVisible();
+        await expect(externalUsage.getByText("No Judge calls", { exact: true })).toBeVisible();
+        await externalUsage.getByText(/^Recorded calls \(/u).click();
         await expect(externalUsage).toContainText("vercel-ai-gateway.response");
         await externalUsage.getByText("Sealed pricing evidence", { exact: true }).click();
         await expect(externalUsage).toContainText("tokens-unknown");

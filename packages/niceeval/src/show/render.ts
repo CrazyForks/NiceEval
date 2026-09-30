@@ -325,15 +325,44 @@ function adapterValue(value: import("./model.ts").AdapterValue): string {
 }
 
 export function renderExperiment(value: ExperimentView): string {
+  const { totalCosts, coverage } = value.costSummary;
   return terminal([
     {
       kind: "panel",
       title: `Experiment ${value.experimentId}`,
       blocks: [
+        { kind: "divider", title: totalCosts.state === "complete" ? "Experiment total costs" : "Experiment known subtotal" },
+        ...totalCostBlocks(totalCosts).slice(1),
+        { kind: "keyValue", entries: [
+          { key: "Scope", value: "Latest recorded slots; replaced executions excluded" },
+          { key: "Selected slots", value: String(coverage.selectedSlotCount) },
+          { key: "Resolved slots", value: String(coverage.resolvedSlotCount) },
+          { key: "Unique origin Attempts", value: String(coverage.originAttemptCount) },
+          { key: "Attempts with complete costs", value: String(coverage.completeAttemptCount) },
+          { key: "Attempts with partial costs", value: String(coverage.partialAttemptCount) },
+          { key: "Attempts with unavailable costs", value: String(coverage.unavailableAttemptCount) },
+          { key: "Unresolved slots", value: String(coverage.unresolvedSlotCount) },
+        ] },
         { kind: "divider", title: "Summary" },
         aggregateEntries(value.aggregate),
         { kind: "divider", title: "Attempts" },
         ...attemptBlocks(value.cells, null, true),
+        { kind: "divider", title: "Models and usage" },
+        { kind: "keyValue", entries: [
+          { key: "Origin Attempts", value: `${value.modelUsage.attempts.length} shown; ${value.modelUsage.totalAttemptCount} selected; ${value.modelUsage.omittedAttemptCount} omitted; ${value.modelUsage.unresolvedAttemptCount} unresolved` },
+          { key: "Scope", value: "Per origin Attempt; recorded calls only" },
+        ] },
+        ...value.modelUsage.attempts.flatMap<TerminalPanelContentBlock>((attempt) => [
+          { kind: "divider", title: `Usage ${attempt.locator}` },
+          { kind: "keyValue", entries: [
+            { key: "Attempt", value: attempt.locator },
+            { key: "Origin Run", value: attempt.originRunId },
+          ] },
+          ...totalCostBlocks(attempt.usage.totalCosts),
+          ...modelUsageBlocks(attempt.usage),
+          { kind: "divider", title: "Application totals" },
+          { kind: "keyValue", entries: usageTotalEntries(attempt.usage.totals) },
+        ]),
       ],
     },
   ]);
@@ -547,6 +576,7 @@ export function renderAttempt(value: AttemptView): string {
         ? "scored"
         : value.verdict ?? value.outcome,
       blocks: [
+        ...(value.totalCosts === undefined ? [] : totalCostBlocks(value.totalCosts)),
         {
           kind: "keyValue",
           entries: [
@@ -1449,8 +1479,8 @@ function usageTotalEntries(
           }`,
         }
       : {
-          key: "Cost",
-          value: `${totals.costs.state}; ${totals.costs.source ?? "unknown"}; ${
+          key: "Application cost",
+          value: `${totals.costs.state}${totals.costs.state === "partial" ? "; known subtotal" : ""}; ${totals.costs.source ?? "unknown"}; ${
             totals.costs.values.length === 0
               ? `0/${totals.costs.totalCalls} covered calls; no recorded values`
               : totals.costs.values.map((cost) =>
@@ -1461,6 +1491,73 @@ function usageTotalEntries(
   ];
 }
 
+function totalCostBlocks(costs: UsageView["totalCosts"]): readonly TerminalPanelContentBlock[] {
+  const complete = costs.state === "complete";
+  return [
+    { kind: "divider", title: complete ? "Total costs" : "Known subtotal" },
+    { kind: "keyValue", entries: [
+      { key: "Cost coverage", value: complete ? "Complete" : "Incomplete" },
+      ...(costs.missingSources.length === 0 ? [] : [{ key: "Missing sources", value: costs.missingSources.join(", ") }]),
+      ...(costs.values.length === 0 ? [{ key: "Amount", value: complete ? "No recorded charges" : "Unavailable" }] : []),
+    ] },
+    ...(costs.values.length === 0 ? [] : [{ kind: "table" as const,
+      columns: [{ header: "Currency" }, { header: complete ? "Total" : "Known subtotal" }, { header: "Source" }],
+      rows: costs.values.map((cost) => [cost.currency, cost.value, cost.source]), overflow: "wrap" as const }]),
+  ];
+}
+
+function modelUsageBlocks(
+  value: Pick<UsageView, "configuredModels" | "modelGroups" | "totalCosts"> & { readonly judgeUsage: import("../inspection/results.ts").JudgeUsageSummary },
+): readonly TerminalPanelContentBlock[] {
+  const configured = value.configuredModels;
+  const groups = value.modelGroups;
+  const recordedCalls = (count: number | null): string => count === null ? "—" : count === 0 ? "0 (no recorded calls)" : String(count);
+  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelSlot === "default" ? configured.bindings[0] : null;
+  const configurationBlocks: readonly TerminalPanelContentBlock[] = configured.state !== "available"
+    ? [{ kind: "keyValue", entries: [{ key: "Configuration", value: configured.state }] }]
+    : defaultBinding !== null
+    ? [{ kind: "keyValue", entries: [
+      { key: "Configured model (default)", value: defaultBinding.model ?? "—" },
+      ...(defaultBinding.reasoningEffort === null ? [] : [{ key: "Effort", value: defaultBinding.reasoningEffort }]),
+      { key: "Recorded calls", value: recordedCalls(defaultBinding.recordedCalls) },
+    ] }]
+    : configured.bindings.length === 0
+    ? [{ kind: "keyValue", entries: [{ key: "Configured slots", value: "0" }] }]
+    : [{ kind: "table", columns: [{ header: "Slot" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
+      rows: configured.bindings.map((binding) => [binding.modelSlot, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
+  return [
+    { kind: "divider", title: "Configured model slots" },
+    ...configurationBlocks,
+    { kind: "divider", title: "Actual model usage" },
+    { kind: "keyValue", entries: [
+      { key: "State", value: groups.state },
+      { key: "Basis", value: groups.basis },
+      { key: "Groups", value: `${groups.groups.length} shown; ${groups.totalGroupCount ?? "unknown"} total; ${groups.omittedGroupCount} omitted${groups.groupsTruncated ? " (truncated)" : ""}` },
+      ...("reason" in groups && groups.reason !== undefined ? [{ key: "Reason", value: groups.reason }] : []),
+    ] },
+    { kind: "table", columns: [
+      { header: "Slot / provider / actual model", maxWidth: 30 },
+      { header: "Calls / tokens", maxWidth: 18 }, { header: "Application cost", maxWidth: 24 },
+    ], rows: groups.groups.map((group) => [
+      `Slot: ${group.modelSlot ?? "not-recorded"}\nProvider: ${group.provider ?? "not-recorded"}\n${group.model ?? "not-recorded"}`,
+      `${group.recordedCalls} calls\nInput incl. cache: ${metric(group.tokens.inputTotalTokens)}\nOutput: ${metric(group.tokens.outputTokens)}\nTotal: ${metric(group.tokens.totalTokens)}`,
+      group.costs.values.length === 0 ? group.costs.state : group.costs.values.map((cost) =>
+        `${cost.value} ${cost.currency} (${group.costs.state}${group.costs.state === "partial" ? "; known subtotal" : ""}; ${cost.coveredCalls}/${group.costs.totalCalls} covered; ${cost.source})`
+      ).join("; "),
+    ]), overflow: "wrap" },
+    { kind: "divider", title: "Judge usage" },
+    { kind: "keyValue", entries: "totals" in value.judgeUsage ? [
+      { key: "Physical calls", value: value.judgeUsage.totals.requests.value === 0 && value.judgeUsage.totals.requests.state === "available" ? "No Judge calls" : metric(value.judgeUsage.totals.requests) },
+      { key: "Input tokens", value: metric(value.judgeUsage.totals.inputTotalTokens) },
+      { key: "Output tokens", value: metric(value.judgeUsage.totals.outputTokens) },
+      { key: "Total tokens", value: metric(value.judgeUsage.totals.totalTokens) },
+      { key: "Cost", value: value.judgeUsage.totals.costs.state },
+      ...value.judgeUsage.totals.costs.values.map((cost) => ({ key: cost.currency,
+        value: `${cost.value} (${cost.coveredCalls}/${value.judgeUsage.state === "complete" || value.judgeUsage.state === "partial" ? value.judgeUsage.totals.costs.totalCalls : "unknown"} covered; ${cost.source})` })),
+    ] : [{ key: "State", value: `${value.judgeUsage.state}; ${value.judgeUsage.reason}` }] },
+  ];
+}
+
 export function renderUsage(value: UsageView): string {
   return terminal([
     {
@@ -1468,6 +1565,8 @@ export function renderUsage(value: UsageView): string {
       title: `Usage ${value.locator}`,
       meta: value.state,
       blocks: [
+        ...totalCostBlocks(value.totalCosts),
+        { kind: "divider", title: "Application usage" },
         {
           kind: "keyValue",
           entries: [
@@ -1499,6 +1598,7 @@ export function renderUsage(value: UsageView): string {
             },
           ],
         },
+        ...modelUsageBlocks(value),
         { kind: "divider", title: "Limitations" },
         {
           kind: "table",
@@ -1508,7 +1608,7 @@ export function renderUsage(value: UsageView): string {
           ]),
           overflow: "wrap",
         },
-        { kind: "divider", title: value.totals.costs === undefined ? "Provider costs" : "Costs" },
+        { kind: "divider", title: value.totals.costs === undefined ? "Provider costs" : "Application costs" },
         {
           kind: "table",
           columns: [

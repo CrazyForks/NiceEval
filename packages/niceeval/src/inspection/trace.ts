@@ -1,7 +1,9 @@
 // @concord-file ne-eval-inspection-trace
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
-import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial } from "../o11y/adapter-usage-projection.ts";
+import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial, projectAdapterModelUsage } from "../o11y/adapter-usage-projection.ts";
+import { projectJudgeUsage, projectTotalUsageCosts } from "../o11y/judge-usage-projection.ts";
+import type { ResolvedModelSlots } from "../model-slots.ts";
 import { createHash } from "node:crypto";
 
 import { Result, Schema } from "effect";
@@ -21,7 +23,10 @@ import {
 import { RecordExactParseOptions } from "../record/codec/core.ts";
 import {
   AdapterUsageAttachmentRevision1Schema,
+  AdapterUsageAttachmentRevision2Schema,
+  AdapterUsageAttachmentSchema,
   projectAdapterUsageRevision1,
+  projectAdapterUsageRevision2,
   validateAdapterUsageAttachment,
   type ReadableAdapterUsageAttachment,
 } from "../record/family/adapter-usage/schema.ts";
@@ -76,7 +81,10 @@ export interface TraceAttachmentInput {
 }
 
 export interface AttemptTraceAttachments {
+  /** Only the sealed origin Run's configuration may validate or describe these calls. */
+  readonly models?: ResolvedModelSlots;
   readonly adapterUsage?: TraceAttachmentInput;
+  readonly judgeUsage?: TraceAttachmentInput;
   readonly agentTurns?: TraceAttachmentInput;
   readonly turnContexts?: TraceAttachmentInput;
   readonly sandboxCommands?: TraceAttachmentInput;
@@ -937,12 +945,19 @@ function invalidRead<Value>(issue: string): AttachmentRead<Value> {
   return Object.freeze({ state: "invalid" as const, issues: Object.freeze([issue]) });
 }
 
-/** Revision 1 has no opaque closure and projects new facts to null without rewriting sealed bytes. */
+/** Historical revisions are decoded independently, then projected without rewriting sealed bytes. */
 function readAdapterUsageAttachment(
   attachment: TraceAttachmentInput | undefined,
+  models: ResolvedModelSlots | undefined,
 ): AttachmentRead<ReadableAdapterUsageAttachment> {
-  if (attachment?.physical.familyRevision !== 1) {
-    return readCurrentAttachment(NiceEvalCurrentRecordAttachments.adapterUsage, attachment);
+  if (attachment?.physical.familyRevision !== 1 && attachment?.physical.familyRevision !== 2 &&
+    attachment?.physical.familyRevision !== 3) {
+    const read = readCurrentAttachment(NiceEvalCurrentRecordAttachments.adapterUsage, attachment);
+    if (read.state === "available" && read.value.calls.some((call) => call.modelSlot !== null &&
+      (models === undefined || !Object.hasOwn(models, call.modelSlot)))) {
+      return invalidRead("source-model-slot-invalid");
+    }
+    return read;
   }
   if (
     attachment.physical.ownerKind !== NiceEvalCurrentRecordAttachments.adapterUsage.attachment.owner ||
@@ -951,12 +966,24 @@ function readAdapterUsageAttachment(
   if (attachment.physical.contents.length !== 0 || attachment.physical.references.length !== 0) {
     return invalidRead("source-closure-invalid");
   }
-  const decoded = Schema.decodeUnknownResult(
-    AdapterUsageAttachmentRevision1Schema,
-    RecordExactParseOptions,
-  )(attachment.value);
-  if (Result.isFailure(decoded)) return invalidRead("source-attachment-invalid");
-  const projected = projectAdapterUsageRevision1(decoded.success);
+  let projected: ReadableAdapterUsageAttachment;
+  if (attachment.physical.familyRevision === 1) {
+    const decoded = Schema.decodeUnknownResult(AdapterUsageAttachmentRevision1Schema, RecordExactParseOptions)(attachment.value);
+    if (Result.isFailure(decoded)) return invalidRead("source-attachment-invalid");
+    projected = projectAdapterUsageRevision1(decoded.success);
+  } else if (attachment.physical.familyRevision === 2) {
+    const decoded = Schema.decodeUnknownResult(AdapterUsageAttachmentRevision2Schema, RecordExactParseOptions)(attachment.value);
+    if (Result.isFailure(decoded)) return invalidRead("source-attachment-invalid");
+    projected = projectAdapterUsageRevision2(decoded.success);
+  } else {
+    const decoded = Schema.decodeUnknownResult(AdapterUsageAttachmentSchema, RecordExactParseOptions)(attachment.value);
+    if (Result.isFailure(decoded)) return invalidRead("source-attachment-invalid");
+    projected = decoded.success;
+    if (projected.calls.some((call) => call.modelSlot !== null &&
+      (models === undefined || !Object.hasOwn(models, call.modelSlot)))) {
+      return invalidRead("source-model-slot-invalid");
+    }
+  }
   if (validateAdapterUsageAttachment(projected).length > 0) {
     return invalidRead("source-attachment-invalid");
   }
@@ -1323,9 +1350,29 @@ function projectConversationItem(
 
 export function projectAttemptUsage(
   attachments: AttemptTraceAttachments,
+  models: ResolvedModelSlots | undefined = attachments.models,
 ): InspectionAttemptUsageResult {
+  const usage = projectApplicationUsage(attachments, models);
+  const read = readCurrentAttachment(NiceEvalCurrentRecordAttachments.judgeUsage, attachments.judgeUsage);
+  const judgeUsage = read.state === "available" ? projectJudgeUsage(read.value)
+    : read.state === "invalid" ? Object.freeze({ state: "invalid" as const, reason: "judge-usage-source-invalid" as const })
+    : Object.freeze({ state: "unavailable" as const, reason: "judge-usage-not-recorded" as const });
+  const applicationEmptyComplete = attachments.adapterUsage !== undefined &&
+    usage.totals.requests.state === "available" && usage.totals.requests.value === 0 && usage.totals.costs?.totalCalls === 0;
+  return Object.freeze({ ...usage, judgeUsage,
+    totalCosts: projectTotalUsageCosts(usage.totals, judgeUsage, applicationEmptyComplete,
+      attachments.adapterUsage === undefined || attachments.adapterUsage.physical.familyRevision === 4) });
+}
+
+function projectApplicationUsage(
+  attachments: AttemptTraceAttachments,
+  models: ResolvedModelSlots | undefined,
+): Omit<InspectionAttemptUsageResult, "judgeUsage" | "totalCosts"> {
   if (attachments.adapterUsage !== undefined) {
-    const read = readAdapterUsageAttachment(attachments.adapterUsage);
+    const read = readAdapterUsageAttachment(attachments.adapterUsage, models);
+    const modelUsage = projectAdapterModelUsage(read.state === "available" ? read.value : null, models, {
+      basis: "recorded-calls", reason: read.state === "invalid" ? "source-invalid" : "usage-not-recorded",
+    });
     const empty = {
       source: "adapter" as const,
       coverage: "recorded-calls" as const,
@@ -1342,7 +1389,8 @@ export function projectAttemptUsage(
       }, hasMore: false, omittedObservationCount: 0,
     };
     if (read.state !== "available") return {
-      ...empty, state: read.state, limitations: read.state === "invalid" ? read.issues.map((issue) => ({ issue })) : [],
+      ...empty, ...modelUsage,
+      state: read.state, limitations: read.state === "invalid" ? read.issues.map((issue) => ({ issue })) : [],
     };
     const all = read.value.calls;
     const calls = effectiveUsageCalls(read.value);
@@ -1363,8 +1411,10 @@ export function projectAttemptUsage(
           [call.inputTokens, call.cacheReadTokens, call.cacheWriteTokens].every((value) => value !== null)));
     const unknownCosts = calls.filter((call) => call.effectiveCost === null).length;
     const partialCosts = calls.filter((call) => call.effectiveCost?.state === "partial").length;
+    const costs = effectiveCostTotals(calls, read.value.collection.state);
     return {
       ...empty,
+      ...modelUsage,
       state: complete ? "complete" : "partial",
       limitations: [
         ...(complete ? [] : [{ issue: "Adapter usage describes only recorded calls; some quantities or terminal outcomes are unknown, or capture is incomplete." }]),
@@ -1376,18 +1426,28 @@ export function projectAttemptUsage(
       totals: {
         ...empty.totals, inputTokens, outputTokens, inputTotalTokens: numeric("inputTotalTokens"),
         requests: { state: read.value.collection.state === "complete" ? "available" : "partial", value: all.length, observationCount: all.length },
-        costs: effectiveCostTotals(calls, read.value.collection.state),
+        costs,
       },
       hasMore: all.length > 128,
     };
   }
-  return projectUsage(readAgentTurns(attachments.agentTurns));
+  const read = readAgentTurns(attachments.agentTurns);
+  const usage = projectUsage(read);
+  return Object.freeze({
+    ...usage,
+    ...projectAdapterModelUsage(null, models, {
+      basis: attachments.agentTurns === undefined ? "unavailable" : "reported-sends",
+      reason: read.state === "invalid" ? "source-invalid" : attachments.agentTurns === undefined
+        ? "usage-not-recorded" : "physical-call-identity-not-recorded",
+    }),
+  });
 }
 
 export function projectAdapterUsageTokens(
   attachment: TraceAttachmentInput,
+  models?: ResolvedModelSlots,
 ): { readonly value: number | null; readonly state: "available" | "partial" | "unavailable" | "failed" } {
-  const read = readAdapterUsageAttachment(attachment);
+  const read = readAdapterUsageAttachment(attachment, models);
   if (read.state !== "available") {
     return Object.freeze({
       value: null,
@@ -1400,7 +1460,7 @@ export function projectAdapterUsageTokens(
 
 function projectUsage(
   agentTurns: ReturnType<typeof readAgentTurns>,
-): InspectionAttemptUsageResult {
+): Omit<InspectionAttemptUsageResult, "configuredModels" | "modelGroups" | "judgeUsage" | "totalCosts"> {
   const sourceState = availability(agentTurns, USAGE_TARGETS);
   if (agentTurns.state !== "available") {
     return Object.freeze({

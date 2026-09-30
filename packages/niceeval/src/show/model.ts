@@ -85,6 +85,8 @@ export interface ExperimentView {
   readonly experimentId: string;
   readonly aggregate: Aggregate;
   readonly cells: OverviewView["cells"];
+  readonly costSummary: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["costSummary"];
+  readonly modelUsage: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["modelUsage"];
 }
 export interface RunView {
   readonly runId: string;
@@ -114,6 +116,7 @@ export interface RunView {
   }[];
 }
 export interface AttemptView {
+  readonly totalCosts?: InspectionSuccessDocumentFor<"attempt.usage">["usage"]["totalCosts"];
   readonly locator: string;
   readonly verdict: Verdict | null;
   readonly attemptId: string;
@@ -255,6 +258,8 @@ export function projectExperiment(document: InspectionSuccessDocumentFor<"experi
     experimentId: document.experiment.experiment.experimentId,
     aggregate: aggregate(document.experiment.experiment),
     cells: cells(document.experiment.cells),
+    costSummary: document.experiment.costSummary,
+    modelUsage: document.experiment.modelUsage,
   };
 }
 // @concord-code ne-surface-project-run-view
@@ -291,10 +296,11 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.overview"
 }
 // @concord-code ne-surface-project-attempt-view
 // @concord-implements docs/feature/inspection/cli.md
-export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.get">): AttemptView {
+export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.get">, usage?: InspectionSuccessDocumentFor<"attempt.usage">): AttemptView {
   const value = document.attempt;
   return {
     locator: value.locator,
+    totalCosts: usage?.usage.totalCosts,
     verdict: value.verdict,
     attemptId: value.core.attemptId,
     evalId: value.core.evalId,

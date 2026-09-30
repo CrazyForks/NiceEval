@@ -214,6 +214,16 @@ test.concurrent("现成与自定义 Match 的组合分数和完整模型步骤�
       expect(requests.slice(0, adapterRequests.length)).toEqual(adapterRequests);
       expect(adapterRequests).toHaveLength(12);
       expect(agentRequests).toHaveLength(7);
+      const agentUsage = await inspectAttempt(niceeval, projectRoot, agentEvaluation.locator!, "attempt.usage");
+      expect(agentUsage.receipt.exitCode, agentUsage.receipt.diagnostic()).toBe(0);
+      const agentLedger = agentUsage.document.usage.judgeUsage;
+      expect(agentLedger.state).toBe("complete");
+      if (agentLedger.state !== "complete") throw new Error("Missing Agent Judge physical ledger");
+      expect(agentLedger.calls).toHaveLength(7);
+      expect(agentLedger.totals.requests).toMatchObject({ state: "available", value: 7 });
+      expect(agentLedger.calls.every((call) => call.status === "succeeded" && call.operation === "classify")).toBe(true);
+      expect(agentLedger.calls.map((call) => only(agentEntries, (entry) => entry.entryId === call.entryId).display.label)).toEqual(qaExpectations.map(([label]) => label));
+
       expect(agentRequests.every(({ operation, body }) => operation === "classify" && JSON.parse(body).model === "judge-eval-override")).toBe(true);
 
       for (const [label, question] of qaExpectations) {

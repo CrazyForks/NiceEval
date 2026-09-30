@@ -376,6 +376,17 @@ ctx.recordUsage({
 });
 ```
 
+Adapter 在全部可取得的物理调用最终快照登记后，调用 `ctx.sealUsage({ state: "complete" })`。
+完整空账本也需要显式声明。源只读到一部分时，登记已有调用后调用
+`ctx.sealUsage({ state: "partial", reason: "source-incomplete" })`；reason 是 1–128 字符的非秘密 ASCII 标识。
+标识首字符为字母或数字，其余允许字母、数字、点、下划线、冒号和连字符。
+`AdapterUsageSeal` 从根包导出。未声明时费用只提供已知小计，不能据零调用或 Eval 的 Verdict 推断完整。
+
+封存停止此 Attempt 的用量接纳；捕获开放期间重复封存、封存后上报或非法参数均使 Attempt errored，捕获错误即使被作者 catch 也保留。
+已登记费用不会删除。cleanup 时段内可以补齐回执再封存，框架截止后迟到写入只拒绝，不再修改结果。
+`t.usage` 是读取时的不可变快照：cleanup 阶段封存不会改善此前快照或预算断言。
+需要完整预算判断时，必须先结束采集并封存，再读取用量。
+
 `callId` 在一个 Attempt 内标识物理调用；重试使用新 ID，`retryOf` 可引用此前已登记的 ID。
 相同规范化快照重复上报不增加用量；同 ID 的冲突快照明确失败。每个 Attempt 最多保存 4000 次调用的快照。
 这是终态快照入口：先收尾外部观测，再上报；只有 started 而无 terminal 的调用标为 `unknown`，不推断成功。
@@ -480,3 +491,16 @@ elapsedMs使用runtime的Attempt单调时钟起点到调用处的墙钟毫秒，
 
 
 游戏时钟或首次完成时间由应用事实提供，不能用墙钟代替。
+
+## 读取模型用途并关联调用
+
+`AdapterCreateContext.models` 是当前 Attempt 的只读映射，每项为 `{ model: string | null; reasoningEffort: string | null }`。
+配置由 [Experiment](../experiments/library.md#普通-adapter-的命名模型用途) 冻结，Adapter 不另复制一份模型 flags。
+
+`recordUsage` 可带 `modelSlot?: string | null`。它引用当前配置的用途键，不要求实际 model 与配置相同。
+省略或 null 表示用途未登记，不推断为 default；非法引用沿既有采集错误通道失败，不能捕获后当作完整调用账本封存。
+同模型的不同用途保留独立分组，retryOf 和 callId 仍标识物理请求。
+新普通 Adapter 即使没有调用也封存完整空账本，旧 Record 缺源仍未知。
+
+用量 revision 4 保存必有的 modelSlot 与显式采集完整性；revision 1 与 2 只读投影用途为 null，revision 3 保留原用途。
+旧版本原金额与应用 costUSD 保留，新整局和实验总费用对缺少生产者声明的旧账本保留 application 缺口，不重写旧字节。

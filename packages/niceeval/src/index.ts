@@ -136,7 +136,7 @@ export { factuality, faithfulness, instructionFollowing, pairwisePreference } fr
 export type { JudgePresetOptions, FactualityMaterial, FaithfulnessMaterial, InstructionFollowingMaterial, PairwisePreferenceMaterial } from "./assertions/judge-presets.ts";
 export type { JudgeProvider, JudgeSelection } from "./judge/index.ts";
 export { MigrationRequiredError, type MigrationOccurrence, type ErrorSource } from "./error-assistance/index.ts";
-export type { AdapterUsageInput } from "./adapter-usage.ts";
+export type { AdapterUsageInput, AdapterUsageSeal } from "./adapter-usage.ts";
 export type { AdapterAttachmentInput, AdapterAttachmentReceipt } from "./adapter-attachments.ts";
 export type {
   ExecutionTraceActor,
@@ -161,3 +161,5 @@ export type { AttemptUsageSnapshot, AdapterAttemptUsageSnapshot } from "./o11y/a
 export type { EvalUsage } from "./o11y/eval-usage.ts";
 
 export type { AgentMatchContext } from "./context/assert-first.ts";
+
+export type { ModelSlotSelection, ResolvedModelSlot, ResolvedModelSlots } from "./model-slots.ts";

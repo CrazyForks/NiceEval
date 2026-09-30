@@ -59,6 +59,21 @@ test.concurrent("TypeSafe 概率映射与批量分类可复核且提取能力明
         }
         expect(JSON.stringify(audit)).not.toContain("typesafe-fixture-key");
       }
+      const usage = await inspectAttempt(niceeval, projectRoot, result.locator!, "attempt.usage");
+      expect(usage.receipt.exitCode, usage.receipt.diagnostic()).toBe(0);
+      const ledger = usage.document.usage.judgeUsage;
+      expect(ledger.state).toBe("complete");
+      if (ledger.state !== "complete") throw new Error("Missing TypeSafe physical usage");
+      expect(ledger.calls).toHaveLength(3);
+      expect(ledger.totals).toMatchObject({
+        requests: { state: "available", value: 3 },
+        inputTotalTokens: { state: "available", value: 60 },
+        outputTokens: { state: "available", value: 30 },
+        totalTokens: { state: "available", value: 90 },
+        costs: { state: "unavailable", totalCalls: 3 },
+      });
+      expect(ledger.calls.every((call) => call.transportProvider === "typesafe" && call.inputTotalTokens === 20 && call.outputTokens === 10)).toBe(true);
+      expect(ledger.calls.every((call) => entries.some((entry) => entry.entryId === call.entryId))).toBe(true);
       expect(requests).toHaveLength(3);
       expect(requests.every((request) => request.url === "/v1/systemone" && request.authorization === "Bearer typesafe-fixture-key")).toBe(true);
       expect(requests.map(({ body }) => Object.keys(JSON.parse(body).questions).length).sort()).toEqual([1, 1, 2]);
@@ -74,6 +89,11 @@ test.concurrent("TypeSafe 概率映射与批量分类可复核且提取能力明
       expect(assertionEntry(invalidDetail.document, invalidDetail.receipt.diagnostic()).scoreMatchAudit).toMatchObject({
         state: "available", audit: { result: { state: "errored" } },
       });
+      const invalidUsage = await inspectAttempt(niceeval, projectRoot, invalidEval.locator!, "attempt.usage");
+      expect(invalidUsage.receipt.exitCode, invalidUsage.receipt.diagnostic()).toBe(0);
+      expect(invalidUsage.document.usage.judgeUsage).toMatchObject({ state: "complete", totals: {
+        requests: { value: 3 }, inputTotalTokens: { value: 60 }, outputTokens: { value: 30 }, totalTokens: { value: 90 },
+      } });
       expect(requests).toHaveLength(6);
     });
   } finally {

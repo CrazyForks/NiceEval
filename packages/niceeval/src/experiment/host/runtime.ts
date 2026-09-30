@@ -153,6 +153,7 @@ function debugAgentRun(
   return {
     adapter: experiment.adapter,
     ...(experiment.agent === undefined ? {} : { agent: experiment.agent }),
+    ...(experiment.models === undefined ? {} : { models: experiment.models }),
     model: experiment.model,
     reasoningEffort: experiment.reasoningEffort,
     flags: experiment.flags ?? {},

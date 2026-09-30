@@ -16,7 +16,7 @@ function contribution(usage: (Usage & { inputTotalTokens?: number }) | null, fie
 }
 function call(fields: Partial<AdapterUsageCall> = {}): AdapterUsageCall {
   return {
-    callId: "call-a", retryOf: null, provider: "provider", model: "provider/model", status: "succeeded",
+    callId: "call-a", retryOf: null, modelSlot: null, provider: "provider", model: "provider/model", status: "succeeded",
     inputTokens: 10, inputTotalTokens: null, cacheReadTokens: 3, cacheWriteTokens: 2, outputTokens: 5,
     route: { transportProvider: null, endpointId: null }, cost: null, ...fields,
   };
