@@ -6,7 +6,7 @@ description: "先确定业务判据，再组织完整证据、领域 Match、独
 
 写完一条评估，让同事只读正文就能说明：测什么、什么算通过、为什么这些证据足够、怎样计分。先写业务判据，再选择最短且忠实的表达。不要先遍历日志，再给统计结果起一个业务名称。
 
-本页帮助你审阅和改写已有评估。声明与运行步骤见[编写评估用例](/zh/tutorials/authoring)，签名见 [defineEval 参考](/zh/reference/define-eval)。下文业务示例使用文字与伪代码表达判据，不声明应用方法或待定 SDK API。
+本页帮助你审阅和改写已有评估。声明与运行步骤见[编写评估用例](/zh/tutorials/authoring)，签名见 [defineEval 参考](/zh/reference/define-eval)。业务案例用伪代码说明判据；客服任务例子使用公开 API，应用观测函数由接入项目提供。
 
 ## 先写场景、判据和充分证据
 
@@ -97,6 +97,106 @@ Adapter 读取应用已有的协议、执行与状态事实，不复制一套权
 若评估交流质量，保留双方完整对话并提出可据材料回答的问题。若评估交货，检查物品、目标位置、执行者和完成回执的关联。交流得分与交货得分独立，权重在正文可见。
 
 同样的方法适用于工具调用、操作请求和返回结果：操作记录保留失败与调整，requests 保留实际发出的正文，choices 保留未采用的模型输出。选择、执行、结果分开观察，不能拿其中一层代替另一层。
+
+## 用上下文 Match 编写客服任务评估
+
+下面三段按顺序组成一个 `support-review.ts` 模块。它导出项目侧工厂 `createSupportReview`，接收应用已有的观测函数，返回同一个 Adapter 与评估定义。这个工厂不是 SDK 的新入口；它让接入代码与评估正文分别可读。
+
+调用方把返回的 `evaluation` 默认导出为 `.eval.ts`，并在 Experiment 中使用返回的同一个 `adapter`。运行前配置 Judge，见[验证 Judge](/zh/tutorials/verify-judge)。
+
+### 应用交付事实，保留未知状态
+
+`observe(ctx)` 负责执行或等待本次客服任务，返回当前 Attempt 的只读事实。它使用 `ctx.signal` 响应取消，按连接需要登记释放回调，并通过 `ctx.recordUsage` 上报正式用量。记录关联、协议解码与时间校验在应用适配中完成，不放进评估正文。
+
+`businessSeconds` 必须是已核验的非负有限业务时间。已完成需要完成事件；确定未完成需要完整观察结束证据。两者都无法确认时，返回 `unavailable`。发言集合保留每项证据 ID、原文、送达与模型来源信息；未知状态不能伪装成完整记录。
+
+```ts
+import { defineAdapter, type AdapterCreateContext } from "niceeval";
+import {
+  atMost, defineContextMatch, defineMaterialMatch,
+  defineScoreMatch, defineValueMatch,
+  type MaterialCollection, type MatchFact,
+} from "niceeval/expect";
+
+export type Speech = {
+  readonly actorId: string;
+  readonly text: string;
+  readonly delivered: boolean;
+  readonly modelOrigin: "verified" | "unknown";
+};
+export type Completion =
+  | { readonly completed: true; readonly eventId: string; readonly businessSeconds: number }
+  | { readonly completed: false; readonly observationEndId: string };
+export type SupportFacts = {
+  readonly speeches: MaterialCollection<Speech>;
+  readonly completion: MatchFact<Completion>;
+};
+```
+
+### 领域 Match 选择材料并定义评分
+
+人物发言只按人物选择，送达失败或模型来源未知的发言仍进入表达质量判断。`read` 从框架注入的 ctx 读取材料，不需要 source 或 bind 注册。读取集合的预算包含未命中项。
+
+完成效率读取一个业务事实，复用 `ScoreMatch`。完整观察确定未完成时给 0；事实不可用时，框架不调用评分函数。它不把整个 journal 作为断言材料。
+
+```ts
+export const 人物发言 = (actorId: string) =>
+  defineMaterialMatch<SupportFacts, Speech>({
+    name: "actor-speeches",
+    read: ctx => ctx.speeches,
+    match: defineValueMatch<Speech>({
+      name: "speech-by-actor",
+      evaluate: speech => speech.actorId === actorId,
+    }),
+    capture: { maxItems: 1024, maxBytes: 512 * 1024,
+      maxNodes: 65536, maxDepth: 32 },
+  });
+
+export const 完成耗时效率 = defineContextMatch<SupportFacts, Completion>({
+  name: "completion-efficiency",
+  read: ctx => ctx.completion,
+  match: defineScoreMatch<Completion>({
+    name: "completion-within-180-business-seconds",
+    score: fact => fact.completed
+      ? Math.max(0, 1 - fact.businessSeconds / 180)
+      : 0,
+  }),
+});
+```
+
+### 正文保留独立判据与权重
+
+表达质量与完成效率各占 50 分，token 与运行耗时只设通过门槛。`closeQA` 的显式预算用于全部命中材料和裁判审计，不替代 Match 的读取预算。这里的预算是例子选择，不代表任何长度的任务都能装下。
+
+```ts
+export function createSupportReview(
+  observe: (ctx: AdapterCreateContext) => Promise<SupportFacts>,
+) {
+  const adapter = defineAdapter({ name: "support-review", create: observe });
+  const evaluation = adapter.defineScoreEval({
+    description: "客服正式发言质量与任务完成效率",
+    test(t) {
+      // 全部发言参与质量判断；不按送达或模型来源筛选。
+      t.closeQA(人物发言("agent"), "每句发言是否自然完整、意思清楚？", {
+        maxMaterialBytes: 256 * 1024,
+        maxAuditBytes: 1024 * 1024,
+      }).score(50).label("表达质量");
+
+      // 完成事实不可用时不能伪造 0；业务时间与运行耗时分开。
+      t.check(完成耗时效率).score(50).label("完成效率");
+
+      const usage = t.usage;
+      t.check(usage.totalTokens, atMost(10_000)).gate().label("用量上限");
+      t.check(t.elapsedMs, atMost(30_000)).gate().label("运行耗时上限");
+    },
+  });
+  return { adapter, evaluation };
+}
+```
+
+`usage` 与 `elapsedMs` 是属性，不调用快照方法。读取的用量保留当时已知的值与未知状态；未上报 token 不能使预算检查通过。`elapsedMs` 是本次评估运行墙钟，完成效率使用应用的业务时间，两者不互换。
+
+若任务在第 90 个业务秒完成，效率贡献 25 分；表达质量需由 Judge 另行判定。Judge 不可用或材料超限时，不能声称取得完整总分。这个例子不判断送达或模型自主性；业务要求这些条件时，另登记确定性检查，不能靠表达得分推断。
 
 ## 改写容易误导的表达
 
