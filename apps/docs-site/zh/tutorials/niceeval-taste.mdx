@@ -45,10 +45,10 @@ Adapter 读取应用已有的协议、执行与状态事实，不复制一套权
 
 物体遵守相同规则。“货箱完好送达”应展示同一物体的身份、耐久条件和目标位置，不能把整句结论藏进函数。比如 `id === crateId`、`durability >= minimum`、`positionId === destinationId` 是三个可见条件；若还要求曾被搬运，需要独立的操作事实，当前位置不能代替过程证据。
 
-下面是应用接入后的正文片段。`and`、`countWhere` 与 `equals` 是 `niceeval/expect` 的公开组合器；`t.hp`、`t.systemOne`、`npcMatch`、`modelMatch`、`decisionMatch` 与 `operationMatch` 由应用定义，必须先按该应用的 Adapter 契约接入。
+下面是应用接入后的正文片段。导入的组合器来自 `niceeval/expect`；`t.hp`、`t.systemOne`、`t.objects` 与人物、模型、决策、操作、物体、耐久和位置 Match 均由应用定义，必须先按该应用的 Adapter 契约接入。
 
 ```ts
-import { and, countWhere, equals } from "niceeval/expect";
+import { and, countWhere, equals, greaterThan } from "niceeval/expect";
 
 // 指定人物中，生命值恰为 0 的有 3 个。
 t.hp(npcMatch({ ids }), countWhere(equals(0), equals(3))).gate();
@@ -60,9 +60,20 @@ t.systemOne(and(
   decisionMatch({ outcome: "adopted" }),
   operationMatch({ ids: operationIds }),
 )).gate();
+
+// 选择指定货箱，要求它仍有耐久且位于目标位置。
+t.objects(
+  objectMatch({ id: 剧本.carry.objectId }),
+  and(
+    durabilityMatch(greaterThan(0)),
+    positionMatch({ map: 剧本.map.name, ...剧本.destination }),
+  ),
+).score(50);
 ```
 
 这里的 `ids` 是本场景检查的人物集合，`id` 是被检查的人物，`operationIds` 是允许的操作类型。它们应在场景声明处可见。生命值与数量条件不隐藏在“全部败退”中，模型成功与决策采用也不隐藏在“自主行动”中。
+
+物体示例中的 `剧本` 提供本场景的物体 ID、地图与目标位置。`t.objects` 的第一个参数选择物体，第二个参数判断同一物体的耐久和位置，50 分权重直接可见。该应用方法在 Adapter 内使用官方 `filterWhere`、`countWhere` 组合并交给 `check`，不调用私有求值函数；它不是 NiceEval 内置的物体 API。
 
 Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一个候选。不要为了表达这些条件，在正文创建临时数据结构或展开 journal 过滤；也不要让 Adapter 直接返回某个 case 的综合通过结论。已采用的决策仍不等于操作执行成功，任务需要执行结果时另写对应检查。
 
@@ -155,6 +166,8 @@ Adapter 从 ctx 提供可信且已关联的事实，让组合条件判断同一�
 同样的方法适用于工具调用、操作请求和返回结果：操作记录保留失败与调整，requests 保留实际发出的正文，choices 保留未采用的模型输出。选择、执行、结果分开观察，不能拿其中一层代替另一层。
 
 `closeQA(材料Match, 问题)` 可以评价一个人物的全部发言、操作、匹配请求或返回选择。框架保序把完整命中材料交给同一个受管 Judge，不在正文逐条调用模型。只传第一条命中、摘要或成功样本，都不能代表全量表现。
+
+只用于当前评估的问题直接写在裁判调用处，让读者同时看到材料和验收标准。多处共用的纯问题文本可以提取复用；问题文本不是判断函数。不要把材料选择、验收问题与权重一起藏进某个场景专用函数。
 
 正式封存的末态位置只证明结束时在哪里。即使应用把末态投影到每个操作上，它也不是每次操作当时的位置；要评价路线或逐次轨迹，必须读取对应时点的正式事实。
 
