@@ -131,15 +131,21 @@ describe("Repository Tools 动态发现", () => {
       });
       linkDependencies(copy);
       const before = contentDigest(copy);
-      const results = await Promise.allSettled(toolSkills(copy).map(async (skill) => {
-        const { stdout: output } = await execFileAsync("pnpm", [...commandArgs(skill.command), "--help"], {
-          cwd: copy,
-          encoding: "utf8",
-          timeout: 20_000,
-          killSignal: "SIGKILL",
-        });
-        expect(output, `${skill.command} --help 没有 usage`).toMatch(/usage:?/i);
-      }));
+      const skills = toolSkills(copy);
+      const results: PromiseSettledResult<void>[] = [];
+      // Each help command starts pnpm, tsx and the CLI. Bound that startup load
+      // on CI runners while retaining every command's own deadline and result.
+      for (let offset = 0; offset < skills.length; offset += 2) {
+        results.push(...await Promise.allSettled(skills.slice(offset, offset + 2).map(async (skill) => {
+          const { stdout: output } = await execFileAsync("pnpm", [...commandArgs(skill.command), "--help"], {
+            cwd: copy,
+            encoding: "utf8",
+            timeout: 20_000,
+            killSignal: "SIGKILL",
+          });
+          expect(output, `${skill.command} --help 没有 usage`).toMatch(/usage:?/i);
+        })));
+      }
       expect(contentDigest(copy), "--help 改写了隔离副本").toBe(before);
       for (const result of results) {
         if (result.status === "rejected") throw result.reason;
@@ -147,7 +153,7 @@ describe("Repository Tools 动态发现", () => {
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }
-  }, 30_000);
+  }, 180_000);
 
   it("不恢复中央命令清单或 capability 查询入口", () => {
     const manifest = readFileSync(join(ROOT, "package.json"), "utf8");
