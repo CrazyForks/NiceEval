@@ -120,18 +120,15 @@ pnpm exec niceeval exp prompts/v2 refund-policy
 pnpm exec niceeval show --experiment prompts/v1 --experiment prompts/v2
 ```
 
-```text
-Current results · Experiment prompts/v1
-  Summary
+每个 Experiment 的 `Summary` 里会列出这几项：
 
-  Covered    12/12
-  Gaps       0
+```text
+  Observed   12/12
   Verdicts   8 passed; 4 failed; 0 errored; 0 skipped
   Pass rate  66.67%
-……
 ```
 
-`Covered` 是有结果的 Attempt 数和计划数。`Gaps` 不为 0 时，说明有些 Attempt 还没有结果，这时的通过率不能直接和另一边比较。
+`Observed` 是有结果的 Attempt 数和计划数。两个数不相等时，说明有些 Attempt 还没有结果，这时的通过率不能直接和另一边比较。
 
 除了通过率，还要看耗时、token、成本和失败的类型。一个配置通过率高一点，成本却翻了一倍，不一定值得换。把两次 Run 并排比较，见[比较多个固定 Run](/zh/tutorials/compare-runs)；在浏览器里看，用 `niceeval view`。
 

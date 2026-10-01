@@ -71,27 +71,34 @@ pnpm exec niceeval show --run <run-id>
 pnpm exec niceeval show @1K1P0VJAPVJ12
 ```
 
+输出的主要部分类似这样：
+
 ```text
-Attempt @1K1P0VJAPVJ12
+Attempt @1K1P0VJAPVJ12 · failed
   Experiment  my-agent
   Eval        refund-policy
   Outcome     completed
   Verdict     failed
 
-Assertions    available · 3 entries
+assertions available · 3 entries
+  Assertion   Entry ID  Group
+  调用天气工具  e1        root
+  说明天气     e2        root
+  回答有依据   e3        root
 
 Sections
-  source      available
-  execution   available
-  timing      available
-  usage       available
-  diff        not-recorded
+  Source      available
+  Execution   available
+  Timing      available
+  Usage       available
+  Diff        not-recorded
 
 Next
   niceeval show @1K1P0VJAPVJ12 --source
   niceeval show @1K1P0VJAPVJ12 --execution
   niceeval show @1K1P0VJAPVJ12 --timing
   niceeval show @1K1P0VJAPVJ12 --usage
+  niceeval show @1K1P0VJAPVJ12 --diff
 ```
 
 `Next` 列出了能继续看的方面，按你要回答的问题选：
