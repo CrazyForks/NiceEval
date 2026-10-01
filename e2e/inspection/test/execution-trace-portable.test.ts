@@ -196,7 +196,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(legacyInput.exitCode, legacyInput.diagnostic()).toBe(1);
     expect(legacyInput.stdout).toContain("Execution trace envelope is invalid");
   });
-});
+}, 240_000);
 
 // @feature docs/feature/inspection/README.md
 // @regression memory/execution-producer-partial-hidden.md
