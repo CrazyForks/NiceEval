@@ -213,7 +213,8 @@ type ExecutionDisplayBlockPreview =
 ```
 
 每个文本字段与 `fields` 字符串值最多预览 1 KiB，截在码点边界；`omittedBytes` 按 UTF-8 字节由 Inspection 计算。
-单个事件的序列化投影最多 8 KiB，页预算按序列化投影计，每页至少交付一个事件。
+Inspection 按需收缩展示块预览，使单个事件的序列化投影不超过 8 KiB；页预算按序列化投影计，每页至少交付一个事件。
+envelope 字段（actor label、evidence label、unresolved reason）没有预览形状，单靠它们超过 8 KiB 时沿用既有页预算规则。
 由 Conversation 投影而成的事件 `display` 为 `absent`。`execution-event` detail 交付完整展示块。
 精确详情直接选择已封存身份，不要求该项出现在默认摘要中。调用方需要一项详情时，使用对应 selector：
 

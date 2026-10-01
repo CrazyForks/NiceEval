@@ -207,6 +207,8 @@ export interface TraceDetailView {
   readonly stableId: string;
   readonly body: InspectionTraceDetailResult;
 }
+export type ExecutionDisplayPreviewBlock = Extract<TraceView["execution"]["events"][number]["display"], { state: "present" }>["blocks"][number];
+export type ExecutionDisplayDetailBlock = NonNullable<Extract<TraceDetailView["body"], { kind: "execution-event" }>["event"]["display"]>[number];
 export type TimingView = { readonly locator: string } & InspectionSuccessDocumentFor<"attempt.timing">["timing"];
 export type UsageView = { readonly locator: string } & InspectionSuccessDocumentFor<"attempt.usage">["usage"];
 export type DiffView = { readonly locator: string } & InspectionSuccessDocumentFor<"attempt.diff">["diff"];

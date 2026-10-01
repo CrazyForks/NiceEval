@@ -371,6 +371,7 @@ function projectAgentItemsAsExecution(
           links: Object.freeze([]),
           evidence: Object.freeze([]),
           scopeMemberships: Object.freeze([]),
+          display: Object.freeze({ state: "absent" as const }),
         });
         if (utf8ByteLength(JSON.stringify([...retained.map(({ event: prior }) => prior), event])) >
           ExecutionTraceRecordLimits.maximumOutlineBytes) {

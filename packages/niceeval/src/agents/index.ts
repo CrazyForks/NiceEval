@@ -27,6 +27,7 @@ export type {
   ReservedAdapterContextKey,
 } from "../adapter.ts";
 export type {
+  ExecutionDisplayBlock,
   ExecutionTraceActor,
   ExecutionTraceEvent,
   ExecutionTraceEvidence,

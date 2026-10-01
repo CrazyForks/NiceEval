@@ -139,6 +139,7 @@ export { MigrationRequiredError, type MigrationOccurrence, type ErrorSource } fr
 export type { AdapterUsageInput, AdapterUsageSeal } from "./adapter-usage.ts";
 export type { AdapterAttachmentInput, AdapterAttachmentReceipt } from "./adapter-attachments.ts";
 export type {
+  ExecutionDisplayBlock,
   ExecutionTraceActor,
   ExecutionTraceEvent,
   ExecutionTraceEvidence,

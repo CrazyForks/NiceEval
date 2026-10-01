@@ -5,6 +5,11 @@ import {
   renderTerminal,
   type TerminalBlock,
   type TerminalPanelContentBlock,
+  charDisplayWidth,
+  stringWidth,
+  padDisplay,
+  wrapDisplay,
+  panelContentWidth,
 } from "../terminal/index.ts";
 import type {
   Aggregate,
@@ -12,6 +17,8 @@ import type {
   DiffView,
   ExperimentView,
   ExecutionValue,
+  ExecutionDisplayPreviewBlock,
+  ExecutionDisplayDetailBlock,
   Metric,
   OverviewView,
   RunView,
@@ -24,6 +31,7 @@ import type {
   UsageView,
 } from "./model.ts";
 import { decodeBase64Bytes } from "../inspection/bytes.ts";
+import { displayTextHasForbiddenCharacter } from "../record/family/execution-traces/schema.ts";
 
 const TERMINAL_OPTIONS = Object.freeze({ width: 80, mode: "plain" as const });
 
@@ -755,6 +763,76 @@ function sourceRange(
   return `start ${start.line}:${start.column} · end ${end.line}:${end.column}`;
 }
 
+function safeEventText(text: string): string {
+  return Array.from(text).filter((character) => !displayTextHasForbiddenCharacter(character)).join("");
+}
+
+function safeEventJson(value: unknown, space?: number): string {
+  return JSON.stringify(value, (_key, item: unknown) => typeof item === "string" ? safeEventText(item) : item, space);
+}
+
+function displayPreview(text: { readonly preview: string; readonly omittedBytes: number }, eventId: string): string {
+  return safeEventText(text.preview) + (text.omittedBytes === 0 ? "" : `\n… (${text.omittedBytes} more bytes, --expand ${eventId})`);
+}
+
+function truncateCodeLine(line: string, width: number): string {
+  if (stringWidth(line) <= width) return line;
+  let text = "";
+  let used = 0;
+  for (const character of line) {
+    const size = charDisplayWidth(character.codePointAt(0)!);
+    if (used + size > width - 1) break;
+    text += character;
+    used += size;
+  }
+  return `${text}…`;
+}
+
+function displayLines(block: ExecutionDisplayPreviewBlock | ExecutionDisplayDetailBlock, eventId: string, width: number): string[] {
+  const textValue = (text: string | { readonly preview: string; readonly omittedBytes: number }): string =>
+    typeof text === "string" ? safeEventText(text) : displayPreview(text, eventId);
+  switch (block.kind) {
+    case "text": return wrapDisplay(textValue(block.text), width);
+    case "message": {
+      const label = safeEventText(block.speaker ?? block.role);
+      const prefix = `${label}: `;
+      return wrapDisplay(textValue(block.text), Math.max(4, width - stringWidth(prefix)))
+        .map((line, index) => `${index === 0 ? prefix : " ".repeat(stringWidth(prefix))}${line}`);
+    }
+    case "fields": {
+      const labelWidth = Math.max(0, ...block.fields.map((field) => stringWidth(safeEventText(field.label))));
+      return block.fields.flatMap((field) => {
+        const value = typeof field.value === "object" && field.value !== null
+          ? textValue(field.value)
+          : typeof field.value === "string" ? safeEventText(field.value) : JSON.stringify(field.value);
+        return wrapDisplay(value, Math.max(4, width - labelWidth - 2)).map((line, index) =>
+          `${index === 0 ? padDisplay(safeEventText(field.label), labelWidth) : " ".repeat(labelWidth)}  ${line}`);
+      });
+    }
+    case "code": {
+      if (typeof block.text === "string") return safeEventText(block.text).split("\n");
+      return [
+        ...safeEventText(block.text.preview).split("\n").map((line) => truncateCodeLine(line, width)),
+        ...(block.text.omittedBytes === 0 ? [] : [`… (${block.text.omittedBytes} more bytes, --expand ${eventId})`]),
+      ];
+    }
+    case "image": return [
+      ...wrapDisplay(`[image] ${safeEventText(block.alt)}`, width),
+      ...wrapDisplay(`${block.mediaType} · ${block.byteLength} bytes · artifact ${block.artifactId}`, width),
+    ];
+  }
+}
+
+function displayDetailBlocks(block: ExecutionDisplayDetailBlock, locator: string, eventId: string): TerminalBlock[] {
+  const lines = displayLines(block, eventId, TERMINAL_OPTIONS.width);
+  const blocks: TerminalBlock[] = [{ kind: "code", text: lines.join("\n") }];
+  if (block.kind === "image") {
+    const request = JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
+    blocks.push({ kind: "code", text: `niceeval query run --request - <<'NICEEVAL_REQUEST'\n${request}\nNICEEVAL_REQUEST` });
+  }
+  return blocks;
+}
+
 export function renderTrace(value: TraceView): string {
   const blocks: TerminalBlock[] = [
     {
@@ -782,11 +860,11 @@ export function renderTrace(value: TraceView): string {
         {
           kind: "table",
           columns: [{ header: "Capture limitation" }],
-          rows: value.execution.limitations.map((limitation) => [JSON.stringify(limitation)]),
+          rows: value.execution.limitations.map((limitation) => [safeEventJson(limitation)]),
           overflow: "wrap",
         },
         ...value.execution.traces.flatMap<TerminalPanelContentBlock>((trace) => [
-          { kind: "divider", title: `Trace ${trace.sourceTraceId}` },
+          { kind: "divider", title: `Trace ${safeEventText(trace.sourceTraceId)}` },
           {
             kind: "keyValue",
             entries: [
@@ -798,23 +876,27 @@ export function renderTrace(value: TraceView): string {
           {
             kind: "table",
             columns: [{ header: "Producer limitation" }, { header: "Reason" }],
-            rows: trace.collection.limitations.map((limitation) => [limitation.code, limitation.message]),
+            rows: trace.collection.limitations.map((limitation) => [safeEventText(limitation.code), safeEventText(limitation.message)]),
             overflow: "wrap",
           },
         ]),
         { kind: "divider", title: "Event page" },
         ...value.execution.events.flatMap<TerminalPanelContentBlock>((event) => [
-          { kind: "divider", title: event.type },
+          { kind: "divider", title: safeEventText(event.type) },
           {
             kind: "keyValue",
             entries: [
               { key: "Event ID", value: event.eventId },
-              { key: "Actor", value: event.actor?.label ?? event.actor?.id ?? "not-recorded" },
-              { key: "Source", value: event.source.id },
-              ...(event.time === undefined ? [] : [{ key: "Time", value: `${event.time.clockId}: ${event.time.value} ${event.time.unit}` }]),
-              { key: "Summary", value: event.summary },
+              { key: "Actor", value: safeEventText(event.actor?.label ?? event.actor?.id ?? "not-recorded") },
+              { key: "Source", value: safeEventText(event.source.id) },
+              ...(event.time === undefined ? [] : [{ key: "Time", value: safeEventText(`${event.time.clockId}: ${event.time.value} ${event.time.unit}`) }]),
+              { key: "Summary", value: safeEventText(event.summary) },
             ],
           },
+          ...(event.display.state === "absent" ? [] : event.display.blocks.map((block): TerminalPanelContentBlock => ({
+            kind: "command",
+            command: displayLines(block, event.eventId, panelContentWidth(TERMINAL_OPTIONS.width, TERMINAL_OPTIONS.mode)).join("\n"),
+          }))),
         ]),
       ],
     },
@@ -1120,7 +1202,7 @@ export function renderTraceDetail(value: TraceDetailView): string {
     blocks: [],
   };
   if (body.kind === "execution-event") {
-    const eventJson = JSON.stringify({
+    const eventJson = safeEventJson({
       key: body.event.key,
       type: body.event.type,
       source: body.event.source,
@@ -1130,45 +1212,46 @@ export function renderTraceDetail(value: TraceDetailView): string {
       payload: body.event.payload ?? null,
       links: body.event.links,
       scopeMemberships: body.event.scopeMemberships,
-    }, null, 2);
+    }, 2);
     return terminal([
       heading,
       {
         kind: "panel",
-        title: `${body.event.type} · ${body.event.eventId}`,
+        title: `${safeEventText(body.event.type)} · ${body.event.eventId}`,
         blocks: [{
           kind: "keyValue",
           entries: [
             { key: "Trace", value: body.event.traceId },
-            { key: "Source", value: body.event.source.id },
-            { key: "Native event ID", value: body.event.source.eventId ?? "not-recorded" },
+            { key: "Source", value: safeEventText(body.event.source.id) },
+            { key: "Native event ID", value: safeEventText(body.event.source.eventId ?? "not-recorded") },
             { key: "Client sequence", value: body.event.source.sequence === undefined ? "not-recorded" : String(body.event.source.sequence) },
-            { key: "Actor", value: body.event.actor?.id ?? "not-recorded" },
-            { key: "Time", value: body.event.time === undefined ? "not-recorded" : `${body.event.time.value} ${body.event.time.unit} (${body.event.time.clockId})` },
-            { key: "Summary", value: body.event.summary },
+            { key: "Actor", value: safeEventText(body.event.actor?.id ?? "not-recorded") },
+            { key: "Time", value: body.event.time === undefined ? "not-recorded" : safeEventText(`${body.event.time.value} ${body.event.time.unit} (${body.event.time.clockId})`) },
+            { key: "Summary", value: safeEventText(body.event.summary) },
             { key: "Evidence", value: String(body.evidence.length) },
           ],
         }],
       },
+      ...(body.event.display ?? []).flatMap((block) => displayDetailBlocks(block, value.locator, body.event.eventId)),
       { kind: "divider", title: "Event" },
       { kind: "code", text: eventJson },
       ...body.evidence.flatMap((evidence): readonly TerminalBlock[] => ([
         {
           kind: "panel",
-          title: `${evidence.label} · ${evidence.evidenceId}`,
+          title: `${safeEventText(evidence.label)} · ${evidence.evidenceId}`,
           meta: evidence.truncated ? "preview" : "complete",
           blocks: [{
             kind: "keyValue",
             entries: [
               { key: "Artifact", value: evidence.artifactId },
-              { key: "Pointer", value: evidence.pointer },
+              { key: "Pointer", value: safeEventText(evidence.pointer) },
               { key: "Bytes", value: String(evidence.targetByteLength) },
               { key: "Target SHA-256", value: evidence.targetSha256 },
               { key: "Next offset", value: evidence.nextOffset === null ? "complete" : String(evidence.nextOffset) },
             ],
           }],
         },
-        { kind: "code", text: executionEvidenceText(evidence.base64) },
+        { kind: "code", text: safeEventText(executionEvidenceText(evidence.base64)) },
         ...(evidence.nextOffset === null ? [] : [{
           kind: "command" as const,
           command: `Query attempt.trace.detail for ${evidence.evidenceId} with offset ${evidence.nextOffset}`,
@@ -1181,20 +1264,20 @@ export function renderTraceDetail(value: TraceDetailView): string {
       heading,
       {
         kind: "panel",
-        title: `${body.label} · ${body.evidenceId}`,
+        title: `${safeEventText(body.label)} · ${body.evidenceId}`,
         blocks: [{
           kind: "keyValue",
           entries: [
             { key: "Trace", value: body.traceId },
             { key: "Event", value: body.eventId },
             { key: "Artifact", value: body.artifactId },
-            { key: "Pointer", value: body.pointer },
+            { key: "Pointer", value: safeEventText(body.pointer) },
             { key: "Range", value: `${body.offset}..${body.nextOffset ?? body.targetByteLength}` },
             { key: "Target SHA-256", value: body.targetSha256 },
           ],
         }],
       },
-      { kind: "code", text: executionEvidenceText(body.base64) },
+      { kind: "code", text: safeEventText(executionEvidenceText(body.base64)) },
       ...(body.nextOffset === null ? [] : [{
         kind: "command" as const,
         command: `Query attempt.trace.detail for ${body.evidenceId} with offset ${body.nextOffset}`,

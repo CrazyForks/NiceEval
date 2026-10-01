@@ -567,6 +567,39 @@ const TraceDiagnosticsSchema = Schema.Struct({
   hasMore: Schema.Boolean,
   omittedDiagnosticCount: Schema.Number,
 });
+const ExecutionDisplayPreviewTextSchema = Schema.Struct({ preview: Schema.String, omittedBytes: Schema.Number });
+const ExecutionDisplayRoleSchema = Schema.Literals(["user", "assistant", "system", "other"]);
+export const ExecutionDisplayPreviewSchema = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("absent") }),
+  Schema.Struct({
+    state: Schema.Literal("present"),
+    blocks: Schema.Array(Schema.Union([
+      Schema.Struct({ kind: Schema.Literal("text"), text: ExecutionDisplayPreviewTextSchema }),
+      Schema.Struct({
+        kind: Schema.Literal("message"),
+        role: ExecutionDisplayRoleSchema,
+        speaker: Schema.optional(Schema.String),
+        text: ExecutionDisplayPreviewTextSchema,
+      }),
+      Schema.Struct({
+        kind: Schema.Literal("fields"),
+        fields: Schema.Array(Schema.Struct({
+          label: Schema.String,
+          value: Schema.Union([ExecutionDisplayPreviewTextSchema, Schema.Number, Schema.Boolean, Schema.Null]),
+        })),
+      }),
+      Schema.Struct({ kind: Schema.Literal("code"), language: Schema.optional(Schema.String), text: ExecutionDisplayPreviewTextSchema }),
+      Schema.Struct({
+        kind: Schema.Literal("image"),
+        artifactId: Schema.String,
+        alt: Schema.String,
+        mediaType: Schema.String,
+        byteLength: Schema.Number,
+        sha256: Schema.String,
+      }),
+    ])),
+  }),
+]);
 const TraceItemBase = { itemId: ItemIdSchema, turnId: Schema.String, sequence: Schema.Number } as const;
 export const InspectionTraceItemSchema = Schema.Union([
   Schema.Struct({ ...TraceItemBase, kind: Schema.Literal("message"), role: Schema.Literals(["user", "assistant"]), text: Schema.String, textTruncated: Schema.Boolean }),
@@ -612,6 +645,7 @@ export const InspectionTraceResultSchema = Schema.Struct({
       links: ExecutionTraceEventRecordSchema.fields.links,
       evidence: Schema.Array(Schema.Struct({ evidenceId: Schema.String, key: Schema.String, label: Schema.String })),
       scopeMemberships: ExecutionTraceEventRecordSchema.fields.scopeMemberships,
+      display: ExecutionDisplayPreviewSchema,
     })),
     identityIndex: Schema.Struct({
       traceIds: Schema.Array(Schema.String),
