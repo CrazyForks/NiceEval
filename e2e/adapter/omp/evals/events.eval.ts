@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { greaterThan, includes, jsonMatch, toolMatch } from "niceeval/expect";
+import { greaterThan, includes, jsonMatch, satisfies, toolMatch } from "niceeval/expect";
 
 export const OMP_TOOL_MARKER = "NICEEVAL-OMP-TOOL-EVENT-493";
 

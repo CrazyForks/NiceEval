@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { greaterThan, includes, isDefined, jsonMatch, toolMatch } from "niceeval/expect";
+import { greaterThan, includes, isDefined, jsonMatch, satisfies, toolMatch } from "niceeval/expect";
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
