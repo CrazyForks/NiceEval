@@ -182,15 +182,4 @@ pnpm --silent exec niceeval query discover
 
 在 pnpm 项目里加 `--silent`，否则 pnpm 自己的输出会混进 JSON。
 
-## 读取另一份结果
-
-结果来自同事或 CI 时，等对方的评估命令结束后，复制他们项目里的 `.niceeval/record.sqlite`：
-
-```sh
-pnpm exec niceeval show --record ./baseline.record.sqlite
-pnpm --silent exec niceeval query explain --record ./baseline.record.sqlite --request request.json
-```
-
-`show` 和 `query` 都接受 `--record`，打开前会检查文件格式和完整性，损坏或版本不认识的文件会被拒绝。`view` 只读当前项目自己的结果。读取失败的处理见[排查失败的评估结果](/zh/troubleshooting/debugging#读取历史-record)。
-
 比较两次运行见[比较两次运行](/zh/tutorials/compare-runs)。

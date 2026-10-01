@@ -50,16 +50,6 @@ JSON
 pnpm --silent exec niceeval query explain --request compare.json
 ```
 
-## 比较另一台机器上的结果
-
-结果来自同事或 CI 时，复制对方项目里的 `.niceeval/record.sqlite`，再用 `--record` 读取这份副本：
-
-```sh
-pnpm exec niceeval show --record ./baseline.record.sqlite --run <baseline-run-id>
-```
-
-`show` 和 `query` 都接受 `--record`。`view` 只读取当前项目自己的结果文件。
-
 ## 比较结果靠得住的前提
 
 - 两边跑的是同一批评估用例，每条跑的次数也相近。
