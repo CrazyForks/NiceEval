@@ -4,12 +4,18 @@ id: 20261001-show-default-current-results
 title: 默认 niceeval show 没有按契约读取当前目标 project.get
 createdAt: 2026-10-01T02:45:51.950Z
 kind: issue
-state: draft
+state: closed
 memoryRelations: []
 adoptions:
   current: []
   history: []
-history: []
+closure:
+  kind: closed
+  reason: 已修复：134eca614。默认 show 改用 project.get，显示 Current results、Covered、Gaps、缺口原因与 Next；--record 显示 Recorded results；--dry 与 project.get 共用同一判断。沙箱外验证：pnpm typecheck、相关单元测试 52/52、inspection E2E（show-cli、inspection-query）6/6 通过。
+history:
+  - at: 2026-10-01T07:12:05.003Z
+    action: close
+    reason: 已修复：134eca614。默认 show 改用 project.get，显示 Current results、Covered、Gaps、缺口原因与 Next；--record 显示 Recorded results；--dry 与 project.get 共用同一判断。沙箱外验证：pnpm typecheck、相关单元测试 52/52、inspection E2E（show-cli、inspection-query）6/6 通过。
 ---
 
 ## 观察
