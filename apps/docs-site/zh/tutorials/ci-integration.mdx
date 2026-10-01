@@ -1,10 +1,16 @@
 ---
-title: "在 CI 中运行 NiceEval"
+title: "在 CI 里自动跑评估，挡住回归"
 sidebarTitle: "CI 集成"
-description: "让 CI 使用退出状态判定门禁，保留最后的 receipt，并向平台提供 JUnit 文件。"
+description: "在每个 PR 上运行同一条 niceeval exp，评估不通过就让 CI 变红。保留这次运行的 Run ID 供后续步骤读取，并把 JUnit 文件交给 CI 平台展示。"
 ---
 
-CI 运行 Experiment 时，进程退出状态决定门禁是否通过。`--json` 提供当前进程反馈，最后一条 receipt 给出本次 Invocation 的 `runIds`。JUnit 文件则交给 CI 平台显示测试结果。
+有人改了 prompt，本地试了两次觉得没问题就合并了，第二天才发现另一类问题全答错了。把评估放进 CI，每个 PR 都自动跑一遍，回归在合并前就能被发现。
+
+CI 里跑的就是你本地用的那条 `niceeval exp`，不需要额外配置：
+
+- 评估不通过、运行出错或被中断时，进程以非零状态退出，CI 自然变红。
+- 加 `--json` 时，最后一行是这次运行的 receipt，里面有新建的 Run ID，后续步骤可以用它读取结果。
+- 加 `--junit <path>` 时，会写出 JUnit 文件，让 CI 平台按测试用例展示结果。
 
 ## 基本命令
 

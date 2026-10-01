@@ -1,10 +1,12 @@
 ---
-title: "运行前检查 Sandbox 计划"
+title: "运行前检查 Sandbox 会怎样准备"
 sidebarTitle: "检查 Sandbox 计划"
-description: "用 niceeval debug 查看 Experiment、评估组、评估用例与 Agent 的实际 action 顺序和数值，而不创建运行资源。"
+description: "用 niceeval debug 列出一条评估在 Sandbox 里会按什么顺序准备、安装、执行和收尾，以及每一步的实际参数，不创建任何资源。"
 ---
 
-`exp --dry` 适合确认运行矩阵。需要检查一条评估在 Sandbox 里会按什么顺序准备、安装、执行和收尾时，使用 `niceeval debug`。
+你在 Experiment、评估组和评估用例上都写了 `.before()`，又给 Agent 配了安装步骤。真正跑起来之前，你想确认这些步骤最终按什么顺序执行、每一步的参数是什么，而不是等 Sandbox 建好、装了五分钟依赖之后才发现顺序不对。
+
+`exp --dry` 告诉你会跑哪些评估、多少次。`niceeval debug` 更进一步：它列出某一条评估在 Sandbox 里的完整准备、安装、执行和收尾步骤，不创建任何 Sandbox，也不调用模型。
 
 ## 选择一个精确配对
 

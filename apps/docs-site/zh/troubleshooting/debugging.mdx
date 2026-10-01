@@ -1,7 +1,7 @@
 ---
 title: "排查失败的评估结果"
 sidebarTitle: "排查手册"
-description: "根据具名错误和闭合 Inspection result，通过 Show、Query 与 View 排查问题。"
+description: "评估失败或出错时，从具体的 Run 或 Attempt 出发，用 show 逐层查看错误、对话、耗时和改动，找到是应用、Adapter、环境还是断言的问题。"
 ---
 
 从明确的 Run 或 Attempt 开始。终端排障先用 `niceeval show`，机器和 CI 用 `query` 的固定 JSON 协议，浏览器审阅则用 `view`。

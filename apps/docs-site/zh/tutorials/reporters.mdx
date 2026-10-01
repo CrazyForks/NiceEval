@@ -1,10 +1,12 @@
 ---
-title: "将当前运行接入外部系统"
+title: "把运行结果上报给 Braintrust 等外部系统"
 sidebarTitle: "Reporter 上报"
-description: "使用 Reporter、JUnit 和 receipt 把当前 Invocation 的信息交给外部系统，同时保持 Record 的所有权边界。"
+description: "团队已经在用 Braintrust 或自己的看板时，用 Reporter 在运行过程中把结果发过去；CI 平台用 JUnit；后续脚本用 receipt 里的 Run ID 读取结果。"
 ---
 
-Reporter 面向当前 Invocation。它可以把当前运行的结果发送到外部观察或分析系统，但它不拥有已发布结果，也不能替代之后的固定 `query` 或 `view`。
+你的团队已经在 Braintrust 上看实验结果，或者有一个内部看板。你希望 NiceEval 跑完后，结果自动出现在那里，不用手动导出。
+
+Reporter 做的就是这件事：在这一次运行过程中，把结果发给外部系统。它只负责“这一次”的上报，NiceEval 保存的结果不会因此改变。事后要重新读取、比较或分享结果，仍然用 `query`、`show` 和 `view`。
 
 ```text
 当前 Invocation
