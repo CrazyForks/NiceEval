@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
-// @feature docs/feature/inspection/cli.md
+// @feature docs/feature/inspection/README.md
 test.concurrent("读者从事件展示块读懂应用结果并展开外部轨迹指引与图片附件", async () => {
   await inspectionE2E.case("execution-display", { artifacts: inspectionCaseArtifacts() }, async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const run = await niceeval.run(["exp", "execution-display", "--rerun", "all", "--json"]);

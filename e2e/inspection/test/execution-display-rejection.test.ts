@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
-// @feature docs/feature/adapters/library.md
+// @feature docs/feature/adapters/README.md
 test.concurrent("非法展示块拒绝整份快照并保留已接纳事件与采集失败原因", async () => {
   await inspectionE2E.case("execution-display-rejection", { artifacts: inspectionCaseArtifacts() }, async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const run = await niceeval.run(["exp", "invalid-execution-display", "--rerun", "all", "--json"]);
