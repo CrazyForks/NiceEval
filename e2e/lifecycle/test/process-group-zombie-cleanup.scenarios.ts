@@ -123,14 +123,14 @@ function parseLinuxStat(pid: number, stat: string): ProcessGroupMember {
 }
 
 async function processGroupMembers(groupId: number): Promise<readonly ProcessGroupMember[]> {
-  const entries = await readdir("/proc", { withFileTypes: true });
+  const entries = await readdir("/proc");
   const observed = await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+      .filter((entry) => /^\d+$/.test(entry))
       .map(async (entry) => {
-        const pid = Number(entry.name);
+        const pid = Number(entry);
         try {
-          const member = parseLinuxStat(pid, await readFile(`/proc/${entry.name}/stat`, "utf8"));
+          const member = parseLinuxStat(pid, await readFile(`/proc/${entry}/stat`, "utf8"));
           return member.processGroup === groupId ? member : undefined;
         } catch (error) {
           if (errorCode(error) === "ENOENT" || errorCode(error) === "ESRCH") return undefined;
