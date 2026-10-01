@@ -1,16 +1,18 @@
 ---
-title: "OTel 接入"
+title: "接入 OTel：在浏览器里看每轮调用瀑布图"
 sidebarTitle: "OTel 接入"
-description: "把应用已有的 OTel span 发送给 NiceEval，在 niceeval view 中查看每轮调用瀑布图。评估用例断言仍以 Send 返回的事件和用量为准。"
+description: "应用已经在发 OTel trace 时，让它把 span 也发给 NiceEval 一份，就能在 niceeval view 里看到每一轮的模型调用、工具执行和耗时。断言不受影响。"
 ---
 
 import { OtelCollect } from '/snippets/diagram-otel-collect.jsx';
 
-OTel 接入**不改变断言的数据来源**。`t.calledTool`、`t.maxTokens` 和耗时判定都读取 Adapter 在 `send` 中返回的 `Turn`（`events` 与 `usage`），见[接入你的 Agent](/zh/tutorials/connect-your-agent)。
+一条评估用例跑了 40 秒，你想知道时间花在哪：是模型想得慢，还是某个工具调用卡住了。终端只告诉你这一轮总共花了多久。
 
-OTel span 用于生成 **`niceeval view` 中的调用瀑布图**。瀑布图按轮显示模型调用、工具执行、耗时和 token，帮助定位评估用例失败或轮次变慢的具体步骤。
+调用瀑布图能回答这个问题。它在 `niceeval view` 里按轮列出每一次模型调用和工具执行，以及各自的耗时和 token。
 
-如果你的应用已经在发 OTel trace。AI SDK 的 telemetry、LangGraph 的 LangSmith 导出、OpenLLMetry / OpenInference 自动埋点，或自己按 GenAI 语义埋的点。那瀑布图的数据你已经在生产了：让应用把 span 也发给 [NiceEval](https://niceeval.com/) 一份即可，应用代码一行不改，仍是无侵入（见 [Tier](/zh/explanation/tier)）。
+如果你的应用已经在发 OTel trace，这份数据你其实已经有了。AI SDK 的 telemetry、LangGraph 导出到 LangSmith 的 trace、OpenLLMetry 或 OpenInference 的自动埋点，以及你自己按 GenAI 语义埋的点都算。让应用把 span 也发给 NiceEval 一份就行，应用的业务代码不用改，仍属于无侵入接入，见 [Tier](/zh/explanation/tier)。
+
+瀑布图只用来看，不参与判分。`t.calledTool`、`t.maxTokens` 这些断言仍然读取 Adapter 在 `send` 里返回的事件和用量。span 缺失或迟到只会让瀑布图不完整，不会改变通过与否。
 
 ## 原理（一段话）
 

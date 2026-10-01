@@ -4,7 +4,9 @@ sidebarTitle: "安装自定义 Agent CLI"
 description: "用 ensure 和 installer 检查、安装并复检自定义 coding-agent CLI 的精确版本。"
 ---
 
-自定义 Sandbox Agent 需要声明 CLI 的名称、版本和安装方式。NiceEval 会先检查 Sandbox 里的 CLI。版本不匹配时，NiceEval 会安装指定版本，然后再检查一次。
+你在评估一个内置适配器还不支持的 Coding Agent CLI，或者需要固定某个特定版本。每次手动在镜像里装好它很容易出错：版本悄悄升级了，两次评估比较的就不是同一个 Agent。
+
+做法是在自定义 Sandbox Agent 上声明 CLI 的名称、版本和安装方式。每次运行前，NiceEval 先检查 Sandbox 里的 CLI；版本不对就安装你指定的版本，装完再检查一次，确认无误才开始评估。
 
 ## 声明 CLI 身份和安装方式
 

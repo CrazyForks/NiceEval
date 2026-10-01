@@ -1,10 +1,12 @@
 ---
 title: "Sandbox Agent：评估 Claude Code、Codex 和 bub"
 sidebarTitle: "Sandbox Agent"
-description: "使用 NiceEval 内置 agents 或自定义 adapter，在 Docker 或云端 sandbox 中运行 coding-agent CLI。"
+description: "把 Claude Code、Codex、bub 等 Coding Agent 放进 Docker 或云端 Sandbox，给它一个真实仓库和任务，再用文件改动和项目测试判分。"
 ---
 
-Sandbox agent 会在隔离环境中启动 coding-agent CLI，给它 workspace 和任务，让它自由修改文件、运行命令，然后收集 transcript、diff 和测试结果。
+你给 Claude Code 写了一个 Skill，想知道装上它之后，Agent 修 bug 是不是真的更准。这种评估没法只看一段回复：Agent 要读代码、改文件、跑命令，结果体现在仓库里。
+
+Sandbox Agent 就是为这种场景准备的。NiceEval 先创建一个隔离的 Sandbox，把你的项目放进去，再在里面启动 Coding Agent 的 CLI 并交给它任务。Agent 可以随意改文件、跑命令，不会碰到你的机器。结束后，NiceEval 收集对话记录、文件改动和测试结果，供评估用例判分。
 
 ## 内置 sandbox agents
 

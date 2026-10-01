@@ -1,10 +1,14 @@
 ---
-title: "Sandbox"
+title: "选择并配置 Sandbox：Docker、Vercel 或 E2B"
 sidebarTitle: "Sandbox"
-description: "官方 Sandbox Docker、Vercel 或 E2B Provider。通过预制快照加速评估"
+description: "给 Coding Agent 选一个隔离运行环境：本地 Docker、Vercel 或 E2B。按顺序准备环境，并用预制镜像和缓存让每次评估更快开始。"
 ---
 
-Sandbox Provider 是创建和管理隔离运行环境的基础设施。[NiceEval](https://niceeval.com/) 把它们包装成同一个 `Sandbox` 接口，所以 Adapter 不需要知道当前用的是本地 Docker、Vercel micro-VM、E2B 还是第三方云服务。
+Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而且不能碰到你的机器。这个隔离环境就是 Sandbox，由 Provider 负责创建和销毁。
+
+NiceEval 提供三种官方 Provider：本地 Docker、Vercel 和 E2B。本地调试用 Docker 最方便；需要大量并行，或者本机跑不动时，换成云端的 Vercel 或 E2B。
+
+不管用哪种 Provider，评估用例和 Adapter 看到的都是同一个 `Sandbox` 接口。换 Provider 只改 Experiment 里的一行，评估用例不用动。
 
 ## `Sandbox` 接口
 

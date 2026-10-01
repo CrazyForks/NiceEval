@@ -1,10 +1,16 @@
 ---
-title: "Sandbox Fixture：用任务评估 coding agents"
+title: "给 Coding Agent 准备任务：工作区、提示和验收"
 sidebarTitle: "Fixture"
-description: "用 .eval.ts 给 coding agent 准备隔离 workspace、发送真实任务，并用 Sandbox 文件、命令、diff 和 judge 验证结果。"
+description: "在评估用例里把一个真实项目放进 Sandbox，给 Coding Agent 发任务，再用文件内容、命令结果、diff 和 Judge 检查它做得对不对。"
 ---
 
-评估 coding agent 时，单纯检查一段回复不够。你通常要给它一个真实项目，让它读写文件、运行命令、提交改动，然后检查产物是否正确。[NiceEval](https://niceeval.com/) 的当前推荐写法是：用普通 `.eval.ts` 文件显式准备 sandbox workspace、发送任务并断言结果。
+评估 Coding Agent 时，只看它回了什么不够。你要给它一个真实项目，让它读写文件、运行命令，然后检查改出来的东西对不对。
+
+这一切都写在普通的 `.eval.ts` 里，分三步：
+
+1. 把起始项目放进 Sandbox，也就是 Fixture。
+2. 给 Agent 发一个具体任务。
+3. 用文件内容、命令结果和 diff 验收，开放式的质量再交给 Judge。
 
 可运行参考见 [coding-agent-skill](https://github.com/CorrectRoadH/coding-agent-skill)（独立仓库）。
 
