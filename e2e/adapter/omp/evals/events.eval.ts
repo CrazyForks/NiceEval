@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { includes, jsonMatch, satisfies, toolMatch } from "niceeval/expect";
+import { greaterThan, includes, jsonMatch, toolMatch } from "niceeval/expect";
 
 export const OMP_TOOL_MARKER = "NICEEVAL-OMP-TOOL-EVENT-493";
 
@@ -32,17 +32,8 @@ export default defineEval({
           ),
       ),
     );
-    t.check(
-      turn.usage,
-      satisfies(
-        "OMP reports positive total input (including cache) and output usage",
-        (usage) =>
-          usage !== undefined &&
-          (usage.inputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheCreationTokens ?? 0) > 0 &&
-          typeof usage.outputTokens === "number" &&
-          usage.outputTokens > 0,
-      ),
-    );
+    t.check(turn.usage.inputTotalTokens, greaterThan(0));
+    t.check(turn.usage.outputTokens, greaterThan(0));
     t.check(turn.message, includes(OMP_TOOL_MARKER));
   },
 });

@@ -120,7 +120,8 @@ Verdict test 在 owner 文件中逐条声明 `(experimentId, evalId, verdict, at
 
 ## 仓库 Eval 预算
 
-逐轮输入用量按未缓存输入、缓存读取与缓存写入之和验证。完整缓存命中允许 `inputTokens` 为零；
+逐轮输入用量使用 `t.check(turn.usage.inputTotalTokens, greaterThan(0))`，由公共数值断言解释 `NumericMaterial` 的完整性状态。
+完整缓存命中允许未缓存输入为零；
 输入总量仍须为正，缺失全部输入证据不能通过。输出用量单独验证，不用缓存桶替代输出证据。
 
 每个 Adapter Repo 只签入足以证明该上游协议兼容性的 Eval：普通消息、工具身份与入参、session、usage、HITL、MCP、Skill、

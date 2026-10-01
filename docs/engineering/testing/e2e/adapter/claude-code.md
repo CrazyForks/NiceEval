@@ -3,6 +3,7 @@
 ## adapter-claude-code-live-compatibility
 
 Repo ID 是 `adapter/claude-code`；manifest 声明 `areas: ["adapter"]`、live lanes、Docker 与 external network。
+兼容网关使用 `ENABLE_TOOL_SEARCH=false` 预载 MCP schema，避免要求非 Claude 模型解释 Anthropic 的延迟工具引用。
 被测对象是`claudeCodeAgent()` 在 Docker Sandbox 里的完整生命周期：安装、扩展装配、真实 coding 任务、transcript 采集与会话续接（契约见[Claude Code 契约页](../../../../feature/adapters/sdk/claude-code/README.md)）。
 
 ## adapter-claude-code-live-progress

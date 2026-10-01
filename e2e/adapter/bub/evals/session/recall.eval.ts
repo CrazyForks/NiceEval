@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { includes, satisfies } from "niceeval/expect";
+import { greaterThan, includes } from "niceeval/expect";
 import { REPLY_DIRECTIVE, SKIP_BUILD_NOTE } from "../shared.ts";
 
 // 会话由 Adapter 管理(ctx.session.id / ctx.session.capture,见 src/agents/bub.ts):第二轮
@@ -14,19 +14,7 @@ export default defineEval({
         `不要写任何文件。`,
     );
     await first.succeeded().orStop();
-    t.check(
-      first.usage,
-      satisfies(
-        "observed token usage is finite, non-negative, and non-empty",
-        (usage) => {
-          if (usage === undefined) return false;
-          const reported = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheCreationTokens]
-            .filter((tokens): tokens is number => tokens !== undefined);
-          return reported.length > 0 && reported.every((tokens) => Number.isFinite(tokens) && tokens >= 0)
-            && reported.reduce((total, tokens) => total + tokens, 0) > 0;
-        },
-      ),
-    );
+    t.check(first.usage.totalTokens, greaterThan(0));
 
     const recall = await t.send(
       `${SKIP_BUILD_NOTE}${REPLY_DIRECTIVE}我最喜欢的数字是多少?` +
@@ -35,18 +23,6 @@ export default defineEval({
     );
     await recall.succeeded().orStop();
     t.check(recall.message, includes("47"));
-    t.check(
-      recall.usage,
-      satisfies(
-        "observed token usage is finite, non-negative, and non-empty",
-        (usage) => {
-          if (usage === undefined) return false;
-          const reported = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheCreationTokens]
-            .filter((tokens): tokens is number => tokens !== undefined);
-          return reported.length > 0 && reported.every((tokens) => Number.isFinite(tokens) && tokens >= 0)
-            && reported.reduce((total, tokens) => total + tokens, 0) > 0;
-        },
-      ),
-    );
+    t.check(recall.usage.totalTokens, greaterThan(0));
   },
 });

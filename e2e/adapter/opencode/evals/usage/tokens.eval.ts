@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { satisfies, includes } from "niceeval/expect";
+import { greaterThan, includes } from "niceeval/expect";
 
 export default defineEval({
   description: "usage 的输入与输出 token 逐轮可读",
@@ -17,18 +17,12 @@ export default defineEval({
         ["second", second],
       ] as const) {
         t.check(
-          (turn.usage?.inputTokens ?? 0) + (turn.usage?.cacheReadTokens ?? 0) + (turn.usage?.cacheCreationTokens ?? 0),
-          satisfies(
-            `${label} total input usage, including cache reads and writes, > 0`,
-            (value) => typeof value === "number" && value > 0,
-          ),
+          turn.usage.inputTotalTokens,
+          greaterThan(0),
         );
         t.check(
-          turn.usage?.outputTokens,
-          satisfies(
-            `${label}.usage.outputTokens > 0`,
-            (value) => typeof value === "number" && value > 0,
-          ),
+          turn.usage.outputTokens,
+          greaterThan(0),
         );
       }
     });

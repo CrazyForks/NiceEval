@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { satisfies } from "niceeval/expect";
+import { greaterThan } from "niceeval/expect";
 
 export default defineEval({
   description: "usage 每轮都读到正的含缓存输入总量与输出量",
@@ -15,18 +15,12 @@ export default defineEval({
     ] as const) {
       await t.group(`${label} usage 可读且为正`, () => {
         t.check(
-          (turn.usage?.inputTokens ?? 0) + (turn.usage?.cacheReadTokens ?? 0) + (turn.usage?.cacheCreationTokens ?? 0),
-          satisfies(
-            "total input usage, including cache reads and writes, > 0",
-            (value) => typeof value === "number" && value > 0,
-          ),
+          turn.usage.inputTotalTokens,
+          greaterThan(0),
         );
         t.check(
-          turn.usage?.outputTokens,
-          satisfies(
-            "usage.outputTokens > 0",
-            (value) => typeof value === "number" && value > 0,
-          ),
+          turn.usage.outputTokens,
+          greaterThan(0),
         );
       });
     }

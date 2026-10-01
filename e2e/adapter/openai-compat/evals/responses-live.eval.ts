@@ -38,7 +38,7 @@ export default defineEval({
           ),
       ),
     );
-    t.check((turn.usage.inputTokens ?? 0) + (turn.usage.cacheReadTokens ?? 0) + (turn.usage.cacheCreationTokens ?? 0), greaterThan(0));
+    t.check(turn.usage.inputTotalTokens, greaterThan(0));
     t.check(turn.usage.outputTokens, greaterThan(0));
   },
 });
