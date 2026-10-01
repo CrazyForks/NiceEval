@@ -572,6 +572,7 @@
                   "reference/define-agent",
                   "reference/events",
                   "reference/capabilities",
+                  "reference/define-experiment",
                   "reference/define-config",
                   "reference/expect"
                 ]
@@ -755,6 +756,7 @@
                   "zh/reference/define-agent",
                   "zh/reference/events",
                   "zh/reference/capabilities",
+                  "zh/reference/define-experiment",
                   "zh/reference/define-config",
                   "zh/reference/expect"
                 ]

@@ -1049,6 +1049,10 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
           ),
         ),
       );
+    case "experiment-fields":
+      return renderMemberList(
+        extractInterfaceMembers(sources["src/runner/types.ts"], "src/runner/types.ts", "ExperimentAuthorFields"),
+      );
     case "config-fields":
       return renderMemberList(
         extractInterfaceMembers(sources["src/runner/types.ts"], "src/runner/types.ts", "Config"),
@@ -1165,6 +1169,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
 export const REFERENCE_FILES: { file: string; regions: string[] }[] = [
   { file: "expect.mdx", regions: ["expect-matchers", "value-assertion"] },
   { file: "define-eval.mdx", regions: ["defineeval-options", "test-context", "turn-handle", "judge-image"] },
+  { file: "define-experiment.mdx", regions: ["experiment-fields"] },
   { file: "define-config.mdx", regions: ["config-fields"] },
   { file: "define-agent.mdx", regions: ["agent-def", "sandbox-methods"] },
   { file: "events.mdx", regions: ["stream-events", "usage-fields"] },

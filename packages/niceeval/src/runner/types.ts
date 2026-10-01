@@ -926,13 +926,13 @@ export function resolveSandboxSetupCache(
 
 /** Experiment 作者自行选择的字段；不包含路径 id 与 factory 品牌。 */
 export interface ExperimentAuthorFields {
-  /** Named model selections for a custom Adapter; exclusive with the single-model shorthand. */
+  /** 为自定义 Adapter 的各个具名模型槽选择模型；不能与单模型简写同时使用。 */
   models?: Readonly<Record<string, ModelSlotSelection>>;
   /** 一句话描述,展示在 view / CLI 里;纯说明,不影响调度或打分。 */
   description?: string;
-  /** Conversation Adapter shorthand. Exactly one of `agent` and `adapter` is required. */
+  /** 对话 Adapter 的简写；`agent` 与 `adapter` 必须且只能提供一个。 */
   agent?: Agent;
-  /** The Adapter implementation selected for this Experiment. */
+  /** 本实验使用的 Adapter 实现。 */
   adapter?: Adapter;
   /** 单个模型(agent 留空时实验决定);省略=用 agent 原生默认。跨模型对比写多个实验文件,别用数组。 */
   model?: string;
@@ -977,9 +977,9 @@ export interface ExperimentAuthorFields {
    * 每个配对恰好一方提供 template-bearing layer。
    */
   sandbox?: SandboxLayer;
-  /** Host execution policy; unlike the Sandbox layer, this does not participate in identity. */
+  /** Host 的执行缓存策略；与 Sandbox 声明层不同，此字段不参与身份计算。 */
   sandboxCache?: SandboxCacheConfig;
-  /** Explicit Experiment Plugin occurrences, normalized by defineExperiment(). */
+  /** 本实验显式声明的 Plugin 实例列表，由 `defineExperiment()` 规范化。 */
   plugins?: readonly PluginInstance<"experiment">[];
   /** 同一 Run 内复用沙箱；这种运行与历史携带双向隔离。 */
   sandboxReuse?: boolean;
