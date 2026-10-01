@@ -133,7 +133,9 @@ AGENTS 只说明从哪里开始，不复制参数。Skill 保存判断顺序、�
 
 1. 从根 package script 读取并确认 `pnpm run repo docs` 入口；
 2. 从 `.agents/skills/*/SKILL.md` 的 `command` 与 `design` frontmatter 读取多步工作流 owner；
-3. 验证每个 Skill command 可运行 `--help`，且离线、只读并成功退出；
+3. 验证每个 Skill command 可运行 `--help`，且离线、只读并成功退出。只读在隔离副本中证明：lint 把当前 HEAD 的
+   受跟踪文件导出到临时目录，链接现有依赖，在副本里运行全部 `--help`，再比较副本运行前后的完整内容摘要；
+   共享 checkout 中其它 Agent 的并发改动不影响这项检查，副本在检查后删除；
 4. 验证 design path 与 anchor 存在，且其中声明的当前入口能回到所属 domain；
 5. 验证 workflow、hook 和 lint 提示只调用正式入口，不绕过到源码或退役脚本；
 6. 删除或移动入口时，一并报告失效的 AGENTS 路由、Skill、design 和 workflow 调用。
