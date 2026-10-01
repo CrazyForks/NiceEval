@@ -18,7 +18,6 @@ feature: docs/feature/inspection/README.md
 
 ```sh
 niceeval show
-niceeval show --experiment harness/canary
 ```
 
 ```text
@@ -26,10 +25,10 @@ Current results
   Covered 2/4
   Gaps 2
 
-Experiment harness/canary
-  Covered 2/4
-  Gaps 2
+Experiments
+  harness/canary  Covered 2/4  Gaps 2
 
+Attempts · harness
   Eval changed-case
   Gap identity-mismatch
   Previous result @1K1P0VJAPVJ12
@@ -41,7 +40,7 @@ Next: niceeval exp harness/canary --dry
 ```
 
 历史三条结果不能被显示成当前 `3/3`，变更前的分数也不能填入缺口。旧 locator 只提供下钻入口。
-默认当前摘要和 `--experiment` 都来自 `project.get`，收窄时不能换成历史成员集合。
+默认当前摘要来自 `project.get`，不能换成历史成员集合。`show --experiment` 读取该 Experiment 各槽位最新已发布结果，用于审阅费用与 Attempt 明细，不回答当前缺口。
 
 ```sh
 niceeval show @1K1P0VJAPVJ12 --source

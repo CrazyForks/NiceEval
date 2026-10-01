@@ -45,11 +45,13 @@ niceeval 不需要专门的 CI 档——日志页给人看,默认的人读文本
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭─ NEXT ───────────────────────────────────────────────────────────────╮
-│ niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706             │
+│ compare/codex                                                        │
+│   show: niceeval show --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
+│   view: niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
 ╰──────────────────────────────────────────────────────────────────────╯
 ```
 
-断言未通过或 execution error 保持非零；后者逐 Attempt 保留安全封口后的真实错误和所属 Run 的下钻，不把不同错误合并：
+断言未通过或 execution error 保持非零；后者逐 Attempt 保留安全有界的真实错误和这一条 Attempt 的下钻命令，不把不同错误合并：
 
 ```text
 ╭─ FAILED ─────────────────────────────────────────────────────── 41s ─╮
@@ -57,12 +59,12 @@ niceeval 不需要专门的 CI 档——日志页给人看,默认的人读文本
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭─ FAILURES ────────────────────────────────────── 2 errored attempts ─╮
-│ ✗ @1K1P0VJAPVJ12  provider-errors/e2b                                │
+│ ✗ @1K1P0VJAPVJ12  provider-errors/e2b  [agent]                       │
 │   error: 401 Unauthorized — Invalid API key                          │
-│   details: niceeval view --run <run-id>                              │
-│ ✗ @1MEMY3VCQ6B5B  provider-errors/vercel                             │
+│   details: niceeval show @1K1P0VJAPVJ12                              │
+│ ✗ @1MEMY3VCQ6B5B  provider-errors/vercel  [agent]                    │
 │   error: 403 Forbidden — Team access is required                     │
-│   details: niceeval view --run <run-id>                              │
+│   details: niceeval show @1MEMY3VCQ6B5B                              │
 ╰──────────────────────────────────────────────────────────────────────╯
 ```
 

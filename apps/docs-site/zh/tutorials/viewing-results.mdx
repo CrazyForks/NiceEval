@@ -22,33 +22,40 @@ NiceEval 给不同读者准备了三个入口，读的是同一份结果：
 pnpm exec niceeval show
 ```
 
-总览按 Experiment 和评估用例汇总，没问题的 Attempt 默认折叠，让失败和下一条查看命令留在一屏之内。输出类似这样：
+默认总览回答“当前项目还缺哪些结果”：分母是你现在的 Experiment 和评估用例，不是历史上跑过的全部。没问题的 Attempt 默认折叠，让失败和下一条查看命令留在一屏之内。输出类似这样：
 
 ```text
-NiceEval results
+Current results
   Totals
 
-  Observed   12/12
-  Verdicts   9 passed; 3 failed; 0 errored; 0 skipped
-  Pass rate  75%
-  Duration   4m 12s
-  Tokens     184.2k
+  Covered    11/12
+  Gaps       1
+  Verdicts   8 passed; 3 failed; 0 errored; 0 skipped
+  Pass rate  72.73%
 
 Experiments
-  Experiment  Observed  Pass rate
-  ----------  --------  ---------
-  my-agent    12/12     75%
+  Experiment  Covered  Gaps  Pass rate
+  ----------  -------  ----  ---------
+  my-agent    11/12    1     72.73%
 
 Attempts · my-agent
-  9 passed Attempts hidden
+  Eval refund-policy
+  Gap identity-mismatch
+  Previous result @1K1P0VJAPVJ12
+
+  8 passed Attempts hidden
   See more  niceeval show --experiment my-agent
+
+Next: niceeval exp my-agent --dry
 ```
 
 几个值得先看的数：
 
-- `Observed` 是有结果的 Attempt 数和计划数。两个数不相等时，说明还有 Attempt 没跑或没跑完，这时的通过率只反映已有结果。
+- `Covered` 是当前有可用结果的位置数和计划数。`Gaps` 不为 0 时，说明有些位置还没有结果，或者旧结果已经不适用，例如你改了这条评估用例。缺口下面会写原因和上次的结果入口，旧分数不会被算进当前通过率。
 - `errored` 不为 0 时，先处理它们。`errored` 说明运行本身没跑成，例如应用没启动或接口报错，这些 Attempt 没有得出结论。
 - 计分制评估显示 `Score` 而不是通过率，读法见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
+
+要补齐缺口，运行最后一行建议的 `niceeval exp <id> --dry` 看看会跑哪些，再去掉 `--dry` 正式运行。
 
 看到 `Attempts hidden` 时，用它建议的命令缩小范围；要显示全部 Attempt，加 `--all`。
 

@@ -365,6 +365,8 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   标题为 `Current results`，先显示 `Covered N/M` 与 `Gaps K`。
   分母来自当前目标；缺口显示具名原因、可用的旧 locator 与下一步。已删除的 Experiment 只出现在 `History`，不计当前分数。
   不用 `Observed` 把历史发布数量暗示成当前结果可用性；目标求值失败显示错误与历史读取命令。
+  有缺口时末尾给出 `Next: niceeval exp <experimentId> --dry`，每个有缺口的 Experiment 一行；没有缺口时省略 `Next`。
+  完整形态见下文[当前 Results 示例](#当前-results-示例)。
 - 一个或多个 `--experiment` 逐个读取 exact `experiment.get`；任一 ID 未命中时整次失败。
   首先显示官方 costSummary 的实验总费用或已知小计、完整度和数量，再显示各评估结果与 Attempt 明细。
   范围是各槽位最新已发布结果，明确标注 Latest recorded slots；不表示全部历史支出或当前源码中的目标集合。
@@ -424,6 +426,46 @@ Events 的全部人读字符串按码点去掉控制字符与双向格式控制�
 `partial` 的空索引显示其限制，页尾不能被描述为生产者证据完整。
 
 `--all` 只适用于无 selector 的 Results，不能与 `--experiment`、`--run`、Attempt locator 或 Attempt detail flag 同用。
+
+### 当前 Results 示例
+
+默认 `show` 的 Experiment summary 显示 `Covered` 与 `Gaps` 列；Attempt 明细先列 gap，再列 `failed`、`errored`、
+`skipped` 与 pending，`passed` 默认折叠：
+
+```text
+$ niceeval show
+Current results
+  Totals
+
+  Covered    11/12
+  Gaps       1
+  Verdicts   8 passed; 3 failed; 0 errored; 0 skipped
+  Pass rate  72.73%
+
+Experiments
+  Experiment  Covered  Gaps  Pass rate
+  ----------  -------  ----  ---------
+  my-agent    11/12    1     72.73%
+
+Attempts · my-agent
+  Eval refund-policy
+  Gap identity-mismatch
+  Previous result @1K1P0VJAPVJ12
+
+  Eval weather-tool
+  Attempt         Verdict  Duration
+  --------------  -------  --------
+  @1MEMY3VCQ6B5B  failed   12.40 s
+
+  8 passed Attempts hidden
+  See more  niceeval show --experiment my-agent
+
+Next: niceeval exp my-agent --dry
+```
+
+`Verdicts` 与 `Pass rate` 只统计 covered 位置，缺口不计 failed。纯计分制范围显示 `Score` 而不显示 `Pass rate`，
+规则同下文历史 Results。当前目标求值失败时不输出这张表，stderr 给出错误并提示 `niceeval show --run <run-id>`
+等固定历史读取命令。
 
 ### 固定 Record 的历史 Results 示例
 
@@ -521,11 +563,14 @@ Experiment selector 是下钻动作，直接显示完整明细，不再要求 `-
 
 ```text
 $ niceeval show --experiment main
-Current results · Experiment main
+Experiment main
+  Experiment total costs
+  ……
+  Scope      Latest recorded slots; replaced executions excluded
+
   Summary
 
-  Covered    3/3
-  Gaps       0
+  Observed   3/3
   Verdicts   2 passed; 1 failed; 0 errored; 0 skipped
   Pass rate  66.67%
 
@@ -542,7 +587,9 @@ Current results · Experiment main
   @ATTEMPT-PASS-2 passed   20.12 s
 ```
 
-命令读取 project operational Store 的单一 `PublicationCutoff`。当前目标成功求值、Store 读取正常但没有历史结果时，正常返回 `Covered 0/N` 与 `Gaps N`。
+`--experiment` 读取该 Experiment 各槽位最新已发布结果，不求值当前源码；当前缺口只在默认 `show` 中显示。
+
+命令读取 project operational Store 的单一 `PublicationCutoff`。默认 `show` 在当前目标成功求值、Store 读取正常但没有历史结果时，正常返回 `Covered 0/N` 与 `Gaps N`。
 当前目标求值失败、source 读取失败、显式 Run / Experiment / locator 未命中、required result shape 不合法与 `--expand` 未命中，都以英文诊断写 stderr 并非零退出。
 不输出半张表，不把 typed missing/partial 或正常的当前缺口改写成进程失败。
 

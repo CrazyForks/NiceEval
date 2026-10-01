@@ -147,7 +147,8 @@ pnpm exec niceeval exp my-agent
 
 ╭─ NEXT ───────────────────────────────────────────────────────────────╮
 │ my-agent                                                             │
-│ details  niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706    │
+│   show: niceeval show --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
+│   view: niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
 ╰──────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -161,19 +162,9 @@ pnpm exec niceeval exp my-agent
 |---|---|---|
 | `PASSED` | 所有断言都满足了。 | 继续加评估用例。 |
 | `FAILED` | 应用正常回复了，但至少一条断言没满足。 | 看 Agent 实际回了什么，判断是应用的问题还是断言写得太严。 |
-| `ERRORED` | 没能拿到结果，例如应用没启动、接口报错、Adapter 抛了异常。 | 看 `FAILURES` 面板里的 `error:` 行，通常能直接看出原因。 |
+| `ERRORED` | 没能拿到结果，例如应用没启动、接口报错、Adapter 抛了异常。 | 看 `FAILURES` 面板里的 `error:` 行，通常能直接看出原因；需要更多细节时运行它下面的 `details:` 命令。 |
 
-想看某一次运行里应用到底回了什么，在终端里用：
-
-```bash
-pnpm exec niceeval show
-```
-
-想在浏览器里翻对话、看耗时，复制 `NEXT` 面板里的命令：
-
-```bash
-pnpm exec niceeval view --run <run-id>
-```
+失败的 Attempt 下面都有一行 `details: niceeval show @<locator>`，复制它就能在终端里看到这一次运行的对话和断言。看整次运行，复制 `NEXT` 面板里的 `show:` 命令；想在浏览器里翻对话、看耗时，复制 `view:` 那一行。
 
 更多查看方式见[查看运行结果](/zh/tutorials/viewing-results)。
 

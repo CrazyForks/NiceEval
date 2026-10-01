@@ -29,7 +29,7 @@ niceeval exp compare/codex --dry
 ```text
 ACCEPTED
 @1K1P0VJAPVJ12  compare/codex · memory/commit0
-details: niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706
+details: niceeval show --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706
 
 Current results
 Covered 1/1
