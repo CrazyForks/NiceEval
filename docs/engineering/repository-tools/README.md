@@ -103,7 +103,12 @@ PR 正文入口 `pnpm pr:body` 拥有受模板约束的 Git-private 编辑状态
 缺少父 Feature 或既有用例索引时零写入失败，不隐式创建 package 或分组目录。
 dry-run 与实际 publication 使用相同的输入、路径与索引校验；命令不创建测试或反向关系。
 
-Roadmap、Engineering 的结构创建，以及通用 Trace `check` / `move`，仍是未来目标。Feature 的结构写入只包括 `create`、`page add` 与 `page set`；Use Case 由独立领域创建。它们不提供 retire、物理删除、move 或 adoption，也不能以手抄模板、手动 relation 改写或假 receipt 代替。
+Roadmap 与 Engineering 的结构写入不由 repo-tools 拥有，而是 Concord 基础 CLI 的稳定受管入口：
+
+- `pnpm exec concord roadmap create/list/show/page/adopt`，参数见 `pnpm exec concord roadmap --help`；
+- `pnpm exec concord engineering create/list/show/page`，参数见 `pnpm exec concord engineering --help`。
+
+通用 Trace `check` / `move` 仍是未来目标。Feature 的结构写入只包括 `create`、`page add` 与 `page set`；Use Case 由独立领域创建。这些入口都不提供 retire、物理删除或 move，也不能以手抄模板、手动 relation 改写或假 receipt 代替。
 
 追溯关系与各领域 mutation 的语义见[仓库文档追溯](../docs-traceability/README.md)。Design 与 Research 的闭环分别见[Design](../../design/README.md)和[Research](../../research/README.md)。
 

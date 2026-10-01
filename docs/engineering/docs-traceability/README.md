@@ -11,9 +11,17 @@ kind: engineering
 `pnpm run repo docs feature` 与 `pnpm run repo docs test` 是 Feature、Use Case、E2E owner、Feedback、Memory 与 Issue provenance 的日常查询入口。
 可运行能力包括 `feature list/show` 与 `test list/show`；Feedback adoption 与 Memory promotion 由各自领域命令写入。
 
-Roadmap、Engineering 的结构创建，以及通用 Trace `check` / `move`，仍是未来结构写入面的目标契约。
+Roadmap 与 Engineering 的结构写入走 Concord 基础 CLI，参数以各自 `--help` 为准：
+
+- `pnpm exec concord roadmap create/list/show/page/adopt`
+- `pnpm exec concord engineering create/list/show/page`
+
+它们使用 Concord 基础发布 journal，中断后用 `pnpm exec concord recover` 恢复。
+通用 Trace `check` / `move` 仍是未来结构写入面的目标契约。
+
 Feature 结构写入包括 `feature create`、`feature page add` 与 `feature page set`，不隐式创建 package。
-叶子 Use Case 由 `pnpm run repo docs use-case create` 独立发布；这些入口不包含 retire、物理 delete、move 或 Roadmap adopt。
+叶子 Use Case 由 `pnpm run repo docs use-case create` 独立发布。
+这些入口不包含 retire、物理 delete 或 move；Roadmap adopt 只走 `pnpm exec concord roadmap adopt`。
 Trace 的 `pnpm run repo docs trace recover` 从各 owner 正向关系恢复 publication，不保存中央 Registry，也不改变 Nx affected graph。
 
 设计取舍见[仓库文档追溯决策](../../design/docs-traceability/DECISION.md)。原生测试正文的边界继续服从[可读测试裁决](../../design/user-readable-testing/DECISION.md)。
@@ -25,9 +33,8 @@ Feature / Use Case contract
        ▲       ▲
        │       ├── adoption ── Feedback ── source ── Issue
        │       └── promotion ─ Memory
-       │ contract
-engineering/testing owner anchor ◄── owner ── E2E test/spec
-                                             └── regression ──► Memory
+       │ @feature / @use-case
+    E2E case ── regression ──► Memory
 
 Roadmap ── buildsOn ──► Feature
 Design ── decides ─────► Feature / Roadmap / Engineering
@@ -35,7 +42,7 @@ Engineering ── supports ► Feature / Roadmap / Engineering
 cross-Feature Use Case ─ composes ─► leaf Use Cases
 ```
 
-Feature 保存产品语义；testing owner anchor 保存长期测试结果身份；测试文件保存真实动作与 expected；Feedback 保存原始观察与采用关系；Memory 保存调查、裁决和历史证据。
+Feature 保存产品语义；测试源码的 `@feature` / `@use-case` 声明保存 case 到契约的关系；测试文件保存真实动作与 expected；Feedback 保存原始观察与采用关系；Memory 保存调查、裁决和历史证据。
 Trace 只连接这些既有 owner。E2E 例外地只从 runner inventory 读取 title 末尾的 opaque case token 以见证身份，
 不把可读标题当语义；它不保存 coverage 状态，也不把 Use Case 变成可执行规格。
 
@@ -160,7 +167,7 @@ pnpm memory retire <memory-id> --from <repo-ref> [--dry-run] [--json]
 两个 `list` 都只做浅发现。`pnpm run repo docs feature list` 输出 Feature ID、标题与 canonical path。
 `pnpm run repo docs test list` 的测试叶子输出完整 `<test/spec path>#<caseId>` 与 Repo。第二行输出 owner-owned `Description`，其余子树展开 Feature/Use Case、Regression Memory 与 direct Issue provenance；没有关系时显式显示 `None`。
 
-Feature pattern 匹配 ID、path 或标题；test pattern 还会匹配 owner/contract、Feature、Regression Memory 与 Issue。它们只用于缩小列表，不隐式扩大 Trace 闭包。
+Feature pattern 匹配 ID、path 或标题；test pattern 还会匹配 contract、Feature、Regression Memory 与 Issue。它们只用于缩小列表，不隐式扩大 Trace 闭包。
 列表中的 ID 或 path 必须能原样传给同类 `show`。
 
 人读 formatter 把 Feature 按父子 package、Test 按 E2E Repo 与目录渲染成树；树中的叶子显示可复制的完整测试路径，关系子树不写回测试或文档 metadata。
@@ -172,7 +179,7 @@ Feature 投影的闭包固定为：
 
 1. 本节点的派生页面清单与直接子 Feature；
 2. 本地 Use Cases，以及 `composes` 反推的跨 Feature Use Cases；
-3. contract 指向这些目标的 owner anchors，再到对应 tests；
+3. 源码 `@feature` / `@use-case` 声明指向这些目标的 E2E cases；
 4. 各精确目标的 Feedback adoptions、Feedback→Memory relations、Memory promotions 与 Issue provenance；
 5. 直接 `buildsOn` Roadmap、`decides` Design 与 `supports` Engineering；
 6. 经第 3 步 tests 到达的 regressions 与 test issue provenance。
@@ -187,7 +194,7 @@ Feature-level 与每个 Use Case 的测试叶子都显示完整 file path；下�
 
 ### test show
 
-测试投影返回 caseId、Repo、file/path guard、runner title、owner anchor、contract、所属 Features、regressions 与 Issue provenance。
+测试投影返回 caseId、Repo、file/path guard、runner title、contract、所属 Features、regressions 与 Issue provenance。
 它还返回正式 certificate 状态，以及从 Repo metadata 读取的 lane/areas/executor。
 Journey contract 为跨 Feature Use Case 时，Features 从 `composes` 推导。Feature/Use Case 只沿 case→owner→contract 推导。
 
@@ -280,12 +287,8 @@ pnpm run repo docs feature page set <feature-ref> <page> [--stdin|--file <path>]
 已有目标、非法路径、缺失 parent 或索引、正文混入 frontmatter 或生成区都在写入前拒绝。
 正文为候选输入，节点 metadata 和索引结构由命令生成；dry-run 不发布任何文件。
 
-Roadmap 与 Engineering 的以下结构写入仍是后续目标，不能伪装成当前入口：
-
-```sh
-pnpm run repo docs roadmap create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
-pnpm run repo docs engineering create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
-```
+Roadmap 与 Engineering 的结构写入由 Concord 基础 CLI 拥有，repo-tools 不提供同名包装。
+入口与参数分别见 `pnpm exec concord roadmap --help` 和 `pnpm exec concord engineering --help`。
 
 Feature、Roadmap 与未来 Design Plan 使用 Feature Design Package；当前 Design 外层和 Plan 由 Design domain 创建。Engineering 使用工程主题模板。
 模板目录各有 `concord.templates/v1` manifest，声明适用 kind、必备文件和可选文件。receipt 保存 manifest digest；节点不保存 template version。
@@ -300,37 +303,22 @@ Feature create 默认只创建必备文件。`--pages` 选择 `library`、`cli`�
 ...stable generated links...
 ```
 
-compiler 永不读取该区块。未来 Trace check 会从节点重算 exact bytes；未来 create/move/adopt 在结构锁内更新它。
+compiler 永不读取该区块。未来 Trace check 会从节点重算 exact bytes；结构写入命令在结构锁内更新它。
 
-## 未来的 Trace move 与 Roadmap adopt
+## 未来的 Trace move
 
 下列命令只是后续目标，不能把它们写成当前入口或放入 Skill metadata：
 
 ```sh
 pnpm run repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
-pnpm run repo docs roadmap adopt prepare <roadmap-ref> --to <feature-ref> [--json]
-pnpm run repo docs roadmap adopt apply --manifest <git-private-path> [--dry-run] [--json]
 ```
 
-`move` 只允许 kind 不变；`adopt` 把 Roadmap 身份替换为 Feature 身份。两者不创建稳定 alias，也不留下 Roadmap/Feature 双真源。
+`move` 只允许 kind 不变，不创建稳定 alias。
 
 自动改写限于 typed refs、生成区，以及随整个 package 移动且 referent 明确不变的内部相对链接。
 外部普通 Markdown links 只进入 `linkUpdateCandidates` receipt，不自动修改。Memory 使用最新 metadata；迁移保留作者正文与历史 provenance。
 
-### 两阶段 adoption manifest
-
-目标 Feature 已存在时，工具不得自动合并 Markdown 语义。`adopt prepare` 在 Git-private 目录生成 `niceeval.docs-adoption-plan/v1` manifest：
-
-- source、target 与 pre-move commit；
-- 所有 source/target page 和强引用 owner 的 preimage digest；
-- 每个源页面的 `move`、预渲染 `merge` 或带理由 `drop` disposition；
-- 预渲染 merge bytes 的独立 digest；
-- typed ref、promotion 与生成区的预期变化。
-
-`apply` 要求每个源页面都有 disposition。缺失 manifest、遗漏页面、非法 target 或任一 base digest 变化时，命令零写入失败。
-
-结构化 promotion 的旧 current 先以 pre-move commit 追加到 immutable history，再建立新 current。
-source package、所有 typed ref owner、相关 structured Memory 与生成区必须通过 scoped-clean preflight；无关工作树修改不阻断。
+Roadmap 采用走 `pnpm exec concord roadmap adopt`，把 Roadmap 身份替换为 Feature 身份，不留下 Roadmap/Feature 双真源；采用语义与恢复由 Concord 拥有。
 
 ## 可恢复事务与一致读取
 
@@ -359,7 +347,7 @@ compiler 连续枚举并读取两次全部 Trace 输入；集合和 bytes 相同
 - frontmatter Schema、kind/placement、canonical ref 与 target kind；
 - path/anchor 存在性、关系 cardinality、重复 ref 与 Roadmap cycle；
 - 已存在 `selectedPlan` 的唯一 direct target；
-- owner anchor 的唯一 contract link、live case/owner 一对一、owner/case 零对多、inventory token、源码 current 与历史归档 history/tombstone；
+- case 源码声明的唯一 contract、inventory token、源码 current 与历史归档 history/tombstone；
 - Feedback v2 adoption current/history、closure、Memory relation 与 Issue source；
 - regression Problem gate（`resolved(fixed)` 必须由真实 E2E metadata 反向拥有，自由文本 proof 不算）、Memory promotion current/history 与 supersession；
 - template manifest/digest 与生成区 exact bytes；
@@ -398,11 +386,10 @@ Effect 层拥有文件系统、lock、journal、recovery 与 receipt。
 目标 Schema 一次切换，不保留 doc-node legacy reader：
 
 1. 给真实 package roots、Design Plans 与叶子 Use Cases 补 node frontmatter；普通分组和 category README 保持非节点。
-2. 给每个 testing owner anchor 补唯一 contract block；既有 owner identity 不变。
-3. 经明确授权的一次性整理，把 runner-collected cases 的身份与关系落到真实声明注释，保留全部历史和退役 ID；不存在产品 migration 命令，regular codec 不读旧关系 JSON 或 legacy 文件 metadata。
-4. 让每个已裁决 Design 有唯一 `selectedPlan`，并让 Design 写作规则以它为机器真源；未裁决 Design 合法地缺失该字段。
-5. 给模板补 manifest，把分类索引切为生成区，再启用 strict `check` 与 lint adapter。
-6. Research、Memory 和 Issue 通过一次性迁移切换到 concord.document/v1；收据逐条保存原路径、目标路径、metadata 与正文摘要。旧 Feedback owner 移除，当前关系和历史保留。
+2. 经明确授权的一次性整理，把 runner-collected cases 的身份与关系落到真实声明注释，保留全部历史和退役 ID；不存在产品 migration 命令，regular codec 不读旧关系 JSON 或 legacy 文件 metadata。
+3. 让每个已裁决 Design 有唯一 `selectedPlan`，并让 Design 写作规则以它为机器真源；未裁决 Design 合法地缺失该字段。
+4. 给模板补 manifest，把分类索引切为生成区，再启用 strict `check` 与 lint adapter。
+5. Research、Memory 和 Issue 通过一次性迁移切换到 concord.document/v1；收据逐条保存原路径、目标路径、metadata 与正文摘要。旧 Feedback owner 移除，当前关系和历史保留。
 
 551 条 Memory 全部转换到最新模型；没有常规旧格式 reader。明确历史事实保留，未知状态不伪造为当前裁决。
 
