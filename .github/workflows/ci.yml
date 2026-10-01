@@ -35,6 +35,9 @@ jobs:
       - name: Lint docs
         run: pnpm run lint:docs
 
+      - name: Example tier sync check
+        run: pnpm examples:sync check
+
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
