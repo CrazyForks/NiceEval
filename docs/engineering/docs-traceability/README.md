@@ -263,9 +263,9 @@ Design 已有完整闭环。`pnpm run repo docs design create` 建立候选决�
 
 裁决说明为什么选择该 Plan，`decides` 只保存直接落点。把裁决采用为 Feature、Roadmap 或 Engineering 的工作仍由各自 owner 完成，不能让 Design 替代当前产品或工程契约。
 
-## Feature 首期结构写入与后续目标
+## Feature 结构写入与后续目标
 
-Feature 首期目标只开放下列结构 publication；在 `--help` 暴露前，它们不是可调用命令；精确 flags 一律以 `--help` 为准：
+Feature 只开放下列结构 publication；精确 flags 一律以 `--help` 为准：
 
 ```sh
 pnpm run repo docs feature create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
@@ -367,7 +367,8 @@ compiler 连续枚举并读取两次全部 Trace 输入；集合和 bytes 相同
 
 未来 `check --changed` 仍会编译并验证全仓，只在 receipt 增加 `changedSubjects` 与 `impactedSubjects`。它不能隐藏未改文件的 finding，也不能形成较弱成功。
 
-`packages/repo-tools/src/docs/trace/**` 是 RepoRef、关系 target validation、pure compiler、Snapshot、投影、presentation、lock/generation 与 findings 的唯一 owner。
+RepoRef、关系 target validation、pure compiler、Snapshot、投影、presentation、lock/generation 与 findings 由 vendored `concord-sdlc` 的 Trace 拥有。
+`packages/repo-tools` 只组合这些 contribution，不另行实现。
 Feedback 与 Memory codec/state 仍归各自领域；它们复用 Trace RepoRef/target checker，不复制 path/anchor parser。
 
 `packages/repo-tools/src/cli.ts` 只把 `feature`、`test` 与维护命令接进同一个 `effect/unstable/cli` 根和 Node runtime。

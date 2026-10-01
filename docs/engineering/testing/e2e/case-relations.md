@@ -13,6 +13,9 @@ test("query run 经 pipe 交付完整文档", async () => {})
 ```
 
 精确验证一个 Use Case 时改用 `// @use-case docs/feature/<feature>/use-case/<name>.md`。
+`@feature` 必须指向 Feature 包根的 `docs/feature/<name>/README.md`，不能指向包内子页面（如 `docs/feature/adapters/library.md`）
+或 `use-case/` 下的文件；`@use-case` 必须指向一个 leaf Use Case 文件。路径不合法时 Trace 编译以格式错误拒绝。
+
 每个声明恰好一个 Feature 或 Use Case；多个测试可以关联同一契约。标题只描述用户结果。
 关系沿 `case → contract` 推导，不从目录、文件名或标题猜测，也不经 testing owner anchor 中转。
 

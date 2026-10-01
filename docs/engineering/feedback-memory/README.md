@@ -15,13 +15,13 @@ Research、Memory 和本地 Issue 统一使用 Concord 最新文档模型。类�
 
 ## Feedback
 
-本地观察的唯一 owner 是 `docs/issues/<id>.md`，`pnpm feedback` 与 Concord 页面读取同一批文件。旧 `feedback/<id>/README.md` 已通过一次性移动迁出，不保留第二份 owner。`origin` 保留 dev／dogfood provenance，`source` 仅保存实际 GitHub／Linear 远端provenance快照，二者不互相冒充。
+本地观察的唯一 owner 是 `docs/issues/<id>.md`，`pnpm feedback` 与 Concord 页面读取同一批文件。旧 `feedback/<id>/README.md` 已通过一次性移动迁出，不保留第二份 owner。`origin` 保留 dev／dogfood provenance，`source` 仅保存实际 GitHub／Linear 远端 provenance 快照，二者不互相冒充。
 
-`memoryRelations` 条目 investigation、root-cause、decision、delivery 角色和 canonical Memory 路径。`adoptions.current/history` 保存精确契约引用及退役历史。反向关系统一派生，不另建注册表。
+`memoryRelations` 的每个条目保存 investigation、root-cause、decision 或 delivery 角色，以及 canonical Memory 路径。`adoptions.current/history` 保存精确契约引用及退役历史。反向关系统一派生，不另建注册表。
 
 ### 关闭规则
 
-`closure` 保存 fixed、delivered、duplicate、declined、invalid、external-fixed 或普通 closed 原因。fixed 关联已条目 fixed resolution 的 Problem；delivered 关联交付 Memory 与已采用目标；declined 关联当前 Decision；duplicate 指向唯一 canonical Issue。duplicate／declined／invalid 前须明确退役 current adoptions。历史关闭声明不会生成新的执行证据。后续问题重开不静默改写 Issue 历史。
+`closure` 保存 fixed、delivered、duplicate、declined、invalid、external-fixed 或普通 closed 原因。fixed 关联 resolution 已为 fixed 的 Problem；delivered 关联交付 Memory 与已采用目标；declined 关联当前 Decision；duplicate 指向唯一 canonical Issue。duplicate／declined／invalid 前须明确退役 current adoptions。历史关闭声明不会生成新的执行证据。后续问题重开不静默改写 Issue 历史。
 
 `pnpm feedback close --help` 给出各 kind 的具名参数。新公开工作项由 Issue 流程处理；本地创建、关闭或同步都不授权远端写入。
 
@@ -59,4 +59,4 @@ Repository epoch 表示核验与绑定时的生命周期，不声称 runner 在�
 
 ## 迁移审计
 
-本次收据位于 `docs/migrations/concord-documents-20260914.json`，条目每条原路径、目标路径、源 metadata 和正文摘要。它不是 runtime registry。历史 `feedback/migration-receipt.json` 与 `feedback/schema-v2-migration-receipt.json` 保持原 Git 时点语义，不改写为当前验证证明。
+本次收据位于 `docs/migrations/concord-documents-20260914.json`，逐条保存原路径、目标路径、源 metadata 和正文摘要。它不是 runtime registry。历史 `feedback/migration-receipt.json` 与 `feedback/schema-v2-migration-receipt.json` 保持原 Git 时点语义，不改写为当前验证证明。

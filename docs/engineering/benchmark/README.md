@@ -56,6 +56,8 @@ query 与 View 只得到 operation result 和其分母。它们看不到 RecordR
 
 ## `bench/` 本地工具
 
+仓库里还没有 `bench/` 目录，下文命令在它落地前不能运行；本节只定义它的目标形状。
+
 安装基准是仓库内的优化工具，不是 NiceEval 项目、Unit 或 CI 门禁。它直接调用 Runner 的单 Attempt 引擎，以同形内存 timing 值打印结果，但不创建 Record：
 
 ```text

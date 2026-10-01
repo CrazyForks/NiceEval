@@ -19,8 +19,7 @@ Unit 只作为可证伪的例外，同一矩阵不在多层复制。
 测试清单不是契约。复核时先隐藏现有测试，只从 Feature 契约列出应由真实入口证明的用户结果，再选择 Journey 或单边界 E2E。
 现有 owner 只是在形态确定后可复用的实现，不享有保留推定。
 
-每条 Unit 只与 E2E 比较：若场景 Repo 能稳定制造输入，并从公开输出或资源终态观察同一错误结果，就删除 Unit。
-与其它 Unit 不重复、涉及额外分支、失败更容易定位，均不是例外理由。保留方必须给出 E2E 做不到的具体条件；缺少该证明即删除。
+Unit 与 E2E 的比较规则见 [Owner 选择顺序](README.md#owner-选择顺序)。
 
 `pnpm test` 报告的 Unit 最多 200 条，Testkit 不设独立 Unit 套件。这个数字只阻止套件重新膨胀，
 不授权任何测试存在，也不能通过合并独立断言规避。
@@ -64,15 +63,15 @@ HTTP 或浏览器读取。只有“旧 Record 兼容性”本身是契约时，�
 
 | 文档 | 回答的问题 | 测试怎样指向它 |
 |---|---|---|
-| Feature 契约文档 | 用户长期得到什么行为 | Owner anchor 用 `niceeval.e2e-owner-contract/v1` 唯一链接对应 Feature / Use Case 契约 |
-| `docs/engineering/testing/**` | 哪些结果和风险由哪个测试拥有 | E2E case 源码关系的 current `owner` 指向 anchor |
+| Feature 契约文档 | 用户长期得到什么行为 | E2E case 声明上方的 `@feature`（Feature 包 `README.md`）或 `@use-case`（leaf Use Case）直接关联，不经 owner anchor 中转 |
+| `docs/engineering/testing/**` | 测试组合、体裁与 Unit 例外的准入规则 | 不建立 case 关系；Unit 测试文件用 `// cases:` 声明所属测试文档 |
 | `memory/**` | Bug 的现象、根因、修法和旧实现 kill 收据 | Unit 用 `// bug:`；E2E case 源码关系用 `regressions` |
 
 公开 issue 可以通过 CLI 加入对应 case 的 `@issue` 注释，但不能替代仓库内的 memory。issue 可能改标题、关闭或迁移；memory 必须保存复现条件、
 fix parent 或逆补丁、最早失败阶段，以及为什么这条 oracle 能区分旧实现。
 
-单边界 E2E 指向它唯一跨过的契约。Journey 跨多个产品域时只登记最终用户结果的 owner；中间步骤的次级契约留在步骤旁的
-普通注释。case 源码关系中唯一的 current `owner` 回答“这条流程归谁维护”，不会变成一串每次流程增减都要同步的标签。
+单边界 E2E 指向它唯一跨过的契约。Journey 跨多个产品域时只关联最终用户结果的契约；中间步骤的次级契约留在步骤旁的
+普通注释。每个声明恰好一个 `@feature` 或 `@use-case`，不会变成一串每次流程增减都要同步的标签。
 
 ```ts
 // @feature docs/feature/inspection/README.md
@@ -81,22 +80,20 @@ test("query run 经 pipe 仍交付完整文档", async () => {
 });
 ```
 
-对应源码关系由 `docs test owner/regression/issue` 命令维护；一个 case 可关联多个 Problem Memory 与多个 Issue。
+对应源码关系由 `docs test case/regression/issue` 命令维护；一个 case 可关联多个 Problem Memory 与多个 Issue。
 
-没有历史 Bug 的功能测试只设 owner。发现 Bug 后，按[测试总纲的 E2E TDD](README.md#bug-修复的-e2e-tdd)取得旧实现红灯；新断言确实能杀死旧实现时才通过 CLI 为该 case 添加 regression。
+没有历史 Bug 的功能测试只关联契约。发现 Bug 后，按[测试总纲的 E2E TDD](README.md#bug-修复的-e2e-tdd)取得旧实现红灯；新断言确实能杀死旧实现时才通过 CLI 为该 case 添加 regression。
 若只能证明同类风险而没有 kill 收据，仍只链接 Feature 契约。相关 memory 可以在普通解释注释或 Repo README 中写成
 “相关风险”，但不再发明一行看似可机器追踪、实际没有 kill 资格的 `risk:` 元数据。
 
 ## 历史 Bug 回归
 
-Bug escape 后先裁决自动化回归或本次 AI 真实验收。选择不自动化时直接修根因，按 PR Test impact 保存公开入口手测和未守护风险，不创建回归 metadata 或伪 owner。选择自动化时按顺序处理：
+Bug escape 后的 owner 选择、红灯与例外路径按[测试总纲的 E2E TDD](README.md#bug-修复的-e2e-tdd)执行。取得红灯与转绿后：
 
-1. 找本应捕获它的现有 owner；
-2. owner 命题正确但 fixture / 断言无区分力时，修它，不并排建第二套；
-3. 只有现有 owner 无法表达独立错误算法或真实边界时，才新增测试；
-4. 通过 CLI 把 `memory/<条目>.md` 加入该 case 源码关系的 current `regressions`，标题仍描述长期结果；
-5. 用 fix parent、历史 worktree 或最小逆补丁确认新测试会红；当前候选应绿；
-6. 删除被替代的重复测试。
+1. 通过 CLI 把 `memory/<条目>.md` 加入该 case 源码关系的 current `regressions`，标题仍描述长期结果；
+2. 删除被替代的重复测试。
+
+走例外路径时不创建回归 metadata 或伪 owner。
 
 无法杀死旧实现的 case 只能叫补充验证，不能宣称“防住了这个历史 bug”。
 按现象类比也不够：HTTP 两页 cursor 不能代替 SDK paginator，普通 5xx 不能代替 pseudo-E2E 的候选包边界，locator 往返也不能
@@ -125,12 +122,7 @@ Bug escape 后先裁决自动化回归或本次 AI 真实验收。选择不自�
 
 ## 不自动化的处置
 
-`automation: none` 是一次变更的验收处置，不是长期 owner。
-Bug 修复只有无法固定的外部条件、安全限制或 Provider 阻塞时可以选择本路径；没有合格 owner 时应新增最小 E2E。非 Bug 变更在不应新增 owner、自动化会违反稳定或可靠要求、依赖无法固定、必须复制生产核心算法，或长期区分收益不足以抵偿维护成本时可以选择。
-
-PR Test impact 按 [PR 模板](../../../.github/PULL_REQUEST_TEMPLATE.md#tests)保存本次验收事实。
-不创建空测试、mock 假 pass 或伪 owner。Docker-in-Docker 的宿主内核、daemon 权限和嵌套网络无法固定时适用本处置。
-安全或发布关键行为既无可靠自动化、又无本次真实验收时必须阻断。
+`automation: none` 是一次变更的验收处置，不是长期 owner；适用条件、PR Test impact 收据与阻断规则见[测试总纲的不自动化](README.md#不自动化)。
 
 ## 可读性 Review
 
@@ -156,8 +148,7 @@ PR Test impact 按 [PR 模板](../../../.github/PULL_REQUEST_TEMPLATE.md#tests)�
 
 ## 周期复核
 
-测试跟改率用于每次大迁移前后和至少每半年一次的人工诊断，不作为 CI 红绿门禁。固定命令、历史参照值和本方案如何
-固定命令与排查口径见 [测试跟改率](churn.md)。具体历史缺陷的现象、根因与修法只留在 `memory/`。
+测试跟改率用于每次大迁移前后和至少每半年一次的人工诊断，不作为 CI 红绿门禁。固定命令与排查口径见 [测试跟改率](churn.md)。具体历史缺陷的现象、根因与修法只留在 `memory/`。
 
 复核期待看到：内部重构不再批量触碰 E2E；头部高跟改文件能解释为真实契约变化；被迁移的大脚本和 DTO
 fixture 不换名字重新长回来。若仍反复修改，优先检查 layer、oracle 和共享状态，不把门槛改成“多写几个测试”。

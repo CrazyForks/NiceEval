@@ -8,10 +8,10 @@
 关系 inventory 必须调用 Vitest / Playwright 原生 collection adapter，且不执行测试正文；case selector、正式 case receipt 与
 takeover certificate 服从 [case 关系契约](case-relations.md)。diagnose receipt 只用于定位，永不进入 red/green/reliability 或 fixed gate。
 
-## 七命令接口
+## 八命令接口
 
-根 CLI 只有七个显式命令：高阶本地入口是 `test`；本地诊断入口是带 `test` / `exec` 模式的 `diagnose`；低阶生命周期命令是
-`plan`、`pack`、`run`、`takeover` 与 `verify-release`。无子命令的 `pnpm e2e` 只显示 Effect CLI help，不选择、打包或运行任何场景。
+根 CLI 只有八个显式命令：高阶本地入口是 `test`；本地诊断入口是带 `test` / `exec` 模式的 `diagnose`；低阶生命周期命令是
+`plan`、`pack`、`run`、`evidence`（`evidence red`）、`takeover` 与 `verify-release`。无子命令的 `pnpm e2e` 只显示 Effect CLI help，不选择、打包或运行任何场景。
 
 `test` 严格执行一次 plan → 对合法非空计划打包一次 candidate → 运行该 plan 的精确 Repo 集；合法空计划在 pack 之前成功短路。
 CI 与 `run --plan` 消费同一份当前 checkout 生成的 plan，不会在 run 阶段重新选择。
@@ -25,7 +25,7 @@ pnpm e2e test --lane pr
 
 # 按 Repo / 原生测试参数收窄
 pnpm e2e test --repo insight
-pnpm e2e test --repo insight -- --run test/exported-targets.test.ts
+pnpm e2e test --repo insight -- --run test/view-lifecycle.test.ts
 
 # 全量 E2E；缺 secret 在 prepare 前一次列清
 pnpm e2e test --lane main --repo adapter/codex-cli
@@ -332,7 +332,7 @@ main push、schedule、release 验收和显式 full dispatch 固定传 `--no-dif
 
 本地 diff 同时读取 staged、unstaged、tracked 删除和未忽略 untracked 路径；rename 按 delete 与 add 处理。
 多个显式 Repo 中有任一不属于 lane 时，plan 失败，不能静默删掉它。`--no-diff` 与显式
-`--base` / `--head` / `--diff-path` / `--diff` 同时出现时属于配置错误。
+`--base` / `--head` / `--diff-path` 同时出现时属于配置错误。
 
 ## Docker
 

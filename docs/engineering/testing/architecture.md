@@ -60,24 +60,13 @@ Outcome 测试不得 import 根 `src/`、候选内部子路径或生产类型，
 浏览器断言不得依赖内部 hydration 全局量、template ID、DOM class、布局实现属性，或自行拼接 attempt 文件路径。
 私有 artifact 删除、改名或改变布局时，测试 verdict 必须不变。
 
-E2E 有两组隔离 Repo。`cli`、`runner`、`record`、`report`、`package` 与 `lifecycle` 是功能场景，使用确定性本地 fixture 验收
-NiceEval 自己拥有的行为；`adapter/<id>` 是兼容性场景，使用对应真实 SDK / CLI 或协议故障端。两组只共用机械 Testkit，
+E2E 有两组隔离 Repo。功能场景包括 `cli`、`eval`、`runner`、`record`、`inspection`、`insight`、`migrate`、`plugins`、`package` 与 `lifecycle`。
+它们使用确定性本地 fixture 验收 NiceEval 自己拥有的行为；`adapter/<id>` 是兼容性场景，使用对应真实 SDK / CLI 或协议故障端。两组只共用机械 Testkit，
 不共用依赖图、fixture、secret、内部 SQLite store 或领域 expected。
 
 ## 从用户目标选择测试形态
 
-按下列顺序选择 owner：
-
-1. 只从产品契约列出用户目标与公开结果，不把现有测试当成需求清单。
-2. 一个用户目标跨多个公开域时，写 Journey E2E，并在终态所需接缝立即检查。
-3. 一个原子结果只跨一条真实边界时，写单边界 E2E。
-4. E2E 无法直接、稳定地制造输入并观察同一错误结果时，登记并写最小 Unit 例外。
-5. 形态确定后才检查现有 owner；命题相同就复用，不并排增加测试。
-6. 上述自动化都无法满足稳定与可靠要求时，不写自动化测试，改做本次 AI 真实验收。
-
-纯输入输出不是 Unit 的自动准入理由。公共 Library 与 Run 行为从安装后 package export 进入单边界 E2E。
-聚合、归一与 schema 先由用户结果 owner 证明，Unit 只保留 E2E 无法表达的最小算法矩阵。
-Unit 之间是否重复与存在资格无关；每条 Unit 的反方都是 E2E 能否直接证明同一结果。
+owner 的选择顺序、Unit 例外的比较对象与不自动化出口见[测试总纲的 Owner 选择顺序](README.md#owner-选择顺序)。
 
 Journey 可以有多个检查点，但检查点只能证明终态所需身份、接线或前置事实。
 一个命题拥有独立输入、独立 expected、独立修复动作，或能与终态独立失败时，必须拆成另一 Journey 或单边界 E2E。
@@ -226,14 +215,7 @@ sandbox lease 或同等公开收据。只有父进程 PID 消失不能证明没�
 
 ## 可靠性接管门
 
-新增、接管或实质修改确定性 owner 时，执行[可靠性：重复运行](README.md#可靠性重复运行)规定的固定组合。
-三个彼此隔离的副本检查随机漂移；同一副本连续两次检查残留；Repo 默认并行检查顺序依赖；单项重跑检查独立身份。
-这几类运行缺一不可，不能用测试级 retry 把一次意外失败改写成通过。
-
-真实 provider live owner 在可信 PR 的 affected 集或 main / nightly 全量 E2E 中运行；provider 随机性不能充当确定性产品可靠性证明，
-因此 live Repo 不用重复 takeover 证明确定性。
-
-可靠性接管门只比较稳定语义。动态 ID、临时端口和 duration 可以变化；Verdict、实体关系、公开错误分类和资源终态必须相同。
+接管门的运行组合、比较口径、retry 禁令与 live owner 的处理只在[可靠性：重复运行](README.md#可靠性重复运行)定义。
 无法通过接管门的自动化不得降级断言、增加固定 sleep 或改成 mock 核心算法，应按[不自动化](README.md#不自动化)处理。
 
 ## 失败分类

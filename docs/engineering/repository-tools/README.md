@@ -23,7 +23,7 @@ kind: engineering
 
 ## 安装与按需指引
 
-仓库锁定已构建的 `tools/concord/concord-sdlc-0.5.0.tgz`，根包、repo-tools 与 e2e-runner 使用各自
+仓库锁定 vendored 发行包 `vendor/concord/concord-sdlc-0.10.0.tgz`，根包、repo-tools 与 e2e-runner 使用各自
 相对路径的 `file:` dependency，lockfile 保存 integrity。`pnpm install --frozen-lockfile` 安装同一包；
 离线安装仍要求其它依赖已在 pnpm cache 中。Git checkout 或全局 link 不替代仓库锁定的 engine。
 
@@ -38,8 +38,15 @@ pnpm run repo docs test audit --json
 `--skill` 只输出短入口，按 topic 读取具体命令，`--skill all` 才展开全文。它不加载 host 或执行 runner。
 通用模式的 `init/document/test/memory/trace/recovery` 指引不改变 NiceEval 的 formal 证据门。
 
-升级时由 Concord 构建并 pack，把固定 tarball 纳入本仓库，更新三处 dependency 和 lockfile 后验证
-公开 CLI、host identity 与原生 audit。包内实现及 skill 可独立读取，不依赖 Concord checkout。
+### 升级 Concord
+
+升级步骤只在本节维护：
+
+1. 从 Concord GitHub Release 取得新版本 tarball，核对发行 SHA-256，放入 `vendor/concord/` 并删除旧版本文件；
+2. 更新根包、`packages/repo-tools` 与 `packages/e2e-runner` 三处 `file:` dependency，重新生成 lockfile；
+3. 用 `pnpm exec concord --version` 确认版本，再验证公开 CLI、host identity、原生 audit 与 `pnpm lint`。
+
+包内实现及 skill 可独立读取，不依赖 Concord checkout、全局安装或未发布远端版本。
 
 ## 组合边界
 
@@ -63,8 +70,9 @@ Docs contribution 只把显式领域挂到 `pnpm run repo docs` 下，也不解�
 
 | 领域 | 入口 | 当前职责 |
 |---|---|---|
-| Feature | `pnpm run repo docs feature --help` | 发现、显示，并通过 `create`、`page add`、`page set` 维护首期 Feature 结构 |
-| Test | `pnpm run repo docs test --help` | 发现与显示 E2E owner 的 Trace 投影，并通过 `owner`、`regression`、`issue` 子命令维护受管关系；不是 Unit test runner |
+| Feature | `pnpm run repo docs feature --help` | 发现、显示，并通过 `create`、`page add`、`page set` 维护 Feature 结构 |
+| Test | `pnpm run repo docs test --help` | 发现与显示 E2E owner 的 Trace 投影，并通过 `case`、`regression`、`issue` 子命令维护受管关系；不是 Unit test runner |
+| Use Case | `pnpm run repo docs use-case --help` | 在既有 Feature 下创建叶子 Use Case 并维护父用例索引 |
 | Trace | `pnpm run repo docs trace recover --help` | 显式恢复中断的 relation publication |
 | Design | `pnpm run repo docs design --help` | `create`、`check`、`decide` 的候选到裁决闭环 |
 | Research | `pnpm run repo docs research --help` | `page`、`package`、`add-page` 与对精确 ref 的 `check` |
@@ -87,21 +95,7 @@ Git-private bundle 持有 candidate bytes、native receipts 和 reliability cert
 
 Feedback、Memory、PR、Examples、下游开发链接、Preview 与 Repository setup 保持各自的非 Docs 入口。准确入口是 `pnpm feedback`、`pnpm memory`、`pnpm pr:body`、`pnpm examples:sync`、`pnpm dev:link`、`pnpm preview:build`、`pnpm preview:accept` 与 `pnpm repo:setup`。`pnpm link` 是 pnpm 自带的反向链接命令，不能作为仓库脚本；构建并链接当前 candidate 使用 `pnpm dev:link <directory>`。
 
-PR 正文入口拥有受模板约束的 Git-private 编辑状态。`init` 只创建紧凑的受管草稿。`edit problem` 维护问题，`edit use-case` 按 Added / Changed / Removed 维护完整 NiceEval 用户工作流。`edit case` 维护具名 Before / After 产品面。仓库维护工具变化不伪造 NiceEval 产品 Use Case。
-
-`edit test` 以 canonical `path#caseId` 逐 case 录入可读叙述与源码选择。渲染器从源码关系 查找 current owner，再从 owner authority 读取最终 Feature 或 leaf Use Case。selector 不存在、owner 失效、canonical contract 缺失或声明的 Problem regression 非 current 时返回具名 typed failure。正文不显示内部 Owner，也不接受 Owner:/Covers:/Purpose:/Protects:/Regression:/Runs:/Asserts: 字段表。
-
-同一多-case 文件逐 case 说明，默认只展开一次完整源码；显式 `source=link` 在已有 PR 时改为目标 PR head repository 中固定 `H` 的完整源码和实际目标 base merge-base `B→H` diff 链接。首次 PR 的本地 render/check 不读取 GitHub，明确呈现无链接的 pending publication；发布前所有实际读取输入都从同一 `H` blob 读取并核对，工作树漂移或目标 repo/base/head 漂移拒绝发布。
-
-`edit verification` 维护模板要求的共享验证收据：candidate、可选 red、green、重复运行、固定条件与 Unit 数量。它在 Tests 的源码之后呈现一次，也支持只有实际验证而没有测试源码变化的任务；收据描述已取得的结果，不签发或替代正式 E2E evidence。
-
-`render`、`check`、`apply` 与 `create` 只消费受管状态，按模板顺序渲染并省略空方向与章节，不要求 agent 直接裁剪或编辑 Markdown。本地 `status` 与 `discard` 分别检查和删除受管草稿。remote close 仍是另一个需要当次授权的远端 mutation，三者互不暗示。正文不接受手写导入。
-
-PR 编辑器也直接拥有模板中的 Record、子进程变量与术语章节。
-`edit record` 维护新写入、既有读取和升级恢复场景；版本、保全规则与证据使用独立字段。
-`edit environment` 逐变量维护 Before、After、部署边界、必要性与安全影响。
-`edit terminology` 维护新增或移除的首选术语、前后句子及 canonical 词汇链接。
-这些字段通过具名命令维护，不把整段 Markdown 当作导入通道；旧草稿没有这些字段时保持原有内容。
+PR 正文入口 `pnpm pr:body` 拥有受模板约束的 Git-private 编辑状态；子命令、字段语义与发布边界见 [Pull Request skill](../../../.agents/skills/pull-request/SKILL.md) 与 `pnpm pr:body --help`。
 
 `pnpm run repo docs use-case create` 在显式指定的既有 Feature 下创建一个叶子 Use Case。
 调用者提供单段名称、标题与完整 Markdown 正文；工具拒绝路径穿越、已有目标、正文 metadata 和生成区。
@@ -160,7 +154,7 @@ YAML、Netlify 配置和 hooks 只决定平台何时调用正式命令、传入�
 它通过候选包的同一 Record 导入入口验证和迁移下游的历史 portable 数据，不重跑评估或改写下游原件。
 Function 的 Record、cutoff 和摘要来自同一已验证私有 generation；staging 完成前持有该 generation，并核对实际打包字节。
 
-同一 contribution 关闭 Netlify context identity，形成发布 closure 与 build receipt。`netlify.toml` 只调用入口并声明 publish directory 与 response headers。部署后的只读验收从 `pnpm preview:accept -- --input <file>` 进入，不把 Netlify token 或 GitHub token 交给领域命令。
+同一 contribution 关闭 Netlify context identity，形成发布 closure 与 build receipt。`netlify.toml` 只调用入口并声明 publish directory 与 response headers。部署后的只读验收从 `pnpm preview:accept --input <file>` 进入，不把 Netlify token 或 GitHub token 交给领域命令。
 
 PR 的文档与源码审阅由 [Concord 变更预览](concord-preview.md)提供。Preview contribution 取得实际目标分支与提交身份，将只读页面纳入同一发布目录；产品页读取 Record，差异页读取 Git 提交。
 
