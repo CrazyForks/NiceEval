@@ -102,9 +102,10 @@ View 经 `attempt.artifact` 分块读取图片 bytes，只在事件进入视口�
 
 Adapter 的转换代码属于受追踪源码时，修改它会按既有规则改变 Eval sourceClosure 并触发重跑；这与展示块本身无关。
 
-**持久格式。** 写入展示块的 `niceeval.execution-traces` 使用 family revision 2。
+**持久格式。** `display` 是 `niceeval.execution-traces` revision 1 事件上的可选字段，不新增 family revision，也不需要迁移。
 
-- reader 接受 revision 1 与 2。revision 1 的事件没有 `display` 字段，读取投影为 `display: absent`。
-- revision 2 的 decoder 是严格的：未知字段、未知 `kind` 或越过上限的值使该 collection 为 `invalid`。
-- 未知 revision 返回 `unsupported-format`。
+- 读取侧只接受与当前 revision 相等的 attachment。新增 revision 会让全部历史轨迹变为 `unsupported`，因此按 header 扩宽读取规则的先例，在 revision 1 内扩宽事件形状。
+- 没有 `display` 的事件读取投影为 `display: absent`。
+- 存在 `display` 时按严格形状解码：未知 `kind`、未知字段或越过上限的值使该 collection 为 `invalid`。
+- 旧 reader 不保证能读取带 `display` 的新事件。
 - 已封存的 Record 与 Snapshot 只读，不重写、不回填展示块。

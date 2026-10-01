@@ -58,7 +58,7 @@ show / View：按 section 与 kind 呈现
 
 ## Scope
 
-- 本方案定义 `recordTrace` 事件的 `display` 字段、`niceeval.execution-traces` revision 2 的持久形状、`attempt.trace` 的 section 结果，以及 `show --execution` 与 View 的呈现。
+- 本方案定义 `recordTrace` 事件的 `display` 字段、`niceeval.execution-traces` revision 1 中 `display` 的持久形状、`attempt.trace` 的 section 结果，以及 `show --execution` 与 View 的呈现。
 - 展示块只供人读，不进入 Verdict、Assertion、Judge、usage、diff、timing 或执行资格身份；它属于内容完整性身份。
 - 展示词汇由 NiceEval 定义。作者不提供 Markdown、HTML、颜色、布局、主题或组件；新的 `kind` 是 NiceEval 版本变化。
 - 取舍：展示在写入那一刻定型。Adapter 改进展示后，只有之后的 Attempt 获得新展示，已封存的 Attempt 保持封存时的展示。
@@ -74,7 +74,7 @@ show / View：按 section 与 kind 呈现
 | [L5](../../LIMITS.md#l5-文案语言边界) | satisfied | 展示文本与 `fields` label 是 Adapter 写入的数据，原文显示，不翻译 | [CLI](cli.md) |
 | [L6](../../LIMITS.md#l6-view-不提供作者组件层) | satisfied | View 只认 NiceEval 定义的 `kind`，不加载组件 | [Architecture · 不变量](architecture.md#不变量) |
 | [L7](../../LIMITS.md#l7-agent-专用投影) | satisfied | 四个 section 独立预算与状态；Conversation 投影保留 Events 分页；identity 每行一个；五种稳定 ID 均可展开。运行时验收见 G2 | [Architecture · Section](architecture.md#section)、[CLI · outline](cli.md#outline) |
-| [L8](../../LIMITS.md#l8-版本兼容) | satisfied | family revision 2 写入；reader 接受 1 与 2，revision 1 投影为 `display: absent`；未知 revision 返回 `unsupported-format` | [Architecture · 身份与复用](architecture.md#身份与复用) |
+| [L8](../../LIMITS.md#l8-版本兼容) | satisfied | `display` 是 revision 1 的可选字段；既有事件读取为 `display: absent`，历史 Record 不需要迁移 | [Architecture · 身份与复用](architecture.md#身份与复用) |
 | [L9](../../LIMITS.md#l9-附件) | satisfied | `image` 固定附件 descriptor 与 sha256；不符时返回 `inspection-record-integrity-failure`；bytes 经 `attempt.artifact` 读取 | [Library · 展示块](library.md#展示块) |
 
 ## Goals

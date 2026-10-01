@@ -194,6 +194,27 @@ source/field state 也是结果事实，View 只把它们映射到 `data-source-
 
 outline 显示通用领域事件及内建 Agent 投影，保留 producer、主体、时间、摘要、范围与完整性。
 conversation 和 command 继续保留各自的专用信息。长文本只给有界 preview；identity index 同样有界并报告遗漏。
+
+通用事件项带 `display`，是 Adapter 写入时封存的展示块的有界预览：
+
+```ts
+type PreviewText = { readonly preview: string; readonly omittedBytes: number };
+
+type ExecutionDisplay =
+  | { readonly state: "absent" }
+  | { readonly state: "present"; readonly blocks: readonly ExecutionDisplayBlockPreview[] };
+
+type ExecutionDisplayBlockPreview =
+  | { readonly kind: "text"; readonly text: PreviewText }
+  | { readonly kind: "message"; readonly role: "user" | "assistant" | "system" | "other"; readonly speaker?: string; readonly text: PreviewText }
+  | { readonly kind: "fields"; readonly fields: readonly { readonly label: string; readonly value: PreviewText | number | boolean | null }[] }
+  | { readonly kind: "code"; readonly language?: string; readonly text: PreviewText }
+  | { readonly kind: "image"; readonly artifactId: string; readonly alt: string; readonly mediaType: string; readonly byteLength: number; readonly sha256: string };
+```
+
+每个文本字段与 `fields` 字符串值最多预览 1 KiB，截在码点边界；`omittedBytes` 按 UTF-8 字节由 Inspection 计算。
+单个事件的序列化投影最多 8 KiB，页预算按序列化投影计，每页至少交付一个事件。
+由 Conversation 投影而成的事件 `display` 为 `absent`。`execution-event` detail 交付完整展示块。
 精确详情直接选择已封存身份，不要求该项出现在默认摘要中。调用方需要一项详情时，使用对应 selector：
 
 ```json
@@ -356,7 +377,7 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   摘要、section states 与 limitations。另给出可复制的 source、execution、timing、usage 和 diff 后续命令。
 - `@<locator> --source` 调用 `attempt.sources`，显示已封存 source 与 Assertion facts，保留
   source state、location、limitations 与 Evidence；不从文本推断断言或运行时原文。
-- `@<locator> --execution` 调用 `attempt.trace` 显示有界 outline。`--expand <stable-id>`
+- `@<locator> --execution` 调用 `attempt.trace` 显示有界 outline，展示块的呈现见下文[展示块呈现](#展示块呈现)。`--expand <stable-id>`
   必须和 `--execution` 一起使用，按持久事件、证据、`itemId`、`toolOccurrenceId` 或 `commandId`
   直接调用 `attempt.trace.detail`。目标可以位于默认摘要之外。导入 key、原生 source eventId、
   `t<N>.c<M>`、`cmd<N>` 或数组位置不能替代持久身份；找不到时返回 selection error，不猜测相邻项。
@@ -364,6 +385,29 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
 - `@<locator> --usage` 调用 `attempt.usage`，首先显示该局 totalCosts，再显示应用用途、实际模型和 Judge 明细。全账本费用完整时显示 Total costs；存在缺项时显示 Known subtotal、Incomplete 和 Missing sources，不把已知小计称为整局价格。实验中的每个 origin Attempt 复用同一总费用投影，不累加分页预览。
   input/output token、request 与 cost typed totals 均保留各自 state/coverage。renderer 不得从 observations 聚合 totals，也不得将缺失或 omitted 按零补齐。
 - `@<locator> --diff` 调用 `attempt.diff`，显示已封存 window 与 file changes，并保留 binary、oversized、capture failure 等边界。
+
+### 展示块呈现
+
+通用事件有展示块时，`show --execution` 按块呈现；没有展示块的事件显示 envelope 与 `summary`。
+
+| kind | outline 中的呈现 |
+|---|---|
+| `text` | 原文，按终端宽度折行 |
+| `message` | `<speaker 或 role 标签>: <text>` |
+| `fields` | label 列按块内最长 label 对齐 |
+| `code` | 等宽，不折行；超出终端宽度的行截断并标 `…` |
+| `image` | `[image] <alt>`，次行媒体类型、大小与 `artifactId` |
+
+outline 中有两种省略，标记不同：
+
+- 文本超过预览上限时标为 `… (N more bytes, --expand <eventId>)`，N 来自 Inspection result。
+- `code` 行超过终端宽度时只标 `…`。这是显示宽度省略，源文本完整。
+
+`--expand <eventId>` 先显示完整展示块，再显示 payload JSON、links、scope 与 evidence。
+展开后的 `code` 原样逐行输出，不折行、不截断、不加前缀，可以直接复制。
+`image` 展开后另给出读取该附件的 `attempt.artifact` query 请求；终端不内联图像。
+
+Events 的全部人读字符串按码点去掉控制字符与双向格式控制字符后再输出，包括 summary、actor label、limitation message 与展示块文本。
 
 ### selector 与 flag 组合
 

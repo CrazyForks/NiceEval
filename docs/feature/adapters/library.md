@@ -288,6 +288,88 @@ complete 的 limitations 必须为空，partial 必须有原因；从未提交�
 已验证的 partial；正常和失败路径应共享一次 finish。接纳时段结束后的调用拒绝且不改变封存事实。
 持久内容校验或 storage 失败阻止 Attempt publication，不能发布缺少声明证据的成功快照。
 
+### 事件展示块
+
+事件可以带可选的 `display`：一组人读展示块，随事件一起封存。`show --execution` 与 View 按块呈现，读取时不运行 Adapter 代码。
+没有 `display` 的事件以 envelope、`summary` 与 payload JSON 呈现。
+
+```ts
+type ExecutionDisplayBlock =
+  | { readonly kind: "text"; readonly text: string }
+  | {
+      readonly kind: "message";
+      readonly role: "user" | "assistant" | "system" | "other";
+      readonly speaker?: string;
+      readonly text: string;
+    }
+  | {
+      readonly kind: "fields";
+      readonly fields: readonly {
+        readonly label: string;
+        readonly value: string | number | boolean | null;
+      }[];
+    }
+  | { readonly kind: "code"; readonly language?: string; readonly text: string }
+  | { readonly kind: "image"; readonly artifactId: string; readonly alt: string };
+
+interface ExecutionTraceEvent {
+  // key、type、source、actor、time、summary、payload、links、evidence、scopeMemberships
+  readonly display?: readonly ExecutionDisplayBlock[];
+}
+```
+
+- `display` 省略表示没有展示块；空数组非法。块按数组顺序呈现，顺序不证明因果。
+- 文本原样保存，不解释 Markdown、HTML 或 ANSI；只保留 `\t` 与 `\n` 两种控制字符。
+- `message.role` 只决定人读样式，不进入 conversation、usage 或 Judge 材料。`speaker` 省略时显示 role 的英文标签。
+- `fields.value` 只接受有限标量，原样显示，不格式化单位或小数位。`code.language` 只是显示提示。
+- `image.artifactId` 必须是同一 Attempt 已由 `ctx.attach` 接纳、`mediaType` 为 `image/png`、`image/jpeg`、`image/webp` 或 `image/gif` 的附件。
+  接纳时固定附件的 `mediaType`、`byteLength` 与 `sha256`；媒体类型是标签，不证明 bytes 可解码。`alt` 必填。
+
+展示块与 `payload` 相互独立：payload 是领域事实，展示块是同一事实的人读形式。NiceEval 不校验二者一致，也不从 payload 生成展示块。
+展示块与 payload 一样只能放已脱敏、可公开的内容。
+
+| 项 | 上限 |
+|---|---|
+| 每事件块数 | 4 |
+| 每事件展示总量（规范化 UTF-8） | 8 KiB，计入每 Attempt 64 MiB 规范化输入 |
+| `fields` 项数 | 16 |
+| `label`、`speaker`、`language` | 128 UTF-8 bytes，不含换行 |
+| `alt` | 512 UTF-8 bytes，不含换行 |
+
+字符串不能含除 `\t`、`\n` 外的 C0/C1 控制字符，也不能含 U+2028、U+2029 或双向格式控制字符。
+违反任一规则时整份快照被拒绝，code 为 `execution-display-invalid`，并指出违规的 `events[i].display[j]` 与字段名。
+展示块参与同 `traceId` 的幂等比较；它不进入执行资格身份，修改展示内容不触发重跑。
+
+#### 轨迹保存在外部系统
+
+应用自己保存完整轨迹时，提交一个指向外部系统的事件，并把快照标为 `partial`：
+
+```ts
+await ctx.recordTrace({
+  traceId: "rpg",
+  schema: { id: "example.rpg/v1" },
+  collection: {
+    state: "partial",
+    limitations: [{ code: "external-trace", message: "Full trace is stored by the RPG server." }],
+  },
+  scopes: [],
+  events: [{
+    key: "run",
+    type: "rpg.run",
+    source: { id: "rpg-server", eventId: "run_8f2c" },
+    summary: "Full trace stored by the RPG server: run_8f2c",
+    payload: { runId: "run_8f2c" },
+    display: [
+      { kind: "text", text: "The full trace is stored by the RPG server. Query it with:" },
+      { kind: "code", language: "shell", text: "rpg-cli trace show run_8f2c" },
+    ],
+  }],
+});
+```
+
+命令是不可信的应用文本。NiceEval 不执行、不打开，也不验证外部系统里的数据是否存在。
+外部 ID 拼进命令前，Adapter 负责限定字符集或按目标 shell 引用；命令里不能放 token、密码或签名 URL。
+
 ## 保存 Attempt 附件
 
 自定义 Adapter 的 `create(ctx)` 可以用 `ctx.attach` 保存文本、图片或其它 bytes：
