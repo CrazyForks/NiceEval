@@ -26,6 +26,9 @@ import {
   RunIdSchema,
 } from "../record/codec/identifiers.ts";
 import { parseAttemptLocator } from "../attempt-locator.ts";
+import { ProjectConfiguration } from "../cli/project-configuration.ts";
+import { CurrentTargetUnavailable } from "../experiment/host/current.ts";
+import { openCurrentProjectSource } from "../inspection/project-source.ts";
 import {
   renderAttempt,
   renderDiff,
@@ -138,10 +141,12 @@ Attempt details:
 
   --help, -h                    Print show help.
 `;
-type Requirements = CliArguments | CliInvocationFacts | CliOutput;
+type Requirements = CliArguments | CliInvocationFacts | CliOutput | ProjectConfiguration;
 type Error = CliFeatureError;
 const failure = (operation: string, cause: unknown) => {
-  const detail = cause instanceof InspectionIntegrityError
+  const detail = cause instanceof CurrentTargetUnavailable || cause instanceof InspectionOperationError && cause.code === "current-target-unavailable"
+    ? `current-target-unavailable: ${cause.reason}\nRead fixed history: niceeval show --run <run-id>`
+    : cause instanceof InspectionIntegrityError
     ? `Record integrity failure for sealed Run ${cause.runId}.`
     : cause instanceof InspectionOperationError &&
         cause.code === "inspection-record-integrity-failure"
@@ -259,7 +264,13 @@ function runShow(
       : operationalInspectionSource(facts.cwd);
     return yield* Effect.scoped(
       Effect.gen(function* () {
-        const opened = yield* openInspectionSource(inspectionSource).pipe(
+        const current = decodedLocator === undefined && runIds.length === 0 && experimentIds.length === 0 && typeof parsed.values.record !== "string";
+        const prepare = current ? Effect.gen(function* () {
+          const project = yield* ProjectConfiguration;
+          const config = yield* project.load(facts.cwd).pipe(Effect.mapError((cause) => new CurrentTargetUnavailable({ code: "current-target-unavailable", reason: String(cause), cause })));
+          return yield* openCurrentProjectSource({ cwd: facts.cwd, config });
+        }) : openInspectionSource(inspectionSource);
+        const opened = yield* prepare.pipe(
           Effect.mapError((cause) => failure("open Record source", cause)),
         );
         const select = <A>(
@@ -283,6 +294,13 @@ function runShow(
           runIds.length === 0 &&
           experimentIds.length === 0
         ) {
+          if (current) {
+            const document = yield* select("project.get", () => selectInspectionOperation(opened, { kind: "project.get" }));
+            // The presentation model only extracts already-closed aggregate fields.
+            const view = yield* project("project.get", () => projectOverview({ ...document, operation: "overview.get", overview: document.project }));
+            yield* write("stdout", renderOverview(view, { all, current: document.project }));
+            return 0;
+          }
           const document = yield* select("overview.get", () =>
             selectInspectionOperation(opened, { kind: "overview.get" }),
           );
@@ -290,7 +308,7 @@ function runShow(
             "stdout",
             renderOverview(
               yield* project("overview.get", () => projectOverview(document)),
-              { all },
+              { all, recorded: true },
             ),
           );
           return 0;

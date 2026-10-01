@@ -152,8 +152,14 @@ export interface InspectionOverview {
 }
 
 interface SelectedSlot {
-  readonly target: LoadedInspectionRun;
-  readonly slot: RecordSlotIdentity;
+  readonly experimentId: string;
+  readonly evalId: string;
+  readonly attemptOrdinal: number;
+  readonly adapter: AdapterIdentity;
+  readonly model: string | null;
+  readonly labels: Readonly<Record<string, string>>;
+  readonly target?: LoadedInspectionRun;
+  readonly slot?: RecordSlotIdentity;
   readonly member: MemberDocument | undefined;
   readonly resolved: ResolvedInspectionAttempt | undefined;
   readonly analysis: AttemptAnalysis;
@@ -200,19 +206,22 @@ export function selectInspectionOverview(
 ): InspectionOverview {
   const runs = isLoadedInspectionRuns(facts) ? facts : loadInspectionRuns(facts);
   const selected = selectLatestSlots(runs, supportingRuns ?? runs);
-  const cells = groupSelectedSlots(selected, ({ target, slot }) =>
-    `${target.run.experimentId}\u0000${slot.evalId}`)
+  return aggregateSelectedSlots(selected);
+}
+
+function aggregateSelectedSlots(selected: readonly SelectedSlot[]): InspectionOverview {
+  const cells = groupSelectedSlots(selected, ({ experimentId, evalId }) =>
+    `${experimentId}\u0000${evalId}`)
     .map((slots) => makeCell(
       slots,
-      inspectionLabelKeys(selected.filter(({ target }) =>
-        target.run.experimentId === slots[0]?.target.run.experimentId)),
+      inspectionLabelKeys(selected.filter(({ experimentId }) =>
+        experimentId === slots[0]?.experimentId)),
     ));
-  const experiments = groupSelectedSlots(selected, ({ target }) =>
-    target.run.experimentId)
+  const experiments = groupSelectedSlots(selected, ({ experimentId }) => experimentId)
     .map((slots) => makeExperiment(
       slots,
       cells.filter(({ experimentId }) =>
-        experimentId === slots[0]?.target.run.experimentId),
+        experimentId === slots[0]?.experimentId),
       inspectionLabelKeys(slots),
     ));
 
@@ -221,6 +230,47 @@ export function selectInspectionOverview(
     experiments,
     cells,
   });
+}
+
+export interface InspectionCurrentSlotInput {
+  readonly experimentId: string;
+  readonly evalId: string;
+  readonly attemptOrdinal: number;
+  readonly evaluationKind: "pass" | "score";
+  readonly adapter: AdapterIdentity;
+  readonly model: string | null;
+  readonly labels: Readonly<Record<string, string>>;
+  readonly recorded?: {
+    readonly target: LoadedInspectionRun;
+    readonly slot: RecordSlotIdentity;
+    readonly member: MemberDocument;
+    readonly resolved: ResolvedInspectionAttempt;
+  };
+}
+
+/** Aggregate exactly the Host-assessed current positions; gaps add no value. */
+export function aggregateInspectionCurrentSlots(inputs: readonly InspectionCurrentSlotInput[]): InspectionOverview {
+  return aggregateSelectedSlots(inputs.map((input): SelectedSlot => {
+    const recorded = input.recorded;
+    return Object.freeze({
+      ...input,
+      ...(recorded ?? {}),
+      member: recorded?.member,
+      resolved: recorded?.resolved,
+      analysis: recorded === undefined ? Object.freeze({
+        assertionsState: "attempt-missing" as const,
+        evaluationKind: input.evaluationKind === "score" ? "points" as const : "pass" as const,
+        verdict: null,
+        score: emptyAttemptScore(),
+        costUSD: unavailableAttemptCost(),
+        durationMs: unavailableOperationalMetric(),
+        tokens: unavailableOperationalMetric(),
+        coverage: Object.freeze([]),
+        issues: Object.freeze([]),
+        ref: null,
+      }) : analyzeAttempt(recorded.resolved, recorded.target, recorded.member, recorded.slot),
+    });
+  }));
 }
 
 function isLoadedInspectionRuns(
@@ -256,6 +306,12 @@ function selectLatestSlots(
         ? undefined
         : resolveInspectionMemberAttempt(resolutionRuns, target, member);
       return Object.freeze({
+        experimentId: target.run.experimentId,
+        evalId: slot.evalId,
+        attemptOrdinal: slot.attemptOrdinal,
+        adapter: target.run.context.execution.adapter,
+        model: target.run.context.execution.model,
+        labels: target.run.context.labels,
         target,
         slot,
         member,
@@ -386,20 +442,21 @@ function makeCell(
   const first = slots[0];
   if (first === undefined) throw new Error("Overview cell cannot be empty");
   return Object.freeze({
-    experimentId: first.target.run.experimentId,
-    evalId: first.slot.evalId,
-    groupPath: groupPath(first.slot.evalId),
+    experimentId: first.experimentId,
+    evalId: first.evalId,
+    groupPath: groupPath(first.evalId),
     ...aggregate(slots, scoreForCell(slots)),
-    members: Object.freeze(slots.map((selected): InspectionOverviewMember => {
+    members: Object.freeze(slots.flatMap((selected): readonly InspectionOverviewMember[] => {
+      if (selected.target === undefined || selected.slot === undefined) return [];
       const resolved = selected.resolved;
-      return Object.freeze({
+      return [Object.freeze({
         runId: selected.target.run.runId,
         slotId: selected.slot.slotId,
         evalId: selected.slot.evalId,
         attemptOrdinal: selected.slot.attemptOrdinal,
         labels: inspectionLabels([selected], labelKeys),
         publication: overviewPublication(selected),
-      });
+      })];
     })),
   });
 }
@@ -413,7 +470,7 @@ function makeExperiment(
   if (first === undefined) throw new Error("Overview Experiment cannot be empty");
   const prefixes = new Map<string, SelectedSlot[]>();
   for (const selected of slots) {
-    const path = groupPath(selected.slot.evalId);
+    const path = groupPath(selected.evalId);
     for (let length = 1; length <= path.length; length += 1) {
       const prefix = path.slice(0, length);
       const key = prefix.join("\u0000");
@@ -433,9 +490,9 @@ function makeExperiment(
       ),
     }));
   return Object.freeze({
-    experimentId: first.target.run.experimentId,
-    adapter: adapterValue(slots.map(({ target }) => target.run.context.execution.adapter)),
-    model: executionValue(slots.map(({ target }) => target.run.context.execution.model)),
+    experimentId: first.experimentId,
+    adapter: adapterValue(slots.map(({ adapter }) => adapter)),
+    model: executionValue(slots.map(({ model }) => model)),
     labels: inspectionLabels(slots, labelKeys),
     ...aggregate(slots, scoreFromCells(cells)),
     groups: Object.freeze(groups),
@@ -571,7 +628,7 @@ function overviewPublication(
     });
   }
   if (resolved === undefined) {
-    throw new Error(`Published Slot ${selected.slot.slotId} has no readable Attempt`);
+    throw new Error(`Published Slot ${selected.slot?.slotId} has no readable Attempt`);
   }
   return Object.freeze({
     state: "published" as const,
@@ -600,20 +657,16 @@ function executionValue(
 }
 
 function inspectionLabelKeys(slots: readonly SelectedSlot[]): readonly string[] {
-  return Object.freeze([...new Set(slots.flatMap(({ target }) =>
-    Object.keys(target.run.context.labels)))].sort(compareText));
+  return Object.freeze([...new Set(slots.flatMap(({ labels }) => Object.keys(labels)))].sort(compareText));
 }
 
 function inspectionLabels(
   slots: readonly SelectedSlot[],
   keys: readonly string[],
 ): InspectionLabels {
-  const targets = new Map<string, LoadedInspectionRun>();
-  for (const { target } of slots) targets.set(target.run.runId, target);
-  const runs = [...targets.values()];
   return Object.freeze(Object.fromEntries(keys.map((key) => [
     key,
-    executionValue(runs.map(({ run }) => run.context.labels[key] ?? null)),
+    executionValue(slots.map(({ labels }) => labels[key] ?? null)),
   ])));
 }
 
@@ -676,7 +729,7 @@ function unavailableAttemptCost(): AttemptAnalysis["costUSD"] {
 function costForSlots(slots: readonly SelectedSlot[]): InspectionCostMetricValue {
   const unique = new Map<string, SelectedSlot>();
   for (const slot of slots) {
-    const key = slot.resolved?.locator ?? `slot:${slot.target.run.runId}:${slot.slot.slotId}`;
+    const key = slot.resolved?.locator ?? (slot.target === undefined ? `current:${slot.experimentId}:${slot.evalId}:${slot.attemptOrdinal}` : `slot:${slot.target.run.runId}:${slot.slot!.slotId}`);
     if (!unique.has(key)) unique.set(key, slot);
   }
   const subjects = [...unique.values()];

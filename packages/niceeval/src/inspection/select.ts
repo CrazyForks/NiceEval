@@ -5,6 +5,9 @@
 // @concord-implements docs/feature/insight/README.md
 import { Data, Result, Schema } from "effect";
 import { projectAttemptArtifact } from "./artifacts.ts";
+import { projectInput, type FrozenProjectInput } from "./project-input.ts";
+import { selectInspectionProject } from "./project.ts";
+import { InspectionProjectResultSchema } from "./project-result.ts";
 import { projectArtifactsListing } from "./artifact-list.ts";
 import { combineTotalUsageCosts, summarizeJudgeUsage, takeJudgeUsagePreview } from "../o11y/judge-usage-projection.ts";
 
@@ -125,7 +128,8 @@ export class InspectionOperationError extends Data.TaggedError("InspectionOperat
     | "inspection-operation-failed"
     | "inspection-result-invalid"
     | "evidence-budget-exceeded"
-    | "restart-required";
+    | "restart-required"
+    | "current-target-unavailable";
   readonly operation: InspectionOperationId;
   readonly reason: string;
   readonly identity?: { readonly runId: string };
@@ -200,6 +204,13 @@ function selectOperation(
   operation: InspectionOperation,
 ): unknown {
   switch (operation.kind) {
+    case "project.get": {
+      const input = requireCurrentProject(source, operation.experimentIds);
+      return Object.freeze({
+        ...resultMetadata(source, operation.kind, input.runs, [], [], locators(input.runs)),
+        project: decodeRequiredResult(operation.kind, InspectionProjectResultSchema, selectInspectionProject(input, operation.experimentIds)),
+      });
+    }
     case "overview.get": {
       const requested = operation.runIds ?? [];
       const selection = requested.length === 0
@@ -673,6 +684,7 @@ function loadForOperation(source: InspectionFactSource, operation: InspectionOpe
   readonly requestedRunIds: readonly string[];
   readonly missingRunIds: readonly string[];
 } {
+  if (operation.kind === "project.get") return { selected: requireCurrentProject(source, operation.experimentIds).runs, requestedRunIds: [], missingRunIds: [] };
   if (operation.kind === "overview.get") {
     const requested = operation.runIds ?? [];
     if (requested.length === 0) return { selected: loadInspectionRuns(source), requestedRunIds: [], missingRunIds: [] };
@@ -713,6 +725,16 @@ function loadForOperation(source: InspectionFactSource, operation: InspectionOpe
     requestedRunIds: Object.freeze([]),
     missingRunIds: Object.freeze([]),
   };
+}
+
+function requireCurrentProject(source: InspectionFactSource, experimentIds?: readonly string[]): FrozenProjectInput {
+  const input = projectInput(source);
+  if (source.kind !== "project-record" || input === undefined || input.cutoffIdentity !== source.cutoff().identity) throw new InspectionOperationError({
+    code: "current-target-unavailable", operation: "project.get",
+    reason: "Current project declarations are unavailable. Use overview.get or an exact run.get to read recorded results.",
+  });
+  for (const id of experimentIds ?? []) if (!input.target.experiments.some((experiment) => experiment.experimentId === id)) throw selectionMissing("project.get", `Current Experiment ${JSON.stringify(id)} was not found.`);
+  return input;
 }
 
 function loadRuns(

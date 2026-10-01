@@ -13,6 +13,7 @@ import { InspectionArtifactMetadataSchema, InspectionArtifactsPageLimitSchema, I
 import { isCommandId, isItemId, isToolOccurrenceId } from "../record/family/source-receipt/model.ts";
 import { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.ts";
 import { AssertionDetailResultSchema } from "./assertion-projection.ts";
+import { InspectionProjectResultSchema } from "./project-result.ts";
 import {
   InspectionAttemptDiffResultSchema, InspectionAttemptResultSchema,
   InspectionAttemptTimingResultSchema, InspectionAttemptUsageResultSchema,
@@ -31,6 +32,7 @@ const ItemIdSchema = Schema.String.pipe(Schema.check(Schema.makeFilter(isItemId)
 const ToolOccurrenceIdSchema = Schema.String.pipe(Schema.check(Schema.makeFilter(isToolOccurrenceId)));
 const CommandIdSchema = Schema.String.pipe(Schema.check(Schema.makeFilter(isCommandId)));
 const RunIdsSchema = Schema.Array(RunIdSchema);
+const ProjectExperimentIdsSchema = Schema.Array(ExperimentIdSchema).check(Schema.makeFilter((ids) => ids.length > 0 && new Set(ids).size === ids.length));
 const operation = <Kind extends string, Fields extends Schema.Struct.Fields>(kind: Kind, fields: Fields) =>
   Schema.Struct({ kind: Schema.Literal(kind), ...fields });
 
@@ -97,8 +99,9 @@ const spec = <Request extends Schema.Constraint, ResultFields extends Schema.Str
   readonly request: Request; readonly result: ResultFields; readonly factKinds: FactKinds;
 }) => Object.freeze(fields);
 
-/** The sole 16-operation protocol owner. Every request, result and descriptor projection is derived from this registry. */
+/** The sole protocol catalog owner. Every request, result and descriptor projection is derived from this registry. */
 export const inspectionProtocolRegistry = Object.freeze({
+  "project.get": spec({ request: operation("project.get", { experimentIds: Schema.optional(ProjectExperimentIdsSchema) }), result: { project: InspectionProjectResultSchema }, factKinds: ["current-project", "core", "assertions", "attempt-cost"] }),
   "overview.get": spec({ request: operation("overview.get", { runIds: Schema.optional(RunIdsSchema) }), result: { overview: InspectionOverviewResultSchema }, factKinds: ["core", "assertions", "attempt-cost"] }),
   "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "assertions", "attempt-cost", "agent-turns", "adapter-usage", "judge-usage"] }),
   "runs.list": spec({ request: operation("runs.list", { continuation: Schema.optional(Schema.String) }), result: { runs: Schema.Array(SealedRunSummarySchema), continuation: Schema.optional(Schema.String) }, factKinds: ["core"] }),
@@ -158,13 +161,19 @@ export type InspectionOperationFor<Kind extends InspectionOperationId> = Extract
   { readonly kind: Kind }
 >;
 
-const successSchema = (id: InspectionOperationId, entry: (typeof inspectionProtocolRegistry)[InspectionOperationId]) => {
+const successSchema = (
+  id: InspectionOperationId,
+  entry: (typeof inspectionProtocolRegistry)[InspectionOperationId],
+): Schema.Codec<InspectionSuccessDocument, InspectionSuccessEncoded> => {
   const fields = Schema.fieldsAssign({ operation: Schema.Literal(id), ...entry.result });
-  if (id === "runs.list") return RunsListSuccessMetadataSchema.pipe(fields);
-  if (id === "runs.compare") return CompareSuccessMetadataSchema.pipe(fields);
-  return SuccessMetadataSchema.pipe(fields);
+  const schema = id === "runs.list" ? RunsListSuccessMetadataSchema.pipe(fields)
+    : id === "runs.compare" ? CompareSuccessMetadataSchema.pipe(fields)
+    : SuccessMetadataSchema.pipe(fields);
+  // Object.entries erases the ID/result correlation established by the registry.
+  return schema as unknown as Schema.Codec<InspectionSuccessDocument, InspectionSuccessEncoded>;
 };
-export const InspectionSuccessDocumentSchema = Schema.Union(specs.map(([id, entry]) => successSchema(id as InspectionOperationId, entry)));
+export const InspectionSuccessDocumentSchema: Schema.Union<readonly Schema.Codec<InspectionSuccessDocument, InspectionSuccessEncoded>[]> =
+  Schema.Union(specs.map(([id, entry]) => successSchema(id as InspectionOperationId, entry)));
 
 const explanationSchema = (id: InspectionOperationId, entry: (typeof inspectionProtocolRegistry)[InspectionOperationId]) => {
   const fields = Schema.fieldsAssign({
@@ -186,13 +195,16 @@ export const InspectionFailureDocumentSchema = Schema.Struct({
   protocol: Schema.Literal(QUERY_PROTOCOL), outcome: Schema.Literal("failure"),
   operation: Schema.NullOr(InspectionOperationIdSchema),
   failure: Schema.Struct({
-    code: Schema.Literals(["inspection-request-invalid", "inspection-selection-missing", "inspection-source-invalid", "inspection-record-integrity-failure", "inspection-operation-failed", "inspection-result-invalid", "evidence-budget-exceeded", "restart-required"]),
+    code: Schema.Literals(["inspection-request-invalid", "inspection-selection-missing", "inspection-source-invalid", "inspection-record-integrity-failure", "inspection-operation-failed", "inspection-result-invalid", "evidence-budget-exceeded", "restart-required", "current-target-unavailable"]),
     reason: Schema.String,
     identity: Schema.optional(Schema.Struct({ runId: Schema.String })),
     correction: Schema.Literals(["fix-request", "choose-existing-selection", "fix-record-source", "retry", "upgrade-or-report", "restart"]),
   }),
 });
-export const InspectionDocumentSchema = Schema.Union([
+export const InspectionDocumentSchema: Schema.Union<readonly [
+  typeof InspectionDiscoveryDocumentSchema, typeof InspectionSuccessDocumentSchema,
+  typeof InspectionExplanationDocumentSchema, typeof InspectionFailureDocumentSchema,
+]> = Schema.Union([
   InspectionDiscoveryDocumentSchema, InspectionSuccessDocumentSchema,
   InspectionExplanationDocumentSchema, InspectionFailureDocumentSchema,
 ]);
@@ -212,6 +224,15 @@ export type InspectionSuccessDocumentFor<Kind extends InspectionOperationId> = K
   ? MetadataFor<Kind> & { readonly operation: Kind } & ResultFields<Kind>
   : never;
 export type InspectionSuccessDocument = InspectionSuccessDocumentFor<InspectionOperationId>;
+type SuccessEncodedFor<Kind extends InspectionOperationId> = Kind extends InspectionOperationId
+  ? (Kind extends "runs.list" ? Schema.Codec.Encoded<typeof RunsListSuccessMetadataSchema>
+      : Kind extends "runs.compare" ? Schema.Codec.Encoded<typeof CompareSuccessMetadataSchema>
+      : Schema.Codec.Encoded<typeof SuccessMetadataSchema>)
+    & { readonly operation: Kind }
+    & { readonly [Field in keyof Registry[Kind]["result"]]: Registry[Kind]["result"][Field] extends Schema.Constraint
+        ? Schema.Codec.Encoded<Registry[Kind]["result"][Field]> : never }
+  : never;
+type InspectionSuccessEncoded = SuccessEncodedFor<InspectionOperationId>;
 export type InspectionExplanationDocumentFor<Kind extends InspectionOperationId> = Kind extends InspectionOperationId
   ? Omit<MetadataFor<Kind>, "outcome"> & { readonly outcome: "explanation"; readonly operation: Kind; readonly factKinds: Registry[Kind]["factKinds"] }
   : never;

@@ -32,6 +32,7 @@ import type {
 } from "./model.ts";
 import { decodeBase64Bytes } from "../inspection/bytes.ts";
 import { displayTextHasForbiddenCharacter } from "../record/family/execution-traces/schema.ts";
+import type { InspectionProjectResult } from "../inspection/project-result.ts";
 
 const TERMINAL_OPTIONS = Object.freeze({ width: 80, mode: "plain" as const });
 
@@ -124,6 +125,7 @@ const attemptBlocks = (
   cells: OverviewView["cells"],
   group: string | null,
   all: boolean,
+  showFailed = false,
 ): readonly TerminalPanelContentBlock[] => {
   let shownErrors = 0;
   return cells.flatMap((cell) => {
@@ -134,7 +136,7 @@ const attemptBlocks = (
         if (member.publication.state !== "published") return true;
         if (
           member.publication.verdict === "passed" ||
-          member.publication.verdict === "failed"
+          (member.publication.verdict === "failed" && !showFailed)
         ) return false;
         if (member.publication.verdict !== "errored") return true;
         shownErrors += 1;
@@ -186,7 +188,7 @@ const attemptBlocks = (
   });
 };
 
-const hiddenAttemptSummary = (cells: OverviewView["cells"]): string | null => {
+const hiddenAttemptSummary = (cells: OverviewView["cells"], showFailed = false): string | null => {
   const counts = { passed: 0, scored: 0, failed: 0, errored: 0 };
   for (const cell of cells) {
     for (const member of cell.members) {
@@ -206,7 +208,7 @@ const hiddenAttemptSummary = (cells: OverviewView["cells"]): string | null => {
   const hidden = [
     ...(counts.passed > 0 ? [`${counts.passed} passed`] : []),
     ...(counts.scored > 0 ? [`${counts.scored} scored`] : []),
-    ...(counts.failed > 0 ? [`${counts.failed} failed`] : []),
+    ...(!showFailed && counts.failed > 0 ? [`${counts.failed} failed`] : []),
     ...(counts.errored > 5 ? [`${counts.errored - 5} errored`] : []),
   ];
   return hidden.length === 0 ? null : `${hidden.join("; ")} Attempts hidden`;
@@ -216,9 +218,10 @@ const compactContinuation = (
   cells: OverviewView["cells"],
   experimentId: string,
   all: boolean,
+  showFailed = false,
 ): readonly TerminalPanelContentBlock[] => {
   if (all) return [];
-  const hidden = hiddenAttemptSummary(cells);
+  const hidden = hiddenAttemptSummary(cells, showFailed);
   return hidden === null
     ? []
     : [
@@ -245,16 +248,26 @@ const textOrNotRecorded = (value: string | null | undefined): string =>
 
 export function renderOverview(
   value: OverviewView,
-  options: { readonly all?: boolean } = {},
+  options: { readonly all?: boolean; readonly recorded?: boolean; readonly current?: InspectionProjectResult } = {},
 ): string {
   const all = options.all === true;
+  const current = options.current;
   const blocks: TerminalBlock[] = [
     {
       kind: "panel",
-      title: "NiceEval results",
+      title: current === undefined ? options.recorded === true ? "Recorded results" : "NiceEval results" : "Current results",
       blocks: [
         { kind: "divider", title: "Totals" },
-        aggregateEntries(value.totals),
+        current === undefined ? aggregateEntries(value.totals) : {
+          kind: "keyValue",
+          entries: [
+            { key: "Covered", value: `${current.coverage.covered}/${current.coverage.expected}` },
+            { key: "Gaps", value: String(current.coverage.gaps) },
+            { key: "Verdicts", value: `${value.totals.passed} passed; ${value.totals.failed} failed; ${value.totals.errored} errored; ${value.totals.skipped} skipped` },
+            ...(value.totals.evaluationKind === "points" ? [] : [{ key: "Pass rate", value: passRate(value.totals.passRate) }]),
+            ...(value.totals.evaluationKind === "pass" ? [] : [{ key: "Score", value: metric(value.totals.score) }]),
+          ],
+        },
       ],
     },
   ];
@@ -278,17 +291,15 @@ export function renderOverview(
             kind: "table" as const,
             columns: [
               { header: "Experiment" },
-              { header: "Observed" },
-              { header: "Adapter" },
-              { header: "Model" },
+              { header: current === undefined ? "Observed" : "Covered" },
+              ...(current === undefined ? [{ header: "Adapter" }, { header: "Model" }] : [{ header: "Gaps" }]),
               ...(showPassRate ? [{ header: "Pass rate" }] : []),
               ...(showScore ? [{ header: "Score" }] : []),
             ],
             rows: group.experiments.map((experiment) => [
               relativeToGroup(experiment.experimentId, group.name),
               `${experiment.aggregate.observed}/${experiment.aggregate.expected}`,
-              adapterValue(experiment.adapter),
-              executionValue(experiment.model),
+              ...(current === undefined ? [adapterValue(experiment.adapter), executionValue(experiment.model)] : [String(current.experiments.find(({ experimentId }) => experimentId === experiment.experimentId)!.denominator.missing)]),
               ...(showPassRate ? [passRate(experiment.aggregate.passRate)] : []),
               ...(showScore ? [metric(experiment.aggregate.score)] : []),
             ]),
@@ -296,6 +307,38 @@ export function renderOverview(
         ];
       }),
     });
+  }
+  if (current !== undefined) {
+    for (const experiment of current.experiments) {
+      const group = experimentGroup(experiment.experimentId);
+      const experimentCells = value.cells.filter((cell) => cell.experimentId === experiment.experimentId && cell.members.length > 0);
+      const gaps = current.slots.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
+      blocks.push({
+        kind: "panel",
+        title: `Attempts · ${group ?? experiment.experimentId}`,
+        blocks: [
+          ...(group === null ? [] : [{ kind: "divider" as const, title: `Experiment ${experiment.experimentId}`, attachNext: true }]),
+          ...gaps.flatMap((slot): TerminalPanelContentBlock[] => slot.state !== "gap" ? [] : [
+            { kind: "divider", title: `Eval ${relativeToGroup(slot.evalId, group)}`, attachNext: true },
+            { kind: "divider", title: `Gap ${slot.reason}`, attachNext: slot.previous !== null },
+            ...(slot.previous === null ? [] : [{ kind: "divider" as const, title: `Previous result ${slot.previous.locator}` }]),
+          ]),
+          ...attemptBlocks(experimentCells, group, all, true),
+          ...compactContinuation(experimentCells, experiment.experimentId, all, true),
+        ],
+      });
+    }
+    if (current.history.length > 0) blocks.push({
+      kind: "panel",
+      title: "History",
+      blocks: [{
+        kind: "table",
+        columns: [{ header: "Experiment" }, { header: "Eval" }, { header: "Attempt" }, { header: "Previous result" }],
+        rows: current.history.map((slot) => [slot.experimentId, slot.evalId, String(slot.attemptOrdinal), slot.locator ?? slot.sourceRunId]),
+      }],
+    });
+    const next = current.experiments.filter((experiment) => experiment.denominator.missing > 0);
+    return terminal(blocks) + next.map((experiment) => `\nNext: niceeval exp ${experiment.experimentId} --dry\n`).join("");
   }
   if (value.cells.length > 0) {
     for (const group of groupExperiments(value)) {

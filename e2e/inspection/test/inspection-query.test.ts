@@ -7,6 +7,7 @@ import { expect, test } from "vitest";
 import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
 const OPERATION_CATALOG = [
+  "project.get",
   "overview.get",
   "experiment.get",
   "runs.list",
