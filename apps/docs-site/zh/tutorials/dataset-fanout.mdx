@@ -1,12 +1,14 @@
 ---
-title: "数据驱动测试（dataset fan-out）：用多份数据运行同一套评估用例"
+title: "数据驱动测试：一份测试集生成多条评估用例"
 sidebarTitle: "数据驱动测试"
-description: "从 .eval.ts 文件导出数组或 keyed record，将一套评估逻辑展开为多个 case。用 loadYaml 或 loadJson 读取外部测试集，并获得稳定 ID。"
+description: "几十条评估逻辑相同、只有输入不同时，从一个 .eval.ts 导出数组或对象，一套逻辑生成多条评估用例。也可以用 loadYaml 或 loadJson 读外部测试集，并给每条起稳定的 ID。"
 ---
 
 import { DatasetFanout } from '/snippets/diagram-dataset-fanout.jsx';
 
-数据驱动测试（dataset fan-out）适合大量结构相同、输入不同的测试。例如 SQL 生成、意图分类、检索问答和工具选择。
+你在评估一个 SQL 生成功能，手上有 80 个“问题 + 期望结果”的样例。每条的检查逻辑都一样：发问题、跑 SQL、比结果。给每条写一个文件，改一次检查逻辑就要改 80 处。
+
+数据驱动测试让你只写一份逻辑，用测试集生成多条评估用例。意图分类、检索问答、工具选择这类大量同构的测试都适合这样写。
 
 <DatasetFanout />
 

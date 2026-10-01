@@ -1,13 +1,12 @@
 ---
-title: "用评估组复用 Sandbox"
+title: "用评估组让相关评估共用 Sandbox"
 sidebarTitle: "评估组"
-description: "用 defineEvalGroup 显式声明兼容成员：同组按稳定 ID 串行复用一台 Sandbox，不同组继续并行，并把公共准备放到正确的 Sandbox Layer。"
+description: "几组评估各自需要一套很重的工具链时，用 defineEvalGroup 把它们分组：同组共用一台 Sandbox 依次执行，不同组照常并行。"
 ---
 
-一批评估用例共用同一套重工具链时，你通常同时需要两件事：不要为每道题重复创建
-Sandbox，也不要为了复用而把整批任务都降成串行。`defineEvalGroup()` 把兼容的评估用例
-划入同一个物理复用边界。同组真实派发的 Attempt 稳定串行并复用一台 Sandbox；不同组和
-未分组的评估用例仍可使用其它并发位。
+你的评估集里有 20 道 Rust 题和 30 道 Python 题。Rust 题都要一套装好 cargo 和依赖的环境，装一次要五分钟。给每道题都装一遍太慢；用 `sandboxReuse` 把整批 50 道题串起来又太慢，Python 题根本不需要等 Rust 题。
+
+评估组解决这个问题。用 `defineEvalGroup()` 把 20 道 Rust 题划进同一组：组内共用一台 Sandbox，按 ID 依次执行；Python 题和其它组照常并行。
 
 | 你会得到什么 | 运行行为 |
 | --- | --- |

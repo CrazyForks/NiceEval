@@ -1,10 +1,12 @@
 ---
-title: "配置并验证 Judge"
+title: "配置 Judge，并确认它真的能打分"
 sidebarTitle: "配置并验证 Judge"
-description: "选择具名 Judge Provider，用 rubric 和命名材料完成一次真实判分。"
+description: "给裁判模型 Judge 选好 Provider、模型和 API Key，再用一条最小评估跑一次真实判分，确认配置无误后再大批使用。"
 ---
 
-Judge 适合规则难以写成精确 Match 的开放式质量判断。先用一条最小评估确认模型、Key 和端点能完成真实判分。
+“讲解是否适合小学生”“回答有没有编造事实”这类问题，正则写不出来，要交给裁判模型 Judge 打分。
+
+Judge 本身也会出错：API Key 不对、端点写错、模型名拼错。这些问题如果等到 200 条评估跑完才发现，前面的 Judge 分数全都拿不到。所以先配好，再用一条最小评估跑一次真实判分，确认能拿到分数再大批使用。
 
 ## 配置 Judge Runtime
 

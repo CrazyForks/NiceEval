@@ -1,10 +1,14 @@
 ---
-title: "用 Plugin 复用完整运行条件"
+title: "用 Plugin 复用一整套运行条件"
 sidebarTitle: "Plugin"
-description: "用 definePlugin 组合宿主生命周期与 command-only SandboxLayer，并在多个 owner 之间复用。"
+description: "同一套“先在宿主机起服务、再在 Sandbox 里准备环境”的条件要在多个 Experiment、评估组或评估用例里用时，用 definePlugin 写一次，到处挂载。"
 ---
 
-Plugin 把一项可复用条件的稳定身份、宿主生命周期和 Sandbox action 放在同一个 family 中。它不是另一套 Sandbox DSL，也不能选择 Provider template。
+你的几个对比实验都要接同一个记忆服务：在宿主机上开一条隧道，再在 Sandbox 里写入连接配置、装好命令行工具。把这些代码复制到每个 Experiment 里，改一处就要改好几处。
+
+Plugin 把这样一整套条件写在一起：它叫什么、宿主机上要起停什么、Sandbox 里要执行哪些准备命令。写好后挂到 Experiment、评估组或评估用例上就能复用。
+
+Plugin 只负责条件本身，不负责选环境：用哪个 Docker 镜像、E2B template 或 Vercel snapshot，仍由 `sandbox` 字段决定。
 
 Agent 的 Skill、MCP server 和原生 Plugin 仍传给 Agent factory。Docker image、E2B template 或 Vercel snapshot 由 Experiment、评估组或评估用例的 `sandbox` 字段选择。
 

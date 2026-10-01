@@ -1,14 +1,14 @@
 ---
 title: "在一批评估中复用 Sandbox"
 sidebarTitle: "复用 Sandbox"
-description: "在 Experiment 里声明 sandboxReuse 让多条 Attempt 共用 Sandbox，让 before/after 可安全重放，并配好 lifetimeMs。无法安全保留状态时改用并发。"
+description: "每条 Attempt 都新建 Sandbox 太慢时，用 sandboxReuse 让一批 Attempt 依次共用同一个 Sandbox。说明它省了什么、留下了什么，以及准备代码要怎么写才能安全重放。"
 ---
 
 import { SandboxLanes } from '/snippets/diagram-sandbox-lanes.jsx';
 
-一批评估可以安全共用同一个运行环境时，每条 Attempt 都新建 Sandbox 会重复 Provider 启动。
-在 Experiment 里声明 `sandboxReuse: true`，多条 Attempt 依次共用同一个 Sandbox。每个复用实例只创建一次；
-每条真实 Attempt 仍有自己的 `.before()` / `.after()` 计划，题间 NiceEval 会重置工作目录。声明式 Docker action 可按指纹复用匹配的准备前缀。
+本地冒烟一批评估时，你发现大部分时间都花在等 Sandbox 启动和装依赖上，Agent 真正干活只占一小部分。
+
+在 Experiment 里声明 `sandboxReuse: true`，多条 Attempt 会依次共用同一个 Sandbox。每个 Sandbox 只创建一次，题与题之间 NiceEval 会把工作目录恢复到起始状态。每条 Attempt 仍然真实执行，也仍然有自己的 `.before()` / `.after()` 准备和收尾。没变的 Docker 准备步骤会直接复用，不重新执行。
 
 <Note>
   本页讲 Experiment 级的 `sandboxReuse`。只有几组兼容的评估需要各自的复用边界时，使用
@@ -17,7 +17,7 @@ import { SandboxLanes } from '/snippets/diagram-sandbox-lanes.jsx';
 </Note>
 
 <Warning>
-  题间 reset 不是整台 Sandbox 归零。NiceEval 只按分类账恢复 `workdir`。`/opt`、`$HOME`、`/tmp` 等 workdir 外状态、全局安装、包缓存和后台进程会保留。大型持久 build/cache 由作者负责选择容量上限、阈值告警、清理或轮换策略。无法安全继续时还要有退休 Sandbox 的策略。
+  题间重置不是整台 Sandbox 归零。NiceEval 只恢复工作目录 `workdir`。`/opt`、`$HOME`、`/tmp` 等 workdir 外状态、全局安装、包缓存和后台进程会保留。大型持久 build/cache 由作者负责选择容量上限、阈值告警、清理或轮换策略。无法安全继续时还要有退休 Sandbox 的策略。
 </Warning>
 
 先说清代价，再说怎么开：
