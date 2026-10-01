@@ -15,7 +15,7 @@ GitHub Issue 跟踪公开、已脱敏且需要 NiceEval maintainer 后续处理�
 Memory 保存调查后形成的 Problem、Decision 与可复用 know-how。
 Observation 是两者的事实起点，不是第三种长期 owner。
 
-本页是 Issue 创建、分诊、关闭和机器重试的唯一工程契约。本地 Observation draft 的命令 owner 是 `pnpm exec concord issue`；它只维护 `docs/issues/` 下的本地记录，不执行远端 GitHub mutation，也不把 Issue 变成 Memory、Feedback 或通用 CRUD 对象。
+本页是 Issue 创建、分诊、关闭和机器重试的唯一工程契约。本地 Observation draft 的命令 owner 是 `pnpm exec concord issue`；它只维护 `docs/issues/` 下的本地问题条目，不执行远端 GitHub mutation，也不把 Issue 变成 Memory、Feedback 或通用 CRUD 对象。
 实际操作先读 [Issue Skill](../../../.agents/skills/issue/SKILL.md)。
 
 ## Owner 边界
