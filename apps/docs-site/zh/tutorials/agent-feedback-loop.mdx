@@ -1,16 +1,26 @@
 ---
 title: "让 Coding Agent 根据结果迭代"
 sidebarTitle: "Coding Agent 反馈闭环"
-description: "让 Coding Agent 读取 receipt 的 createdRunIds，查看结果，再区分被测失败、证据错误与评估用例误判。"
+description: "让 Coding Agent 自己跑评估、读结果、判断该改应用还是改断言，再复验，不用你把终端输出复制来复制去。"
 ---
 
-Coding Agent 可以用命令行完成一次清楚的反馈闭环：阅读安装版本的文档，运行 Experiment，读取最后的 receipt，用 receipt 的 `createdRunIds` 查看结果，再修改程序或评估用例并重新运行。
+你让 Coding Agent 修一个回归。它改完代码，你跑评估，把失败的输出复制给它，它再改，你再跑。来回几轮，大部分时间花在了搬运终端内容上。
+
+更好的做法是让 Agent 自己完成这个循环：
+
+1. 跑评估。
+2. 从运行结束时的 receipt 里拿到这次的 Run ID。
+3. 用 Run ID 查看结果，找到失败的那几次运行。
+4. 判断该改应用、Adapter 还是评估用例。
+5. 改完再跑同一范围，确认修好了。
+
+这一页说明每一步该用哪个命令，以及 Agent 要遵守的几条边界。
 
 ## 先读取安装版本的文档
 
 NiceEval 把中文文档发布在 npm 包的 `docs-site/zh/` 目录，并在包根提供供 Coding Agent 使用的 `INDEX.md`。Coding Agent 应先读取 `node_modules/niceeval/INDEX.md`，再从索引进入当前任务需要的页面，不依赖训练数据或其它版本的在线示例。这样可以保证 API、CLI 与安装版本一致。
 
-`npx niceeval init` 会初始化配置，并把一段托管指引写进项目的 `AGENTS.md`。如果项目只有 `CLAUDE.md`，则写入 `CLAUDE.md`。两份文件都不存在时，新建 `AGENTS.md`。升级 NiceEval 后再运行一次 `init`，即可刷新托管区块。
+`pnpm exec niceeval init` 会初始化配置，并把一段托管指引写进项目的 `AGENTS.md`。如果项目只有 `CLAUDE.md`，则写入 `CLAUDE.md`。两份文件都不存在时，新建 `AGENTS.md`。升级 NiceEval 后再运行一次 `init`，即可刷新托管区块。
 
 托管指引把“编写源码”和“证明某次运行发生了什么”分开：前者当然可以读取 `evals/`、`agents/` 等项目源码；后者优先用 `niceeval show` 在终端审阅，用固定 `niceeval query` operation 取得稳定的机器数据。`niceeval view` 只用于浏览器审阅。不要扫描 `.niceeval/` 原始文件，也不要拿当前源码反推历史执行。公开读取面缺少必要证据时，应报告 NiceEval 的呈现缺口。
 
@@ -27,7 +37,7 @@ NiceEval 把中文文档发布在 npm 包的 `docs-site/zh/` 目录，并在包�
 ## 运行并保留 receipt
 
 ```sh
-npx niceeval exp checkout --json | tee .niceeval-invocation.ndjson
+pnpm exec niceeval exp checkout --json | tee .niceeval-invocation.ndjson
 ```
 
 `--json` 的每一行都是当前进程反馈。progress 与 diagnostic 只说明这次运行正在发生什么。最后恰好一条 receipt 包含：
@@ -66,9 +76,9 @@ pnpm exec niceeval show @<attempt-locator> --execution
 需要让脚本、CI 或 Agent 稳定处理结果时，先发现可用 operation，再发送完整 request：
 
 ```sh
-pnpm exec niceeval query discover
-pnpm exec niceeval query explain --request request.json
-pnpm exec niceeval query run --request request.json
+pnpm --silent exec niceeval query discover
+pnpm --silent exec niceeval query explain --request request.json
+pnpm --silent exec niceeval query run --request request.json
 ```
 
 `query` 返回固定格式的 Inspection result。需要在浏览器中阅读时，使用 `niceeval view --run <run-id>`；View 不作为终端 locator 的读取入口。Agent 应区分以下状态：
@@ -90,7 +100,7 @@ pnpm exec niceeval query run --request request.json
 让 Agent 每次只处理一个可验证假设：修改程序或评估用例，运行相同范围，再读取新的 receipt 和 Run。需要确认所有 slot 真实执行时使用：
 
 ```sh
-npx niceeval exp checkout --rerun all --json
+pnpm exec niceeval exp checkout --rerun all --json
 ```
 
 自动采用已有 Attempt 时，`--dry` 会说明原因。carry 与 accept 的理由随目标 Run 保存，并可在结果中查看；详情见[重跑与沿用](/zh/tutorials/rerun-and-cache)。

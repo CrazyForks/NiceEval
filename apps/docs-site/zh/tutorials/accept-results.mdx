@@ -1,12 +1,17 @@
 ---
-title: "审阅并采用历史 Attempt"
+title: "确认旧结果仍然成立，免去重跑"
 sidebarTitle: "采用历史 Attempt"
-description: "从 --dry 取得候选 locator，核对不可变 Attempt，再用 niceeval accept 原子采用明确结果，并用新 Run ID 验证分母与来源。"
+description: "配置变了、NiceEval 不敢沿用旧结果，而你确认它不受影响时，用 niceeval accept 明确接受它，省下一次付费重跑。"
 ---
 
-配置身份改变后，自动沿用可能被拒绝。如果你已经核对某个历史 Attempt，确认它在新配置下仍然成立，可以用 `niceeval accept` 明确采用它。
+你把公司的基础镜像从旧仓库迁到了新仓库，镜像内容一字节没变，只是 Experiment 里的镜像地址换了。NiceEval 看到配置变了，不会自动沿用上次的结果，`--dry` 显示整批都要重跑。可你知道这次改动不影响任何一道题，整批重跑却要花真钱。
 
-不要用这个命令跨过真实的评估条件变化。任务、断言、Agent 行为或 Sandbox 起点已经改变时，应重新运行并取得新证据。
+这时用 `niceeval accept` 明确接受那些旧结果。NiceEval 不会仅凭你的确认就放行，它会自己验证这次变化确实不影响结果。目前只有两种变化能通过验证：
+
+- Experiment 改了名，其它都没变。改名还可以直接用 `niceeval exp rename`，见 [CLI 参考](/zh/reference/cli)。
+- 官方 `dockerSandbox` 的镜像引用换了地址，但新旧两个引用都写明了同一个 `@sha256:` digest 和完整的 platform。只写 tag 的镜像不行，因为 tag 指向的内容可能已经变了。
+
+模型、flags、Judge、任务、断言或分值的任何变化都会被拒绝，返回 `accept-ineligible`。这些变化可能真的改变结果，应该重跑。
 
 ## 从计划取得候选 locator
 
