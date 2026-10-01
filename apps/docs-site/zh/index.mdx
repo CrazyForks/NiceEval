@@ -1,18 +1,18 @@
 ---
 title: "NiceEval"
 sidebarTitle: "首页"
-description: "给 AI Agent 写评估，像写单元测试一样顺手。用 TypeScript 断言工具调用、回复和代码改动，在本地反复运行并追查每一次失败。"
+description: "给 AI Agent 和 AI 应用写评估，像写单元测试一样顺手。用 TypeScript 断言工具调用、回复、代码改动和业务结果，在本地反复运行并追查每一次失败。"
 ---
 
 <div align="center">
 
 # NiceEval
 
-**给 AI Agent 写评估，像写单元测试一样顺手**
+**给 AI Agent 和 AI 应用写评估，像写单元测试一样顺手**
 
 </div>
 
-你改了 prompt、换了模型，或者给 Coding Agent 写了一个新 Skill，想知道它到底有没有变好。NiceEval 让你用 TypeScript 写下“什么算做对”，然后反复运行、打分、比较，并回到每一次失败去看 Agent 实际做了什么。
+你改了 prompt、换了模型、给 Coding Agent 写了一个新 Skill，或者调了 LLM 游戏里的 NPC，想知道它到底有没有变好。NiceEval 让你用 TypeScript 写下“什么算做对”，然后反复运行、打分、比较，并回到每一次失败去看 Agent 实际做了什么。
 
 所有运行都在你自己的机器和 CI 里完成，不需要注册账号。
 
@@ -32,12 +32,15 @@ description: "给 AI Agent 写评估，像写单元测试一样顺手。用 Type
 
 ## 按你要评的对象
 
-<CardGroup cols={2}>
-  <Card title="你自己的 AI 应用" icon="globe" href="/zh/tutorials/connect-your-agent">
-    写一个 Adapter 连上应用接口，断言回复、工具调用和结构化输出。
+<CardGroup cols={3}>
+  <Card title="你自己的 AI Agent" icon="globe" href="/zh/tutorials/connect-your-agent">
+    写一个 Adapter 连上 Agent 接口，断言回复、工具调用和结构化输出。
   </Card>
   <Card title="Coding Agent 和它的扩展" icon="wand-magic-sparkles" href="/zh/examples/coding-agent-extensions">
     在 Sandbox 里给 Agent 一个真实仓库，用对照实验衡量 Skill 和 Plugin 的效果。
+  </Card>
+  <Card title="任何 AI 应用，比如 LLM 游戏" icon="gamepad" href="/zh/tutorials/custom-application">
+    把发帖、回复、NPC 行动这类业务操作原样交给评估用例，检查结构化结果和世界状态。
   </Card>
 </CardGroup>
 

@@ -1,17 +1,17 @@
 ---
 title: "NiceEval 是什么"
 sidebarTitle: "介绍"
-description: "NiceEval 用 TypeScript 写 AI Agent 的评估：断言工具调用、回复和代码改动，反复运行、比较配置，再逐条追查失败。"
+description: "NiceEval 用 TypeScript 给 AI Agent 和 AI 应用写评估：断言工具调用、回复、代码改动和业务结果，反复运行、比较配置，再逐条追查失败。"
 ---
 
 import { SandboxMode } from '/snippets/diagram-sandbox-mode.jsx';
 import { DirectMode } from '/snippets/diagram-direct-mode.jsx';
 
-你改了一版 prompt，换了一个模型，或者给 Claude Code 写了一个新 Skill。它到底变好了没有？
+你改了一版 prompt，换了一个模型，给 Claude Code 写了一个新 Skill，或者调了游戏里 NPC 的提示词。它到底变好了没有？
 
 只靠手动试几次很难回答。Agent 每次的回答都不一样，一次碰巧答对说明不了什么。改好了这道题，可能又悄悄改坏了另一道。
 
-NiceEval 用来回答这个问题。你用 TypeScript 写下“什么算做对”，NiceEval 负责下面这些事：
+NiceEval 用来回答这个问题。它以 Agent 为主要场景，也能评任何由 LLM 驱动的应用。你用 TypeScript 写下“什么算做对”，NiceEval 负责下面这些事：
 
 - 连上被测对象，把任务发给它。
 - 按需要反复运行，每次都打分。
@@ -60,20 +60,42 @@ export default defineEval({
 
 ## 能评什么
 
-<CardGroup cols={2}>
-  <Card title="你自己的 AI 应用" icon="globe" href="/zh/tutorials/connect-your-agent">
+<CardGroup cols={3}>
+  <Card title="你自己的 AI Agent" icon="globe" href="/zh/tutorials/connect-your-agent">
     基于 AI SDK、LangGraph、Pi 或自研 Agent loop 都可以，用什么语言写也不影响。只要有一个能调用的接口，写一个 Adapter 就能接进来。
   </Card>
   <Card title="Coding Agent 和它的扩展" icon="code" href="/zh/tutorials/sandbox-agent">
     把 Claude Code、Codex 等 Agent 放进 Sandbox，给它一个真实仓库和任务，用项目自己的测试判分。适合衡量 Skill、Plugin 或 memory 的实际效果。
   </Card>
+  <Card title="任何 AI 应用，比如 LLM 游戏" icon="gamepad" href="/zh/tutorials/custom-application">
+    被测对象提供的是发帖、回复、NPC 行动这类业务操作时，把它们原样交给评估用例，直接检查返回的结构化结果和世界状态。
+  </Card>
 </CardGroup>
 
-两类被测对象的接入方式不同：
+不是对话式 Agent 的应用，评估里调用的就是它自己的方法。下面是 [`examples/zh/llm-x`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/llm-x) 里一个 AI 社交应用的评估：
+
+```ts
+// evals/social-journey.eval.ts —— 被测对象是一个 AI 驱动的社交应用
+export default x.defineEval({
+  description: "发帖、回复后，AI 角色作出回应，社交世界保持自洽",
+  async test(t) {
+    const initial = await t.visitDiscoveryPage();
+    const post = await t.post({ intent: "邀请大家今晚一起拍摄城市夜景", withImage: true });
+    t.check(post, authoredPost(initial.viewerId)).label("帖子属于当前玩家");
+
+    const reply = await t.reply({ postId: post.id, intent: "补充集合地点在河边步道入口" });
+    const responses = await t.waitForReplies(reply.id);
+    t.check(responses.length, greaterThan(0)).label("AI 角色作出回应");
+    t.check(worldMaterial(await t.refreshFeed()), coherentSocialWorld()).label("刷新后社交关系仍完整");
+  },
+});
+```
+
+被测对象的接入方式有两种：
 
 <Tabs>
   <Tab title="直连你的应用">
-    NiceEval 通过 Adapter 直接请求你的应用接口，不需要 Docker。
+    NiceEval 通过 Adapter 直接请求你的 Agent 或应用接口，不需要 Docker。对话式 Agent 和提供业务操作的应用都走这条路。
 
     <DirectMode />
   </Tab>

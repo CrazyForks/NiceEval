@@ -2,7 +2,7 @@
 
 # NiceEval
 
-**给 AI Agent 写评估，像写单元测试一样顺手**
+**给 AI Agent 和 AI 应用写评估，像写单元测试一样顺手**
 
 [![typescript](https://img.shields.io/badge/typescript-5.6-blue?style=flat-square)](packages/niceeval/tsconfig.json)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
@@ -13,9 +13,9 @@
 
 </div>
 
-你改了一版 prompt，换了一个模型，或者给 Claude Code 写了一个新 Skill。它到底变好了没有？
+你改了一版 prompt，换了一个模型，给 Claude Code 写了一个新 Skill，或者调了游戏里 NPC 的提示词。它到底变好了没有？
 
-NiceEval 用来回答这个问题。你用 TypeScript 写下“什么算做对”：该调用哪个工具、回复里该有什么、代码改完测试能不能过。NiceEval 负责连上被测对象、反复运行、打分，再把每一次运行的对话、工具调用、文件改动、耗时和花费都留下来，供你对比和追查。
+NiceEval 用来回答这个问题。它以 Agent 为主要场景，也能评任何由 LLM 驱动的应用。你用 TypeScript 写下“什么算做对”：该调用哪个工具、回复里该有什么、代码改完测试能不能过、游戏世界在一轮互动后是否还自洽。NiceEval 负责连上被测对象、反复运行、打分，再把每一次运行的对话、工具调用、文件改动、耗时和花费都留下来，供你对比和追查。
 
 所有东西都在你自己的机器和 CI 里跑，不需要注册账号。
 
@@ -81,6 +81,27 @@ pnpm exec niceeval view                     # 在浏览器里逐条翻对话和�
 **你自己的 AI 应用。** 不管它基于 AI SDK、LangGraph、Pi 还是自研的 Agent loop，也不管它用什么语言写，只要有一个能调用的接口（HTTP、WebSocket、SDK 都行）。你写一个 Adapter，把请求发过去、把回复翻译成 NiceEval 能读的事件，就能断言回复内容、工具调用、结构化输出和用量。
 
 **Coding Agent 和它的扩展。** NiceEval 把 Claude Code、Codex、OpenCode 等 Agent 放进 Docker 或云端 Sandbox，给它一个真实的仓库和任务，最后用项目自己的测试和文件改动来判分。适合回答“装了这个 Skill / Plugin / memory 之后，Agent 是不是真的更会干活”。
+
+**任何 AI 应用，比如 LLM 游戏。** 被测对象不一定是对话式 Agent。LLM 驱动的游戏、AI 社交应用、生成式工作流，提供的往往是“发帖”“回复”“NPC 行动”这类业务操作，而不是一来一回的消息。你用 `defineAdapter` 把这些操作原样交给评估用例，评估里直接调用带类型的 `t.post(...)`、`t.reply(...)`，检查返回的结构化结果和世界状态，开放式的质量再交给 Judge。
+
+```ts
+// evals/social-journey.eval.ts —— 被测对象是一个 AI 驱动的社交应用
+export default x.defineEval({
+  description: "发帖、回复后，AI 角色作出回应，社交世界保持自洽",
+  async test(t) {
+    const initial = await t.visitDiscoveryPage();
+    const post = await t.post({ intent: "邀请大家今晚一起拍摄城市夜景", withImage: true });
+    t.check(post, authoredPost(initial.viewerId)).label("帖子属于当前玩家");
+
+    const reply = await t.reply({ postId: post.id, intent: "补充集合地点在河边步道入口" });
+    const responses = await t.waitForReplies(reply.id);
+    t.check(responses.length, greaterThan(0)).label("AI 角色作出回应");
+    t.check(worldMaterial(await t.refreshFeed()), coherentSocialWorld()).label("刷新后社交关系仍完整");
+  },
+});
+```
+
+完整项目见 [`examples/zh/llm-x/`](examples/zh/llm-x/)：一个 AI 驱动的社交应用，评估覆盖发帖、回复、AI 角色回应、刷新时间线和生成配图。
 
 ## 为什么不直接用 DeepEval、LangFuse、Braintrust
 
