@@ -29,7 +29,7 @@ export default defineEval({
           status: "completed",
         }).exactly(1))
       .label('"remember_marker" input');
-    t.check(first.usage?.inputTokens, positive("first.usage.inputTokens"));
+    t.check((first.usage?.inputTokens ?? 0) + (first.usage?.cacheReadTokens ?? 0) + (first.usage?.cacheCreationTokens ?? 0), positive("first total input tokens"));
     t.check(first.usage?.outputTokens, positive("first.usage.outputTokens"));
     t.check(t.sessionId, isDefined<string | undefined>("aiSdkAgent 应捕获自己的会话 id"));
 
@@ -38,7 +38,7 @@ export default defineEval({
     );
     await recall.succeeded().orStop();
     t.check(recall.message, includes(DIRECT_MARKER));
-    t.check(recall.usage?.inputTokens, positive("recall.usage.inputTokens"));
+    t.check((recall.usage?.inputTokens ?? 0) + (recall.usage?.cacheReadTokens ?? 0) + (recall.usage?.cacheCreationTokens ?? 0), positive("recall total input tokens"));
     t.check(recall.usage?.outputTokens, positive("recall.usage.outputTokens"));
   },
 });

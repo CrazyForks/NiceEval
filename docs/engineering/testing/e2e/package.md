@@ -39,7 +39,7 @@ factory 交给 E2B 的公开构建输入可复现，且不会因 identity 分叉
 
 ## package-inspection-public-entry
 
-安装后的 ESM 与 CommonJS consumer 都能从 `niceeval/inspection` 取得同一个 18-operation registry、Schema 与 decoder，包含 Assertion image 读取操作。
+安装后的 ESM 与 CommonJS consumer 都能从 `niceeval/inspection` 取得同一个 19-operation registry、Schema 与 decoder，包含当前项目结果与 Assertion image 读取操作。
 两种模块系统加载 `niceeval/inspection/host` 都必须以 Node 的 `ERR_PACKAGE_PATH_NOT_EXPORTED` 拒绝。
 consumer 不能经 alias、fallback 或 Node 专用入口取得 source lifecycle。
 

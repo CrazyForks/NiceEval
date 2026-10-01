@@ -19,9 +19,9 @@ export default defineEval({
 
     await t.group("usage 逐轮非空", () => {
       t.check(
-        turn.usage?.inputTokens,
+        (turn.usage?.inputTokens ?? 0) + (turn.usage?.cacheReadTokens ?? 0) + (turn.usage?.cacheCreationTokens ?? 0),
         satisfies(
-          "usage.inputTokens > 0",
+          "total input usage, including cache reads and writes, > 0",
           (v) => typeof v === "number" && v > 0,
         ),
       );

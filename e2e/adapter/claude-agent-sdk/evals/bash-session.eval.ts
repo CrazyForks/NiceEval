@@ -45,7 +45,10 @@ export default defineEval({
           status: "completed",
         }).exactly(1))
       .label("shell command");
-    t.check(first.usage?.inputTokens, positive("first.usage.inputTokens"));
+    t.check(
+      (first.usage?.inputTokens ?? 0) + (first.usage?.cacheReadTokens ?? 0) + (first.usage?.cacheCreationTokens ?? 0),
+      positive("first total input usage, including cache reads and writes"),
+    );
     t.check(first.usage?.outputTokens, positive("first.usage.outputTokens"));
     t.check(
       t.sessionId,
@@ -61,8 +64,8 @@ export default defineEval({
     t.check(resumed.message, includes(sentinel));
     resumed.notCalledTool("shell");
     t.check(
-      resumed.usage?.inputTokens,
-      positive("resumed.usage.inputTokens"),
+      (resumed.usage?.inputTokens ?? 0) + (resumed.usage?.cacheReadTokens ?? 0) + (resumed.usage?.cacheCreationTokens ?? 0),
+      positive("resumed total input usage, including cache reads and writes"),
     );
     t.check(
       resumed.usage?.outputTokens,

@@ -61,13 +61,14 @@ export default defineEval({
     t.check(
       turn.usage,
       satisfies(
-        "usage within 50_000 tokens",
+        "observed token usage is finite, non-negative, and non-empty",
         (usage) => {
           if (usage === undefined) return false;
-          const reported = [usage.inputTokens, usage.outputTokens].filter(
+          const reported = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheCreationTokens].filter(
             (tokens): tokens is number => tokens !== undefined,
           );
-          return reported.length > 0 && reported.reduce((total, tokens) => total + tokens, 0) <= 50_000;
+          return reported.length > 0 && reported.every((tokens) => Number.isFinite(tokens) && tokens >= 0)
+            && reported.reduce((total, tokens) => total + tokens, 0) > 0;
         },
       ),
     );

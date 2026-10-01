@@ -6,6 +6,7 @@ Agent 会话场景使用 Direct Agent；只有文件、diff、shell 或其它 Sa
 
 每次 Repo invocation 都通过 `niceeval exp --rerun all` 完整生成自己的 `.niceeval`，再从退出码和
 固定 `query` Inspection 的 versioned JSON 观察结果。
+Repo 的 15 分钟期限包含默认并行运行和资源终结。逐项启动已安装 CLI 的 values owner 保留 600 秒操作预算及 60 秒终结预算；大量工具事件的 scopes owner 保留 600 秒，二者不减少公开读回条目。
 不签入预生成结果，不从 Adapter Repo 注入 Eval，也不伪造 `Turn.events`、session 或 Sandbox ledger。某个契约分支需要不同 evidence
 时，直接增加一条目的明确的 Eval。
 

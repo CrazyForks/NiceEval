@@ -66,9 +66,9 @@ function assertionOutcomeMap(entries: readonly { display: unknown; decision: unk
 
 test.concurrent("值与连续 Match 登记可审阅的检查结果", async () => {
   const startedAt = performance.now();
-  // 113 installed CLI detail reads take about 240s locally; retain CI headroom
-  // and 60s for termination/staging without extending the Repo's 10m boundary.
-  const deadlineAt = startedAt + 420_000;
+  // CI needs about 4.4s per installed CLI detail read (113 entries).
+  // Retain headroom for the full readback and 60s for termination/staging.
+  const deadlineAt = startedAt + 600_000;
   await evalE2E.case(
     "values",
     { artifacts: [
@@ -221,4 +221,4 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果", async () =>
       }
     },
   );
-}, 480_000);
+}, 660_000);

@@ -20,9 +20,9 @@ export default defineEval({
     ] as const) {
       await t.group(`${label} turn 的实际 usage`, () => {
         t.check(
-          turn.usage?.inputTokens,
+          (turn.usage?.inputTokens ?? 0) + (turn.usage?.cacheReadTokens ?? 0) + (turn.usage?.cacheCreationTokens ?? 0),
           satisfies(
-            "usage.inputTokens > 0",
+            "total input usage, including cache reads and writes, > 0",
             (value) => typeof value === "number" && value > 0,
           ),
         );

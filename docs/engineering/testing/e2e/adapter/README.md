@@ -120,6 +120,9 @@ Verdict test 在 owner 文件中逐条声明 `(experimentId, evalId, verdict, at
 
 ## 仓库 Eval 预算
 
+逐轮输入用量按未缓存输入、缓存读取与缓存写入之和验证。完整缓存命中允许 `inputTokens` 为零；
+输入总量仍须为正，缺失全部输入证据不能通过。输出用量单独验证，不用缓存桶替代输出证据。
+
 每个 Adapter Repo 只签入足以证明该上游协议兼容性的 Eval：普通消息、工具身份与入参、session、usage、HITL、MCP、Skill、
 Plugin、Subagent 或该协议独有的失败面按实际能力取有区分力的代表。OTel mapper-specific 归因尚无公开 seam，明确标为没有可核查的公开证据；
 不要求所有 Adapter 跑同一份 Assertion 方法清单，

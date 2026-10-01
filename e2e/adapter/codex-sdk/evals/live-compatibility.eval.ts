@@ -51,9 +51,9 @@ export default defineEval({
       ),
     );
     t.check(
-      first.usage?.inputTokens,
+      (first.usage?.inputTokens ?? 0) + (first.usage?.cacheReadTokens ?? 0) + (first.usage?.cacheCreationTokens ?? 0),
       satisfies(
-        "input token usage is positive",
+        "total input token usage is positive",
         (value) => typeof value === "number" && value > 0,
       ),
     );

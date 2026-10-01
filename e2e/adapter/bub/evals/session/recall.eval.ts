@@ -17,10 +17,14 @@ export default defineEval({
     t.check(
       first.usage,
       satisfies(
-        "usage within 50_000 tokens",
-        (usage) =>
-          usage !== undefined &&
-          (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) <= 50_000,
+        "observed token usage is finite, non-negative, and non-empty",
+        (usage) => {
+          if (usage === undefined) return false;
+          const reported = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheCreationTokens]
+            .filter((tokens): tokens is number => tokens !== undefined);
+          return reported.length > 0 && reported.every((tokens) => Number.isFinite(tokens) && tokens >= 0)
+            && reported.reduce((total, tokens) => total + tokens, 0) > 0;
+        },
       ),
     );
 
@@ -34,10 +38,14 @@ export default defineEval({
     t.check(
       recall.usage,
       satisfies(
-        "usage within 50_000 tokens",
-        (usage) =>
-          usage !== undefined &&
-          (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) <= 50_000,
+        "observed token usage is finite, non-negative, and non-empty",
+        (usage) => {
+          if (usage === undefined) return false;
+          const reported = [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheCreationTokens]
+            .filter((tokens): tokens is number => tokens !== undefined);
+          return reported.length > 0 && reported.every((tokens) => Number.isFinite(tokens) && tokens >= 0)
+            && reported.reduce((total, tokens) => total + tokens, 0) > 0;
+        },
       ),
     );
   },

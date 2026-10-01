@@ -269,4 +269,4 @@ test("大量真实工具事件的 scope Assertion 仍以 passed 终态发布", a
       expect(dataString(partialCount, ["subject", "kind"])).toBe("collection-cardinality");
     },
   );
-});
+}, 600_000);

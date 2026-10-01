@@ -35,11 +35,10 @@ export default defineEval({
     t.check(
       turn.usage,
       satisfies(
-        "OMP reports positive input and output usage",
+        "OMP reports positive total input (including cache) and output usage",
         (usage) =>
           usage !== undefined &&
-          typeof usage.inputTokens === "number" &&
-          usage.inputTokens > 0 &&
+          (usage.inputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheCreationTokens ?? 0) > 0 &&
           typeof usage.outputTokens === "number" &&
           usage.outputTokens > 0,
       ),

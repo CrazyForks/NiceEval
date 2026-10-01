@@ -309,23 +309,27 @@ export function renderOverview(
     });
   }
   if (current !== undefined) {
-    for (const experiment of current.experiments) {
-      const group = experimentGroup(experiment.experimentId);
-      const experimentCells = value.cells.filter((cell) => cell.experimentId === experiment.experimentId && cell.members.length > 0);
-      const gaps = current.slots.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
+    const currentGroups = groupExperiments(value).flatMap((group) => group.name === null
+      ? group.experiments.map((experiment) => ({ name: null, experiments: [experiment] }))
+      : [group]);
+    for (const group of currentGroups) {
       blocks.push({
         kind: "panel",
-        title: `Attempts · ${group ?? experiment.experimentId}`,
-        blocks: [
-          ...(group === null ? [] : [{ kind: "divider" as const, title: `Experiment ${experiment.experimentId}`, attachNext: true }]),
-          ...gaps.flatMap((slot): TerminalPanelContentBlock[] => slot.state !== "gap" ? [] : [
-            { kind: "divider", title: `Eval ${relativeToGroup(slot.evalId, group)}`, attachNext: true },
-            { kind: "divider", title: `Gap ${slot.reason}`, attachNext: slot.previous !== null },
-            ...(slot.previous === null ? [] : [{ kind: "divider" as const, title: `Previous result ${slot.previous.locator}` }]),
-          ]),
-          ...attemptBlocks(experimentCells, group, all, true),
-          ...compactContinuation(experimentCells, experiment.experimentId, all, true),
-        ],
+        title: `Attempts · ${group.name ?? group.experiments[0]!.experimentId}`,
+        blocks: group.experiments.flatMap((experiment) => {
+          const experimentCells = value.cells.filter((cell) => cell.experimentId === experiment.experimentId && cell.members.length > 0);
+          const gaps = current.slots.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
+          return [
+            ...(group.name === null ? [] : [{ kind: "divider" as const, title: `Experiment ${experiment.experimentId}`, attachNext: true }]),
+            ...gaps.flatMap((slot): TerminalPanelContentBlock[] => slot.state !== "gap" ? [] : [
+              { kind: "divider", title: `Eval ${relativeToGroup(slot.evalId, group.name)}`, attachNext: true },
+              { kind: "divider", title: `Gap ${slot.reason}`, attachNext: slot.previous !== null },
+              ...(slot.previous === null ? [] : [{ kind: "divider" as const, title: `Previous result ${slot.previous.locator}` }]),
+            ]),
+            ...attemptBlocks(experimentCells, group.name, all, true),
+            ...compactContinuation(experimentCells, experiment.experimentId, all, true),
+          ];
+        }),
       });
     }
     if (current.history.length > 0) blocks.push({

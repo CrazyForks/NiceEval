@@ -24,8 +24,8 @@ workspace，三者均不进入 artifact。SDK provider 配置采用仓库 Codex 
 `model_providers` / `model_provider` 形状。
 
 唯一 Eval 是一条 live Journey：要求模型运行带随机 marker 的安全 `printf` 命令，读取公共 converter
-产生的 canonical `shell` 调用与 completed 配对，检查 input/output usage 均为正数和
-`thread.started` 被 capture。第二轮携带随机 sentinel，通过 `resumeThread()` 在同一 thread 中成功完成；
+产生的 canonical `shell` 调用与 completed 配对。含缓存输入总量与 output usage 均须为正数，
+`thread.started` 须被 capture。第二轮携带随机 sentinel，通过 `resumeThread()` 在同一 thread 中成功完成；
 sentinel 从公共 trace 的第二轮输入读回，不把 live 模型是否逐字复述随机文本当成 converter 判据。
 Codex SDK 没有公开 HITL callback，因此仓库不伪造 `input.requested`。
 

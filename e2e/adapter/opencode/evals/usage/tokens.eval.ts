@@ -11,15 +11,15 @@ export default defineEval({
     const second = await t.send("把刚才的最终数字再说一遍。不要调用工具。");
     await second.succeeded().orStop();
 
-    await t.group("每一轮都有正的 inputTokens 与 outputTokens", () => {
+    await t.group("每一轮都有正的含缓存输入总量与输出量", () => {
       for (const [label, turn] of [
         ["first", first],
         ["second", second],
       ] as const) {
         t.check(
-          turn.usage?.inputTokens,
+          (turn.usage?.inputTokens ?? 0) + (turn.usage?.cacheReadTokens ?? 0) + (turn.usage?.cacheCreationTokens ?? 0),
           satisfies(
-            `${label}.usage.inputTokens > 0`,
+            `${label} total input usage, including cache reads and writes, > 0`,
             (value) => typeof value === "number" && value > 0,
           ),
         );

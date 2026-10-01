@@ -293,7 +293,9 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       expect(humanAttempt.stdout, humanAttempt.diagnostic()).toContain(published.publication.attemptLocator);
       expect(humanAttempt.stdout, humanAttempt.diagnostic()).toContain("completed");
 
-      const humanOverview = await niceeval.run(["show"]);
+      const humanOverview = await niceeval.run(["show"], {
+        env: { NICEEVAL_RUN_JOURNEY_ENDPOINT: backend.endpoint },
+      });
       expect(humanOverview.exitCode, humanOverview.diagnostic()).toBe(0);
       expect(humanOverview.stdout, humanOverview.diagnostic()).toContain("1/2");
       expect(humanOverview.stdout, humanOverview.diagnostic()).toContain("1 passed Attempts hidden");
