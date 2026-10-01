@@ -451,6 +451,10 @@
     {
       "source": "/example/tier1-pi-sdk",
       "destination": "/examples/integrations/pi-sdk"
+    },
+    {
+      "source": "/zh/tutorials/experiments",
+      "destination": "/zh/tutorials/write-experiment"
     }
   ],
   "navigation": {
@@ -665,8 +669,8 @@
                 "group": "实验与对比",
                 "pages": [
                   "zh/tutorials/write-experiment",
-                  "zh/tutorials/experiments",
                   "zh/tutorials/select-and-preview",
+                  "zh/tutorials/experiment-services",
                   "zh/tutorials/control-run-cost"
                 ]
               },
