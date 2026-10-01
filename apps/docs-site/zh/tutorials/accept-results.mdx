@@ -6,7 +6,7 @@ description: "配置变了、NiceEval 不敢沿用旧结果，而你确认它不
 
 你把公司的基础镜像从旧仓库迁到了新仓库，镜像内容一字节没变，只是 Experiment 里的镜像地址换了。NiceEval 看到配置变了，不会自动沿用上次的结果，`--dry` 显示整批都要重跑。可你知道这次改动不影响任何一道题，整批重跑却要花真钱。
 
-这时用 `niceeval accept` 明确接受那些旧结果。NiceEval 不会仅凭你的确认就放行，它会自己验证这次变化确实不影响结果。目前只有两种变化能通过验证：
+这时用 `niceeval accept` 明确接受那些旧结果。NiceEval 不会仅凭你的确认就放行，它会自己验证这次变化确实不影响结果。只有两种变化能通过验证：
 
 - Experiment 改了名，其它都没变。改名还可以直接用 `niceeval exp rename`，见 [CLI 参考](/zh/reference/cli)。
 - 官方 `dockerSandbox` 的镜像引用换了地址，但新旧两个引用都写明了同一个 `@sha256:` digest 和完整的 platform。只写 tag 的镜像不行，因为 tag 指向的内容可能已经变了。
