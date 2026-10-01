@@ -35,6 +35,19 @@ Results 显示 Summary cards、指标、Experiment 比较、成本 × 通过率�
 Attempt table。散点图以成本为横轴，以已关闭的通过率或分数为纵轴。Run identity 作为 Attempt provenance 保留，并可打开 exact
 Run debugger。页面组件不另写 SQL，不重算成员、分母、成本或指标。
 
+## 看清当前项目还缺什么
+
+默认 Results 回答“当前项目还缺哪些结果”，与默认 `niceeval show` 读取同一个 `project.get` result：
+
+- Summary cards 先显示 `Covered N/M` 与 `Gaps K`，再显示 Verdicts、通过率或分数；有缺口时通过率带 `partial` 标记。
+- Experiment 比较表在每个 Experiment 行显示 Covered 与 Gaps。
+- 层级 table 中的缺口行显示具名原因；有上次结果时附 `Previous result` 链接，打开那条历史 Attempt debugger。旧分数不进入当前指标。
+- 有缺口的 Experiment 显示可复制的 `niceeval exp <experimentId> --dry`。
+- 已删除的 Experiment 只出现在 History 区域，不计入当前分母。
+
+当前目标求值失败时，Results 显示错误与固定历史入口，不把历史 Overview 冒充成当前结果。
+`--run` 预选和 Run、Attempt debugger 仍读取固定历史事实，不受当前目标影响。
+
 `active` Run 已发布 Attempt 立即可见，空 slot 显示 pending。发现更新时页面只提示；用户确认后才在新的
 `PublicationCutoff` 准备结果并原子切换。准备期间仍可切换 Experiment；切换后会废弃为旧选择准备的候选，旧页面继续可读。
 最终提交时短暂暂停 selector、详情操作与导航；提交完成后，暂缓的 Back 或 Forward 继续前往原目标，并读取新发布的结果。
