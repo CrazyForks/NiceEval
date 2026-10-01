@@ -4,12 +4,18 @@ id: 20261001-exp-next-show-commands
 title: exp 结束反馈的下一步只指向浏览器 view，没有终端 show 命令
 createdAt: 2026-10-01T02:45:52.982Z
 kind: issue
-state: draft
+state: closed
 memoryRelations: []
 adoptions:
   current: []
   history: []
-history: []
+closure:
+  kind: closed
+  reason: 已修复：9cdc24913。失败条目给出 niceeval show @<locator>，NEXT 并列 show 与 view。沙箱外 E2E：cli failure-error-results 与 provider-error-feedback 5/5、runner accept-reanchor 1/1 通过。
+history:
+  - at: 2026-10-01T04:19:58.788Z
+    action: close
+    reason: 已修复：9cdc24913。失败条目给出 niceeval show @<locator>，NEXT 并列 show 与 view。沙箱外 E2E：cli failure-error-results 与 provider-error-feedback 5/5、runner accept-reanchor 1/1 通过。
 ---
 
 ## 观察
