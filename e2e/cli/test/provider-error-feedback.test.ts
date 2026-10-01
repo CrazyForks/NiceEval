@@ -82,6 +82,20 @@ test("provider 与 sandbox 错误只展示真实问题并给出所属 details", 
         return queried.runSummary();
       }));
       expect(summaries).toEqual(expect.arrayContaining([expect.objectContaining({ operation: "run.summary", issues: [] })]));
+      for (const { summary } of summaries) {
+        const run = summary.runs[0]!;
+        const output = run.experimentId === "short-error" ? shortOutput : compact;
+        expect(output).toContain(
+          `${run.experimentId} show: niceeval show --run ${run.runId} view: niceeval view --run ${run.runId}`,
+        );
+        for (const member of summary.members) {
+          if (member.locator !== null && member.state === "executed") {
+            expect(output).toContain(`details: niceeval show ${member.locator}`);
+          }
+        }
+      }
+      expect(shortOutput).not.toContain("details: niceeval view");
+      expect(compact).not.toContain("details: niceeval view");
       const errorLocators = summaries.flatMap(({ summary }) => summary.members)
         .flatMap(({ locator, state }) => locator !== null && state === "executed" ? [locator] : []);
       expect(errorLocators).toHaveLength(4);

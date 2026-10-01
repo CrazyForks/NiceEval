@@ -67,6 +67,7 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     );
     expect(acceptedRunMatch, accepted.diagnostic()).not.toBeNull();
     const acceptedRunId = acceptedRunMatch![1]!;
+    expect(accepted.stdout).toContain(`niceeval show --run ${acceptedRunId}`);
     const newLocator = acceptedRunMatch![2]!;
     // Explicit adoption writes a reference Member, so its result locator keeps
     // the immutable source Attempt identity instead of manufacturing an Attempt.
@@ -100,6 +101,13 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     const evidenceDocument = currentEvidence.attemptTrace();
     expect(evidenceDocument).toMatchObject({ operation: "attempt.trace", issues: [] });
     expect(JSON.stringify(evidenceDocument.trace)).toContain("runner-fixture-ok");
+
+    const acceptedRun = await niceeval.run(["accept", "--run", initial.expReceipt().createdRunIds[0]!]);
+    expect(acceptedRun.exitCode, acceptedRun.diagnostic()).toBe(0);
+    const acceptedWholeRunId = /into new Run ([0-9a-f-]{36})\./u.exec(acceptedRun.stdout)?.[1];
+    expect(acceptedWholeRunId, acceptedRun.diagnostic()).toBeTruthy();
+    expect(acceptedRun.stdout).toContain(`show: niceeval show --run ${acceptedWholeRunId}`);
+    expect(acceptedRun.stdout.match(/show: niceeval show --run/gu)).toHaveLength(1);
 
     // An accepted action explains this Run's membership; it is deliberately
     // not a future eligibility grant for the immutable source Attempt.

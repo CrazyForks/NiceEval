@@ -75,6 +75,26 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       expect(failedHuman.stdout).toContain("turn succeeded · expected completed · received failed");
       expect(failedHuman.stdout).toContain("reason deterministic agent reported a t");
       expect(failedHuman.stdout).not.toContain("error: failed");
+      const failedHumanLocator = /✗ (@1[0-9A-HJKMNP-TV-Z]{12})/u.exec(failedHuman.stdout)?.[1];
+      expect(failedHumanLocator, failedHuman.diagnostic()).toBeTruthy();
+      expect(failedHuman.stdout).toContain(`details: niceeval show ${failedHumanLocator}`);
+      const failedHumanRunId = /show: niceeval show --run\s+([0-9a-f-]{36})/u.exec(failedHuman.stdout)?.[1];
+      expect(failedHumanRunId, failedHuman.diagnostic()).toBeTruthy();
+      expect(failedHuman.stdout.replace(/\s+/gu, " ")).toContain(
+        `deliberate-fail show: niceeval show --run ${failedHumanRunId} view: niceeval view --run ${failedHumanRunId}`,
+      );
+      const failedHumanRequest = await writeInspectionRequest(root, "failed-human-run-summary", {
+        kind: "run.summary", runId: failedHumanRunId!,
+      });
+      const failedHumanSummary = await niceeval.run(["query", "run", "--request", failedHumanRequest]);
+      expect(failedHumanSummary.exitCode, failedHumanSummary.diagnostic()).toBe(0);
+      expect(failedHumanSummary.runSummary().summary.members).toEqual([expect.objectContaining({
+        locator: failedHumanLocator, verdict: "failed",
+      })]);
+
+      const sessions = await niceeval.run(["session", "list", "--all"]);
+      expect(sessions.exitCode, sessions.diagnostic()).toBe(0);
+      expect(sessions.stdout).toContain(`deliberate-fail  niceeval show --run ${failedHumanRunId}`);
 
       const errored = await niceeval.run(
         ["exp", "deliberate-error", "--rerun", "all", "--json", "--junit", "junit/errored.xml"],
@@ -161,6 +181,13 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       );
       expect(prepareDiagnostic.summary).toContain("deliberate pre-context sandbox before failure");
       expect(JSON.stringify(traceDocument.trace)).not.toContain("[object Object]");
+
+      const erroredHuman = await niceeval.run(["exp", "deliberate-error", "--rerun", "all"]);
+      expect(erroredHuman.exitCode, erroredHuman.diagnostic()).toBe(1);
+      const erroredHumanLocator = /✗ (@1[0-9A-HJKMNP-TV-Z]{12})/u.exec(erroredHuman.stdout)?.[1];
+      expect(erroredHumanLocator, erroredHuman.diagnostic()).toBeTruthy();
+      expect(erroredHuman.stdout).toContain(`details: niceeval show ${erroredHumanLocator}`);
+      expect(erroredHuman.stdout).not.toContain("details: niceeval view");
     },
   );
 });
