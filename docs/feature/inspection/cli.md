@@ -440,12 +440,12 @@ Current results
   Covered    11/12
   Gaps       1
   Verdicts   8 passed; 3 failed; 0 errored; 0 skipped
-  Pass rate  72.73%
+  Pass rate  72.73% (partial)
 
 Experiments
   Experiment  Covered  Gaps  Pass rate
-  ----------  -------  ----  ---------
-  my-agent    11/12    1     72.73%
+  ----------  -------  ----  -----------------
+  my-agent    11/12    1     72.73% (partial)
 
 Attempts · my-agent
   Eval refund-policy
@@ -463,7 +463,7 @@ Attempts · my-agent
 Next: niceeval exp my-agent --dry
 ```
 
-`Verdicts` 与 `Pass rate` 只统计 covered 位置，缺口不计 failed。纯计分制范围显示 `Score` 而不显示 `Pass rate`，
+`Verdicts` 与 `Pass rate` 只统计 covered 位置，缺口不计 failed；有缺口时 Pass rate 的 state 是 `partial`，人读输出保留该标记。纯计分制范围显示 `Score` 而不显示 `Pass rate`，
 规则同下文历史 Results。当前目标求值失败时不输出这张表，stderr 给出错误并提示 `niceeval show --run <run-id>`
 等固定历史读取命令。
 

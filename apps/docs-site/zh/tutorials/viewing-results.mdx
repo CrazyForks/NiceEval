@@ -31,12 +31,12 @@ Current results
   Covered    11/12
   Gaps       1
   Verdicts   8 passed; 3 failed; 0 errored; 0 skipped
-  Pass rate  72.73%
+  Pass rate  72.73% (partial)
 
 Experiments
   Experiment  Covered  Gaps  Pass rate
-  ----------  -------  ----  ---------
-  my-agent    11/12    1     72.73%
+  ----------  -------  ----  -----------------
+  my-agent    11/12    1     72.73% (partial)
 
 Attempts · my-agent
   Eval refund-policy
@@ -51,7 +51,7 @@ Next: niceeval exp my-agent --dry
 
 几个值得先看的数：
 
-- `Covered` 是当前有可用结果的位置数和计划数。`Gaps` 不为 0 时，说明有些位置还没有结果，或者旧结果已经不适用，例如你改了这条评估用例。缺口下面会写原因和上次的结果入口，旧分数不会被算进当前通过率。
+- `Covered` 是当前有可用结果的位置数和计划数。`Gaps` 不为 0 时，说明有些位置还没有结果，或者旧结果已经不适用，例如你改了这条评估用例。缺口下面会写原因和上次的结果入口，旧分数不会被算进当前通过率；这时通过率后面会带 `(partial)`，提醒你它只基于已有结果。
 - `errored` 不为 0 时，先处理它们。`errored` 说明运行本身没跑成，例如应用没启动或接口报错，这些 Attempt 没有得出结论。
 - 计分制评估显示 `Score` 而不是通过率，读法见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
 
