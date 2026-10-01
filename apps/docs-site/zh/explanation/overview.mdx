@@ -16,20 +16,20 @@ machine Query | terminal Show | browser View
 
 ## Record 保存事实
 
-每个项目只有一个 canonical `.niceeval/record.sqlite`。Runner 创建 Run 时冻结预期 slot；每个 Attempt 在自己的原子发布事务完成后立即成为可读事实，即使 origin Run 仍是 `active`。已发布 Attempt 和终态 Run 都不可修改。
+每个项目的结果都保存在同一个 `.niceeval/record.sqlite` 里。Runner 创建 Run 时冻结预期 slot；每个 Attempt 在自己的原子发布事务完成后立即成为可读事实，即使 origin Run 仍是 `active`。已发布 Attempt 和终态 Run 都不可修改。
 
-一次 Invocation 完整收尾并通过 portable gate 后，canonical 文件本身即可复制或归档。`query` 和 `show` 的 `--record <file>` 会完整校验外部副本后只读打开。
+一次 Invocation 完整收尾并通过 portable gate 后，这个文件本身即可复制或归档。`query` 和 `show` 的 `--record <file>` 会完整校验外部副本后只读打开。
 
 ## Inspection 关闭读取语义
 
-Inspection operation 在返回前决定 source、selector、sealed cutoff、数据缺口、issues、Evidence 和比较方式。它返回可编码 plain data，不把 reader、数据库连接或文件路径交给调用者。
+Inspection operation 在返回前决定 source、selector、读取时刻、数据缺口、issues、Evidence 和比较方式。它返回可编码 plain data，不把 reader、数据库连接或文件路径交给调用者。
 
 固定 catalog 提供 Run、Attempt、trace、diff、sources、artifacts 和 Run comparison。新的读取需求通过新 operation 或穷尽 union 扩展表达，不通过临时 SQL、JSON path 或公式实现。
 
 ## 三个独立 Consumer
 
 - `niceeval query` 是 machine Query，面向 AI、脚本和 CI。它输出 `niceeval.query/v1` JSON document。
-- `niceeval show` 是 terminal Show，面向人在终端快速审阅和下钻。
+- `niceeval show` 是 terminal Show，面向人在终端快速审阅，再逐层查看某个 Attempt 的对话、耗时和改动。
 - `niceeval view` 是 browser View，面向人在受保护的 loopback 浏览器使用固定第一方 Insight。
 
 三个 consumer 共享同一个固定 Inspection result。它们各自负责 JSON protocol、终端文字布局或浏览器界面，不共享 formatter、路由、组件、主题或呈现 schema，也不重选成员或重算业务结果。

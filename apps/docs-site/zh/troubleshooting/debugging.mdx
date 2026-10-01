@@ -1,5 +1,5 @@
 ---
-title: "排查已封口的结果"
+title: "排查失败的评估结果"
 sidebarTitle: "排查手册"
 description: "根据具名错误和闭合 Inspection result，通过 Show、Query 与 View 排查问题。"
 ---
@@ -21,7 +21,7 @@ niceeval show @<attempt-locator> --usage
 niceeval show @<attempt-locator> --diff
 ```
 
-`--source` 查看已封存的源码和 Assertion 事实；`--execution` 查看有界的执行 outline；`--timing` 查看活动、阶段和耗时；`--usage` 查看已封口的 token、request 和 cost totals；`--diff` 查看已封存的文件变更窗口。要展开 execution outline 中的一项，使用它显示的稳定 ID：`niceeval show @<attempt-locator> --execution --expand <stable-id>`。
+`--source` 查看已封存的源码和 Assertion 事实；`--execution` 查看有界的执行 outline；`--timing` 查看活动、阶段和耗时；`--usage` 查看已保存的 token、request 和 cost totals；`--diff` 查看已封存的文件变更窗口。要展开 execution outline 中的一项，使用它显示的稳定 ID：`niceeval show @<attempt-locator> --execution --expand <stable-id>`。
 
 这条链负责从 Run 定位到一次执行：
 
@@ -92,6 +92,6 @@ query discover
 
 ## View 显示旧结果
 
-View 在一次读取开始时固定 PublicationCutoff。页面提示有新发布内容时，确认刷新即可读取新的闭合结果；刷新失败时，上一份可读结果会保留。
+View 在一次读取开始时固定 PublicationCutoff。页面提示有新发布内容时，确认刷新即可读取新的结果；刷新失败时，上一份可读结果会保留。
 
-正常流程见[查看已封口的运行结果](/zh/tutorials/viewing-results)，命令细节见 [CLI](/zh/reference/cli)。
+正常流程见[查看运行结果](/zh/tutorials/viewing-results)，命令细节见 [CLI](/zh/reference/cli)。

@@ -163,7 +163,7 @@ provider.register();
 | 属性 `call_id` = 你 send 事件里的 `operationId` | 该工具 span 自动补上真实入参/出参（`io.input` / `io.output`，从 send 返回的事件按 `operationId` join 过来——很多埋点默认不采内容，这条路不受影响） |
 | span 状态 = error | 红色标错 |
 | 什么都没给（归一成 `other`） | 时间线还在。大 trace（>150 span）时按内部噪声折叠掉 |
-| 其余属性 | 原样保留，view 里点开下钻 |
+| 其余属性 | 原样保留，在 view 里点开 span 查看 |
 
 应用直接按 GenAI semconv 埋点（上文「自己埋的 gen_ai」tab）时这一切自动成立。主流格式（AI SDK、LangSmith、OpenLLMetry / OpenInference）的常见形状也在通用回退机制的识别范围内。
 

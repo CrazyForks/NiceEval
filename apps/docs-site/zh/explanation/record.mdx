@@ -4,7 +4,7 @@ sidebarTitle: "Record"
 description: "了解 canonical SQLite Record 的写入、携带与读取边界。"
 ---
 
-Record 是项目唯一的持久事实集。canonical SQLite 文件位于 `.niceeval/record.sqlite`。
+Record 是项目唯一的持久事实集。它保存在项目里的 `.niceeval/record.sqlite`。
 
 Run create、运行中的聚合、已发布 Attempt、Attachment、Content、协调状态和 Invocation Session 都是同一份 ProjectDatabase 的 rows。
 
@@ -20,12 +20,12 @@ niceeval query explain --record ./baseline.record.sqlite --request request.json
 niceeval show --record ./baseline.record.sqlite
 ```
 
-canonical 文件本身即可复制或归档。不要复制 WAL、checkpoint 或 staging 文件，也不要在复制后修改 SQLite 内容。
+这个文件本身即可复制或归档。不要复制 WAL、checkpoint 或 staging 文件，也不要在复制后修改 SQLite 内容。
 
 `query` 与 `show` 把 `--record` 指定的文件当 hostile input。只有精确 current schema、SQLite integrity 和领域不变量全部成立时才读取；命令不会迁移、修补或部分读取。Record 仍可能包含敏感业务内容；分享者负责权限、脱敏和保留策略。
 
 ## 读取边界
 
-Record 不负责统计、比较或页面。固定 Inspection operation 在一个 `PublicationCutoff` 读取已发布事实，再把闭合结果交给 `query`、`show` 或第一方 `view`。读取路径不能把数据库、reader、Content handle 或 SQL 能力交给外部代码。
+Record 不负责统计、比较或页面。固定 Inspection operation 在一个 `PublicationCutoff` 读取已发布事实，再把完整的读取结果交给 `query`、`show` 或第一方 `view`。读取路径不能把数据库、reader、Content handle 或 SQL 能力交给外部代码。
 
 查看 [CLI](/zh/reference/cli) 选择读取方式。

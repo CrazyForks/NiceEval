@@ -51,7 +51,7 @@ NiceEval 只发现 `evals/**/eval-group.ts`。不要把文件写成 `*.eval-grou
 ## 第 2 步：用工厂返回对象声明成员
 
 每个成员照常默认导出 `defineEval()` 或 `defineScoreEval()` 的返回值。组文件导入这些返回值，
-再把兼容成员列入同一个闭合集合：
+再把兼容成员完整列进同一个组：
 
 ```ts
 // evals/workflow/eval-group.ts

@@ -29,4 +29,4 @@ niceeval view --run <baseline-run-id> --run <candidate-run-id>
 
 View 读取同样已发布的事实，帮助人审阅 Overview 与 Attempt detail。它不引入另一套统计、比较或页面组装逻辑。
 
-当结果来自另一台兼容 runtime 时，复制 canonical `.niceeval/record.sqlite`。随后为 `show` 或 `query` 指定这份副本的 `--record` 输入；`view` 只读取当前项目的 Record。
+当结果来自另一台兼容 runtime 时，复制对方项目里的 `.niceeval/record.sqlite`。随后为 `show` 或 `query` 指定这份副本的 `--record` 输入；`view` 只读取当前项目的 Record。

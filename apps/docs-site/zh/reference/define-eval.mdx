@@ -421,7 +421,7 @@ Must match the encoded image. Paths, URLs and SVG are not accepted.
 
 ### 现成裁判与自定义 Match
 
-`defineJudge` 和现成裁判都返回 `ScoreMatch`，可以交给 `t.check`。`t.judge` 只是同一条 `check` 路径的便利入口，因此登记、快照、预算、求值、审计、封口和 handle 都只发生一次。
+`defineJudge` 和现成裁判都返回 `ScoreMatch`，可以交给 `t.check`。`t.judge` 只是同一条 `check` 路径的便利入口，因此登记、快照、预算、求值、审计、结果保存和 handle 都只发生一次。
 
 | 裁判 | 输入 | 得分含义 |
 | --- | --- | --- |

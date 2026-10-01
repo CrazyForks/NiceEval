@@ -43,7 +43,7 @@ npx niceeval exp checkout --json | tee .niceeval-invocation.ndjson
 }
 ```
 
-Agent 应把最后一条 receipt 当作本次调用的交接信息。`createdRunIds` 穷尽列出成功创建的 Run，`publicationCutoff` 是 opaque 的已发布事实边界；它们不表示任务已经完成。receipt 不是持久化的结果协议；业务事实仍要通过 `createdRunIds` 从已发布的 Record 读取。
+Agent 应把最后一条 receipt 当作本次调用的交接信息。`createdRunIds` 穷尽列出成功创建的 Run，`publicationCutoff` 标记读取边界，不要解析它，原样传给后续命令；它们不表示任务已经完成。receipt 不是持久化的结果协议；业务事实仍要通过 `createdRunIds` 从已发布的 Record 读取。
 
 ## 用 Run ID 审阅结果
 
@@ -61,7 +61,7 @@ pnpm exec niceeval show @<attempt-locator> --source
 pnpm exec niceeval show @<attempt-locator> --execution
 ```
 
-`show @<attempt-locator>` 显示 Attempt 的身份、判定、断言摘要、section 状态与限制。`--source` 查看已封存的 source 和 Assertion 事实；`--execution` 查看有界执行 outline。它显示的稳定 ID 可用于 `--execution --expand <stable-id>` 下钻一项执行内容。
+`show @<attempt-locator>` 显示 Attempt 的身份、判定、断言摘要、section 状态与限制。`--source` 查看已封存的 source 和 Assertion 事实；`--execution` 查看有界执行 outline。它显示的稳定 ID 可用于 `--execution --expand <stable-id>` 展开一项执行内容。
 
 需要让脚本、CI 或 Agent 稳定处理结果时，先发现可用 operation，再发送完整 request：
 
@@ -71,7 +71,7 @@ pnpm exec niceeval query explain --request request.json
 pnpm exec niceeval query run --request request.json
 ```
 
-`query` 返回固定的闭合 Inspection result。需要在浏览器中阅读时，使用 `niceeval view --run <run-id>`；View 不作为终端 locator 的读取入口。Agent 应区分以下状态：
+`query` 返回固定格式的 Inspection result。需要在浏览器中阅读时，使用 `niceeval view --run <run-id>`；View 不作为终端 locator 的读取入口。Agent 应区分以下状态：
 
 | 看到的状态 | 下一步 |
 | --- | --- |
@@ -101,4 +101,4 @@ npx niceeval exp checkout --rerun all --json
 
 Record 只保存已发布的事实，发布后不可修改。Agent 需要不同结果时修改程序或评估用例，运行新的 Invocation，再用新 receipt 的 `createdRunIds` 查看。
 
-需要把运行事实交给他人时，复制 [canonical Record](/zh/explanation/record)，而不是把当前进程反馈当作分享格式。
+需要把运行事实交给他人时，复制项目里的 [`.niceeval/record.sqlite`](/zh/explanation/record)，而不是把当前进程反馈当作分享格式。

@@ -187,7 +187,7 @@ export default defineExperiment({
 | `telemetry` | 配置了 OTel 接入时出现 | 只碰 `headers`：每轮新的 W3C `traceparent`，spread 进请求头。接收端点每次运行都一样，在 `defineConfig` 里固定、应用启动时指向它，不从 send 传——见 [OTel 接入](/zh/tutorials/connect-otel) |
 | `session` | 运行器（每条会话线一份） | 会话续接与 HITL 停轮现场的存取器都在它上面：`id` / `capture()`、typed slot 的 `get()` / `set()` / `take()`，见[写 send](/zh/tutorials/write-send) |
 | `progress(update)` | 运行器（绑定当前 `agent.run`） | 报告 Turn/tool 的短期状态。Human dashboard 可显示，结果不保存 |
-| `diagnostic(input)` | 运行器（绑定当前 `agent.run`） | 保存协议退化、响应不完整等 warning/error。可由 locator 下钻回顾 |
+| `diagnostic(input)` | 运行器（绑定当前 `agent.run`） | 保存协议退化、响应不完整等 warning/error。可用 locator 在 `show` 里查看 |
 
 ### Adapter 里的进度、诊断和致命错误
 

@@ -51,7 +51,7 @@ export default defineEval({
 
 需要观察图片内容时，在材料中放入 `judgeImage({ body, mediaType })`。它冻结 PNG 或 JPEG 字节，不创建另一个裁判，也不发起额外请求。图片和文字经同一次 Judge 调用发送，并保存在同一条断言的证据中。接线步骤见 [附加图片材料](/zh/tutorials/verify-judge#附加图片材料)。
 
-`t.judge(material, explainsRisk)` 与 `t.check(material, explainsRisk)` 都登记一条测量 Assertion。它们会共享材料快照、预算、求值、审计、封口和 handle；没有 Match 允许列表。
+`t.judge(material, explainsRisk)` 与 `t.check(material, explainsRisk)` 都登记一条测量 Assertion。它们会共享材料快照、预算、求值、审计、结果保存和 handle；没有 Match 允许列表。
 
 ## 直接使用现成 Judge
 

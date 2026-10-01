@@ -158,7 +158,7 @@ export default defineAgent({
 `costUSD`。`costUSD` 只在 provider 或 adapter 如实返回 USD observed 成本时填写；上游估算、模型目录价目表或本地计算绝不写入它。每个字段只在接口真实提供时填，接口不回用量就整个不填 `usage`，其它断言不受影响。
 
 Runner 始终从 `model`、上报的 token 用量和 Config/runtime price table 独立计算 `estimatedCostUSD`，即使有 observed `costUSD`
-也不改变该计算；Experiment budget 与 `t.maxCost()` 使用这个 estimate。固定 Inspection operation 只读取 sealed Usage，绝不消费 Runner
+也不改变该计算；Experiment budget 与 `t.maxCost()` 使用这个 estimate。固定 Inspection operation 只读取已发布的 Usage，绝不消费 Runner
 estimate。
 
 当 Config/runtime price table 无法形成 Runner estimate 时，`t.maxCost()` 为 `unavailable`，绝不能把缺失当成 `0`。显式零费率实际
@@ -312,7 +312,7 @@ export default defineAgent({
 });
 ```
 
-不需要 HITL 的接口，删掉停轮现场相关的三处（`Pending`、`hold`、开头的 `take` 分支）即可，其余不变。停轮 / 回答 / 续跑的完整心智模型见 [HITL](/zh/explanation/hitl)。
+不需要 HITL 的接口，删掉停轮现场相关的三处（`Pending`、`hold`、开头的 `take` 分支）即可，其余不变。停轮 / 回答 / 续跑的完整工作方式见 [HITL](/zh/explanation/hitl)。
 
 **这一步支持**：`t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()`。
 被人拒绝的调用可用 `calledTool(toolMatch(..., { status: "rejected" }))` 精确断言。

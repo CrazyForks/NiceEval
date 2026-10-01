@@ -67,7 +67,7 @@ export default defineConfig({
 - **没有用户在场（自治接入）时不要直接跳过 Judge**：先看环境里是否已有与所选 Provider 对应的 key。有就验证；没有时先写精确 Match，并在收尾说明 Judge 没有配置。
 - Judge 模型要**与被测 Agent 分离**，避免同一个模型给自己的输出打分。执行配置从 Experiment 和项目配置的 `judgeRuntime` 求值；定义与材料见 [Judge](/zh/explanation/judge)。
 
-## 第 3 步：写三件套
+## 第 3 步：写 Adapter、Experiment 和评估用例
 
 按第 1 步选中的方向读完对应文档后，依次写：
 
@@ -102,7 +102,7 @@ export default defineConfig({
 
 在已有授权和预算内，主动修复 `errored` 所在的执行链并只复验受影响范围。只读请求不修改或重跑。目标服务、端口、凭证、数据库或模型服务等真实外部条件缺失时，明确报告阻塞；不要用临时替代物冒充真实目标已经跑通。
 
-需要在终端下钻时，先从当前 Overview 复制动态 Attempt locator，再固定查看同一个 Attempt：
+需要在终端查看某个 Attempt 的细节时，先从当前 Overview 复制动态 Attempt locator，再固定查看同一个 Attempt：
 
 ```sh
 pnpm exec niceeval show
