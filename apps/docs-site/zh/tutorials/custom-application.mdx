@@ -6,7 +6,7 @@ description: "被测应用不是对话式 Agent 时，用 defineAdapter 把它�
 
 你在评估一个社交应用里的 AI 功能：用户发帖后，AI 自动生成配图、推荐回复。这里没有“发一条消息、收一条回复”的对话，有的是发帖、回复、生成图片这些业务操作。
 
-硬把它们塞进 `t.send("帮我发帖")` 很别扭。更直接的做法是用 `defineAdapter` 把应用自己的方法交给评估用例：返回对象里的每个操作，都会变成评估用例里带类型的 `t.post(...)`、`t.generateImage(...)`。
+硬把它们写成 `t.send("帮我发帖")` 很别扭。更直接的做法是用 `defineAdapter` 把应用自己的方法交给评估用例：返回对象里的每个操作，都会变成评估用例里带类型的 `t.post(...)`、`t.generateImage(...)`。
 
 对话式 Agent 用的 `defineAgent` 是 Adapter 的一种特例，要实现 `send`、多轮会话和 Turn。自定义应用不需要实现这些。
 
