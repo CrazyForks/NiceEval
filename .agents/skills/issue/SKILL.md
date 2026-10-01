@@ -21,7 +21,8 @@ For a Feature, preserve the expected workflow, current gap, impact, usage exampl
 Do not invent a root cause or require a proposed solution.
 
 Search both open and closed Issues for a semantic duplicate.
-Return a draft and suggested type, area, and status labels when remote mutation is not explicitly authorized.
+Record the local draft with `pnpm exec concord issue create <id> --title <title> --body <text>`; it writes `docs/issues/<id>.md` and never mutates GitHub.
+Return that draft and suggested type, area, and status labels when remote mutation is not explicitly authorized.
 
 ## Remote mutation gate
 
