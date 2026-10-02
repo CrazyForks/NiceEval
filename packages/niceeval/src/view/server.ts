@@ -37,6 +37,7 @@ interface RefreshSource {
 interface ServerState {
   current: ViewGeneration;
   candidate?: ViewGeneration;
+  stale: boolean;
   readonly leases: Map<string, number>;
   readonly retired: Set<string>;
 }
@@ -111,7 +112,7 @@ function makeResources(initial: ViewGeneration, refreshEnabled: boolean, refresh
     credential: randomBytes(32).toString("base64url"),
     sessionCookie: `${SESSION_COOKIE_PREFIX}${randomBytes(16).toString("hex")}`,
     session: randomBytes(32).toString("base64url"),
-    state: { current: initial, leases: new Map([[initial.generationId, 0]]), retired: new Set() },
+    state: { current: initial, stale: false, leases: new Map([[initial.generationId, 0]]), retired: new Set() },
     refreshEnabled,
     ...(refreshSource === undefined ? {} : { refreshSource }),
     credentialConsumed: false,
@@ -212,12 +213,13 @@ async function serveGeneration(resources: ServerResources, response: ServerRespo
       const identity = await resources.refreshSource?.cutoffIdentity();
       sendJson(response, 200, {
         ...descriptor(resources, resources.state.current),
-        stale: identity === undefined
+        stale: resources.state.stale || (identity === undefined
           ? resources.state.candidate !== undefined
-          : identity !== resources.state.current.sourceCutoffIdentity,
+          : identity !== resources.state.current.sourceCutoffIdentity),
       });
     }
   } catch {
+    if (refresh) resources.state.stale = true;
     sendJson(response, 500, Object.freeze({
       code: "view-inspection-failed", reason: "The View generation could not be refreshed.", correction: "retry",
     } satisfies ViewHttpErrorDocument));
@@ -229,10 +231,7 @@ function prepareGeneration(resources: ServerResources): Promise<ViewGeneration> 
   const source = resources.refreshSource;
   if (source === undefined || !resources.refreshEnabled) return Promise.resolve(resources.state.current);
   const preparing = (async () => {
-    const identity = await source.cutoffIdentity();
     if (resources.closed) throw new Error("View is closing.");
-    if (identity === resources.state.current.sourceCutoffIdentity) return resources.state.current;
-    if (identity === resources.state.candidate?.sourceCutoffIdentity) return resources.state.candidate;
     const generation = await source.build();
     if (resources.closed) {
       await retireGeneration(resources, generation);
@@ -252,8 +251,11 @@ function descriptor(resources: ServerResources, generation: ViewGeneration): Vie
   return Object.freeze({
     generationId: generation.generationId,
     sourceCutoffIdentity: generation.sourceCutoffIdentity,
+    targetMode: generation.target.kind,
+    targetIdentity: generation.target.kind === "current" ? generation.target.identity : null,
+    targetFailureReason: generation.target.kind === "unavailable" ? generation.target.reason : null,
     refreshSupported: resources.refreshEnabled,
-    stale: generation.generationId === resources.state.current.generationId && resources.state.candidate !== undefined,
+    stale: generation.generationId === resources.state.current.generationId && (resources.state.candidate !== undefined || resources.state.stale),
   });
 }
 
@@ -269,6 +271,7 @@ async function serveCommit(resources: ServerResources, request: IncomingMessage,
   const retired = resources.state.current;
   resources.state.current = candidate;
   resources.state.candidate = undefined;
+  resources.state.stale = false;
   resources.state.leases.set(candidate.generationId, resources.state.leases.get(candidate.generationId) ?? 0);
   retireIfDrained(resources, retired);
   sendJson(response, 200, descriptor(resources, candidate));

@@ -26,7 +26,7 @@ import {
   type LoaderCaptureOrigin,
   type LoaderCapturePaths,
 } from "../loaders/index.ts";
-import { acquireFreshImportGeneration, importProjectModule } from "../fresh-import.ts";
+import { acquireFreshImportGeneration, importProjectModule, type FreshImportGeneration } from "../fresh-import.ts";
 import { sandboxLayerStateOf, type SandboxLayer } from "../sandbox/layer.ts";
 import { sandboxLayerDefinitionIdentity } from "../sandbox/link.ts";
 import {
@@ -679,7 +679,7 @@ function normalizeEvalGroupSource(content: string): string {
 // @concord-implements docs/feature/eval-groups/library.md
 export function discoverEvals(
   root: string,
-  options: { freshImport?: boolean } = {},
+  options: { freshImport?: boolean; generation?: FreshImportGeneration } = {},
 ): Effect.Effect<readonly DiscoveredEval[], DiscoveryError> {
   const dir = join(root, "evals");
   const discoverWith = (load: DiscoveryModuleLoader): Effect.Effect<readonly DiscoveredEval[], DiscoveryError> => Effect.gen(function*() {
@@ -794,6 +794,7 @@ export function discoverEvals(
     if (issues.length > 0) return yield* Effect.fail(discoveryError(issues));
     return Object.freeze(evals.map((item) => annotated.get(item.definition) ?? item));
   });
+  if (options.generation !== undefined) return discoverWith(options.generation.import);
   if (!options.freshImport) return discoverWith(cachedModuleLoader);
   return Effect.scoped(
     acquireFreshImportGeneration(root).pipe(
@@ -834,7 +835,7 @@ function discoverExperimentFile(
 // @concord-implements docs/feature/experiments/library.md
 export function discoverExperiments(
   root: string,
-  options: { freshImport?: boolean } = {},
+  options: { freshImport?: boolean; generation?: FreshImportGeneration } = {},
 ): Effect.Effect<readonly DiscoveredExperiment[], DiscoveryError> {
   const dir = join(root, "experiments");
   const discoverWith = (load: DiscoveryModuleLoader): Effect.Effect<readonly DiscoveredExperiment[], DiscoveryError> =>
@@ -848,6 +849,7 @@ export function discoverExperiments(
       ? Effect.fail(discoveryError(errors.flatMap((error) => error.issues)))
       : Effect.succeed(Object.freeze(groups.flat()))),
   );
+  if (options.generation !== undefined) return discoverWith(options.generation.import);
   if (!options.freshImport) return discoverWith(cachedModuleLoader);
   return Effect.scoped(
     acquireFreshImportGeneration(root).pipe(

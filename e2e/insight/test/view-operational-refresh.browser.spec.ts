@@ -1,6 +1,8 @@
 // rerun: pnpm e2e test --repo insight -- --run test/view-operational-refresh.browser.spec.ts
 
 import { only } from "@niceeval/testkit";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, test, type APIResponse, type Page, type Route } from "@playwright/test";
 import {
   expectLoopbackReadyUrl,
@@ -214,25 +216,85 @@ test("project view 在确认刷新前保留 last-good hierarchy，确认后原�
   );
 });
 
+// @use-case docs/feature/insight/use-case/insight-create-accessible-page.md
+test("当前 Results 在仅修改评估用例后刷新为缺口，并链接上次结果", async ({ page }) => {
+  await insightE2E.case(
+    "view-current-results",
+    { artifacts: insightCaseArtifacts() },
+    async ({ paths: { projectRoot }, commands: { niceeval } }) => {
+      const produced = await niceeval.run(["exp", "main", "--rerun", "all", "--json"]);
+      expect(produced.exitCode, produced.diagnostic()).toBe(0);
+      const locator = withAt(only(produced.expEvalEvents(), (event) => event.evalId === "inspection", produced.diagnostic()).locator);
+      const view = niceeval.start(["view", "--no-open", "--port", "0"], { timeoutMs: 90_000 });
+      try {
+        const ready = await waitForViewReady(view);
+        await page.goto(expectLoopbackReadyUrl(ready.url).href);
+        await page.getByRole("banner").getByRole("combobox", { name: "Experiments" }).selectOption({ label: "singleton/main" });
+        const summary = page.getByRole("region", { name: "Summary" });
+        await expect(summary.getByText("Covered")).toBeVisible();
+        await expect(summary.getByText("1/1")).toBeVisible();
+        await expect(summary.getByText("Gaps")).toBeVisible();
+        await expect(summary.getByText("0", { exact: true })).toBeVisible();
+        await expect(summary.getByText("Total score")).toBeVisible();
+
+        const evalPath = join(projectRoot, "evals", "inspection.eval.ts");
+        const before = await readFile(evalPath, "utf8");
+        expect(before).toContain("defineScoreEval");
+        expect(before).toContain("description: \"inspection: 生成稳定的 Verdict、Score、coverage 与 Evidence\"");
+        expect(before).toContain(".score(34.111111111111114)");
+        await writeFile(evalPath, before
+          .replace("description: \"inspection: 生成稳定的 Verdict、Score、coverage 与 Evidence\"",
+            "description: \"inspection: refreshed score Eval\"")
+          .replace(".score(34.111111111111114)", ".score(35.111111111111114)"));
+        expect(view.settledExit).toBeFalsy();
+        await page.getByRole("button", { name: "Refresh", exact: true }).click();
+        expect(view.settledExit).toBeFalsy();
+        await expect(summary.getByText("0/1")).toBeVisible();
+        await expect(summary.getByText("1", { exact: true })).toBeVisible();
+        await openMainHierarchy(page);
+        const experiment = page.getByRole("region", { name: "main" });
+        await expect(experiment.getByText("Gap: identity-mismatch")).toBeVisible();
+        await expect(experiment.getByRole("button", { name: "niceeval exp main --dry" })).toBeVisible();
+        await experiment.getByRole("link", { name: "Previous result" }).click();
+        await expect(page.getByRole("dialog").locator(".niceeval-attempt-summary-locator")).toHaveText(locator);
+      } finally {
+        if (!view.settledExit) view.signal("SIGTERM");
+        await view.dispose();
+      }
+    },
+  );
+});
+
+// @use-case docs/feature/insight/use-case/insight-create-accessible-page.md
+test("只有导入的 Record 时 Results 明确显示历史模式", async ({ page }) => {
+  await insightE2E.case(
+    "view-imported-record-history",
+    { artifacts: insightCaseArtifacts() },
+    async ({ paths: { projectRoot }, commands: { niceeval } }) => {
+      const produced = await niceeval.run(["exp", "main", "--rerun", "all", "--json"]);
+      expect(produced.exitCode, produced.diagnostic()).toBe(0);
+      await rm(join(projectRoot, "niceeval.config.ts"));
+      const view = niceeval.start(["view", "--no-open", "--port", "0"], { timeoutMs: 90_000 });
+      try {
+        const ready = await waitForViewReady(view);
+        await page.goto(expectLoopbackReadyUrl(ready.url).href);
+        await expect(page.getByText("Historical results", { exact: true })).toBeVisible();
+        await expect(page.getByText("Current results", { exact: true })).toHaveCount(0);
+      } finally {
+        if (!view.settledExit) view.signal("SIGTERM");
+        await view.dispose();
+      }
+    },
+  );
+});
+
 async function openMainHierarchy(page: Page): Promise<void> {
-  const experimentSummary = page.locator("summary.niceeval-table-hierarchy-summary").filter({
-    hasText: /^main \(/u,
-  });
+  const experimentSummary = page.getByRole("region", { name: "main" }).locator("details > summary");
   await expect(experimentSummary).toHaveCount(1);
   if (await experimentSummary.locator("xpath=..").getAttribute("open") === null) {
     await experimentSummary.click();
   }
-  const experimentDetails = experimentSummary.locator("xpath=..");
-  await expect(experimentDetails).toHaveAttribute("open", "");
-
-  const evalSummary = experimentDetails.locator("summary.niceeval-table-hierarchy-summary").filter({
-    hasText: /^inspection/u,
-  });
-  await expect(evalSummary).toHaveCount(1);
-  if (await evalSummary.locator("xpath=..").getAttribute("open") === null) {
-    await evalSummary.click();
-  }
-  await expect(evalSummary.locator("xpath=..")).toHaveAttribute("open", "");
+  await expect(experimentSummary.locator("xpath=..")).toHaveAttribute("open", "");
 }
 
 function withAt(locator: string): string {

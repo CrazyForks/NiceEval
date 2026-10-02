@@ -25,12 +25,14 @@ export interface PreparedInsightPresentation {
 export interface InsightRuntimeSnapshot {
   readonly manifest: ViewManifest;
   readonly overview: ClosedOverview;
+  readonly targetMode: "current" | "history" | "unavailable";
+  readonly targetFailureReason: string | null;
   readonly presentation?: PreparedInsightPresentation;
 }
 
 export function InsightApp({ checkForUpdate, refresh }: {
   readonly refresh: (acquireLock: AcquireRefreshNavigationLock) => Promise<RefreshResult>;
-  readonly checkForUpdate: () => Promise<boolean>;
+  readonly checkForUpdate: () => Promise<"stale" | "available" | "none">;
 }) {
   const generation = useCurrentGeneration();
   const { manifest, presentation } = generation.snapshot as InsightRuntimeSnapshot;
@@ -56,7 +58,7 @@ function InsightShell({ checkForUpdate, interactionLocked, manifest, presentatio
   readonly manifest: ViewManifest;
   readonly presentation?: PreparedInsightPresentation;
   readonly refresh: () => Promise<RefreshResult>;
-  readonly checkForUpdate: () => Promise<boolean>;
+  readonly checkForUpdate: () => Promise<"stale" | "available" | "none">;
   readonly interactionLocked: boolean;
 }) {
   const generation = useCurrentGeneration();
@@ -156,7 +158,8 @@ function InsightShell({ checkForUpdate, interactionLocked, manifest, presentatio
               setRefreshNotice(result.noticeKey);
             }).catch(() => setRefreshFailed(true)).finally(() => setRefreshing(false));
           }}>{t(refreshing ? "refresh.working" : "refresh.action")}</button>
-          {update.data === true && !refreshing ? <span role="status">{t("refresh.available")}</span> : null}
+          {update.data === "available" && !refreshing ? <span role="status">{t("refresh.available")}</span> : null}
+          {update.data === "stale" && !refreshing ? <span role="status">{t("refresh.lastGoodStale")}</span> : null}
           {refreshNotice === undefined ? null : <span role="status">{t(refreshNotice)}</span>}
           {refreshFailed ? <span role="alert">{t("refresh.failed")}</span> : null}
         </div>

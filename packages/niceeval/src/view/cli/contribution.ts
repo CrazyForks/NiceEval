@@ -2,6 +2,7 @@
 // @concord-implements docs/feature/insight/README.md
 // @concord-implements docs/feature/run-inspection/README.md
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { Effect, Result, Schema, Scope } from "effect";
 
 import {
@@ -19,10 +20,13 @@ import {
   acquireProjectRecordReadSession,
 } from "../../record/sqlite/index.ts";
 import { startExternalRecordImport } from "../../record/sqlite/external-record-import.ts";
+import { ProjectConfiguration, type ProjectConfigurationService } from "../../cli/project-configuration.ts";
+import { openCurrentProjectSource } from "../../inspection/project-source.ts";
+import { projectInput } from "../../inspection/project-input.ts";
 import { ViewBrowser } from "../browser.ts";
 import { renderViewLifecycleEvent, VIEW_LIFECYCLE_PROTOCOL } from "../protocol.ts";
 import { buildViewGeneration } from "../render.ts";
-import type { ViewGeneration } from "../revision.ts";
+import type { ViewGeneration, ViewTarget } from "../revision.ts";
 import { openViewServer } from "../server.ts";
 
 const help = (summary: string) => Object.freeze({ summary, visibility: "public" as const });
@@ -42,13 +46,23 @@ Usage:
   niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 `;
 
-type Requirements = CliArguments | CliInterruption | CliInvocationFacts | CliOutput | ViewBrowser | Scope.Scope;
+type Requirements = CliArguments | CliInterruption | CliInvocationFacts | CliOutput | ViewBrowser | ProjectConfiguration | Scope.Scope;
 type Error = CliFeatureError;
 const VIEW_RUN_SELECTION_LIMIT = 64;
 const RECORD_IMPORT_DEADLINE_MS = 30_000;
 
 function failure(operation: string, cause: unknown): Error {
   return new CliFeatureError({ feature: "view", operation, cause, exitCode: 1 });
+}
+
+function targetFailureReason(cause: unknown): string {
+  const underlying = cause instanceof CliFeatureError ? cause.cause : cause;
+  const reason = typeof underlying === "object" && underlying !== null && "reason" in underlying &&
+      typeof underlying.reason === "string"
+    ? underlying.reason
+    : underlying instanceof Error ? underlying.message : String(underlying);
+  return `${typeof underlying === "object" && underlying !== null && "code" in underlying &&
+    typeof underlying.code === "string" ? underlying.code : "prepare-current-target"}: ${reason}`.slice(0, 2000);
 }
 
 function write(channel: "stdout" | "stderr", text: string) {
@@ -78,14 +92,16 @@ function runView(argv: readonly string[]): Effect.Effect<number, Error, Requirem
     const execute = Effect.gen(function* () {
       const json = parsed.values.json === true;
       const sourcePath = resolve(facts.cwd, ".niceeval/record.sqlite");
-      const built = yield* buildRecordGeneration(sourcePath);
+      const currentCapable = existsSync(resolve(facts.cwd, "niceeval.config.ts"));
+      const project = yield* ProjectConfiguration;
+      const built = yield* buildRecordGeneration(sourcePath, facts.cwd, project, currentCapable, false);
       const initial = built.generation;
       const scope = yield* Effect.scope;
       const server = yield* openViewServer({
         initial, port, refreshEnabled: true, initialRunIds: runIds,
         refreshSource: {
           cutoffIdentity: () => Effect.runPromise(operationalCutoffAt(facts.cwd).pipe(Effect.map((cutoff) => cutoff.identity))),
-          build: () => Effect.runPromise(buildRecordGeneration(sourcePath).pipe(
+          build: () => Effect.runPromise(buildRecordGeneration(sourcePath, facts.cwd, project, currentCapable, true).pipe(
             Effect.provideService(Scope.Scope, scope),
             Effect.map((next) => next.generation),
           )),
@@ -116,6 +132,10 @@ function runView(argv: readonly string[]): Effect.Effect<number, Error, Requirem
 
 function buildRecordGeneration(
   sourcePath: string,
+  cwd: string,
+  project: ProjectConfigurationService,
+  currentCapable: boolean,
+  refresh: boolean,
 ): Effect.Effect<{ readonly generation: ViewGeneration; readonly cutoffIdentity: string }, Error, Scope.Scope> {
   return Effect.gen(function* () {
     const importer = yield* Effect.acquireRelease(
@@ -125,23 +145,41 @@ function buildRecordGeneration(
       }),
       (handle) => Effect.promise(() => handle.close().catch(() => undefined)),
     );
-    const imported = yield* Effect.tryPromise({
-      try: (_signal) => importer.result,
-      catch: (cause) => failure("import Record", cause),
-    });
-    let retired = false;
-    const retire = async (): Promise<void> => {
-      if (retired) return;
-      retired = true;
-      await importer.close();
-    };
-    const cutoff = yield* importedCutoffAt(imported.path);
-    const generation = yield* buildViewGeneration({
-      recordPath: imported.path,
-      sourceCutoffIdentity: cutoff.identity,
-      retire,
-    }).pipe(Effect.mapError((cause) => failure("build View revision", cause)));
-    return Object.freeze({ generation, cutoffIdentity: cutoff.identity });
+    return yield* Effect.gen(function* () {
+      const imported = yield* Effect.tryPromise({
+        try: (_signal) => importer.result,
+        catch: (cause) => failure("import Record", cause),
+      });
+      let retired = false;
+      const retire = async (): Promise<void> => {
+        if (retired) return;
+        retired = true;
+        await importer.close();
+      };
+      const cutoff = yield* importedCutoffAt(imported.path);
+      const prepareTarget = Effect.scoped(Effect.gen(function* () {
+        const config = yield* (refresh ? project.rebuild(cwd) : project.load(cwd));
+        const source = yield* openCurrentProjectSource({ cwd, config, recordPath: imported.path, freshImport: true });
+        const frozen = projectInput(source);
+        if (frozen === undefined || frozen.cutoffIdentity !== cutoff.identity) {
+          return yield* Effect.fail(new Error("Current target and imported Record cutoff differ."));
+        }
+        return Object.freeze({ kind: "current" as const, identity: frozen.target.identity, input: frozen });
+      })).pipe(Effect.mapError((cause) => failure("prepare current target", cause)));
+      const target: ViewTarget = !currentCapable
+        ? { kind: "history" }
+        : yield* (refresh ? prepareTarget : prepareTarget.pipe(Effect.catch((cause) =>
+          Effect.succeed({ kind: "unavailable" as const, reason: targetFailureReason(cause) }))));
+      const generation = yield* buildViewGeneration({
+        recordPath: imported.path,
+        sourceCutoffIdentity: cutoff.identity,
+        target,
+        retire,
+      }).pipe(Effect.mapError((cause) => failure("build View revision", cause)));
+      return Object.freeze({ generation, cutoffIdentity: cutoff.identity });
+    }).pipe(Effect.catchCause((cause) =>
+      Effect.promise(() => importer.close().catch(() => undefined)).pipe(Effect.andThen(Effect.failCause(cause)))
+    ));
   });
 }
 

@@ -58,22 +58,14 @@ test("loopback view 只向一次性 fragment 换取的同源 session 交付 fact
         const selector = page.getByRole("banner").getByRole("combobox", { name: "Experiments" });
         await expect(selector).toBeVisible();
         await expect(selector.getByRole("option")).toContainText(["singleton/main"]);
+        await selector.selectOption({ label: "singleton/main" });
         await expect(page).toHaveURL(/#\/group\/singleton\/main$/u);
 
-        const experimentSummary = page.locator("summary.niceeval-table-hierarchy-summary").filter({
-          hasText: /^main \(1\/1\)/u,
-        });
+        const experimentSummary = page.getByRole("region", { name: "main" }).locator("details > summary");
         await expect(experimentSummary).toHaveCount(1);
         await experimentSummary.click();
         const experimentDetails = experimentSummary.locator("xpath=..");
         await expect(experimentDetails).toHaveAttribute("open", "");
-
-        const evalSummary = experimentDetails.locator("summary.niceeval-table-hierarchy-summary").filter({
-          hasText: /^inspection/u,
-        });
-        await expect(evalSummary).toHaveCount(1);
-        await evalSummary.click();
-        await expect(evalSummary.locator("xpath=..")).toHaveAttribute("open", "");
 
         const attemptLink = experimentDetails.getByRole("link", { name: locator, exact: true });
         await expect(attemptLink).toBeVisible();
@@ -172,18 +164,13 @@ test("loopback view 只向一次性 fragment 换取的同源 session 交付 fact
           const secondPage = await context.newPage();
           await secondPage.goto(secondReadyUrl.href);
           await expect(secondPage.getByRole("heading", { name: "NiceEval Insight", exact: true })).toBeVisible();
+          await secondPage.getByRole("banner").getByRole("combobox", { name: "Experiments" }).selectOption({ label: "singleton/main" });
+          await expect(secondPage).toHaveURL(/#\/group\/singleton\/main$/u);
 
-          const secondExperimentSummary = secondPage.locator("summary.niceeval-table-hierarchy-summary").filter({
-            hasText: /^main \(1\/1\)/u,
-          });
+          const secondExperimentSummary = secondPage.getByRole("region", { name: "main" }).locator("details > summary");
           await expect(secondExperimentSummary).toHaveCount(1);
           await secondExperimentSummary.click();
           const secondExperimentDetails = secondExperimentSummary.locator("xpath=..");
-          const secondEvalSummary = secondExperimentDetails.locator("summary.niceeval-table-hierarchy-summary").filter({
-            hasText: /^inspection/u,
-          });
-          await expect(secondEvalSummary).toHaveCount(1);
-          await secondEvalSummary.click();
           const secondAttemptLink = secondExperimentDetails.getByRole("link", { name: locator, exact: true });
           await expect(secondAttemptLink).toBeVisible();
           await secondAttemptLink.click({ noWaitAfter: true });

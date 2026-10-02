@@ -1,7 +1,7 @@
 import { createHashRouter, replace, useRouteError, type LoaderFunctionArgs } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ViewRuntime, InspectionRuntimeProvider, type GenerationLease } from "./features/insight/data/index.ts";
-import { overviewOperation, RouteInputError } from "./features/insight/data/operations.ts";
+import { overviewOperation, projectOperation, RouteInputError } from "./features/insight/data/operations.ts";
 import { attemptQueryOptions } from "./features/insight/attempt/data/load.ts";
 import { resultsQueryOptions, experimentQueryOptions } from "./features/insight/results/load.ts";
 import { closeOverview, type ClosedOverview } from "./features/insight/results/model.ts";
@@ -55,13 +55,19 @@ export async function createViewRouter(unmountRoot: () => void) {
   let overview: ClosedOverview;
   try {
     overview = closeOverview(await prepared.lease.inspect(overviewOperation(selectedRunIds)));
-    manifest = viewManifest(overview.catalog);
+    if (initialDescriptor.targetMode === "current") {
+      const project = await prepared.lease.inspect(projectOperation());
+      overview = withCurrentCatalog(overview, project.project.experiments.map((entry) => entry.experimentId));
+    } else if (initialDescriptor.targetMode === "unavailable") {
+      overview = withCurrentCatalog(overview, []);
+    }
+    manifest = viewManifest(overview.catalog, selectedRunIds);
     const initialLocation = decodeInitialHashLocation(manifest.defaultRoute);
     const preparedLocation = targetForRoute(manifest, initialLocation.pathname) === undefined
       ? { pathname: manifest.defaultRoute }
       : initialLocation;
-    await prepareSurfacePlan(prepared.lease, manifest, overview, resolveSurfacePlan(manifest, preparedLocation));
-    generations.attachSnapshot(prepared, generationSnapshot(manifest, overview));
+    await prepareSurfacePlan(prepared.lease, manifest, overview, initialDescriptor.targetMode, resolveSurfacePlan(manifest, preparedLocation));
+    generations.attachSnapshot(prepared, generationSnapshot(manifest, overview, initialDescriptor.targetMode, initialDescriptor.targetFailureReason));
     generations.commit(prepared);
   } catch (cause) {
     generations.reject(prepared);
@@ -81,7 +87,7 @@ export async function createViewRouter(unmountRoot: () => void) {
       const target = targetFromRouteParts(parts(params));
       if (target === undefined) throw new RouteInputError("Insight route parameter is malformed.");
       const generation = lease.generation.binding;
-      await prepareTargetModel(lease, generation.snapshot.manifest, generation.snapshot.overview, target);
+      await prepareTargetModel(lease, generation.snapshot.manifest, generation.snapshot.overview, generation.snapshot.targetMode, target);
       return null;
     })();
   const currentDefaultRoute = () => generations.current?.snapshot.manifest.defaultRoute ?? manifest.defaultRoute;
@@ -93,7 +99,9 @@ export async function createViewRouter(unmountRoot: () => void) {
         requireActivePage(pageLifetime.signal);
         const descriptor = await fetchCurrentGeneration();
         requireActivePage(pageLifetime.signal);
-        return descriptor.stale || descriptor.generationId !== generations.current?.identity;
+        return descriptor.stale
+          ? "stale" as const
+          : descriptor.generationId !== generations.current?.identity ? "available" as const : "none" as const;
       }} refresh={async (acquireLock) => {
         const refreshEpoch = locationEpoch;
         const locationPath = router.state.location.pathname;
@@ -109,14 +117,20 @@ export async function createViewRouter(unmountRoot: () => void) {
         let lockOpen = false;
         let hostCommitted = false;
         try {
-          const nextOverview = closeOverview(await candidate.lease.inspect(overviewOperation(selectedRunIds)));
-          const nextManifest = viewManifest(nextOverview.catalog);
+          let nextOverview = closeOverview(await candidate.lease.inspect(overviewOperation(selectedRunIds)));
+          if (descriptor.targetMode === "current") {
+            const project = await candidate.lease.inspect(projectOperation());
+            nextOverview = withCurrentCatalog(nextOverview, project.project.experiments.map((entry) => entry.experimentId));
+          } else if (descriptor.targetMode === "unavailable") {
+            throw new GenerationPrepareError("Current project target is unavailable.");
+          }
+          const nextManifest = viewManifest(nextOverview.catalog, selectedRunIds);
           const selection = refreshSelection(generations.current!.snapshot.overview, nextOverview, nextManifest, locationPath);
           const surfaces = resolveSurfacePlan(nextManifest, {
             pathname: selection.route,
             state: selection.fallback ? null : locationState,
           });
-          await prepareSurfacePlan(candidate.lease, nextManifest, nextOverview, surfaces);
+          await prepareSurfacePlan(candidate.lease, nextManifest, nextOverview, descriptor.targetMode, surfaces);
           requireActivePage(pageLifetime.signal);
           if (!refreshLocationStable(router, locationEpoch, refreshEpoch, locationPath, locationKey)) {
             generations.reject(candidate);
@@ -138,6 +152,8 @@ export async function createViewRouter(unmountRoot: () => void) {
           generations.attachSnapshot(candidate, generationSnapshot(
             nextManifest,
             nextOverview,
+            descriptor.targetMode,
+            descriptor.targetFailureReason,
             selection.fallback ? { originLocationKey: locationKey, plan: surfaces } : undefined,
           ));
           const resolution = await resolveHostCommit(descriptor.generationId, previousIdentity, pageLifetime.signal);
@@ -307,23 +323,25 @@ async function prepareSurfacePlan(
   lease: GenerationLease,
   manifest: ViewManifest,
   overview: ClosedOverview,
+  targetMode: InsightRuntimeSnapshot["targetMode"],
   plan: InsightSurfacePlan,
 ): Promise<void> {
-  await prepareTargetModel(lease, manifest, overview, plan.background.target);
-  if (plan.foreground !== undefined) await prepareTargetModel(lease, manifest, overview, plan.foreground.target);
+  await prepareTargetModel(lease, manifest, overview, targetMode, plan.background.target);
+  if (plan.foreground !== undefined) await prepareTargetModel(lease, manifest, overview, targetMode, plan.foreground.target);
 }
 
 async function prepareTargetModel(
   lease: GenerationLease,
   manifest: ViewManifest,
   overview: ClosedOverview,
+  targetMode: InsightRuntimeSnapshot["targetMode"],
   target: InsightTarget,
 ): Promise<void> {
   const generation = lease.generation.binding;
   if (target.kind === "attempt") await generation.queryClient.fetchQuery(attemptQueryOptions(generation, target.locator));
   else if (target.kind === "run") await generation.queryClient.fetchQuery(runQueryOptions(generation, target.runId));
-  else if (target.kind === "experiment") await generation.queryClient.fetchQuery(experimentQueryOptions(generation, overview, target.experimentId));
-  else await generation.queryClient.fetchQuery(resultsQueryOptions(generation, manifest, overview, target.groupKind, target.key));
+  else if (target.kind === "experiment") await generation.queryClient.fetchQuery(experimentQueryOptions(generation, overview, targetMode, target.experimentId));
+  else await generation.queryClient.fetchQuery(resultsQueryOptions(generation, manifest, overview, targetMode, target.groupKind, target.key));
 }
 
 function refreshSelection(
@@ -366,7 +384,13 @@ function compareCodeUnits(left: string, right: string): number {
 function generationSnapshot(
   manifest: ViewManifest,
   overview: ClosedOverview,
+  targetMode: InsightRuntimeSnapshot["targetMode"],
+  targetFailureReason: string | null,
   presentation?: PreparedInsightPresentation,
 ): InsightRuntimeSnapshot {
-  return Object.freeze({ manifest, overview, ...(presentation === undefined ? {} : { presentation }) });
+  return Object.freeze({ manifest, overview, targetMode, targetFailureReason, ...(presentation === undefined ? {} : { presentation }) });
+}
+
+function withCurrentCatalog(overview: ClosedOverview, experiments: readonly string[]): ClosedOverview {
+  return Object.freeze({ ...overview, catalog: Object.freeze({ ...overview.catalog, experiments: Object.freeze([...experiments]) }) });
 }

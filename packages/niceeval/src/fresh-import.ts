@@ -40,7 +40,8 @@ function clearProjectModules(loader: Jiti, projectRoot: string): void {
   const root = resolve(projectRoot);
   const prefix = `${root}${sep}`;
   for (const filename of Object.keys(loader.cache)) {
-    if (isAbsolute(filename) && (filename === root || filename.startsWith(prefix))) {
+    if (isAbsolute(filename) && !filename.includes(`${sep}node_modules${sep}`) &&
+      (filename === root || filename.startsWith(prefix))) {
       delete loader.cache[filename];
     }
   }

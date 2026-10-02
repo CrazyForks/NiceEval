@@ -90,6 +90,9 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
 
   dry 与正式执行共用同一计划，且 dry 零写入。fixture 必须同时证明旧树在成功和失败路径都不被修改。
 
+- **fresh discovery 的模块图**：一个 fresh generation 只使项目自己的源码模块缓存失效，`node_modules` 下的依赖保持同一实例，否则 `niceeval` 被加载第二份，定义值过不了 Host 校验。
+  同一次选择里的 Eval 与 Experiment discovery 共用这一代 generation，共享的项目契约与函数模块只求值一次，接口相容检查才能成立。
+
 - **runs 展开与选择**：attempt 总数公式与 runs 的默认值；位置参数前缀 × 实验 `evals` 字段两层交集；谓词的白名单投影、只求值一次、非法返回值的完整报错；experiment 选择器三条规则与零命中反馈。
   template 配对 link 的同源消费(check / --dry / 正常运行同一 linker),以及 conflict / missing 的全矩阵前置报错。
   选择类契约的每条规则都要有"命中"与"不误配"两面。

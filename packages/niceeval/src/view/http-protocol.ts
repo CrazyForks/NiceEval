@@ -7,6 +7,9 @@ export const VIEW_HTTP_BODY_LIMIT = 64 * 1024;
 export const ViewGenerationDescriptorSchema = Schema.Struct({
   generationId: Schema.String,
   sourceCutoffIdentity: Schema.String,
+  targetMode: Schema.Literals(["current", "history", "unavailable"]),
+  targetIdentity: Schema.NullOr(Schema.String),
+  targetFailureReason: Schema.NullOr(Schema.String),
   refreshSupported: Schema.Boolean,
   stale: Schema.Boolean,
 });

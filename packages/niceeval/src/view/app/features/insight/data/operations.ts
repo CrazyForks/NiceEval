@@ -27,6 +27,12 @@ export function overviewOperation(runIds: readonly string[] = []): InspectionOpe
   return operation;
 }
 
+export function projectOperation(experimentIds?: readonly string[]): InspectionOperationFor<"project.get"> {
+  const operation = decoded({ kind: "project.get", ...(experimentIds === undefined ? {} : { experimentIds }) });
+  if (operation.kind !== "project.get") throw new RouteInputError("Invalid current project operation.");
+  return operation;
+}
+
 export function runOperations(runId: string): readonly [
   InspectionOperationFor<"run.get">,
   InspectionOperationFor<"run.summary">,

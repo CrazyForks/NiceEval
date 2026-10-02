@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Effect, Result } from "effect";
 import { prepareCurrentTarget, assessCurrentTarget } from "../experiment/host/current.ts";
-import { acquireProjectRecordReadSession } from "../record/sqlite/index.ts";
+import { acquireProjectRecordReadSession, openHostOwnedRecordReadSession } from "../record/sqlite/index.ts";
 import { hydrateRecordAttachmentCurrent } from "../record/attachment/protocol.ts";
 import { NiceEvalCurrentRecordAttachments, NiceEvalRecordAttachments } from "../record/family/current.ts";
 import { recordIssue } from "../record/errors/record-errors.ts";
@@ -17,14 +17,19 @@ import { openInspectionSource, operationalInspectionSource, type InspectionFactS
 import { bindProjectInput, type CurrentResultSource } from "./project-input.ts";
 
 /** One scoped reader owns both the availability inputs and Inspection facts. */
-export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(function*(input: { readonly cwd: string; readonly config: Config }) {
+export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(function*(input: { readonly cwd: string; readonly config: Config; readonly recordPath?: string; readonly freshImport?: boolean }) {
   const root = resolve(input.cwd, ".niceeval");
   let source: InspectionFactSource;
   const resources: ReadableRunResource[] = [];
-  if (!existsSync(resolve(root, "record.sqlite"))) {
+  if (input.recordPath === undefined && !existsSync(resolve(root, "record.sqlite"))) {
     source = yield* openInspectionSource(operationalInspectionSource(input.cwd));
   } else {
-    const session = yield* acquireProjectRecordReadSession(root);
+    const session = input.recordPath === undefined
+      ? yield* acquireProjectRecordReadSession(root)
+      : yield* Effect.acquireRelease(
+        Effect.try(() => openHostOwnedRecordReadSession(input.recordPath!)),
+        (opened) => Effect.sync(() => opened.close()),
+      );
     const cutoff = session.readSealedRunSummaryPage("", 1).cutoff;
     source = Object.freeze({
       kind: "project-record" as const,

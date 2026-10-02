@@ -4,7 +4,7 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { Effect } from "effect";
 
-import { makeViewGeneration, newViewGenerationId, type ViewGeneration } from "./revision.ts";
+import { makeViewGeneration, newViewGenerationId, type ViewGeneration, type ViewTarget } from "./revision.ts";
 
 export interface ViewBuildError {
   readonly code: "view-build-failed";
@@ -21,6 +21,7 @@ const APP_ROOT = join(import.meta.dirname, "app-dist");
 export function buildViewGeneration(input: {
   readonly recordPath: string;
   readonly sourceCutoffIdentity: string;
+  readonly target: ViewTarget;
   readonly retire: () => Promise<void>;
 }): Effect.Effect<ViewGeneration, ViewBuildError> {
   return Effect.gen(function* () {
@@ -33,6 +34,7 @@ export function buildViewGeneration(input: {
     return makeViewGeneration({
       generationId: newViewGenerationId(),
       sourceCutoffIdentity: input.sourceCutoffIdentity,
+      target: input.target,
       contentHash,
       appRoot: APP_ROOT,
       recordPath: input.recordPath,

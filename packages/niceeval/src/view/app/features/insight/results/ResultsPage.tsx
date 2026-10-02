@@ -9,17 +9,32 @@ import { experimentQueryOptions, resultsQueryOptions } from "./load.ts";
 import type { InsightRuntimeSnapshot } from "../shell/App.tsx";
 import type { InsightTarget } from "../shell/types.ts";
 import { Grid } from "../components/primitives/index.tsx";
+import { CurrentResults } from "./CurrentResults.tsx";
 
-export function ResultsPage({ model, locale }: {
+export function ResultsPage({ model, locale, unavailableReason }: {
   readonly model: ResultsPageModel;
   readonly locale: Locale;
+  readonly unavailableReason?: string | null;
 }): ReactElement {
   const { t } = useTranslation();
+  if (model.targetMode === "current" && model.current !== undefined) {
+    return <CurrentResults project={model.current} history={model.currentHistory ?? model.current.history} locale={locale} />;
+  }
+  if (model.targetMode === "unavailable") {
+    const historicalRun = model.overview.catalog.runExperiments[0]?.runId;
+    return <section className="niceeval-report niceeval-section" role="alert">
+      <h1>{t("current.unavailable")}</h1>
+      <p>{t("current.unavailableDetail")}</p>
+      {unavailableReason === undefined || unavailableReason === null ? null : <p>{t("current.unavailableReason")}: {unavailableReason}</p>}
+      {historicalRun === undefined ? null : <a href={`#/run/${encodeURIComponent(historicalRun)}`}>{t("current.historicalRun")}</a>}
+    </section>;
+  }
   const experiments = overviewData(model.overview, model.selectedExperiments);
   return (
     <>
       <header className="niceeval-report niceeval-hero">
         <h1 className="niceeval-hero-title">{t("insight.title")}</h1>
+        <p>{t("current.historicalResults")}</p>
       </header>
       <div className="niceeval-view-report-slot">
         {model.costSummary === undefined ? null : <ExperimentCosts summary={model.costSummary} />}
@@ -94,19 +109,20 @@ export function ResultsRoute({ target }: {
 function GroupResultsRoute({ groupKind, groupKey }: { readonly groupKind?: string; readonly groupKey?: string }) {
   const generation = useCurrentGeneration();
   const snapshot = generation.snapshot as InsightRuntimeSnapshot;
-  const { data: model } = useSuspenseQuery(resultsQueryOptions(generation, snapshot.manifest, snapshot.overview, groupKind, groupKey));
+  const { data: model } = useSuspenseQuery(resultsQueryOptions(generation, snapshot.manifest, snapshot.overview, snapshot.targetMode, groupKind, groupKey));
   return <LocalizedResultsPage model={model} />;
 }
 
 function ExperimentResultsRoute({ experimentId }: { readonly experimentId: string }) {
   const generation = useCurrentGeneration();
   const snapshot = generation.snapshot as InsightRuntimeSnapshot;
-  const { data: model } = useSuspenseQuery(experimentQueryOptions(generation, snapshot.overview, experimentId));
+  const { data: model } = useSuspenseQuery(experimentQueryOptions(generation, snapshot.overview, snapshot.targetMode, experimentId));
   return <LocalizedResultsPage model={model} />;
 }
 
 function LocalizedResultsPage({ model }: { readonly model: ResultsPageModel }) {
   const { i18n } = useTranslation();
+  const generation = useCurrentGeneration();
   const locale = (i18n.resolvedLanguage ?? "en") as Locale;
-  return <ResultsPage model={model} locale={locale} />;
+  return <ResultsPage model={model} locale={locale} unavailableReason={(generation.snapshot as InsightRuntimeSnapshot).targetFailureReason} />;
 }

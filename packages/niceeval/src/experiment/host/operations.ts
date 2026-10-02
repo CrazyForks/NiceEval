@@ -10,6 +10,7 @@ import { acceptLocators, acceptRun, planAcceptRun } from "../../runner/accept.ts
 import { activateFeedbackSink, type FeedbackSink } from "../../runner/feedback/sink.ts";
 import { computeExitCode } from "../../runner/feedback/json.ts";
 import { discoverEvals, discoverExperiments } from "../../runner/discover.ts";
+import { acquireFreshImportGeneration, type FreshImportGeneration } from "../../fresh-import.ts";
 import { resolveExperimentEvals, splitByEvaluationKind } from "../../runner/eval-selection.ts";
 import { planProjectTarget } from "../../runner/fingerprint.ts";
 import {
@@ -266,16 +267,16 @@ function selectionProblem(
   return undefined;
 }
 
-function closeSelection(input: ExperimentHostSelectionInput): Effect.Effect<ClosedSelection, unknown> {
-  return Effect.gen(function* () {
+function closeSelection(input: ExperimentHostSelectionInput, options: { readonly freshImport?: boolean } = {}): Effect.Effect<ClosedSelection, unknown> {
+  const selectWith = (generation?: FreshImportGeneration) => Effect.gen(function* () {
     if (input.experimentIds !== undefined && (input.experimentIds.length === 0 || input.experimentSelector !== undefined)) {
       return yield* Effect.fail(new TypeError("experimentIds must be non-empty and cannot be combined with experimentSelector"));
     }
-    const discovered = yield* discoverEvals(input.cwd);
+    const discovered = yield* discoverEvals(input.cwd, { generation });
     const evals = input.tag === undefined
       ? discovered
       : discovered.filter((definition) => definition.tags?.includes(input.tag!));
-    const experiments = yield* discoverExperiments(input.cwd);
+    const experiments = yield* discoverExperiments(input.cwd, { generation });
     const experimentIds = freezeArray(experiments.map((experiment) => experiment.id));
     const selectedIds = input.experimentIds !== undefined
       ? new Set(input.experimentIds)
@@ -303,6 +304,9 @@ function closeSelection(input: ExperimentHostSelectionInput): Effect.Effect<Clos
       selections: freezeArray(selections),
     });
   });
+  return options.freshImport
+    ? Effect.scoped(acquireFreshImportGeneration(input.cwd).pipe(Effect.flatMap(selectWith)))
+    : selectWith();
 }
 
 function summaryOfExperiment(
@@ -393,8 +397,8 @@ function sandboxSetupCacheOverrideOf(
 export function prepareRuns(input: ExperimentHostSelectionInput & {
   readonly config: ExperimentHostInvocationPlanRequest["config"];
   readonly overrides?: ExperimentHostRunOverrides;
-}, options: { readonly allowEmptySelection?: boolean } = {}): Effect.Effect<PreparedRuns, unknown> {
-  return closeSelection(input).pipe(Effect.flatMap((selected): Effect.Effect<
+}, options: { readonly allowEmptySelection?: boolean; readonly freshImport?: boolean } = {}): Effect.Effect<PreparedRuns, unknown> {
+  return closeSelection(input, options).pipe(Effect.flatMap((selected): Effect.Effect<
     PreparedRuns,
     ExperimentEvaluationKindAdmissionError
   > => {

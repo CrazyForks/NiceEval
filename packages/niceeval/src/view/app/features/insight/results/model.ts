@@ -75,7 +75,21 @@ export interface ResultsPageModel {
   readonly overview: ClosedOverview;
   readonly selectedExperiments: readonly string[];
   readonly selectionTitle: string;
+  readonly current?: InspectionSuccessDocumentFor<"project.get">["project"];
+  readonly currentHistory?: InspectionSuccessDocumentFor<"project.get">["project"]["history"];
+  readonly targetMode: "current" | "history" | "unavailable";
   readonly costSummary?: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["costSummary"];
+}
+
+type CurrentProject = InspectionSuccessDocumentFor<"project.get">["project"];
+
+/** Groups already closed project.get slots for presentation; no recorded member is reselected. */
+export function currentExperimentRows(project: CurrentProject) {
+  return project.experiments.map((experiment) => {
+    const slots = project.slots.filter((slot) => slot.experimentId === experiment.experimentId);
+    const covered = slots.filter((slot) => slot.state === "reuse").length;
+    return Object.freeze({ experiment, slots, covered, gaps: slots.length - covered });
+  });
 }
 
 export function closeOverview(document: InspectionSuccessDocumentFor<"overview.get">): ClosedOverview {

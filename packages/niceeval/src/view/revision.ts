@@ -1,4 +1,10 @@
 import { randomBytes } from "node:crypto";
+import type { FrozenProjectInput } from "../inspection/project-input.ts";
+
+export type ViewTarget =
+  | { readonly kind: "current"; readonly input: FrozenProjectInput; readonly identity: string }
+  | { readonly kind: "history" }
+  | { readonly kind: "unavailable"; readonly reason: string };
 
 /** One immutable app + pinned Record generation owned by the CLI process. */
 export interface ViewGeneration {
@@ -8,6 +14,7 @@ export interface ViewGeneration {
   readonly recordByteLength: number;
   readonly contentHash: string;
   readonly sourceCutoffIdentity: string;
+  readonly target: ViewTarget;
   /** Idempotently releases the private imported Record generation. */
   readonly retire: () => Promise<void>;
 }

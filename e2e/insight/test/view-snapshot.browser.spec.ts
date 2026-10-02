@@ -2,7 +2,7 @@
 
 import { only, type ProcessHandle } from "@niceeval/testkit";
 import { expect, test } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   expectLoopbackReadyUrl,
@@ -169,6 +169,12 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
       expect(recallLocator).toMatch(/^@[0-9A-Z]+$/u);
       expect(toolLocator).toMatch(/^@[0-9A-Z]+$/u);
       expect(selectedRunId).not.toBe("");
+
+      // This Journey owns the recorded Overview and debugger. A Record-only
+      // consumer selects the explicit historical Results path.
+      const configPath = join(projectRoot, "niceeval.config.ts");
+      const configSource = await readFile(configPath, "utf8");
+      await rm(configPath);
 
       const selectedView = niceeval.start([
         "view",
@@ -670,6 +676,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         await expect(inspectionDetails.getByRole("link", { name: comparisonLocator, exact: true })).toBeVisible();
         await expect(inspectionDetails.getByRole("link", { name: inspectionLocator, exact: true })).toHaveCount(0);
 
+        await writeFile(configPath, configSource);
         const later = await niceeval.run(["exp", "main", "--rerun", "all", "--json"]);
         expect(later.exitCode, later.diagnostic()).toBe(0);
         const laterRunId = only(later.expReceipt().createdRunIds, () => true, later.diagnostic());
