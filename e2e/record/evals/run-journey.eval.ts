@@ -6,6 +6,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("publish this Attempt");
     await turn.succeeded().orStop();
+    if (turn.message.startsWith("run-journey-terminal-error:")) throw new Error(turn.message);
     t.check(turn.message, includes("run-journey-attempt-published"));
     if (turn.message.includes("niceeval-unpublished-attempt-canary-")) {
       const endpoint = process.env.NICEEVAL_RUN_JOURNEY_ENDPOINT;

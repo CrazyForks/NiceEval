@@ -229,6 +229,16 @@ function selectionProblem(
   input: ExperimentHostSelectionInput,
   selected: ClosedSelection,
 ): ExperimentHostSelectionProblem | undefined {
+  if (input.experimentIds !== undefined) {
+    const missing = input.experimentIds.find((id) => !selected.experimentIds.includes(id));
+    if (missing !== undefined) {
+      return Object.freeze({
+        status: "experiment-no-match" as const,
+        selector: missing,
+        candidates: freezeArray([...selected.experimentIds].sort()),
+      });
+    }
+  }
   if (input.experimentSelector !== undefined && selected.selections.length === 0) {
     return Object.freeze({
       status: "experiment-no-match" as const,
@@ -258,15 +268,20 @@ function selectionProblem(
 
 function closeSelection(input: ExperimentHostSelectionInput): Effect.Effect<ClosedSelection, unknown> {
   return Effect.gen(function* () {
+    if (input.experimentIds !== undefined && (input.experimentIds.length === 0 || input.experimentSelector !== undefined)) {
+      return yield* Effect.fail(new TypeError("experimentIds must be non-empty and cannot be combined with experimentSelector"));
+    }
     const discovered = yield* discoverEvals(input.cwd);
     const evals = input.tag === undefined
       ? discovered
       : discovered.filter((definition) => definition.tags?.includes(input.tag!));
     const experiments = yield* discoverExperiments(input.cwd);
     const experimentIds = freezeArray(experiments.map((experiment) => experiment.id));
-    const selectedIds = input.experimentSelector === undefined
-      ? undefined
-      : new Set(matchExperimentSelector(experimentIds, input.experimentSelector));
+    const selectedIds = input.experimentIds !== undefined
+      ? new Set(input.experimentIds)
+      : input.experimentSelector === undefined
+        ? undefined
+        : new Set(matchExperimentSelector(experimentIds, input.experimentSelector));
     const selections = experiments
       .filter((experiment) => selectedIds === undefined || selectedIds.has(experiment.id))
       .map((experiment) => {

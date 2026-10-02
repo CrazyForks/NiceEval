@@ -66,7 +66,7 @@ import { failureDetailFromCurrentReusedAttempt, failureDetailFromResult } from "
 import { COORDINATION_RECOVERED_CODE, EVALUATION_ALGORITHM, runWho, HALT_DIAGNOSTIC_CODE } from "./types.ts";
 import { ReusableSandboxPool } from "./sandbox-pool.ts";
 import { liveSandboxRuntimeServices } from "../sandbox/runtime.ts";
-import { detectReuseContamination, reuseContaminationMessage } from "./reuse-diagnostics.ts";
+import { detectReuseFailureClusters, reuseFailureClusterMessage } from "./reuse-diagnostics.ts";
 import { selectedEvalsForRun } from "./eval-selection.ts";
 import { registerExperimentTeardown, unregisterExperimentTeardown } from "./experiment-cleanup-registry.ts";
 import { cleanupCallback } from "./cleanup-timeout.ts";
@@ -3210,14 +3210,13 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     if (Exit.isFailure(completedBuilds)) return yield* Effect.failCause(completedBuilds.cause);
     sandboxBuildRecords = [...completedBuilds.value.records];
   }
-  // 复用污染线索:按实例 × 承接序号聚合本次 Run 真实跑出的结果(携带条目不参与——复用实验
-  // 不消费也不产出结果沿用)。只指路,不改判定(见 reuse-diagnostics.ts)。
-  for (const notice of detectReuseContamination(results)) {
+  // 只聚合本次实际承接的失败；携带结果没有本次 Sandbox 承接序号。
+  for (const notice of detectReuseFailureClusters(results)) {
     reportDiagnostic({
-      key: `sandbox-reuse-contamination:${notice.experimentId ?? ""}:${notice.reuseSandbox}:${notice.phase}`,
-      code: "sandbox-reuse-contamination",
+      key: `sandbox-reuse-failure-cluster:${notice.experimentId ?? ""}:${notice.reuseSandbox}:${notice.phase}`,
+      code: "sandbox-reuse-failure-cluster",
       severity: "warning",
-      message: reuseContaminationMessage(notice),
+      message: reuseFailureClusterMessage(notice),
       data: {
         ...(notice.experimentId !== undefined ? { experimentId: notice.experimentId } : {}),
         reuseSandbox: notice.reuseSandbox,

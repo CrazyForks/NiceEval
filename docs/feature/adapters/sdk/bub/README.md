@@ -44,6 +44,12 @@ Usage 和 cost 从 run 事件读取。
 
 Bub 原生 OTLP 可以配置为时间轨，span mapper 只影响瀑布图。
 
+## 上下文长度与 handoff
+
+上下文选择与压缩属于被测 Bub 的行为。Adapter 保持所选版本的原生策略，不在每次 `send` 前另行截断历史。Bub 0.4.0 遇到能识别的上下文长度异常时，原生循环会执行一次 `auto_handoff/context_overflow` 并重试；这不保证任意输入都能缩到模型允许的长度内。
+
+`BUB_MAX_TOKENS` 限制输出 token，不是输入长度或压缩阈值。排查溢出时，应同时核对 Bub 版本、模型的上下文长度限制、代理返回的错误文本和 tape 中的 handoff；单次重跑成功不能证明压缩问题已解决。Adapter 仍负责正确传递模型与端点，并保留失败和可用的 tape 证据。
+
 ## Prebuilt environment
 
 Bub 没有 provider 官方 template。

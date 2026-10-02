@@ -70,6 +70,7 @@ export const CHECK_CLI_OPTIONS = Object.freeze({
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
 export const EXP_NORMAL_CLI_OPTIONS = Object.freeze({
+  experiment: option("string", "Select an exact Experiment ID; repeat to select a set.", true),
   attempts: option("string", "Run each selected Eval this many times."),
   "max-concurrency": option("string", "Limit concurrent Attempt execution."),
   "max-build-concurrency": option("string", "Limit concurrent Sandbox build preparation."),
@@ -151,11 +152,13 @@ Options:
 
 const EXP_HELP = `Run and maintain Experiments:
   niceeval exp [<experiment-prefix> [<eval-prefix>...]] [options]
+  niceeval exp --experiment <exact-id> [--experiment <exact-id>...] [<eval-prefix>...] [options]
   niceeval exp list [<experiment-prefix>] [--tag <tag>] [--json]
   niceeval exp rename <new-id> --run <source-run-id> [--dry] [--json]
 ${SHARED_STATE_RECOVERY_USAGE}
 
 Run options:
+  --experiment <exact-id>       select an exact Experiment ID (repeatable)
   --attempts <n>                 run each selected Eval this many times
   --max-concurrency <n>          limit concurrent Attempt execution
   --max-build-concurrency <n>    limit concurrent Sandbox build preparation
@@ -300,8 +303,8 @@ Run \`niceeval exp <path> --dry\` to preview a plan.
   }
   if (result.status === "eval-no-match") {
     return `No eval matched prefix: ${result.selector ?? ""} in experiments selected by ${(result.experimentIds ?? []).join(", ") || "(all)"}.
-Positional args after the first select eval id prefixes. To run another experiment,
-run it as its own command: niceeval exp ${result.selector ?? ""}
+Positional args after the first select eval id prefixes. To select separate experiments in one Invocation,
+use: niceeval exp --experiment <first-id> --experiment <second-id>
 `;
   }
   return `No evals selected: ${(result.experimentIds ?? []).join(", ") || "(all)"} matched 0 evals. Available eval prefixes: ${browsableExperimentPaths(result.candidates ?? result.experimentIds ?? []).join(", ") || "(none)"}.
@@ -510,7 +513,13 @@ function factsAndConfig() {
   });
 }
 
-function selection(positionals: readonly string[]) {
+function selection(positionals: readonly string[], experimentIds?: readonly string[]) {
+  if (experimentIds !== undefined) {
+    return Object.freeze({
+      experimentIds: Object.freeze([...new Set(experimentIds)]),
+      ...(positionals.length === 0 ? {} : { evalSelectors: Object.freeze([...positionals]) }),
+    });
+  }
   const [experimentSelector, ...evalSelectors] = positionals;
   return Object.freeze({
     ...(experimentSelector === undefined ? {} : { experimentSelector }),
@@ -577,7 +586,7 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
     // schema rejects irrelevant flags before facts, config, or .env are read.
     const preliminary = yield* parsed(argv, EXP_CLI_OPTIONS);
     const teardownMode = preliminary.values.teardown === true;
-    const preliminaryVerb = preliminary.positionals[0];
+    const preliminaryVerb = preliminary.values.experiment === undefined ? preliminary.positionals[0] : undefined;
     if (preliminaryVerb === "help" && preliminary.positionals.length === 1) {
       return yield* write("stdout", EXP_HELP).pipe(Effect.as(0));
     }
@@ -592,7 +601,8 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
             : EXP_NORMAL_CLI_OPTIONS,
     );
     if (input.values.help === true) return yield* write("stdout", EXP_HELP).pipe(Effect.as(0));
-    const [verb, ...rest] = input.positionals;
+    const [positionalVerb, ...rest] = input.positionals;
+    const verb = input.values.experiment === undefined ? positionalVerb : undefined;
     const facts = yield* CliInvocationFacts;
     const invocation = yield* facts.facts.pipe(Effect.mapError((cause) => failure("read invocation facts", cause)));
     if (teardownMode) {
@@ -730,7 +740,7 @@ Run \`niceeval exp <path> --dry\` to preview a plan.
     const plan = yield* experimentHost.invocation.plan({
       cwd: invocation.cwd,
       config,
-      ...selection(input.positionals),
+      ...selection(input.positionals, Array.isArray(input.values.experiment) ? input.values.experiment : undefined),
       ...(typeof input.values.tag === "string" ? { tag: input.values.tag } : {}),
       ...(typeof input.values.record === "string" ? { recordRoot: input.values.record } : {}),
       overrides: overrides(input.values),
@@ -757,7 +767,8 @@ Run \`niceeval exp <path> --dry\` to preview a plan.
     const renderer = profile === "human"
       ? createHumanRenderer({
           io: terminal.feedback,
-          command: ["niceeval", "exp", ...input.positionals].join(" ").trim(),
+          command: ["niceeval", "exp", ...(Array.isArray(input.values.experiment)
+            ? input.values.experiment.flatMap((id) => ["--experiment", id]) : []), ...input.positionals].join(" ").trim(),
         })
       : createJsonRenderer({ io: terminal.feedback });
     const coordinator = createFeedbackCoordinator({

@@ -8,6 +8,8 @@ description: "用固定的 query、show 和 view 读取 canonical SQLite Record�
 
 将 `niceeval exp` 的人读输出接入管道时，stdout 仍会显示运行中的进度。每行带 Experiment、Eval 与 Attempt 序号；每个 Attempt 最多每秒输出一次变化，相同文本不会刷屏。终端中继续显示动态面板，脚本读取结构化结果时使用 `--json`。
 
+用重复的 `--experiment` 精确选择多个实验，例如 `niceeval exp --experiment baseline --experiment memory --max-concurrency 4`。它们在同一次 Invocation 中共享并发限制和预算。重复 ID 只运行一次；任一 ID 不存在时，整次请求会在执行前失败。指定这些选项后，位置参数用于筛选评估用例。
+
 ## `niceeval query`
 
 ```sh
@@ -89,6 +91,7 @@ View 只读取当前项目的 `.niceeval/record.sqlite`。新 publication 出现
 | `--version` | `niceeval` | boolean | 打印当前安装的 NiceEval 版本。 |
 | `--tag` | `niceeval check`、`niceeval exp`、`niceeval exp list` | string | 只选择带有该 tag 的评估用例。 |
 | `--help` | `niceeval check`、`niceeval exp`、`niceeval exp list`、`niceeval exp rename`、`niceeval exp --teardown`、`niceeval debug`、`niceeval accept`、`niceeval session` | boolean | 打印该命令的帮助。 |
+| `--experiment` | `niceeval exp` | string[] | 按 Experiment selector 缩小当前项目的结果。 |
 | `--attempts` | `niceeval exp` | number | 让每个选中的评估用例运行指定次数。 |
 | `--max-concurrency` | `niceeval exp` | number | 限制同时执行的 Attempt 数量。 |
 | `--max-build-concurrency` | `niceeval exp` | number | 限制同时准备 Sandbox build 的数量。 |

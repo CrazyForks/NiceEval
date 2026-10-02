@@ -16,6 +16,21 @@ query 与 View 由 Inspection 和 Delivery 的 owner 组合，不从 Experiment 
 通知 Adapter 正式取消原因，并等待独立有界 cleanup，原 interruption Cause 保留。
 CLI 内部使用相同领域操作，由 bootstrap 统一提供平台资源，不嵌套运行另一套 Effect runtime。
 
+Host 的发现、检查与 Invocation planning 共用以下选择输入：
+
+```ts
+interface ExperimentHostSelectionInput {
+  readonly cwd: string;
+  readonly experimentSelector?: string;
+  readonly experimentIds?: readonly string[];
+  readonly evalSelectors?: readonly string[];
+  readonly tag?: string;
+}
+```
+
+`experimentSelector` 按单个 ID 或路径前缀选择；`experimentIds` 是非空的精确 ID 集合，两者互斥。
+精确集合去重后参与同一次 Invocation planning；缺少任一 ID 就拒绝运行。省略两者选择全部 Experiment。
+
 默认当前结果使用固定 `project.get`。Experiment Host 只提供一次求值后冻结的当前目标与适用性输入，
 Inspection 关闭分母与指标；固定 `overview.get`、`experiment.get`、Run 与 Attempt 读取不依赖当前项目定义。
 

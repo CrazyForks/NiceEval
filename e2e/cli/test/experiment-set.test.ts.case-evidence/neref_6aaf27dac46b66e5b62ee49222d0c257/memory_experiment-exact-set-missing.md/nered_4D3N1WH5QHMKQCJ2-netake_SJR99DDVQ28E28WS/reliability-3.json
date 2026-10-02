@@ -1,0 +1,475 @@
+{
+  "format": "concord.native-case-receipt/v1",
+  "mode": "formal",
+  "observation": "reliability",
+  "selector": "e2e/cli/test/experiment-set.test.ts#neref_6aaf27dac46b66e5b62ee49222d0c257",
+  "caseId": "neref_6aaf27dac46b66e5b62ee49222d0c257",
+  "inventoryDigest": "sha256:f31eb2b54f575a4879f71527c907e05c5aef422c6ae9f3b3e856c79ae751effa",
+  "problem": {
+    "path": "memory/experiment-exact-set-missing.md",
+    "epoch": 0
+  },
+  "candidate": {
+    "gitSha": "2f71de951f9f8244350da5da4aa288d30fcef334",
+    "sha256": "09ae81158f5cc3812a95f39f3c643ab3bc7f1532f73553249135138397045c3d",
+    "sri": "sha256-Ca6BFY9cw4EqlfOfPGQ6s7x/FTL3NVMkkTUTg5cEXD0="
+  },
+  "source": {
+    "format": "concord.repository-source-identity/v4",
+    "projection": {
+      "algorithm": "concord.repository-source-projection/v3",
+      "digest": "sha256:b8fdc94a160d22cacb8dc7326d38f0477a6680af3244bf7209eb7b8aad6009e7",
+      "files": [
+        {
+          "path": "e2e/cli/agents/deterministic.ts",
+          "bytes": 3058,
+          "rawSha256": "f04e4a7a73759a04db9320aefd733c588dd39782a8662c795a3fe42905865d3e",
+          "codeSha256": "f04e4a7a73759a04db9320aefd733c588dd39782a8662c795a3fe42905865d3e"
+        },
+        {
+          "path": "e2e/cli/agents/sandbox-action-debug.ts",
+          "bytes": 1342,
+          "rawSha256": "c037de11eaada51376bdaee518edff2a20d5edda3663c4e8c2d7a2d3d1625de8",
+          "codeSha256": "c037de11eaada51376bdaee518edff2a20d5edda3663c4e8c2d7a2d3d1625de8"
+        },
+        {
+          "path": "e2e/cli/agents/sandbox-step-activity.ts",
+          "bytes": 747,
+          "rawSha256": "46668a72f3dfd9ddd87a642f833e6abd687c6e7e452acd3f6f3d67689c7c2931",
+          "codeSha256": "46668a72f3dfd9ddd87a642f833e6abd687c6e7e452acd3f6f3d67689c7c2931"
+        },
+        {
+          "path": "e2e/cli/evals/assertions-document/error.eval.ts",
+          "bytes": 386,
+          "rawSha256": "891d4c6f5068424eaefe125742e2bf5d6286ae30a94b119a8b497760d57c286d",
+          "codeSha256": "891d4c6f5068424eaefe125742e2bf5d6286ae30a94b119a8b497760d57c286d"
+        },
+        {
+          "path": "e2e/cli/evals/deliberate-error/crash.eval.ts",
+          "bytes": 685,
+          "rawSha256": "7e6f8f4c8bc5d0398ce936f9a3f70d43071962fe1fc566f50365fe440168b133",
+          "codeSha256": "7e6f8f4c8bc5d0398ce936f9a3f70d43071962fe1fc566f50365fe440168b133"
+        },
+        {
+          "path": "e2e/cli/evals/deliberate-fail/broken.eval.ts",
+          "bytes": 472,
+          "rawSha256": "6c623148cf7572405972b15bff2b117f47aeb9a5fb85e19d678467c3ad2e93ed",
+          "codeSha256": "6c623148cf7572405972b15bff2b117f47aeb9a5fb85e19d678467c3ad2e93ed"
+        },
+        {
+          "path": "e2e/cli/evals/deliberate-score/scored.eval.ts",
+          "bytes": 280,
+          "rawSha256": "02efb3b3add9135c33d85f8b372f9ac5cc4a5a71fcb3182f8f645e0a0c4deac7",
+          "codeSha256": "02efb3b3add9135c33d85f8b372f9ac5cc4a5a71fcb3182f8f645e0a0c4deac7"
+        },
+        {
+          "path": "e2e/cli/evals/greet/hello.eval.ts",
+          "bytes": 626,
+          "rawSha256": "3e254b03fd2a09b33dac54a33cd62a35819805d98b55834f94768246f83efcd4",
+          "codeSha256": "3e254b03fd2a09b33dac54a33cd62a35819805d98b55834f94768246f83efcd4"
+        },
+        {
+          "path": "e2e/cli/evals/interrupt-feedback/wait.eval.ts",
+          "bytes": 237,
+          "rawSha256": "7d9c3e4fde03fb46f6e033562131981455ac72e4abcef1d6bcc0def240ddc9e4",
+          "codeSha256": "7d9c3e4fde03fb46f6e033562131981455ac72e4abcef1d6bcc0def240ddc9e4"
+        },
+        {
+          "path": "e2e/cli/evals/judge-precheck/unreachable.eval.ts",
+          "bytes": 309,
+          "rawSha256": "4a1a1f9117e04df92b8dd9ad76abe199dd232057f6f8105b47729d8eafefe2a1",
+          "codeSha256": "4a1a1f9117e04df92b8dd9ad76abe199dd232057f6f8105b47729d8eafefe2a1"
+        },
+        {
+          "path": "e2e/cli/evals/pipe/progress.eval.ts",
+          "bytes": 740,
+          "rawSha256": "a8f47c779209cf47e116d61a7fc9391df159d53b177d34e13d26bd53ec879eb5",
+          "codeSha256": "a8f47c779209cf47e116d61a7fc9391df159d53b177d34e13d26bd53ec879eb5"
+        },
+        {
+          "path": "e2e/cli/evals/pty/progress.eval.ts",
+          "bytes": 568,
+          "rawSha256": "cabe6bb411d877dcc8b589720575d8e64d2ca6ffbc80454de67ef583a6295306",
+          "codeSha256": "cabe6bb411d877dcc8b589720575d8e64d2ca6ffbc80454de67ef583a6295306"
+        },
+        {
+          "path": "e2e/cli/evals/sandbox-action-debug/eval-group.ts",
+          "bytes": 558,
+          "rawSha256": "b2408c741686aa2da5490e2279d905ef92b06e4bd68364706e562e5bc8783aaf",
+          "codeSha256": "b2408c741686aa2da5490e2279d905ef92b06e4bd68364706e562e5bc8783aaf"
+        },
+        {
+          "path": "e2e/cli/evals/sandbox-action-debug/plan.eval.ts",
+          "bytes": 436,
+          "rawSha256": "60966a732ac400e390604a9a09af4b68b8099d8c36f21de81e36037d90f11997",
+          "codeSha256": "60966a732ac400e390604a9a09af4b68b8099d8c36f21de81e36037d90f11997"
+        },
+        {
+          "path": "e2e/cli/evals/sandbox-action-debug/secondary.eval.ts",
+          "bytes": 463,
+          "rawSha256": "26f077dce0cce000cdb8be682f51b513db19a50bfd3ea46a640288f694027a65",
+          "codeSha256": "26f077dce0cce000cdb8be682f51b513db19a50bfd3ea46a640288f694027a65"
+        },
+        {
+          "path": "e2e/cli/evals/sandbox-step-activity/display.eval.ts",
+          "bytes": 1230,
+          "rawSha256": "1abdccd3dba042d004979ed9a8499e3de6b60caa2ebabec63e64886263757d87",
+          "codeSha256": "1abdccd3dba042d004979ed9a8499e3de6b60caa2ebabec63e64886263757d87"
+        },
+        {
+          "path": "e2e/cli/evals/score-feedback.eval.ts",
+          "bytes": 734,
+          "rawSha256": "d0647cf7f81fe648d1f27b2740fa0b0cf6566e92c96be9c446dbff59c9709bf5",
+          "codeSha256": "d0647cf7f81fe648d1f27b2740fa0b0cf6566e92c96be9c446dbff59c9709bf5"
+        },
+        {
+          "path": "e2e/cli/evals/short-error/score.eval.ts",
+          "bytes": 265,
+          "rawSha256": "92cb0354c698d880b61e796d4529b5ca7ae687f46dfdb9e80a069a48ea051dea",
+          "codeSha256": "92cb0354c698d880b61e796d4529b5ca7ae687f46dfdb9e80a069a48ea051dea"
+        },
+        {
+          "path": "e2e/cli/evals/tool/weather.eval.ts",
+          "bytes": 1150,
+          "rawSha256": "dbc6d56937ac56ac8d1d60201cf2735cb608b8bad2054c9ea6f713e56a37793c",
+          "codeSha256": "dbc6d56937ac56ac8d1d60201cf2735cb608b8bad2054c9ea6f713e56a37793c"
+        },
+        {
+          "path": "e2e/cli/experiments/assertions-document-error.ts",
+          "bytes": 322,
+          "rawSha256": "5888b64d1169a871171bed69d92b9262b61822f87e08d1b1e6265f4a9be5ce41",
+          "codeSha256": "5888b64d1169a871171bed69d92b9262b61822f87e08d1b1e6265f4a9be5ce41"
+        },
+        {
+          "path": "e2e/cli/experiments/cache-hit.ts",
+          "bytes": 492,
+          "rawSha256": "a90db979c7db29de75c0f0fdd5836b9c6c82e56781da821c4f68565d6319edf3",
+          "codeSha256": "a90db979c7db29de75c0f0fdd5836b9c6c82e56781da821c4f68565d6319edf3"
+        },
+        {
+          "path": "e2e/cli/experiments/deliberate-error.ts",
+          "bytes": 755,
+          "rawSha256": "0b3ae611a50588198f2ad07c950fc01caccffd664c5e3bcbfa9aea0a3fc8baac",
+          "codeSha256": "0b3ae611a50588198f2ad07c950fc01caccffd664c5e3bcbfa9aea0a3fc8baac"
+        },
+        {
+          "path": "e2e/cli/experiments/deliberate-fail.ts",
+          "bytes": 523,
+          "rawSha256": "4aa4050620b3df2508d4c8c83c015b1aaff9dd42473bc9595cd6e71a1938fb8f",
+          "codeSha256": "4aa4050620b3df2508d4c8c83c015b1aaff9dd42473bc9595cd6e71a1938fb8f"
+        },
+        {
+          "path": "e2e/cli/experiments/deliberate-score.ts",
+          "bytes": 318,
+          "rawSha256": "d7e1e1cb1af7d628cb7bbba9fae1d8191779c6d6ded639a11d6d2cf255fe41aa",
+          "codeSha256": "d7e1e1cb1af7d628cb7bbba9fae1d8191779c6d6ded639a11d6d2cf255fe41aa"
+        },
+        {
+          "path": "e2e/cli/experiments/interrupt-feedback.ts",
+          "bytes": 238,
+          "rawSha256": "73a182caf49de5c070d4e56023b2fde8d06cd2442bedbe40730d81088513318a",
+          "codeSha256": "73a182caf49de5c070d4e56023b2fde8d06cd2442bedbe40730d81088513318a"
+        },
+        {
+          "path": "e2e/cli/experiments/judge-precheck-error.ts",
+          "bytes": 539,
+          "rawSha256": "757f11959f6e30a38d726afd7d07d0ceec69abd56acb1d3e6fc494a80c010cd0",
+          "codeSha256": "757f11959f6e30a38d726afd7d07d0ceec69abd56acb1d3e6fc494a80c010cd0"
+        },
+        {
+          "path": "e2e/cli/experiments/normal.ts",
+          "bytes": 649,
+          "rawSha256": "daf87d4744e20f1050abaa798a836786eaff420f9291717918a059178e54f609",
+          "codeSha256": "daf87d4744e20f1050abaa798a836786eaff420f9291717918a059178e54f609"
+        },
+        {
+          "path": "e2e/cli/experiments/pipe-progress.ts",
+          "bytes": 313,
+          "rawSha256": "40c0004298837e66dbef702835aa4b3460571ba7a4e2f555fedd83d4feaf448d",
+          "codeSha256": "40c0004298837e66dbef702835aa4b3460571ba7a4e2f555fedd83d4feaf448d"
+        },
+        {
+          "path": "e2e/cli/experiments/provider-error/e2b.ts",
+          "bytes": 965,
+          "rawSha256": "346d47a21217fc6c56d0b64dbcb15b66001da381490786327d51dfe4c30662f0",
+          "codeSha256": "346d47a21217fc6c56d0b64dbcb15b66001da381490786327d51dfe4c30662f0"
+        },
+        {
+          "path": "e2e/cli/experiments/provider-error/sandbox-secondary.ts",
+          "bytes": 543,
+          "rawSha256": "843d11083c004305faa253bf334ad60f1c81d8fa57352dcbaecb2b97efea0cb0",
+          "codeSha256": "843d11083c004305faa253bf334ad60f1c81d8fa57352dcbaecb2b97efea0cb0"
+        },
+        {
+          "path": "e2e/cli/experiments/provider-error/sandbox.ts",
+          "bytes": 519,
+          "rawSha256": "ba3dc54e5befdf4ee0bad25f549c48e79a5dbb6711b7c6f4f64edc123fb28672",
+          "codeSha256": "ba3dc54e5befdf4ee0bad25f549c48e79a5dbb6711b7c6f4f64edc123fb28672"
+        },
+        {
+          "path": "e2e/cli/experiments/provider-error/vercel.ts",
+          "bytes": 907,
+          "rawSha256": "09e7aa1e855b68e2e1c19f84c0b99e69f585d5d8587df2f44846e645bacc4541",
+          "codeSha256": "09e7aa1e855b68e2e1c19f84c0b99e69f585d5d8587df2f44846e645bacc4541"
+        },
+        {
+          "path": "e2e/cli/experiments/pty-progress.ts",
+          "bytes": 327,
+          "rawSha256": "b2e5fae3eedcb8e63009875edcc5691c7e98821b27c5fe3c30ef06b94e482a15",
+          "codeSha256": "b2e5fae3eedcb8e63009875edcc5691c7e98821b27c5fe3c30ef06b94e482a15"
+        },
+        {
+          "path": "e2e/cli/experiments/sandbox-action-debug.ts",
+          "bytes": 1653,
+          "rawSha256": "3e5a8a2c382826ce87c06055780e778073c1820d6ba929d108d730c9c684bbdc",
+          "codeSha256": "3e5a8a2c382826ce87c06055780e778073c1820d6ba929d108d730c9c684bbdc"
+        },
+        {
+          "path": "e2e/cli/experiments/sandbox-step-activity.ts",
+          "bytes": 612,
+          "rawSha256": "f24bef4ff8a63622dd2942a84a369bd1f4023bfd95e98f5869ed8da585c5e540",
+          "codeSha256": "f24bef4ff8a63622dd2942a84a369bd1f4023bfd95e98f5869ed8da585c5e540"
+        },
+        {
+          "path": "e2e/cli/experiments/score-feedback.ts",
+          "bytes": 350,
+          "rawSha256": "e64fa5f4f817d8cf7f57371cd51e99f8c0fdec8a6de6004b3c85c065aa0c2838",
+          "codeSha256": "e64fa5f4f817d8cf7f57371cd51e99f8c0fdec8a6de6004b3c85c065aa0c2838"
+        },
+        {
+          "path": "e2e/cli/experiments/short-error.ts",
+          "bytes": 261,
+          "rawSha256": "8ac4401600f69ab23883e4575b24a32b40532427dac91621d67b83c4b7334b8e",
+          "codeSha256": "8ac4401600f69ab23883e4575b24a32b40532427dac91621d67b83c4b7334b8e"
+        },
+        {
+          "path": "e2e/cli/fixtures/sandbox-action-debug-invalid.ts",
+          "bytes": 831,
+          "rawSha256": "45d0dc6c7e575ec4988fb07e70002b21d5cf56793e2db5b57cf8aa7890e371b1",
+          "codeSha256": "45d0dc6c7e575ec4988fb07e70002b21d5cf56793e2db5b57cf8aa7890e371b1"
+        },
+        {
+          "path": "e2e/cli/niceeval.config.ts",
+          "bytes": 302,
+          "rawSha256": "241f201f129a314b5dc8a0e2899ef67f2fcfc412f226ff91e4c2bad67688d124",
+          "codeSha256": "241f201f129a314b5dc8a0e2899ef67f2fcfc412f226ff91e4c2bad67688d124"
+        },
+        {
+          "path": "e2e/cli/src/sandbox-action-debug.ts",
+          "bytes": 4340,
+          "rawSha256": "dccc809e580a37733f9337fe9f481491f8a92cc07ff6dae3cdb428d3e93a9d1b",
+          "codeSha256": "dccc809e580a37733f9337fe9f481491f8a92cc07ff6dae3cdb428d3e93a9d1b"
+        },
+        {
+          "path": "e2e/cli/src/tools.ts",
+          "bytes": 205,
+          "rawSha256": "8bb84f60bb37cde4c5de7465e7399c67168a226c15dc9e8e3e32769bb6b97a34",
+          "codeSha256": "8bb84f60bb37cde4c5de7465e7399c67168a226c15dc9e8e3e32769bb6b97a34"
+        },
+        {
+          "path": "e2e/cli/test/cache-hit.test.ts",
+          "bytes": 1404,
+          "rawSha256": "3f6a467f9ed7bd90f536a46e90f784e346d305e085ee5cf2ed1bed08d9a9111d",
+          "codeSha256": "1ef54b73f4f83ce612c2043eb6fe88683e51b320443992fe88f364dd8aa196f2"
+        },
+        {
+          "path": "e2e/cli/test/cache-inventory.test.ts",
+          "bytes": 6745,
+          "rawSha256": "b9be4f40f34fd1c1741fdb2e1de120b943cd1e24eb4df8889bca27c00ed2b2a0",
+          "codeSha256": "9b26f0f093dc50708777301c7d2a732da03629799be2082f1d38ad92a2e671ea"
+        },
+        {
+          "path": "e2e/cli/test/context.ts",
+          "bytes": 1373,
+          "rawSha256": "73318fb9821d135176ebbdb3580fde3556a39d27efae60cd906f098f70f92b94",
+          "codeSha256": "73318fb9821d135176ebbdb3580fde3556a39d27efae60cd906f098f70f92b94"
+        },
+        {
+          "path": "e2e/cli/test/evaluation-kind-admission.test.ts",
+          "bytes": 2440,
+          "rawSha256": "5ba39636fc130ef2bdc5e6add8c73f7b7d2011443fe0de35470dd1c8ca1f55f2",
+          "codeSha256": "cdf2a01e93aeea3e70e4c8251883fd063ff4911891f866eef0f109b7225561e3"
+        },
+        {
+          "path": "e2e/cli/test/experiment-set.test.ts",
+          "bytes": 1257,
+          "rawSha256": "aeecec8cea330dff8dbaf873dc7cd8c6467436a57eaafdc4f624887f69204c5b",
+          "codeSha256": "ee26b7c97dd20bc6d561cda8817d56c4b640b3989bb4daa338cd90edf1dda9c2"
+        },
+        {
+          "path": "e2e/cli/test/failure-error-results.test.ts",
+          "bytes": 15823,
+          "rawSha256": "9f65c7c3b4fedcbc3fd967f96bca85d8edcc24b85d285cb816d4a57f76883798",
+          "codeSha256": "832a9397511372bacfdd9e5fc0d7175c3da2b2ee1bb1b9226b35ba65e7c2fcb0"
+        },
+        {
+          "path": "e2e/cli/test/init-inspection-guidance.test.ts",
+          "bytes": 1457,
+          "rawSha256": "d517b351c71859789d7f0a3d49a92424446ea7a2eec5ae78fb3ff0c50c4dbe2b",
+          "codeSha256": "ab9e629a128901480fabc9c689f7059b71a2c0036ea1f409601857f045c806a3"
+        },
+        {
+          "path": "e2e/cli/test/interrupt-feedback.test.ts",
+          "bytes": 1601,
+          "rawSha256": "015be54b0c3760c96e945bb6ad654e12cdb52de2783ab380dddcc98b65717526",
+          "codeSha256": "dae3e6683f42e1e3f44daca842c6e5dfdbb172091b8e272908ed81564189ed4f"
+        },
+        {
+          "path": "e2e/cli/test/legacy-record-recovery.test.ts",
+          "bytes": 1884,
+          "rawSha256": "101316fc533369708cdfed5ec9de652b295c5b03fe4454e3f0104d89f0cf50f4",
+          "codeSha256": "9c218528b8fef0d411e9a3489c05b4e9efd7134c25e94f8110466fd1799ea170"
+        },
+        {
+          "path": "e2e/cli/test/live-pipe.test.ts",
+          "bytes": 2389,
+          "rawSha256": "060c9b23e3250270ffef7f6b55affb452e8a198c01c94af1a8b0383ebd355e82",
+          "codeSha256": "ddc0bd89663048d77a3839eb0068be1d21ede0fbeeadabe185658f5ee495be89"
+        },
+        {
+          "path": "e2e/cli/test/live-pty.test.ts",
+          "bytes": 1637,
+          "rawSha256": "8a88f57bcfabf30b40ddec65a67fb5f0edb7db76306463a45e30b5d7e50d0b14",
+          "codeSha256": "c312d5b3d38b6d89dde810b56e5694688edfaf1c5fd3b96d6775f0b0425435db"
+        },
+        {
+          "path": "e2e/cli/test/migration-assistance.test.ts",
+          "bytes": 2427,
+          "rawSha256": "60b2c643db5500a53497915c441340cfe58476c899f06ac139c00dec22ad9557",
+          "codeSha256": "b9c902d14bfec3414cd6d2bd6f1697fed2549278e70e3ed7c15a20e7218e3515"
+        },
+        {
+          "path": "e2e/cli/test/no-eval-feedback.test.ts",
+          "bytes": 730,
+          "rawSha256": "4d1556d53fca1c8becb9730ce9b33e69ac43ecfb7e9719c9d3e7baef2aa386ff",
+          "codeSha256": "8f9ec3105ce3c610611c867fe65a412d92bb3d5c7b64148a0e02b1c9532e273c"
+        },
+        {
+          "path": "e2e/cli/test/no-experiment-feedback.test.ts",
+          "bytes": 713,
+          "rawSha256": "d07c31b23332394dee06ee3e2287d6b2fcc554af4e586663c72107cd6e8337a4",
+          "codeSha256": "f8ed9e0b19606f7ba26c47ec633b9d9e447de5694ac7bdf1375c977b738a8feb"
+        },
+        {
+          "path": "e2e/cli/test/provider-error-feedback.test.ts",
+          "bytes": 6892,
+          "rawSha256": "0b8a61a43ff2ba0ac22279332393d0162f657b3647dd257d7144bacc42094071",
+          "codeSha256": "3cad04abf4bf1bda157db0c49a57692b0115a02dc0ce1bb09c44076e5f4b0979"
+        },
+        {
+          "path": "e2e/cli/test/sandbox-action-debug.test.ts",
+          "bytes": 17358,
+          "rawSha256": "19cb6d329576f04ff01cea59e6bc230a23c0ba580cd7a3cdade02b3968a17f91",
+          "codeSha256": "2ecc01e60b1bfc9f1813f39dbbf0beaf06d55571d56abb103e8d1f3e1e3c9f75"
+        },
+        {
+          "path": "e2e/cli/test/sandbox-project-preflight.test.ts",
+          "bytes": 4749,
+          "rawSha256": "ef6c4164918f4fad7c43f260a0149373e496a8a5e44fdcf0522868bf65d5a654",
+          "codeSha256": "062699343e63be5432d262ddc5601a94b6ac559869685a32e6cf081f52a53ca3"
+        },
+        {
+          "path": "e2e/cli/test/sandbox-step-activity.test.ts",
+          "bytes": 2069,
+          "rawSha256": "e50ef527120412882bb6e6f753771e755cdfbe9572e6f3fff40366db4d6dd824",
+          "codeSha256": "62834d24915c433f874bbb675186ba9cc1e1d04b0b207a356cc2cd37b482cbdc"
+        },
+        {
+          "path": "e2e/cli/test/selection.test.ts",
+          "bytes": 1800,
+          "rawSha256": "fa663a76b76efa97c0f0590b82207f0f1afedf375e0df984d2e360c7852daf36",
+          "codeSha256": "85267880850ebe92d780f6b419c778e6f66afa1ed0918acbd034959866f89b74"
+        },
+        {
+          "path": "e2e/cli/vitest.config.ts",
+          "bytes": 184,
+          "rawSha256": "d2da1e392f009514c4a85e7c39189325c4717179b63d743aefe607a00b5904a6",
+          "codeSha256": "d2da1e392f009514c4a85e7c39189325c4717179b63d743aefe607a00b5904a6"
+        }
+      ]
+    },
+    "caseId": "neref_6aaf27dac46b66e5b62ee49222d0c257",
+    "nativeTestFile": "e2e/cli/test/experiment-set.test.ts",
+    "declarationFile": "e2e/cli/test/experiment-set.test.ts",
+    "binding": {
+      "kind": "direct-contract",
+      "suiteId": "cli",
+      "contractRef": "docs/feature/experiments/README.md",
+      "contractSha256": "2fdbc58d677acb5ecbb6aaa29dd8d7b7aa66e9c21fbd147857b3d8171f5645ee",
+      "policy": "concord.native-reliability/v1",
+      "configurationDigest": "sha256:a67f159656eea9125073a719d9bedaee6becee86113cd0d9b0ca7bc0deedc41f",
+      "adapterSourceDigest": "sha256:da50a9517f42205d23e23be6ef82c6f56bcd560cb5a062dbe3bdb9648b468c3a"
+    }
+  },
+  "runner": {
+    "executor": "vitest",
+    "version": "4.1.11",
+    "implementationDigest": "sha256:8923b6f4b859f7a5a470cfac318df8cb22bf49ba3667f0fd18cbfa787e0447de",
+    "argv": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run",
+      "--reporter=json",
+      "test/experiment-set.test.ts",
+      "--testNamePattern",
+      "^精确选择离散实验并在同一次 Invocation 共享全局并发$"
+    ]
+  },
+  "result": {
+    "disposition": "pass",
+    "stage": "test",
+    "exitCode": 0,
+    "signal": null,
+    "timedOut": false,
+    "startupFailed": false
+  },
+  "native": {
+    "copyId": "isolated-copy-3",
+    "copyPath": "/tmp/niceeval-e2e-takeover-scratch-z5ynv3/runs/takeover/isolated-copy-3/cli",
+    "sequence": 1,
+    "mode": "isolated",
+    "caseCount": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "parallelism": 1
+  },
+  "cleanup": {
+    "ok": true,
+    "resources": [
+      {
+        "kind": "workdir",
+        "path": "/tmp/niceeval-e2e-takeover-scratch-z5ynv3/runs/takeover/isolated-copy-3/cli",
+        "ok": true
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 3670273 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 3670274 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "install",
+        "gone": true,
+        "detail": "owned process group 3670355 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "test",
+        "gone": true,
+        "detail": "owned process group 3670452 has no running members after leader close"
+      }
+    ]
+  },
+  "invocationId": "a32020f0-8ec9-4b75-925f-4cb3e507cc2f",
+  "receiptSha256": "8179e046d4051e3fb7792a36ab4d489810a6552010a00ea288a924728d22bf20"
+}

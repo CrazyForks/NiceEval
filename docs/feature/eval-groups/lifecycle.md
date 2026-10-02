@@ -25,6 +25,9 @@ acquisition、release、after 与 finalizer 都是“每台实际实例一次”
 
 Group author 与 Plugin lifecycle 围住所选 slots，只执行 selected slice，不要求 CLI 选择自动扩回全组。`niceeval debug` 的 human 和 JSON 都在 `beforeSlots` / `afterSlots` 显示这层包裹；`physicalLifecycleTemplate` 则是每台实际实例一次，不能读成整个 Group lane 只 acquire / finalize 一次。
 
+Group 的 Sandbox cleanup 保存 checkpoint 时使用独立的 30 秒收尾预算。成员耗尽执行 deadline 或收到中断后，cleanup 使用新的 signal，并从该收尾段开始计算预算。
+执行 deadline 的剩余量不得限制 checkpoint 命令；作者显式指定的命令 timeout 仍然生效。收尾失败保留原 Attempt 结果并写入诊断，随后继续释放实例。
+
 创建 Group 前，Runner 比较每个所选成员的 provider plan、Agent install 与 owner-aware physical lifecycle identity。任何 Eval-owned Sandbox Plugin fragment 差异都会得到点名两个成员与差异 facet 的 `eval-group-incompatible`，并保持零 Sandbox create。只精确选择一个成员时没有跨成员兼容性问题，仍以 Group lane 运行。
 
 ## carry 与选择

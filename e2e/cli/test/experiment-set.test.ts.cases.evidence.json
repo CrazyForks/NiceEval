@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_6aaf27dac46b66e5b62ee49222d0c257": {
+      "memory/experiment-exact-set-missing.md": {
+        "red": {
+          "path": "e2e/cli/test/experiment-set.test.ts.case-evidence/neref_6aaf27dac46b66e5b62ee49222d0c257/memory_experiment-exact-set-missing.md/nered_4D3N1WH5QHMKQCJ2-netake_SJR99DDVQ28E28WS/red.json",
+          "digest": "sha256:8a819964bce3ce86e7857a387c51ff2188cf3fbca785096db265523f23ba9319"
+        },
+        "green": {
+          "path": "e2e/cli/test/experiment-set.test.ts.case-evidence/neref_6aaf27dac46b66e5b62ee49222d0c257/memory_experiment-exact-set-missing.md/nered_4D3N1WH5QHMKQCJ2-netake_SJR99DDVQ28E28WS/green.json",
+          "digest": "sha256:2fdfb1a9fdfc5c7ee842b36a483b28af28cb53f0ae4dadcb37e3f68217cca535"
+        },
+        "certificate": {
+          "path": "e2e/cli/test/experiment-set.test.ts.case-evidence/neref_6aaf27dac46b66e5b62ee49222d0c257/memory_experiment-exact-set-missing.md/nered_4D3N1WH5QHMKQCJ2-netake_SJR99DDVQ28E28WS/certificate.json",
+          "digest": "sha256:86e25ac56a433a469b0d01c04c3d720d46db92548c545d02c5113e56a4ddb289"
+        },
+        "inventory": {
+          "path": "e2e/cli/test/experiment-set.test.ts.case-evidence/neref_6aaf27dac46b66e5b62ee49222d0c257/memory_experiment-exact-set-missing.md/nered_4D3N1WH5QHMKQCJ2-netake_SJR99DDVQ28E28WS/inventory.json",
+          "digest": "sha256:f31eb2b54f575a4879f71527c907e05c5aef422c6ae9f3b3e856c79ae751effa"
+        }
+      }
+    }
+  }
+}

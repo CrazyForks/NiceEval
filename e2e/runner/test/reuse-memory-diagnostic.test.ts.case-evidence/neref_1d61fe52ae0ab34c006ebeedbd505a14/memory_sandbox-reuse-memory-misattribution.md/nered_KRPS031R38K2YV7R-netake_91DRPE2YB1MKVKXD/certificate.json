@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/runner/test/reuse-memory-diagnostic.test.ts#neref_1d61fe52ae0ab34c006ebeedbd505a14",
+  "caseId": "neref_1d61fe52ae0ab34c006ebeedbd505a14",
+  "candidateSha256": "66bfc7b104fdacfbed38931eae1e4955568e19fa12332994da9c247a9436066f",
+  "sourceDigest": "sha256:81ecee7fe225074caf878ff9b25480115cfc761189b322d1b1e01aa6af29b58e",
+  "greenReceipt": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-1.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-2.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-4.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-6.json",
+    "singleCase": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/green.json",
+    "cleanup": [
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/green.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-1.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-2.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-3.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-4.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-5.json",
+      "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "17751199c25de83b343251f8b0d47745f63f94594bb1c2e7523d04573bcbc91a"
+}

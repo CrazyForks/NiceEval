@@ -382,7 +382,8 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         return receipt.runListDocument().runs.find((run) => run.state === "active" && run.coverage.expected === 2);
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the active Run to be listed" }), process, "the active Run became visible");
-      backend.completeAttempt(0);
+      const terminalError = "run-journey-terminal-error: checkpoint failed before interruption";
+      backend.completeAttempt(0, terminalError);
       await whileRunning(backend.waitForAttempt(1), process, "the second Attempt reached its backend");
       const before = await whileRunning(pollUntil(async () => {
         const receipt = await niceeval.run(["run", "show", active.runId, "--json"]);
@@ -411,6 +412,14 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
         attemptOrdinal: 1,
         publication: { state: "absent", reason: "interrupted-before-publication" },
       });
+      const shownAttempt = await niceeval.run(["show", published.publication.attemptLocator]);
+      expect(shownAttempt.exitCode, shownAttempt.diagnostic()).toBe(0);
+      expect(shownAttempt.stdout, shownAttempt.diagnostic()).toContain(published.publication.attemptLocator);
+      expect(shownAttempt.stdout, shownAttempt.diagnostic()).toContain("errored");
+      expect(shownAttempt.stdout, shownAttempt.diagnostic()).toContain(`niceeval show ${published.publication.attemptLocator} --execution`);
+      const execution = await niceeval.run(["show", published.publication.attemptLocator, "--execution"]);
+      expect(execution.exitCode, execution.diagnostic()).toBe(0);
+      expect(execution.stdout, execution.diagnostic()).toContain(terminalError);
     } finally {
       await process.dispose();
       await backend.close();

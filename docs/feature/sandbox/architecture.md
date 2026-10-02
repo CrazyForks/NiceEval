@@ -150,6 +150,8 @@ attempt 内的一切沙箱时限都从 attempt deadline **派生**,provider 层�
 理由与 [`timeoutMs` 的配置求值链](../experiments/architecture.md)相同:时限在链外另有出处,症状就是「实验声明 20 分钟,命令在整 600 秒被另一层杀掉」——配置的值不生效,报错还落在离配置最远的地方。
 用户代码显式给单条命令传更短的 `timeoutMs` 仍然生效,那是有意声明,不是默认值。
 
+作者 cleanup 是独立的收尾阶段，每个 callback 使用 30 秒预算及新的 signal。cleanup 中的命令不继承已耗尽的 Attempt deadline；显式命令 timeout 仍由作者指定。该规则同样适用于 Eval Group 的 checkpoint 回存。
+
 ### 命令树与进程寿命
 
 Sandbox 是主实例及伴随资源共有的生命周期边界，但不是每个子进程的隐式 owner。正常 `runCommand` / `runShell` 完成后，关闭 transport、PTY 或 provider session 不得顺带杀死命令有意启动的任务服务；这些服务是否跨命令或跨 Attempt 保留，由 Case、reuse 与 keep 契约决定。

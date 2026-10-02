@@ -290,6 +290,6 @@ Sandbox Plugin fragment 与四类 owner 的 action 进入同一个 DAG，不创�
 
 - [Sandbox Layer](layers.md) —— 作者声明、配对规则与 command identity。
 - [Case](case.md) —— BuildKey / CaseKey、构建协调与 Compose 义务。
-- [Sandbox 复用](reuse.md) —— reset、寿命确认与复用污染诊断。
+- [Sandbox 复用](reuse.md) —— reset、寿命确认与复用失败诊断。
 - [Agent Ensure](../adapters/architecture/agent-ensure.md) —— ensure 声明与 Agent 安装层的协议。
 - [Experiments · 缓存与携带](../experiments/cache.md) —— fingerprint 与 configHash 的完整输入清单。

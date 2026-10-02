@@ -1,0 +1,370 @@
+{
+  "executor": {
+    "name": "vitest",
+    "version": "4.1.11"
+  },
+  "repo": "runner",
+  "argv": [
+    "/nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node",
+    "/tmp/niceeval-case-inventory-iwyJq7/repos/runner/node_modules/.pnpm/vitest@4.1.11_@types+node@24.13.3_vite@8.2.0_@types+node@24.13.3_esbuild@0.28.1_jiti@2.7.0_tsx@4.23.9_yaml@2.9.1_/node_modules/vitest/vitest.mjs",
+    "list",
+    "--json"
+  ],
+  "checkout": "2f71de951f9f8244350da5da4aa288d30fcef334",
+  "files": [
+    "e2e/runner/test/accept-reanchor.test.ts",
+    "e2e/runner/test/application-reuse.test.ts",
+    "e2e/runner/test/attempt-publication-failure.test.ts",
+    "e2e/runner/test/carry-partial-reuse.test.ts",
+    "e2e/runner/test/fresh-sandbox-provider-stop.test.ts",
+    "e2e/runner/test/group-checkpoint-deadline.test.ts",
+    "e2e/runner/test/group-or-stop-dispatch.test.ts",
+    "e2e/runner/test/group-wave-gap-dispatch.test.ts",
+    "e2e/runner/test/history-dedup.test.ts",
+    "e2e/runner/test/judge-reuse.test.ts",
+    "e2e/runner/test/max-concurrency-invocation-local.test.ts",
+    "e2e/runner/test/provider-capacity-queue.test.ts",
+    "e2e/runner/test/provider-lane.test.ts",
+    "e2e/runner/test/rename-experiment.test.ts",
+    "e2e/runner/test/reuse-memory-diagnostic.test.ts",
+    "e2e/runner/test/shared-state-lifecycle.test.ts",
+    "e2e/runner/test/shared-state-recovery.test.ts",
+    "e2e/runner/test/shared-state-scheduler.test.ts",
+    "e2e/runner/test/shared-state-startup-authority.test.ts",
+    "e2e/runner/test/shared-state-zombie-owner-recovery.test.ts",
+    "e2e/runner/test/timing.test.ts"
+  ],
+  "cases": [
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/accept-reanchor.test.ts",
+      "titlePath": [
+        "审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 verdict/evidence 与审计 provenance"
+      ],
+      "caseId": "neref_b541e01978660fb167267c9cd41ac66f"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/application-reuse.test.ts",
+      "titlePath": [
+        "Adapter 未声明行为版本时重新执行，版本稳定才允许 carry"
+      ],
+      "caseId": "neref_96a6ce65d6e4a7e7feb2714098f5eaf9"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/attempt-publication-failure.test.ts",
+      "titlePath": [
+        "Attempt publication 失败保留 cause 与 locator，但不公开未完成的 Attempt"
+      ],
+      "caseId": "neref_30dab6f6ee46a21a7ff944cdef5b8b13"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/carry-partial-reuse.test.ts",
+      "titlePath": [
+        "改变一个 Eval 后只重新派发该 identity，未改变的 Eval 继续携带"
+      ],
+      "caseId": "neref_83c61ff479213e1901482979b65457a8"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/carry-partial-reuse.test.ts",
+      "titlePath": [
+        "未声明 sharedState 保持公开 carry；声明或变更 key 作废 carry"
+      ],
+      "caseId": "neref_682345ea19fb4dc39058bed10a9be0f9"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/fresh-sandbox-provider-stop.test.ts",
+      "titlePath": [
+        "fresh custom Provider group.stop 失败保留 sharedState，普通输出与 Run diagnostic 不泄露 owner token"
+      ],
+      "caseId": "neref_f5b979d70abb59859ad0aa09aaa85b4d"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/group-checkpoint-deadline.test.ts",
+      "titlePath": [
+        "Group 成员耗尽执行时限后仍能在 cleanup 保存 checkpoint"
+      ],
+      "caseId": "neref_3f81ec70543ed7a6c8f85985ea35d21e"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/group-or-stop-dispatch.test.ts",
+      "titlePath": [
+        "orStop 只结束当前 Eval，三个 Group lane 仍可并行派发"
+      ],
+      "caseId": "neref_4c4aaee2bcc3c2da113f8a2658d6c60e"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/group-wave-gap-dispatch.test.ts",
+      "titlePath": [
+        "空闲 Group lane 不等待慢 lane 的下一槽位即可继续派发"
+      ],
+      "caseId": "neref_37e4b157f85fdab63d8e2cdf1c744c94"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/history-dedup.test.ts",
+      "titlePath": [
+        "两次同时运行同一实验时，后开始的那次不重复跑已经完成的题目"
+      ],
+      "caseId": "neref_6bc2bcb2ef3d1b2178e1284e2f166f0b"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/history-dedup.test.ts",
+      "titlePath": [
+        "强制重跑追加 identity，carry run 不在 history 复制旧 attempt"
+      ],
+      "caseId": "neref_6b4e861bd1d18da88dd1965a17d65af3"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/judge-reuse.test.ts",
+      "titlePath": [
+        "Judge 模型不变时沿用，修改 Eval 模型后重新评价"
+      ],
+      "caseId": "neref_f82aee7d6d340de59fe752731070e0d7"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/max-concurrency-invocation-local.test.ts",
+      "titlePath": [
+        "并行运行同一 Experiment 时，每次 Invocation 保有自己的并发额度"
+      ],
+      "caseId": "neref_2870f6b875fa82145454a0d0bf9e7d3d"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/provider-capacity-queue.test.ts",
+      "titlePath": [
+        "等待 Docker profile 容量时保持排队且不阻塞其它 Provider"
+      ],
+      "caseId": "neref_404e8a491908fa8889b3e9056e12ca0f"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/provider-lane.test.ts",
+      "titlePath": [
+        "等待 sharedState 不占用同一 exclusive provider lane，无关 Experiment 仍可进入 Agent"
+      ],
+      "caseId": "neref_bc74c7b4975de1702219753c3f310fd6"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/rename-experiment.test.ts",
+      "titlePath": [
+        "删除旧实验后明确采用指定 Run，保留来源并持续沿用"
+      ],
+      "caseId": "neref_e7d4d481cb16f2d4261f610e9f555aed"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts",
+      "titlePath": [
+        "复用失败聚集保留诊断且不把有意记忆归因为污染"
+      ],
+      "caseId": "neref_1d61fe52ae0ab34c006ebeedbd505a14"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-lifecycle.test.ts",
+      "titlePath": [
+        "fresh Sandbox 的 Attempt after 失败也保留 sharedState，直到公开显式恢复"
+      ],
+      "caseId": "neref_8b0f4af979a4934f43669aa95820f9ef"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-lifecycle.test.ts",
+      "titlePath": [
+        "复用 Sandbox 的 Attempt after 失败也会保留 sharedState，直到公开显式恢复"
+      ],
+      "caseId": "neref_c206f7f83a48829744ac705b4db743d3"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-lifecycle.test.ts",
+      "titlePath": [
+        "复用 Sandbox 的每条 Attempt after 与 Experiment teardown 完成后才交出 sharedState"
+      ],
+      "caseId": "neref_ecdcf9d14a684a91806282d57047147c"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-lifecycle.test.ts",
+      "titlePath": [
+        "相同 sharedState.key 在前一 Experiment teardown 后才允许下一 Experiment 进入 setup"
+      ],
+      "caseId": "neref_84901f42a5ed207cd944b00ac5e18559"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "SQLite recovery 原子清理 teardown 登记后才开放等待者"
+      ],
+      "caseId": "neref_2ee8d4ad4babeb3a52edb0486b31eba1"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "作者删除 sharedState 声明后仍可按遗留 key 执行一次公开恢复"
+      ],
+      "caseId": "neref_f03192d15b7a479f1370dd5e790e6f65"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "作者改掉 sharedState key 后，旧 key 仍以 immutable evidence 只清理自己的 teardown 登记"
+      ],
+      "caseId": "neref_1424f7b1d07dea07b72b1eb8c2fbc97c"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "实际 Experiment teardown 失败会保留 lease，等待者只能取消或走显式恢复"
+      ],
+      "caseId": "neref_ae5bd8a119e832aea8be2444d2d9da97"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "崩溃的 recovery 可由新 actor 显式续接，旧 token 不会删除新 holder"
+      ],
+      "caseId": "neref_387d60c435928b2c7f934e92f188ffd3"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "显式 recovery 拒绝 JSON，并在两种帮助入口公开全部参数"
+      ],
+      "caseId": "neref_9c773136d05c659a8026f08613627a06"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "暂停的 owner 不会因 heartbeat 年龄失权，等待者可 SIGINT 取消且恢复后才交接"
+      ],
+      "caseId": "neref_d7923b46620259ba1478e96e4a779c3c"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "缺少 teardown 的显式 recovery 不改变 active generation"
+      ],
+      "caseId": "neref_24f50b6cf891ba66337c606f658b5449"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-recovery.test.ts",
+      "titlePath": [
+        "非函数 teardown 被公开 CLI 拒绝，遗留 owner 不会被释放"
+      ],
+      "caseId": "neref_ce3188ce41db440c4df140c538ebcd54"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-scheduler.test.ts",
+      "titlePath": [
+        "同 Invocation 的同 key waiter 不占有限 worker，holder 后继 Attempt 能继续启动"
+      ],
+      "caseId": "neref_38e2280cf1c82c81dc6d9b62c24236ee"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-startup-authority.test.ts",
+      "titlePath": [
+        "full-carry 的 selected Experiment 也在同 key authority 后才补遗留 teardown"
+      ],
+      "caseId": "neref_f65e9ce038dbc4775316ff619e6da431"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-startup-authority.test.ts",
+      "titlePath": [
+        "启动期遗留 teardown 先取得同 key authority，健康等待只发无 token 的 info"
+      ],
+      "caseId": "neref_2c2d16849c87862093a2bd463d86f21c"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/shared-state-zombie-owner-recovery.test.ts",
+      "titlePath": [
+        "explicit recovery accepts a terminal Linux zombie owner but still runs its compensating teardown"
+      ],
+      "caseId": "neref_6373004497c13ebe86cbb0459632c2d5"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/timing.test.ts",
+      "titlePath": [
+        "Run 终态持久化失败时已发布 locator 仍可公开检查"
+      ],
+      "caseId": "neref_088b19c96f50814e928269b732cf9992"
+    },
+    {
+      "executor": "vitest",
+      "repo": "runner",
+      "path": "e2e/runner/test/timing.test.ts",
+      "titlePath": [
+        "通用 Runner 公开 Agent setup、send、teardown 的完成与失败关系"
+      ],
+      "caseId": "neref_ef1050b8351b26a139893b05782148c6"
+    }
+  ],
+  "unassignedCases": [],
+  "bodyExecutions": 0,
+  "forbiddenSetupExecutions": 0,
+  "findings": [],
+  "digest": "sha256:eb46263768bd0a0eb666dcb25aff1f15cd1201b41b53c8bc28574e364d299994",
+  "exit": 0,
+  "signal": null
+}

@@ -1,6 +1,6 @@
-// 复用污染的收尾诊断(契约见 docs/feature/sandbox/reuse.md「复用污染的可观察性」)。
+// 复用失败的收尾诊断(契约见 docs/feature/sandbox/reuse.md「复用失败的可观察性」)。
 //
-// 「setup 幂等、不依赖 workdir 外残留」是作者义务,违约的症状(下游 Eval 莫名失败)不指向复用。
+// 有意持久状态是合法的实验输入；失败序列本身不能证明污染或根因。
 // Run 收尾按 Sandbox 实例与承接序号聚合:首承接正常、而同一实例序号 ≥ 2 的 Attempt 集中失败或
 // 集中 errored 在同一生命周期阶段时,追加一条运行级 diagnostic 点名实例、序号区间与阶段。
 // 只指路,不改判定 —— 这里既不读也不写任何 verdict。
@@ -10,7 +10,7 @@ import type { EvalResult, LifecyclePhase } from "./types.ts";
 /** 同一阶段上至少这么多条后承接失败才算「集中」;低于它是零散失败,不发诊断(不误报)。 */
 const CLUSTER_MIN = 2;
 
-export interface ReuseContaminationNotice {
+export interface ReuseFailureClusterNotice {
   /** 承接这些 Attempt 的实验;裸 run(无 experimentId)用 undefined。 */
   experimentId?: string;
   /** 本次 Run 内的 Sandbox 编号。 */
@@ -33,11 +33,10 @@ function phaseOf(result: EvalResult): LifecyclePhase {
 }
 
 /**
- * 按实例 × 承接序号聚合出复用污染线索。只看声明了复用(`sandbox.reused`)且带完整调度事实的
- * 结果;首承接(序号 1)缺失或本身失败的实例整个跳过——那种失败与「上一条 Attempt 的残留」
- * 无关,报出来就是误报。
+ * 按实例 × 承接序号聚合复用后的失败。只看声明了复用且带完整调度事实的结果；
+ * 首承接缺失或本身失败时没有成功基准，不报告后续失败聚集。
  */
-export function detectReuseContamination(results: readonly EvalResult[]): ReuseContaminationNotice[] {
+export function detectReuseFailureClusters(results: readonly EvalResult[]): ReuseFailureClusterNotice[] {
   const byInstance = new Map<string, { experimentId?: string; reuseSandbox: number; attempts: EvalResult[] }>();
   for (const result of results) {
     const sandbox = result.sandbox;
@@ -51,10 +50,10 @@ export function detectReuseContamination(results: readonly EvalResult[]): ReuseC
     group.attempts.push(result);
   }
 
-  const notices: ReuseContaminationNotice[] = [];
+  const notices: ReuseFailureClusterNotice[] = [];
   for (const group of byInstance.values()) {
     const first = group.attempts.find((r) => r.sandbox!.reuseOrdinal === 1);
-    // 首承接没跑到、或首承接自己就失败:这台实例的失败不能归因到「前一条 Attempt 的残留」。
+    // 首承接缺失或失败时，没有成功基准可供比较。
     if (!first || failing(first)) continue;
     const laterFailures = group.attempts.filter((r) => r.sandbox!.reuseOrdinal! >= 2 && failing(r));
     const byPhase = new Map<LifecyclePhase, number[]>();
@@ -81,12 +80,12 @@ export function detectReuseContamination(results: readonly EvalResult[]): ReuseC
 }
 
 /** 诊断正文:点名实例、序号区间与阶段,并说清它只是线索。 */
-export function reuseContaminationMessage(notice: ReuseContaminationNotice): string {
+export function reuseFailureClusterMessage(notice: ReuseFailureClusterNotice): string {
   const where = notice.experimentId !== undefined ? ` in experiment "${notice.experimentId}"` : "";
   return (
     `  · [sandbox] reused sandbox #${notice.reuseSandbox}${where} handled its first attempt cleanly, but ` +
     `${notice.count} later attempts (handoff ${notice.fromOrdinal}-${notice.toOrdinal}) all stopped in ${notice.phase}. ` +
-    "Files left outside workdir by an earlier attempt are a likely cause: setup must be idempotent and must not " +
-    "depend on anything the previous attempt left behind. This only points at a suspect; it changes no verdict."
+    "This failure pattern does not establish a cause. Intentional persistent memory and checkpoints are supported; " +
+    "check expected state, unexpected leftovers, and repeatable setup against the experiment's design. No verdict is changed."
   );
 }

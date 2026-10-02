@@ -1,0 +1,51 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_1d61fe52ae0ab34c006ebeedbd505a14": {
+      "memory/sandbox-reuse-memory-misattribution.md": {
+        "red": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_0T0898C3J8JYA4N2-netake_MTS9EA0P9VC3FYT3/red.json",
+          "digest": "sha256:92bcef5dcd97cac566fd4b32e4874b54dc8044c980c1a30a87ef7d04e6981184"
+        },
+        "green": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_0T0898C3J8JYA4N2-netake_MTS9EA0P9VC3FYT3/green.json",
+          "digest": "sha256:0b1117364b2aa4fac96ce416a24e3bc73f9b338d832f2d3d20a7a5ba63a250a7"
+        },
+        "certificate": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_0T0898C3J8JYA4N2-netake_MTS9EA0P9VC3FYT3/certificate.json",
+          "digest": "sha256:e2bc9b9901e28bee80deba71c7d380a5dbc3cff5a889315bafe900a8c9a5d179"
+        },
+        "inventory": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_0T0898C3J8JYA4N2-netake_MTS9EA0P9VC3FYT3/inventory.json",
+          "digest": "sha256:eb46263768bd0a0eb666dcb25aff1f15cd1201b41b53c8bc28574e364d299994"
+        }
+      }
+    }
+  },
+  "history": [
+    {
+      "caseId": "neref_1d61fe52ae0ab34c006ebeedbd505a14",
+      "memory": "memory/sandbox-reuse-memory-misattribution.md",
+      "evidence": {
+        "red": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/red.json",
+          "digest": "sha256:7a4744d1cea7f9333391d8645ae29856f70e786c12b50e4a55ede9a8a6757bec"
+        },
+        "green": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/green.json",
+          "digest": "sha256:fc6ecea6bebfe8a3256dc4a2735529b9c12c76284449d1bd90fd73eb4f28be07"
+        },
+        "certificate": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/certificate.json",
+          "digest": "sha256:16b0bc18f214b0d9783f38ca8976ae4839a5695be596d85c9bc4f322da66c928"
+        },
+        "inventory": {
+          "path": "e2e/runner/test/reuse-memory-diagnostic.test.ts.case-evidence/neref_1d61fe52ae0ab34c006ebeedbd505a14/memory_sandbox-reuse-memory-misattribution.md/nered_KRPS031R38K2YV7R-netake_91DRPE2YB1MKVKXD/inventory.json",
+          "digest": "sha256:9df03284b248bcf064cb22f12940ab561e1a3eeea945aba0bc190b69fd68d756"
+        }
+      },
+      "reason": "Refresh after adding the Group checkpoint deadline acceptance fixture to the Runner suite.",
+      "refreshedAtCommit": "2f71de951f9f8244350da5da4aa288d30fcef334"
+    }
+  ]
+}
