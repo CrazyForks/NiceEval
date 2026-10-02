@@ -160,6 +160,17 @@ jobs:
             corepack enable && yarn --version
           '
 
+      - name: Assert non-root Node runtime switching
+        if: steps.gate.outputs.publish == 'true'
+        run: |
+          docker run --rm niceeval/${{ matrix.image }}:selfcheck sh -ec '
+            test "$(id -u)" != 0
+            npm install -g --prefix /usr/local n@10.2.0
+            n 22.13.0
+            test "$(node --version)" = "v22.13.0"
+            npm --version
+          '
+
       - name: Build and push multi-platform image
         if: steps.gate.outputs.publish == 'true'
         uses: docker/build-push-action@v7

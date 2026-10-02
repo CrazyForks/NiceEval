@@ -146,6 +146,9 @@ Vercel 没有可公开发布的构建结果原语,官方起点止步于 E2B 与 
 
 这条契约与「版本号跟着被装的 Agent 走」共用同一条规则:配方变了(包括这次的工具面收敛)就 bump `-r`,内容没变不重建。
 
+Docker 公共镜像允许默认非 root 用户通过 `n` 切换 Node runtime。完整 `/usr/local` 前缀及既有 Node/npm 文件对该用户可写，包括 `n`、`include/node` 和 `share`。
+发布自检以默认用户安装固定版本的 `n`、切换 Node 并实际执行新的 `node` 与 `npm`；只验证全局包目录可写不足以证明这个契约。
+
 ### 版本号跟着被装的 Agent 走
 
 公共起点的版本形如 `<Agent 版本>-r<配方修订>`,例如 `niceeval/codex:0.144.1-r1`:
