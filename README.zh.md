@@ -2,7 +2,7 @@
 
 # NiceEval
 
-**给 AI Agent 和 AI 应用写评估，像写单元测试一样顺手**
+**像写单元测试一样写评估，像做实验一样比较 Agent**
 
 [![typescript](https://img.shields.io/badge/typescript-5.6-blue?style=flat-square)](packages/niceeval/tsconfig.json)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
@@ -15,7 +15,16 @@
 
 你改了一版 prompt，换了一个模型，给 Claude Code 写了一个新 Skill，或者调了游戏里 NPC 的提示词。它到底变好了没有？
 
-NiceEval 用来回答这个问题。它以 Agent 为主要场景，也能评任何由 LLM 驱动的应用。你用 TypeScript 写下“什么算做对”：该调用哪个工具、回复里该有什么、代码改完测试能不能过、游戏世界在一轮互动后是否还自洽。NiceEval 负责连上被测对象、反复运行、打分，再把每一次运行的对话、工具调用、文件改动、耗时和花费都留下来，供你对比和追查。
+多数时候，答案来自手动试几次、凭感觉判断。但 LLM 的输出不确定，同一个问题这次答对，下次可能就错了；试三次全过，不代表改动真的有效，也不代表没有把别处弄坏。
+
+NiceEval 让你用证据代替感觉。它以 Agent 为主要场景，也能评任何由 LLM 驱动的应用。你用 TypeScript 写下“什么算做对”：该调用哪个工具、回复里该有什么、代码改完测试能不能过、游戏世界在一轮互动后是否还自洽。NiceEval 负责连上被测对象、反复运行、打分，再把每一次运行的对话、工具调用、文件改动、耗时和花费都留下来，供你对比和追查。
+
+写起来像单元测试，用起来更像实验：
+
+- **防回归**：每次改 prompt、换模型、升级依赖后重跑同一批评估，看通过率有没有掉。
+- **做对比**：同一批评估对着两个模型、两版 prompt、装与不装某个 Skill 各跑一遍，差异落在数字和逐条记录上。
+- **进 CI**：分数低于门槛就让变更过不去。
+- **越用越全**：真实使用中暴露的失败，补成一条新的评估，以后每次改动都会检查到它。
 
 所有东西都在你自己的机器和 CI 里跑，不需要注册账号。
 
@@ -105,9 +114,14 @@ export default x.defineEval({
 
 ## 为什么不直接用 DeepEval、LangFuse、Braintrust
 
-准备一份输入和标准答案再逐条比对，这套做法适合问答。但 Agent 做对一件事，往往要经过多轮对话、几次工具调用、读文件、改代码，最终答案只是其中一环。NiceEval 的断言直接落在这些过程事实上，不要求你先攒一份 golden 数据集。
+DeepEval 是成熟的 Python 评估框架，指标库丰富。NiceEval 的取舍不同：
 
-LangFuse、Braintrust 更偏线上 tracing 和监控。NiceEval 专注“写评估、跑评估、看结果、改 Agent”这一段本地开发循环。两者可以共存：你继续用它们看线上 trace，也可以把 NiceEval 的结果上报给 Braintrust。
+- **TypeScript 原生**：评估、Adapter、Experiment 都是带类型的 TS 代码，和你的 Agent 写在同一种语言里。
+- **断言落在过程上**：Agent 做对一件事，往往要经过多轮对话、几次工具调用、读文件、改代码，最终答案只是其中一环。NiceEval 直接断言这些过程事实，不要求你先攒一份 golden 数据集。
+- **真实环境判分**：Coding Agent 跑在 Docker 或云端 Sandbox 里，用项目自己的测试和文件改动判分，而不是只给回复打分。
+- **对照实验是一等公民**：评估用例和“对着谁跑”分开，同一批用例直接比较模型、prompt 和扩展。
+
+LangFuse、Braintrust 这类可观测平台回答“线上发生了什么”，评估回答“这个行为够不够好”。NiceEval 专注后者，以及“写评估、跑评估、看结果、改 Agent”这一段本地开发循环。两者可以共存：你继续用它们看线上 trace，也可以把 NiceEval 的结果上报给 Braintrust。
 
 ## 快速开始
 
