@@ -1,10 +1,10 @@
 ---
 title: "标准事件流参考"
 sidebarTitle: "事件流"
-description: "StreamEvent 的十种事件：每种的字段、什么时候吐、哪些断言消费它。adapter 的核心工作就是产出这条流。"
+description: "StreamEvent 的十种事件：每种的字段、何时产出、哪些断言读取它。Adapter 的主要工作就是产出这条流。"
 ---
 
-adapter 的 `send` 返回一个 `Turn`，其中 `events: StreamEvent[]` 是事件断言的事实来源。`turn.calledTool(...)`、`turn.toolOrder(...)`、`turn.event(...)` 与 `turn.succeeded()` 都从本轮的标准事件和逻辑工具 occurrence 派生，调用时直接登记 Boolean Assertion。把你的 agent“这一轮做了什么”如实翻成这条流，整套事件断言就都能用。
+Adapter 的 `send` 返回一个 `Turn`，其中 `events: StreamEvent[]` 是本轮的标准事件流，事件断言都从这里读取事实。`turn.calledTool(...)`、`turn.toolOrder(...)`、`turn.event(...)` 和 `turn.succeeded()` 都根据本轮事件和其中的工具调用来判断，调用时直接登记一条断言。把 agent 这一轮做了什么如实翻译成这条流，事件断言就都能用。
 
 ## Turn：send 的返回值
 
@@ -17,7 +17,7 @@ interface Turn {
 }
 ```
 
-`data` 的语义是“本轮的结构化产物”：**应用的回答本身是结构化对象**（抽取、分类、表单填充）时才填，评估作者可以用 `t.check(turn.data, ...)` 比较它。只回文本的应用不填——不要把原始响应 body 或 `message` 文本复制进去凑数，也不要反过来把结构化输出序列化后写进 `events`。`usage` 拿得到就带，拿不到就不填——**别编数字**。
+`data` 放本轮的结构化产物。只有应用的回答本身是结构化对象时才填，例如抽取、分类和表单填充，评估作者可以用 `t.check(turn.data, ...)` 比较它。只返回文本的应用不填 `data`。不要把原始响应 body 或 `message` 文本复制进去，也不要把结构化输出序列化后写进 `events`。`usage` 拿得到就填，拿不到就留空，不要估一个数字填进去。
 
 `usage` 的完整字段（`Usage` 类型）：
 
@@ -87,11 +87,13 @@ token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表
 
 {/* GENERATED:END usage-fields */}
 
-> 成本边界：`Usage.costUSD` 只表示 Provider / Adapter 返回的 USD observed 成本，绝不由 token、模型目录或本地价目表推导。Runner 即使已有 observed 成本，也会从 `model`、上报的 token 用量和 Config/runtime price table 独立计算 `estimatedCostUSD`。Experiment 的预算与 `t.maxCost()` 使用这个 estimate，`Usage.costUSD` 不驱动它。Report 成本投影只接受显式 `PricingProfile` 与已发布的 Usage，不读取 Runner estimate。
+> 成本怎么算：`Usage.costUSD` 只记录 Provider 或 Adapter 实际返回的美元成本，不会由 token 数、模型目录或本地价目表推算。无论有没有这个值，Runner 都会根据 `model`、上报的 token 用量和配置里的价目表另算一份估算成本 `estimatedCostUSD`。
+>
+> Experiment 的预算和 `t.maxCost()` 看的是这份估算，不看 `Usage.costUSD`。报告里的成本只按你显式指定的 `PricingProfile` 和已记录的用量计算，也不读 Runner 的估算。
 
 ## StreamEvent 变体一览
 
-`StreamEvent` 的十种变体，逐字段列出（消费它们的断言 / 使用细节见下面的「事件总表」和「逐事件说明」）：
+`StreamEvent` 有十种变体，下面逐个列出字段。哪些断言读取它们、使用时要注意什么，见后面的「事件总表」和「逐事件说明」。
 
 {/* GENERATED:BEGIN stream-events */}
 
@@ -200,14 +202,14 @@ token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表
 | `message` | agent（或用户）说了一段话 | `turn.message`、`turn.event(eventMatch("message", ...))`、Judge 的材料 |
 | `operation.started`（`kind: "tool"`） | 发起一次工具调用 | `turn.calledTool(...)`、`turn.toolOrder(...)`、`turn.event(...)` |
 | `operation.finished`（`kind: "tool"`） | 该次工具调用的结果 | 带状态条件的 `ToolMatch` |
-| `operation.started`（`kind: "subagent"`） | 委派一个子 agent | 原始事件与报告；当前没有子 agent 专用断言 |
-| `operation.finished`（`kind: "subagent"`） | 子 agent 返回 | 原始事件与报告；失败会进入 `noFailedActions()` 的汇总事实 |
+| `operation.started`（`kind: "subagent"`） | 委派一个子 agent | 保留在原始事件和报告里；没有子 agent 专用断言 |
+| `operation.finished`（`kind: "subagent"`） | 子 agent 返回 | 保留在原始事件和报告里；失败会计入 `noFailedActions()` |
 | `input.requested` | 停下来等人输入（HITL） | `t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()` |
-| `thinking` | 思考文本 | view 展示；可把原始 `events` 作为普通 Value subject 检查 |
-| `compaction` | 上下文被压缩 | view 展示；可把原始 `events` 作为普通 Value subject 检查 |
-| `error` | 本轮出错 | view 展示；可把原始 `events` 作为普通 Value subject 检查 |
+| `thinking` | 思考文本 | 在 view 中展示；需要时用 `t.check(turn.events, ...)` 检查 |
+| `compaction` | 上下文被压缩 | 在 view 中展示；需要时用 `t.check(turn.events, ...)` 检查 |
+| `error` | 本轮出错 | 在 view 中展示；需要时用 `t.check(turn.events, ...)` 检查 |
 
-事件断言共用三个入口：`event(match)`、`notEvent(match)` 与 `eventOrder(matches)`；它们都接收 `eventMatch(...)`。`eventMatch` 对 `message`、工具 `operation.started` 与工具 `operation.finished` 构造 occurrence Match；其数量由 Match 自己的 `.atLeast()`、`.exactly()` 等 quantifier 指定。其它原始 `StreamEvent` 仍可作为 `check(turn.events, valueMatch)` 的普通 Value subject。
+事件断言有三个入口：`event(match)`、`notEvent(match)` 和 `eventOrder(matches)`，都接收 `eventMatch(...)` 构造的匹配条件。`eventMatch` 支持 `message`、工具 `operation.started` 和工具 `operation.finished` 三种事件。要求出现几次，用匹配条件自己的 `.atLeast()`、`.exactly()` 等方法指定。其它事件可以把 `turn.events` 当作普通值，用 `check(turn.events, valueMatch)` 检查。
 
 ## 逐事件说明
 
@@ -217,7 +219,7 @@ token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表
 { type: "message", role: "assistant" | "user", text: string }
 ```
 
-每段助手文本吐一条 `role: "assistant"` 的 `message`。**工具结果不是助手消息**——不要把工具输出包成 `message`，否则 `t.reply` 会读到错误内容。用户输入的 `message` 由 [NiceEval](https://niceeval.com/) 自动记录，adapter 不用吐。
+每段助手文本产出一条 `role: "assistant"` 的 `message`。工具结果不是助手消息，不要把工具输出包成 `message`，否则 `t.reply` 会读到错误的内容。用户输入的 `message` 由 NiceEval 自动记录，Adapter 不用产出。
 
 ### 工具 `operation.started` / `operation.finished` —— 调了什么工具、结果如何
 
@@ -229,14 +231,14 @@ token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表
   output?: JsonValue, status: "completed" | "failed" | "rejected" }
 ```
 
-- 每个 tool `operation.started` 配一个**同 `operationId`** 的 tool `operation.finished`——并发调用靠它不错配。你的 agent 返回里有显式 id（AI SDK 的 `toolCallId`、Anthropic 的 `tool_use.id`）就直接用；实在没有再按顺序合成。
-- `status` 如实填：工具执行失败是 `"failed"`；**人否决是 `"rejected"`**。评估作者用 `ToolMatch` 的状态条件精确区分，两回事不要混。
-- `name` 用工具的原始名字。
-- 只有 started 时，逻辑 occurrence 的状态是 `pending`，输出为 unavailable。finished 省略 `output` 也表示 unavailable，不能把缺失写成空 JSON 或普通不匹配。
+- 每个工具 `operation.started` 都要配一个 `operationId` 相同的工具 `operation.finished`，并发调用靠这个 ID 对上号。agent 返回里有现成的 ID 就直接用，例如 AI SDK 的 `toolCallId`、Anthropic 的 `tool_use.id`；没有时再按顺序生成。
+- `status` 按实际情况填：工具执行失败填 `"failed"`，被人否决填 `"rejected"`。评估作者会用 `ToolMatch` 的状态条件区分这两种情况，不要混用。
+- `name` 填工具的原始名字。
+- 只有 started、还没有 finished 时，这次调用的状态是 `pending`，输出记为拿不到。finished 不带 `output` 也表示输出拿不到。缺失的输出不要写成空 JSON，也不要让它看起来像一次普通的不匹配。
 
 #### 将工具事件交给 `ToolMatch`
 
-同一个 `shell` 工具可以先后运行 `git status` 和 `pnpm test`。名称只能说明工具类别；需要辨认命令时，评估作者使用已归一的 command projection：
+同一个 `shell` 工具可能先运行 `git status`，再运行 `pnpm test`。工具名只能说明是哪类工具。要分辨具体命令，评估作者用整理好的命令信息（command projection）来匹配：
 
 ```ts
 import { commandMatch } from "niceeval/expect";
@@ -244,9 +246,9 @@ import { commandMatch } from "niceeval/expect";
 turn.calledTool(commandMatch("pnpm", { argsStart: ["test"] }));
 ```
 
-`ToolMatch` 每次比较一条逻辑 occurrence。完整 selector、JSON、路径、输出与计数规则见 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md)。
+`ToolMatch` 每次比较一次工具调用。完整的筛选条件，以及 JSON、路径、输出和计数规则，见 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md)。
 
-原生协议直接给出单一 invocation 的 structured argv 时，从 `niceeval/adapter` 调用公开构造器：
+原生协议直接给出一条命令的结构化 argv 时，用 `niceeval/adapter` 导出的构造器生成命令信息：
 
 ```ts
 import { commandProjection } from "niceeval/adapter";
@@ -267,9 +269,11 @@ events.push({
 });
 ```
 
-`commandProjection()` 保留 Adapter 已确认的 original tokens，并调用同一份 `normalizeLogicalCommand()` 生成 `logical-command/v1` 投影。`pnpm exec niceeval view` 能由 `commandMatch("niceeval", { argsStart: ["view"] })` 精确匹配。
+`commandProjection()` 保留 Adapter 确认过的原始参数，并按 NiceEval 统一的规则整理成 `logical-command/v1` 格式。例如 `pnpm exec niceeval view` 能被 `commandMatch("niceeval", { argsStart: ["view"] })` 精确匹配。
 
-只有原生协议已经给出 argv，或协议 grammar 能无歧义地产生单一 invocation，才能把 original 标为 available。协议只给 shell source、内容已截断或脱敏时使用 `opaqueCommandProjection(reason)`；能确认不是 command 时使用 `notCommandProjection()`。无法确认 command / not-command 时降低 actions coverage，不能从 tool name、input 或 shell 文本猜测。
+只有原生协议本身给出了 argv，或者能按协议语法明确拆出唯一一条命令时，才能把原始命令标为可用（`state: "available"`）。
+
+协议只给出 shell 源码，或者内容被截断、脱敏时，用 `opaqueCommandProjection(reason)`。能确定这次调用不是命令时，用 `notCommandProjection()`。判断不了是不是命令时，降低 actions coverage，不要从工具名、输入或 shell 文本去猜。
 
 ### 子 agent `operation.started` / `operation.finished` —— 委派了谁
 
@@ -280,7 +284,7 @@ events.push({
   output?: JsonValue, status: "completed" | "failed" }
 ```
 
-被测系统把任务委派给子 agent（等它返回）时吐这一对，`operationId` 配对规则同上。它们会保留在原始事件流与报告中。需要检查它们时，对 `turn.events` 使用普通 Value Match；工具 occurrence 的 `eventMatch(...)` 不把子 agent operation 当成工具调用。
+被测系统把任务委派给子 agent 并等它返回时，产出这一对事件，`operationId` 的配对规则同上。它们保留在原始事件流和报告里。要检查它们，对 `turn.events` 用普通的值匹配；`eventMatch(...)` 的工具匹配不会把子 agent 当成工具调用。
 
 ### `input.requested` —— 停下等人（HITL）
 
@@ -294,27 +298,27 @@ events.push({
 } }
 ```
 
-agent 停轮等人时，每个待回答的问题吐一条，同时该 Turn 的 `status` 返回 `"waiting"`。`t.requireInputRequest(filter)` 的 filter 逐字段匹配这个 `request`——**能填的字段尽量填**，否则评估用例侧筛选不到。接法见[接入教程的 HITL 部分](/zh/tutorials/connect-your-agent)。
+agent 停下来等人时，每个待回答的问题产出一条 `input.requested`，同时这个 Turn 的 `status` 是 `"waiting"`。`t.requireInputRequest(filter)` 按字段匹配 `request`，所以能填的字段尽量填，否则评估用例筛选不到。接法见[接入教程的 HITL 部分](/zh/tutorials/connect-your-agent)。
 
 ### `thinking` / `compaction` / `error`
 
 ```ts
 { type: "thinking", text: string }
-{ type: "compaction", reason?: string }   // 上下文压缩;adapter 的 parser 吐出即可断言,没有声明层
+{ type: "compaction", reason?: string }   // 上下文压缩；Adapter 解析出来就产出
 { type: "error", message: string }
 ```
 
-有就吐，没有不硬造。`compaction` 主要来自 coding agent CLI（上下文满了自动压缩）。这些原始事件保留给报告与诊断；需要断言时，把 `turn.events` 作为普通 Value subject 交给 `check`。
+有就产出，没有不要编造。`compaction` 主要来自 coding agent CLI，上下文满了时会自动压缩。这些事件主要用于报告和诊断；需要断言时，把 `turn.events` 当作普通值交给 `check`。
 
-## 映射的三条纪律
+## 映射事件的三条规则
 
-1. **时序即事实**：事件按真实发生顺序排。`toolOrder` / `eventOrder` 用单调 cursor 匹配不同 occurrence 的子序列，顺序错了断言就失真。`eventOrder` 只排公开 `eventMatch` 支持的事件。
-2. **`operationId` 配对**：每个 started operation 都要有同 `kind`、同 id 的 finished operation。只有配对完成，框架才能把状态与 input 归到同一个逻辑工具 occurrence。
-3. **完整性必须显式**：官方转换器按实际 adapter 能力声明 evidence coverage。负向断言在相关输入或 action coverage 不完整时是 `unavailable`，不会把“没观察到”冒充“没有发生”。手工映射同样要如实声明覆盖范围，见[能力位参考](/zh/reference/capabilities)。
+1. **按真实顺序排列**：事件顺序就是发生顺序。`toolOrder` 和 `eventOrder` 从前往后依次匹配不同的调用，顺序错了，断言结果就不对。`eventOrder` 只能排 `eventMatch` 支持的事件。
+2. **用 `operationId` 配对**：每个 started 都要有 `kind` 和 ID 都相同的 finished。配对完整，NiceEval 才能把状态和输入归到同一次工具调用上。
+3. **如实声明完整性**：官方转换器按 Adapter 的实际能力声明事件覆盖范围（evidence coverage）。相关的输入或动作覆盖不完整时，否定式断言（例如“没有调用某个工具”）的结果是 `unavailable`，不会把“没看到”当成“没发生”。手写映射也要如实声明覆盖范围，见[能力位参考](/zh/reference/capabilities)。
 
 ## 一个完整的映射示例
 
-agent 返回里带步骤记录时，映射就是一段小循环：
+agent 返回里带步骤记录时，映射就是一个简单的循环：
 
 ```ts
 import type { StreamEvent } from "niceeval";

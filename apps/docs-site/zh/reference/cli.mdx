@@ -1,14 +1,16 @@
 ---
 title: "CLI"
 sidebarTitle: "CLI"
-description: "用固定的 query、show 和 view 读取 canonical SQLite Record。"
+description: "用 query、show 和 view 读取运行记录。"
 ---
 
-运行评估使用 `niceeval exp`。NiceEval 提供三条读取路径：给脚本和 CI 读 JSON 的 `niceeval query`，人和 Coding Agent 在终端逐层查看的 `niceeval show`，以及在浏览器中审阅的 `niceeval view`。三者都经固定 Inspection operation 读取一个 `PublicationCutoff` 内的已发布事实；origin Run 仍为 `active` 的 Attempt 也可见。
+运行评估用 `niceeval exp`。读取结果有三条路：脚本和 CI 用 `niceeval query` 取 JSON，人和 Coding Agent 在终端用 `niceeval show` 逐层查看，在浏览器里审阅用 `niceeval view`。
 
-将 `niceeval exp` 的人读输出接入管道时，stdout 仍会显示运行中的进度。每行带 Experiment、Eval 与 Attempt 序号；每个 Attempt 最多每秒输出一次变化，相同文本不会刷屏。终端中继续显示动态面板，脚本读取结构化结果时使用 `--json`。
+三条路读的是同一份运行记录 `.niceeval/record.sqlite`。每次读取开始时，NiceEval 会固定一个可见边界：此刻已经写入的结果都能看到，之后写入的不会混进这次读取。所属 Run 还在运行时，已经写入的 Attempt 也能读到。
 
-用重复的 `--experiment` 精确选择多个实验，例如 `niceeval exp --experiment baseline --experiment memory --max-concurrency 4`。它们在同一次 Invocation 中共享并发限制和预算。重复 ID 只运行一次；任一 ID 不存在时，整次请求会在执行前失败。指定这些选项后，位置参数用于筛选评估用例。
+把 `niceeval exp` 的输出接到管道时，stdout 仍会显示进度。每行带上 Experiment、评估用例和 Attempt 序号。同一个 Attempt 每秒最多输出一次，内容没变就不重复输出。直接在终端里运行时显示动态面板。脚本要读结构化结果时加 `--json`。
+
+重复传入 `--experiment` 可以一次运行多个实验，例如 `niceeval exp --experiment baseline --experiment memory --max-concurrency 4`。这些实验在同一次运行里共享并发上限和预算。同一个 ID 写两次只运行一次。只要有一个 ID 不存在，整条命令在开始执行前就会失败。用了 `--experiment` 后，位置参数用来筛选评估用例。
 
 ## `niceeval query`
 
@@ -18,15 +20,15 @@ niceeval query explain [--record <file>] --request <file|->
 niceeval query run [--record <file>] --request <file|->
 ```
 
-`query` 是 versioned `niceeval.query/v1` JSON operation protocol。成功和协议级领域失败都会向 stdout 写入恰好一个 JSON document。命令用法错误和无法形成 document 的进程失败只写 stderr。
+`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v1`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
 
-- `discover` 返回静态、紧凑的 operation ID catalog。它不接受 `--record`，也不读取 Record；它不会返回 request schema。
-- `explain` 验证完整 request，说明将运行的 operation 与合法的后续请求。
-- `run` 执行 request，并返回该 operation 的完整结果。
+- `discover` 列出当前版本支持的 operation ID。它不读运行记录，所以不接受 `--record`，也不返回请求的字段结构。
+- `explain` 校验完整请求，说明它会运行哪个 operation，以及接下来可以发哪些请求。
+- `run` 执行请求，返回该 operation 的完整结果。
 
-先调用 `discover` 确认当前版本有哪些 operation，再按本页或[查看结果](/zh/tutorials/viewing-results)中的最小 request 构造请求，并用 `explain` 校验。不要猜字段，也不要用 SQL、JSON path 或公式拼出另一种查询语言。
+先用 `discover` 确认当前版本有哪些 operation，再按本页或[查看结果](/zh/tutorials/viewing-results)里的最小请求来写，并用 `explain` 校验。不要猜字段，也不要用 SQL、JSON path 或公式拼出另一种查询语言。
 
-continuation token 绑定 operation、规范化后的 request、source identity 和 `PublicationCutoff`。任一绑定变化都会得到 restart correction。
+结果分页时会带一个续读 token。这个 token 记住了 operation、请求内容、读取的记录文件和这次读取的可见边界。任何一项变了，`query` 都不会接着读，而是返回 restart correction，表示调用方要从 `discover` 或重新发请求开始。
 
 ## `niceeval show`
 
@@ -42,19 +44,33 @@ niceeval show @<locator> --usage [--record <file>]
 niceeval show @<locator> --diff [--record <file>]
 ```
 
-`show` 是固定的终端排版入口。省略 selector 时显示默认 overview。`--run <run-id>` 显示一个精确 Run，可重复传入。`--experiment <experiment-id>` 显示一个精确 Experiment，也可重复传入。
+`show` 在终端里按固定格式显示结果。不带选择参数时显示默认总览。`--run <run-id>` 显示指定的 Run，`--experiment <experiment-id>` 显示指定的 Experiment，两者都可以重复传入。
 
-通过制显示 `Verdicts` 与 `Pass rate`；纯计分制显示 `Verdicts` 与 `Score`，不显示通过率。Score 的完整度只说明数值能否计算：`failed + complete` 必须显示失败并保留 earned score，只有 `passed + complete` 才进入成功排名。混合范围只在适用的行显示通过率。
+通过率和分数按评估用例的类型显示：
 
-完整评分且 Verdict 为 `passed` 时，人读详情显示 `scored`，浏览器显示“评分完成”。完整零分也表示评分完成，不表示目标已经达成，也没有默认通过阈值。failed gate 仍显示失败；partial 只保留已知分数下界，不称为有效评分。
+- 通过制的评估显示 `Verdicts` 和 `Pass rate`。
+- 纯计分制的评估显示 `Verdicts` 和 `Score`，不显示通过率。
+- 两种混在一起时，只有通过制的行显示通过率。
 
-`@<locator>` 选择一个 Attempt。它不能与 `--run` 或 `--experiment` 一起使用，后两者也不能一起使用。一个命令最多只能给出一个 Attempt locator。
+分数“完整”只说明这个分数算得出来，不代表评估通过。判定为 `failed` 的评估即使分数完整，也显示失败，同时保留它拿到的分数。只有判定为 `passed` 且分数完整的评估才进入成功排名。
 
-在 Attempt 上，`--source` 显示已捕获的 source facts 和 Assertion sites。`--execution` 显示有界 execution outline，`--timing` 显示 timing activities。
+判定为 `passed` 且分数完整时，终端详情显示 `scored`，浏览器显示“评分完成”。零分也可以是完整评分：它说明评分做完了，不说明目标已经达成，NiceEval 也没有默认的及格线。gate 失败照样显示失败。分数不完整（`partial`）时只保留已知分数的下限，不算有效评分。
 
-`--usage` 显示 usage totals 和 observations，`--diff` 显示 file-change windows。这五个选项互斥，且都要求一个 Attempt locator。
+`@<locator>` 选中一个 Attempt。一条命令最多给一个 locator，它不能和 `--run` 或 `--experiment` 同时使用；`--run` 和 `--experiment` 之间也不能同时使用。
 
-`--expand <stable-id>` 只可与 `--execution` 一起使用。stable ID 必须是 outline 返回的 `itemId`、`toolOccurrenceId` 或 `commandId`，不能使用位置序号或旧式 execution handle。
+选中 Attempt 后，可以加下面任意一个选项看某一方面。这五个选项互斥，都必须配合 Attempt locator：
+
+- `--source`：记录下来的源码信息，以及每条断言在源码里的位置。
+- `--execution`：执行过程的概要，篇幅有上限。
+- `--timing`：各阶段的耗时。
+- `--usage`：用量合计，以及每一次上报的用量。
+- `--diff`：运行期间的文件改动。
+
+`--execution` 的输出分开显示三件事：采集状态、上报方是否声明数据完整、分页状态。即使当前页为空或已到最后一页，上报方标记的 `partial` 和限制原因也会保留。
+
+- 用 `--actor <id>` 和 `--type <event-type>` 按参与方和事件类型筛选。
+- 用 `--continuation <token>` 翻页时，要带上相同的筛选条件。
+- 用 `--expand <stable-id>` 直接展开一项详情。ID 必须取自概要里的 `itemId`、`toolOccurrenceId` 或 `commandId`，不能用位置序号。`--expand` 只能和 `--execution` 一起用，也不能和筛选、翻页参数同时出现。
 
 ## `niceeval view`
 
@@ -62,24 +78,28 @@ niceeval show @<locator> --diff [--record <file>]
 niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 ```
 
-`view` 是固定的第一方本地 Insight。省略 `--run` 时打开默认 overview；重复 `--run` 可预选多个 exact Run。它不接受位置参数，也不装载项目页面、主题、组件或 renderer。
+`view` 在本机打开 NiceEval 自带的浏览器界面。不带 `--run` 时打开默认总览，重复传入 `--run` 可以预先选中多个 Run。它不接受位置参数，也不加载项目自己的页面、主题、组件或渲染器。
 
-`--no-open` 不请求操作系统打开浏览器。`--port` 选择 `127.0.0.1` listener 的端口。SPA assets、本机授权 session 与 generation-bound Inspection endpoint 就绪后，命令向 stdout 写出一次可打开的 loopback URL。传入 `--json` 时改为输出 `niceeval.view/v1` NDJSON 的 `ready` 与 `closed` lifecycle event。启动或运行失败通过退出码与 stderr 反馈。
+`--no-open` 只启动服务，不自动打开浏览器。`--port` 指定端口，服务只监听 `127.0.0.1`。页面资源、本机访问授权和读取接口都准备好后，命令向 stdout 输出一次可以打开的本机地址。
 
-View 只读取当前项目的 `.niceeval/record.sqlite`。新 publication 出现后，页面提示 refresh；用户确认后才切换到新的 cutoff。它不提供 `--record`、SQL、部署、分享、Report、Page、theme、renderer、route 或 operation 参数。
+加 `--json` 时，stdout 改为 `niceeval.view/v1` 格式的 NDJSON：就绪时输出 `ready` 事件，关闭时输出 `closed` 事件。启动或运行失败时，通过退出码和 stderr 报告。
+
+`view` 只读取当前项目的 `.niceeval/record.sqlite`。打开期间有新结果写入时，页面会提示刷新，确认后才切换到新数据。它没有 `--record`、SQL、部署或分享选项，也不能指定自定义报告、页面、主题、路由或 operation。
 
 ## 选择读取方式
 
+三条路读取得到的是同一份结果，但各自负责自己的排版和展示。
+
 | 目标 | 使用 |
 | --- | --- |
-| 让脚本或 CI 发现并取得稳定 JSON | `niceeval query discover`，再用 `explain` / `run` |
-| 人或 Coding Agent 在终端审阅 overview、Run、Experiment 或 Attempt 的固定摘要 | `niceeval show` |
-| 在浏览器审阅 overview 或某个 Run | `niceeval view` |
-| 把同一份事实交给另一台兼容 runtime | 复制 `.niceeval/record.sqlite`，再传入 `--record` |
+| 让脚本或 CI 取得稳定的 JSON | `niceeval query discover`，再用 `explain` / `run` |
+| 人或 Coding Agent 在终端查看总览、Run、Experiment 或 Attempt 的摘要 | `niceeval show` |
+| 在浏览器里审阅总览或某个 Run | `niceeval view` |
+| 在另一台机器上读取同一份结果 | 复制 `.niceeval/record.sqlite`，再用 `--record` 指定它 |
 
 ## CLI flags
 
-下表从各命令自己的 option schema 生成。表中没有出现的 flag 会作为未知参数拒绝。
+下表从各命令自己的选项定义生成。表里没有的 flag 会被当作未知参数拒绝。
 
 {/* GENERATED:BEGIN cli-flags */}
 
@@ -162,10 +182,3 @@ View 只读取当前项目的 `.niceeval/record.sqlite`。新 publication 出现
 | `--help` | `niceeval list` | boolean | 打印该命令的帮助。 |
 
 {/* GENERATED:END cli-flags */}
-
-`query`、`show` 与 `view` 共享同一份 Inspection operation 结果，但不共享 formatter、路由、组件、主题或呈现 schema。
-
-`show @<locator> --execution` 分别显示采集状态、生产者声明的完整性和分页状态。
-即使当前页为空或已到末页，生产者的 `partial` 与限制原因仍会保留。
-使用 `--actor <id>` 与 `--type <event-type>` 精确筛选事件；带 `--continuation <token>` 续读时保持相同筛选。
-`--expand <stable-id>` 直接展开一项详情，与列表筛选和续页参数互斥。

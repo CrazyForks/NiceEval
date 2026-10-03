@@ -6,7 +6,7 @@ description: "defineEval 参考：选项、test context t、Turn 返回值、San
 
 `defineEval` 是编写评估用例的主要入口。每个评估用例文件调用一次，传入描述和 `test(t)`，并默认导出结果。
 
-组织业务判据、证据与分值时，参照 [NiceEval Taste](/zh/tutorials/niceeval-taste)。
+业务判据、证据和分值怎么组织，见 [NiceEval Taste](/zh/tutorials/niceeval-taste)。
 
 ```ts
 import { defineEval } from "niceeval";
@@ -21,7 +21,7 @@ export default defineEval({
 ```
 
 <Note>
-  不要提供 `id` 或 `name`。[NiceEval](https://niceeval.com/) 从文件路径推导评估用例 ID。
+  不要提供 `id` 或 `name`。NiceEval 根据文件路径生成评估用例 ID。
 </Note>
 
 ## `defineEval` 选项
@@ -116,15 +116,23 @@ test(t: TestContext): EvalTestReturn;
 
 ## Test context: `t`
 
-`t`（`TestContext`）是评估用例作者拿到的高层上下文。每一次作者入口调用都直接登记一条 Assertion。`t.check(subject, match)` 比较显式事实，`t.check(contextualMatch)` 注入当前只读 ctx。`t.judge(material, match)` 把受管 ScoreMatch 交给同一个 `check` 接收者。
+`t`（`TestContext`）是评估用例作者在 `test(t)` 里拿到的上下文。每调用一次检查方法，就登记一条断言。
 
-root、Session 与 Turn 的 `judge` 都要求显式材料。官方四个显式材料预设构造 Match 后转交该接收者。`closeQA(selector, question)` 选择整组材料回答验收问题。Agent 另提供 `closeQA(question)` 默认完整 scope 历史，以及 EventMatch、ToolMatch 简写。
+- `t.check(subject, match)` 用匹配条件检查你显式传入的值。
+- `t.check(contextualMatch)` 不传值，由 NiceEval 把当前的只读 ctx 交给匹配条件去读取。
+- `t.judge(material, match)` 把材料交给 Judge 打分，走的是和 `t.check` 同一条登记路径。
 
-通过制评估的 Boolean 默认进入 Attempt Verdict；计分制的 Boolean 默认 record-only。两种评估的 measurement 都用 `.gate(minimum)` 进入 failed；计分制可在同一 entry 上组合 gate 与 score。Boolean `.orStop()` 使用自身 condition，measurement 用 `.orStop(minimum)` 或在 gate 后无参复用。
+root、Session 和 Turn 上的 `judge` 都要求显式传入材料。官方提供四个现成裁判，它们构造好匹配条件后同样交给 `check`。`closeQA(selector, question)` 先用 selector 选出一组材料，再让 Judge 回答一个验收问题。Agent 场景另有 `closeQA(question)`，默认读取当前作用域的完整历史，也可以传入 EventMatch 或 ToolMatch 只看部分事实。
 
-普通公式直接用 TypeScript 计算，再用 `t.score(ratio, { weight: 50 }).label("完成耗时")` 登记。ratio 为 0–1 数值，权重为非负有限数；审计保留 ratio、固定 points 与实际贡献。带状态的数值材料不可判定时，贡献保持未知。
+断言默认怎样影响结果，取决于评估的类型：
 
-`defineScoreEval` 的 `ScoreTestContext` 额外提供 `t.score(n)` 直接登记 contribution；已有 Assertion 用 `.score(n)` 贡献分数。两者的 `n` 都必须 finite 且不小于零，零仍是显式 contribution。`calledTool` 与 `notCalledTool` 的完整契约见 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md)。全部成员：
+- 通过制评估里，Boolean 断言默认决定 Attempt 的判定；计分制评估里，Boolean 断言默认只记录，不影响结果。
+- 打分类的断言（measurement）默认不会让评估失败。两种评估里，加上 `.gate(minimum)` 后，分数低于下限才算失败。计分制里，同一条断言可以同时加 `.gate()` 和 `.score()`。
+- `.orStop()` 让断言失败时停止后续步骤。Boolean 断言直接用自己的结果；measurement 写 `.orStop(minimum)`，或者在 `.gate(minimum)` 后面写不带参数的 `.orStop()`，沿用 gate 的下限。
+
+普通的计算公式直接用 TypeScript 算，再用 `t.score(ratio, { weight: 50 }).label("完成耗时")` 登记。`ratio` 是 0 到 1 之间的数，`weight` 是非负的有限数。结果里会保留 ratio、对应的分值和实际得分。依据的数值材料拿不到时，这一项的得分记为未知。
+
+`defineScoreEval` 的 `ScoreTestContext` 还提供 `t.score(n)`，直接登记一项得分；已有的断言用 `.score(n)` 计入分数。两处的 `n` 都必须是不小于零的有限数，写 0 也算一项明确的得分。`calledTool` 和 `notCalledTool` 的完整规则见 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md)。全部成员如下：
 
 {/* GENERATED:BEGIN test-context */}
 
@@ -363,7 +371,7 @@ closeQA<T>(selector: MaterialMatch<Context, T>, question: string, options?: Judg
 
 {/* GENERATED:END test-context */}
 
-## Judge measurement
+## Judge 打分
 
 先用 `defineJudge` 声明评分标准，再直接交给 `t.check` 或 `t.judge`：
 
@@ -379,13 +387,24 @@ t.judge({ source: expected, summary: turn.message }, factualSummary)
   .label("事实一致");
 ```
 
-Judge 材料接受有界 JSON 值和显式 `judgeImage()` 值，并在登记时快照。解析从项目 `judgeRuntime` 开始，再应用 Eval 的 `judge` 和 Experiment 的 `judgeRuntime`；完整 Provider 整体替换服务与执行配置，模型字符串只替换已选 Provider 的模型。Eval 的 `judge` 为这道题选择模型或 Provider，不是 Match 允许列表。通过制与计分制都可调用 `.gate(minimum)`；计分制还可调用 `.score(n)`，并保留 gate 失败时的 contribution。
+Judge 材料可以是大小有上限的 JSON 值，也可以是 `judgeImage()` 生成的图片，登记时就会保存一份快照。
+
+Judge 用哪个模型按顺序决定：先取项目配置的 `judgeRuntime`，再应用评估用例的 `judge`，最后应用 Experiment 的 `judgeRuntime`。后一层给的是完整 Provider 时，会整体替换服务和执行配置；只给模型字符串时，只换掉已选 Provider 的模型。评估用例的 `judge` 只决定这道题用哪个模型或 Provider，不限制能用哪些匹配条件。
+
+通过制和计分制都可以调用 `.gate(minimum)`。计分制还可以调用 `.score(n)`，gate 失败时仍保留这一项的得分。
 
 ### 图片材料
 
-从 `niceeval/judge` 导入 `judgeImage`。它同步复制原图字节；支持 PNG 和 JPEG，每张最多 4 MiB、16,777,216 像素。每条断言及每次模型请求最多 4 次图片引用、合计 8 MiB，重复引用也计入限制；每个 Attempt 最多留存 32 MiB 图片。输入只检查签名、头部边界和尺寸，不完整解码或转码。
+从 `niceeval/judge` 导入 `judgeImage`，它会立即复制一份原图数据。限制如下：
 
-`OpenAIProvider`、`VercelProvider` 和 `OpenRouterProvider` 必须显式设置 `supportsImages: true`，并选择同时支持图片与工具调用的模型。默认不启用；`TypesafeProvider` 不支持图片。不支持时返回 `judge-capability-unavailable`，不会把图片降级成文字。
+- 格式只支持 PNG 和 JPEG。
+- 每张最多 4 MiB、16,777,216 像素。
+- 每条断言、每次模型请求最多引用 4 次图片，合计不超过 8 MiB。同一张图重复引用也会计数。
+- 每个 Attempt 最多保存 32 MiB 图片。
+
+NiceEval 只检查文件签名、文件头和尺寸，不会完整解码或转码图片。
+
+`OpenAIProvider`、`VercelProvider` 和 `OpenRouterProvider` 默认不发送图片，需要显式设置 `supportsImages: true`，并选一个同时支持图片和工具调用的模型。`TypesafeProvider` 不支持图片。不支持时返回 `judge-capability-unavailable`，不会把图片换成文字描述再评分。
 
 {/* GENERATED:BEGIN judge-image */}
 
@@ -421,7 +440,7 @@ Must match the encoded image. Paths, URLs and SVG are not accepted.
 
 ### 现成裁判与自定义 Match
 
-`defineJudge` 和现成裁判都返回 `ScoreMatch`，可以交给 `t.check`。`t.judge` 只是同一条 `check` 路径的便利入口，因此登记、快照、预算、求值、审计、结果保存和 handle 都只发生一次。
+`defineJudge` 和现成裁判都返回 `ScoreMatch`，可以直接交给 `t.check`。`t.judge` 只是同一条路径的简写，所以登记、快照、预算、打分、审计和结果保存都只发生一次。
 
 | 裁判 | 输入 | 得分含义 |
 | --- | --- | --- |
@@ -429,7 +448,7 @@ Must match the encoded image. Paths, URLs and SVG are not accepted.
 | `faithfulness()` | `{ input, output, context }` | 输出中有上下文支持的事实占比 |
 | `instructionFollowing()` | `{ instructions, output }` | 满足明确要求的比例 |
 | `pairwisePreference()` | `{ instructions, output, reference }` | 候选更好为 1，平局为 0.5，参考更好为 0 |
-| `t.closeQA(selector, question)` | 声明 ctx reader 与单项 predicate 的 MaterialMatch | 满足验收为1，不满足为0，证据不足为 unavailable |
+| `t.closeQA(selector, question)` | 一个从 ctx 读取材料、逐项判断的 MaterialMatch | 满足验收为 1，不满足为 0，证据不够时为 unavailable |
 
 例如，直接使用 `instructionFollowing()` 的实例：
 
@@ -440,21 +459,28 @@ t.check(
 ).gate(0.7).score(25);
 ```
 
-`faithfulness` 先提取事实，再逐项判断，由代码计算比例；提取不完整时没有有效得分。TypeSafe 不支持 `extract`，因此在 `TypesafeProvider` 上为 `unavailable`，不会改为整体估分。
-`pairwisePreference` 是一次固定顺序比较，适合一个候选与一个参考的比较。
-`closeQA` 将全部命中项保序交给一次 Judge，只依据材料回答验收问题。
+`faithfulness` 先从输出里提取事实，再逐项判断，最后由代码算比例。提取不完整时没有有效得分。TypeSafe 不支持 `extract`，所以在 `TypesafeProvider` 上结果为 `unavailable`，不会改成整体估一个分。
+`pairwisePreference` 按固定顺序比较一次，适合一个候选和一个参考之间的比较。
+`closeQA` 把选中的全部材料按原顺序一次交给 Judge，Judge 只根据这些材料回答验收问题。
 
-Agent 可用 `turn.closeQA(question)`、`session.closeQA(question)`、`t.closeQA(question)`；显式 EventMatch 取事件视图，ToolMatch 取完整工具事实。完整空集为0且零调用；partial、unknown或超限为 `unavailable`，不截断后评分。
+Agent 场景可以用 `turn.closeQA(question)`、`session.closeQA(question)` 和 `t.closeQA(question)`。传入 EventMatch 时只看匹配的事件，传入 ToolMatch 时看匹配的工具调用的完整信息。
 
-需要组合多个模型步骤时，使用高级 `defineScoreMatch` 的 `score(value, context)`。
-`context.llm` 提供 `score`、`classify`、`extract` 和 `batchClassify`，返回 Effect。
-它们与现成裁判共用调用预算、超时和审计记录。静态配置校验不会发网络请求；Provider、模型或 key 缺失也不会发请求。聊天服务使用 forced-function 请求，TypeSafe 使用 `/systemone`；两者都严格校验响应。传输或超时为 unavailable，HTTP 400 或协议不兼容为 errored。完整契约见 [自定义 Match](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/custom-assertions.md)。
+材料的情况会影响结果：选中的材料完整但为空时，得分为 0，不调用模型；材料不完整、无法判断或超出上限时，结果为 `unavailable`，不会截掉一部分再评分。
+
+需要把多个模型步骤组合起来时，用 `defineScoreMatch` 的 `score(value, context)` 自己写评分逻辑。`context.llm` 提供 `score`、`classify`、`extract` 和 `batchClassify`，都返回 Effect。
+它们和现成裁判共用调用预算、超时设置和审计记录。
+
+- 静态的配置校验不会发网络请求。Provider、模型或 key 缺失时，也不会发请求。
+- 聊天类服务用强制函数调用（forced-function）请求，TypeSafe 用 `/systemone` 接口，两者都会严格校验响应。
+- 网络传输出错或超时，结果为 unavailable；HTTP 400 或协议不兼容，结果为 errored。
+
+完整规则见[自定义 Match](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/custom-assertions.md)。
 
 ## `Turn` 返回类型
 
-`t.send(...)` 返回一个 `TurnHandle`：从事件流派生的便利字段，加上一整套本轮作用域断言。
+`t.send(...)` 返回一个 `TurnHandle`。它包含从事件流整理出来的常用字段，以及一整套只针对这一轮的断言。
 
-`calledTool` 与 `notCalledTool` 也属于 Turn 的作用域断言；它们的签名和 Match 规则只在 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md) 定义。
+`calledTool` 和 `notCalledTool` 也是 Turn 上的断言，签名和匹配规则见 [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md)。
 
 {/* GENERATED:BEGIN turn-handle */}
 
@@ -619,29 +645,26 @@ export default rows.map((row) =>
 );
 ```
 
-数组导出会生成稳定 ID：`file/0000`、`file/0001` 等。
+导出数组时，每一项会得到稳定的 ID：`file/0000`、`file/0001`，依此类推。
 
-已有稳定业务 key 时也可以默认导出 `Record<string, EvalDef>`。例如 key `15193` 在 `swelancer.eval.ts` 中生成 `swelancer/15193`。key 必须是非空单一路径片段，不能是 `.` / `..`，不能含 `/`、`\\` 或控制字符。发现顺序按 key 字典序固定。
+已经有稳定的业务 key 时，也可以默认导出 `Record<string, EvalDef>`。例如 `swelancer.eval.ts` 里的 key `15193` 会生成 `swelancer/15193`。key 必须是非空的单段路径，不能是 `.` 或 `..`，不能包含 `/`、`\\` 或控制字符。评估用例按 key 的字典序排列。
 
-### ctx 材料与官方统计
+### 从 ctx 读取材料，以及官方用量统计
 
-`defineMaterialMatch<C,T>({ name, read, match, capture? })` 从 `niceeval` 和 `niceeval/expect` 导出。
-Adapter 的 `create` 提供应用 ctx；框架在 `check` 或 `closeQA` 登记时向 reader 注入当前只读 ctx。
-reader 返回 `{ state: "complete", items: [{ id, value }] }`，或带 `reason` 的 partial/unavailable。
-ID 集合内唯一且最多128 UTF-8 bytes。capture 默认256项、48 KiB，可显式提高至16384项、4 MiB。
+`defineMaterialMatch<C,T>({ name, read, match, capture? })` 定义一组从 ctx 读取的材料，可以从 `niceeval` 或 `niceeval/expect` 导入。Adapter 的 `create` 提供应用自己的 ctx。在 `check` 或 `closeQA` 登记时，NiceEval 把当前的只读 ctx 传给 `read`。
+`read` 返回 `{ state: "complete", items: [{ id, value }] }`，或者返回带 `reason` 的 partial 或 unavailable 状态。每项的 `id` 在本组内不能重复，最长 128 个 UTF-8 字节。
 
-`check(materialMatch)` 返回 Boolean handle，默认至少命中一项；`closeQA(materialMatch, question, options?)` 返回 measurement handle。
-Agent reader 从 `AgentMatchContext<Scope>` 读取 managed toolCalls 或 eventOccurrences，使用对应 ToolMatch 或 EventMatch。
-question 非空且最多8 KiB。options 为 JudgePresetOptions；全部命中材料按原顺序进入一次 Judge，完整空集为0且零调用。
+`capture` 控制保存多少材料，默认最多 256 项、48 KiB，最高可以调到 16384 项、4 MiB。
 
-`defineContextMatch<C,T>({ name, read, match, capture? })` 读取单个小事实。
-reader 返回 `{ state: "available", value }` 或 `{ state: "unavailable", reason }`。
-配 BooleanMatch 得 Boolean handle，配 ScoreMatch 得 measurement handle；未知事实不调用评分器。
+`check(materialMatch)` 返回 Boolean 断言，默认至少有一项满足条件才算通过。`closeQA(materialMatch, question, options?)` 返回 Judge 打分的断言：`question` 不能为空，最长 8 KiB；`options` 的类型是 `JudgePresetOptions`。选中的全部材料按原顺序一次交给 Judge。材料完整但为空时，得分为 0，不调用模型。
+Agent 场景的 `read` 从 `AgentMatchContext<Scope>` 读取 NiceEval 整理好的工具调用（`toolCalls`）或事件（`eventOccurrences`），再分别用 ToolMatch 或 EventMatch 匹配。
 
-`t.usage` 读取官方账本的冻结值，保留失败、重试、缓存桶与费用依据。
-Adapter 的 basis 为 recorded-calls；Agent 的 basis 为 reported-sends，并保留 Turn、Session、Attempt 范围。
-`usage.totalTokens` 等字段为 NumericMaterial，未知不补0。
+`defineContextMatch<C,T>({ name, read, match, capture? })` 从 ctx 读取单个小的值。`read` 返回 `{ state: "available", value }` 或 `{ state: "unavailable", reason }`。配 BooleanMatch 时得到 Boolean 断言，配 ScoreMatch 时得到打分类断言。值拿不到时，不会调用评分逻辑。
 
-`t.maxTokens(max)` 约束完整 token 总量；`t.maxCost(usd)` 精确约束 USD 有效成本，实扣0优先于显式 pricing 估算。
-`t.elapsedMs` 是 runtime Attempt 起点到读取处的墙钟毫秒，可交给 `t.check(..., atMost(limit))`。
-业务内首次完成时间仍由业务 Match 判断。
+`t.usage` 读取 NiceEval 官方记录的用量，读取时就固定下来。失败和重试的调用、缓存的分桶以及费用的计算依据都会保留。
+- 普通 Adapter 的用量依据是记录下来的每一次调用（`recorded-calls`）。
+- Agent 的用量依据是每次发送时上报的数字（`reported-sends`），可以按 Turn、Session 或 Attempt 查看。
+- `usage.totalTokens` 等字段是 NumericMaterial。不知道的值保持未知，不会补成 0。
+
+`t.maxTokens(max)` 限制 token 总量。`t.maxCost(usd)` 按美元成本限制：优先用实际扣费金额，扣费为 0 也算；没有实际扣费时，才用你显式配置的价格算出的估算。
+`t.elapsedMs` 是从 Attempt 开始到读取这一刻经过的毫秒数，可以交给 `t.check(..., atMost(limit))`。业务里“第一次完成”的时间点仍要用业务自己的匹配条件判断。
