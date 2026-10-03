@@ -10,15 +10,16 @@ createdAtSource:
 kind: roadmap
 state: planned
 ---
+
 # 工作目录访问证据
 
 工作目录变化只能说明 Agent 最终改了什么，工具输入中的 JSON 只能说明 Adapter 投影出的文本。两者都不能证明 Agent 进程是否读取、写入或重命名过工作目录中的一个路径。
 
 本 Roadmap 为这类问题建立 Attempt-scope 的访问 evidence。Eval 在定义期以 `workspaceAccess: { collection: "required" | "best-effort" }` 声明要求，随后在 t.sandbox 上登记一次 post-run Assertion。Runner 在 Agent 与其子进程结束后结算该 Assertion，并把可复核的有限 evidence 封入 Attempt。
 
-## 解决的 Frog / DX
+## 解决的 DX 摩擦
 
-Frog 中的路径摩擦来自两个不可靠替代品：把工具输入中的字符串当成文件访问，或把最终 diff 当成全部读写历史。前者漏掉未被 Adapter 投影的进程行为，后者漏掉读取、还原后的写入和失败操作。
+已记录的路径摩擦来自两个不可靠替代品：把工具输入中的字符串当成文件访问，或把最终 diff 当成全部读写历史。前者漏掉未被 Adapter 投影的进程行为，后者漏掉读取、还原后的写入和失败操作。
 
 作者需要写出“Agent 读取了配置”与“Agent 没有碰过秘密目录”，而不必猜工具 schema、shell 文本或 Provider 的工作目录。诊断者也需要知道结果来自完整、部分还是不可用的 evidence。
 

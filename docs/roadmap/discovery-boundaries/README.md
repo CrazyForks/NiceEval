@@ -10,15 +10,16 @@ createdAtSource:
 kind: roadmap
 state: planned
 ---
+
 # Eval 发现边界
 
 Eval 文件树既是模块树，也是用户可读的题目目录。递归扫描若不承认目录入口的所有权，就会把一个任务目录中的共享模块、fixture 或子任务误认成另一条 Eval，并让同一物理内容拥有不稳定的发现身份。
 
 本 Roadmap 用 folder-entry ownership 定义结构边界。一个目录中显式存在 eval.ts 或 eval.tsx 时，该目录由这条 folder entry 完整拥有；发现器将入口加入发现清单后停止向其后代递归。
 
-## 解决的 Frog / DX
+## 解决的 DX 摩擦
 
-Frog 中的发现摩擦表现为：同一目录既像一条 Eval 又像一棵可继续扫描的根，CLI 只给最终 id 而不说明从哪里发现，以及 symlink、重叠根或装载失败只能靠猜扫描顺序定位。
+已记录的发现摩擦表现为：同一目录既像一条 Eval 又像一棵可继续扫描的根，CLI 只给最终 id 而不说明从哪里发现，以及 symlink、重叠根或装载失败只能靠猜扫描顺序定位。
 
 作者只需用目录结构表达所有权。用户在 list、check 和 dry 中同时看到 discovery root、实际 entry 与停止递归的原因，因此能够判断该改配置、入口文件还是目录组织。
 

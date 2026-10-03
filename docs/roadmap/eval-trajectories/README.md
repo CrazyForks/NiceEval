@@ -10,9 +10,10 @@ createdAtSource:
 kind: roadmap
 state: planned
 ---
+
 # Eval Trajectory —— 有向依赖路径上的分段执行
 
-## 要消除的 Frog / DX 摩擦
+## 要消除的 DX 摩擦
 
 有状态 Eval 往往靠数组顺序、Eval Group lane 或口头约定决定下一步。暂停后，操作者只能猜该接哪份状态；
 恢复又容易把通用 carry 误当成已经完成的路径前缀。这样无法解释某个 Run 是否承接了准确的先前状态。

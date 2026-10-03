@@ -10,9 +10,10 @@ createdAtSource:
 kind: roadmap
 state: planned
 ---
+
 # 准入健康（Admission health）
 
-## 要消除的 Frog / DX 摩擦
+## 要消除的 DX 摩擦
 
 一个 Agent 或外部执行者在开始前可能已不可用。把这件事放入 Plugin、Eval Assertion 或 Verdict，会把
 资源可用性误写成生命周期回调、评测事实或评分结果。调用者也无法知道哪些 slot 从未开始，以及为什么。

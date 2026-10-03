@@ -10,9 +10,10 @@ createdAtSource:
 kind: roadmap
 state: planned
 ---
+
 # State —— Cohort、Checkpoint 与预期持久化
 
-## 要消除的 Frog / DX 摩擦
+## 要消除的 DX 摩擦
 
 跨 Attempt 的记忆、数据库或目录常把 cohort、checkpoint、恢复位置和写回规则拆在不同 callback 中。
 网络在提交途中断开时，调用者既不知道是否已写入，也无法安全决定下一步。以模糊位置恢复还会让两次
