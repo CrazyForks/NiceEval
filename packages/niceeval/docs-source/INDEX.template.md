@@ -14,7 +14,7 @@
 
 - **已有项目要运行或复验。** 先读 `docs-site/zh/tutorials/agent-feedback-loop.mdx`，再按任务从索引树补读 Authoring、接入或 Reference 页面。保留用户已经给出的范围、授权和预算；只有缺少会改变被测目标、运行边界、凭证边界或费用的决定时才提问。
 - **只读诊断。** 先读 `docs-site/zh/tutorials/agent-feedback-loop.mdx`，再从索引树选择相关 Troubleshooting 或 Reference 页面。只从 `show`、`query` 或 `view` 收集公开证据；不要修改项目、重跑 Experiment、采用结果或写入 `.niceeval/`。
-- **编写或修正评估。** 先读 `docs-site/zh/tutorials/authoring.mdx` 和 `docs-site/zh/tutorials/evaluation-kinds.mdx`；要连接被测对象时再读对应接入教程。评估输入必须覆盖真实业务能力，并能区分被测系统是否完成任务。
+- **编写或修正评估。** 先读 `docs-site/zh/tutorials/authoring.mdx` 和 `docs-site/zh/tutorials/evaluation-kinds.mdx`，交付前按 `docs-site/zh/tutorials/niceeval-taste.mdx` 审阅判据；被测对象提供业务事实时再读 `docs-site/zh/tutorials/niceeval-taste-application.mdx`。要连接被测对象时再读对应接入教程。评估输入必须覆盖真实业务能力，并能区分被测系统是否完成任务。
 - **首次接入。** 读 `docs-site/zh/tutorials/agent-onboarding.mdx`，它拥有探索、必要决策、事件映射和生命周期的完整步骤。
 
 ## 帮用户跑通实验

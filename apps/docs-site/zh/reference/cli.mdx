@@ -4,7 +4,7 @@ sidebarTitle: "CLI"
 description: "用固定的 query、show 和 view 读取 canonical SQLite Record。"
 ---
 
-运行评估使用 `niceeval exp`。NiceEval 提供三条读取路径：给 AI、脚本和 CI 的 `niceeval query`，给终端中人读的 `niceeval show`，以及在浏览器中审阅的 `niceeval view`。三者都经固定 Inspection operation 读取一个 `PublicationCutoff` 内的已发布事实；origin Run 仍为 `active` 的 Attempt 也可见。
+运行评估使用 `niceeval exp`。NiceEval 提供三条读取路径：给脚本和 CI 读 JSON 的 `niceeval query`，人和 Coding Agent 在终端逐层查看的 `niceeval show`，以及在浏览器中审阅的 `niceeval view`。三者都经固定 Inspection operation 读取一个 `PublicationCutoff` 内的已发布事实；origin Run 仍为 `active` 的 Attempt 也可见。
 
 将 `niceeval exp` 的人读输出接入管道时，stdout 仍会显示运行中的进度。每行带 Experiment、Eval 与 Attempt 序号；每个 Attempt 最多每秒输出一次变化，相同文本不会刷屏。终端中继续显示动态面板，脚本读取结构化结果时使用 `--json`。
 
@@ -72,8 +72,8 @@ View 只读取当前项目的 `.niceeval/record.sqlite`。新 publication 出现
 
 | 目标 | 使用 |
 | --- | --- |
-| 让脚本、AI 或 CI 发现并取得稳定 JSON | `niceeval query discover`，再用 `explain` / `run` |
-| 在终端审阅 overview、Run、Experiment 或 Attempt 的固定摘要 | `niceeval show` |
+| 让脚本或 CI 发现并取得稳定 JSON | `niceeval query discover`，再用 `explain` / `run` |
+| 人或 Coding Agent 在终端审阅 overview、Run、Experiment 或 Attempt 的固定摘要 | `niceeval show` |
 | 在浏览器审阅 overview 或某个 Run | `niceeval view` |
 | 把同一份事实交给另一台兼容 runtime | 复制 `.niceeval/record.sqlite`，再传入 `--record` |
 

@@ -1,10 +1,12 @@
 ---
 title: "NiceEval 中的评估用例：生命周期、verdict 与文件"
 sidebarTitle: "评估"
-description: "评估用例是一个测试用例：描述和 test 函数，agent-neutral。了解评估用例如何被发现、调度、评分和报告。"
+description: "评估用例说明发什么、什么算做对，不绑定被测对象。了解评估用例如何被发现、调度、评分和报告。"
 ---
 
-一个评估用例是一个可运行的测试用例。它通常由一个 `*.eval.ts` 文件导出，通过 `defineEval` 声明。
+评估用例说明发什么、什么算做对。它通常由一个 `*.eval.ts` 文件导出，通过 `defineEval` 声明。
+
+它写起来像单元测试，但被测对象的输出不确定。同一条评估用例会按 Experiment 的 `attempts` 跑多次，每次是一个 Attempt，汇总起来读通过率或分数。
 
 ## 评估用例的组成
 
@@ -33,7 +35,7 @@ export default defineEval({
 | `sandbox` | 评估用例拥有的可选 Sandbox layer；Experiment 提供 template-bearing layer 时省略 |
 | `test(t)` | 交互和断言逻辑 |
 
-评估用例本身不声明用哪个 Agent——它默认保持 agent-neutral，同一个评估用例可以在不同 experiment 下跑不同 Agent。选哪个 Agent 是 experiment 的字段，不由 CLI 临时覆盖。
+评估用例本身不声明用哪个 Agent，同一条评估用例可以在不同 Experiment 下跑不同 Agent。选哪个 Agent 是 Experiment 的字段，不由 CLI 临时覆盖。
 
 <Note>
   不要手写 `id` 或 `name`。[NiceEval](https://niceeval.com/) 从文件路径推导 ID。
@@ -41,7 +43,7 @@ export default defineEval({
 
 ## 路径即身份
 
-`evals/weather/brooklyn.eval.ts` 的 ID 是 `weather/brooklyn`。experiment 名之后的位置参数按 ID 前缀过滤：
+`evals/weather/brooklyn.eval.ts` 的 ID 是 `weather/brooklyn`。Experiment 名之后的位置参数按 ID 前缀过滤：
 
 ```bash
 npx niceeval exp local weather

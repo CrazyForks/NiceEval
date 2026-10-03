@@ -10,9 +10,9 @@ NiceEval 给不同读者准备了三个入口，读的是同一份结果：
 
 | 入口 | 给谁 | 适合 |
 |---|---|---|
-| `niceeval show` | 人，在终端 | 快速找到失败，逐层查看细节 |
+| `niceeval show` | 你和 Coding Agent，在终端 | 快速找到失败，逐层查看细节 |
 | `niceeval view` | 人，在浏览器 | 翻看完整对话、耗时瀑布图、对比多个 Run |
-| `niceeval query` | AI、脚本和 CI | 读结构化 JSON |
+| `niceeval query` | 脚本和 CI，以及需要精确字段的 Agent | 读结构化 JSON |
 
 每次 Attempt 一结束，结果就能读到，不必等整批跑完。
 
@@ -179,7 +179,7 @@ JSON
 
 ## 让脚本和 CI 读结果
 
-`query` 只输出 `niceeval.query/v1` 格式的 JSON，不做终端排版。不要解析 `show` 的文字输出，也不要直接读 `.niceeval/` 下的文件，格式可能随版本变化。
+`query` 只输出 JSON，不做终端排版。不要解析 `show` 的文字输出，也不要直接读 `.niceeval/` 下的文件，格式可能随版本变化。
 
 ```sh
 pnpm --silent exec niceeval query discover

@@ -25,10 +25,10 @@ pnpm exec niceeval show --run <run-id>
 pnpm exec niceeval view --run <run-id>
 ```
 
-加 `--json` 时，最后一行是这次运行的 receipt，里面的 `createdRunIds` 列出新建的 Run，`publicationCutoff` 标记这次运行结束时已发布到哪里。`publicationCutoff` 不要解析，原样传给后续命令。脚本、AI 和 CI 先运行 `niceeval query discover` 找到可用的查询，再发送完整 request。
+加 `--json` 时，最后一行是这次运行的 receipt，里面的 `createdRunIds` 列出新建的 Run，`publicationCutoff` 标记这次运行结束时已发布到哪里。`publicationCutoff` 不要解析，原样传给后续命令。脚本和 CI 先运行 `niceeval query discover` 找到可用的查询，再发送完整 request。
 
 ## 浏览器页面不会自己跳到新结果
 
 `niceeval view` 打开时，固定读取当时已发布的结果。之后又有新的 Attempt 发布时，页面会提示刷新；你确认后，页面才切换到最新结果。这样你在对比数据时，页面不会中途变化。
 
-Runner 不会把数据库、执行时的工作目录或尚未发布的记录交给查看命令。查看时选哪些结果、缺了什么、用什么证据、怎样比较，都由 NiceEval 内置的固定查询决定，见[运行后数据流](/zh/explanation/overview)。
+Runner 不会把数据库、执行时的工作目录或尚未发布的记录交给查看命令。查看时选哪些结果、缺了什么、用什么证据、怎样比较，都由 NiceEval 内置的固定查询决定，见[运行结果的数据流](/zh/explanation/results-flow)。

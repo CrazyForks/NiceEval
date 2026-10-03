@@ -86,7 +86,7 @@ query discover
 
 ## 结果不完整或无法比较
 
-脚本、AI 或 CI 先运行 `pnpm --silent exec niceeval query discover` 找到合适的查询，再用 `explain` 检查 request，最后用 `run` 执行。结果会指出缺了哪些结果、有哪些问题、用了什么证据，以及怎样修正。
+脚本或 CI 先运行 `pnpm --silent exec niceeval query discover` 找到合适的查询，再用 `explain` 检查 request，最后用 `run` 执行。结果会指出缺了哪些结果、有哪些问题、用了什么证据，以及怎样修正。
 
 `query` 只输出 JSON，不适合人直接阅读。要逐项解释分数时，用 `attempt.get` 和 `attempt.assertion.detail`，不要只看汇总分数。
 

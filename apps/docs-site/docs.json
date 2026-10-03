@@ -647,23 +647,25 @@
                 ]
               },
               {
-                "group": "评估 Coding Agent",
-                "pages": [
-                  "zh/tutorials/sandbox-agent",
-                  "zh/tutorials/fixtures",
-                  "zh/tutorials/criteria-files",
-                  "zh/tutorials/install-custom-sandbox-agent",
-                  "zh/tutorials/sandbox-providers"
-                ]
-              },
-              {
                 "group": "写好评估用例",
                 "pages": [
                   "zh/tutorials/authoring",
                   "zh/tutorials/evaluation-kinds",
                   "zh/tutorials/dataset-fanout",
                   "zh/tutorials/verify-judge",
-                  "zh/tutorials/niceeval-taste"
+                  "zh/tutorials/niceeval-taste",
+                  "zh/tutorials/niceeval-taste-application"
+                ]
+              },
+              {
+                "group": "评估 Coding Agent",
+                "pages": [
+                  "zh/tutorials/sandbox-agent",
+                  "zh/tutorials/fixtures",
+                  "zh/tutorials/criteria-files",
+                  "zh/tutorials/install-custom-sandbox-agent",
+                  "zh/tutorials/sandbox-providers",
+                  "zh/tutorials/prebuilt-sandbox"
                 ]
               },
               {
@@ -722,11 +724,12 @@
                 "group": "核心模型",
                 "pages": [
                   "zh/explanation/overview",
-                  "zh/explanation/record",
                   "zh/explanation/evals",
                   "zh/explanation/experiment",
                   "zh/explanation/adapter",
-                  "zh/explanation/tier"
+                  "zh/explanation/tier",
+                  "zh/explanation/results-flow",
+                  "zh/explanation/record"
                 ]
               },
               {

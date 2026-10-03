@@ -1,37 +1,60 @@
 ---
-title: "NiceEval 的运行后数据流"
-sidebarTitle: "架构概览"
-description: "理解运行结果保存在哪里，以及 query、show 和 view 三个查看入口各管什么。"
+title: "NiceEval 的整体模型：一次评估由哪些部分组成"
+sidebarTitle: "整体模型"
+description: "评估用例、Experiment、Adapter、Sandbox、Runner 和 Record 各管什么，它们怎样连成一次运行，以及为什么同一条评估要跑多次。"
 ---
 
-一次运行结束后，你可能在终端看结果，也可能在浏览器里翻对话，或者让 CI 脚本读 JSON。三种方式看到的是同一份结果，只是排版不同。这一页说明结果保存在哪里、怎样被读出来，以及三个查看入口各管什么。
+一次评估回答一个问题：被测对象在这个配置下，能不能把这件事做对。NiceEval 把这个问题拆成几个部分，每部分只管一件事。
 
 ```text
-项目里的 .niceeval/record.sqlite（已发布的 Run 和 Attempt）
-        ↓
-NiceEval 内置的固定查询
-        ↓
-query（JSON） | show（终端） | view（浏览器）
+评估用例（什么算做对）      Experiment（对着谁、怎么跑）
+            \                    /
+             \                  /
+              Runner（调度 Attempt、打分）
+                       │
+                 Adapter（连接被测对象）
+                       │
+          被测对象（直连，或在 Sandbox 里运行）
+                       │
+          Record（保存每个 Attempt 的结果）
+                       │
+       show（终端） · view（浏览器） · query（JSON）
 ```
 
-## 结果保存在一个文件里
+## 评估用例：什么算做对
 
-每个项目的运行结果都保存在 `.niceeval/record.sqlite`，这就是 Record。`niceeval exp` 开始时创建 Run，并记下这次计划要跑的所有 Attempt。每个 Attempt 跑完就单独发布，马上可以读到，不必等整个 Run 结束。已发布的 Attempt 和已结束的 Run 都不会再被修改。
+评估用例写在 `evals/*.eval.ts` 里，说明发什么、检查什么。它不写对着哪个 Agent、用哪个模型跑，所以同一条评估用例可以换着被测对象跑。
 
-运行完整结束后，这个文件本身就可以复制或归档。要读别人交给你的副本时，给 `query` 或 `show` 加 `--record <file>`；NiceEval 会先完整校验这个文件，再只读打开。
+检查分两类。确定的事实用确定的规则检查，例如调用了哪个工具、测试有没有通过。开放式的质量交给 Judge，也就是裁判模型，由它按你写的标准打分。见[评估用例](/zh/explanation/evals)和 [Judge](/zh/explanation/judge)。
 
-## 读取规则由 NiceEval 固定
+## Experiment：对着谁、怎么跑
 
-读取结果时，选哪些 Run、读到哪个时刻为止、哪些结果缺失、有哪些问题、用什么证据、怎样比较，都由 NiceEval 内置的固定查询决定。查询返回的是普通数据，不会把数据库连接、文件路径或读取对象交给调用者。
+Experiment 写在 `experiments/` 里，说明用哪个 Adapter、哪个模型、开哪些 flags、每条评估跑几次。要比较两个模型，就写两份只差 `model` 的 Experiment，对着同一批评估用例各跑一遍。见 [Experiment](/zh/explanation/experiment)。
 
-内置查询覆盖 Run、Attempt、trace、diff、sources、artifacts 和 Run 之间的比较。你不能用临时 SQL、JSON path 或公式自定义读取方式。
+## Adapter 和 Sandbox：怎样连上被测对象
 
-## 三个查看入口
+Adapter 是你写的连接代码。它把评估用例里的动作发给被测对象，再把返回翻译成 NiceEval 能读的事件，例如回复、工具调用和用量。接入可以从只实现 `send` 开始，需要时再加 OTel 或 flags，见 [Adapter](/zh/explanation/adapter) 和[接入等级](/zh/explanation/tier)。
 
-- `niceeval query` 给 AI、脚本和 CI 用，输出 `niceeval.query/v1` JSON。
-- `niceeval show` 给人在终端用，先看总览，再逐层查看某个 Attempt 的对话、耗时和改动。
-- `niceeval view` 给人在浏览器用，打开只监听本机地址、受访问保护的 Insight 界面。
+Coding Agent 要在真实文件系统里改代码、跑命令，NiceEval 先创建一个隔离的 Sandbox，再在里面启动 Agent。直连的 Web Agent 和业务应用不需要 Sandbox。
 
-三个入口读到的是同一份查询结果。它们只负责各自的排版：JSON、终端文字或浏览器页面。它们不会各自挑选结果，也不会重新计算通过率或分数，所以同一个 Run 在三处看到的结论一致。
+## Runner 和 Attempt：为什么同一条评估要跑多次
 
-完整命令见 [CLI](/zh/reference/cli)。结果文件怎样复制和校验，见 [Record](/zh/explanation/record)。
+LLM 的输出不确定，同一个问题这次答对，下次可能答错。只跑一次，说明不了改动是否真的有效。所以 Experiment 用 `attempts` 指定每条评估用例跑几次，每一次叫一个 Attempt。
+
+Runner 按 Experiment 选出评估用例，展开成一批 Attempt，按并发限制调度执行。每个 Attempt 得到一个判定：`passed`、`failed`、`errored` 或 `skipped`。一批 Attempt 汇总起来，就是这条评估在这个配置下的通过率。计分制评估累计分数而不是读通过率，见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
+
+`failed` 和 `errored` 要分开看。`failed` 是被测对象正常回复了，但没做对。`errored` 是没能拿到可信的结果，例如服务没启动或凭据失效，它说明的是环境问题，不是被测对象的能力。
+
+## Record：结果留下来，供对比和追查
+
+每个 Attempt 跑完，结果连同对话、工具调用、文件改动、耗时和花费，一起保存在项目的 `.niceeval/record.sqlite`，这就是 Record。
+
+结果留下来有两个用处。一是追查：回到某一次失败，看被测对象实际做了什么。二是沿用：再次运行时，没受改动影响的结果直接沿用，只重跑受影响的部分，见[重跑与沿用](/zh/tutorials/rerun-and-cache)。
+
+读结果有三个入口：`show` 在终端逐层查看，你和 Coding Agent 都用它排查；`view` 在浏览器里翻对话和耗时；`query` 输出 JSON，给脚本和 CI 读取。三处读到的结论一致，见[运行结果的数据流](/zh/explanation/results-flow)。
+
+## 接下来
+
+- 第一次使用：读[快速开始](/zh/tutorials/quickstart)。
+- 想了解某个部分：按上面每节末尾的链接继续读。
+- 想查字段和命令：去 [Reference](/zh/reference/define-eval)。

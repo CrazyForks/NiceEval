@@ -139,7 +139,7 @@ export default defineExperiment({
 
 从上往下读，这个文件就是完整的运行说明：整个实验一份的服务在 `setup` / `teardown`，每个 Sandbox 的准备和收尾在 `.before()` 和 `ctx.onCleanup`。
 
-Agent CLI、系统包这类固定不变的安装，最好先做进镜像或 template。NiceEval 会复用没变的准备步骤，不会因为评估用例改了就重装一遍。做法见 [Sandbox · 从官方基线继续构建以提速](/zh/tutorials/sandbox-providers#从官方基线继续构建以提速)。
+Agent CLI、系统包这类固定不变的安装，最好先做进镜像或 template。NiceEval 会复用没变的准备步骤，不会因为评估用例改了就重装一遍。做法见 [预制 Sandbox 环境 · 从官方基线继续构建以提速](/zh/tutorials/prebuilt-sandbox#从官方基线继续构建以提速)。
 
 ## 跨 Attempt 保存状态
 
