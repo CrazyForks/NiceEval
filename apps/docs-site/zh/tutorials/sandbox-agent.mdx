@@ -68,7 +68,7 @@ export default defineExperiment({
 });
 ```
 
-Claude Code 用 `NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE`，Bub 用 `NICEEVAL_BUB_E2B_TEMPLATE`。常量的值是带固定版本的完整模板引用，版本随模板里的 Agent 版本更新，你不用自己跟踪。要在模板上加系统包、二进制或模型缓存，见 [预制 Sandbox 环境 · 从官方基线继续构建以提速](/zh/tutorials/prebuilt-sandbox#从官方基线继续构建以提速)。
+Claude Code 用 `NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE`，Bub 用 `NICEEVAL_BUB_E2B_TEMPLATE`。常量的值是带固定版本的完整模板引用，版本随模板里的 Agent 版本更新，你不用自己跟踪。要在模板上加系统包、二进制或模型缓存，见 [预制 Sandbox 环境 · 从官方基线继续构建](/zh/tutorials/prebuilt-sandbox#从官方基线继续构建)。
 
 内置 Agent 从 `niceeval/adapter` 导出的是工厂函数。要配置鉴权、代理、MCP 或 GitHub Skill，写进工厂参数。模型仍然写在 Experiment 的 `model` 字段，Sandbox Provider 仍然写在 `sandbox` 字段：
 

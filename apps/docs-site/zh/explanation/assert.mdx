@@ -1,11 +1,12 @@
 ---
 title: "NiceEval Assertion 与 Match"
 sidebarTitle: "Assertion 与 Match"
-description: "用 Match 描述值比较，调用即登记 Assertion；handle 只配置同一条 Assertion。"
+description: "Match 描述怎样比较一个值；调用检查方法时立即登记一条 Assertion，后面接的方法只配置这一条。"
 ---
 
-NiceEval 的评估单位是 Assertion。作者调用 `t.check(value, match)`、`t.judge(value, definition)`、`turn.succeeded()` 或 `calledTool(...)` 时，NiceEval 立即登记一条 Assertion。
-不存在先创建中间对象、再由另一条 API 消费它的流程；返回的 handle 只配置这一条 entry。
+NiceEval 按 Assertion 评估，一条 Assertion 就是一项检查。调用 `t.check(value, match)`、`t.judge(value, definition)`、`turn.succeeded()` 或 `calledTool(...)` 时，NiceEval 立即登记一条 Assertion。
+
+没有“先创建一个检查对象，再交给另一个 API 执行”这一步。调用返回的 handle 只用来配置刚登记的这一条，例如加标签、设门槛或计分。
 
 ```ts
 import { includes } from "niceeval/expect";
@@ -17,11 +18,13 @@ t.judge({ question, answer: turn.message }, answerQuality)
   .gate(0.8).label("回答质量");
 ```
 
-每条 Assertion 的 `key` 与 `label` 最多各配置一次。重复配置即使写入同一个值也是作者错误。
+每条 Assertion 的 `key` 和 `label` 各自最多设置一次。重复设置会报错，即使两次写的是同一个值。
 
-## Match 只比较值
+## Match 只负责比较
 
-`niceeval/expect` 导出纯 Match factory。Match 是可复用、不可变、确定性且无副作用的比较规则；它没有身份、调用位置、阈值、分值或控制流。`t.check(value, match)` 严格接收两个参数，在调用时读取 `value` 并登记 Assertion。
+`niceeval/expect` 导出的都是 Match，一个 Match 就是一条比较规则。它可以复用，不会变化，同样的输入总是得到同样的结果，也没有副作用。Match 本身不带门槛、分值或控制流，这些都在 handle 上配置。
+
+`t.check(value, match)` 只接受这两个参数，在调用时读取 `value` 并登记 Assertion。
 
 ```ts
 import { equals, includes, matches, satisfies, toolMatch } from "niceeval/expect";
@@ -32,13 +35,17 @@ t.check(turn.data, matches(OrderSchema));
 t.check(turn.message.length, satisfies("回复不是空文本", (length) => length > 0));
 ```
 
-`matched` 和 `mismatched` 只说明候选值是否满足当前 Match。它们不能单独证明这条规则刚好覆盖任务允许的全部正确结果。
+结果是 `matched` 还是 `mismatched`，只说明这个值是否满足这条规则，不说明规则本身写得对不对。任务允许多种正确结果时，规则要覆盖所有这些结果。
 
-`equals(expected)` 比较值的深相等；候选值是字符串时，它要求完全相同的字符串。如果任务接受多种等价表示，先把产物解析或归一化为任务关心的值，再选择能覆盖这些结果的 Match。只有字面表示本身属于任务要求时，才用精确字符串比较。
+`equals(expected)` 做深相等比较；比较字符串时，要求一字不差。如果任务接受多种等价写法，先把产物解析或归一化成任务关心的值，再比较。只有字面写法本身就是任务要求时，才直接比较字符串。
 
-## 作用域 Assertion
+## 在 Turn、Session 和整个评估上检查
 
-作用域方法在调用时直接登记 Boolean Assertion。接收者决定证据范围：`turn.*` 只看该不可变 Turn，`session.*` 看该 Session 调用点之前的前缀，根 `t.*` 看调用点时所有已启动 Session 的 vector cut。
+`succeeded`、`calledTool` 这类方法调用即登记一条 Boolean Assertion。调用在谁身上，就决定看哪些证据：
+
+- `turn.*` 只看这一个 Turn。
+- `session.*` 看这个 Session 到调用时为止的全部内容。
+- `t.*` 看调用时所有已经开始的 Session。
 
 ```ts
 const turn = await t.send("运行检查并修复问题。");
@@ -47,18 +54,22 @@ turn.calledTool("shell").label("使用 shell");
 turn.calledTool(toolMatch("read_file").exactly(2)).label("读取两次");
 ```
 
-`calledTool` 不接计数 options。`toolMatch` 自带 occurrence quantifier，例如 `.exactly(2)`。`input`、`output` 与 `status` 条件也写进 `toolMatch`；JSON 结构交给 `jsonMatch`，命令 token 交给 `commandMatch`。`notCalledTool` 接收未量化的同类 matcher。
+`calledTool` 不接受次数参数，次数写在 `toolMatch` 上，例如 `.exactly(2)`。`input`、`output` 和 `status` 条件也写在 `toolMatch` 里：JSON 结构用 `jsonMatch`，命令参数用 `commandMatch`。`notCalledTool` 接受同样的 matcher，但不带次数。
 
-## 两种评估用例
+## 通过制和计分制
 
-`defineEval` 创建通过制评估。Boolean `matched` 进入 Attempt Verdict；`mismatched` 使最终 Verdict 为 `failed`，但不会阻止后续检查继续登记。连续 evaluator 与 Judge 给出 `[0,1]` measurement；对登记后的 handle 调用 `.gate(minimum)`，才把它纳入 failed。
+`defineEval` 是通过制。Boolean 检查直接影响这个 Attempt 的判定：有一条 `mismatched`，最终判定就是 `failed`，但后面的检查仍会继续执行和登记。
+
+连续值检查和 Judge 给出 0 到 1 之间的测量值。测量值默认不影响判定，在 handle 上调用 `.gate(minimum)` 后，低于最低分才判 `failed`。
 
 ```ts
 t.judge({ task, answer: turn.message }, actionableQuality)
   .gate(0.8).label("步骤可执行");
 ```
 
-`defineScoreEval` 创建计分制评估。它同时拥有 Attempt Verdict 与累计 `score`，没有隐式总分、百分比或另一种数值单位。Assertion 默认只保存 evaluation，不计分；用 `.score(n)` 才让已有 Assertion 贡献 score。Boolean matched 贡献 `n`，mismatched 贡献 `0`；measurement `m` 贡献 `m * n`。`t.score(n)` 直接登记 contribution，返回的 handle 只能配置 `key` 与 `label`。
+`defineScoreEval` 是计分制。它既有判定，也有累计分数 `score`。分数就是各项贡献相加，没有隐含的总分或百分比。
+
+Assertion 默认只记录结果，不计分；加上 `.score(n)` 才贡献分数。Boolean 满足时加 `n`，不满足时加 0；测量值 `m` 贡献 `m * n`。`t.score(n)` 直接加分，它返回的 handle 只能设置 `key` 和 `label`。
 
 ```ts
 turn.calledTool("search");                       // 只保存 evaluation
@@ -67,11 +78,17 @@ t.check({ task, answer: turn.message }, completeness).score(5); // Measurement 0
 t.score(5);                                      // 直接 +5
 ```
 
-计分制评估的 measurement 不设 gate 也能算出分数。需要质量门时，在 handle 上调用 `.gate(minimum)`；它不改变 contribution，同一 entry 可以同时 gate 和 score。低分本身不失败，显式 gate 不满足时 Verdict 为 `failed` 并保留 earned score。没有 `.score()` 的 Assertion 不显示 `+0`；正常没有计分项的计分制评估得到正式的 `score: 0`。
+计分制里，测量值不设门槛也能算分。需要质量门槛时调用 `.gate(minimum)`，它不影响这一项的分数，所以同一条可以既设门槛又计分。
 
-## 控制流
+低分本身不算失败；只有设了门槛且没达到时，判定才是 `failed`，已经得到的分数仍然保留。没有 `.score()` 的检查不会显示 `+0`。一项计分都没有的计分制评估，正常得到 `score: 0`。
 
-`.orStop()` 是同一 Assertion handle 的 async barrier，必须 `await`。Boolean 使用自身 condition；尚未配置 condition 的 measurement 用 `.orStop(minimum)` 建立 stop-only condition，已经 `.gate(minimum)` 的 handle 用无参 `.orStop()` 复用。它设置 authoring stop latch，只停止当前被 await 的 continuation，不撤销普通 JavaScript 副作用，也不取消此前启动的并发任务；尚未执行的源码不生成结果。
+## 停止后续步骤
+
+`.orStop()` 在检查没满足时停止后续步骤，它返回 Promise，必须 `await`：
+
+- Boolean 检查直接用自己的条件。
+- 还没设门槛的测量值，用 `.orStop(minimum)` 指定停止的最低分。
+- 已经写了 `.gate(minimum)` 的，用不带参数的 `.orStop()` 沿用同一个最低分。
 
 ```ts
 const turn = await t.send("搜索资料并说明结论。");
@@ -79,21 +96,40 @@ await turn.succeeded().orStop();
 const search = await t.check(turn.message, includes("结论")).orStop();
 ```
 
-gate condition 引起的正常 stop 仍得到 `failed` Verdict。stop-only measurement 低于 minimum 时只停止控制流，不会在读取时变成 gate。`unavailable` 或 `errored` stop 会让 Attempt `errored`。首次 stop 会关闭该 entry 的其它配置窗口；重复无参等待复用同一个 Promise。
+停止只影响 `await` 之后还没执行的代码，这部分代码不会产生结果。已经发生的普通 JavaScript 副作用不会撤销，之前启动的并发任务也不会被取消。
+
+停止后的判定取决于原因：
+
+- 因门槛没满足而停止，判定是 `failed`。
+- 只用 `.orStop(minimum)` 而没设门槛的测量值低于最低分，只停止后续步骤，不会因此判 `failed`。
+- 因 `unavailable` 或 `errored` 而停止，判定是 `errored`。
+
+第一次停止后，这条 Assertion 不能再改配置。重复 `await` 不带参数的 `.orStop()` 会得到同一个 Promise。
 
 ## Judge
 
-`defineJudge` 构造受管 `JudgeDefinition`。`judge(material, definition)` 是只接受 Judge 定义的薄包装；`check(material, definition)` 仍进入同一个 dispatcher。通过制和计分制都能 `.gate(minimum)`，计分制还能 `.score(n)`；同一 entry 只运行一次 Judge。材料、配置和失败语义见 [Judge](/zh/explanation/judge)。
+`defineJudge` 定义一个 Judge。`t.judge(material, definition)` 只接受 Judge 定义，是 `t.check(material, definition)` 的简写，两者走同一条执行路径。通过制和计分制都能用 `.gate(minimum)`，计分制还能用 `.score(n)`；同一条 Assertion 只调用一次 Judge。材料、配置和失败时的行为见 [Judge](/zh/explanation/judge)。
 
-## 不可用与读取
+## 证据缺失和结果保存
 
-缺少 evidence 不能伪装成普通 mismatch。`unavailable` 与 `errored` 保留原因与脱敏 evidence。
+缺少证据不能当成普通的不满足。结果是 `unavailable` 或 `errored` 时，会保留原因和脱敏后的证据。
 
-AssertionResult 也不是只保存成功或失败。每条结果保存 Subject 的安全结构化内容或稳定引用、evaluator／Match 的 identity 与完整安全配置，以及 evaluation、policy 和显示所需的结构化结果。显式 `t.check(a, b)` 与 `t.judge(material, definition)` 都由作者提供两者；`calledTool`、`succeeded` 等领域包装才替作者取得 subject 并构造 Match，保存规则不变。
+每条 Assertion 的结果也不只是“通过”或“没通过”。它保存三类内容：
 
-例如 `t.check(await t.sandbox.runCommand(...), commandSucceeded())` 会保留已求值 `CommandResult` 的命令、参数、退出状态、运行时间以及脱敏 stdout / stderr 内容或引用。`calledTool(...)` 会保留其 scope 中归一化的 tool occurrence context。context 包括 operation / event identity、脱敏 input、status、output / error refs、coverage 与匹配 event refs。没有命中时也保留观察范围与候选 occurrence refs，而不是只存 `false`。
+- 被检查的值：安全的结构化内容，或指向它的稳定引用。
+- 用了哪条规则：Match 或评估函数的身份和完整配置。
+- 评估结果，以及门槛、计分和显示需要的信息。
 
-固定 `query` operation、`view` 与 source result 因此可以从同一份结构化 AssertionResult 组织文案和界面，不必重新运行 Match 或调用 Judge。`expected` / `received` 是读取面根据 `a`、`b` 与 evaluation 生成的文案，不是仅存的两个字符串。Assertion 只规定必须保留什么；Record 决定怎样落盘。无法安全保留 evaluator 判定所需的 subject 数据时，结果必须是 `unavailable`，不能只留下 `matched` 或 `mismatched`。
+`t.check(a, b)` 和 `t.judge(material, definition)` 由你提供被检查的值和规则。`calledTool`、`succeeded` 这类方法替你取得被检查的值、构造 Match，保存规则相同。
+
+举两个例子：
+
+- `t.check(await t.sandbox.runCommand(...), commandSucceeded())` 保存这次命令的命令名、参数、退出状态、运行时间，以及脱敏后的 stdout 和 stderr（内容或引用）。
+- `calledTool(...)` 保存它看到的每次工具调用：调用身份、脱敏后的输入、状态、输出或错误的引用、记录是否完整，以及命中了哪些事件。没有命中时，也保存看过的范围和候选调用，而不是只存一个 `false`。
+
+所以 `query`、`view` 和源码视图都能直接用保存下来的结果组织文案和界面，不需要重新运行 Match 或再调用一次 Judge。界面上的 `expected` 和 `received` 是读取时根据这些内容生成的，不是只存了两个字符串。
+
+Assertion 只规定必须保存什么，怎样落盘由 Record 决定。判断所需的数据没法安全保存时，结果必须是 `unavailable`，不能只留下 `matched` 或 `mismatched`。
 
 ## 相关阅读
 

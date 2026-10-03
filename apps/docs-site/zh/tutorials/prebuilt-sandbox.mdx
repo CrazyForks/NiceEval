@@ -4,7 +4,10 @@ sidebarTitle: "预制环境"
 description: "把系统包、Agent CLI 和大缓存做进 Docker 镜像、Vercel 快照或 E2B template，从官方基线派生；运行时缓存用 checkpoint 在 Attempt 之间延续。"
 ---
 
-每个 Attempt 都要下载或安装的同一份内容，如果稳定、昂贵或体积大，就把它做进预制环境，让 Attempt 直接从装好的环境启动。三种 Provider 的写法统一：
+
+每个 Attempt 都从同一个起点开始。系统包、Agent CLI、编译好的二进制、大模型缓存这类内容稳定、体积大，每次都一样，与其每个 Attempt 重装一遍，不如在跑评估之前做进预制环境，让 Attempt 直接从装好的环境启动。
+
+三种 Provider 引用预制环境的写法一致：
 
 ```ts
 dockerSandbox({ source: { type: "image", image: "my-evals:node24" } })
@@ -12,19 +15,19 @@ vercelSandbox({ snapshotId: "snap_abc123" })
 e2bSandbox({ template: "my-evals" })
 ```
 
-NiceEval 不提供跨 Provider 的通用构建命令。Docker image、Vercel 快照和 E2B template 的凭据、构建方式、发布和过期规则各不相同。用 Provider 自己的官方工具维护构建脚本，把最终的 ID 或名字写进 Experiment。
+NiceEval 只读取构建结果的 ID，不提供跨 Provider 的构建命令。Docker 镜像、Vercel 快照和 E2B template 的凭据、构建方式、发布和过期规则各不相同，构建脚本用 Provider 自己的官方工具维护，最后把 ID 或名字写进 Experiment。
 
-## 从官方基线继续构建以提速
+## 不预制也能跑
 
-系统包、Agent CLI、编译好的二进制、大模型缓存这类稳定、体积大、每个 Attempt 都一样的内容，应该在跑评估之前做进 Provider 的预制环境。三个内置 Provider 都可以从官方基线继续构建，不用从空白环境装 Agent。NiceEval 只负责读取构建结果的 ID（`image` / `snapshotId` / `template`），不提供跨 Provider 的构建语法。
+预制只是为了更快。Adapter 和 Sandbox 各管一边：Sandbox 配置决定用哪个 Provider、从哪个预制环境启动；Adapter 检查需要的 CLI 在不在。Claude Code 和 Codex 缺少 CLI 时会在运行时安装：安装包在评估网络之外准备好，再通过文件接口送进 Sandbox。
 
-Adapter 和 Sandbox 各管一边：Adapter 检查需要的 CLI 在不在，Sandbox 配置选择 Provider 和预制环境。Claude Code 和 Codex 缺少 CLI 时会在运行时安装，安装包在评估网络之外准备好，通过文件接口送进 Sandbox。所以预制只是为了更快，不预制也能跑。
-
-- Codex 送进去的是自带运行时的原生安装包，镜像里没有 Node 也能装。
+- Codex 送进 Sandbox 的是自带运行时的原生安装包，镜像里没有 Node 也能装。
 - Claude Code 要求镜像里有 npm。
-- 默认的 Bub 0.4.0 安装除了 OTel 插件，还固定了 `any-llm-sdk==1.17.0` 和 `openai==2.31.0`。Bub 版本、这两个依赖、OTel 插件和 Python 插件列表任何一项变了，都会重新安装，不能仅凭 `command -v bub` 判断已经装好。用旧安装标记做的预制环境会重装一次。你显式选择其它 Bub 版本时，它依赖的其它包由你自己负责。
+- 默认的 Bub 0.4.0 除了 OTel 插件，还固定了 `any-llm-sdk==1.17.0` 和 `openai==2.31.0`。Bub 版本、这两个依赖、OTel 插件或 Python 插件列表任何一项变了，都会重新安装，不能只凭 `command -v bub` 判断已经装好。用旧安装标记做的预制环境会重装一次。你显式选了其它 Bub 版本时，它依赖的其它包由你自己负责。
 
-三种 Provider 的预制环境都只在依赖变化时构建一次，每次构建换一个带版本号的名字。不要把构建放进每个 Attempt 都会执行的动态回调。
+## 从官方基线继续构建
+
+三个内置 Provider 都可以从官方基线继续构建，不用从空白环境装 Agent。预制环境只在依赖变化时构建一次，每次构建换一个带版本号的名字。不要把构建放进每个 Attempt 都会执行的动态回调。
 
 ### E2B：从官方与公共模板派生
 

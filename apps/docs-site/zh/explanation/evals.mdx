@@ -1,5 +1,5 @@
 ---
-title: "NiceEval 中的评估用例：生命周期、verdict 与文件"
+title: "NiceEval 中的评估用例：生命周期、判定与文件"
 sidebarTitle: "评估"
 description: "评估用例说明发什么、什么算做对，不绑定被测对象。了解评估用例如何被发现、调度、评分和报告。"
 ---
@@ -32,7 +32,7 @@ export default defineEval({
 | 字段 | 说明 |
 |---|---|
 | `description` | 给人看的描述，出现在报告里 |
-| `sandbox` | 评估用例拥有的可选 Sandbox layer；Experiment 提供 template-bearing layer 时省略 |
+| `sandbox` | 可选。这条评估用例自己的 Sandbox 配置；Experiment 已经指定预制环境时省略 |
 | `test(t)` | 交互和断言逻辑 |
 
 评估用例本身不声明用哪个 Agent，同一条评估用例可以在不同 Experiment 下跑不同 Agent。选哪个 Agent 是 Experiment 的字段，不由 CLI 临时覆盖。
@@ -50,57 +50,57 @@ npx niceeval exp local weather
 npx niceeval exp local weather/brooklyn
 ```
 
-这种方式让 ID 稳定、可读，并自然跟目录结构保持一致。位置参数采用字符串前缀：`terminal-swe-bench` 也会命中 `terminal-swe-bench-astropy-1`，不要求后一个字符必须是 `/`。
+ID 跟着目录结构走，稳定又好读。过滤按字符串前缀匹配：`terminal-swe-bench` 也会命中 `terminal-swe-bench-astropy-1`，不要求后一个字符是 `/`。
 
 ## 生命周期
 
 <Steps>
-  <Step title="Discovery">
-    runner 加载 `evals/` 下的 `*.eval.ts` 文件和 fixture 目录。
+  <Step title="发现">
+    Runner 加载 `evals/` 下的 `*.eval.ts` 文件和 Fixture 目录。
   </Step>
-  <Step title="Scheduling">
-    结合并发、缓存、attempts 和 early-exit 生成执行计划。
+  <Step title="调度">
+    结合并发、结果沿用、`attempts` 和首过即停，生成这次要跑的 Attempt。
   </Step>
-  <Step title="agent.send">
-    `t.send()` 调用被选中的 Adapter，并得到标准 `Turn`。
+  <Step title="调用被测对象">
+    `t.send()` 调用 Experiment 选中的 Adapter，得到标准的 `Turn`。
   </Step>
-  <Step title="Assertions 与判定">
-    [NiceEval](https://niceeval.com/) 收集值断言、作用域断言与 Judge measurement，并登记 score contribution。
+  <Step title="检查">
+    NiceEval 登记每一项检查：值断言、Turn 和 Session 上的断言、Judge 打分，以及各项的分数贡献。
   </Step>
-  <Step title="终态">
-    通过制评估把断言结果折叠成最终 Verdict；计分制评估累计正式 score。
+  <Step title="判定">
+    通过制评估把检查结果汇总成最终判定；计分制评估累计分数。
   </Step>
-  <Step title="Report">
-    控制台和 reporters 输出结果；Run 与已发布 Attempt 的事实写入唯一的 `.niceeval/record.sqlite`。
+  <Step title="保存与报告">
+    终端和 Reporter 输出结果；Run 和已发布的 Attempt 写入 `.niceeval/record.sqlite`。
   </Step>
 </Steps>
 
-## Verdict 类型
+## 四种判定
 
-通过制评估的 Attempt 终态只有四种：
+通过制评估的每个 Attempt 只会得到四种判定之一：
 
 <CardGroup cols={2}>
   <Card title="passed" icon="circle-check" color="#22c55e">
-    所有 required Boolean Assertion 都 matched，所有 `.gate(minimum)` 的 measurement 都达到最低值，并且没有执行错误。
+    所有必须满足的 Boolean 检查都满足，所有设了 `.gate(minimum)` 的测量值都达到最低分，并且没有执行错误。
   </Card>
   <Card title="failed" icon="circle-xmark" color="#ef4444">
-    至少一个 required Boolean condition mismatched，或 `.gate(minimum)` 的 measurement 低于最低值。
+    至少一项必须满足的 Boolean 检查没满足，或者某个设了 `.gate(minimum)` 的测量值低于最低分。
   </Card>
   <Card title="errored" icon="triangle-exclamation" color="#f59e0b">
-    执行异常、超时或作者错误，本次执行无法形成可信结论。
+    执行异常、超时或评估代码写错了，这次运行得不出可信的结论。
   </Card>
   <Card title="skipped" icon="forward" color="#6b7280">
     评估用例主动跳过，通常通过 `t.skip(reason)`。
   </Card>
 </CardGroup>
 
-计分制评估的主读数是累计 earned score，分数越高越好。正常没有计分项时 score 为 `0`。默认报告显示 earned score，不把正常算完分的状态算进通过率，但仍保留 Verdict；`failed + complete` 不能进入成功排名。
+计分制评估主要看累计得分，分数越高越好；没有任何计分项时得分为 `0`。报告默认显示得分，不把它算进通过率，但仍然保留判定。判定为 `failed` 的结果即使分数算完了，也不会进入成功排名。
 
-`.score(points)` 中的 `points` 是单项贡献权重，不是固定总分。默认报告不会把 earned score 自动换算成百分比。一个 Experiment 同时包含通过制评估与计分制评估时，报告分别显示两种主读数。
+`.score(points)` 里的 `points` 是这一项的权重，不是总分。报告不会把得分自动换算成百分比。一个 Experiment 同时包含两种题型时，报告分别显示通过率和得分。
 
 ## 判定与测量值
 
-通过制的 Boolean `matched` 默认进入 Verdict；计分制的 Boolean 默认 record-only。连续测量值与 Judge 输出是 `[0, 1]` 的 measurement；通过制和计分制都在 handle 上用 `.gate(minimum)` 把最低值纳入 failed。计分制的 gate 失败仍保留 earned score。完整规则见 [Assert](/zh/explanation/assert)。
+通过制里，Boolean 检查默认影响判定；计分制里，Boolean 检查默认只记录结果。连续测量值和 Judge 打分是 0 到 1 之间的数，两种题型都用 `.gate(minimum)` 设最低分，低于最低分判 `failed`。计分制里门槛没达到时，已经得到的分数仍然保留。完整规则见 [Assertion 与 Match](/zh/explanation/assert)。
 
 ## `*.eval.ts` 约定
 
@@ -114,7 +114,7 @@ evals/
 
 ## 数组导出与数据驱动测试（dataset fan-out）
 
-一个文件也可以默认导出 `defineEval(...)` 数组，用同一套逻辑生成多个 case：
+一个文件也可以默认导出 `defineEval(...)` 数组，用同一套逻辑生成多条评估用例：
 
 ```ts
 export default rows.map((row) =>
@@ -132,5 +132,5 @@ export default rows.map((row) =>
 
 ## 相关阅读
 
-- [实验](/zh/explanation/experiment) — 另一半：评谁、怎么跑。为什么和评估用例分开（晚绑定）。
+- [实验](/zh/explanation/experiment) — 另一半：评谁、怎么跑。为什么和评估用例分开。
 - [Assert](/zh/explanation/assert) — Assertion 与判定规则。
