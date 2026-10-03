@@ -1,34 +1,26 @@
 ---
-title: "Sandbox"
+title: "Choose and Configure a Sandbox: Docker, Vercel, or E2B"
 sidebarTitle: "Sandbox"
-description: "The official Docker, Vercel, and E2B Sandbox providers. Speed up evals with prebuilt snapshots."
+description: "Choose an isolated runtime for a Coding Agent: local Docker, Vercel, or E2B. Prepare the environment in order, and use prebuilt images and caches so each eval starts faster."
 ---
 
-A Sandbox provider is the infrastructure that creates and manages isolated runtime environments. [NiceEval](https://niceeval.com/) wraps them all behind the same `Sandbox` interface, so an Adapter does not need to know whether the current provider is local Docker, a Vercel micro-VM, E2B, or a third-party cloud service.
+A Coding Agent needs an environment where it can freely change files and run commands without touching your machine. That isolated environment is the Sandbox, created and destroyed by a Provider.
 
-## The `Sandbox` interface
+NiceEval provides three official Providers: local Docker, Vercel, and E2B. Docker is the most convenient for local debugging; when you need heavy parallelism, or your machine cannot keep up, switch to Vercel or E2B in the cloud.
 
-Common Adapter operations include:
+Whichever Provider you use, evals and Adapters see the same `Sandbox` interface. Switching Providers changes one line in the Experiment, and the evals stay unchanged.
 
-| Method | Use |
-|---|---|
-| `runCommand(cmd, args)` | run a command |
-| `runCommandOrThrow(cmd, args)` | run a command and throw on non-zero exit |
-| `runShell(script)` | run a shell script |
-| `runShellOrThrow(script)` | run a shell script and throw on non-zero exit |
-| `readText(path)` / `readBytes(path)` | read text or exact bytes from the Sandbox |
-| `writeText(path, content)` / `writeBytes(path, content)` | write in-memory content into the Sandbox |
-| `pathExists(path)` | check whether a file or directory exists |
-| `uploadFile(source, target)` / `uploadDirectory(source, target?)` | transfer host files into the Sandbox |
-| `workdir` | the provider's real working directory; omitted `cwd` / `targetDir` resolve here |
-| `runCommand(..., { cwd })` | temporarily switch directory for one command; relative paths resolve from `workdir` |
-| `stop()` | destroy the environment |
+## Choose a Provider
 
-The two `OrThrow` methods include a sanitized, redacted, and truncated stderr tail in the error message. When stderr is empty, they fall back to stdout. For troubleshooting, start with that summary and read `SandboxCommandExitError.result` when you need complete output.
+Start by choosing based on where you run evals:
 
-## Choose a provider
+| Provider | Suits | What you need |
+| --- | --- | --- |
+| Docker | Local development and standard CI. Simple, controllable, no cloud dependency | Local Docker. Machine resources are limited, and cold starts and dependency installs can be slow |
+| Vercel Sandbox | When you need cloud isolation, more resources, or a more stable environment | A Vercel token or OIDC configuration |
+| E2B | When you need heavy parallelism, or want to use a ready-made Agent template directly | An E2B account and `e2b auth login` |
 
-Set the `sandbox` field in the experiment:
+Choose one in the Experiment's `sandbox` field:
 
 ```ts
 // experiments/local.ts
@@ -42,9 +34,9 @@ export default defineExperiment({
 });
 ```
 
-If neither the Eval nor Experiment declares a template-bearing layer, link planning fails before creating a Sandbox instead of guessing a provider.
+When neither the eval nor the Experiment chooses a Sandbox, the run reports an error before creating any Sandbox; NiceEval never guesses a Provider for you.
 
-The SDKs for the three built-in providers do not install alongside NiceEval. Install whichever one you use, so your project does not carry dependencies (and their native build scripts) it does not need:
+The SDKs of the three built-in Providers are not installed with NiceEval. Install only the one you use, so unused dependencies (and their native build scripts) never enter your project:
 
 | Provider | Install command |
 |---|---|
@@ -52,41 +44,60 @@ The SDKs for the three built-in providers do not install alongside NiceEval. Ins
 | `vercelSandbox({ snapshotId })` | `pnpm add @vercel/sandbox` |
 | `e2bSandbox({ template })` | `pnpm add e2b` |
 
-A missing SDK does not fail silently: NiceEval errors the moment it creates the sandbox and prints the install command above, for example `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`.
+If it is missing, creating the Sandbox reports an error with the install command, for example `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`. Install it as shown and run again.
 
 ### Docker Compose: `workspaceService` names the main Sandbox
 
-When a task needs more than one container — an app container plus a database, say — declare the whole Compose environment with `dockerComposeSandbox`:
+When one eval needs more than one container (for example an application container plus a database), declare the whole Compose environment with `dockerComposeSandbox`:
 
 ```ts
 import { dockerComposeSandbox } from "niceeval/sandbox";
 
 sandbox: dockerComposeSandbox({
   file: new URL("docker-compose.yaml", import.meta.url),
-  workspaceService: "client", // the main Sandbox
+  workspaceService: "client", // The main Sandbox
 })
 ```
 
-`workspaceService` names which service in the Compose file is the main Sandbox. The agent, `t.sandbox` commands and file operations, `workdir`, and the change diff all land on that one container. Every other service in the Compose file — a database, a mock server, whatever — is an accompanying resource that never goes through the `Sandbox` interface: you cannot `runCommand` against it, upload or read files on it, or see its diff. To reach an accompanying service, rely on the task's own networking — for example, reaching `db:5432` from the `client` container over Compose's built-in DNS.
+`workspaceService` names which service in the Compose file is the main Sandbox. The Agent, the commands and file operations of `t.sandbox`, `workdir`, and file change records all apply only to this one container.
 
-### Let an Agent run Docker itself
+Other services (databases, mock servers, and so on) are only supporting resources: you cannot `runCommand` on them, upload to them, or read and write their files, and their file changes are not visible. To use them, go over the network, for example reaching `db:5432` from the `client` container through Compose's built-in DNS.
 
-When an Agent needs to run `docker build`, `docker run`, or `docker compose`, you can explicitly mount an existing Unix socket or choose raw privileged or managed rootless Docker-in-Docker. For the use cases, Dockerfiles, and complete configuration for all three modes, see [Let a Sandbox Use Docker](/tutorials/docker-in-docker).
+### Let the Agent run Docker itself
 
-## Prepare the Sandbox in a deterministic order
+When the Agent needs to run `docker build`, `docker run`, or `docker compose`, you can mount an existing Unix socket from the host, or choose raw privileged or managed rootless Docker-in-Docker. For when each mode fits, the Dockerfile, and the full configuration, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker).
 
-Every Provider factory returns an immutable `SandboxLayer`. Use `.before()` for work that must finish before the Agent starts and `.after()` for unconditional cleanup:
+## Work with the Sandbox in Adapters and evals
+
+Whichever Provider you use, Adapters and evals get the same `Sandbox` interface. Common operations:
+
+| Method | Purpose |
+|---|---|
+| `runCommand(cmd, args)` | Run a command |
+| `runCommandOrThrow(cmd, args)` | Run a command and throw on a non-zero exit |
+| `runShell(script)` | Run a shell script |
+| `runShellOrThrow(script)` | Run a shell script and throw on a non-zero exit |
+| `readText(path)` / `readBytes(path)` | Read a text or binary file |
+| `writeText(path, content)` / `writeBytes(path, content)` | Write a text or binary file |
+| `pathExists(path)` | Check whether a path exists |
+| `uploadFile(source, target)` / `uploadDirectory(source, target?)` | Upload a file or directory |
+| `workdir` | The real working directory in the Provider. Omitted `cwd` / `targetDir` point here |
+| `runCommand(..., { cwd })` | Run one command in another directory. Relative paths resolve against `workdir` |
+| `stop()` | Destroy the environment |
+
+The error messages thrown by the two `OrThrow` methods include the last few lines of stderr, already cleaned, redacted, and truncated. When stderr is empty, stdout is used instead. When debugging, read this summary first, and read `SandboxCommandExitError.result` when you need the full output.
+
+## Prepare the Sandbox in order
+
+Before the Agent starts working, the Sandbox usually needs tools installed, configuration written, and materials in place. Write these preparation steps with `.before()`, and cleanup that runs whether the run succeeds or fails with `.after()`. Every Provider function returns a `SandboxLayer` that you can keep appending steps to, and appending never modifies the original value:
 
 ```ts
 import {
   changeFrequency,
   dockerSandbox,
-  sandboxContent,
   shell,
   writeText,
 } from "niceeval/sandbox";
-
-const lockfile = sandboxContent.file(new URL("../../pnpm-lock.yaml", import.meta.url));
 
 const sandbox = dockerSandbox({
   source: { type: "image", image: "node:24-slim" },
@@ -94,9 +105,7 @@ const sandbox = dockerSandbox({
   .before(shell({
     id: "install-tools",
     command: "corepack enable && pnpm install --frozen-lockfile",
-    inputs: [lockfile],
     changeFrequency: changeFrequency.rare,
-    cache: { fingerprint: { installerProtocol: 2 } },
   }))
   .before(writeText({
     id: "experiment-env",
@@ -106,85 +115,144 @@ const sandbox = dockerSandbox({
   }));
 ```
 
-`changeFrequency` is any finite non-negative number. Dependencies are satisfied first; among ready actions the lowest number runs first. The presets are `rare = 10`, `normal = 100`, and `frequent = 1000`. Experiment, Eval Group, Eval, and Sandbox Agent actions share this one DAG. Owner order only breaks equal-frequency ties, so a low-frequency Agent action can run before an Experiment or Eval action.
+`changeFrequency` decides the order of steps: steps with small values that rarely change come first, and steps with large values that change often come later. That way, when only a later step changes, earlier steps can reuse the last result directly. It is an ordinary non-negative number; the built-in constants are only for readability:
 
-All current SandboxLayer actions have `attempt` occurrence. Promoting a proven prefix to a physical-instance occurrence is deferred performance work; author code cannot request or infer that promotion.
+```ts
+changeFrequency.rare     // 10
+changeFrequency.normal   // 100
+changeFrequency.frequent // 1000
+```
 
-### Define a reusable Action
+The preparation steps of the Experiment, eval group, eval, and Sandbox Agent are placed in one order: explicit `dependsOn` is satisfied first, then steps run from small to large values. So a rarely changing step in an eval group can come before a frequently changing step in the Experiment.
 
-The built-in `command()`, `shell()`, `writeText()`, `writeBytes()`, `uploadFile()`, `uploadDirectory()`, and `gitCheckout()` functions are all `SandboxAction` families. Projects can define a family through the same public protocol:
+At run time, each preparation step appears in the progress display without leaking content:
+
+- `shell()` shows the command you wrote, not the wrapping `/bin/sh -lc`; `command()` and `exec` show the executable and arguments.
+- `writeText()` / `writeBytes()` show only the target path, byte count, and digest, not the body.
+- Uploads show only the digest, target path, and byte count, not the source path on the host.
+- Git checkout addresses have user info, query, and fragment removed; environment variables list only names.
+
+Very short progress updates may be merged in the display. To reliably see fine-grained progress for a long script, split it into several smaller steps, each running long enough on its own, or report progress yourself. NiceEval does not track steps inside shell scripts. Dynamic callbacks report their own progress with `context.progress()`.
+
+### Declare preparation cache coverage
+
+On supported Providers, unchanged preparation steps can be reused on the next run without executing again. For this, each `.before(action)` must truthfully state which parts of the Sandbox it changes:
+
+- Omitting `cache.state` equals `sandboxState.all`: all of this step's changes must be saveable and restorable. It is not a switch that lets the Provider pick some directories to cache.
+- Write `sandboxState.dockerData` only when all of the step's changes are limited to `/var/lib/docker` in the Sandbox, which has stopped being written. For a complete Docker profile example, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker#managed-rootless-dind).
+
+`cache.state` can be written at the step definition or at a single call site, but only in one place, and a call site cannot override the definition.
+
+The step's ID, inputs, expanded command, declared scope, and content digest are all compared automatically, and when any of them changes, the step runs again. `cache.fingerprint` only supplements version information NiceEval cannot see; it does not replace the automatic comparison.
+
+Providers can save different scopes:
+
+| Provider situation | Scope it can save | Result |
+| --- | --- | --- |
+| Local single-container Docker, with all changes in the outer container's writable filesystem | `all` | The longest unchanged run of steps from the start is reused directly |
+| A Docker profile configured with a separate, pre-allocated, fixed-size storage slot and seed data | `dockerData` | Only the run of steps from the start that consecutively declare `dockerData` is reused |
+| A Docker profile with shared loop or project-quota storage | None | Shows `Unsupported`; steps really execute |
+| Docker Compose, E2B, Vercel, or a custom Provider | None | Shows `Unsupported`; steps really execute |
+
+Reuse can only continue consecutively from the first step. At the first step that cannot be saved, such as a default `all` the Provider does not support, an `opaque` callback, or a scope the Provider does not support, this step and every step after it really execute. Later steps cannot be skipped even if they declare `dockerData`, because the earlier state they depend on was not saved.
+
+On local single-container Docker, when only the final `.env` step changes, the fixed Git checkout, directory upload, and tool installation before it do not rerun. Each Attempt starts from its own independent copy of the cached result and does not inherit changes left by the previous Agent.
+
+To confirm which steps will be reused, run `pnpm exec niceeval debug <experiment> <eval>` to see the plan; see [Check the Sandbox Plan Before Running](/tutorials/debug-lifecycle-plan).
+
+### Define reusable preparation steps
+
+The built-in `shell()`, `writeText()`, `uploadDirectory()`, and `gitCheckout()` are all `SandboxAction`s. When the same kind of preparation step is used in several places, you can define your own step with the same mechanism:
 
 ```ts
 import { Schema } from "effect";
-import { defineSandboxAction, sandboxStep } from "niceeval/sandbox";
+import {
+  defineSandboxAction,
+  sandboxStep,
+} from "niceeval/sandbox";
 
 const installTool = defineSandboxAction({
   id: "@acme/install-tool",
   input: Schema.Struct({ version: Schema.String }),
-  cache: { fingerprint: { protocol: 2 } },
+  cache: { fingerprint: "2" },
   steps: ({ version }) => [
-    sandboxStep.exec({ executable: "tool", args: ["install", version] }),
+    sandboxStep.exec({
+      executable: "tool",
+      args: ["install", version],
+    }),
   ] as const,
 });
 
 const sandbox = e2bSandbox({ template: "niceeval-agents" })
   .before(installTool(
     { version: "1.4.0" },
-    {
-      changeFrequency: 20,
-      cache: { fingerprint: { distributionRevision: "2026-08" } },
-    },
+    { changeFrequency: 20 },
   ));
 ```
 
-The family id, canonical input, expanded steps, immutable content, and Git digests form the automatic fingerprint. Definition-level and instance-level supplemental fingerprints are normalized with that automatic fingerprint; neither can replace it. All seven built-ins accept the same instance `cache: { fingerprint?: JsonValue }` option. Their `.after()` forms do not cache and do not accept `cache`.
+Custom steps can only combine fixed operations NiceEval provides, and cannot access the running `Sandbox`. The rules above about cache scope and automatic comparison apply as well.
 
-Ordinary JSON, strings, and text are author-declared non-sensitive data. NiceEval does not promise taint analysis for `process.env`, closures, or arbitrary strings. Keep secrets and credentials in runtime callbacks or Provider-private bindings.
+### Writing, uploading, and Git checkout
 
-### Write, upload, and check out Git content
+These built-in functions can be passed directly to `.before()`:
 
-| Content source | Action |
+| Content source | Use |
 | --- | --- |
 | Existing text or bytes | `writeText()` / `writeBytes()` |
-| A fixed file or directory beside the definition module | `uploadFile()` / `uploadDirectory()` |
-| A fixed commit from a public Git repository | `gitCheckout()` |
-| A declared shell or argv command | `shell()` / `command()` |
+| Fixed files or directories next to the definition file | `uploadFile()` / `uploadDirectory()` |
+| A fixed commit of a public Git repository | `gitCheckout()` |
+| Commands as shell or argument lists | `shell()` / `command()` |
 
-`uploadFile()` and `uploadDirectory()` take a module-relative `URL`, not a path that changes with the process working directory. `gitCheckout()` requires a credential-free HTTPS URL and a full commit object id. Bytes and manifests enter the automatic fingerprint.
+`uploadFile()` and `uploadDirectory()` take addresses such as `new URL("fixture/", import.meta.url)`, not relative paths that change with the current directory. File contents, permissions, and directory structure are compared automatically. `gitCheckout()` only accepts HTTPS addresses without credentials and full commit IDs.
 
-A frozen pnpm install must register the lockfile content through `inputs`, as in the first example. An unlocked apt index, `latest`, a moving URL, time, randomness, or another network-dependent operation is not deterministic input; put that work in an opaque callback barrier.
+Do not put hidden content that should only be provided after the Agent returns into `.before()`. First get a handle with `sandboxContent.file()` or `sandboxContent.directory()`, then call `t.sandbox.upload(handle, targetPath)` in `test(t)`. The handle carries only a content digest and does not expose host paths.
 
 ### Dynamic callbacks and cleanup
 
-Use `.before(async (sandbox, context) => ...)` when a decision can only be made at runtime. The callback always executes and acts as an opaque cache barrier. Register acquired resources immediately with `context.onCleanup()`:
+For branches that can only be decided at run time, write `.before(async (sandbox, context) => ...)` directly. The callback really executes every time, and the steps after it no longer reuse the cache.
+
+After successfully acquiring a resource, register its release right away with `context.onCleanup()`. The closure can hold the handle obtained this time directly, so you do not need another callback that guesses the resource's state:
 
 ```ts
 const sandbox = e2bSandbox({ template: "niceeval-agents" })
   .before(async (sandbox, context) => {
-    const forwarder = await startLogForwarder(sandbox, { signal: context.signal });
-    context.onCleanup(async () => forwarder.stop());
+    const forwarder = await startLogForwarder(sandbox, {
+      signal: context.signal,
+    });
+
+    context.onCleanup(async () => {
+      await forwarder.stop();
+    });
   });
 ```
 
-`sandbox.sandboxId` is the Provider-native ID of the current physical Sandbox. Treat it as opaque unless this layer is deliberately bound to a known Provider; trusted host code may then pass it to that Provider SDK to acquire Attempt-scoped auxiliary resources. Those resources are outside NiceEval's managed Case topology and cache, so register idempotent cleanup immediately after acquisition. A setup prefix may replace the instance before the first callback starts; once it starts, that Attempt's cleanup and after callbacks observe the same ID.
+`sandbox.sandboxId` in the callback is the current Sandbox's native ID on the Provider side. Normally treat it only as a value for correlation, and do not parse it. Only when this layer is explicitly bound to a particular Provider should your own trusted code hand it to the matching SDK to create helper resources for this Attempt.
 
-Use `.after()` for unconditional, idempotent cleanup:
+These helper resources are not managed by NiceEval and are not cached; after creating them, you must immediately register a cleanup that can safely run more than once. Before the first callback starts, NiceEval may swap the underlying Sandbox instance; once a callback has started, this Attempt's cleanup and `.after()` all see the same ID.
+
+Cleanup that must run whether the run succeeds or fails, and can safely run more than once, goes in `.after()`. All registered cleanups run in reverse registration order, and a failing earlier cleanup does not stop later ones:
 
 ```ts
 const sandbox = dockerSandbox({
   source: { type: "image", image: "node:24-slim" },
 })
-  .before(shell({ id: "start-helper", command: "./helper start" }))
-  .after(shell.after({ id: "stop-helper", command: "./helper stop || true" }));
+  .before(shell({
+    id: "start-helper",
+    command: "./helper start",
+  }))
+  .after(shell.after({
+    id: "stop-helper",
+    command: "./helper stop || true",
+  }));
 ```
 
-Every standalone `after` is registered when its Attempt occurrence begins. Dynamic cleanup joins that same stack at the moment it is registered, and the complete stack runs in LIFO order. Cleanup keeps running after an earlier cleanup failure. `context.progress()` reports short-lived status; `context.diagnostic()` preserves a problem for later review. Throw when the environment cannot continue.
+`context.progress()` in a callback only updates the current Attempt's temporary status, and `context.diagnostic()` saves a problem to review afterwards. When the environment cannot continue, throw directly; NiceEval records this Attempt as an environment error, not as the Agent getting the task wrong.
 
-A Direct Agent created with `defineAgent` has no Sandbox preparation path. A Sandbox Agent may contribute a command-only layer, but cannot select or replace the Provider template.
+A `defineAgent` without a Sandbox has no preparation steps. A Sandbox Agent can add command steps in the form of `sandboxLayer()` in its own `sandbox` field, but cannot choose or replace the Provider and template.
 
-## Prebuilt environments and runtime checkpoints
+## Prebuilt environments
 
-NiceEval references prebuilt environments through a typed spec, but does not offer a fake universal build command:
+When the same content is downloaded or installed for every Attempt, and it is stable, expensive, or large, bake it into a prebuilt environment and let Attempts start directly from the installed environment. The three Providers are written the same way:
 
 ```ts
 dockerSandbox({ source: { type: "image", image: "my-evals:node24" } })
@@ -192,199 +260,21 @@ vercelSandbox({ snapshotId: "snap_abc123" })
 e2bSandbox({ template: "my-evals" })
 ```
 
-Docker images, Vercel Sandbox snapshots, and E2B templates differ in credentials, build context, publishing, and expiry. Your project should maintain build scripts with the provider's official tooling and put the final ID or name into the experiment. Deciding what to prebuild is simple: if every attempt downloads or installs the same content, and that content is stable, expensive, or large, move it into the prebuilt environment.
+For how to derive images, snapshots, and templates from official baselines, and how to carry caches between Attempts with run-time checkpoints, see [Prebuilt Sandbox Environments](/tutorials/prebuilt-sandbox).
 
-### Build on the official baselines to speed things up
+## Retries for transient errors
 
-Content that is stable, large, and identical for every attempt — system packages, Agent CLIs, compiled binaries, large model caches — should be baked into the provider's publishable artifact before you run evals, so every attempt starts from a prebuilt environment and skips the runtime install. All three built-in providers can derive from an official baseline, so you never have to install the agent from a blank environment. Their build tooling, credentials, and publishing semantics differ, though, so NiceEval only unifies how you **consume** the artifact ID (`image` / `snapshotId` / `template`) and does not fabricate a cross-provider build DSL.
+When the built-in Providers create a Sandbox and hit transient failures such as rate limits, `fetch failed`, connection resets, 5xx, or temporary network unreachability, they retry automatically with exponential backoff. Configuration errors such as a missing template or missing credentials fail on the first try. When retries run out, the Attempt is recorded as `errored`. The `create` of a custom `defineSandbox` Provider is your own function, and NiceEval does not retry it for you.
 
-Adapters and Sandboxes do not guess each other's configuration: the Adapter checks for the CLI it needs, and the Sandbox spec picks the provider and the artifact. Claude Code and Codex fall back to a runtime install when the CLI is missing, so baking them in is purely a speed-up. The default Bub 0.4.0 recipe pins `any-llm-sdk==1.17.0` and `openai==2.31.0` as well as the OTel plugin. Its install fingerprint covers the Bub requirement, those client overrides, the OTel plugin, and the normalized Python plugin set, so `command -v bub` alone is not enough to skip installation. A prebuilt environment with an older marker is reinstalled once. Explicit non-default Bub versions keep their caller-owned dependency closure. For all three providers, the build runs once when environment dependencies change, and the artifact takes a new versioned name. Do not reinstall it in every Attempt's `.before()`.
+`readText`, `readBytes`, `downloadFile`, `uploadFile`, file writes, and directory uploads retry a limited number of times on transient transport errors such as 429, 5xx, `fetch failed`, and connection resets. Missing files, permission errors, cancellation, and a terminated Sandbox are not retried.
 
-#### E2B: derive from official and public templates
+`runCommand` and `runShell` do not retry automatically, because a command may already have had side effects. Retry yourself in a hook or eval only when you have confirmed a command is safe to repeat.
 
-E2B already provides a `claude` template for Claude Code and a `codex` template for Codex. NiceEval ships a thin E2B-specific wrapper that lets you keep chaining the native E2B API from those two official starting points. E2B has no official Bub template yet, so the default Bub branch uses the same fully pinned client closure and OTel plugin as `bubAgent()`.
+## Custom Providers
 
-NiceEval also publishes three public templates that any E2B team can reference. NiceEval itself maintains the full namespace and the verified release tag; downstream code just takes the complete reference:
+To connect another service, use `defineSandbox`. You are responsible for isolating the filesystem, processes, network, and credentials yourself; NiceEval does not add these security boundaries automatically to an arbitrary `Sandbox` implementation.
 
-```ts
-import {
-  NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE,
-  NICEEVAL_CODEX_E2B_TEMPLATE,
-  NICEEVAL_BUB_E2B_TEMPLATE,
-} from "niceeval/sandbox/e2b-template";
-
-e2bSandbox({ template: NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE })
-e2bSandbox({ template: NICEEVAL_CODEX_E2B_TEMPLATE })
-e2bSandbox({ template: NICEEVAL_BUB_E2B_TEMPLATE })
-```
-
-These baselines have been verified by actually booting them: Claude Code `2.1.207`, Codex `0.144.1`, Bub `0.4.0` (its install fingerprint moves with the Bub requirement, client overrides, OTel plugin, and Python plugin pins). A template's version follows the agent it ships (`0.144.1-r1`: agent version plus NiceEval's recipe revision); the three agents are released independently, and NiceEval's own library version never appears in the tag. So use the constants directly instead of copying these strings or tracking versions — including when a derived template needs to record which base it came from.
-
-Among this current set of public templates, the Claude Code template follows E2B's official `/usr` npm prefix, so an ordinary user cannot write global modules there directly. When you need to add global Node tools such as pnpm or yarn at runtime, explicitly install them in `/usr/local`, which both templates already put on `PATH`:
-
-```ts
-await t.sandbox.runCommand("npm", [
-  "install", "-g", "--prefix", "/usr/local", "pnpm@10.34.5",
-]);
-```
-
-Do not switch to `sudo npm install -g`. Root global packages already present in the template can conflict on files. NiceEval will unify this default prefix in a future template release. Until release notes explicitly say a new release meets that condition, keep the explicit `--prefix /usr/local`.
-
-```ts title="scripts/build-e2b-template.ts"
-import { Template } from "e2b";
-import { e2bCodingAgentTemplate } from "niceeval/sandbox/e2b-template";
-
-const template = e2bCodingAgentTemplate("codex")
-  .aptInstall(["ripgrep", "jq"])
-  .runCmd("corepack enable && pnpm --version")
-  .copy("fixtures/toolchain.lock", "/opt/evals/toolchain.lock");
-
-await Template.build(template, "acme-codex-evals:0.144.1-r1", {
-  cpuCount: 2,
-  memoryMB: 4096,
-});
-```
-
-```bash
-e2b auth login
-pnpm tsx scripts/build-e2b-template.ts
-```
-
-Then reference only the build result in the experiment:
-
-```ts
-import { e2bSandbox } from "niceeval/sandbox";
-
-sandbox: e2bSandbox({ template: "acme-codex-evals:0.144.1-r1" })
-```
-
-You can also derive directly from a NiceEval public template and pay only for the build cost of your project's own dependencies:
-
-```ts
-import { NICEEVAL_CODEX_E2B_TEMPLATE } from "niceeval/sandbox/e2b-template";
-
-const template = Template()
-  .fromTemplate(NICEEVAL_CODEX_E2B_TEMPLATE)
-  .aptInstall(["ripgrep", "jq"])
-  .runCmd("corepack enable");
-```
-
-`e2bCodingAgentTemplate("claude-code" | "codex" | "bub")` returns a native `TemplateBuilder`, not a private NiceEval build DSL. You can keep using `.aptInstall()`, `.runCmd()`, `.copy()`, and the rest of E2B's capabilities. Building your own alias freezes the official starting point and your project's dependencies into a single reproducible artifact; rebuild and pick a new versioned alias when dependencies change.
-
-If the Bub Adapter is configured with `pythonPlugins`, pass the same set of packages to the factory when you build the template. Only then does the plugin set enter the compatibility fingerprint and actually hit the preinstalled environment:
-
-```ts
-e2bCodingAgentTemplate("bub", {
-  bubPythonPackages: ["bub-plugin-memory==1.3.0"],
-})
-```
-
-#### Docker: use NiceEval-maintained images, or derive from the official node base image
-
-To run NiceEval's built-in `claude-code`, `codex`, or `bub` Adapters directly, use the matching public image: [`niceeval/claude-code`](https://hub.docker.com/r/niceeval/claude-code), [`niceeval/codex`](https://hub.docker.com/r/niceeval/codex), or [`niceeval/bub`](https://hub.docker.com/r/niceeval/bub). Each image contains only its own Agent CLI and publishes a manifest for `linux/amd64` and `linux/arm64`. Its tag matches the corresponding E2B public template — the version position is the version of the agent inside the image. Stable CI should use the named constant or a digest, not the moving `latest`:
-
-```ts
-import { NICEEVAL_CODEX_DOCKER_IMAGE, dockerSandbox } from "niceeval/sandbox";
-
-sandbox: dockerSandbox({ source: { type: "image", image: NICEEVAL_CODEX_DOCKER_IMAGE } })
-```
-
-This image is a public image maintained by NiceEval, not a Docker `library/*` Official Image. A new tag is published when the agent version or the build recipe changes, independently of NiceEval's own release cadence.
-
-If you only need one agent, or you also need to add project-specific dependencies, write a Dockerfile that derives from Docker's official baseline, `node:24-slim`:
-
-```dockerfile title="Dockerfile"
-FROM node:24-slim
-# the slim image ships without ca-certificates / git, which both the agent and npm need
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates git \
-  && rm -rf /var/lib/apt/lists/*
-# npm installs globals into /usr/local/bin, which is exactly on the PATH the Sandbox injects
-RUN npm install -g @openai/codex@0.144.1
-```
-
-```bash
-docker build -t acme-codex-evals:0.144.1-r1 .
-```
-
-Then reference only the build result in the experiment:
-
-```ts
-import { dockerSandbox } from "niceeval/sandbox";
-
-sandbox: dockerSandbox({ source: { type: "image", image: "acme-codex-evals:0.144.1-r1" } })
-```
-
-The Docker Sandbox follows whatever execution identity the image itself declares: the Dockerfile above never sets `USER`, so the container runs commands as root by default, and `/usr/local/bin` is already on root's PATH, so global binaries installed with `npm install -g` are visible out of the box. When you need a non-root identity (for example, Claude Code refuses `--dangerously-skip-permissions` under root), add `USER node` to the Dockerfile (the `node:24-slim` image already has that user), or override it explicitly with `dockerSandbox({ source: { type: "image", image }, user: "node" })`. If an agent installs somewhere else (for example into `~/.local/bin`), remember to put that directory on the PATH. `dockerSandbox` requires an explicit image; stable CI should reference an immutable tag.
-
-#### Vercel: snapshot the official runtime
-
-Vercel has no E2B-style template registry and no Dockerfile; a Sandbox snapshot is taken from a microVM that is already running. Use the Vercel SDK to start a Sandbox from the official runtime (`node24`), install the Agent CLI, call `.snapshot()` to get a `snap_...`, then hand it to `vercelSandbox({ snapshotId })`:
-
-```ts title="scripts/build-vercel-snapshot.ts"
-import { Sandbox } from "@vercel/sandbox";
-
-const sandbox = await Sandbox.create({ runtime: "node24" }); // start a microVM from the official runtime
-await sandbox.runCommand({
-  cmd: "npm",
-  args: ["install", "-g", "@openai/codex@0.144.1"],
-  sudo: true, // install globally into /usr/local/bin, which is on the Sandbox PATH
-});
-const { snapshotId } = await sandbox.snapshot();
-console.log(snapshotId); // snap_...
-await sandbox.stop();
-```
-
-```bash
-pnpm tsx scripts/build-vercel-snapshot.ts
-```
-
-Then reference the printed ID in the experiment:
-
-```ts
-import { vercelSandbox } from "niceeval/sandbox";
-
-sandbox: vercelSandbox({ snapshotId: "snap_xxx" })
-```
-
-Vercel snapshots do not support E2B-style public publishing: a snapshot ID is governed by the permissions of the team/project that created it. Members of the same project can reuse it, but an outside user has to take their own snapshot in their own Vercel project. The never-expiring snapshot the NiceEval project currently keeps verified is `snap_7sIjfs71xfmVly0WEUTGhTBoMGeL`, but it is not a cross-account public ID.
-
-### Runtime checkpoints
-
-`createCheckpoint()` / `restoreCheckpoint()` are a different thing. They pack the Linux paths you name into a `Buffer`, so you can restore a slice of the file system into an already-created Sandbox:
-
-```ts
-import { createCheckpoint, restoreCheckpoint } from "niceeval/sandbox";
-
-const data = await createCheckpoint(sandbox, ["/home/user/.cache/tool"]);
-await restoreCheckpoint(nextSandbox, data);
-```
-
-This suits runtime caches. It does not create a publishable image/template/snapshot, and it does not manage sharing, versions, or expiry. A failed archive or restore throws.
-
-When these directories or checkpoints must persist across Attempts, restore them in an opaque `.before()` callback. After restoration succeeds, register the paired `createCheckpoint()` through `context.onCleanup()`. The pair runs for the current Attempt and participates in the same global cleanup stack.
-
-`sandboxReuse: true` only keeps one physical instance alive within the current Invocation. When several Invocations read and write the same checkpoint, declare `sharedState: { key }` at the Experiment top level. NiceEval acquires that lease before Experiment setup or Sandbox creation and releases it after checkpoint save, the Provider finalizer, and Experiment teardown. It provides mutual exclusion, not checkpoint storage, transaction recovery, or cross-machine coordination.
-
-## Transient error retries
-
-When a built-in provider creates a Sandbox, transient failures — rate limiting, `fetch failed`, connection resets, 5xx, temporary network unreachability — automatically retry with exponential backoff. Configuration errors, such as a missing template or missing credentials, fail on the first try. Once retries are exhausted, the attempt is recorded as `errored`. `defineSandbox`'s custom provider `create` is your own function; NiceEval does not retry it for you.
-
-`readText`, `readBytes`, `downloadFile`, `uploadFile`, file writes, and directory uploads automatically make a bounded number of retries on transient transport errors: 429, 5xx, `fetch failed`, and connection resets. Missing files, permission errors, cancellation, and a terminated Sandbox are not retried.
-
-`runCommand` and `runShell` do not retry automatically. A command may already have produced side effects, so retry it explicitly in a hook or an eval only when you can confirm it is safe to repeat.
-
-## Docker
-
-Docker is good for local development and standard CI. It is simple, controllable, and has no cloud dependency. The tradeoff is limited machine resources, plus slower cold starts and dependency installs.
-
-## Vercel Sandbox
-
-Vercel Sandbox is good when you want cloud isolation, more resources, or a more stable environment. It requires the right token or OIDC setup.
-
-## Custom provider
-
-Use `defineSandbox` to plug in another service. A custom Provider author is responsible for filesystem, process, network, and credential isolation; NiceEval does not add those safety boundaries to an arbitrary `Sandbox` implementation. The `feedback` given to `create` is already bound to the `sandbox.create` phase, so it can report on allocating an instance, pulling an image, or restoring a Sandbox snapshot:
+The `feedback` that `create` receives reports status during creation, such as allocating an instance, pulling an image, or restoring a snapshot:
 
 ```ts
 import { defineSandbox } from "niceeval/sandbox";
@@ -410,23 +300,25 @@ export default defineSandbox({
 });
 ```
 
-The return value just has to implement the `Sandbox` interface. Do not write the provider SDK's raw logs straight to the host process's `stdout` / `stderr`. Short-lived status goes through `feedback.progress`, problems worth keeping go through `feedback.diagnostic`, and if the environment cannot be created, throw. That keeps the human dashboard from being torn apart by logs and keeps CI output single and ordered.
+The return value only needs to implement the `Sandbox` interface. `recommendedConcurrency` is the default concurrency when nothing else is set.
+
+Do not write a Provider SDK's raw logs directly to the host process's `stdout` / `stderr`: use `feedback.progress` for temporary status, `feedback.diagnostic` for problems that should be kept, and throw when the environment cannot be created. That way the terminal's progress panel is not scrambled by logs, and CI has only one ordered output.
 
 ## Permissions and execution identity
 
-Providers differ in what they allow around execution identity, networking, the file system, and process lifecycle. When writing Fixtures, avoid depending on the host machine's environment; put dependencies in `package.json` or in Fixture setup.
+Providers differ in their limits on the executing user, network, filesystem, and process lifecycle. When writing a Fixture, avoid depending on the host environment as much as possible, and put dependencies in `package.json` or the Fixture's preparation steps.
 
-## Performance advice
+## Performance tips
 
-- Bake stable, heavy dependencies into an image/template/snapshot instead of reinstalling them in every Attempt's `.before()`.
-- Keep Fixture dependencies small.
-- Use small, explicit caches or preflight checks for dynamic content.
-- Tune `maxConcurrency` (the experiment field or `--max-concurrency`) so local Docker does not run out of resources.
-- Split slow tests into required gates and optional soft checks.
+- Bake stable heavy dependencies into an image, template, or snapshot, or write them as low-frequency `.before()` steps.
+- Reduce the size of the Fixture's dependencies.
+- Use small, explicit caches or pre-checks for dynamic content.
+- Control `maxConcurrency` (the Experiment field or `--max-concurrency`) to avoid exhausting local Docker resources.
+- Split slow checks: keep the ones that must pass as gates, and use `.optional()` for the nice-to-haves.
 
 ### Reuse Provider startup across Attempts
 
-When Provider startup dominates feedback time, declare `sandboxReuse: true` in an Experiment. Several Attempts then share one Sandbox serially: creation is paid once per reused instance, every real Attempt still has an `attempt` `.before()` / `.after()` plan, and NiceEval resets the working directory between tasks. Declarative Docker actions can separately reuse a matching preparation prefix.
+When Sandbox startup time dominates, declare `sandboxReuse: true` in the Experiment. Several Attempts share one Sandbox in turn: each Sandbox is created only once, each Attempt still runs its own `.before()` / `.after()`, and the working directory is reset between evals. On Docker, unchanged preparation steps can also be reused directly.
 
 ```ts
 export default defineExperiment({
@@ -437,4 +329,4 @@ export default defineExperiment({
 });
 ```
 
-This is a check-in-able Experiment semantic, not a CLI runtime mode. One Experiment cannot temporarily turn reuse on or off. For a comparison that needs a fresh Sandbox, write a separate Experiment that does not declare it. For its trade-offs, action occurrence, and replay requirements, see [Reuse a Sandbox](/tutorials/sandbox-reuse).
+Reuse is written in the Experiment file, not a command-line switch: the same experiment cannot turn it on or off temporarily. When you need fresh Sandboxes for a comparison, write a separate experiment that does not declare reuse. For the costs, how many times each lifecycle layer runs, and the requirements preparation code must meet, see [Reuse Sandboxes](/tutorials/sandbox-reuse).

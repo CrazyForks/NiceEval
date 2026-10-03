@@ -1,0 +1,283 @@
+---
+title: "Evaluate a Custom Application: Business Operations Such as Posting and Image Generation"
+sidebarTitle: "Evaluate a Custom Application"
+description: "When the application under test is not a conversational Agent, use defineAdapter to expose its business methods directly to evals, and check structured results and business operations."
+---
+
+You are evaluating an AI feature in a social application: after a user posts, AI generates an image and suggests replies. There is no "send a message, get a reply" conversation here; there are business operations such as posting, replying, and generating images.
+
+Forcing them into `t.send("post this for me")` is awkward. A more direct approach is to use `defineAdapter` to hand the application's own methods to the eval: every operation in the returned object becomes a typed `t.post(...)` or `t.generateImage(...)` in the eval.
+
+The `defineAgent` used by conversational Agents is a special case of Adapter that must implement `send`, multi-turn sessions, and Turns. A custom application does not need to implement any of these.
+
+## Define the application connection
+
+First tell NiceEval how to create your application and which of its operations the evals use. The example below connects an existing social application. `createSocialApp` belongs to your application, and the returned object lists each operation the evals need.
+
+```ts application.ts
+import { defineAdapter } from "niceeval";
+import { createSocialApp } from "./src/social-app.ts";
+
+export const social = defineAdapter({
+  name: "social-app",
+  create(context) {
+    const app = createSocialApp({ signal: context.signal });
+    context.onCleanup(() => app.close());
+    return {
+      post: (text: string) => app.publishPost(text),
+      reply: (postId: string, text: string) => app.reply(postId, text),
+      visitDiscoveryPage: () => app.visitDiscoveryPage(),
+      generateImage: (prompt: string) => app.generateImage(prompt),
+    };
+  },
+});
+```
+
+The runner calls `create` once per Attempt and runs the registered `onCleanup` callbacks when the Attempt ends.
+
+- Whether each Attempt gets its own application instance is up to your `create`. The runner does not copy instances for you.
+- The runner does not release resources that were not registered with `onCleanup`. Register them right after acquiring them.
+- Pass `signal` into the application's network requests and long tasks so they stop on timeout or cancellation.
+
+TypeScript infers each method's parameters and results from the returned object, so you do not need to write the type of `t` by hand. When the returned object has no `send`, writing `t.send` in an eval is a type error. Built-in NiceEval names such as `check` cannot be overridden. For an existing class instance, expose its methods one by one with the closure style above.
+
+## Call application actions and write custom checks
+
+Next, call these operations in the eval and check the results. `test(t)` has both the application's operations and NiceEval's check methods. Objects the application returns, such as a Post or Reply, can be passed directly to a custom Match defined with `defineValueMatch`.
+
+```ts evals/publish.eval.ts
+import { defineValueMatch } from "niceeval/expect";
+import { social } from "../application.ts";
+
+const hasText = defineValueMatch<{ text: string }>({
+  name: "Post has text",
+  evaluate: (post) => post.text.trim().length > 0,
+});
+const hasReplyTo = (postId: string) =>
+  defineValueMatch<{ replyToId: string | null }>({
+    name: "Reply links to the target post",
+    evaluate: (reply) => reply.replyToId === postId,
+  });
+
+export default social.defineEval({
+  async test(t) {
+    const post = await t.post("Invite everyone to watch the meteor shower this weekend");
+    t.check(post, hasText).gate().label("Post generated");
+    const reply = await t.reply(post.id, "Ask where to meet");
+    t.check(reply, hasReplyTo(post.id)).gate().label("Reply relationship is correct");
+  },
+});
+```
+
+The parameters and return values of operations are decided by your application. `defineValueMatch` only describes what makes a value match. `t.check` registers an assertion, and `.gate()` means that if it fails, the whole eval fails. String, number, and Schema matchers work directly too.
+
+When you need to accumulate a score, switch to `social.defineScoreEval` and call `.score(points)` on the checks. Open-ended standards such as tone, character consistency, and content quality can be handed to the [Judge](/explanation/judge).
+
+## Define assertion methods on the connection
+
+When several evals need the same kind of check, write it as an assertion method on the Adapter, and evals can call it in one line. Define these methods in `assertions`. They receive the current Attempt's `app` and `check`, and return the result of `check`.
+
+```ts application.ts
+import { defineAdapter } from "niceeval";
+import { defineValueMatch } from "niceeval/expect";
+import { createSocialApp } from "./src/social-app.ts";
+
+const hasText = defineValueMatch<{ text: string }>({
+  name: "Post has text",
+  evaluate: (post) => post.text.trim().length > 0,
+});
+
+export const social = defineAdapter({
+  name: "social-app",
+  create(context) {
+    const app = createSocialApp({ signal: context.signal });
+    context.onCleanup(() => app.close());
+    return {
+      post: (text: string) => app.publishPost(text),
+      readPublishedPost: () => app.readPublishedPost(),
+    };
+  },
+  assertions({ app, check }) {
+    return {
+      hasPublishedText() {
+        return check(app.readPublishedPost(), hasText);
+      },
+    };
+  },
+});
+```
+
+```ts evals/publish.eval.ts
+import { social } from "../application.ts";
+
+export default social.defineScoreEval({
+  async test(t) {
+    await t.post("Invite everyone to watch the meteor shower this weekend");
+    t.hasPublishedText().gate().score(1).label("Post generated");
+  },
+});
+```
+
+`hasPublishedText()` has the same effect as writing `t.check` directly, with the same scoring and the same display in reports. Assertion methods in `defineEval` have no `.score()`; those in `defineScoreEval` do. Operation methods such as `post()` still only call the application.
+
+When writing assertion methods:
+
+- Read the data to check only when the method is called. `assertions` only assembles methods; do not call `check` ahead of time inside it.
+- Put only functions in the returned object, not getters or other values, and method names must not collide with application operations or built-in NiceEval names.
+- Methods return the result of `check` synchronously, not a Boolean or a Promise. Put asynchronous operations and waiting in application methods and finish them before checking.
+- When data is incomplete, report a clear error. Do not judge it as "nothing happened".
+- Write parameters with concrete types. Generic or overloaded assertion methods cannot be called; for such checks, use a separate Match with `t.check`. Application operations themselves can be generic methods.
+
+## Choose an implementation and run
+
+Write an Experiment that selects this application, then run it.
+
+```ts experiments/local.ts
+import { defineExperiment } from "niceeval";
+import { social } from "../application.ts";
+
+export default defineExperiment({
+  adapter: social,
+  attempts: 1,
+});
+```
+
+```bash
+pnpm exec niceeval check
+pnpm exec niceeval exp local
+```
+
+After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
+
+The application the Experiment selects must provide the operations the evals use. When an operation is missing, NiceEval reports an error before creating the application; check the object returned by `create` first.
+
+The order, parameters, and repetitions of operations are all decided by the eval code. A failed application operation is not retried automatically the way Agent messages are. You can also name an operation `send`; its parameters and return value are still decided by the application, and you do not need to construct a `Turn`.
+
+## Compare two implementations with the same evals
+
+To find out whether another implementation does better or worse, have both implementations run the same set of evals. First declare their shared interface, then provide each implementation:
+
+```ts
+import { defineAdapterContract } from "niceeval";
+import type { SocialContext } from "./src/social-app.ts";
+
+export const social = defineAdapterContract<SocialContext>({ name: "social/v1" });
+export const baseline = social.implement({ name: "baseline", create: createBaseline });
+export const candidate = social.implement({ name: "candidate", create: createCandidate });
+```
+
+Write evals with `social.defineEval`, and have two Experiments select `baseline` and `candidate` respectively. Evals can only use methods from the shared interface. Interfaces obtained from two separate `defineAdapterContract` calls are not interchangeable even if they have the same name.
+
+When the two implementations need to share assertion methods, call `withAssertions` before creating the implementations:
+
+```ts
+const social = defineAdapterContract<SocialContext>({ name: "social/v1" })
+  .withAssertions(({ app, check }) => ({
+    hasPublishedText() {
+      return check(app.readPublishedPost(), hasText);
+    },
+  }));
+```
+
+Create implementations and evals from the interface `withAssertions` returns, and every implementation uses the same checks. `withAssertions` returns a new interface; implementations created before it do not get these methods.
+
+### When last results are reused
+
+When running again, NiceEval decides whether last results can be reused. The decision uses the Adapter's `name`, `contract`, and `behaviorRevision`, plus the Experiment's `flags`. When the eval file, or a file it statically imports by relative path within the project, changes, that eval reruns.
+
+NiceEval cannot see changes to an implementation the Experiment selects separately, dynamic imports, external packages, or remote services. When you change such behavior, raise `behaviorRevision` or reflect the change with explicit configuration. A custom Adapter that does not declare `behaviorRevision` reruns every time and never reuses last results. Use `pnpm exec niceeval exp local --dry` to see first which will be reused and which will rerun; see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).
+
+## Save the application's execution trace
+
+When an eval fails, you want to know what the application actually did internally. Hand the application's execution log to NiceEval, and you can then inspect it entry by entry with `niceeval show` instead of digging through logs on the application side.
+
+After the application finishes and you have the complete log, call `ctx.recordTrace` in the Adapter. Each event keeps its own type, actor, summary, and known relations; it does not need to be wrapped as a chat message. The event below only means the post request was accepted; actual publication needs a separate event.
+
+```ts
+const attachment = await ctx.attach({
+  name: "events.json",
+  mediaType: "application/json",
+  body: JSON.stringify({ events: archivedEvents }),
+});
+
+const receipt = await ctx.recordTrace({
+  traceId: sessionId,
+  schema: { id: "social-app.execution" },
+  collection: { state: "complete", limitations: [] },
+  scopes: [],
+  events: [{
+    key: "accepted",
+    type: "post.accepted",
+    source: { id: "server", eventId: archivedEvents[0].eventId },
+    actor: { id: "author", label: "Author" },
+    summary: "Post accepted for publication",
+    evidence: [{
+      key: "original",
+      label: "Original event",
+      artifactId: attachment.artifactId,
+      pointer: "/events/0",
+    }],
+  }],
+});
+```
+
+- `key` lets events in this submission reference each other. Fill `source.eventId` only with an ID the application really provides; omit it otherwise.
+- `schema.id` names the application's event format. Fill only `id`, not `revision`.
+- The returned `receipt.events` gives each event's `eventId`, which you use to expand it when viewing. Submitting the same content again with the same `traceId` returns the same `eventId`; different content is rejected.
+- Summaries have a length limit. Put large inputs in an attachment and use the `pointer` in `evidence` to point at the exact location in the attachment, so viewing goes straight there without scanning the whole log.
+
+After the run, view this Attempt's execution, then expand an event:
+
+```sh
+pnpm exec niceeval show @<attempt> --execution
+pnpm exec niceeval show @<attempt> --execution --expand <eventId>
+```
+
+`collection.state` describes whether the log is complete, regardless of whether the run was canceled. If you still got the complete log after cancellation, write `complete`. When the log is missing parts, write `partial` and explain what is missing in `limitations`; do not use an empty list to mean "unknown". Events outside the `scopes` collection range are kept too, marked `excluded`, and those that cannot be determined are marked `unknown`. Submitting an execution log does not affect scoring by itself.
+
+`onCleanup` callbacks have their own time limit, and you can submit execution logs inside them too. Saved execution logs and attachments are stored with the result file `.niceeval/record.sqlite`, and viewing them never calls the application or model again.
+
+## Archive large attachments
+
+Large files such as raw application logs and network responses can be saved as attachments with the results and pulled out during debugging. Use `ctx.attach` to hand a file, network response, or generator to NiceEval as a byte stream; NiceEval does not parse its format:
+
+```ts
+import { createReadStream } from "node:fs";
+
+const receipt = await ctx.attach({
+  name: "journal.ndjson",
+  mediaType: "application/x-ndjson",
+  body: {
+    stream: signal => createReadStream(localPath, {
+      signal,
+      highWaterMark: 64 * 1024,
+    }),
+  },
+  signal: ctx.signal,
+});
+```
+
+Stop writing to the local log first, then submit the attachment, and do not change the source file while it is being read.
+
+The returned receipt includes `artifactId`, the `sha256` of the raw bytes, and `byteLength`. Once you have the receipt, NiceEval has its own copy, and deleting or rewriting the source file afterwards does not affect the attachment. The attachment is written into the result file when this Attempt's results are saved, and is never uploaded to any remote service.
+
+Size limits:
+
+- Byte streams are at most 1 MiB per chunk, at most 1 GiB per attachment, at most 2 GiB of attachments in total per Attempt, and at most 4 streams submitted at once.
+- String and array attachments are at most 64 MiB each and at most 256 MiB in total.
+- An attachment used as `pointer` evidence in an execution log cannot exceed 64 MiB.
+
+NiceEval reads the next chunk only after writing the previous one, and never reads the whole file into memory. Custom streams must respond to the `signal` passed in and release their own files or connections.
+
+When submitting attachments in `ctx.onCleanup`, use the `signal` provided by the cleanup callback, not the already-canceled `ctx.signal`. When a submission fails, this Attempt shows a collection failure even if you catch the error, and attachments submitted successfully before are kept. Cleanup has only 30 seconds in total, so submit large files during the run.
+
+## Read the results
+
+View this run with `pnpm exec niceeval show`. Each `t.check` saves the checked value (with a length limit) and the verdict.
+
+Sessions, tool calls, and costs that NiceEval did not collect show as missing and are never filled in as zero. Having no Turn does not mean zero tokens were used, and the Judge's cost does not equal the cost of the whole application.
+
+Because the application's full cost is unavailable, a custom application cannot set `budget`, and cannot declare Sandbox or session capabilities that only Agents have. Lifecycle Plugins need the Agent's execution preparation steps; configuring them on a custom application reports an error before the run.
+
+The full runnable simulated X example is in the [LLM X source](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/llm-x).
+It uses an LLM to generate characters, profile pages, posts, images, and follow-up social activity, and evaluates them with the application's native methods.

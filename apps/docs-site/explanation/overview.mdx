@@ -1,35 +1,60 @@
 ---
-title: "NiceEval's post-run data flow"
-sidebarTitle: "Architecture overview"
-description: "Understand the boundaries between Record, fixed Inspection operations, query, and View."
+title: "NiceEval's overall model: the parts of an evaluation"
+sidebarTitle: "Overall model"
+description: "What eval cases, Experiments, Adapters, Sandboxes, the Runner, and Record each handle, how they connect into one run, and why the same eval runs more than once."
 ---
 
-NiceEval separates post-run data into three layers. Record stores Run and published Attempt facts. Inspection operations close read semantics. Three consumers deliver the results.
+An evaluation answers one question: can the system under test do this task correctly with this configuration? NiceEval splits that question into several parts, and each part handles one thing.
 
 ```text
-published Run and Attempt facts
-        ↓
-fixed Inspection operations
-        ↓
-machine Query | terminal Show | browser View
+Eval case (what counts as correct)   Experiment (against what, and how to run)
+            \                    /
+             \                  /
+              Runner (schedules Attempts, scores)
+                       │
+                 Adapter (connects to the system under test)
+                       │
+          System under test (direct, or running in a Sandbox)
+                       │
+          Record (stores each Attempt's result)
+                       │
+       show (terminal) · view (browser) · query (JSON)
 ```
 
-## Record stores facts
+## Eval cases: what counts as correct
 
-Every project has one canonical `.niceeval/record.sqlite` file. The Runner freezes expected slots when it creates a Run. Each Attempt becomes readable after its own atomic publication transaction completes, even if its origin Run remains `active`. Published Attempts and terminal Runs are immutable.
+Eval cases live in `evals/*.eval.ts`. They say what to send and what to check. They do not say which Agent or model to run against, so the same eval case can run against different systems under test.
 
-After an Invocation finishes completely and passes the portable gate, the canonical file itself can be copied or archived. `query` and `show` validate an external copy selected by `--record <file>` completely before opening it read-only.
+Checks come in two kinds. Deterministic facts get deterministic rules, such as which tool was called or whether the tests passed. Open-ended quality goes to a Judge, a grading model that scores against the criteria you write. See [Eval cases](/explanation/evals) and [Judge](/explanation/judge).
 
-## Inspection closes read semantics
+## Experiment: against what, and how to run
 
-An Inspection operation closes its source, selector, sealed cutoff, data gaps, issues, Evidence, and comparison before returning plain data. The fixed catalog covers Runs, Attempts, traces, diffs, sources, artifacts, and comparisons. It does not expose SQL, JSON paths, or formulas.
+Experiments live in `experiments/`. They say which Adapter, which model, which flags, and how many times each eval runs. To compare two models, write two Experiments that differ only in `model` and run each against the same set of eval cases. See [Experiment](/explanation/experiment).
 
-## Three consumers deliver results
+## Adapter and Sandbox: how to reach the system under test
 
-- `niceeval query` is machine Query for AI, scripts, and CI. It outputs a `niceeval.query/v1` JSON document.
-- `niceeval show` is terminal Show for people reviewing and drilling into results quickly.
-- `niceeval view` is browser View for people using fixed first-party Insight in a protected loopback browser.
+An Adapter is connection code you write. It sends the actions in an eval case to the system under test, then translates the response into events NiceEval can read, such as replies, tool calls, and usage. You can start by implementing only `send` and add OTel or flags when you need them. See [Adapter](/explanation/adapter) and [Integration tiers](/explanation/tier).
 
-All three consumers share the same fixed Inspection result. Each owns its JSON protocol, terminal text layout, or browser UI. They do not share formatters, routes, components, themes, or presentation schemas, and they do not reselect members or recompute business results.
+A Coding Agent needs to change code and run commands on a real file system, so NiceEval first creates an isolated Sandbox and starts the Agent inside it. Directly connected Web Agents and business applications do not need a Sandbox.
 
-Read the [CLI reference](/reference/cli) for commands and [Record](/explanation/record) for external-file validation boundaries.
+## Runner and Attempt: why the same eval runs more than once
+
+LLM output is nondeterministic. A question answered correctly this time may be answered wrong next time. One run cannot tell you whether a change really helped. So an Experiment uses `attempts` to set how many times each eval case runs, and each run is called an Attempt.
+
+The Runner selects eval cases from the Experiment, expands them into a batch of Attempts, and schedules them within the concurrency limits. Each Attempt gets one verdict: `passed`, `failed`, `errored`, or `skipped`. Together, a batch of Attempts gives the pass rate of that eval under that configuration. Scored evals accumulate a score instead of reading a pass rate. See [Pass/fail and scored evals](/tutorials/evaluation-kinds).
+
+Read `failed` and `errored` separately. `failed` means the system under test replied normally but got it wrong. `errored` means no trustworthy result came back, for example because the service did not start or a credential expired. It points to an environment problem, not to the capability of the system under test.
+
+## Record: results stay for comparison and investigation
+
+When an Attempt finishes, its result is saved together with the conversation, tool calls, file changes, duration, and cost in the project's `.niceeval/record.sqlite`. This is Record.
+
+Keeping results serves two purposes. One is investigation: go back to a failure and see what the system under test actually did. The other is reuse: on the next run, results unaffected by your change are reused and only the affected part runs again. See [Rerun and reuse](/tutorials/rerun-and-cache).
+
+There are three ways to read results. `show` drills down in the terminal, and both you and Coding Agents use it to investigate. `view` lets you browse conversations and timing in a browser. `query` outputs JSON for scripts and CI. All three reach the same conclusions. See [How run results flow](/explanation/results-flow).
+
+## Next steps
+
+- First time using NiceEval: read the [Quickstart](/tutorials/quickstart).
+- To learn about one part: follow the link at the end of each section above.
+- To look up fields and commands: go to the [Reference](/reference/define-eval).

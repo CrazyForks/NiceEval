@@ -1,28 +1,31 @@
 ---
-title: "Grade Hidden Tests: Include Criteria Files in the Cache Fingerprint"
-sidebarTitle: "Grade Hidden Tests"
-description: "Read hidden tests, test scripts, and other criteria files with loadText at module scope so their contents enter the fingerprint: changing one byte reruns automatically, without a manual --rerun."
+title: "Score with Hidden Tests and Rerun Automatically When Tests Change"
+sidebarTitle: "Hidden Test Scoring"
+description: "Use loadText to read scoring files such as hidden tests and test scripts. NiceEval remembers the file content, so when a test changes, the evals that use it rerun automatically next time."
 ---
 
-Sandbox Coding tasks often use a hidden test for grading: after the Agent changes the code, the eval writes the test file into the Sandbox and runs it. Passing the test means passing the task. That test file is the grading standard itself—changing it changes the task, so old results can no longer be trusted.
+Coding tasks often use a hidden test to score. Only after the Agent finishes changing the code does the eval write the test file into the Sandbox and run it; if the test passes, the eval passes. The Agent cannot see this test while it works, so it cannot game it.
 
-Read it with `loadText`, and NiceEval includes the file contents in that eval's fingerprint. Change one byte and the next run reruns this eval automatically while other evals keep using their cache.
-Reading the same content with `fs.readFile` leaves NiceEval unaware that the read happened. Change the test file and the cache still hits, so you see a conclusion made against the old test.
+This test file is the scoring standard. Changing it amounts to swapping the task, and old results should no longer count.
 
-## Steps
+Read it with `loadText`, and NiceEval records the file content and counts it as an input of this eval. Change the file by one byte, and this eval reruns automatically on the next run while other evals keep reusing their old results.
 
-1. Keep the criteria files in the repository with the eval:
+If you read it yourself with `fs.readFile`, you get the same content, but NiceEval does not know about the read. When you change the test file, it still reuses old results, and you see old conclusions judged by the old test.
+
+## Read scoring files with loadText
+
+1. Put scoring files in the repository next to the evals, not in the starting project given to the Agent:
 
    ```text
    evals/
      react-datepicker/
        pr-6058.eval.ts
      fixtures/react-datepicker/pr-6058/
-       tests/datepicker_test.test.tsx   # hidden test
-       tests/run-tests.sh               # test script
+       tests/datepicker_test.test.tsx   # Hidden test
+       tests/run-tests.sh               # Test script
    ```
 
-2. Read them at the **module top level** of the `.eval.ts` file:
+2. Read them at the **module top level** of the `.eval.ts`. NiceEval needs to know the scoring file content before the run to decide whether this eval must rerun:
 
    ```typescript
    import { defineEval } from "niceeval";
@@ -36,16 +39,16 @@ Reading the same content with `fs.readFile` leaves NiceEval unaware that the rea
    const runTests = await loadText(fixture("tests/run-tests.sh"));
    ```
 
-   A project-root-relative string works too: `loadText("evals/fixtures/react-datepicker/pr-6058/tests/run-tests.sh")`.
-   `loadText` accepts a `URL` directly; you do not need to import `node:url`.
+   A path string relative to the project root also works: `loadText("evals/fixtures/react-datepicker/pr-6058/tests/run-tests.sh")`.
+   `loadText` accepts a `URL` object directly; you do not need to import `node:url`.
 
-3. Write the files into the Sandbox and execute them in `test(t)`:
+3. In `test(t)`, wait until the Agent is done, then write the tests into the Sandbox and run them:
 
    ```typescript
    export default defineEval({
      description: "react-datepicker pr-6058",
      async test(t) {
-       await t.send("Fix the misaligned changeMonth panel. Do not change the test files.");
+       await t.send("Fix the changeMonth panel misalignment. Do not modify test files.");
        await t.sandbox.writeText("src/test/datepicker_test.test.tsx", hiddenTest);
        await t.sandbox.writeText("tests/run-tests.sh", runTests);
        t.check(await t.sandbox.runCommand("bash", ["tests/run-tests.sh"]), commandSucceeded());
@@ -53,10 +56,22 @@ Reading the same content with `fs.readFile` leaves NiceEval unaware that the rea
    });
    ```
 
-Change `datepicker_test.test.tsx` and run the same command again. Only this eval reruns, which verifies that the fingerprint took effect.
+   Repository tasks such as Terminal-Bench work the same way. When preparing the Agent's starting environment, include only the public Fixture; do not put hidden tests or test scripts into the image, working directory, or prompt. After `t.send(...)` returns, upload the original files read by `loadText` at the module top level into the Sandbox, run the original test script, and check both the expected results and the anti-leak check script. That way, changing a hidden file triggers a rerun, and the Agent cannot see it while working.
 
-## Notes
+## Confirm that changing a test triggers a rerun
 
-- **`loadText` must be at module top level.** Cache reuse is decided before execution. Reading it inside `test(t)` happens too late, so NiceEval reports an error telling you to move it to the top level.
-- **Read Agent output with `t.sandbox`, not `loadText`.** Files created by the Agent inside the Sandbox are evidence for this run and vary each time; they do not belong in the fingerprint. Read them with `await t.sandbox.readText(path)`, then pass the returned string to `t.check`.
-- Use `loadYaml` / `loadJson` when criteria are structured data such as a case table. See [Data-driven Testing](/tutorials/dataset-fanout).
+Change `datepicker_test.test.tsx` a little, then preview the run plan:
+
+```sh
+pnpm exec niceeval exp <experiment-id> --dry
+```
+
+This eval should show `execute`, and other unaffected ones should show `reuse`. After confirming, drop `--dry` to run for real, then view the results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`. For how to read the plan, see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).
+
+When you changed a test but it shows `reuse`, first check whether the file was read with `fs.readFile`.
+
+## Common mistakes
+
+- **`loadText` must be at the module top level.** Whether to rerun is decided before the run starts; reading in `test(t)` only happens at run time, which is too late. NiceEval reports an error directly and tells you to move it to the top level.
+- **Read files the Agent changed with `t.sandbox`, not `loadText`.** Files in the Sandbox are this run's results, different each time, and should not decide whether to rerun. Read them with `await t.sandbox.readText(path)`, then pass the string to `t.check`.
+- When the scoring standard is structured data (such as a case lookup table), use `loadYaml` / `loadJson`; see [Data-Driven Tests](/tutorials/dataset-fanout).

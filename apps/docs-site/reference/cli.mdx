@@ -1,10 +1,16 @@
 ---
 title: "CLI"
 sidebarTitle: "CLI"
-description: "Read canonical SQLite Record facts through fixed query, show, and view commands."
+description: "Read run records with query, show, and view."
 ---
 
-Run evaluations with `niceeval exp`. NiceEval provides three read paths: `niceeval query` for AI, scripts, and CI; `niceeval show` for people reading in a terminal; and `niceeval view` for browser review. All three read published facts within a `PublicationCutoff` through fixed Inspection operations. An Attempt is visible even when its origin Run is still `active`.
+Run evaluations with `niceeval exp`. There are three ways to read results: scripts and CI use `niceeval query` to get JSON, people and coding agents use `niceeval show` to drill down in a terminal, and `niceeval view` is for review in a browser.
+
+All three read the same run record, `.niceeval/record.sqlite`. At the start of every read, NiceEval fixes a visibility boundary: results already written at that moment are visible, and anything written afterward does not leak into this read. Attempts already written are readable even while their Run is still running.
+
+When you pipe the output of `niceeval exp`, stdout still shows progress. Each line carries the Experiment, the Eval, and the Attempt number. The same Attempt prints at most once per second, and nothing is repeated when the content has not changed. Run directly in a terminal, it shows a live panel. Add `--json` when a script needs structured results.
+
+Pass `--experiment` repeatedly to run several Experiments at once, for example `niceeval exp --experiment baseline --experiment memory --max-concurrency 4`. These Experiments share the concurrency limit and budget within the same run. An ID given twice runs only once. If any ID does not exist, the whole command fails before execution starts. Once you use `--experiment`, positional arguments filter Evals.
 
 ## `niceeval query`
 
@@ -14,15 +20,15 @@ niceeval query explain [--record <file>] --request <file|->
 niceeval query run [--record <file>] --request <file|->
 ```
 
-`query` is the versioned `niceeval.query/v1` JSON operation protocol. A successful operation and a protocol-level domain failure each write exactly one canonical document to stdout. Argument errors and process failures that cannot form a document go to stderr.
+`query` uses the versioned JSON request protocol `niceeval.query/v1`. Each fixed read question is called an operation. A successful result and a failure defined by the protocol each write exactly one JSON document to stdout. When arguments are wrong, or the process fails before it can produce a document, the error goes only to stderr.
 
-Start with `discover`, then construct a request from the returned schema. Do not guess fields or invent another query language with SQL, JSON paths, or formulas.
+- `discover` lists the operation IDs the current version supports. It does not read the run record, so it accepts no `--record`, and it does not return the request field structure.
+- `explain` validates a complete request and explains which operation it will run and which requests you can send next.
+- `run` executes the request and returns that operation's complete result.
 
-- `discover` returns the static catalog, and the schema, permitted selectors, error union, and next minimal request for each operation. It accepts no `--record` and reads no Record.
-- `explain` validates a complete request and describes the operation to run and valid next requests.
-- `run` executes the request and returns that operation's closed result.
+First use `discover` to confirm which operations the current version has. Then write the request from the minimal requests on this page or in [Viewing results](/tutorials/viewing-results), and validate it with `explain`. Do not guess fields, and do not build another query language from SQL, JSON paths, or formulas.
 
-Continuation tokens bind the operation, canonical request, source identity, and `PublicationCutoff`. A changed binding returns a restart correction.
+Paged results carry a continuation token. The token remembers the operation, the request content, the record file being read, and the visibility boundary of this read. If any of them changes, `query` does not continue reading. It returns a restart correction, which means the caller must start again from `discover` or by resending the request.
 
 ## `niceeval show`
 
@@ -38,15 +44,33 @@ niceeval show @<locator> --usage [--record <file>]
 niceeval show @<locator> --diff [--record <file>]
 ```
 
-`show` is the fixed terminal rendering entry point. With no selector, it shows the default overview. `--run <run-id>` shows one exact Run and can be repeated. `--experiment <experiment-id>` shows one exact Experiment and can also be repeated.
+`show` displays results in a fixed terminal format. With no selection arguments, it shows the default overview. `--run <run-id>` shows the given Run and `--experiment <experiment-id>` shows the given Experiment; both can be repeated.
 
-`@<locator>` selects an Attempt. It cannot be used with `--run` or `--experiment`, which also cannot be used together. A command can provide at most one Attempt locator.
+Pass rates and scores are displayed by Eval type:
 
-For an Attempt, `--source` shows captured source facts and Assertion sites. `--execution` shows a bounded execution outline, and `--timing` shows timing activities.
+- Pass/fail Evals show `Verdicts` and `Pass rate`.
+- Score-only Evals show `Verdicts` and `Score`, with no pass rate.
+- When both are mixed, only the pass/fail rows show a pass rate.
 
-`--usage` shows usage totals and observations. `--diff` shows file-change windows. These five options are mutually exclusive, and each requires an Attempt locator.
+A "complete" score only means the score could be computed; it does not mean the Eval passed. An Eval whose Verdict is `failed` shows as failed even with a complete score, and keeps the score it earned. Only Evals with a `passed` Verdict and a complete score enter the success ranking.
 
-`--expand <stable-id>` can only be used with `--execution`. The stable ID must be an `itemId`, `toolOccurrenceId`, or `commandId` returned by the outline; it cannot be a positional number or legacy execution handle.
+With a `passed` Verdict and a complete score, terminal details show `scored` and the browser shows "Scored". A zero score can also be complete: it says scoring finished, not that the goal was met, and NiceEval has no default passing line. A gate failure still shows as failed. An incomplete (`partial`) score keeps only a lower bound of the known score and does not count as a valid score.
+
+`@<locator>` selects an Attempt. A command takes at most one locator, and it cannot be used with `--run` or `--experiment`; `--run` and `--experiment` cannot be used together either.
+
+After selecting an Attempt, add any one of the options below to look at one aspect. The five options are mutually exclusive, and each requires an Attempt locator:
+
+- `--source`: the recorded source information and where each assertion sits in the source.
+- `--execution`: an outline of the execution, with a length limit.
+- `--timing`: how long each phase took.
+- `--usage`: usage totals and every reported usage entry.
+- `--diff`: file changes during the run.
+
+`--execution` output shows three things separately: the collection state, whether the reporter declared the data complete, and the paging state. Even when the current page is empty or it is the last page, a `partial` mark from the reporter and the reason for the limit are kept.
+
+- Filter by participant and event type with `--actor <id>` and `--type <event-type>`.
+- When paging with `--continuation <token>`, pass the same filters.
+- Expand one item directly with `--expand <stable-id>`. The ID must come from an `itemId`, `toolOccurrenceId`, or `commandId` in the outline, not a positional number. `--expand` works only with `--execution`, and cannot appear together with filter or paging arguments.
 
 ## `niceeval view`
 
@@ -54,19 +78,107 @@ For an Attempt, `--source` shows captured source facts and Assertion sites. `--e
 niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 ```
 
-`view` is NiceEval's fixed first-party local Insight. With no `--run`, it opens the default overview. Repeated `--run` selects several exact Runs. It accepts no positional arguments and does not load project pages, themes, components, or renderers.
+`view` opens NiceEval's built-in browser interface on your machine. Without `--run`, it opens the default overview; repeat `--run` to preselect several Runs. It accepts no positional arguments and does not load the project's own pages, themes, components, or renderers.
 
-`--no-open` does not ask the OS to open a browser. `--port` selects the port for the `127.0.0.1` listener. After the SPA assets, local authorized session, and generation-bound Inspection endpoint are ready, the command writes one openable loopback URL to stdout. With `--json`, it instead writes `niceeval.view/v1` NDJSON `ready` and `closed` lifecycle events. Startup and runtime failures use the exit code and stderr.
+`--no-open` only starts the server without opening a browser. `--port` sets the port; the server listens only on `127.0.0.1`. Once page assets, local access authorization, and the read endpoint are ready, the command writes an openable local address to stdout once.
 
-View reads only the project's canonical `.niceeval/record.sqlite`. When a new publication appears, the page prompts for refresh and changes to the new cutoff only after confirmation. It provides no `--record`, SQL, deployment, sharing, Report, Page, theme, renderer, route, or operation parameters.
+With `--json`, stdout switches to NDJSON in the `niceeval.view/v1` format: a `ready` event when ready and a `closed` event on close. Startup or runtime failures are reported through the exit code and stderr.
+
+`view` reads only the current project's `.niceeval/record.sqlite`. When new results are written while it is open, the page prompts you to refresh and switches to the new data only after you confirm. It has no `--record`, SQL, deployment, or sharing options, and cannot specify custom reports, pages, themes, routes, or operations.
 
 ## Choose a read path
 
+All three paths read the same results, but each owns its own layout and presentation.
+
 | Goal | Use |
 | --- | --- |
-| Discover or consume stable JSON from an AI, script, or CI | `niceeval query discover`, then `explain` / `run` |
-| Review a fixed summary of an overview, Run, Experiment, or Attempt in a terminal | `niceeval show` |
-| Review an overview or a Run in a browser | `niceeval view` |
-| Move the same facts to another compatible runtime | Copy `.niceeval/record.sqlite`, then use `--record` |
+| Give a script or CI stable JSON | `niceeval query discover`, then `explain` / `run` |
+| Let a person or coding agent view a summary of the overview, a Run, an Experiment, or an Attempt in a terminal | `niceeval show` |
+| Review the overview or a Run in a browser | `niceeval view` |
+| Read the same results on another machine | Copy `.niceeval/record.sqlite`, then point to it with `--record` |
 
-`query`, `show`, and `view` share closed Inspection operation results. They do not share formatters, routes, components, themes, or presentation schemas.
+## CLI flags
+
+The table below is generated from each command's own option definitions. Flags not in the table are rejected as unknown arguments.
+
+{/* GENERATED:BEGIN cli-flags */}
+
+{/* This block is generated by pnpm run repo docs reference from source comments. Do not edit it by hand; to change the copy, edit the corresponding source TSDoc/JSDoc (see packages/repo-tools/src/docs/reference-compiler.ts for the mapping). */}
+
+| Flag | Command | Type | Description |
+|---|---|---|---|
+| `--help` | `niceeval` | boolean | Print the root command index. |
+| `--version` | `niceeval` | boolean | Print the installed NiceEval version. |
+| `--tag` | `niceeval check`, `niceeval exp`, `niceeval exp list` | string | Select only Evals with this tag. |
+| `--help` | `niceeval check`, `niceeval exp`, `niceeval exp list`, `niceeval exp rename`, `niceeval exp --teardown`, `niceeval debug`, `niceeval accept`, `niceeval session` | boolean | Print help for this command. |
+| `--experiment` | `niceeval exp` | string[] | Narrow the current project's results by Experiment selector. |
+| `--attempts` | `niceeval exp` | number | Run each selected Eval the given number of times. |
+| `--max-concurrency` | `niceeval exp` | number | Limit the number of Attempts executing at the same time. |
+| `--max-build-concurrency` | `niceeval exp` | number | Limit the number of Sandbox builds prepared at the same time. |
+| `--max-setup-prefix-concurrency` | `niceeval exp` | number | Limit the number of Sandbox setup prefixes prepared at the same time. |
+| `--sandbox-setup-cache` | `niceeval exp` | string | Use or bypass the Sandbox preparation cache. |
+| `--timeout` | `niceeval exp` | number | Set each Attempt's timeout in milliseconds. |
+| `--budget` | `niceeval exp` | number | Set this Invocation's budget in US dollars. |
+| `--junit` | `niceeval exp` | string | Write the required JUnit report. |
+| `--json` | `niceeval exp` | boolean | Write this command's machine document or event stream. |
+| `--dry` | `niceeval exp` | boolean | Plan without creating an Invocation. |
+| `--rerun` (alone means `failed`) / `--rerun=failed\|all` / `--rerun failed\|all` | `niceeval exp` | `failed` \| `all` | Request a rerun of failed targets or all targets. |
+| `--keep-sandbox` (alone means `failed`) / `--keep-sandbox=failed\|all` | `niceeval exp` | `failed` \| `all` | Keep the Sandbox of failed or all finished Attempts. |
+| `--early-exit` / `--no-early-exit` | `niceeval exp` | boolean | Stop the Eval's remaining Attempts after one result passes. |
+| `--record` | `niceeval exp`, `niceeval accept` | string | Use the given NiceEval Record root. |
+| `--json` | `niceeval exp list` | boolean | Write this command's machine document or event stream. |
+| `--run` | `niceeval exp rename` | string[] | Select one exact Run to adopt into the target Experiment; repeating it is rejected. |
+| `--dry` | `niceeval exp rename` | boolean | Preview an explicit Experiment rename. |
+| `--json` | `niceeval exp rename` | boolean | Write this command's machine document or event stream. |
+| `--teardown` | `niceeval exp --teardown` | boolean | Run explicit Experiment teardown recovery. |
+| `--json` | `niceeval exp --teardown` | boolean | Write this command's machine document or event stream. |
+| `--recover-shared-state` | `niceeval exp --teardown` | string | Name the shared state key to recover explicitly. |
+| `--owner-token` | `niceeval exp --teardown` | string | Provide the exact shared state owner token. |
+| `--confirm-owner-terminated` | `niceeval exp --teardown` | boolean | Confirm that the recorded owner has terminated. |
+| `--confirm-remote-quiesced` | `niceeval exp --teardown` | boolean | Confirm that the remote shared state is quiescent. |
+| `--json` | `niceeval debug` | boolean | Write this command's machine document or event stream. |
+| `--run` | `niceeval accept` | string[] | Adopt one published exact Run; repeating it is rejected. |
+| `--dry` | `niceeval accept` | boolean | Complete the whole-Run adoption preflight without publishing a new Run. |
+| `--all` | `niceeval session` | boolean | Include status entries for completed Invocations. |
+| `--json` | `niceeval session` | boolean | Write this command's machine document or event stream. |
+| `--request` | `niceeval query` | string | Read one niceeval.query/v1 request from a file or standard input. |
+| `--record` | `niceeval query`, `niceeval show` | string | Read an external canonical SQLite Record. |
+| `--help` | `niceeval query` | boolean | Print help for this command. |
+| `--run` | `niceeval show` | string[] | Show one sealed Run; can be repeated. |
+| `--experiment` | `niceeval show` | string[] | Show one exact Experiment; can be repeated. |
+| `--all` | `niceeval show` | boolean | Show Attempts hidden in the compact Results view. |
+| `--source` | `niceeval show` | boolean | Show an Attempt's captured source facts. |
+| `--execution` | `niceeval show` | boolean | Show an Attempt's bounded execution outline. |
+| `--actor` | `niceeval show` | string | Filter execution events by exact actor ID. |
+| `--type` | `niceeval show` | string | Filter execution events by exact event type. |
+| `--continuation` | `niceeval show` | string | Read the next execution page with the same filters. |
+| `--timing` | `niceeval show` | boolean | Show an Attempt's captured timing activities. |
+| `--usage` | `niceeval show` | boolean | Show an Attempt's captured usage totals. |
+| `--diff` | `niceeval show` | boolean | Show an Attempt's captured file changes. |
+| `--expand` | `niceeval show` | string | Expand one stable execution identity. |
+| `--help` | `niceeval show` | boolean | Print help for this command. |
+| `--run` | `niceeval view` | string[] | Select one sealed Run; can be repeated. |
+| `--no-open` | `niceeval view` | boolean | Do not ask the operating system to open a browser. |
+| `--port` | `niceeval view` | string | Choose the loopback listening port; 0 picks one automatically. |
+| `--json` | `niceeval view` | boolean | Output View lifecycle NDJSON, not Inspection results. |
+| `--help` | `niceeval view` | boolean | Print help for this command. |
+| `--all` | `niceeval state migrate` | boolean | Migrate all registered first-party Service state modules. |
+| `--help` | `niceeval state migrate` | boolean | Print help for this command. |
+| `--help` | `niceeval init` | boolean | Print help for this command. |
+| `--json` | `niceeval docker profile list`, `niceeval docker profile doctor`, `niceeval docker cache inventory`, `niceeval docker cache gc` | boolean | Write this command's machine document or event stream. |
+| `--domain` | `niceeval docker cache inventory`, `niceeval docker cache gc` | string | Select one Docker cache domain managed by NiceEval. |
+| `--apply` | `niceeval docker cache gc` | string | Apply a previously issued Docker cache reclamation plan. |
+| `--help` | `niceeval docker` | boolean | Print help for this command. |
+| `--all` | `niceeval sandbox stop` | boolean | Destroy all retained Sandboxes. |
+| `--window` | `niceeval sandbox diff` | string | Select one recorded change window. |
+| `--path` | `niceeval sandbox diff` | string | Select one path in the Sandbox diff. |
+| `--leave-running` | `niceeval sandbox enter` | boolean | Keep the Sandbox after leaving the shell. |
+| `--record` | `niceeval sandbox list`, `niceeval sandbox enter`, `niceeval sandbox history`, `niceeval sandbox diff`, `niceeval sandbox stop`, `niceeval sandbox prune` | string | Use the given NiceEval Record root. |
+| `--orphans` | `niceeval sandbox list` | boolean | Check for unregistered Sandbox instances left by terminated runs. |
+| `--force` | `niceeval sandbox prune` | boolean | Also clean up unverified orphan candidates. |
+| `--development` | `niceeval sandbox` | boolean | Diagnose the isolated Incus development domain instead of reference. |
+| `--help` | `niceeval sandbox` | boolean | Print help for this command. |
+| `--tag` | `niceeval list` | string | Select only Evals with this tag. |
+| `--help` | `niceeval list` | boolean | Print help for this command. |
+
+{/* GENERATED:END cli-flags */}

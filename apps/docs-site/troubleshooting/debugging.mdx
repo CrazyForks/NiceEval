@@ -1,49 +1,120 @@
 ---
-title: "Debug Published Results"
-sidebarTitle: "Debugging"
-description: "Diagnose problems with Show, Query, and View from named errors and closed Inspection results."
+title: "Debug failed eval results"
+sidebarTitle: "Debugging guide"
+description: "When an eval fails or errors, start from a specific Run or Attempt and use show to drill into errors, conversations, timing, and changes, to find whether the problem is in the application, the Adapter, the environment, or the assertion."
 ---
 
-Start from an explicit Run or Attempt. Use `niceeval show` for terminal troubleshooting, the fixed `query` JSON protocol for machines and CI, and `view` for browser review.
+A batch of evals has finished, and a few are `failed` or `errored`. You need to find the cause: the application answered wrong, the Adapter mapping missed something, the environment did not start, or an assertion is too strict.
+
+Start from a specific Run or Attempt. Use `niceeval show` in the terminal and `niceeval view` in the browser; scripts and CI use `query` to read JSON.
+
+## Find the problem Attempt from a Run
+
+First look at the run as a whole. The Run ID is in the `NEXT` panel when `exp` ends:
 
 ```sh
-niceeval show --run <run-id>
-niceeval show @<attempt-locator>
+pnpm exec niceeval show --run <run-id>
 ```
 
-Use `niceeval show --run <run-id>` first to confirm the Run's time, Members, Verdicts, scores, coverage, usage, and limits. The output's Attempt locator is the precise target for the next step. For an Attempt, run `niceeval show @<attempt-locator>` and select a projection for the question at hand:
+The output lists the Run's time, each eval case's verdict, scores, result coverage, usage, and limits. Each Attempt has a locator starting with `@` in front of it. Copy the one with the problem:
 
 ```sh
-niceeval show @<attempt-locator> --source
-niceeval show @<attempt-locator> --execution
-niceeval show @<attempt-locator> --timing
-niceeval show @<attempt-locator> --usage
-niceeval show @<attempt-locator> --diff
+pnpm exec niceeval show @<attempt-locator>
 ```
 
-`--source` shows archived source and assertion facts; `--execution` shows a bounded execution outline; `--timing` shows activity, phases, and duration; `--usage` shows sealed token, request, and cost totals; and `--diff` shows the archived file-change window. To expand an execution-outline item, use its displayed stable ID: `niceeval show @<attempt-locator> --execution --expand <stable-id>`.
+This screen first shows the verdict and an assertion summary. For `errored`, it shows the phase that failed and the full error text. Looking here first is usually enough.
 
-## A result cannot be opened
+## Choose what to look at by question
 
-| Problem | Next step |
+When the summary is not enough, add one flag for the direction you suspect:
+
+```sh
+pnpm exec niceeval show @<attempt-locator> --source
+pnpm exec niceeval show @<attempt-locator> --execution
+pnpm exec niceeval show @<attempt-locator> --timing
+pnpm exec niceeval show @<attempt-locator> --usage
+pnpm exec niceeval show @<attempt-locator> --diff
+```
+
+| You want to know | Flag |
 | --- | --- |
-| The project Record cannot be found | Confirm you are running in the project directory and that its single `.niceeval/record.sqlite` exists. |
-| A `--record` input is rejected | Obtain a complete, current SQLite file again. An external Record is checked for integrity and domain invariants. |
-| The schema is old or the database is invalid | Rerun with the current NiceEval in the original project. Reading never migrates, repairs, or partially opens a Record. |
-| A Run is still `active`, but its original process has ended | Confirm it with `niceeval run show <run-id>`, then run `niceeval run recover <run-id> --yes`. |
+| The eval source used in this run and each assertion's result | `--source` |
+| What the Agent said and which tools it called | `--execution` |
+| Which phase took the time, and whether it got stuck in setup | `--timing` |
+| How many tokens, requests, and how much cost this run used | `--usage` |
+| Which files the Agent changed | `--diff` |
 
-Published facts have no manual-edit repair path. Make a new Run when you need different facts. `niceeval run recover` only closes a Run whose former owner is proven to have ended, while keeping its published Attempts.
+`--execution` shows a condensed execution outline. To expand one item, copy the ID next to it:
 
-## A result is incomplete or cannot be compared
+```sh
+pnpm exec niceeval show @<attempt-locator> --execution --expand <stable-id>
+```
 
-Scripts, AI, and CI first run `niceeval query discover` to find the correct fixed operation, then use `explain` to inspect the request before running `run`. The result identifies missing facts, issues, Evidence, and correction. `query` outputs only a machine protocol; it is not for reading terminal formatting.
+## Find out why an assertion got this score
 
-For a browser interface, run `niceeval view --run <run-id> --no-open`. Do not parse the View page or read or query private SQLite tables.
+When the problem comes down to one assertion, use `query` to get structured details. It returns that assertion's contributions, measurements, and the Judge's rationale:
 
-For comparisons, use `runs.compare`. Its `exact` and `paired` modes reject incompatible domains or pairs rather than silently narrowing a denominator.
+```text
+query discover
+→ attempt.get(locator)
+→ choose entryId from assertions.entries
+→ attempt.assertion.detail(locator, entryId)
+```
+
+Do not work backward from the formatted text of `show` to assertion fields. For a complete request example, see [View run results](/tutorials/viewing-results#see-why-an-assertion-got-its-score).
+
+## Cannot open results
+
+| Error | Next step |
+| --- | --- |
+| The project's results file cannot be found | Confirm you are running in the project directory, and check that `.niceeval/record.sqlite` exists. |
+| The file named by `--record` is rejected | Confirm it is a complete single file copied after the run ended, and that no other process was writing during the copy. Do not delete WAL files that have not been merged. External files go through integrity and data consistency validation. |
+| Unsupported format version or invalid database | Keep the original file and check which NiceEval version wrote it. Supported historical formats are upgraded automatically; unknown formats or damaged data are not patched, and NiceEval does not read only part of them. |
+| A Run is still `active`, but its original process has ended | First check with `pnpm exec niceeval run show <run-id>`, then run `pnpm exec niceeval run recover <run-id> --yes`. |
+
+Published results cannot be edited by hand. When you need different results, run again to create a new Run. `niceeval run recover` only ends a Run whose original process is proven to have ended, and keeps every published Attempt. For the full steps, see [Recover after a forced kill](/troubleshooting/recover-after-kill).
+
+## Read historical Records
+
+The format version here is an internal identifier of the results file and is unrelated to NiceEval's npm package version. Do not try to upgrade by editing the version field in the database.
+
+`show`, `query`, `run list`, `run show`, and `view` can read historical results files in the 0.15, 0.16, and 0.17 formats directly. When reading, NiceEval upgrades them automatically in a private copy. The original file, Runs, Attempts, and references stay unchanged, and you do not need to run an eval first.
+
+When reading with `--record`, the file must be a complete single file that has already been handed over, and no other process can modify it while it is read. The command refuses to read when the file still has unmerged WAL, a run is still writing to it, or NiceEval cannot confirm that the writing process has ended. Do not delete the files next to it to get around the check.
+
+When you run write commands such as `exp` normally in a project, NiceEval first backs up and validates, then upgrades supported old formats automatically. Reading a project in the current format never runs an upgrade or recovery.
+
+## Results are incomplete or cannot be compared
+
+Scripts or CI first run `pnpm --silent exec niceeval query discover` to find the right query, then use `explain` to check the request, and finally use `run` to execute it. The result shows which results are missing, what issues exist, which evidence was used, and how to fix it.
+
+`query` only outputs JSON and is not meant for people to read directly. To explain a score item by item, use `attempt.get` and `attempt.assertion.detail` instead of looking only at the summary score.
+
+When you need a browser interface, run `pnpm exec niceeval view --run <run-id> --no-open`. Do not parse the View page, and do not query the tables in SQLite directly.
+
+To compare two Runs, use `runs.compare`. Its `exact` and `paired` modes refuse outright when evals or pairs cannot be aligned, instead of quietly shrinking the denominator.
+
+## Read batched errors
+
+In a run, the first time a known kind of error appears, the terminal immediately shows the full cause, the responsible party, the source location, and the next step. When the run ends, a summary lists the total count, the affected objects, and the source locations. Migration guides are shown in full only once per `guideId`, not repeated for each object.
+
+Errors are grouped only when their `code`, `owner`, fix target, and `guideId` are all identical. The summary keeps at most 32 groups, and each group shows at most 32 affected objects and 32 source locations. Counts beyond that are stated separately, and every original error is still kept on its own. Unknown errors without a stable source are shown separately and are never merged just because their message or stack looks similar.
+
+Source locations come from known call sites or source maps, and show unknown when none is found. NiceEval does not scan the whole project to report errors, and does not require the application to enable extra AST scanning.
+
+## Old project state blocks a run
+
+If the project data predates the formats that support automatic upgrade, or an error says old directories such as `locks/` or `sessions/` block writes, follow these steps to keep the history. The 0.15, 0.16, and 0.17 formats mentioned above are upgraded automatically and do not need this process.
+
+1. Stop any NiceEval process still running in the original project. Do not decide whether a lock file can be deleted based on its modification time.
+2. Keep the original project and the complete `.niceeval` directory. To view history, use the NiceEval version that wrote the data, in the original project. If you are not sure which version that is, keep everything as is and check first.
+3. Copy the configuration, eval cases, experiments, and other project files to a new directory, without `.niceeval`, and install the current version of NiceEval in the new directory.
+4. Run the original experiment in the new directory, for example `pnpm exec niceeval exp <experiment> --rerun all`. New results go into the new directory's results file, and the original project's history stays as is.
+
+This process does not bring old results into the new results file. Do not delete individual lock files or data files to get around the check. `niceeval state migrate --all` manages user-level service state and cannot convert a project's results file.
 
 ## View shows old results
 
-View fixes its PublicationCutoff when each read begins. When the page indicates that new content has been published, confirm refresh to read the newly closed results. If refresh fails, the previous readable result remains available.
+When `niceeval view` opens, it reads the results published at that moment and stays on them. When the page says new results are available, confirm the refresh to see the latest content. If the refresh fails, the page keeps the last results it could read.
 
-Use [Viewing results](/tutorials/viewing-results) for the normal workflow and [CLI](/reference/cli) for command details.
+For the normal workflow, see [View run results](/tutorials/viewing-results). For command details, see [CLI](/reference/cli).

@@ -1,65 +1,70 @@
 ---
-title: "Select and Preview a Run Scope"
-sidebarTitle: "Select and Preview"
-description: "List Experiments first, narrow the scope with paths, Eval prefixes, and tags, then confirm the plan with --dry before spending model and Sandbox cost."
+title: "Confirm What Runs and How Many Times Before Running"
+sidebarTitle: "Select and Preview the Run Scope"
+description: "List which Experiments exist, narrow the scope with ID prefixes and tags, then use --dry to see which evals this run executes and how many times, and confirm before spending money."
 ---
 
-When a repository has several Experiments and many Evals, confirm their definitions and preview the plan first. Do not guess an ID from a filename or start a batch that may select the wrong work.
+You only wanted to reproduce one failing eval, but moved too fast and ran all 200 evals in the whole experiment group, spending tens of dollars.
+
+When the repository has several groups of Experiments and many evals, first confirm what this run will actually execute, then start it for real. Do not guess IDs from file names, and do not launch a batch that may be the wrong selection.
 
 ## List runnable Experiments
+
+First see which Experiments the project has, and confirm the ID you want:
 
 ```sh
 pnpm exec niceeval exp list
 pnpm exec niceeval exp list compare/codex
 ```
 
-Each line shows the Experiment ID, description, Agent, model, Attempt count, selected Eval count, and labels. `exp list` only discovers and selects; it creates no Invocation, Sandbox, or model call.
+Each line shows the Experiment ID, description, Agent, model, number of Attempts, number of selected evals, and labels. `exp list` only reads configuration; it does not start Sandboxes, call models, or write results.
 
-Use JSON when a script needs the complete list:
+When a script needs the complete list, add `--json`:
 
 ```sh
 pnpm exec niceeval exp list --json > experiments.json
 ```
 
-## Narrow the scope with positional arguments
+## Run only part of it
 
-The first positional argument selects an Experiment ID, directory, or filename prefix. Later arguments narrow only the Evals already selected by those Experiments, using their ID prefixes:
+The first positional argument selects the Experiment and can be an ID, a directory, or a file name prefix. Later arguments narrow further by eval ID prefix:
 
 ```sh
 pnpm exec niceeval exp compare/codex memory/commit0
 ```
 
-An exact Experiment ID takes precedence over a prefix. A directory segment must match exactly. An Eval prefix cannot add a task back that is outside the Experiment's long-lived scope.
+An exact Experiment ID wins over a prefix match. The directory part must match exactly. Eval prefixes can only narrow within the evals this Experiment already selects; they cannot add evals outside its scope.
 
-Use `--tag` when you only want Evals with a particular tag:
+To run only evals with a certain tag, use `--tag`:
 
 ```sh
 pnpm exec niceeval exp compare --tag smoke
 ```
 
-Put the long-lived scope in an Experiment's `evals`. Positional arguments and `--tag` only narrow one Invocation temporarily.
+Positional arguments and `--tag` only affect this run. To change which evals an Experiment runs long-term, change its `evals`.
 
-## Check the plan with `--dry`
+## See the plan with `--dry`
 
-Add `--dry` before a real run:
+Before really running, add `--dry` to the same command:
 
 ```sh
 pnpm exec niceeval exp compare/codex memory/commit0 --dry
 ```
 
-The plan lists Evals, runtime configuration, Attempt ordinals, and whether each position will execute or adopt a historical result. It creates no Invocation, Run, Sandbox, or model call, and writes no JUnit file.
+The plan lists each eval, run configuration, and Attempt number, and marks whether each Attempt executes again or reuses the last result. `--dry` does not create a Run, start Sandboxes, call models, or write JUnit.
 
-Combine it with `--json` when a machine needs to read the plan:
+Check line by line: whether the number of evals is right, whether the model is the one you want, how many times each eval runs, and which ones reuse old results. For the rules on reuse and rerun, see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).
+
+When a script needs to read the plan, add `--json`:
 
 ```sh
 pnpm exec niceeval exp compare/codex memory/commit0 --dry --json > plan.json
 ```
 
-After you confirm the count, model, Attempts, and treatment of historical results, remove `--dry` and run the same command.
+After confirming, drop `--dry` and run the same command. After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
 
-## Handle selection failures
+## What to do when nothing is selected
 
-- When no Experiment matches, the CLI lists browsable directories and suggests running `exp <path> --dry` first.
-- When no Eval matches, the CLI explicitly reports `No evals selected`; it does not fall back to the whole Experiment scope.
-- To inspect lifecycle commands rather than the execution matrix, use [Inspect the Lifecycle Plan Before Running](/tutorials/debug-lifecycle-plan).
-- To decide which old results can be carried, continue with [Rerun and Carry Results](/tutorials/rerun-and-cache).
+- When no Experiment is selected, the CLI lists the available directories and suggests running `exp <path> --dry` first.
+- When an Experiment is selected but not a single eval is, the CLI reports `No evals selected` and does not fall back to running the whole Experiment.
+- To see the preparation steps and their order in the Sandbox, rather than which evals run, see [Check How the Sandbox Will Be Prepared Before Running](/tutorials/debug-lifecycle-plan).

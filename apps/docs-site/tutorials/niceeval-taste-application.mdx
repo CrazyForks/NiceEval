@@ -1,0 +1,396 @@
+---
+title: "Eval Criteria for Custom Applications: Business Facts, Domain Matches, and Plain Arithmetic"
+sidebarTitle: "Criteria for Custom Applications"
+description: "When an application supplies support records or game state, let its Adapter provide facts, compose small conditions with domain Matches, calculate scores in the eval, and preserve unknown states."
+---
+
+Applications that supply business facts, such as support records or game state, need one more layer than Agent evals: the Adapter gives NiceEval the facts, then the eval combines conditions and calculates scores. It still uses the same `check`, `closeQA`, `.gate()`, and `.score()` methods.
+
+This page continues [NiceEval Taste](/tutorials/niceeval-taste). Read its four principles first; it also contains the shared checks before delivery.
+
+## Responsibilities
+
+| Owner | Responsibility |
+| --- | --- |
+| Eval body | Define the scenario, observation steps, checks, business criteria, weights, and prerequisites for later steps |
+| Adapter | Read application facts and provide a typed context for the current Attempt; manage connections and cleanup, correlate records, and report usage |
+| Domain Match | Provide reusable small criteria for identity, state, or operation type, with failure diagnostics. The eval composes the full acceptance condition |
+| NiceEval | Provide generic checks, composition, gates, scoring, stopping, Judge, aggregation, cancellation, and evidence auditing |
+
+The Adapter reads the application's existing protocol, execution records, and state instead of inventing another dataset. Facts passed to checks are read-only and isolated by Attempt. Keep log conversion, record correlation, and billing in the Adapter, out of the eval body.
+
+## Start with the scenario and criteria
+
+State the business task in one sentence, then list requirements that can fail independently. For each, specify the object, whether it means “once” or “every time,” the observation window, and the evidence source. Assign weights last.
+
+Write the body in the order “what happened, what is checked, what gate and weight apply.” Comments explain why a check matters instead of repeating its method name. Separate observation prerequisites, business gates, and scoring with blank lines. Prefer another pass over the data to hiding criteria inside a general wrapper for performance.
+
+Evidence must establish the conclusion. “The recipient received the email” requires a matching send receipt and receiving record. Generating the email body only proves output exists; accepting the send request only proves processing began. Neither alone proves delivery.
+
+An abstraction should clarify criteria, not hide them. Moving thirty lines of filters into another file named `journalMatches` does not solve the problem. At the other extreme, a `runEverything()` helper that hides every check and weight makes the eval impossible to review.
+
+## Separate reading facts from judging them
+
+A context Match has two parts: `read(ctx)` reads facts or complete material available to the current Attempt; its inner `match` decides how to judge them. NiceEval injects `ctx` when running the check. You do not pass `ctx` or the whole log as an argument. See the [Match reference](/reference/expect) for signatures.
+
+Use application vocabulary close to the facts: characters, speech, operations, requests, and model responses. Log filenames and storage formats should not become the main language of evals. The Adapter defines how facts are correlated, when they are complete, and which time window a measurement covers.
+
+An application can provide checks through its Adapter's `assertions`, such as `t.said(match)`, `t.systemOne(match)`, or `t.hp(selector, collectionMatch)`. They read facts and pass them to the same `check`. These are application-defined methods, not NiceEval built-ins. Calling one registers a check; no separate scope lookup or registration step is needed.
+
+## Keep criteria in the body, not hidden in names
+
+`winnerActedIndependentlyInCombat()` looks concise, but a reader must open its implementation to learn what it checks. Does it verify identity, a successful model call, and an adopted decision, or just find a log mentioning “combat”? Naming a function after the conclusion does not make its criteria visible.
+
+Small domain criteria can use domain names, such as character, health, decision, and operation. Each should express one explainable condition. Leave equality, counting, composition, and failure diagnostics to general combinators. Put the selected subjects, required counts, and simultaneous conditions in the eval body.
+
+The same applies to objects. “The crate arrived intact” needs three visible conditions on one object: `id === crateId`, `durability >= minimum`, and `positionId === destinationId`. If the crate must actually have been carried, check a separate operation record; its current position does not prove the process.
+
+This fragment assumes the application is connected. Combinators come from `niceeval/expect`; `t.hp`, `t.systemOne`, `t.objects`, and the character, model, decision, operation, object, durability, and position Matches are application-defined. Connect the application's Adapter first.
+
+```ts
+import { and, countWhere, equals, greaterThan } from "niceeval/expect";
+
+// Exactly three of the selected characters have zero health.
+t.hp(npcMatch({ ids }), countWhere(equals(0), equals(3))).gate();
+
+// Identity, model outcome, adopted decision, and operation type must match on the same action.
+t.systemOne(and(
+  npcMatch({ id }),
+  modelMatch({ outcome: "succeeded" }),
+  decisionMatch({ outcome: "adopted" }),
+  operationMatch({ ids: operationIds }),
+)).gate();
+
+// Select the crate and require remaining durability and the destination position.
+t.objects(
+  objectMatch({ id: scenario.carry.objectId }),
+  and(
+    durabilityMatch(greaterThan(0)),
+    positionMatch({ map: scenario.map.name, ...scenario.destination }),
+  ),
+).score(50);
+```
+
+Every condition is visible:
+
+- `ids` identifies the characters in this scenario, `id` the character being checked, and `operationIds` the allowed operation types. Define them in the scenario declaration.
+- “All defeated” becomes a health condition plus a count; “independent action” becomes a successful model call plus an adopted decision.
+- `scenario` supplies the object ID, map, and destination. The first argument to `t.objects` selects the object; the second checks that same object's durability and position. The weight of 50 is written directly after them.
+
+Inside the Adapter, `t.objects` uses public combinators such as `filterWhere` and `countWhere`, then passes the result to `check`. It does not call an internal evaluator and is not a built-in NiceEval object API.
+
+The Adapter must provide correlated facts so combined conditions concern the same object. Do not build temporary data structures or expand log filters in the eval body, and do not have the Adapter return a conclusion such as “this eval passed.”
+
+A successful model call, an adopted decision, a successfully executed operation, and an achieved goal are four distinct facts. You cannot combine A's successful call, B's adopted decision, and C's operation into a pass, or interpret one successful model call as task success. An adopted decision does not prove execution succeeded; write another check when the task requires execution results.
+
+### Collection combinators
+
+| Combinator | Purpose |
+| --- | --- |
+| `mapValue(label, project, match)` | Extract a value from one fact and pass it to an inner check. Use it for small criteria such as character identity or model outcome |
+| `filterWhere(selector, aggregate)` | Select definite matches from a complete collection and pass them, in order, to a collection check |
+| `mapEach(project, aggregate)` | Extract the same kind of value from each item, preserving material identity and order, then apply a collection check |
+| `countWhere(item, count)` | Check each item and pass the exact match count to a count check |
+
+For an incomplete collection, these combinators return an indeterminate result. They do not treat a subtotal of known items as an exact count.
+
+Check that all required characters are present separately. Three characters with zero health do not prove that every specified character was observed. An empty collection has a count of zero, which also cannot prove “everyone meets the condition.” The Adapter must preserve unknown states for missing characters or measurements instead of dropping them and claiming the collection is complete.
+
+## Specify once, every time, and never
+
+“At least once,” “every time,” and “never” need different evidence. First limit the scope to the same Attempt, object, and observation window, then decide whether missing records affect the conclusion.
+
+| Business requirement | Sufficient evidence | Complete but empty collection |
+| --- | --- | --- |
+| At least one qualifying action | One real, traceable instance satisfying every condition | False |
+| Every action qualifies | All candidates covered and checked; add “at least once” if participation is required | Depends on whether actual participation is required |
+| No prohibited action | No violation within the complete scope; one counterexample disproves it | True |
+| Ask an acceptance question about a whole set | Complete, ordered, nonempty relevant material | `closeQA` scores zero without calling Judge |
+
+Empty-collection rules depend on the check. `closeQA` scores zero, while `notCalledTool` passes. A `partial` or `unavailable` collection cannot prove an event never happened and must not be treated as empty.
+
+One qualifying instance proves “at least once,” not “all qualify.” Likewise, one violation disproves “no violations” even if the remaining material is incomplete. Mark insufficient evidence honestly instead of always treating it as a business failure.
+
+Combined conditions must concern the same object. “An action by A exists” plus “speech delivered to B exists” does not prove “A spoke to B and it was delivered.” A's movement and C's speech could satisfy those two conditions separately.
+
+## Complete example: A support task
+
+The next three blocks form one `support-review.ts` module, in order. It exports a project-defined `createSupportReview` factory: pass the application's existing observation function and receive an Adapter and an eval. This factory is not a NiceEval API; it keeps integration code and the eval body separate and readable.
+
+Default-export the returned `evaluation` from an `.eval.ts` file and use the same returned `adapter` in the Experiment. Configure Judge before running; see [Verify Judge](/tutorials/verify-judge).
+
+### Part 1: Provide application facts and preserve unknown states
+
+`observe(ctx)` executes or waits for the support task and returns read-only facts for the current Attempt. It responds to cancellation through `ctx.signal`, registers connection cleanup callbacks as needed, and reports usage through `ctx.recordUsage`. Correlate records, decode protocols, and validate time here, outside the eval body.
+
+Completion status needs evidence:
+
+- A completed task has a completion event and a verified nonnegative `businessSeconds` value.
+- A task confirmed incomplete has a record showing observation fully ended.
+- If neither can be confirmed, return `unavailable`.
+
+The speech collection retains each utterance's evidence ID, original text, delivery state, and model origin. Mark unknown states instead of presenting them as complete records.
+
+```ts
+import { defineAdapter, type AdapterCreateContext } from "niceeval";
+import {
+  atLeast, atMost, countWhere, defineContextMatch, defineMaterialMatch,
+  equals, filterWhere, mapEach, mapValue,
+  type BooleanMatch, type CollectionValue, type MaterialCollection, type MatchFact,
+  type NumericMaterial,
+} from "niceeval/expect";
+
+export type Speech = {
+  readonly actorId: string;
+  readonly text: string;
+  readonly delivered: boolean;
+  readonly modelOrigin: "verified" | "unknown";
+};
+export type Completion =
+  | { readonly completed: true; readonly eventId: string; readonly businessSeconds: number }
+  | { readonly completed: false; readonly observationEndId: string };
+export type SupportFacts = {
+  readonly speeches: MaterialCollection<Speech>;
+  readonly completion: MatchFact<Completion>;
+};
+```
+
+### Part 2: Domain Matches select material only
+
+Select speech only by character. Undelivered speech and speech with unknown model origin must also contribute to expression-quality assessment. `read` gets material from the injected `ctx` without registration. The read budget covers the entire collection, including nonmatching speech.
+
+Completion status and business time are already facts: read them and calculate directly. Do not create a “completion efficiency Match” just to access a field or wrap arithmetic. Keep the formula, time scale, and weight in the eval body.
+
+```ts
+export const actorMatch = (actorId: string) =>
+  mapValue("actorMatch", (speech: Speech) => speech.actorId, equals(actorId));
+
+export const speechMaterial = (match: BooleanMatch<Speech, Speech>) =>
+  defineMaterialMatch<SupportFacts, Speech>({
+    name: "actor-speeches",
+    read: ctx => ctx.speeches,
+    match,
+    capture: { maxItems: 1024, maxBytes: 512 * 1024,
+      maxNodes: 65536, maxDepth: 32 },
+  });
+```
+
+### Part 3: Make every criterion and weight visible
+
+This eval awards 5 points for participation, 45 for expression quality, and 50 for completion efficiency. It also has three gates: at least one support utterance was delivered, token usage stays within its limit, and runtime stays within its limit.
+
+`said` and `speechDelivery` are this Adapter's own checks. `said` checks for at least one utterance. `speechDelivery` passes the complete speech collection to combinators for selection, projection, and counting, preserving incomplete states. Neither decides the eval's pass conditions for its author.
+
+```ts
+export function createSupportReview(
+  observe: (ctx: AdapterCreateContext) => Promise<SupportFacts>,
+) {
+  const adapter = defineAdapter({
+    name: "support-review",
+    create: observe,
+    assertions({ check }) {
+      return {
+        said(match: BooleanMatch<Speech, Speech>) {
+          return check(speechMaterial(match));
+        },
+        speechDelivery(
+          selector: BooleanMatch<Speech, Speech>,
+          aggregate: BooleanMatch<CollectionValue<boolean>, CollectionValue<boolean>>,
+        ) {
+          return check(defineContextMatch<SupportFacts, MaterialCollection<Speech>>({
+            name: "speech-delivery",
+            read: ctx => ({ state: "available", value: ctx.speeches }),
+            match: filterWhere(selector, mapEach(
+              (speech: Speech) => speech.delivered, aggregate,
+            )),
+          }));
+        },
+      };
+    },
+  });
+  const evaluation = adapter.defineScoreEval({
+    description: "Support speech quality and task completion efficiency",
+    test(t) {
+      // Participation earns points; at least one delivery is a separate business gate.
+      t.said(actorMatch("agent")).score(5).label("Participation");
+      t.speechDelivery(actorMatch("agent"), countWhere(equals(true), atLeast(1)))
+        .gate().label("At least one delivery");
+
+      // Assess all speech; do not filter by delivery or model origin.
+      t.closeQA(speechMaterial(actorMatch("agent")), "Is every utterance natural, complete, and clear?", {
+        maxMaterialBytes: 256 * 1024,
+        maxAuditBytes: 1024 * 1024,
+      }).score(45).label("Expression quality");
+
+      // Keep the formula visible; unknown retains its weight and is not a zero for non-completion.
+      const completion = t.completion;
+      const ratio: number | NumericMaterial = completion.state === "unavailable"
+        ? { state: "unavailable", reason: completion.reason }
+        : completion.value.completed
+          ? Math.max(0, 1 - completion.value.businessSeconds / 180)
+          : 0;
+      t.score(ratio, { weight: 50 }).label("Completion duration");
+
+      const usage = t.usage;
+      t.check(usage.totalTokens, atMost(10_000)).gate().label("Usage limit");
+      t.check(t.elapsedMs, atMost(30_000)).gate().label("Runtime limit");
+    },
+  });
+  return { adapter, evaluation };
+}
+```
+
+Keep these distinctions in mind:
+
+- **Two kinds of budget.** The limits in `closeQA` cover Judge material and audit records; `capture` in `speechMaterial` covers reading the whole collection. These example values do not fit tasks of every length.
+- **Two kinds of time.** `t.elapsedMs` is the eval run's wall-clock duration. Completion efficiency uses application business time. They are not interchangeable.
+- **Unreported usage does not pass the check.** Read `t.usage` and `t.elapsedMs` directly as properties. Missing tokens remain unknown, not zero.
+- **Each score proves only its own item.** Completion at business second 90 earns 25 efficiency points; Judge must score expression quality separately. If Judge is unavailable or material exceeds capacity, the total score is incomplete. Delivery also does not prove model origin: add a deterministic check if the business requires independent model-generated speech.
+
+## Case 1: Ask for directions, then actually meet
+
+A must ask B how to reach a meeting place, then walk there independently and meet B. The eval assesses A's choices, execution, and outcome, not whether the player completed the task for A.
+
+Judge four things separately: expression quality, useful information, actual delivery, and model origin. They require different material:
+
+- **Expression quality** uses all of A's speech in the observation window, including unheard or incorrect speech and speech with unverified origin. Keep questions, answers, refusals, and clarifications, with the necessary two-party context. Do not filter for delivered or verified speech first.
+- **Useful information** uses the complete delivered conversation from both sides, together with the official map.
+
+This is a design sketch. The weights are business choices for this task. It is pseudocode, not runnable code; implement application actions and material APIs using the installed version's reference.
+
+```text
+Scenario: A does not know the route; B does. Both are within speaking range.
+Goal: After asking for directions, A independently reaches the destination and meets B.
+
+Observe: Run the application until the task ends or the business observation deadline arrives.
+
+Prerequisite: Confirm that this Attempt's conversation, action, and outcome records
+              are complete and can be correlated. Otherwise report unavailable evidence
+              and stop checks that depend on it.
+
+Checkpoint 1: A delivered a request for directions to B.
+              Gate: the same utterance satisfies actor, recipient, and delivery conditions.
+
+Checkpoint 2: Select complete material separately for the two acceptance questions.
+              Expression: Is all of A's formal speech natural, complete, and understandable
+              in context? Weight 2. Keep unheard, incorrect, and unverified-origin speech.
+              Information: Does the delivered conversation provide enough information to
+              find the destination? Weight 3. Include the official map and destination.
+              Check model origin separately; unknown origin does not prove autonomy.
+
+Checkpoint 3: A's model chose movement; the application executed it; A arrived and met B.
+              Record all three separately. Link the meeting to A's independent action.
+              Independent completion is a gate and earns 5 points; player movement does not count.
+
+Result: Show each judgment and its reason. A complete score ranges from 0 to 10.
+        Retain earned points when a gate fails. Do not fabricate a complete zero score
+        when evidence is unavailable.
+```
+
+“Directions arrived before movement” proves only ordering. To require “A followed B's directions,” the application must correlate the choice with the input it used. If that evidence is unavailable, narrow the criterion and state the limitation. Temporal proximity is not causation.
+
+Judge questions must not suggest an answer and must state clear criteria. “Did A perform excellently and understand B?” provides no acceptance standard. Separating expression from information lets a reader explain each score independently.
+
+## Case 2: Negotiate transport and actually deliver
+
+A and B must carry an item together. Establish the business conditions first: do both already know the goal, is negotiation required, and who can refuse? Derive criteria from those conditions instead of copying the directions task.
+
+| Scenario | Assessing communication | Assessing completion |
+| --- | --- | --- |
+| The goal is not aligned; B explains why it cannot carry and offers a reasonable alternative | This can be effective communication; retain the refusal and response | No delivery means no completion |
+| Both know the goal and carry according to their agreement without speaking | If speech is not required, do not register a speech-dependent quality item | Check carrying and delivery records |
+| The operation was accepted but the item has not moved | Acceptance does not prove communication quality | Not delivered |
+| The player delivered the item; A did not carry it | This does not show that A understood the task | Does not satisfy independent completion by A |
+
+For communication quality, retain both sides' complete conversation and ask questions answerable from it. For delivery, correlate the item, destination, executor, and completion receipt. Score communication and delivery separately, with weights visible in the body.
+
+Apply the same approach to operation requests and model responses: keep failures and adjustments in operation records, actual sent content in request records, and rejected outputs in model responses. Observe choice, execution, and outcome separately; one does not substitute for another.
+
+`closeQA(materialMatch, question)` can assess all of a character's speech, operations, requests, or model responses. NiceEval passes every matching item to Judge in the original order. You need not call the model once per item in the eval. The first item, a summary, or a few successful samples cannot represent overall performance.
+
+Write a question used by only this eval directly in its `closeQA` call so readers see both material and criteria. Shared question text can be a reusable constant, but do not hide material selection, question, and weight together in a scenario-specific function.
+
+A saved final position proves only the ending location. Even if the application attaches it to every operation record, it is not the location at the time of each operation. Assess a route or step-by-step trajectory from records captured at the corresponding times.
+
+## Common misleading patterns
+
+These are business pseudocode examples. Variables represent application facts, not NiceEval fields.
+
+| Pattern | Problem | Better approach |
+| --- | --- | --- |
+| Send `journal.filter(isSuccess).slice(0, 12)` to Judge | Keeping only early successes hides refusals, errors, and adjustments | Select all material by business object and observation window; preserve order, text, and evidence IDs |
+| Assess expression with `speeches.filter(deliveredAndModelVerified)` | Excludes poor unheard speech or speech with unverified origin | Use all of the character's speech; check delivery and origin separately |
+| Name a `journal.map(...).reduce(...)` result `cooperation` | A statistic does not define cooperation | Define cooperation first, then check the relationship between actor, goal, and action with domain Matches |
+| `t.observation(...)`, `t.efficiency(...)`, `runEverything()` | Names conceal evidence and criteria, or all scoring | Write observation prerequisites, business checks, Judge questions, and points separately in the body |
+| `winnerActedIndependentlyInCombat()` | The name hides the judgment | Combine character identity, successful model call, adopted decision, and allowed operation type in the body |
+| `allThreeEnemiesDefeated()` | “Defeated” may mix health, departure, and task outcome; the count is hidden | Specify the characters, health condition, and required count separately |
+| `crateDeliveredIntact()` | The name conceals identity, durability, and location conditions | Combine identity, durability threshold, and destination on the same object |
+| `firstDecisiveGameSeconds()`, `preVictoryCallEfficiency()`, `inverseScoreMatch()` | Invents concepts for a number or formula the reader must look up | Read duration and call count for the same window from `ctx`, calculate a 0-to-1 ratio in the body, then apply the weight |
+| `has(actorA) && has(deliveredToB)` | Different records can satisfy each condition | Combine actor, action, and delivery conditions on one record |
+| `output.includes("move")` | Saying it will move does not prove movement | Check the model choice, execution receipt, and position change separately |
+| Treat `accepted === true` as task completion | Acceptance is not final completion | Check the matching completion receipt and target state |
+| `tokens ?? 0`, `cost ?? 0` | Missing data becomes free or low usage | Preserve unknown values or known lower bounds and assess budgets according to coverage |
+| Use `Date.now() - started` as business completion time | Wall-clock time includes waiting and eval overhead | Read business time from the application and track runtime separately |
+| `judge("Was the tool called?")` | Asks a model to guess a directly observable fact | Check tool-call records deterministically |
+| Use `reply.includes("sorry")` to judge a refusal | Keywords do not explain meaning | Give Judge full context and ask whether the refusal follows business constraints |
+
+## Separate usage from business time
+
+Call count, tokens, and cost are different metrics. The Adapter reports usage for every real call, including failures and retries; NiceEval aggregates it. Do not maintain another model price table in the eval. Unknown cost is not zero, and a known lower bound is not a complete total.
+
+`t.usage` and `t.elapsedMs` provide general usage and wall-clock duration. Measurements such as “calls before completion” or “game time to completion” require an observation window explicitly defined by the application. Do not rename a usage snapshot “usage before completion,” or substitute game time for runtime.
+
+## Preserve complete evidence
+
+Retain material in its original order and make it traceable to records from the same Attempt. “Complete” is relative to the declared business scope; it does not mean sending every unrelated log to Judge. Select by object, task, and observation window, not by performance.
+
+When the whole conversation matters, do not truncate text or discard refusals and clarifications. Report capacity overflow as indeterminate instead of shortening the window, sampling, or retaining only successes to obtain a score. If the business question changes, write a separate eval; its result does not answer the original task.
+
+### Account for reading and Judge budgets separately
+
+These budgets cover different things:
+
+- **Read budget** covers the entire candidate collection, including nonmatching records.
+- **Judge material budget** covers the acceptance question, all matching material, and its identity information.
+- **Audit budget** must also fit the actual Judge request, response, and references.
+
+Few candidates, few matches, and few bytes are different properties. If you read a thousand operations and twenty belong to A, the read budget still covers a thousand. If A's twenty operations contain long text, their low count does not prove the Judge material or audit budget is sufficient. Preserve unknown results on overflow; do not treat the first twelve items as the whole set.
+
+“At least once” needs one confirmed instance. A question about the whole set needs confirmed completeness and every matching item. One qualifying action does not prove the others are good or justify hiding unread records from Judge. If a budget stops reading, even an “at least once” conclusion must follow the formal evidence record, not an inference from a truncated array.
+
+## Calculate scores with ordinary arithmetic
+
+Completion duration is an application fact. Do not pass the entire log into the eval. The application supplies traceable completion status and business time; the eval calculates the score directly without a new function, Match, or scoring mechanism for a field lookup or arithmetic expression.
+
+For “earlier completion within 180 business seconds earns more,” use `max(0, 1 - completionSeconds / 180)` with a weight of 50:
+
+- Complete observation proves no completion: zero points.
+- Missing completion or observation-end record: indeterminate.
+- A missing completion event is not a duration of zero; wall-clock runtime is not business time.
+
+Completion at second 90 proves only that this item earns 25 points. Delivery, independent model choice, and expression quality still need separate checks. One passing example or type check does not verify the entire eval.
+
+For combat, state the waiting condition explicitly: “one specified character remains alive, or the observation deadline arrives.” The deadline does not establish a winner. Distinguish one survivor, multiple survivors, and no survivors. After stopping, read game duration and actual call count from the same window and calculate according to the business rule. Do not reconstruct a new “first decisive moment” concept from logs.
+
+This describes observation intent, not a NiceEval API for live state or deadlines. The application must supply a read-only state API and a stopping mechanism. Do not call internal evaluators, read partially saved internal storage, or assume cancellation means all ongoing operations have ended. Follow the application's state and cleanup contracts and the [Adapter reference](/reference/define-agent).
+
+## Ask Judge questions the material can answer
+
+When an external map, rules, or reference answer is a real acceptance basis, provide it explicitly with its source. Do not put the desired conclusion into the question as a premise. Judge treats instructions inside the material as content under evaluation, not instructions to execute.
+
+When reusing a domain Match, review its name, what evidence it considers sufficient, and its failure explanations. Preserve business checkpoints and separate weights. Do not add multiple aliases or registration steps for one capability. Follow the installed version's reference for interface shapes; design sketches are not runnable APIs.
+
+## Additional checks before delivery
+
+Complete [NiceEval Taste: Checks before delivery](/tutorials/niceeval-taste#checks-before-delivery), then verify the cases specific to business facts:
+
+- **Collection states**: cover complete nonempty, complete empty, missing items, and partial collections. Ensure conditions from different characters cannot combine into a pass. Treat one survivor, no winner yet, and mutual defeat as separate business cases instead of treating every non-win as a technical error.
+- **Real application lifecycle**: for external HTTP or a continuously running application, verify the order of cancellation, waiting for ongoing operations, and saving evidence. Check late events after cancellation, writes after saving, and honest marking of incomplete observations. A passing local Fixture does not verify the whole application lifecycle.
+
+Before committing, also ask:
+
+- Does expression-quality assessment use all of the character's speech, with delivery and model origin checked separately?
+- Are collection reading, Judge material, and auditing each within budget, with overflow reported honestly?
+- Can readers see characters, states, counts, gates, and combinations without opening helper implementations?
+- Are reasonable refusals, silent cooperation, and adjustments after failure handled according to this scenario's rules?
+- Is final state being mistaken for a step-by-step trajectory? Are business measurement windows mixed with general usage?

@@ -1,0 +1,203 @@
+---
+title: "Prebuilt Sandbox Environments: Start Each Eval Faster"
+sidebarTitle: "Prebuilt Environments"
+description: "Bake system packages, Agent CLIs, and large caches into a Docker image, Vercel snapshot, or E2B template derived from an official baseline; carry run-time caches between Attempts with checkpoints."
+---
+
+Every Attempt starts from the same starting point. System packages, Agent CLIs, compiled binaries, and large model caches are stable, large, and identical every time. Instead of reinstalling them for every Attempt, bake them into a prebuilt environment before running evals, and let Attempts start directly from the installed environment.
+
+The three Providers reference prebuilt environments the same way:
+
+```ts
+dockerSandbox({ source: { type: "image", image: "my-evals:node24" } })
+vercelSandbox({ snapshotId: "snap_abc123" })
+e2bSandbox({ template: "my-evals" })
+```
+
+NiceEval only reads the ID of the build result and does not provide a cross-Provider build command. Docker images, Vercel snapshots, and E2B templates differ in credentials, build method, publishing, and expiry rules. Maintain build scripts with each Provider's own official tools, and finally write the ID or name into the Experiment.
+
+## It runs without prebuilding too
+
+Prebuilding is only for speed. The Adapter and the Sandbox each handle their own side: the Sandbox configuration decides which Provider to use and which prebuilt environment to start from; the Adapter checks whether the CLI it needs is present. When Claude Code or Codex is missing its CLI, it is installed at run time: the installation package is prepared outside the eval network, then sent into the Sandbox through the file interface.
+
+- What Codex sends into the Sandbox is a native installation package with its own runtime, so it installs even when the image has no Node.
+- Claude Code requires npm in the image.
+- The default Bub 0.4.0, besides the OTel plugin, also pins `any-llm-sdk==1.17.0` and `openai==2.31.0`. When any of the Bub version, these two dependencies, the OTel plugin, or the Python plugin list changes, it reinstalls; `command -v bub` alone cannot show that it is installed. A prebuilt environment made with an old installation marker reinstalls once. When you explicitly choose another Bub version, the other packages it depends on are your responsibility.
+
+## Continue building from the official baseline
+
+All three built-in Providers can continue building from an official baseline, so you do not install the Agent from a blank environment. A prebuilt environment is built only once when dependencies change, with a new versioned name for each build. Do not put the build in a dynamic callback that runs for every Attempt.
+
+### E2B: derive from official and public templates
+
+E2B officially provides the `claude` template for Claude Code and the `codex` template for Codex. NiceEval provides a thin E2B-specific wrapper that lets you keep building from these two official starting points with E2B's native API. E2B has no official Bub template, so the Bub branch uses the same pinned dependencies and OTel plugin as `bubAgent()`.
+
+NiceEval also publishes three public templates that any E2B Team can reference. NiceEval maintains their full names and versions; use the constants directly:
+
+```ts
+import {
+  NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE,
+  NICEEVAL_CODEX_E2B_TEMPLATE,
+  NICEEVAL_BUB_E2B_TEMPLATE,
+} from "niceeval/sandbox/e2b-template";
+
+e2bSandbox({ template: NICEEVAL_CLAUDE_CODE_E2B_TEMPLATE })
+e2bSandbox({ template: NICEEVAL_CODEX_E2B_TEMPLATE })
+e2bSandbox({ template: NICEEVAL_BUB_E2B_TEMPLATE })
+```
+
+These templates have all been verified by actually starting them: Claude Code `2.1.207`, Codex `0.144.1`, and Bub `0.4.0`. The template version follows the Agent inside it, in the form `0.144.1-r1`: the Agent version plus NiceEval's build revision. The three Agents release independently, unrelated to the NiceEval library's version. So use the constants in your project, do not copy these strings, and you do not need to track versions yourself. When a derived template needs to record its base template, use the constant's value too.
+
+In this batch of public templates, the Claude Code template keeps E2B's official `/usr` npm prefix, so ordinary users cannot write global modules directly. When you need to install more global Node tools such as pnpm or yarn at run time, install them explicitly into `/usr/local`, which both templates already put on PATH:
+
+```ts
+await t.sandbox.runCommand("npm", [
+  "install", "-g", "--prefix", "/usr/local", "pnpm@10.34.5",
+]);
+```
+
+Do not switch to `sudo npm install -g`; it can conflict with root global packages already in the template. NiceEval will unify this default prefix in templates published later; until the release notes say a new template handles it, keep `--prefix /usr/local`.
+
+Derive your own template from the official Codex template:
+
+```ts title="scripts/build-e2b-template.ts"
+import { Template } from "e2b";
+import { e2bCodingAgentTemplate } from "niceeval/sandbox/e2b-template";
+
+const template = e2bCodingAgentTemplate("codex")
+  .aptInstall(["ripgrep", "jq"])
+  .runCmd("corepack enable && pnpm --version")
+  .copy("fixtures/toolchain.lock", "/opt/evals/toolchain.lock");
+
+await Template.build(template, "acme-codex-evals:0.144.1-r1", {
+  cpuCount: 2,
+  memoryMB: 4096,
+});
+```
+
+```bash
+e2b auth login
+pnpm tsx scripts/build-e2b-template.ts
+```
+
+Then reference only the build result in the Experiment:
+
+```ts
+import { e2bSandbox } from "niceeval/sandbox";
+
+sandbox: e2bSandbox({ template: "acme-codex-evals:0.144.1-r1" })
+```
+
+You can also derive directly from a NiceEval public template and pay build time only for your project's own dependencies:
+
+```ts
+import { NICEEVAL_CODEX_E2B_TEMPLATE } from "niceeval/sandbox/e2b-template";
+
+const template = Template()
+  .fromTemplate(NICEEVAL_CODEX_E2B_TEMPLATE)
+  .aptInstall(["ripgrep", "jq"])
+  .runCmd("corepack enable");
+```
+
+`e2bCodingAgentTemplate("claude-code" | "codex" | "bub")` returns E2B's native `TemplateBuilder`, so you can keep using E2B capabilities such as `.aptInstall()`, `.runCmd()`, and `.copy()`. The built alias pins the official starting point and project dependencies into one reproducible result. When dependencies change, rebuild and use a new versioned alias.
+
+When the Bub Adapter is configured with `pythonPlugins`, pass the same set of packages to the factory when building the template. Only then does the run time recognize that the plugins are preinstalled:
+
+```ts
+e2bCodingAgentTemplate("bub", {
+  bubPythonPackages: ["bub-plugin-memory==1.3.0"],
+})
+```
+
+### Docker: use NiceEval-maintained images, or derive from the official node base image
+
+To run NiceEval's built-in `claude-code`, `codex`, or `bub` Adapter directly, use the matching public image: [`niceeval/claude-code`](https://hub.docker.com/r/niceeval/claude-code), [`niceeval/codex`](https://hub.docker.com/r/niceeval/codex), or [`niceeval/bub`](https://hub.docker.com/r/niceeval/bub).
+
+Each image installs only its own Agent CLI and comes in both `linux/amd64` and `linux/arm64`. Tags match the corresponding E2B public templates, and the version is the version of the Agent in the image. Stable CI should use a named constant or digest, not the changing `latest`:
+
+```ts
+import { NICEEVAL_CODEX_DOCKER_IMAGE, dockerSandbox } from "niceeval/sandbox";
+
+sandbox: dockerSandbox({ source: { type: "image", image: NICEEVAL_CODEX_DOCKER_IMAGE } })
+```
+
+These are public images maintained by NiceEval, not Docker's official `library/*` images. A new tag is published only when the Agent version or build method changes, independent of the NiceEval library's release cadence.
+
+When you only need one Agent, or need to add your project's own dependencies, write a Dockerfile derived from Docker's official `node:24-slim`:
+
+```dockerfile title="Dockerfile"
+FROM node:24-slim
+# The slim image lacks ca-certificates / git, which both the Agent and npm need
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git \
+  && rm -rf /var/lib/apt/lists/*
+# npm installs globally into /usr/local/bin, which is on the Sandbox's PATH
+RUN npm install -g @openai/codex@0.144.1
+```
+
+```bash
+docker build -t acme-codex-evals:0.144.1-r1 .
+```
+
+Then reference only the build result in the Experiment:
+
+```ts
+import { dockerSandbox } from "niceeval/sandbox";
+
+sandbox: dockerSandbox({ source: { type: "image", image: "acme-codex-evals:0.144.1-r1" } })
+```
+
+A Docker Sandbox runs commands as the user the image itself declares. The Dockerfile above does not set `USER`, so it runs as root by default; `/usr/local/bin` is already on root's PATH, and commands installed with `npm install -g` work directly.
+
+When you need a non-root user (for example, Claude Code refuses `--dangerously-skip-permissions` under root), add a line `USER node` to the Dockerfile; `node:24-slim` includes this user. You can also override it with `dockerSandbox({ source: { type: "image", image }, user: "node" })`.
+
+When the Agent is installed elsewhere (for example `~/.local/bin`), remember to add that directory to PATH. `dockerSandbox` must spell out the image, and stable CI references a tag that does not change.
+
+### Vercel: take a snapshot from the official runtime
+
+Vercel has no template repository like E2B and does not use Dockerfiles. A Vercel snapshot is taken from a running microVM: use the Vercel SDK to start a Sandbox from the official runtime (`node24`), install the Agent CLI, call `.snapshot()` to get `snap_...`, then pass it to `vercelSandbox({ snapshotId })`:
+
+```ts title="scripts/build-vercel-snapshot.ts"
+import { Sandbox } from "@vercel/sandbox";
+
+const sandbox = await Sandbox.create({ runtime: "node24" }); // Start a microVM from the official runtime
+await sandbox.runCommand({
+  cmd: "npm",
+  args: ["install", "-g", "@openai/codex@0.144.1"],
+  sudo: true, // Install globally into /usr/local/bin, which is on the Sandbox's PATH
+});
+const { snapshotId } = await sandbox.snapshot();
+console.log(snapshotId); // snap_...
+await sandbox.stop();
+```
+
+```bash
+pnpm tsx scripts/build-vercel-snapshot.ts
+```
+
+Then reference the printed ID in the Experiment:
+
+```ts
+import { vercelSandbox } from "niceeval/sandbox";
+
+sandbox: vercelSandbox({ snapshotId: "snap_xxx" })
+```
+
+Vercel snapshots cannot be published publicly the way E2B templates can. A snapshot ID is controlled by the permissions of the Team/Project that created it; members of the same project can reuse it, and others must take their own in their Vercel Project. The NiceEval project's own verified, never-expiring snapshot is `snap_7sIjfs71xfmVly0WEUTGhTBoMGeL`, but it cannot be used across accounts.
+
+## Run-time checkpoints
+
+`createCheckpoint()` / `restoreCheckpoint()` solve a different problem: pack specified Linux paths in a Sandbox into a `Buffer`, then restore them into another Sandbox that has already been created:
+
+```ts
+import { createCheckpoint, restoreCheckpoint } from "niceeval/sandbox";
+
+const data = await createCheckpoint(sandbox, ["/home/user/.cache/tool"]);
+await restoreCheckpoint(nextSandbox, data);
+```
+
+It suits run-time caches. It does not produce a publishable image, template, or snapshot, and it does not handle sharing, versions, or expiry. A failed pack or restore throws directly.
+
+To carry these directories between Attempts, call `restoreCheckpoint()` in a dynamic `.before()`. After a successful restore, register `createCheckpoint()` with `context.onCleanup()`, so the save completes before the Sandbox is destroyed.
+
+`sandboxReuse: true` keeps the same Sandbox only within one `niceeval exp` command. When several terminals run at the same time and all read and write the same checkpoint, declare `sharedState: { key }` at the top level of the Experiment. NiceEval acquires the lease for this key before Experiment `setup` and Sandbox creation, and releases it only after the checkpoint is saved, the Sandbox is destroyed, and Experiment `teardown` completes. It only guarantees that one side uses it at a time; it does not save the checkpoint, roll back on errors, or coordinate across machines.

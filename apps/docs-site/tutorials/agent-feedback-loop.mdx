@@ -1,85 +1,135 @@
 ---
-title: "Let a Coding Agent Iterate from Results"
+title: "Let a Coding Agent Iterate on Results"
 sidebarTitle: "Coding Agent Feedback Loop"
-description: "Let a Coding Agent read receipt createdRunIds, then use fixed query operations or View to inspect results in a published Record."
+description: "Let a Coding Agent run evals, read results, decide whether to change the application or the assertions, and verify again, without you copying terminal output back and forth."
 ---
 
-A Coding Agent can complete a clear feedback loop from the command line: read the installed documentation, run an Experiment, read the final receipt, use its `createdRunIds` to inspect results, update the program or eval, and run again.
+You ask a Coding Agent to fix a regression. It changes the code, you run the evals, you copy the failing output to it, it changes the code again, and you run again. After a few rounds, most of the time goes into moving terminal output around.
 
-## Start with the installed documentation
+A better approach is to let the Agent run the loop itself:
 
-NiceEval packages its Chinese documentation in `docs-site/zh/` and provides an `INDEX.md` at the package root for Coding Agents. A Coding Agent should read `node_modules/niceeval/INDEX.md` first, then use the index to reach pages needed for the current task. Do not rely on training data or online examples from another version. This keeps API and CLI guidance aligned with the installed version.
+1. Run the evals.
+2. Get this run's Run ID from the receipt printed when the run ends.
+3. Use the Run ID to view the results and find the failing runs.
+4. Decide whether to change the application, the Adapter, or the eval.
+5. After the change, run the same scope again and confirm the fix.
 
-`npx niceeval init` initializes configuration and writes managed guidance into the project's `AGENTS.md`. If a project has only `CLAUDE.md`, it writes there instead. If neither file exists, it creates `AGENTS.md`. Run `init` again after upgrading NiceEval to refresh the managed block.
+This page explains which command to use at each step and a few boundaries the Agent must respect.
 
-The managed guidance separates writing source from proving what happened in a Run. An Agent can read project source such as `evals/` and `agents/` while writing code. To prove historical execution, it uses fixed `niceeval query` operations or `niceeval view`. Do not scan raw `.niceeval/` files or infer historical execution from current source. If the public read surface lacks needed evidence, report a NiceEval presentation gap.
+## Have the Agent read the docs for the installed version
 
-You can give an AI this starting task:
+Commands and APIs the Agent writes from training memory may not match the NiceEval version you installed. Have it read the docs that ship with the npm package first.
+
+NiceEval ships its Chinese docs in the npm package's `docs-site/zh/` directory and provides an `INDEX.md` at the package root for Coding Agents. The Agent reads `node_modules/niceeval/INDEX.md` first, then follows the index to the pages the current task needs.
+
+`pnpm exec niceeval init` initializes the configuration and writes a managed guidance section into the project's `AGENTS.md`. If the project only has `CLAUDE.md`, it writes into `CLAUDE.md`; if neither exists, it creates `AGENTS.md`. After upgrading NiceEval, run `init` again to refresh that section.
+
+The guidance separates two things:
+
+- When writing code, the Agent can of course read project source such as `evals/` and `agents/`.
+- When it needs to prove what happened in a run, it uses `niceeval show` in the terminal, `niceeval query` for stable JSON, and `niceeval view` for browser review. It does not scan raw files under `.niceeval/`, and it does not reconstruct a historical run from current source.
+
+When these commands cannot show the needed information, have the Agent report "the CLI cannot show this" instead of working around it by reading files.
+
+You can write the Agent's starting task like this:
 
 ```text
 Read node_modules/niceeval/INDEX.md first.
-Then use the index to read the pages relevant to the current task.
-Run the Experiment with a command, and use the final receipt to select the Run to inspect.
+Then read the pages in the index that are relevant to the current task.
+Run the Experiment with the command, and pick the Run to inspect from the final receipt.
 ```
 
-That keeps the Agent's documentation aligned with the version installed in the project.
+## Run and save the receipt
 
-## Run and retain the receipt
+Have the Agent run with `--json` and save the output:
 
 ```sh
-npx niceeval exp checkout --json | tee .niceeval-invocation.ndjson
+pnpm exec niceeval exp checkout --json | tee .niceeval-invocation.ndjson
 ```
 
-Every `--json` line is feedback from the current process. Progress and diagnostics describe what is happening in this invocation. Exactly one final receipt contains:
+Each line of `--json` describes the progress and diagnostics of this run. Exactly one final line is the receipt:
 
 ```json
 {
-  "invocationId": "01J8ZK3M6P4T7V9X2C5N8QW0RY",
-  "createdRunIds": ["01J9ZK3M6P4T7V9X2C5N8QW0RY"],
-  "publicationCutoff": "{...}",
-  "startedAt": "2026-08-09T10:00:00.000Z",
-  "completedAt": "2026-08-09T10:01:00.000Z",
-  "completion": "completed"
+  "type": "receipt",
+  "receipt": {
+    "invocationId": "01J8ZK3M6P4T7V9X2C5N8QW0RY",
+    "createdRunIds": ["01J9ZK3M6P4T7V9X2C5N8QW0RY"],
+    "publicationCutoff": "{...}",
+    "startedAt": "2026-08-09T10:00:00.000Z",
+    "completedAt": "2026-08-09T10:01:00.000Z",
+    "completion": "completed"
+  },
+  "summary": { "...": "..." }
 }
 ```
 
-The Agent should treat the final receipt as the handoff for this invocation. `createdRunIds` exhaustively lists successfully created Runs, and `publicationCutoff` is an opaque boundary of published facts; neither proves that the task is complete. The receipt is not a persisted-results protocol; read business facts from the published Record through its `createdRunIds`.
+The Agent trusts only this last line. `createdRunIds` lists every Run created this time; use it to view results afterwards. Do not parse `publicationCutoff`; pass it to later commands as is.
 
-## Inspect results with Run IDs
+`completion` being `completed` only means the run ended. It does not mean the task is done, and the evals may not have passed. The receipt is also not a long-term result format; read results through `createdRunIds`.
 
-After the run ends, inspect the Run's Report:
+## View results by Run ID
+
+After the run ends, the Agent first opens the Run from the receipt in the terminal:
 
 ```sh
-pnpm exec niceeval query discover
-pnpm exec niceeval view --run 01J9ZK3M6P4T7V9X2C5N8QW0RY --no-open
+pnpm exec niceeval show --run 01J9ZK3M6P4T7V9X2C5N8QW0RY
 ```
 
-`query` returns fixed closed Inspection results, while `view` supplies fixed first-party Insight. The Agent should distinguish these states:
+The output lists the Run's denominator, each eval's verdict, scores, result coverage, and the locator of each Attempt. To look at an Attempt in detail, copy its locator:
 
-| Visible state | Next step |
+```sh
+pnpm exec niceeval show @<attempt-locator>
+pnpm exec niceeval show @<attempt-locator> --source
+pnpm exec niceeval show @<attempt-locator> --execution
+```
+
+`show @<attempt-locator>` shows the Attempt's verdict, assertion summary, whether each part is complete, and known limitations. `--source` shows the eval source used in this run and the result of each assertion. `--execution` shows a condensed execution trace; to expand one item, copy the ID next to it and run `--execution --expand <stable-id>`.
+
+When a script, CI, or Agent needs to process results reliably, first find the available queries, then send a complete request:
+
+```sh
+pnpm --silent exec niceeval query discover
+pnpm --silent exec niceeval query explain --request request.json
+pnpm --silent exec niceeval query run --request request.json
+```
+
+`query` returns JSON in a fixed format. When a person wants to look in the browser, use `pnpm exec niceeval view --run <run-id>`; `view` does not accept locators.
+
+## Decide the next step from the status
+
+| Status | Next step |
 | --- | --- |
-| `failed` | Inspect the task result and Assertions, then correct the system under test or eval logic. |
-| `errored` | Inspect diagnostics, the Adapter, Sandbox, or credentials. |
-| `not-recorded` | Find why that expected slot has no Member. |
-| `core-invalid` | Read the named Core issue; do not treat it as uncollected. |
-| `partial` | Read the denominator and problems to see which Members did not contribute. |
-| `migration-required` | Run `niceeval migrate`. |
-| `unsupported` or `failed` | Address only the viewing work that depends on that analysis input, and read the named problem. |
+| Attempt `failed` | Compare the outcomes the task allows, the actual artifacts, the evidence, and the assertion conditions, then decide whether to change the system under test, the Adapter, or the eval. |
+| `errored` | Check the error text, Adapter, Sandbox, or credentials. |
+| `not-recorded` | An Attempt planned for this run has no result. Check why it did not run. |
+| `core-invalid` | Read the issue stated in the output. Do not treat it as missing collection. |
+| `partial` | The result is incomplete. Read the denominator and the issue notes to see which Attempts were not counted. |
+| `record-schema-unsupported` or old project state blocks the run | Keep the original project and its history, and follow the [old project recovery guide](/troubleshooting/debugging#old-project-state-blocks-a-run) to rerun in a copy of the project. |
+| Query result is `unsupported` or `failed` | This only affects views that depend on that input. Read the stated issue. |
 
-## Run again after an edit
+When handling `failed`, do not change an artifact that already meets the task just to pass an overly narrow Match. If the artifact meets the task but the assertion rejects an outcome the task allows, the eval misjudged it and the eval should change. For the full attribution process, see the [debugging guide](/troubleshooting/debugging).
 
-Have the Agent test one verifiable hypothesis at a time: change the program or eval, run the same scope, then read the new receipt and Run. To confirm that every slot executes again, use:
+## Run again after a change
+
+Have the Agent verify one hypothesis at a time: change the program or the eval, run the same scope, then read the new receipt and Run.
+
+By default, Attempts unaffected by the change that already have a conclusion from last time are reused. Add `--dry` before running to see which ones will be reused, which will rerun, and why. When every Attempt must really execute, add `--rerun all`:
 
 ```sh
-npx niceeval exp checkout --rerun all --json
+pnpm exec niceeval exp checkout --rerun all --json
 ```
 
-When an existing Attempt is adopted automatically, `--dry` explains why. Carry and acceptance reasons are saved with the target Run and visible in results. See [Rerun and Carry Results](/tutorials/rerun-and-cache).
+For the rules on reusing and accepting old results, see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).
 
-A completed run hands off this Invocation only; it does not prove that the user's task is complete. When the task requires completion and authorization already covers the work, repair an execution-chain error and rerun only the affected scope. A read-only request performs attribution only, without edits or reruns. Preserve and report a business failure that satisfies the task; do not rewrite the application or eval merely to turn it green.
+A finished run only means this run handed off its results. It does not mean the user's task is done.
 
-## Record boundaries
+- When the task asks for a fix and you have authorization, fix what made the run error first, then reverify only the affected scope.
+- When the task asks only for analysis, only do attribution. Do not change code or rerun.
+- When a business failure is what the task expects, keep the result and report it honestly. Do not change the application or the eval just to turn it green.
 
-A Record stores published facts only and cannot be modified after publication. To obtain a different result, an Agent changes the program or eval, runs a new Invocation, then reads the new receipt's `createdRunIds`.
+## Saved results cannot be changed
 
-To share run facts with another compatible runtime, copy the [canonical Record](/explanation/record), not feedback from the current process.
+Saved results are never modified. If the Agent wants a different result, it changes the program or the eval, runs again, and views the result through the new receipt's `createdRunIds`.
+
+When you need to hand results to someone else, copy the project's [`.niceeval/record.sqlite`](/explanation/record). Do not use terminal output or NDJSON as a sharing format.

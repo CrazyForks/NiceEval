@@ -1,21 +1,59 @@
 ---
-title: "Compare fixed Runs"
+title: "Compare Two Runs: Is the Baseline or the Candidate Better"
 sidebarTitle: "Compare Runs"
-description: "Use the `runs.compare` operation to compare published facts from exact Runs, then review the same facts in View."
+description: "Pin the Run IDs of two runs, review them side by side in the browser, or use runs.compare to give scripts and CI a per-eval paired comparison."
 ---
 
-Keep the `runIds` from each completion receipt when comparing models, prompts, or Agent versions. Do not substitute the latest result for an explicit boundary.
+You ran a baseline on Monday, changed the prompt on Wednesday and ran again, and now want to know which evals this change made better and which it made worse.
 
-Start with `niceeval query discover` and build a request from the `runs.compare` schema. It supports `side-by-side`, `exact`, and `paired`. The result retains each denominator, unmatched, excluded, missing, issues, and Evidence.
+Before comparing, pin which run each side is. "The latest results" change with the next run; if you compare against them, today's conclusion and tomorrow's may differ. Every time `niceeval exp` finishes, the terminal's `NEXT` panel lists the Run IDs created this time. Write down the baseline and candidate IDs.
+
+## View them side by side in the browser
 
 ```sh
-niceeval query explain --request compare.json
-niceeval query run --request compare.json > compare-result.json
-niceeval view --run <baseline-run-id> --run <candidate-run-id>
+pnpm exec niceeval view --run <baseline-run-id> --run <candidate-run-id>
 ```
 
-`exact` proves the same member domain and member set. `paired` uses first-party pairing keys only. If the requested mode cannot apply, the operation returns a named correction or issue instead of treating a gap as zero.
+View opens both Runs at once. You can compare pass/fail, scores, duration, and cost eval by eval, then click into a specific run to see the conversation and tool calls.
 
-View reads the same published facts, helping people review the Overview and Attempt detail. It does not introduce a second statistics, comparison, or page-assembly system.
+## Let scripts and CI read the comparison
 
-When results come from another compatible runtime, copy the canonical `.niceeval/record.sqlite`. Then pass that copy with `--record` to `show` or `query`; `view` reads only the current project's Record.
+When an automated flow needs a structured comparison, use a `runs.compare` request:
+
+```sh
+pnpm --silent exec niceeval query run --request - <<'JSON'
+{
+  "protocol": "niceeval.query/v1",
+  "operation": {
+    "kind": "runs.compare",
+    "mode": "paired",
+    "leftRunIds": ["<baseline-run-id>"],
+    "rightRunIds": ["<candidate-run-id>"]
+  }
+}
+JSON
+```
+
+`mode` decides how the two sides line up:
+
+| `mode` | When to use it |
+|---|---|
+| `side-by-side` | Each side gives its own results without computing differences. Use it when the two runs have different eval sets and you only want to view them side by side. |
+| `exact` | Requires both sides to have exactly the same eval set, and returns a named issue when they differ. Use it where comparisons must be on the same basis, such as release gates. |
+| `paired` | Pairs by the same eval and compares eval by eval. Most often used for "which evals did this change affect". |
+
+The comparison honestly reports each side's denominator, plus unpaired evals, excluded evals, and missing results. Missing results are not treated as zero or failure. When the conditions are not met, you get a named error explaining why, not a number that looks normal.
+
+First check that the request is valid with `query explain`, then run it for real:
+
+```sh
+pnpm --silent exec niceeval query explain --request compare.json
+```
+
+## When a comparison can be trusted
+
+- Both sides ran the same set of evals, each run a similar number of times.
+- The two sides differ only in the one variable you want to compare; see [Organize Experiments](/tutorials/write-experiment#compare-two-models) for how to write that.
+- Look at cost and duration alongside the pass rate. A slightly higher pass rate at double the cost is not necessarily worth switching to.
+
+For how to read a single run's results, see [View Run Results](/tutorials/viewing-results).

@@ -1,10 +1,10 @@
 ---
 title: "Standard Event Stream Reference"
 sidebarTitle: "Event Stream"
-description: "The ten StreamEvent variants: each one's fields, when to emit it, and which assertions consume it. Producing this stream is an Adapter's core job."
+description: "The ten StreamEvent variants: each one's fields, when it is emitted, and which assertions read it. Producing this stream is an Adapter's main job."
 ---
 
-An Adapter's `send` returns a `Turn`. Its raw `events: StreamEvent[]` is the source of truth. NiceEval derives immutable `toolCalls` and `eventOccurrences` collections for managed Matches. Raw `events` remains an ordinary Value subject for `check`; occurrence quantifiers and order Matches use `eventOccurrences`. Translate what your Agent did in this turn truthfully into the stream, and the complete event-assertion surface is available.
+An Adapter's `send` returns a `Turn`, and its `events: StreamEvent[]` is this turn's standard event stream; event assertions read their facts from it. `turn.calledTool(...)`, `turn.toolOrder(...)`, `turn.event(...)`, and `turn.succeeded()` all judge from this turn's events and the tool calls within them, and register an assertion directly when called. Translate what the agent did in this turn truthfully into the stream, and every event assertion works.
 
 ## Turn: the return value of send
 
@@ -17,7 +17,7 @@ interface Turn {
 }
 ```
 
-`data` means "this turn's structured output." Fill it only when **the application's response itself is a structured object**—for extraction, classification, or form completion—so an Eval author can compare it with `t.check(turn.data, ...)`. An application that returns only text leaves it unset. Do not copy the raw response body or `message` text into it just to fill it, and do not serialize structured output into `events` instead. Include `usage` when it is available, and omit it when it is not—**never invent numbers**.
+`data` holds this turn's structured output. Fill it only when the application's answer itself is a structured object, such as extraction, classification, or form filling, so an Eval author can compare it with `t.check(turn.data, ...)`. An application that returns only text leaves `data` unset. Do not copy the raw response body or `message` text into it, and do not serialize structured output into `events`. Fill `usage` when you have it and leave it empty when you do not; do not estimate a number to fill it.
 
 The full fields of `usage` (the `Usage` type):
 
@@ -31,7 +31,7 @@ The full fields of `usage` (the `Usage` type):
 inputTokens?: number;
 ```
 
-Input tokens that did not hit cache and are billed at the full rate. They are mutually exclusive with the two cache buckets.
+Input tokens that missed the cache and are billed at full price; mutually exclusive with the two cache buckets.
 
 #### `outputTokens`
 
@@ -47,7 +47,7 @@ The number of output (completion) tokens.
 cacheReadTokens?: number;
 ```
 
-Input tokens served from a prompt-cache hit. This is a separate billing bucket and is not included in `inputTokens`. Omission means the Agent does not report it.
+Input tokens served from a prompt-cache hit; a separate billing bucket, not included in inputTokens (omitted means the agent does not report it).
 
 #### `cacheCreationTokens`
 
@@ -55,7 +55,7 @@ Input tokens served from a prompt-cache hit. This is a separate billing bucket a
 cacheCreationTokens?: number;
 ```
 
-Input tokens written to a prompt cache. This is a separate billing bucket and is not included in `inputTokens`. Omission means the Agent does not report it.
+Input tokens written to the prompt cache; a separate billing bucket, not included in inputTokens (omitted means the agent does not report it).
 
 #### `reasoningTokens`
 
@@ -63,7 +63,7 @@ Input tokens written to a prompt cache. This is a separate billing bucket and is
 reasoningTokens?: number;
 ```
 
-The number of reasoning (thinking) tokens. It is a detail already included in `outputTokens` and is listed separately for display. It exists only when the protocol actually supplies it.
+The number of reasoning (thinking) tokens, a detail already included in outputTokens and listed separately for display; present only when the protocol actually provides it.
 
 #### `requests`
 
@@ -71,7 +71,7 @@ The number of reasoning (thinking) tokens. It is a detail already included in `o
 requests?: number;
 ```
 
-The number of model requests that actually occurred. Omit it when the protocol does not provide a request count; never write `1` just to fill the field.
+The number of model requests that actually occurred. Omit it when the protocol does not provide a request count; never write 1 to fill it.
 
 #### `costUSD`
 
@@ -79,15 +79,21 @@ The number of model requests that actually occurred. Omit it when the protocol d
 costUSD?: number;
 ```
 
-The actual USD cost measured by the gateway or Adapter. It can only be explicitly returned through `Turn.usage.costUSD`; it is never derived from token usage or an OTel span. It is separate from the top-level `estimatedCostUSD` (a price-table estimate). This is a one-way field contract: this field stores only the observed value; `estimatedCostUSD` is always the estimate from `estimateCost(model, usage, pricing)`, computed independently even when an observed value exists. Neither value overrides or fills in for the other; an observed value never replaces or triggers an estimate.
+The actual USD cost measured by the gateway/adapter (it can only be brought back explicitly through `Turn.usage.costUSD`, and is never derived from
+token usage or OTel spans). It and the top-level `estimatedCostUSD` (a price-table estimate) are two
+independent facts under a one-way field contract: this field stores only the observed value; `estimatedCostUSD` always equals
+the estimate from `estimateCost(model, usage, pricing)`, computed independently even when an observed value exists.
+Neither overrides or backs up the other; an observed value never replaces or triggers the estimate.
 
 {/* GENERATED:END usage-fields */}
 
-> Cost boundary: `Usage.costUSD` represents only observed USD cost returned by a Provider or Adapter. It is never derived from tokens, a model catalog, or a local price table. The Runner independently calculates `estimatedCostUSD` from the `model`, reported token usage, and the Config/runtime price table even when an observed cost exists. The Experiment budget and `t.maxCost()` consume that estimate; `Usage.costUSD` does not. A Report cost projection accepts only an explicit `PricingProfile` and sealed Usage; it does not read the Runner estimate.
+> How cost is calculated: `Usage.costUSD` records only the USD cost actually returned by a Provider or Adapter; it is never derived from token counts, a model catalog, or a local price table. Whether or not that value exists, the Runner separately computes an estimated cost, `estimatedCostUSD`, from the `model`, the reported token usage, and the configured price table.
+>
+> The Experiment budget and `t.maxCost()` look at this estimate, not `Usage.costUSD`. Costs in reports are computed only from a `PricingProfile` you specify explicitly and the recorded usage; they do not read the Runner's estimate either.
 
 ## StreamEvent variants at a glance
 
-The ten `StreamEvent` variants are listed field by field below. For assertions that consume them and usage details, see the Event table and Event details sections that follow.
+`StreamEvent` has ten variants, listed field by field below. For which assertions read them and what to watch for when using them, see the "Event table" and "Event details" sections that follow.
 
 {/* GENERATED:BEGIN stream-events */}
 
@@ -118,9 +124,8 @@ The ten `StreamEvent` variants are listed field by field below. For assertions t
         input: JsonValue;
         tool?: ToolName;
         /**
-         * The Adapter's protocol-level classification as command / not-command. It is temporarily
-         * optional to support third-party Adapters that have not migrated. When it is absent, core
-         * must not fabricate it from the name, input, or shell text.
+         * The Adapter's protocol-level command / not-command classification. Temporarily optional for
+         * third-party Adapters that have not migrated; when absent, core must not fabricate it from the name, input, or shell text.
          */
         command?: CommandProjection;
       }
@@ -192,32 +197,19 @@ The ten `StreamEvent` variants are listed field by field below. For assertions t
 
 ## Event table
 
-| Event | What it says | Assertion / API that consumes it |
+| Event | What it says | Assertion / API that reads it |
 |---|---|---|
-| `message` | The Agent (or user) said something | `turn.message`, `turn.check(turn.eventOccurrences, eventMatch("message", ...))`, Judge material |
-| `operation.started` (`kind: "tool"`) | Starts a tool call | `turn.calledTool(...)`, `turn.toolOrder(...)`, `turn.check(turn.eventOccurrences, eventMatch(...))` |
+| `message` | The agent (or user) said something | `turn.message`, `turn.event(eventMatch("message", ...))`, Judge material |
+| `operation.started` (`kind: "tool"`) | Starts a tool call | `turn.calledTool(...)`, `turn.toolOrder(...)`, `turn.event(...)` |
 | `operation.finished` (`kind: "tool"`) | The result of that tool call | `ToolMatch` with a status condition |
-| `operation.started` (`kind: "subagent"`) | Delegates to a subagent | Raw event and Report; there is currently no subagent-specific assertion |
-| `operation.finished` (`kind: "subagent"`) | The subagent returns | Raw event and Report; a failure enters the aggregate fact for `noFailedActions()` |
+| `operation.started` (`kind: "subagent"`) | Delegates to a subagent | Kept in raw events and reports; there is no subagent-specific assertion |
+| `operation.finished` (`kind: "subagent"`) | The subagent returns | Kept in raw events and reports; a failure counts toward `noFailedActions()` |
 | `input.requested` | Stops to wait for human input (HITL) | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()` |
-| `thinking` | Thinking text | Displayed by view; there is currently no `eventMatch` selector |
-| `compaction` | Context was compacted | Displayed by view; there is currently no `eventMatch` selector |
-| `error` | This turn failed | Displayed by view; there is currently no `eventMatch` selector |
+| `thinking` | Thinking text | Shown in the view; check it with `t.check(turn.events, ...)` when needed |
+| `compaction` | Context was compacted | Shown in the view; check it with `t.check(turn.events, ...)` when needed |
+| `error` | This turn failed | Shown in the view; check it with `t.check(turn.events, ...)` when needed |
 
-`eventMatch` currently has three shapes: `message`, tool `operation.started`, and tool `operation.finished`. Apply occurrence quantifiers to this Match, then register it against the managed `eventOccurrences` collection. Use `inOrder([...])` against a Turn or Session collection for ordering. You cannot use every raw `StreamEvent` as an occurrence selector, but you can still pass raw `events` to `check` with an ordinary Value Match.
-
-```ts
-import { eventMatch, inOrder, satisfies } from "niceeval/expect";
-
-turn.check(turn.eventOccurrences, eventMatch("message").atLeast(2));
-turn.check(
-  turn.eventOccurrences,
-  inOrder([eventMatch("operation.started"), eventMatch("operation.finished")]),
-);
-t.check(turn.events, satisfies("contains thinking", (events) =>
-  events.some((event) => event.type === "thinking"),
-));
-```
+Event assertions have three entry points: `event(match)`, `notEvent(match)`, and `eventOrder(matches)`, all of which take a match condition built with `eventMatch(...)`. `eventMatch` supports three events: `message`, tool `operation.started`, and tool `operation.finished`. To require a number of occurrences, use the match condition's own methods such as `.atLeast()` and `.exactly()`. For other events, treat `turn.events` as an ordinary value and check it with `check(turn.events, valueMatch)`.
 
 ## Event details
 
@@ -227,7 +219,7 @@ t.check(turn.events, satisfies("contains thinking", (events) =>
 { type: "message", role: "assistant" | "user", text: string }
 ```
 
-Emit one `role: "assistant"` `message` for every segment of assistant text. **A tool result is not an assistant message**. Do not wrap tool output in `message`, or `t.reply` will read the wrong content. [NiceEval](https://niceeval.com/) automatically records user-input `message` events; an Adapter does not need to emit them.
+Each segment of assistant text produces one `message` with `role: "assistant"`. A tool result is not an assistant message; do not wrap tool output in `message`, or `t.reply` will read the wrong content. NiceEval records user-input `message` events automatically, so the Adapter does not need to emit them.
 
 ### Tool `operation.started` / `operation.finished` — which tool ran and what happened
 
@@ -239,14 +231,14 @@ Emit one `role: "assistant"` `message` for every segment of assistant text. **A 
   output?: JsonValue, status: "completed" | "failed" | "rejected" }
 ```
 
-- Pair each tool `operation.started` with a tool `operation.finished` that has the **same `operationId`**. That prevents concurrent calls from being paired incorrectly. Use the explicit ID in your Agent's return when it has one—such as AI SDK's `toolCallId` or Anthropic's `tool_use.id`—and synthesize it by order only as a last resort.
-- Set `status` truthfully. A failed tool execution is `"failed"`; **a human rejection is `"rejected"`**. Eval authors use `ToolMatch` status conditions to distinguish them precisely, so do not conflate the two.
-- Use the tool's original name for `name`.
-- With only `started`, the logical occurrence has `pending` status and unavailable output. A finished event that omits `output` also means unavailable; do not turn missing data into empty JSON or an ordinary mismatch.
+- Every tool `operation.started` needs a tool `operation.finished` with the same `operationId`; concurrent calls are matched up by this ID. Use the ID already in the agent's return when there is one, such as AI SDK's `toolCallId` or Anthropic's `tool_use.id`; generate one by order only when there is none.
+- Set `status` to what actually happened: `"failed"` when the tool execution failed, `"rejected"` when a person rejected it. Eval authors use `ToolMatch` status conditions to tell the two apart, so do not mix them up.
+- Set `name` to the tool's original name.
+- With only started and no finished yet, the call's status is `pending` and its output is recorded as unavailable. A finished event without `output` also means the output is unavailable. Do not write missing output as empty JSON, and do not let it look like an ordinary mismatch.
 
 #### Pass tool events to `ToolMatch`
 
-The same `shell` tool might run `git status` and `pnpm test` in sequence. Its name tells you only the tool category. When an Eval author needs to identify the command, use the normalized command projection:
+The same `shell` tool might first run `git status` and then `pnpm test`. The tool name only says which kind of tool it is. To tell the specific commands apart, Eval authors match on the normalized command information (command projection):
 
 ```ts
 import { commandMatch } from "niceeval/expect";
@@ -254,9 +246,9 @@ import { commandMatch } from "niceeval/expect";
 turn.calledTool(commandMatch("pnpm", { argsStart: ["test"] }));
 ```
 
-`ToolMatch` compares one logical occurrence at a time. For complete selectors, JSON, paths, output, and counting rules, see [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md).
+`ToolMatch` compares one tool call at a time. For the complete filter conditions, and the JSON, path, output, and counting rules, see [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md).
 
-When the native protocol directly supplies structured argv for one invocation, call the public constructor from `niceeval/adapter`:
+When the native protocol directly provides a command's structured argv, generate the command information with the constructor exported from `niceeval/adapter`:
 
 ```ts
 import { commandProjection } from "niceeval/adapter";
@@ -277,9 +269,11 @@ events.push({
 });
 ```
 
-`commandProjection()` retains original tokens confirmed by the Adapter and uses the same `normalizeLogicalCommand()` to produce a `logical-command/v1` projection. `pnpm exec niceeval view` can be matched precisely by `commandMatch("niceeval", { argsStart: ["view"] })`.
+`commandProjection()` keeps the original arguments the Adapter confirmed and normalizes them into the `logical-command/v1` format by NiceEval's shared rules. For example, `pnpm exec niceeval view` is matched exactly by `commandMatch("niceeval", { argsStart: ["view"] })`.
 
-Mark the original command available only when the native protocol already supplies argv, or the protocol grammar can unambiguously produce one invocation. Use `opaqueCommandProjection(reason)` when the protocol supplies only shell source or when content is truncated or redacted. Use `notCommandProjection()` when you can confirm that it is not a command. When you cannot confirm command / not-command, downgrade actions coverage; do not guess from a tool name, input, or shell text.
+Mark the original command available (`state: "available"`) only when the native protocol itself provides argv, or when one command can be split out unambiguously by the protocol's grammar.
+
+When the protocol provides only shell source, or the content is truncated or redacted, use `opaqueCommandProjection(reason)`. When you can confirm the call is not a command, use `notCommandProjection()`. When you cannot tell whether it is a command, downgrade actions coverage; do not guess from the tool name, input, or shell text.
 
 ### Subagent `operation.started` / `operation.finished` — who was delegated to
 
@@ -290,7 +284,7 @@ Mark the original command available only when the native protocol already suppli
   output?: JsonValue, status: "completed" | "failed" }
 ```
 
-When the system under test delegates a task to a subagent and waits for it to return, emit this pair. The `operationId` pairing rule is the same as above. These events remain in the raw event stream and Report, but the public assert-first API currently has no `calledSubagent`, and `eventMatch(...)` cannot select a subagent operation. Do not invent a different selector.
+When the system under test delegates a task to a subagent and waits for it to return, emit this pair; the `operationId` pairing rule is the same as above. They stay in the raw event stream and reports. To check them, use an ordinary value match on `turn.events`; the tool matching in `eventMatch(...)` does not treat a subagent as a tool call.
 
 ### `input.requested` — stop and wait for a person (HITL)
 
@@ -300,31 +294,31 @@ When the system under test delegates a task to a subagent and waits for it to re
     action?: string,        // the action where it paused (such as a tool name)
     input?: JsonValue,      // the action's input
     prompt?: string,        // the question for the person
-    options?: { id: string, label?: string }[],   // optional choices (approve / deny…)
+    options?: { id: string, label?: string }[],   // choices (approve / deny…)
 } }
 ```
 
-When the Agent stops a turn to wait for a person, emit one event for each pending question and return `"waiting"` as that Turn's `status`. The `t.requireInputRequest(filter)` filter matches this `request` field by field. **Fill in as many fields as you can**, or the Eval cannot select it. See the [HITL section of the connection tutorial](/tutorials/connect-your-agent).
+When the agent stops to wait for a person, each question awaiting an answer produces one `input.requested`, and the Turn's `status` is `"waiting"`. `t.requireInputRequest(filter)` matches `request` field by field, so fill in as many fields as you can, or the Eval cannot select it. For how to wire it up, see the [HITL section of the connection tutorial](/tutorials/connect-your-agent).
 
 ### `thinking` / `compaction` / `error`
 
 ```ts
 { type: "thinking", text: string }
-{ type: "compaction", reason?: string }   // context compression; an Adapter parser emits it; there is no declaration layer
+{ type: "compaction", reason?: string }   // context compaction; emitted when the Adapter parses it
 { type: "error", message: string }
 ```
 
-Emit these events when you have them; do not fabricate them when you do not. `compaction` mostly comes from coding-Agent CLIs when a full context is compressed automatically. These raw events are retained for Reports and diagnostics; the public `eventMatch` cannot currently select them.
+Emit them when they exist; do not make them up when they do not. `compaction` mostly comes from coding agent CLIs, which compact automatically when the context fills up. These events are mainly for reports and diagnostics; when you need to assert on them, pass `turn.events` to `check` as an ordinary value.
 
-## Three mapping rules
+## Three rules for mapping events
 
-1. **Order is fact**: lay events out in the order they actually occurred. `toolOrder` / `eventOrder` use a monotonic cursor to match subsequences of different occurrences. The wrong order makes assertions misleading. `eventOrder` only orders events supported by public `eventMatch`.
-2. **Pair `operationId`s**: every started operation needs a finished operation with the same `kind` and ID. Only a complete pair lets the framework assign status and input to the same logical tool occurrence.
-3. **Completeness must be explicit**: official converters declare evidence coverage according to actual Adapter capability. A negative assertion with incomplete relevant input or action coverage is `unavailable`; it never turns "not observed" into "did not happen." Manual mappings must likewise state their coverage honestly. See the [Capabilities reference](/reference/capabilities).
+1. **Keep the real order**: event order is the order things happened. `toolOrder` and `eventOrder` match different calls from front to back, so the wrong order gives the wrong assertion result. `eventOrder` can only order events that `eventMatch` supports.
+2. **Pair with `operationId`**: every started needs a finished with the same `kind` and ID. Only with complete pairs can NiceEval attribute status and input to the same tool call.
+3. **Declare completeness honestly**: official converters declare event coverage (evidence coverage) according to what the Adapter can actually do. When the relevant input or action coverage is incomplete, a negative assertion (such as "did not call a tool") results in `unavailable`; "not seen" is never treated as "did not happen." Manual mappings must also declare coverage honestly; see the [Capabilities reference](/reference/capabilities).
 
 ## A complete mapping example
 
-When an Agent return has step records, the mapping is a small loop:
+When the agent's return includes step records, the mapping is a simple loop:
 
 ```ts
 import type { StreamEvent } from "niceeval";
@@ -354,6 +348,6 @@ function toStreamEvents(body: MyAgentResponse): StreamEvent[] {
 
 ## Related reading
 
-- [Connect your Agent](/tutorials/connect-your-agent) — the tutorial for making an integration work from scratch.
-- [Capabilities](/reference/capabilities) — what declaring a complete event stream means.
-- [Authoring Evals](/tutorials/authoring) — the complete assertion surface that consumes this stream.
+- [Connect your agent](/tutorials/connect-your-agent) — the tutorial for getting it working from scratch.
+- [Capabilities](/reference/capabilities) — what declaring "the event stream is complete" means.
+- [Authoring Evals](/tutorials/authoring) — the full set of assertions that read this stream.

@@ -1,47 +1,47 @@
 ---
-title: "Experiments: who to evaluate and how to run them"
-sidebarTitle: "Experiments"
-description: "An Experiment is a check-in-able run configuration: which Agent and model to use for the same Evals, which flags to enable, and how many times to run. Keeping Evals and Experiments separate provides late binding, so one Eval suite can run against different subjects."
+title: "Experiment: what to evaluate and how to run it"
+sidebarTitle: "Experiment"
+description: "An Experiment is a check-in-able run configuration: which Agent and model the same set of eval cases runs against, which flags are on, and how many times to run. Eval cases and Experiments are kept separate so the same eval cases can run against different systems."
 ---
 
-An **Experiment** specifies which Agent to evaluate, which model to use, which flags to enable, and how many times to run. Use it for A/B tests, model comparisons, and feature comparisons. `flags` are the feature flags in an A/B test; an Experiment is one set of flag values.
+An Experiment says which Agent to run against, which model to use, which flags to turn on, and how many times to run. Use it to compare models, prompts, and feature toggles. `flags` are the feature flags of an A/B test, and one Experiment is one set of flag values.
 
 ## What an Experiment contains
 
-An Experiment is a check-in-able TypeScript file under `experiments/`. Its core fields are:
+An Experiment is a check-in-able TypeScript file under `experiments/`. It has only a few core fields:
 
 ```ts
 // experiments/concise.ts
 export default defineExperiment({
-  description: "Concise Prompt variant",
-  agent: webAgent({ baseUrl: "https://staging.example.com" }),  // A configured Agent instance
+  description: "Concise prompt variant",
+  agent: webAgent({ baseUrl: "https://staging.example.com" }),  // A configured agent instance
   model: "gpt-5.4",                    // Passed through to the Adapter as ctx.model
-  flags: { promptVariant: "concise" },  // Passed through as ctx.flags; t.flags in the Eval
-  attempts: 3,                         // Runs each Eval this many times to counter randomness
+  flags: { promptVariant: "concise" },  // Passed through as ctx.flags; t.flags in the eval
+  attempts: 3,                         // How many times each eval runs (to counter randomness)
 });
 ```
 
-- `agent`: who to evaluate. This is an already configured instance. Pass the subject's URL and authentication to the Adapter factory, not to other Experiment fields.
-- `model` / `flags`: pass-through values. [NiceEval](https://niceeval.com/) does not interpret them; it passes them through `ctx` to the Adapter, which forwards them with the request so the application can switch as needed. They are the channels for model comparison (Tier 1) and feature A/B tests (Tier 3) in [Tier](/explanation/tier).
-- Run parameters such as `attempts`, `budget`, concurrency, and `sandbox`: how to run and how much to run. See [Write Experiments](/tutorials/write-experiment) for the full field set.
+- `agent`: what to evaluate. Put an already configured Adapter instance here. Pass the system's address and authentication to the Adapter when you create the instance, not in other Experiment fields.
+- `model` / `flags`: experiment conditions handed to the Adapter. `flags` only accepts flat strings, finite numbers, or booleans, and NiceEval does not interpret their meaning. When the Adapter declares `parseFlags`, the values are validated and normalized first, then handed to the Adapter through `ctx`. The Adapter forwards them with the request, and the application switches behavior based on the values. Model comparison (Tier 1) and feature A/B tests (Tier 3) both use this path. See [Integration tiers](/explanation/tier).
+- Run parameters such as `attempts`, `budget`, concurrency, and `sandbox`: how to run and how much. For the full field set, see [Write Experiments](/tutorials/write-experiment#common-fields).
 
-An Experiment also has an Experiment-level pair of `setup` / `teardown` Hooks. They run once for the entire Experiment on your own machine, so they can start and stop services shared by every Attempt, such as a tunnel to an internal service or an Experiment-specific mock server.
+An Experiment also has a pair of Experiment-level Hooks, `setup` / `teardown`. They run once for the whole Experiment on your own machine, and start and stop services shared by all Attempts, such as a tunnel to an internal service or a mock server just for this Experiment.
 
-`setup` runs before the first Attempt in this Experiment is dispatched. `teardown` runs after every Attempt finishes, including on interruption, but only if the timeline reached the point where `setup` should run.
+`setup` runs before the first Attempt of this Experiment starts. `teardown` runs after all Attempts finish, and also runs when the run is interrupted. But `teardown` runs only if `setup` has already run.
 
-To prepare an environment inside a Sandbox for an Experiment, attach actions to the `.before()` chain on its `sandbox` field. Stable actions form a reusable preparation prefix by fingerprint. A dynamic callback can register cleanup immediately with `context.onCleanup()`. For the boundary between host Hooks and Sandbox actions, see [Write Experiments — Start a service shared by an Experiment](/tutorials/write-experiment#start-a-service-shared-by-an-experiment) and [Sandbox providers — Prepare the Sandbox in a deterministic order](/tutorials/sandbox-providers#prepare-the-sandbox-in-a-deterministic-order).
+To prepare the environment inside a Sandbox for the whole Experiment, attach the preparation steps to `.before()` on the `sandbox` field. Steps whose content does not change can be reused next time. Dynamic callbacks can register cleanup with `context.onCleanup()`. See [Start shared services for an Experiment](/tutorials/experiment-services) and [Sandbox · Prepare the Sandbox in a deterministic order](/tutorials/sandbox-providers#prepare-the-sandbox-in-order).
 
-When Evals in the same Experiment need different prebuilt environments, put the corresponding template-bearing `sandbox` layer directly on each Eval and omit the Experiment's template. Reuse repeated layers with ordinary TypeScript helpers; there is no environment-profile registry. One Experiment can still cover every Eval because link planning pairs each Eval layer with the Experiment layer independently. See [Write Experiments — Give different Evals different prebuilt environments](/tutorials/write-experiment#give-different-evals-different-prebuilt-environments).
+When different eval cases in the same Experiment need different prebuilt environments, write the `sandbox` configuration that names the prebuilt environment on each eval case, and leave it out of the Experiment. Reuse repeated configuration with ordinary TypeScript functions; no extra registration is needed. The same Experiment can still cover all eval cases, and NiceEval merges each eval case's configuration with the Experiment's configuration one by one. See [Write Experiments · Different eval cases need different environments](/tutorials/write-experiment#different-evals-need-different-environments).
 
 ## Matrix comparisons
 
-Write one Experiment file for every variant you want to compare. Two models mean two files differing by one `model` line; a Prompt A/B test means two files differing by one parameter. Run the same Eval suite under each Experiment. Fixed Inspection operations compare published Attempts within the same `PublicationCutoff`, while each Experiment keeps its own Eval set and denominator rather than fabricating a common intersection. See [Experiment Matrix](/tutorials/experiments) for what is useful to compare and how to read the results.
+Write one Experiment file for each variant you want to compare. Two models means two files that differ only in the `model` line. A prompt A/B test means two files that differ in one parameter. Run the same set of eval cases under each Experiment, then compare the results published at the same moment. Each Experiment computes its denominator from the eval cases it ran, and NiceEval does not force a common intersection. For what is worth comparing and how to read the results, see [Write Experiments](/tutorials/write-experiment#compare-two-models).
 
-Put values used only to group reports, and not to change what happens in an Attempt, in `labels`. They are immutable Run configuration context and are not passed to the Adapter or Eval. Running again after changing `labels` creates a Run with the new labels and can reference existing Attempts under the policy for that run. Historical Runs retain the labels they had at the time.
+Put values used only to group reports, which do not affect the run, in `labels`. They are recorded on the Run and are not passed to the Adapter or eval cases. Running again after changing `labels` creates a Run with the new labels, and unaffected earlier results are reused as usual. Historical Runs keep the `labels` they had at the time.
 
 ## Related reading
 
-- [Write Experiments](/tutorials/write-experiment) — The complete `defineExperiment` fields: attempts, budget, concurrency, and Sandbox.
-- [Experiment Matrix](/tutorials/experiments) — How to organize comparisons across Agent / model / flags and read the results.
-- [Evals](/explanation/evals) — The other half: what an Eval is, its lifecycle, and its Verdicts.
+- [Write Experiments](/tutorials/write-experiment) — Compare models and prompts, read comparison results, and common fields.
+- [Start shared services for an Experiment](/tutorials/experiment-services) — How to write `setup` / `teardown` and when they run.
+- [Eval cases](/explanation/evals) — The other half: what an eval case is, its lifecycle, and its verdicts.
 - [Tier](/explanation/tier) — The tier in which `model` and `flags` each take effect.

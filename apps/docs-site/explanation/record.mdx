@@ -1,31 +1,46 @@
 ---
 title: "Record"
 sidebarTitle: "Record"
-description: "Learn the write, portability, and read boundaries of the canonical SQLite Record."
+description: "Learn what the project results file .niceeval/record.sqlite stores, how to copy it for someone else, and what is validated when it is read."
 ---
 
-Record is the project's one persistent fact set. Its canonical SQLite file lives at `.niceeval/record.sqlite`.
+You want to hand a run's results to a colleague for review, or archive a baseline to compare against later. All of NiceEval's run results live in one file: `.niceeval/record.sqlite` in your project. This is Record.
 
-Run creation, in-progress aggregation, published Attempts, Attachments, Content, coordination state, and Invocation Sessions are all rows in the same ProjectDatabase.
+## What Record contains
 
-A Run is discoverable as soon as it is created. An Attempt becomes readable in a fixed `PublicationCutoff` after its atomic publication completes; the Run does not need to close first.
+Runs, in-progress summaries, published Attempts, and their attachments and content are all stored in this file. Cache, credentials, and user-level service state are not.
 
-Inspection, `query`, `show`, and `view` all respect this boundary. A published Attempt closure is immutable. Cache, credentials, and OS-user Service state are not Record facts.
+A Run can be found as soon as it is created. An Attempt can be read once it finishes and publishes, without waiting for its Run to end. Published Attempts are never modified again. `query`, `show`, and `view` only read published results.
 
-## Carry a Record
+## Hand results to someone else
+
+After a run has fully ended, copy the file directly:
 
 ```sh
 cp .niceeval/record.sqlite ./baseline.record.sqlite
-niceeval query explain --record ./baseline.record.sqlite --request request.json
-niceeval show --record ./baseline.record.sqlite
 ```
 
-The canonical file itself can be copied or archived. Do not copy WAL, checkpoint, or staging files, and do not modify SQLite content after copying it.
+Copy only `record.sqlite` itself. Do not copy the WAL, checkpoint, or staging files next to it, and do not modify the SQLite content after copying.
 
-`query` and `show` treat a file selected by `--record` as hostile input. They read it only after exact current-schema, SQLite-integrity, and domain-invariant validation. A Record can still contain sensitive business data, so its sender owns permissions, redaction, and retention.
+When you receive someone else's file, point `--record` at it:
 
-## Read boundaries
+```sh
+pnpm exec niceeval show --record ./baseline.record.sqlite
+pnpm --silent exec niceeval query explain --record ./baseline.record.sqlite --request request.json
+```
 
-Record does not own presentation, statistics, or comparisons. A fixed Inspection operation reads published facts within a `PublicationCutoff`, then passes the closed result to `query`, `show`, or first-party `view`. A read path cannot give external code the database, a reader, a Content handle, or SQL capability.
+`view` only reads the current project's `.niceeval/record.sqlite` and does not accept `--record`.
 
-See [CLI](/reference/cli) to choose a read path.
+## External files are validated before reading
+
+`query` and `show` treat the file named by `--record` as untrusted input. The command reads it only when the format version matches exactly, the SQLite integrity check passes, and the internal data is consistent. When validation fails, the command reports an error. It does not migrate, patch, or read part of the file.
+
+When a file is rejected, first confirm it is a complete single file copied after the run ended, and that no other process was writing during the copy. For specific errors and next steps, see [Debug failed eval results](/troubleshooting/debugging#cannot-open-results).
+
+Record can contain sensitive business content, such as raw conversations and file changes. Before sharing, you are responsible for permissions, redaction, and retention.
+
+## What Record does not do
+
+Record only stores results. It does not compute statistics, comparisons, or pages. NiceEval's fixed built-in queries read the published results, then hand the complete query result to `query`, `show`, or `view`. External code never gets a database connection, a reader object, or SQL access.
+
+To choose a way to read results, see [CLI](/reference/cli).

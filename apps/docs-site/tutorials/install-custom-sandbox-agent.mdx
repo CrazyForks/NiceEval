@@ -1,14 +1,16 @@
 ---
-title: "Install a CLI for a Custom Sandbox Agent"
+title: "Install the CLI for a Custom Sandbox Agent"
 sidebarTitle: "Install a Custom Agent CLI"
-description: "Use ensure and an installer to check, install, and recheck the exact version of a custom coding-agent CLI."
+description: "Use ensure and installer to check, install, and recheck the exact version of a custom coding-agent CLI."
 ---
 
-A custom Sandbox Agent must declare the CLI's name, version, and installation method. NiceEval first checks the CLI in the Sandbox. When its version does not match, NiceEval installs the requested version and checks it again.
+You are evaluating a Coding Agent CLI that the built-in adapters do not support yet, or you need to pin a specific version. Installing it into the image by hand every time is error-prone: when the version silently upgrades, two eval runs are no longer comparing the same Agent.
 
-## Declare the CLI identity and installation method
+Instead, declare the CLI's name, version, and installation method on a custom Sandbox Agent. Before each run, NiceEval checks the CLI in the Sandbox; when the version is wrong, it installs the version you specified, checks again after installing, and starts the eval only when everything is correct.
 
-For a Node.js CLI, use `createNpmCliInstaller`. This example connects the npm package `my-agent@1.0.0` through a custom Adapter:
+## Declare the CLI's version and installation method
+
+First spell out on the Agent which CLI, which version, and how to install it. For a Node.js CLI, use `createNpmCliInstaller`. The code below connects the npm package `my-agent@1.0.0` to a custom Adapter:
 
 ```ts
 // agents/my-agent.ts
@@ -54,22 +56,23 @@ export default defineSandboxAgent({
       input.text,
     ]);
     if (result.exitCode !== 0) {
-      throw new Error(`my-agent exited with code ${result.exitCode}: ${result.stderr}`);
+      throw new Error(`my-agent exit code ${result.exitCode}: ${result.stderr}`);
     }
     return turnFromResponses(JSON.parse(result.stdout) as ResponseLike);
   },
 });
 ```
 
-This example defines `my-agent run --json` to print one OpenAI Responses-compatible JSON object. `turnFromResponses` converts its `output` items and usage into NiceEval's `Turn`; if your CLI emits another schema, replace that line with an explicit mapping to `events`, `status`, and `usage`.
+This example assumes `my-agent run --json` outputs a JSON object compatible with OpenAI Responses. `turnFromResponses` converts its `output` and usage into a NiceEval `Turn`. When the CLI outputs another format, replace this line with your own mapping to `events`, `status`, and `usage`; see [Write send](/tutorials/write-send#step-4-parse-tools-into-events).
 
-`identity.version` is the CLI's exact version. When the installation steps for that version change, update `identity.revision` too. Do not use `latest` here.
-
-`setup` writes only authentication and runtime configuration. The `installer` owns CLI installation, so every Attempt first completes a version check.
+- Write the CLI's exact version in `identity.version`, not `latest`. When the version changes silently, two eval runs are not comparing the same Agent.
+- When the version stays the same but the installation steps change, raise `identity.revision` as well.
+- `setup` only writes auth and run configuration. Leave installation to `installer`, so the version is checked before every Attempt starts.
+- The text in `progress` is shown in the terminal while checking, installing, and when ready.
 
 ## Run it in an Experiment
 
-Put the Agent and Sandbox Provider in an Experiment:
+Put the Agent and the Sandbox Provider in an Experiment:
 
 ```ts
 // experiments/my-agent.ts
@@ -85,26 +88,28 @@ export default defineExperiment({
 ```
 
 ```shell
-npx niceeval exp my-agent fixtures/button
+pnpm exec niceeval exp my-agent fixtures/button
 ```
 
-For an ordinary npm package, the Sandbox must provide Node.js and npm. `createNpmCliInstaller` packs and uploads the package from the host, then runs `npm install -g` inside the Sandbox. If the Sandbox already has the correct version, NiceEval uses it directly. Only a real self-contained `platformPackage` can omit this runtime requirement.
+During the run, the terminal shows the checking, installing, and ready text from `progress` in turn. When the Sandbox already has the correct version, NiceEval uses it directly and skips installation. After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
 
-## Inspect installation failures
+An ordinary npm package requires Node.js and npm in the Sandbox. `createNpmCliInstaller` packs on the host, uploads, then runs `npm install -g` in the Sandbox. Only a `platformPackage` that bundles its own runtime does not need Node.js and npm.
 
-When installation or the recheck fails, the Attempt becomes `errored` during `agent.ensure`. The terminal prints an Attempt locator.
+## Check installation failures
+
+When installation or the post-install recheck fails, the Attempt becomes `errored` in the `agent.ensure` phase, and the terminal gives its locator:
 
 ```shell
 pnpm exec niceeval show @<attempt-locator>
 ```
 
-First check the package name, version, and target platform in the error. After correcting the `identity`, npm package, or installation steps, rerun the original command.
+First check the package name, version, and target platform in the error, then confirm the image has Node.js and npm. After correcting `identity`, the npm package, or the installation steps, run the original command again.
 
 ## Choose another installation mode
 
-`AgentInstaller` also supports two modes:
+When packing on the host and uploading does not suit your case, `AgentInstaller` has two other modes:
 
-- `sandbox-network` lets the Sandbox use its own network to install the CLI. Use it only when the task explicitly permits that network access.
-- `verify-only` accepts only a preinstalled exact version. If the check fails, the Attempt errors immediately.
+- `sandbox-network`: let the Sandbox install the CLI over its own network. Use it only when the task explicitly allows this network access.
+- `verify-only`: accept only an exact version preinstalled in the image. When the version is wrong, the Attempt reports an error directly without trying to install.
 
-For either mode, provide your own `AgentInstaller`. See all fields in the [`defineSandboxAgent` reference](/reference/define-agent#definesandboxagent).
+Both modes require you to provide your own `AgentInstaller`. For the full fields, see the [`defineSandboxAgent` reference](/reference/define-agent#definesandboxagent).

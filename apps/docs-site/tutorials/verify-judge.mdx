@@ -1,12 +1,16 @@
 ---
-title: "Configure and Verify a Judge"
-sidebarTitle: "Configure and Verify a Judge"
-description: "Choose a named Judge Provider and complete one real score with a rubric and named material."
+title: "Configure the Judge and Confirm It Can Really Score"
+sidebarTitle: "Configure and Verify the Judge"
+description: "Choose the Provider, model, and API key for the Judge model, then run one real scoring pass with a minimal eval, and confirm the configuration is correct before using it at scale."
 ---
 
-Use a Judge for open-ended quality judgments that rules cannot express as an exact Match. First use one minimal Eval to confirm that the model, key, and endpoint can score for real.
+Questions such as "is this explanation suitable for elementary school students" or "did the answer make up facts" cannot be written as a regex; they go to the Judge model to score.
 
-## Configure the model and credential source
+The Judge itself can go wrong too: a wrong API key, a misspelled endpoint, a misspelled model name. If you only find these problems after 200 evals have run, none of the Judge scores along the way can be obtained. So configure it first, then run one real scoring pass with a minimal eval, and use it at scale only after confirming you get a score.
+
+## Configure which service the Judge uses
+
+In `niceeval.config.ts`, spell out the service, model, and endpoint with a named Provider. The example below uses an OpenAI-compatible gateway:
 
 ```ts title="niceeval.config.ts"
 import { defineConfig } from "niceeval";
@@ -23,15 +27,15 @@ export default defineConfig({
 });
 ```
 
-Keep the key only in the process environment:
+`apiKeyEnv` holds only the variable name. Put the key itself in an environment variable, or in the project's `.env`:
 
 ```sh
 export JUDGE_GATEWAY_KEY="..."
 ```
 
-The configuration file stores the environment-variable name, never the key value. To compare Judge models, configure different Experiments with different `judgeRuntime` model strings or Providers. Model selection comes from the resolved Eval configuration.
+## Write a minimal eval
 
-## Write one minimal Eval
+Write an eval with only one Judge assertion to confirm the configuration can get a score:
 
 ```ts title="evals/judge-smoke.eval.ts"
 import { defineEval } from "niceeval";
@@ -43,21 +47,24 @@ export default defineEval({
     const turn = await t.send(operation);
     turn.closeQA("Does this turn clearly report the execution status and data import result?")
       .gate(0.8)
-      .label("Success statement");
+      .label("Reports success clearly");
   },
 });
 ```
 
-`turn.closeQA(question)` captures the current Turn's complete recorded history when registered, composes a managed scoring Match, and passes it to the same `check`. `.gate(0.8)` sets a quality threshold on the same measurement handle. A complete empty collection scores 0 without a model call; insufficient evidence is `unavailable`.
-To check specific messages or tools, pass an explicit domain Match. For business material from another application, use a custom `MaterialMatch`.
-Use `EventMatch` for message views and `ToolMatch` for tool inputs and outputs. `usedNoTools()` already encapsulates its criterion and takes no arguments, including no Match.
+`turn.closeQA(question)` hands this Turn's full conversation to the Judge, which answers your question and gives a score from 0 to 1. `.gate(0.8)` means this eval fails when the score is below 0.8.
 
-## Add image material
+When the material is empty, this assertion scores 0 directly without calling the Judge. When the material is incomplete and cannot be judged, the result is `unavailable`, which is not counted as 0.
 
-Attach an image only when the criterion genuinely requires it. Reuse the same `defineJudge` and `t.judge`; you do not need another Judge or scoring threshold.
-First set `supportsImages: true` in the existing chat Provider configuration and choose a model that supports both images and tool calls. `TypesafeProvider` does not support images.
+To have the Judge look only at specific messages or tool calls, pass the matching Match to `closeQA`; for the application's own business material, use a custom `MaterialMatch`. See [NiceEval Taste](/tutorials/niceeval-taste) for how to write them.
 
-The following Eval reads an existing `screenshot.png` saved by the application. It does not generate a new screenshot for the evaluation:
+## Attach image material
+
+Attach images only when the criterion really needs to see them. Keep the same `defineJudge` and `t.judge`; you do not need a second Judge or score gate.
+
+First set `supportsImages: true` in the existing chat Provider's configuration, and switch `model` to a model that supports both images and tool calls. `TypesafeProvider` does not support images.
+
+The eval below reads the `screenshot.png` the application has already saved, and does not take a new screenshot for the eval:
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -66,7 +73,7 @@ import { judgeImage } from "niceeval/judge";
 
 const actionQuality = defineJudge({
   name: "action-quality",
-  rubric: "Evaluate whether the action was reasonable based on known facts; use the image only as supporting evidence and do not infer actions outside the frame.",
+  rubric: "Rate whether the action is reasonable based on known facts; the image is only supplementary, and do not infer actions outside the frame.",
 });
 
 export default defineEval({
@@ -75,31 +82,47 @@ export default defineEval({
       body: await readFile("screenshot.png"),
       mediaType: "image/png",
     });
-    t.judge({ action: "The character completed the move", screenshot }, actionQuality).gate(0.8);
+    t.judge({ action: "The character finished carrying the item", screenshot }, actionQuality).gate(0.8);
   },
 });
 ```
 
-Images must be PNG or JPEG, with a maximum of 4 MiB per image. Oversized images and invalid headers are rejected before sending. Do not use a path, URL, or ordinary base64 string as an image.
+Images must be PNG or JPEG, at most 4 MiB each. When an image is too large or has an invalid file header, NiceEval rejects it before sending. Do not pass a path, URL, or plain base64 string in place of an image.
 
-After sealing, `attempt.assertion.detail` provides the image's stable `imageId` and summary. Use the fixed `attempt.assertion.image` query operation with the same Attempt's `entryId` and `imageId` to page through the original image. `offset` is a byte offset and `limit` is at most 256 KiB. This reads evidence from the Record; it does not access the file or call the model again.
+After the run, use `query`'s `attempt.assertion.detail` to view this assertion; the result includes the image's `imageId` and digest. To get the original image back, use `attempt.assertion.image` with the same Attempt's `entryId` and `imageId`, reading in segments: `offset` is the byte offset, and `limit` is at most 256 KiB. It reads the saved image and never rereads the file or calls the model.
 
-## Run and inspect
+## Run once and confirm you get a score
 
-Ensure an existing Experiment's `evals` scope includes `judge-smoke`, then run:
+Make sure an existing Experiment's `evals` includes `judge-smoke`, then run:
 
 ```sh
 pnpm exec niceeval exp local judge-smoke
-pnpm exec niceeval view --run <run-id>
 ```
 
-Static configuration validation does not request the endpoint. A real Judge Assertion uses a forced-function request; successful results include the measurement, threshold, public rationale, and exact material sent.
+NiceEval does not contact the Judge endpoint when loading configuration; it only sends a request when a Judge assertion really executes. So a configuration mistake only shows up after a run.
 
-| Result | Meaning |
-|---|---|
-| `judge-provider-unresolved` / `judge-key-unresolved` | The Provider or credential is missing; no network request was sent. |
-| `errored` | The endpoint returned HTTP 400, the protocol was incompatible, or the response failed the strict schema. |
-| `unavailable` | The request failed in transport or timed out. |
-| `errored` | The Decision is missing or malformed, or the measurement is outside the allowed range. |
+After the run, copy the Run ID from the terminal's `NEXT` panel and open this run:
 
-To compare Judges, have multiple Experiments use different model strings or named Providers, then use `labels` to identify the comparison axes.
+```sh
+pnpm exec niceeval show --run <run-id>
+```
+
+Copy the locator of the `judge-smoke` Attempt and view the assertion result:
+
+```sh
+pnpm exec niceeval show @<attempt-locator>
+```
+
+When the configuration is correct, this assertion shows a score and whether it reached the threshold. You can also view it in the browser with `pnpm exec niceeval view --run <run-id>`. When you need the reasons the Judge gave and the material actually sent to it, use `query`'s `attempt.assertion.detail`; see the example in [View Run Results](/tutorials/viewing-results#see-why-an-assertion-got-its-score).
+
+When you get no score, decide what to check from the result:
+
+| Result you see | Cause | Check first |
+|---|---|---|
+| `unavailable`, reason `judge-provider-unresolved` | No Provider configured; no request was sent | `judgeRuntime` in `niceeval.config.ts` |
+| `unavailable`, reason `judge-key-unresolved` | The key could not be read; no request was sent | Whether the variable named in `apiKeyEnv` is set |
+| `unavailable` | The request could not be sent or timed out | Network, `baseUrl`, `timeoutMs` |
+| `errored` | The endpoint returned HTTP 400, the protocol is incompatible, or the response is not in the required format | Whether `baseUrl` points to a compatible gateway, and whether the `model` name is correct |
+| `errored` | The Judge gave no judgment, used the wrong format, or returned an out-of-range score | Whether the model supports tool calls |
+
+To compare different Judges, have several Experiments use different model strings or named Providers, and mark the dimension being compared with `labels`.

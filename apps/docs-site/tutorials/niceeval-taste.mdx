@@ -1,0 +1,139 @@
+---
+title: "NiceEval Taste: Make Eval Criteria Clear at a Glance"
+sidebarTitle: "NiceEval Taste"
+description: "Let a colleague read an eval and explain what it tests, what passes, why the evidence is sufficient, and how it scores. Use existing facts, simple conditions, and ordinary arithmetic."
+---
+
+After writing an eval, ask a colleague to read its body and explain four things: what it tests, what passes, why the evidence is sufficient, and how the score is calculated. If they cannot, the criteria are still hidden in the code.
+
+This page explains the principles with examples. For declaration and run steps, see [Write evals](/tutorials/authoring). For signatures, see the [defineEval reference](/reference/define-eval).
+
+## Four principles
+
+- **Write the criteria before the code.** State the business requirement in one sentence, then choose the shortest faithful expression. Do not start by aggregating logs into a number and giving it a business name.
+- **Check facts deterministically; use Judge for meaning.** Check tool names, arguments, and counts directly. Use Judge to assess whether an answer is faithful or advice is reasonable.
+- **Introduce fewer concepts.** If existing facts, simple conditions, and a little arithmetic express the rule, do not invent a new business concept. Removing a concept matters more than removing a few lines.
+- **Unknown means unknown.** Keep missing records, missing tokens, and oversized material indeterminate. Do not replace them with zero or false.
+
+For conversational Agents, this page is enough. For applications that provide business facts such as support records or game state, continue to [Eval criteria for custom applications](/tutorials/niceeval-taste-application).
+
+## Agent evals
+
+An Agent receives tasks through `t.send()` and returns messages, tool calls, and Turn status. NiceEval already reads these facts directly. Use its Agent assertions instead of writing another reader for tool names, arguments, or replies.
+
+### Example: Check the weather, then give travel advice
+
+This eval has two turns. The first asks the Agent to look up Taipei's weather. The second asks whether to bring an umbrella based on that weather. It requires an Agent with a `get_weather` tool that accepts `city` and `unit`, and a project with Judge configured.
+
+```ts
+import { defineScoreEval } from "niceeval";
+import { atMost, jsonMatch, toolMatch } from "niceeval/expect";
+
+export default defineScoreEval({
+  description: "Look up the weather and give grounded travel advice",
+  async test(t) {
+    const weather = await t.send("Look up Taipei's current weather in Celsius.");
+    await weather.succeeded().gate().orStop();
+
+    // This turn must make the correct query; calls from other turns cannot count.
+    await weather.calledTool(toolMatch("get_weather", {
+      input: jsonMatch({ city: "Taipei", unit: "celsius" }),
+      status: "completed",
+    }).exactly(1)).gate().score(20).label("Correct query").orStop();
+
+    const advice = await t.send("Based on that weather, explain whether I need an umbrella and why.");
+    await advice.succeeded().gate().orStop();
+
+    // The check needs both the query result and the advice, so Judge gets the full history.
+    t.closeQA("Does the final umbrella advice match the tool's weather result, without inventing weather facts?", {
+      maxMaterialBytes: 256 * 1024,
+      maxAuditBytes: 1024 * 1024,
+    }).score(80).label("Grounded advice");
+
+    t.check(t.usage.totalTokens, atMost(10_000)).gate().label("Usage limit");
+    t.check(t.elapsedMs, atMost(30_000)).gate().label("Runtime limit");
+  },
+});
+```
+
+The eval makes these decisions visible:
+
+- **Where the score comes from.** The correct query earns 20 points; grounded advice earns 80. Usage and duration are gates only.
+- **Why the query uses a deterministic check.** The tool name and arguments are directly observable facts. Judge does not need to guess.
+- **Why the advice needs Judge.** A reply containing “rain” or “umbrella” does not prove the advice is correct. Even when the tool reports rain and the Agent recommends an umbrella, Judge must check that the explanation invents no weather facts.
+- **Why it uses `.orStop()`.** A successful query is a prerequisite for the second turn. Asking about an umbrella after a failed query is meaningless here. If your task allows the Agent to explain a query failure, write criteria for that path instead of copying this prerequisite.
+
+### Choose the scope, then the material
+
+The same check can reach a different conclusion depending on which turn it covers and which material Judge receives.
+
+| Goal | How to write it | Common mistake |
+| --- | --- | --- |
+| Check whether this turn called a tool correctly | Call `calledTool` on that `turn`, specifying input, status, and count | Pass the turn because a call with that name appeared anywhere in the Attempt |
+| Assess this turn's answer | Use `turn.closeQA(question)` with the turn's full history | Judge an explanation or refusal only by keywords |
+| Check whether a later answer follows earlier context and tool results | Call `closeQA(question)` on the Session covering those turns or on the whole eval | Give Judge only the last reply and make it guess the context |
+| Assess all calls of a particular tool kind | Use `closeQA(toolMatch(...), question)` with every matching call | Treat the first or successful call as representative of all calls |
+
+Judge needs enough material to answer the question. `toolMatch` selects only tool calls. If the question also concerns user requirements and replies, provide the full history containing them.
+
+Do not filter out failed calls, refusals, or clarifications before assessing quality; they are part of the performance. When material exceeds the limit, NiceEval records an indeterminate result instead of truncating it and continuing to score.
+
+For multi-turn tasks, decide which turn or Session owns each requirement. Use `inOrder` for tool-call ordering; see the [Match reference](/reference/expect). Order alone does not prove that a later call used an earlier result. Check inputs and outputs to establish a data dependency.
+
+### Keep deterministic facts out of Judge
+
+Both of these patterns use the wrong evidence:
+
+- `judge("Was the weather tool called?")`: the call is directly observable. Asking a model to decide again adds another chance of error.
+- `reply.includes("sorry")`: a keyword cannot establish whether a refusal is reasonable. Judge needs the context.
+
+Usage and duration already have fields. `t.usage` contains usage reported by the Adapter; `t.elapsedMs` is the run's wall-clock duration. Do not aggregate logs or maintain model price tables in the eval, and do not replace missing tokens with zero. Calls the Adapter did not report are absent from `t.usage`; the field's presence does not prove every external call was recorded.
+
+## Checks before delivery
+
+Use these three steps for both Agents and custom applications.
+
+### Separate stopping, gating, and scoring
+
+`check` registers a check. The methods chained after it determine how it is used:
+
+- `.gate()`: fail the eval if the condition is not met.
+- `.score(weight)`: contribute points when the condition is met.
+- `.orStop()`: stop later steps if the condition is not met. It controls stopping and does not replace `.gate()`.
+
+The two eval kinds have different defaults. In a score-based eval (`defineScoreEval`), an ordinary check only records its result: add `.score()` to score it or `.gate()` to make it a gate. In a pass/fail eval (`defineEval`), checks affect passing by default. Do not mix these defaults; see [Pass/fail and score-based evals](/tutorials/evaluation-kinds).
+
+For a ratio you calculate between 0 and 1, use `t.score(ratio, { weight: 50 })`; its contribution is ratio × 50. With one argument, `t.score(points)` adds that many points directly. These are different meanings. A formula does not need a Match wrapper. If the ratio is unknown, pass a value marked unavailable: the item retains its weight of 50 and is not treated as zero.
+
+For a 0-to-1 measurement such as a Judge score, use `.gate(minimum)` for a minimum score and `.orStop(minimum)` to stop below it. After `.gate(minimum)`, `.orStop()` can omit the argument and reuse that minimum. Preserve unavailable evidence instead of converting it to `false` or `0` before stopping.
+
+Do not change business standards while rewriting. “Award 5 points for participating” and “everyone must participate” are different requirements. Replacing `.score(5)` with `.gate()` may look shorter, but it changes the requirement. Low and zero scores can be correct results. Do not lower gates or remove failures to make a report green.
+
+### Verify with a real run
+
+Type checking and successful construction only confirm the form of the code. They do not prove material reading, cancellation, auditing, or business judgments are correct. After checking the installed version's exports and types, run `pnpm exec niceeval exp <experiment>` with data from the real Adapter. Do not call a Match's internal evaluator or fabricate an assertion context.
+
+After the run, open the Attempt with `pnpm exec niceeval show @<attempt-locator>` and distinguish three kinds of problems:
+
+- **Technical error**: a call or parsing step raised an error.
+- **Insufficient evidence**: the result is missing, partial, or unavailable.
+- **Business failure**: the evidence is complete, but a gate was not met.
+
+A low score is not a framework error, and zero does not mean evidence is missing. Fix the layer responsible instead of loosening assertions to get a pass.
+
+At delivery, explain separately what the `--dry` plan, type check, focused run, and real end-to-end run verified. A documentation build does not prove Judge acceptance; a few passing samples do not prove that long material or a whole batch will pass. For run and result commands, see the [feedback loop](/tutorials/agent-feedback-loop).
+
+### Review the eval's readability
+
+Before committing, ask these questions and check the answers against the same Attempt's results:
+
+- Can the reader identify the goal, observation scope, each pass condition, and each score?
+- Does each requirement mean “at least once,” “every time,” or “never”? Where is completeness checked?
+- Do combined conditions concern the same fact? Could material from another Attempt slip in?
+- Are model choice, actual execution, and final outcome checked separately? Is the success attributable to the subject under test?
+- Does Judge have all relevant material, and can the question be answered from it?
+- Do missing records, missing tokens, unknown cost, and capacity limits remain indeterminate instead of zero?
+- Can the reader see states, counts, thresholds, and combinations without opening helper implementations?
+- Do Matches only select material and compose small conditions? Are extra business names hiding existing fields or simple arithmetic?
+- Are scores and gates visible? Do dependent checks stop when a prerequisite fails?
+- Was verification performed through a real run and public result commands? Are focused checks distinguished from real execution?

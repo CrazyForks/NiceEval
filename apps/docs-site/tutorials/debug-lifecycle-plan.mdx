@@ -1,48 +1,83 @@
 ---
-title: "Inspect a Lifecycle Plan Before a Run"
-sidebarTitle: "Inspect Lifecycle Plans"
-description: "Use niceeval debug to inspect the Plugin, Sandbox, Agent, Fixture, and teardown sequence for one Experiment–eval pairing without creating any run resources."
+title: "Check How the Sandbox Will Be Prepared Before Running"
+sidebarTitle: "Check the Sandbox Plan"
+description: "Use niceeval debug to list the order in which one eval is prepared, installed, executed, and cleaned up in the Sandbox, with each step's actual parameters, without creating any resources."
 ---
 
-`exp --dry` is for confirming a run matrix. Use `niceeval debug` when you need to inspect the order in which one eval prepares, installs, executes, and cleans up inside a Sandbox.
+You wrote `.before()` on the Experiment, the eval group, and the eval, and configured installation steps for the Agent. Before actually running, you want to confirm the final order of these steps and each step's parameters, instead of finding out the order is wrong after the Sandbox is built and dependencies took five minutes to install.
 
-## Select one exact pairing
+`exp --dry` tells you which evals run and how many times. `niceeval debug` goes further: it lists one eval's complete preparation, installation, execution, and cleanup steps in the Sandbox, without creating any Sandbox or calling any model.
+
+## Pick one Experiment and one eval
+
+`debug` looks at one eval under one Experiment at a time:
 
 ```sh
 pnpm exec niceeval debug compare/codex memory/commit0
 ```
 
-Both the Experiment and eval selector must be unique. Prefer exact IDs; when a prefix matches multiple candidates, the CLI lists them and stops.
+Each argument must match exactly one item. An exact ID wins; when a prefix matches several, the CLI lists the candidates and stops, and you copy the full ID from them and run again.
 
-An eval can match only within the scope selected by that Experiment. Selecting one eval-group member does not add the other members to the plan, but the output still shows the eval-group lifecycle wrapper.
+The eval is looked up only within the scope this Experiment already selects. When you pick one eval from an eval group, the plan does not add the other evals in the group, but it still shows the preparation steps the eval group contributes.
 
 ## Read the plan in order
 
-The plan shows, in sequence:
+The output uses nested boxes: the outermost is the Experiment, and inside it come each Attempt and its lifecycle steps. Each `sandbox.before` step shows:
 
-1. Plugin lifecycle;
-2. Author-declared preparation;
-3. Agent ensure, setup, and teardown;
-4. Sandbox creation and Provider finalizer;
-5. Eval-group and physical Sandbox lifecycle;
-6. Fixture, test, and cleanup.
+- who declared this step (`owner`) and its ID (`action`);
+- its final execution number, and which eval it belongs to;
+- the `changeFrequency` value you set, where it came from, and the matching preset;
+- which steps it depends on, why it sits in this position, and the level it runs at (`occurrence`, currently always `attempt`);
+- whether the Provider can cache this step, and the cache status not yet checked at run time;
+- whether this step can be restored from cache (`declared`, `cumulative`, `providerCoverage`, and `barrier` in `cache.state`).
 
-Static `shell()` and `command()` calls expand into actual commands. Regular callbacks are marked `Opaque` because they can run only at execution time. Paths, credentials, environment-variable values, and unsafe remote locators never appear in human-readable output.
+```text
+╭─ sandbox.before ───────────────────────────────── EXACT ─╮
+│ owner: experiment:compare/codex                         │
+│ action: install-runtime                                 │
+│ family: @acme/install-runtime                           │
+│ execution order: #2 · compare/codex > memory/commit0    │
+│ change frequency: 20 · explicit                         │
+│ scheduled by: lowest ready changeFrequency              │
+│ occurrence: attempt                                     │
+│ cache: not-probed · persistent · runtime pending · final key not-probed │
+│ prefix identity: linked-prefix:…                                         │
+│ cache state: declared dockerData · cumulative dockerData                │
+│ provider coverage dockerData · barrier none                              │
+╰─────────────────────────────────────────────────────────╯
+```
 
-Every author action currently has `attempt` occurrence. The plan shows the Provider's declared cache capability, but dry inspection does not probe a cache or resolve a final key. Human and JSON output therefore report runtime status as `pending` and the final key as `not-probed`.
+`execution order` is the real run-time order, not the order you wrote in code. The rules: dependencies always run first; when several steps can run, the one with the smaller `changeFrequency` value runs first; when the values are equal too, the declarer and declaration order decide. So a rarely changing step in an eval group can come before a frequently changing step in the Experiment.
 
-## Give tools a structured plan
+## Tell which steps can be restored from cache
+
+- `declared` is the state this step itself declares it will change.
+- `cumulative` includes the state changed by this step and every preparation step before it.
+- `providerCoverage` describes what the Provider can actually restore.
+- When `barrier` is not `none`, the output also gives `barrierActionId`, pointing to the first step that cannot be cached. The reason may be that its state declaration is the default `all`, that it is `opaque`, or that the Provider does not support it. This step and every step after it really execute.
+
+## Confirm commands and parameters
+
+Hard-coded command steps show the shape of the command. Ordinary callbacks are marked `OPAQUE`, because they can only run at run time and `debug` cannot see what they do.
+
+Environment variables show only the variable name and a digest, and stdin shows only a digest and byte count. Credential values, raw stdin, and unsafe remote addresses never appear in the terminal or JSON output.
+
+## Let tools read the plan
 
 ```sh
 pnpm exec niceeval debug compare/codex memory/commit0 --json > debug-plan.json
 ```
 
-JSON retains the structured steps and precision markers without terminal box drawing. `debug` accepts only `--json`; run flags such as budget, rerun, and concurrency do not apply to this command.
+The JSON is the same plan as the terminal output, without the box lines. Each step carries `declarationOrder`, `executionOrder`, `changeFrequency`, `dependencies`, `occurrence`, and `cache`.
 
-## Confirm that it performs no resource operations
+`cache.state` always gives `declared`, `cumulative`, `providerCoverage`, and `barrier`, plus `barrierActionId` when there is a barrier; steps that can be determined also give `cache.prefixIdentity`. `debug` does not read the run-time cache, so `cache.lookup` and `cache.runtime.finalKey` are always `not-probed`, and `cache.runtime.status` is always `pending`.
 
-`debug` does not run setup, test, teardown, ensure, Sandbox creation, or finalizers. It creates no Invocation, Run, Record, lock, Sandbox, or build task.
+`debug` accepts only `--json`. Run parameters such as budget, rerun, and concurrency do not apply to it.
 
-It loads trusted definitions and executes the Experiment's selection predicate. A Provider planner can also read local files, invoke a read-only CLI, or query a remote control plane, so run it only in a trusted project.
+## It creates no resources
 
-Use [Select and Preview the Run Scope](/tutorials/select-and-preview) to confirm the matrix and Attempt count first. After a real execution fails and you need to preserve the scene, use [Debug by Preserving the Sandbox](/troubleshooting/debug-sandbox).
+`debug` does not run before callbacks, test, after, ensure, or Provider cleanup functions, and does not create Runs, locks, Sandboxes, or build jobs, or write to the result file.
+
+It does load your Experiment definition and run the `evals` selection function. Providers may also read local files, call read-only CLIs, or query remote services during planning, so still run it only in trusted projects.
+
+To confirm which evals run and how many times each, see [Confirm What Runs and How Many Times Before Running](/tutorials/select-and-preview). When a real run fails and you need to get into the scene, see [Keep the Sandbox to Debug Problems](/troubleshooting/debug-sandbox).

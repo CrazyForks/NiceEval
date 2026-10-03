@@ -40,7 +40,7 @@ The Runner validates the value against the declaration immediately after the Ada
 
 ## One turn with a file: `t.sendFile()`
 
-`t.sendFile(path, text?)` reads a local file relative to the Eval's directory, infers a MIME type from the extension, and attaches it to this turn's input as a data URL:
+`t.sendFile(path, text?)` reads a local file relative to the eval case's directory, infers a MIME type from the extension, and attaches it to this turn's input as a data URL:
 
 ```ts
 const turn = await t.sendFile("fixtures/invoice.png", "What is the total amount on this invoice?");
@@ -52,8 +52,6 @@ t.check(turn.message, includes("$"));
 Each `await t.send(...)` is a new turn in the same conversation. Assign each response to a local variable so you can assert that individual turn as well as use run-level `t` assertions:
 
 ```ts
-import { includes } from "niceeval/expect";
-
 const draft = await t.send("Help me draft a follow-up email.");
 draft.succeeded().label("Draft completed");
 t.check(draft.message, includes("Best regards"));
@@ -81,12 +79,12 @@ t.check(fresh.reply, satisfies("No memory leak", (reply) => !reply.includes("Xia
 ```
 
 <Warning>
-Do not assume that `t.newSession()` inherently guarantees isolation. The Runner only guarantees that the new session line starts with empty state. Opening a fresh conversation with the application is the Adapter's job. An Adapter that ignores its session state and always resumes the same underlying context makes `t.newSession()` silently share state without an error. When you write an Adapter, verify isolation with an Eval like the one above before you trust it.
+Do not assume that `t.newSession()` inherently guarantees isolation. The Runner only guarantees that the new session line starts with empty state. Opening a fresh conversation with the application is the Adapter's job. An Adapter that ignores its session state and always resumes the same underlying context makes `t.newSession()` silently share state without an error. When you write an Adapter, verify isolation with an eval case like the one above before you trust it.
 </Warning>
 
 ## Human-in-the-loop (HITL)
 
-Some Agents stop during a turn to wait for approval or missing information instead of finishing immediately. That turn ends with `status: "waiting"` and has one or more `input.requested` events that say what it needs. For the full mental model—handshake sequence, Adapter obligations, and `rejected` semantics—see [HITL](/explanation/hitl). This section explains how to use it from an Eval.
+Some Agents stop during a turn to wait for approval or missing information instead of finishing immediately. That turn ends with `status: "waiting"` and has one or more `input.requested` events that say what it needs. For the full mental model—handshake sequence, Adapter obligations, and `rejected` semantics—see [HITL](/explanation/hitl). This section explains how to use it on the eval side.
 
 ```ts
 import { equals } from "niceeval/expect";
@@ -105,7 +103,7 @@ t.calledTool("send_email").label("Sent");
 
 `t.requireInputRequest(filter)` turns a pending HITL request into a concrete value you can inspect and answer. It throws if zero or more than one pending request matches, so use as many filter fields as you can—`id`, `prompt`, `display`, `action`, `optionIds`, or `input`—to disambiguate.
 
-`t.respond(...)` answers the request and emits the next turn. Each argument is one answer: strings align to pending requests in order, while `{ request, optionId }` explicitly identifies a request, which is useful when several requests pause together. Under the hood it is another ordinary `send`: answer text goes to `input.text`, while structured answers go to `input.responses` one per request. A response that selects a request option carries `{ requestId, optionId }`; a free-text response carries `{ requestId, text }`. The Adapter does not need to parse the text: `requestId` identifies which answer belongs to which request. See [Inputs for the different answers](/explanation/adapter#inputs-for-the-different-answers) for how each response looks to the Adapter.
+`t.respond(...)` answers the request and emits the next turn. Each argument is one answer. The string form is only for when exactly one request is pending. When several requests pause together, name each one explicitly with `{ request, optionId }` or `{ request, text }`; argument order is never used to guess. Under the hood it is another ordinary `send`: answer text goes to `input.text`, while structured answers go to `input.responses` one per request. A response that selects a request option carries `{ requestId, optionId }`; a free-text response carries `{ requestId, text }`. The Adapter does not need to parse the text: `requestId` identifies which answer belongs to which request. See [Inputs for the different answers](/explanation/adapter#inputs-for-the-different-answers) for how each response looks to the Adapter.
 
 If the current turn has multiple pending requests of the same kind that should all receive the same answer, such as approving a batch of file changes one by one, use `t.respondAll(optionId)` to answer them at once. It validates `optionId` against every pending request first. If the option is absent from a request's `options`, it throws instead of silently sending the wrong answer:
 
@@ -121,5 +119,5 @@ t.succeeded().label("All completed");
 
 - [HITL](/explanation/hitl) — The complete concept of paused turns waiting for people: handshake sequence and obligations on both sides.
 - [Assert](/explanation/assert) — The assertion vocabulary that reads `Turn.events` and `Turn.data`.
-- [Judge](/explanation/judge) — Pure Judge Matches registered against explicit input and output through `check`.
+- [Judge](/explanation/judge) — Assess open-ended output with a rubric and material that has meaningful fields.
 - [Adapter](/explanation/adapter) — Where capabilities come from: what unlocks `t.newSession()`, HITL, and tool-related assertions.

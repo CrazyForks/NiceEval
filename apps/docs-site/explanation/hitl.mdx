@@ -14,26 +14,26 @@ You probably use it every day:
 - **Codex** uses approval modes such as suggest and auto-edit to decide which actions need confirmation first. This is the same kind of gate.
 - **AI SDK applications** often surface a tool call to the frontend when a tool has no `execute`. A person confirms it in the UI, the result returns through `addToolResult`, and the model continues. This is the most common approval-gate pattern in custom applications.
 
-For a subject under test, this “pause and wait for a person” branch needs regression coverage like any other behavior. Does the expected action happen after approval? Does it truly not happen after rejection? What if it asks the wrong person or pauses at the wrong point? Evals run automatically, so they have no person in the loop. [NiceEval](https://niceeval.com/) reduces the “person” to three programmable actions: use `t.check(turn.status, equals("waiting"))` to confirm the Agent paused, use `t.requireInputRequest()` to inspect what it is waiting for, then use `t.respond()` to answer in place of the person. Approval, rejection, and extra information become paths you can write into an Eval.
+For a subject under test, this “pause and wait for a person” branch needs regression coverage like any other behavior. Does the expected action happen after approval? Does it truly not happen after rejection? What if it asks the wrong person or pauses at the wrong point? Eval cases run automatically, so they have no person in the loop. [NiceEval](https://niceeval.com/) reduces the “person” to three programmable actions: use `t.check(turn.status, equals("waiting"))` to confirm the Agent paused, use `t.requireInputRequest()` to inspect what it is waiting for, then use `t.respond()` to answer in place of the person. Approval, rejection, and extra information become paths you can write into an eval case.
 
 ## How a paused turn is represented: `waiting` + `input.requested`
 
 The `Turn.status` returned from `send` has three values: `"completed"` when it has finished, `"failed"` when it has errored, and `"waiting"` when **the turn has not finished and the Agent is waiting for human input**. `waiting` is not a failure; it is a suspension. Once an answer arrives, the same turn continues without resending the request or opening a new conversation.
 
-A paused turn must also say what it is waiting for. Every question that needs an answer emits an `input.requested` event with a stable request `id`, the action where it paused (`action`), and optional decisions in `options`, such as approve / deny. Both status and event are necessary: `waiting` tells the Eval that it should answer, while `input.requested` tells it what to answer.
+A paused turn must also say what it is waiting for. Every question that needs an answer emits an `input.requested` event with a stable request `id`, the action where it paused (`action`), and optional decisions in `options`, such as approve / deny. Both status and event are necessary: `waiting` tells the eval case that it should answer, while `input.requested` tells it what to answer.
 
 ## One complete handshake
 
 `t.respond` has no special channel. It is simply **another ordinary `send`**, with the human decision delivered in structured input:
 
-<HitlHandshake />
+<HitlHandshake locale="en" />
 
 Two easy mistakes to avoid:
 
 - **A response turn is not a new conversation.** It happens on the same session line, so `ctx.session` remains the same. The Adapter uses it to recover the paused state from the previous turn.
-- **Do not infer an answer from text.** `input.responses` carries `{ requestId, optionId }` for each request, or `{ requestId, text }` for a free-text answer. The Eval has already verified that an `optionId` exists in the request's options. A typo throws instead of silently reaching the application. See [Inputs for the different answers](/explanation/adapter#inputs-for-the-different-answers).
+- **Do not infer an answer from text.** `input.responses` carries `{ requestId, optionId }` for each request, or `{ requestId, text }` for a free-text answer. The eval side has already verified that an `optionId` exists in the request's options. A typo throws instead of silently reaching the application. See [Inputs for the different answers](/explanation/adapter#inputs-for-the-different-answers).
 
-## On the Eval side: three actions
+## On the eval side: three actions
 
 ```ts
 import { equals, toolMatch } from "niceeval/expect";
@@ -51,37 +51,37 @@ t.calledTool(toolMatch("send_email", { status: "completed" }));
 - `t.requireInputRequest(filter)` picks exactly one pending request by matching fields such as `id`, `prompt`, `action`, or `optionIds`. It throws when zero or more than one request matches, which disambiguates several simultaneously paused requests.
 - `t.respond(...)` answers the request and emits the next turn. When several requests of the same kind need the same answer, such as approving a batch of changes one by one, `t.respondAll(optionId)` handles them at once.
 
-Approval and rejection are two branches of one gate. Covering it means writing an Eval for both: the expected action happens after approval, and it does not happen after rejection. For the complete API-by-API use, see [Drive](/explanation/drive#human-in-the-loop-hitl).
+Approval and rejection are two branches of one gate. Covering it means writing an eval case for both: the expected action happens after approval, and it does not happen after rejection. For the complete API-by-API use, see [Drive](/explanation/drive#human-in-the-loop-hitl).
 
 ## On the Adapter side: two obligations and one continuation
 
 HITL asks an Adapter to do exactly three things. The first two happen in the paused turn; the third happens in the next turn when the answer arrives:
 
 1. **Return `status: "waiting"` honestly when a turn pauses.** Do not report a suspension as `"completed"`; otherwise `t.check(turn.status, equals("waiting"))` fails and `succeeded()` can pass incorrectly.
-2. **Emit one `input.requested` event for every question waiting for an answer.** Keep `id` stable and populate as many fields as possible. Eval-side checks and alignment depend on them.
+2. **Emit one `input.requested` event for every question waiting for an answer.** Keep `id` stable and populate as many fields as possible. eval-side checks and alignment depend on them.
 3. **On the next `send`, return the decision first, then continue.** Take each decision from `input.responses` by `requestId` rather than guessing by order, then continue from where the previous turn paused instead of resending the request.
 
 The paused state, such as a partially read SSE stream, lives in `ctx.session` on this session line. The Adapter declares a private typed slot with `createSessionSlot<Pending>()`, saves it on pause with `ctx.session.set(slot, pending)`, and recovers it on the response turn with `ctx.session.take(slot)`. `take` clears the value as it retrieves it. See step 5 of [Write Send](/tutorials/write-send#step-5-hitl) for the complete streaming + HITL skeleton.
 
-Like other [NiceEval](https://niceeval.com/) capabilities, HITL does not have a Boolean declaration: **if you do it, you have it**. Once `send` has returned `"waiting"` and emitted `input.requested`, `t.respond` works. If it has not, the Eval fails explicitly at the status check or `requireInputRequest()` rather than silently passing. See [Adapter](/explanation/adapter#where-capabilities-come-from-proof-by-construction-not-a-questionnaire) for how capability follows from construction.
+Like other [NiceEval](https://niceeval.com/) capabilities, HITL does not have a Boolean declaration: **if you do it, you have it**. Once `send` has returned `"waiting"` and emitted `input.requested`, `t.respond` works. If it has not, the eval case fails explicitly at the status check or `requireInputRequest()` rather than silently passing. See [Adapter](/explanation/adapter#where-capabilities-come-from-proof-by-construction-not-a-questionnaire) for how capability follows from construction.
 
 ## Rejection is not a failure
 
-A human veto and a tool error are different things. The event stream distinguishes them with different statuses: an operation that a person rejects has `"rejected"` as the tool `operation.finished` `status`, not `"failed"`. That way `t.noFailedActions()` is not tripped by a legitimate human veto, while `t.calledTool(toolMatch("deploy", { status: "rejected" }))` precisely asserts “the call started and a person stopped it.” This is exactly what an Eval for the rejection branch needs to assert.
+A human veto and a tool error are different things. The event stream distinguishes them with different statuses: an operation that a person rejects has `"rejected"` as the tool `operation.finished` `status`, not `"failed"`. That way `t.noFailedActions()` is not tripped by a legitimate human veto, while `t.calledTool(toolMatch("deploy", { status: "rejected" }))` precisely asserts “the call started and a person stopped it.” This is exactly what an eval case for the rejection branch needs to assert.
 
 ## Which Agents do not need HITL
 
-Not every Agent has this branch. If it does not exist, skip it entirely: the Adapter does not need to handle `waiting`, and the Eval does not use `t.respond`.
+Not every Agent has this branch. If it does not exist, skip it entirely: the Adapter does not need to handle `waiting`, and the eval case does not use `t.respond`.
 
 - **Agents that finish every turn in one pass:** question-answering, retrieval, translation, and other send-and-reply services have no point where they wait for a person.
 - **Runtime modes with the approval gate disabled:** Claude Code and Codex are HITL products, but when they are subjects under test in a Sandbox, they usually run fully automatically and skip permission confirmation. This is how the built-in `claude-code`, `codex`, and `bub` Sandbox Agents run, so none uses HITL.
-- **Approval that happens outside the execution loop:** for example, a ticket system may have a person review an Agent's output. That is another system's flow. It does not go through `send`, so an Eval cannot and should not evaluate it.
+- **Approval that happens outside the execution loop:** for example, a ticket system may have a person review an Agent's output. That is another system's flow. It does not go through `send`, so an eval case cannot and should not evaluate it.
 
-There is one test: use HITL only if your Agent's execution loop has a branch that pauses for a person, then continues after an answer, and you want to write approval and rejection into an Eval.
+There is one test: use HITL only if your Agent's execution loop has a branch that pauses for a person, then continues after an answer, and you want to write approval and rejection into an eval case.
 
 ## Related reading
 
-- [Drive](/explanation/drive#human-in-the-loop-hitl) — The complete Eval-side usage: status checks, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`.
+- [Drive](/explanation/drive#human-in-the-loop-hitl) — The complete eval-side usage: status checks, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`.
 - [Adapter](/explanation/adapter#inputs-for-the-different-answers) — The structured input that reaches an Adapter, in four typical forms.
 - [Write Send](/tutorials/write-send) — Adapter-side practice: typed session slots and the complete streaming + HITL skeleton.
 - [Connect Your Agent](/tutorials/connect-your-agent) — The integration overview: minimal integration, parameter channels, and the incremental map.

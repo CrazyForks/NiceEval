@@ -1,31 +1,36 @@
 ---
-title: "Reuse a Sandbox Across a Batch"
-sidebarTitle: "Reuse a Sandbox"
-description: "Declare sandboxReuse in an Experiment to share a Sandbox across Attempts, keep before/after actions replay-safe, and set lifetimeMs. Use concurrency when retained state is unsafe."
+title: "Reuse Sandboxes Across a Batch of Evals"
+sidebarTitle: "Reuse Sandboxes"
+description: "When creating a new Sandbox for every Attempt is too slow, use sandboxReuse to let a batch of Attempts share the same Sandbox in turn. Learn what it saves, what it leaves behind, and how to write preparation code that replays safely."
 ---
 
 import { SandboxLanes } from '/snippets/diagram-sandbox-lanes.jsx';
 
-When a batch of Evals can safely share one running environment, creating a new Sandbox for every Attempt repeats Provider startup. Declare `sandboxReuse: true` in the Experiment to have Attempts share a Sandbox serially. Sandbox creation runs once per reused instance; every real Attempt still gets its own `.before()` / `.after()` plan, and NiceEval resets the working directory between tasks. Declarative Docker actions can reuse a matching preparation prefix by fingerprint.
+While smoke-testing a batch of evals locally, you notice most of the time goes to waiting for Sandboxes to start and dependencies to install; the Agent's real work is only a small part.
+
+Declare `sandboxReuse: true` in the Experiment, and several Attempts share the same Sandbox in turn. Each Sandbox is created only once, and between evals NiceEval restores the working directory to its starting state. Each Attempt still really executes, and still has its own `.before()` / `.after()` preparation and cleanup. Unchanged Docker preparation steps are reused directly instead of executing again.
 
 <Note>
-  This page covers Experiment-level `sandboxReuse`. When only several compatible Eval groups need their own reuse boundaries, use [Eval Groups](/tutorials/eval-groups): each group reuses serially while different groups remain concurrent. An Experiment that selects Eval Groups cannot also declare `sandboxReuse: true`.
+  This page covers Experiment-level `sandboxReuse`. When only a few groups of compatible evals each need their own reuse boundary, use
+  [eval groups](/tutorials/eval-groups): reuse runs serially within a group, while different groups keep running in parallel. An
+  Experiment that selects eval groups cannot also declare `sandboxReuse: true`.
 </Note>
 
 <Warning>
-  The between-task reset does not reset the whole Sandbox. NiceEval restores only the `workdir` according to its ledger. State outside the workdir—such as `/opt`, `$HOME`, and `/tmp`—plus global installations, package caches, and background processes remains. For large persistent builds or caches, the author must choose capacity limits, threshold alerts, cleanup or rotation policies. You also need a strategy to retire an unsafe Sandbox.
+  The reset between evals does not reset the whole Sandbox. NiceEval only restores the working directory `workdir`. State outside `workdir` such as `/opt`, `$HOME`, and `/tmp`, global installs, package caches, and background processes all remain. For large persistent build outputs and caches, you decide the capacity limit, alert threshold, and how to clean up or rotate them; when it cannot safely continue, you also need a way to replace this Sandbox.
 </Warning>
 
-Understand the trade-offs before enabling it:
+Before turning it on, understand the costs:
 
-- **Results from a reused run still enter the cache.** When a pair has a stable carry identity and a terminal-result fingerprint matches, NiceEval adopts it directly and creates no Sandbox. A Plugin's attachment owner, name, instance key, behavior revision, declared identity, host lifecycle shape, and Sandbox action declarations all belong to carry identity; changing any of them makes the slot fresh. Callback function bodies remain opaque. When behavior changes, update declared identity too or use `--rerun all`. Only unadopted Attempts execute in the shared Sandbox for this Invocation.
-- **Interruption does not roll back external state.** Resuming is the same Experiment trajectory only when cross-Attempt state can return to the boundary of the last terminal commit. Otherwise, rebuild a clean cohort from the beginning.
-- **State outside the workdir remains.** `$HOME`, `/tmp`, global installations, and background processes survive the between-task reset. Eval setup code must account for this, as described in [Place preparation by what changes](#place-preparation-by-what-changes).
-- It is incompatible with `--keep-sandbox`.
+- **Reuse of last results still applies.** When an eval's configuration is the same as last time and it already has `passed` or `failed`, the old result is reused directly and no Sandbox is created for it. Only Attempts that really need to run this time enter the shared Sandbox.
+- **NiceEval cannot see changes to callback function bodies.** When a Sandbox Plugin's name, instance, `behaviorRevision`, declared `identity`, or preparation steps change, old results are invalidated and rerun. When you only changed code inside a callback, update `behaviorRevision` or `identity` as well, or use `--rerun all`.
+- **Interruption does not roll back external state.** Resuming is equivalent to running straight through only when state shared across Attempts can be restored to just after the last completed Attempt. When that is not possible, start over with a clean copy of the state.
+- **State outside the working directory remains.** `$HOME`, `/tmp`, global installs, and background processes all carry over to the next eval. Preparation code must accept this; see "Write preparation code correctly" below.
+- It cannot be used together with `--keep-sandbox`.
 
-Good use cases include locally smoke-testing a batch of Evals, running the same task N times to assess stability, and validating an integration. You get speed while retaining result adoption and the choice of `--rerun`.
+Good fits: smoke-testing a batch of evals locally, running the same eval N times to check stability, and verifying an Adapter can connect. You want speed while still keeping result reuse and `--rerun`.
 
-## Enable it: three Experiment settings
+## Turn it on: three fields in the Experiment
 
 ```typescript
 import { defineExperiment } from "niceeval";
@@ -37,23 +42,27 @@ export default defineExperiment({
   agent: codexAgent(),
   sandbox: e2bSandbox({
     template: "acme-evals",
-    lifetimeMs: 60 * 60_000,   // ① Sandbox lifetime: required for reuse; omitting it fails before dispatch
+    lifetimeMs: 60 * 60_000,   // ① Sandbox lifetime: required with reuse, or it errors before dispatch
   }),
   sandboxReuse: true,          // ② Declare reuse
-  maxConcurrency: 3,           // ③ Several Sandbox lanes run concurrently; each lane accepts Attempts serially
+  maxConcurrency: 3,           // ③ How many Sandbox lanes run in parallel; each lane takes several Attempts in turn
   timeoutMs: 20 * 60_000,
 });
 ```
 
-`timeoutMs` and `lifetimeMs` are two clocks that measure different objects. The former limits how long one Attempt can run; the latter limits how long one Sandbox can live. To keep a Sandbox longer, increase `lifetimeMs`, not `timeoutMs`: increasing the latter also weakens protection against a stuck Agent. A Provider account tier determines the upper limit for `lifetimeMs`—for example, the E2B free tier allows one hour—and the Provider reports its own error during creation when it is exceeded.
+`timeoutMs` and `lifetimeMs` are two clocks: the former limits how long one Attempt runs, and the latter limits how long one Sandbox lives. To let a Sandbox live longer, raise `lifetimeMs`. Do not raise `timeoutMs`; that also loosens the protection against a stuck Agent.
 
-## Sandboxes are not shared between terminals
+The upper limit of `lifetimeMs` depends on your Provider account tier; for example, the E2B free tier is 1 hour. Beyond the limit, creating the Sandbox reports the Provider's raw error.
 
-Sandbox reuse occurs only within one Invocation. When two terminals run one Experiment at the same time, each has its own Run and Sandbox pool. NiceEval does not give a running Sandbox handle to another process. Both Invocations can publish results concurrently to the same project's `.niceeval/record.sqlite`.
+Run with `pnpm exec niceeval exp <experiment>`. After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
 
-Normal concurrent runs do not need separate Records to avoid writer conflicts. Copy or archive `.niceeval/record.sqlite` only after an Invocation completes its portable gate successfully; a SQLite file during a run is not a portable snapshot.
+## Sandboxes are not shared across terminals
 
-When a Sandbox retains only its own temporary state, both terminals can run different Evals at the same time. When a dynamic `.before()` callback restores and saves the same external checkpoint, declare a stable, non-secret key for the Experiment:
+Sandboxes are reused only within one `niceeval exp` command. When two terminals run the same experiment at the same time, each has its own Run and Sandboxes, and NiceEval never hands a Sandbox running in one process to another process. Both sides can write results into the same project's `.niceeval/record.sqlite`; you do not need to split the result file for this.
+
+To copy or archive `.niceeval/record.sqlite`, wait until the command finishes successfully. A SQLite file in use by a run cannot be treated as a portable snapshot.
+
+If each Sandbox keeps only its own temporary state, the two sides can run different evals at the same time. When a dynamic `.before()` callback restores and saves the same external checkpoint, declare a stable key without secrets on the Experiment:
 
 ```typescript
 export default defineExperiment({
@@ -70,101 +79,102 @@ export default defineExperiment({
 });
 ```
 
-NiceEval acquires this key before Experiment setup or Sandbox creation, and releases it only after registered Sandbox cleanup, the Provider finalizer, and Experiment `teardown`. A waiter creates no Sandbox. After the lease is released, it continues its own plan; it does not read or adopt results from the other Run.
+NiceEval acquires the lease for this key before Experiment `setup` and Sandbox creation, and releases it only after Sandbox cleanup, Provider finalization, and Experiment `teardown` all finish. A run with the same key in another terminal queues and does not create a Sandbox early. After it gets the lease, it continues with its own plan and does not read or reuse the other side's results.
 
-The key enters the result's configuration identity. Changing it starts a different state cohort, so old results do not mix in. This lease protects only the external checkpoint; it is independent of the project Record, which normal Invocations can publish to concurrently. Different machines or working copies still need an external distributed lock.
+The key is also part of the result configuration. A different key means a different copy of the state, so old results do not mix in. The lease only protects the external checkpoint and has nothing to do with the result file; runs that do not use `sharedState` can still write results concurrently. Coordination across machines or different working copies still needs an external distributed lock.
 
-## Lifecycles: how often each runs
+## Lifecycle: what runs how many times
 
-| Stage | Runs with reuse |
+| Phase | How many times with reuse |
 |---|---|
-| Sandbox creation / stop | Once per Sandbox |
-| Sandbox `.before()` / `.after()` actions and registered cleanup | Once per real Attempt |
+| Sandbox create / stop | Once per Sandbox |
+| Sandbox `.before()` / `.after()` preparation steps and registered cleanups | Once per Attempt that really runs |
 | Agent-level `setup` / `teardown` | Once per Attempt |
-| Eval `setup` / `teardown`, `test(t)` | Once per Attempt |
+| The eval's `setup` / `teardown` and `test(t)` | Once per Attempt |
 
-<SandboxLanes />
+<SandboxLanes locale="en" />
 
-After every Attempt, NiceEval runs `git reset --hard` and `git clean` on `workdir`, returning it to the reset point before it starts the next Attempt. That reset covers only `workdir`. `/opt`, `$HOME`, `/tmp`, global installations, package caches, and background processes do not disappear. Either an Eval's `teardown` must clean them up, or the author must deliberately retain them for the next task.
+After each Attempt, NiceEval runs `git reset --hard` and `git clean` on `workdir` to restore its starting state, then starts the next. This step only handles `workdir`; `/opt`, `$HOME`, `/tmp`, global installs, package caches, and background processes do not disappear. Either the eval's `teardown` cleans them up itself, or they are state you deliberately leave for the next eval.
 
-Large persistent builds or caches cannot rely on unbounded growth. The author should declare a capacity limit and a threshold before reaching it. Record normal size and hit behavior with `facts`, issue a `diagnostic` warning only at a risky threshold, and provide a cleanup, rotation, or Sandbox-retirement strategy.
+Large persistent build outputs or caches must not grow unchecked. Give them a capacity limit and an early-warning threshold: record normal size and hit rates with `facts`, warn with `diagnostic` when nearing the risk threshold, and have a way ready to clean up, rotate, or replace this Sandbox.
 
-## Place preparation by what changes
+## Write preparation code correctly: layer by "what it changes with"
 
-- **Heavy dependencies every Experiment needs**—an Agent CLI or language runtime—go into a Provider image, template, or snapshot, or into the lowest-frequency `.before()` actions.
-- **Preparation the whole batch shares**—installing a toolchain, cloning a common repository, warming a build cache—belongs in low-frequency `.before()` actions. Docker can reuse the matching preparation prefix across Invocations. The current occurrence remains `attempt`; author code cannot request physical-instance promotion.
-- **Material only this task needs**—its own repository, data, or dependencies—belongs in that Eval's `setup` or `test(t)`. It is replayed after every task reset, so replaying it must stay correct. When every task clones, use one named temporary clone directory for the whole Experiment, such as `.niceeval-task-clone`, and add it to `diff.ignore`. Before cloning, run `rm -rf .niceeval-task-clone` to clear only the previous task's leftovers. Never remove `workdir`'s root `.git`: NiceEval needs it for the between-task `git reset`, and it survives that reset.
-- **A background process or occupied port** must be cleaned up by the Eval's own `teardown`; the between-task reset does not kill processes.
+- **Heavy dependencies every experiment needs** (Agent CLIs, language runtimes): bake them into the Provider's image / template / snapshot, or write them as the lowest-frequency `.before()` preparation steps.
+- **Preparation shared by the whole batch** (installing toolchains, cloning shared repositories, warming build caches): write them as low-frequency `.before()` preparation steps. On Docker, unchanged preparation steps can be reused directly on the next run. These steps are still passed through once per Attempt; you cannot ask for them to run only once per Sandbox.
+- **Materials only this eval needs** (its own repository, data, dependencies): put them in the eval's own `setup` or `test(t)`. They run again after each reset, so they must be code that is correct when repeated.
+- **Background processes started or ports taken**: the eval's `teardown` cleans them up itself; resetting `workdir` does not kill processes.
 
-## Idempotence is mandatory: one bad pattern and one good one
+When each eval clones its own repository, use one fixed-name temporary directory for the whole Experiment, such as `.niceeval-task-clone`, and add it to `diff.ignore`. Before cloning, only run `rm -rf .niceeval-task-clone` to clear the previous eval's leftovers. Never delete the `.git` at the root of `workdir`: the reset between evals depends on it, and it stays for the whole run.
 
-Both Sandbox callbacks and Eval-level setup can encounter partial state from a previous run. These two approaches differ:
+## Idempotence is a hard requirement: one bad, one good
+
+Preparation code at both the Sandbox level and the eval level may hit half-finished state left by a previous run. Compare two ways of writing it:
 
 ```bash
-# Bad: detect something and skip the whole operation. When rustup was installed only halfway
-# (cargo exists but no default toolchain is configured), detection passes, installation is skipped,
-# and the next cargo build errors, making the whole Attempt errored.
+# Bad: skip the whole block when a probe succeeds. When rustup is half-installed (cargo present, no default toolchain set),
+# the probe passes, installation is skipped, the next cargo build fails, and the whole Attempt errors.
 if ! command -v cargo; then curl https://sh.rustup.rs | sh; fi
 
-# Good: declare the target state directly. Replaying it any number of times converges on the same result.
+# Good: declare the target state directly; repeating it any number of times gives the same result.
 rustup default 1.79.0
-npm install          # Reconciles to the state declared by package.json/lockfile; it is itself idempotent.
+npm install          # Installs everything per package.json/lockfile and is itself safe to repeat
 ```
 
-The test is simple: **setup code describes the target state; it does not describe whether to do something**. Detection-and-skip guards treat partial state as complete state. They fail precisely under reuse, where a one-off local run never exposes them.
+The rule in one sentence: **preparation code describes the target state, not "whether to do it"**. "Skip when the probe succeeds" treats a half-finished state as finished. This kind of problem only shows up with reuse; running locally on its own never reveals it.
 
-## Native Agent Plugins: installation converges in the Adapter
+## Agent-native Plugins: installation is handled by the Adapter
 
-You can declare `codexAgent({ plugins: [...] })`, `claudeCodeAgent({ plugins: [...] })`, and `sandboxReuse` together. Native Agent Plugins install in `$HOME`, which survives the between-task reset, but you do not need to handle that: before every Attempt, the Adapter converges Plugin installation on the configuration you declared. A same-named marketplace registration and Plugin left by the prior Attempt are replaced by a fresh installation using the declared `source` and `ref`. The same rule absorbs a Plugin script that rewrites marketplace registration, such as changing it to a hosted source.
+`codexAgent({ plugins: [...] })` and `claudeCodeAgent({ plugins: [...] })` work with `sandboxReuse`. Agent-native Plugins are installed in `$HOME` and carry over to the next eval, but you do not need to handle this: before each Attempt starts, the Adapter reinstalls them according to the `source` and `ref` you declared. Same-named marketplace registrations and plugins left by the previous eval are replaced. When a plugin's own script rewrites the marketplace registration (for example switching to a hosted source), it is restored the same way.
 
-This describes native Plugins in an Agent factory. Top-level `plugins` fields on Evals, Experiments, and Eval Groups carry NiceEval conditions; see [Compose Lifecycles with Plugins](/tutorials/plugins) for their division of responsibilities.
+This refers to native Plugins in the Agent factory. The top-level `plugins` field of evals, experiments, and eval groups is NiceEval's Plugin; for how the two divide the work, see [Reuse Complete Eval Conditions with Plugins](/tutorials/plugins).
 
-You still own two things:
+Two things are still yours:
 
-- **A `postSetup` script must be idempotent.** It reruns on a `$HOME` with leftovers for every Attempt. A script that registers a hook in global configuration must converge on the same configuration when it runs again. Before enabling reuse, run two or three tasks down one Sandbox lane; the second task onward is the real test.
-- **Where Plugin data lives.** The Plugin installation directory is reinstalled and overwritten for every Attempt. Runtime data that must last until the next task can only live outside that directory. Whether retained data contaminates the next task is a question your Experiment design must answer.
+- **`postSetup` scripts must be safe to repeat.** They run again on the carried-over `$HOME` every Attempt. A script that registers a hook in global configuration must produce the same configuration no matter how many times it runs. Before turning on reuse, run two or three evals through one Sandbox lane first; problems only show up from the second eval onward.
+- **Where plugin data lives.** The plugin installation directory is reinstalled and overwritten every Attempt. Data that should carry over to the next eval can only be written outside the installation directory. Whether carried-over data affects the next eval is a question your experiment design has to answer.
 
-Convergence is not free: Plugin installation is still paid for on every Attempt. Reuse saves Sandbox creation; declarative `.before()` actions can separately reuse a matching Docker preparation prefix. If a marketplace fetch is too slow, use `sparse` to fetch only the Plugin path, or bake the Plugin into the template and remove its declaration from `plugins`. The cost is that the installation manifest no longer records the Plugin and resolved version.
+Reinstalling does not save money: plugin installation is paid once per Attempt. What reuse saves is Sandbox creation; unchanged `.before()` preparation steps can also be reused on Docker. When marketplace fetching is too slow, use `sparse` to fetch only the plugin path, or bake the plugin into the template and remove its declaration from `plugins`. The cost is that the installation manifest no longer records the plugin and its resolved version.
 
-## A batch with different Sandbox layers
+## A batch with mixed Sandbox configurations
 
-When selected Evals declare different template-bearing `sandbox` layers, you do not need to split the command. Link planning resolves each Eval × Experiment pair independently. Attempts with different Provider plans share neither Sandboxes nor preparation prefixes, while the Experiment's `maxConcurrency` limits all selected work together.
+When the selected evals each declare different `template`s, you do not need to split them into several commands. NiceEval checks each combination of eval and Experiment. Attempts with different Sandbox configurations never share a Sandbox, and never share a running Sandbox. The experiment's `maxConcurrency` limits the total number of selected evals running at once. Identical preparation steps can still each reuse their preparation results on Docker.
 
 ## A typical rhythm
 
 ```sh
-# 1. After changing common configuration, inspect the plan before spending money.
-npx niceeval exp smoke memory/commit0 --dry
+# 1. After changing shared configuration, look at the plan before spending money
+pnpm exec niceeval exp smoke memory/commit0 --dry
 
-# 2. Quickly run an Experiment that declares sandboxReuse.
-npx niceeval exp smoke memory/commit0
+# 2. Go through quickly with an experiment that declares sandboxReuse
+pnpm exec niceeval exp smoke memory/commit0
 
-# 3. One task fails. Run it alone with an Experiment that does not declare reuse to keep the environment.
-npx niceeval exp baseline memory/commit0/tool-first --keep-sandbox
+# 3. One eval fails: rerun it alone with an experiment that does not declare reuse, keeping the scene
+pnpm exec niceeval exp baseline memory/commit0/tool-first --keep-sandbox
 
-# 4. After fixing it, verify with the Experiment that does not declare reuse and produce trustworthy results.
-npx niceeval exp baseline memory/commit0
+# 4. After the fix, verify with an experiment that does not declare reuse to get trustworthy results
+pnpm exec niceeval exp baseline memory/commit0
 ```
 
-Step 3 must use another Experiment: `--keep-sandbox` and `sandboxReuse` are incompatible, and a reused Sandbox belongs to the whole batch, so keeping it would not be faithful to one task. Do the same when “the chain fails but an isolated run passes.” Do not debug that problem inside a shared batch. See [Keep a Sandbox for Debugging](/troubleshooting/debug-sandbox) for the workflow.
+Step 3 must switch experiments: `--keep-sandbox` cannot be used with `sandboxReuse`, and a shared Sandbox has been used by the whole batch, so the scene it leaves is not accurate for any single eval. Do the same when something "fails when run together but passes alone"; do not debug inside a batch that shares Sandboxes. For the full process, see [Keep the Sandbox to Debug Problems](/troubleshooting/debug-sandbox).
 
-## Cannot do it? Use concurrency, not reuse
+## When you cannot make it idempotent, use concurrency instead of reuse
 
-When setup cannot become idempotent, or an Eval depends on a fresh `$HOME`—a memory-oriented subject under test or a stateful service—do not declare `sandboxReuse`. Use concurrency for speed instead:
+When preparation code cannot be made safe to repeat, or the eval depends on a fresh `$HOME` (for example the system under test has its own memory or stateful services), do not declare `sandboxReuse`. Concurrency alone is enough for speed:
 
 ```typescript
 export default defineExperiment({
-  // Do not declare sandboxReuse: every Attempt gets a fresh Sandbox with no leftover state.
-  maxConcurrency: 8,   // You still get parallelism.
+  // No sandboxReuse: every Attempt uses a fresh Sandbox with no leftovers
+  maxConcurrency: 8,   // Still runs in parallel
   // ...
 });
 ```
 
-Reuse saves only the portion of time spent on one Sandbox creation plus common preparation. When that time is much shorter than one Attempt's execution time, concurrency already gets almost all wall-clock benefit without assuming reuse's state semantics. Start with concurrency, measure whether common preparation truly dominates, then consider reuse.
+The only thing reuse saves beyond plain concurrency is "creating each Sandbox once plus shared preparation". When that time is much smaller than one Attempt's execution time, concurrency already gets almost all of the speedup, without the leftover problems reuse brings. Use concurrency first, measure that shared preparation really dominates, then consider reuse.
 
 ## Related reading
 
-- [Eval Groups](/tutorials/eval-groups) — explicitly declare members and ordering within a group while retaining concurrency between groups.
-- [Rerun and Carry Results](/tutorials/rerun-and-cache) — see how reused Sandboxes adopt terminal results and when to use `--rerun`.
-- [Concurrency and Execution Order](/tutorials/concurrency) — get the same speedup through concurrency when you do not reuse.
-- [Sandbox Provider Configuration](/tutorials/sandbox-providers) — create Provider templates, images, and snapshots.
+- [Eval Groups](/tutorials/eval-groups): list group members explicitly; a group shares a Sandbox while groups run in parallel as usual.
+- [Rerun and Reuse](/tutorials/rerun-and-cache): how last results are reused with Sandbox reuse, and when to use `--rerun`.
+- [Concurrency and Execution Order](/tutorials/concurrency): how to get the same speedup with concurrency without reuse.
+- [Sandbox Provider Configuration](/tutorials/sandbox-providers): how to make each Provider's template / image / snapshot.

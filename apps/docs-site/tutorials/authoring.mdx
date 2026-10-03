@@ -1,88 +1,89 @@
 ---
-title: "Authoring Evals: Single-turn, Multi-turn, and Dataset Patterns"
-sidebarTitle: "Authoring Evals"
-description: "Write evals with defineEval, including single-turn and multi-turn conversations, data-driven tests, Sandbox Workspaces, and the eval lifecycle and Fixtures."
+title: "Write Evals: Single-Turn, Multi-Turn, and Datasets"
+sidebarTitle: "Write Evals"
+description: "Write evals with defineEval: send messages, check replies and tool calls, run multi-turn conversations, generate many evals from one dataset, and prepare a workspace and clean up external resources for Coding Agents."
 ---
 
 import { Lifecycle } from '/snippets/widgets.jsx';
 
-## The `defineEval` shape
+The eval in the quickstart only checked whether the reply contained "30 days". A real Agent does more: it calls the right tools, remembers context across a multi-turn conversation, and edits code correctly. This page starts from the simplest eval and adds those checks step by step.
+
+## Structure of an eval
+
+Evals live under `evals/`, with file names ending in `.eval.ts`, and default-export `defineEval(...)`:
 
 ```ts
-import { defineEval, type JsonValue } from "niceeval";
-import type { SandboxLayer } from "niceeval/sandbox";
-
-export default defineEval({
-  description?: string;
-  tags?: string[];
-  judge?: JudgeConfig;
-  reporters?: Reporter[];
-  timeoutMs?: number;
-  sandbox?: SandboxLayer;
-  metadata?: Record<string, JsonValue>;
-  async setup(sandbox, ctx) { /* task Fixture + progress/diagnostic */ },
-  async test(t) { /* interactions + Assertions */ },
-});
-```
-
-## `tags` and `sandbox`
-
-```ts
+// evals/billing/refund.eval.ts → ID is billing/refund
 import { defineEval } from "niceeval";
-import { dockerSandbox } from "niceeval/sandbox";
 
-// evals/coding/fix-button.eval.ts → id: coding/fix-button
 export default defineEval({
-  description: "Fix the Button component",
-  tags: ["coding", "frontend"],
-  sandbox: dockerSandbox({ source: { type: "image", image: "node:22-slim" } }),
-  async test(t) { /* coding task */ },
+  description: "Answers the refund policy correctly",
+  tags: ["billing"],
+  async test(t) {
+    // Send a message, then check the result
+  },
 });
 ```
 
-`tags` are available to `--tag` and an Experiment's `evals` predicate. Declare `sandbox` on the Eval when the task itself owns the starting environment. If the Experiment owns the template-bearing Sandbox layer instead, omit this field; each selected Eval × Experiment pair must have exactly one template-bearing layer.
+- The file path decides the ID: the ID of `evals/billing/refund.eval.ts` is `billing/refund`. Only `.eval.ts` and `.eval.tsx` files are discovered.
+- `description` appears in results. Write it as one sentence about what this eval verifies.
+- `tags` are for selecting by tag, for example `niceeval exp local --tag billing`. The Experiment's `evals` function can read them too.
+- `test(t)` is the eval body. `t` has every method for sending messages, asserting, and working with the Sandbox.
 
-## Single-turn evals
+For other fields, such as `judge`, `timeoutMs`, `sandbox`, and `metadata`, see the [defineEval reference](/reference/define-eval).
+
+## Single-turn: send one message and check the result
 
 ```ts
 import { defineEval } from "niceeval";
 import { includes, jsonMatch, toolMatch } from "niceeval/expect";
 
 export default defineEval({
-  description: "Brooklyn weather query",
+  description: "Calls the tool when asked about the weather",
   async test(t) {
-    await t.send("What's the weather like in Brooklyn today?");
+    await t.send("What's the weather in Brooklyn today?");
+
     t.succeeded();
-    t.calledTool(
-      toolMatch("get_weather", { input: jsonMatch({ city: "Brooklyn" }) }).exactly(1),
-    );
+    t.calledTool(toolMatch("get_weather", { input: jsonMatch({ city: "Brooklyn" }) }).exactly(1));
     t.check(t.reply, includes("sunny"));
   },
 });
 ```
 
-`t.send()` drives one interaction. `t.succeeded()` and `t.calledTool()` are scoped Assertions, while `t.check()` records a value Assertion immediately.
+This uses three kinds of checks:
 
-### The `Turn` object
+- `t.succeeded()`: this turn completed normally, without failing or stopping in a waiting state.
+- `t.calledTool(...)`: it called `get_weather`, the city in the arguments is Brooklyn, and it called it exactly once. Tool calls are only visible when the Adapter reports the matching events; see [Write send](/tutorials/write-send#step-4-parse-tools-into-events).
+- `t.check(value, match)`: checks one specific value, here the reply text.
 
-| Property | Meaning |
+A failed check does not stop the checks after it. When a run ends, you see every unmet condition at once, instead of fixing one and running again. When later code really depends on a result, use `await t.check(...).orStop()` to stop on failure.
+
+Add `.label("...")` to a check, and results show your description instead of a piece of code, which is easier to read:
+
+```ts
+t.calledTool("get_weather").label("Called the weather tool");
+```
+
+`t.send()` returns this turn's `Turn`. Save it when you need to check one turn on its own:
+
+| Property | Content |
 |---|---|
-| `turn.events` | Standard event stream; the primary fact source |
+| `turn.message` | The assistant's text reply |
+| `turn.toolCalls` | This turn's tool calls |
 | `turn.data` | Structured output |
 | `turn.status` | `"completed"`, `"failed"`, or `"waiting"` |
-| `turn.usage` | Usage such as tokens and cost |
-| `turn.message` | Assistant text reply |
-| `turn.toolCalls` | Tool calls in this turn |
+| `turn.usage` | Tokens and cost |
+| `turn.events` | The full standard event stream; every other property comes from it |
 
-## Multi-turn evals
+## Multi-turn: check that context carries over
 
 ```ts
 export default defineEval({
-  description: "Draft an email, then send it on confirmation",
+  description: "Drafts an email first, sends it after confirmation",
   async test(t) {
-    const draft = await t.send("Draft a follow-up email.");
+    const draft = await t.send("Draft a follow-up email for me.");
     draft.succeeded();
-    t.check(draft.message, includes("Best"));
+    t.check(draft.message, includes("Best regards"));
 
     await t.send("Looks good, send it.");
     t.calledTool("send_email");
@@ -90,13 +91,46 @@ export default defineEval({
 });
 ```
 
-Use `t.newSession()` when you need parallel independent sessions.
+Consecutive `send` calls on the same `t` form one conversation. `draft.succeeded()` only checks the first turn; `t.calledTool` checks whether the tool was called anywhere in the eval. When you need two unrelated conversations, for example to simulate two users, open a new session with `t.newSession()`.
 
-## Data-driven testing (dataset fan-out)
+Multi-turn conversation requires the Adapter to carry the previous turn's context to the application; see [Write send](/tutorials/write-send#step-2-carry-earlier-messages).
 
-One file can export an array of evals:
+## Give open-ended answers to the Judge
+
+Questions like "is the answer grounded" or "is the tone right for elementary school students" cannot be written as a regex. Hand them to the Judge model to score:
 
 ```ts
+import { defineEval, defineJudge } from "niceeval";
+
+const grounded = defineJudge({
+  name: "grounded-answer",
+  rubric: "Given the question, rate whether the answer is based on facts rather than invented or vague.",
+});
+
+export default defineEval({
+  async test(t) {
+    const turn = await t.send("What's the weather in Beijing today?");
+    t.judge({ question: turn.input, answer: turn.message }, grounded).gate(0.7).label("Answer is grounded");
+  },
+});
+```
+
+The Judge gives a score from 0 to 1, and `.gate(0.7)` means anything below 0.7 fails. When a deterministic rule can check something, such as which tool was called or whether a file changed, prefer the deterministic rule; save the Judge for truly open-ended quality. To configure which model the Judge uses, see [Configure and Verify the Judge](/tutorials/verify-judge).
+
+## Generate many evals from one dataset
+
+When dozens of evals share the same logic and differ only in input, you do not need dozens of files. Export an array from one file:
+
+```ts
+// evals/sql.eval.ts
+import { defineEval } from "niceeval";
+import { equals } from "niceeval/expect";
+
+const rows = [
+  { task: "Count orders", prompt: "How many orders are there?", expected: "42" },
+  { task: "Most expensive product", prompt: "What is the most expensive product?", expected: "MacBook Pro" },
+];
+
 export default rows.map((row) =>
   defineEval({
     description: row.task,
@@ -108,40 +142,34 @@ export default rows.map((row) =>
 );
 ```
 
-This generates IDs such as `sql/0000` and `sql/0001`. See [Data-driven Testing](/tutorials/dataset-fanout).
+The generated IDs are `sql/0000` and `sql/0001`. To read a dataset from YAML or JSON and give each row a stable ID, see [Data-Driven Tests](/tutorials/dataset-fanout).
 
-## Sandbox Workspace
+## Prepare a workspace for a Coding Agent
 
-Coding Agent evals remain ordinary `.eval.ts` files. Their test prepares a Sandbox Workspace, sends a task, and checks file results:
+When evaluating a Coding Agent, the eval is still an ordinary `.eval.ts`. You just put a project into the Sandbox first, then let the Agent change it:
 
 ```ts
-import { defineEval } from "niceeval";
-
 export default defineEval({
   description: "Create a Button component",
   async test(t) {
     await t.sandbox.uploadDirectory("../workspaces/ts-starter");
-    await t.send("Create src/components/Button.tsx with label and onClick props.").then((turn) => turn.succeeded());
+    const turn = await t.send("Create src/components/Button.tsx that accepts label and onClick props.");
+    turn.succeeded();
     t.sandbox.fileChanged("src/components/Button.tsx");
   },
 });
 ```
 
-See [Fixtures](/tutorials/fixtures).
+For where the Sandbox comes from and how to score with the project's own tests, see [Fixture](/tutorials/fixtures) and [Sandbox Agent](/tutorials/sandbox-agent).
 
-## Report information
+## Report progress and issues during a run
 
-`setup` handles this eval's Fixture. Its second argument is bound to the eval setup phase. Feedback inside `test(t)` is bound to the eval run phase:
+When preparation is slow, use `t.progress` to show what is happening in the terminal. When something is worth recording but does not affect the conclusion, record a diagnostic with `t.diagnostic`:
 
 ```ts
 export default defineEval({
-  async setup(sandbox, ctx) {
-    ctx.progress({ message: "Installing Fixture dependencies" });
-    await sandbox.runCommand("npm", ["install"]);
-  },
-
   async test(t) {
-    t.progress({ message: "Uploading hidden tests", current: 1, total: 2 });
+    t.progress({ message: "Uploading project", current: 1, total: 2 });
     await t.sandbox.uploadDirectory("../fixtures/project");
 
     const preflight = await inspectFixture();
@@ -159,75 +187,67 @@ export default defineEval({
 });
 ```
 
-`progress` updates only short-lived status while execution is running and never enters the result. `diagnostic` is written into the current Attempt's `result.json`, but it neither replaces an Assertion nor changes the Verdict automatically. Business conclusions still come from `t.check(value, match)`, a scoped Assertion, or a Judge measurement. Throw when infrastructure cannot continue.
+`progress` is only shown during the run and is not saved. `diagnostic` is saved with this Attempt and visible in the results afterwards, but it does not change pass or fail. Write business conclusions as assertions. When preparation fails and the run cannot continue, throw an exception directly, and this run is recorded as `errored`.
 
-## Eval lifecycle
+## Prepare and clean up external resources
 
-`setup(sandbox, ctx)` prepares a Fixture. Pair it with `teardown(sandbox, ctx)` for cleanup; together they form the Fixture for this eval and each runs once per Attempt. Its position in the full Attempt is fixed:
-
-<Lifecycle
-  title="One Attempt from queue to cleanup"
-  hint="Hover to pause"
-  note={<>The cleanup segment is not included in this Attempt's duration. Use <code>niceeval show @&lt;attempt-locator&gt;</code> to review run information, or use a fixed query operation for machine output.</>}
-  phases={[
-    { name: "experiment.setup", what: "Start a tunnel or shared service", times: "Once per invocation" },
-    { name: "sandbox.queue", what: "Wait for a concurrency slot", times: "Per Attempt" },
-    { name: "sandbox.create", what: "The Provider starts a Sandbox", times: "Once per Sandbox" },
-    { name: "sandbox.setup", what: "Install the toolchain and clone a shared repository", times: "Once per Sandbox" },
-    { name: "workspace.baseline", what: "Record the change baseline", times: "Per Attempt" },
-    { name: "eval.setup", what: "This eval's Fixture", times: "Per Attempt" },
-    { name: "agent.setup", what: "Install the Agent CLI and write its primary configuration", times: "Per Attempt" },
-    { name: "eval.run", what: "The complete test(t), including every send and manual command", times: "Per Attempt" },
-    { name: "workspace.diff", what: "Derive file changes caused by the Agent", times: "Per Attempt" },
-    { name: "assertions.evaluate", what: "Close Assertions and determine the Verdict, including Judge calls", times: "Per Attempt" },
-    { name: "eval.teardown", what: "The first cleanup segment while the Sandbox is still alive", times: "Per Attempt" },
-    { name: "sandbox.teardown", what: "Destroy the Sandbox after Agent cleanup", times: "Once per Sandbox" },
-  ]}
-/>
-
-The right column says “once per what”: four Hook layers use the same paired shape but run at different frequencies. Without `sandboxReuse`, every Attempt owns one Sandbox, so “once per Sandbox” and “per Attempt” coincide. They separate after you declare reuse; see [Reuse Sandboxes](/tutorials/sandbox-reuse).
-
-Most Fixtures do not need `teardown`: starting files written into the Sandbox and dependencies installed there disappear automatically when the Sandbox is destroyed. You need `teardown` for Fixtures **outside the Sandbox**—temporary resources created for this Attempt in a shared external service, such as a temporary repository, bucket, or queue topic. Otherwise they leak.
-
-Multiple Attempts for the same eval—when `attempts` is greater than 1, or several Experiments in a batch run the same eval—execute concurrently and share a module. A `setup` handle cannot live in a regular module variable because a later concurrent Attempt would overwrite it. Key it by the `sandbox` instance with a `WeakMap`: a Sandbox and Attempt map one-to-one, making it a natural per-Attempt key:
+Some evals create temporary resources outside the Sandbox, for example a temporary repository on a shared Git service. Use `setup` to prepare and `teardown` to clean up; each runs once per Attempt:
 
 ```ts
 // evals/pr-review/close-outdated.eval.ts
 import { defineEval } from "niceeval";
 import type { Sandbox } from "niceeval/sandbox";
 
-// Concurrent Attempts share this module: key the handle by Sandbox, not a regular module variable
+// Multiple Attempts of the same eval run concurrently and share this module, so store per sandbox instead of in a plain module variable
 const fixtures = new WeakMap<Sandbox, { repoUrl: string; destroy(): Promise<void> }>();
 
 export default defineEval({
   async setup(sandbox, ctx) {
-    ctx.progress({ message: "seeding fixture repo" });
-    const fixture = await createFixtureRepo("pr-review/close-outdated"); // Temporary resource outside the Sandbox
+    ctx.progress({ message: "Creating temporary repository" });
+    const fixture = await createFixtureRepo("pr-review/close-outdated");
     fixtures.set(sandbox, fixture);
     await sandbox.runCommand("git", ["clone", fixture.repoUrl, "workspace"]);
   },
   async teardown(sandbox) {
-    await fixtures.get(sandbox)?.destroy(); // Also runs when setup throws: skip if nothing was created
+    await fixtures.get(sandbox)?.destroy(); // May not exist if setup failed partway
   },
-  async test(t) { /* Drive the Agent to clean up outdated PRs, then assert */ },
+  async test(t) { /* Have the Agent close outdated PRs, then assert */ },
 });
 ```
 
-`teardown` runs if and only if this Attempt reached the `setup` point. A thrown error in `setup` does not exempt cleanup, so teardown code must guard against resources that may not have been created. When `teardown` throws or exceeds its 30-second cleanup limit, NiceEval records only a `teardown-failed` diagnostic and does not change the Verdict the Attempt already produced. To make cleanup affect the result, throw from `setup` or `test`; do not expect `teardown` to change the Verdict.
+Key points:
 
-## Naming conventions
+- Most evals do not need `teardown`. Files written into the Sandbox and installed dependencies disappear when the Sandbox is destroyed. Only resources outside the Sandbox need manual cleanup.
+- Once `setup` has started, `teardown` always runs, even if `setup` throws, so guard against resources that were never created.
+- When `teardown` throws or exceeds 30 seconds, it only records a `teardown-failed` diagnostic and does not change the conclusion this Attempt already reached. To make a check affect the conclusion, put it in `setup` or `test`.
+- When `attempts` is greater than 1, multiple Attempts of the same eval run concurrently. Store handles in a `WeakMap` keyed by `sandbox`, one per Attempt, so they do not overwrite each other.
 
-<CardGroup cols={2}>
-  <Card title="Filename" icon="file">
-    Only `.eval.ts` files are discovered by the Runner.
-  </Card>
-  <Card title="ID namespace" icon="folder">
-    `evals/billing/refund.eval.ts` has the ID `billing/refund`.
-  </Card>
-  <Card title="Dataset" icon="database">
-    Good for many cases with the same structure and different inputs.
-  </Card>
-  <Card title="Sandbox Workspace" icon="box">
-    Good for Coding Agents that need a real file system, commands, and diffs.
-  </Card>
-</CardGroup>
+The full order of these steps in one Attempt:
+
+<Lifecycle
+  title="One Attempt from queue to cleanup"
+  hint="Hover to pause"
+  note={<>The cleanup phase does not count toward this Attempt's duration. Use <code>niceeval show @&lt;attempt-locator&gt; --timing</code> to see how long each step actually took.</>}
+  phases={[
+    { name: "experiment.setup", what: "Start the experiment's shared services", times: "Once per experiment" },
+    { name: "sandbox.queue", what: "Wait for a concurrency slot", times: "Every Attempt" },
+    { name: "sandbox.create", what: "Provider creates the Sandbox", times: "Once per Sandbox" },
+    { name: "sandbox.prepare", what: "Restore cache, run preparation steps", times: "Once per Sandbox" },
+    { name: "workspace.baseline", what: "Record the file baseline", times: "Every Attempt" },
+    { name: "eval.setup", what: "This eval's preparation", times: "Every Attempt" },
+    { name: "agent.setup", what: "Install the Agent CLI, write configuration", times: "Every Attempt" },
+    { name: "eval.run", what: "The whole test(t)", times: "Every Attempt" },
+    { name: "workspace.diff", what: "Work out which files the Agent changed", times: "Every Attempt" },
+    { name: "assertions.evaluate", what: "Compute assertions and the verdict, including the Judge", times: "Every Attempt" },
+    { name: "eval.teardown", what: "This eval's cleanup", times: "Every Attempt" },
+    { name: "sandbox.teardown", what: "Run cleanup steps, destroy the Sandbox", times: "Once per Sandbox" },
+  ]}
+/>
+
+By default each Attempt has its own Sandbox, so "once per Sandbox" and "every Attempt" mean the same thing. They only diverge when reuse is enabled; see [Reuse Sandboxes](/tutorials/sandbox-reuse).
+
+## Next steps
+
+- When a task has partial completion and you want to score by how many steps were done: read [Pass/Fail and Scored Evals](/tutorials/evaluation-kinds).
+- To write clear criteria that do not misjudge: read [NiceEval Taste](/tutorials/niceeval-taste).
+- For every matcher: see the [expect reference](/reference/expect).

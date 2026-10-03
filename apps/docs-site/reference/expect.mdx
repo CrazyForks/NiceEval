@@ -4,7 +4,7 @@ sidebarTitle: "Assertion Matchers"
 description: "Pure Match factories from niceeval/expect: compose text, structure, and conditions, then register an Assertion with t.check."
 ---
 
-`niceeval/expect` provides only pure Match factories. A Match compares one candidate value; it does not record a result or decide a Verdict or score. `t.check(value, match)` reads `value` and registers an Assertion immediately. The returned handle only configures that same entry.
+`niceeval/expect` provides only pure Match factories. A Match compares one candidate value; it does not record a result or decide a Verdict or score. `t.check(value, match)` reads `value` when called and registers an Assertion directly; the returned handle only configures that same entry.
 
 ```ts
 import { and, excludes, includes, pattern } from "niceeval/expect";
@@ -20,9 +20,9 @@ const config = await t.check(rawConfig, pattern(/runtime/)).orStop();
 
 | Entry point | Purpose |
 |---|---|
-| `t.check(value, match)` | Takes exactly two arguments and registers an Assertion when called; a failure does not stop later code. |
-| `await handle.orStop()` | An async barrier on the same handle; stops the current continuation on a mismatch or result below threshold. |
-| `handle.score(n)` / `t.score(n)` | Lets this item contribute a score in a scored Eval, or registers a contribution directly. |
+| `t.check(value, match)` | Takes exactly two arguments and registers an Assertion when called; a failure does not stop later code |
+| `await handle.orStop()` | An async barrier on the same handle; stops the current continuation on mismatch or below |
+| `handle.score(n)` / `t.score(n)` | Lets this item contribute a score in a scored Eval, or registers a contribution directly |
 
 ## Matchers
 
@@ -53,7 +53,7 @@ export function or(
 #### `not`
 
 ```ts
-export function not<T>(match: BooleanMatch<T, T, "value">): BooleanMatch<T, T, "value"> { ... }
+export function not<T, R extends T>(match: BooleanMatch<T, R, "value">): BooleanMatch<T, T, "value"> { ... }
 ```
 
 #### `includes`
@@ -80,7 +80,7 @@ export function pattern(expression: RegExp, options?: TextMatchOptions): Boolean
 export function similarity(expected: string): ScoreMatch<string> { ... }
 ```
 
-Normalized Levenshtein similarity. It is a continuous score and carries no default threshold or Verdict policy.
+Normalized Levenshtein similarity; it is a continuous score and carries no default threshold or Verdict policy.
 
 #### `includesUrl`
 
@@ -88,7 +88,7 @@ Normalized Levenshtein similarity. It is a continuous score and carries no defau
 export function includesUrl(min = 1): BooleanMatch<string, string> { ... }
 ```
 
-A plain-text matcher that requires at least `min` distinct http(s) URLs.
+A plain-text matcher that requires at least min distinct http(s) URLs.
 
 #### `hasSections`
 
@@ -96,7 +96,7 @@ A plain-text matcher that requires at least `min` distinct http(s) URLs.
 export function hasSections(min = 2): BooleanMatch<string, string> { ... }
 ```
 
-A plain-text matcher that requires at least `min` Markdown headings.
+A plain-text matcher that requires at least min Markdown headings.
 
 #### `isDefined`
 
@@ -110,7 +110,7 @@ export function isDefined<T = unknown>(label?: string): BooleanMatch<T, Exclude<
 export function isTrue<T = unknown>(label?: string): BooleanMatch<T, T & true> { ... }
 ```
 
-A refinement matcher for `value === true`.
+A refinement matcher for value === true.
 
 #### `isFalse`
 
@@ -118,7 +118,7 @@ A refinement matcher for `value === true`.
 export function isFalse<T = unknown>(label?: string): BooleanMatch<T, T & false> { ... }
 ```
 
-A refinement matcher for `value === false`.
+A refinement matcher for value === false.
 
 #### `commandSucceeded`
 
@@ -126,7 +126,7 @@ A refinement matcher for `value === false`.
 export function commandSucceeded<T = unknown>(): BooleanMatch<T, T & { readonly exitCode: 0 }> { ... }
 ```
 
-A matcher for `CommandResult`-like candidates whose `exitCode === 0`. It does not read stdout or stderr.
+An exitCode === 0 matcher for CommandResult-like candidates; it does not read stdout / stderr.
 
 #### `equals`
 
@@ -156,14 +156,14 @@ export function satisfies<T, R extends T = T>(
 ```ts
 export function defineValueMatch<T, R extends T = T>(spec: {
   readonly name: string;
-  readonly evaluate: (value: T) => boolean | Promise<boolean>;
+  readonly evaluate: (value: T) => boolean | { readonly state: "unavailable"; readonly reason: string } | Promise<boolean | { readonly state: "unavailable"; readonly reason: string }>;
 }): BooleanMatch<T, R> | BooleanMatch<T, T> { ... }
 ```
 
 #### `defineScoreMatch`
 
 ```ts
-export function defineScoreMatch<T>(spec: {
+export function defineScoreMatch<T, E = ScoreMatchLlmFailure>(spec: ManagedScoreMatchOptions<T, E> | {
   readonly name: string;
   readonly score: (value: T) => number | Promise<number>;
 }): ScoreMatch<T> { ... }
@@ -175,14 +175,67 @@ export function defineScoreMatch<T>(spec: {
 export function eventMatch<K extends keyof EventOptionsByType>(
   type: K,
   options?: EventOptionsByType[K],
-): EventMatch<Extract<AssertionEvent, { readonly type: K }>> { ... }
+): EventMatch<Extract<EventOccurrenceView, { readonly type: K }>> { ... }
+```
+
+#### `mapValue`
+
+```ts
+export function mapValue<T, U>(
+  label: string, project: (value: T) => U, match: Match<NoInfer<U>, "value"> & { readonly kind: "boolean" },
+): BooleanMatch<T, T> { ... }
+```
+
+Project a single value without replacing the original subject's refinement.
+
+#### `mapEach`
+
+```ts
+export function mapEach<T, U, Subject extends CollectionValue<T>>(
+  project: (value: T) => U,
+  aggregate: Match<CollectionValue<NoInfer<U>>, "value"> & { readonly kind: "boolean" },
+): BooleanMatch<Subject & CollectionValue<T>, Subject> { ... }
+```
+
+Project each complete item, retaining its material identity and order.
+
+#### `filterWhere`
+
+```ts
+export function filterWhere<T, R extends T, Subject extends CollectionValue<T>>(
+  selector: BooleanMatch<T, R>, aggregate: BooleanMatch<CollectionValue<R>, CollectionValue<R>>,
+): BooleanMatch<Subject, Subject> { ... }
+```
+
+Select only definite matches; an unknown selector makes the aggregate unavailable.
+
+#### `countWhere`
+
+```ts
+export function countWhere<T, Subject extends CollectionValue<T>>(
+  item: BooleanMatch<T, NoInfer<T>>, count: Match<number, "value"> & { readonly kind: "boolean" },
+): BooleanMatch<Subject, Subject> { ... }
+```
+
+Compare an exact match count only after every item in a complete collection is known.
+
+#### `defineMaterialMatch`
+
+```ts
+export function defineMaterialMatch(definition: unknown): ContextualMatch { ... }
+```
+
+#### `defineContextMatch`
+
+```ts
+export function defineContextMatch(definition: unknown): ContextualMatch { ... }
 ```
 
 {/* GENERATED:END expect-matchers */}
 
 ### Match tool calls
 
-`ToolMatch` compares one logical tool occurrence. It owns occurrence quantifiers such as `.exactly(n)` and `.atLeast(n)`. Pass a name, an unquantified `ToolMatch`, or a positive quantified Match to `calledTool`. `notCalledTool` uses an unquantified selector to express zero matches.
+`ToolMatch` compares one `LogicalToolOccurrence`, and expresses the occurrence count with methods such as `.exactly(n)` and `.atLeast(n)`. `calledTool` accepts a name, an unquantified `ToolMatch`, or a positive occurrence Match; `notCalledTool` uses an unquantified selector to express zero matches.
 
 ```ts
 import {
@@ -208,7 +261,7 @@ turn.calledTool(
 turn.notCalledTool(commandMatch("rm", { argsStart: ["-rf"] }));
 ```
 
-Use `jsonMatch` for ordinary JSON, `referencesAnyPath` for paths, and `commandMatch` for command tokens. When output is absent, material is incomplete, or HITL has not finished, a Match becomes unavailable; it does not pretend to be an ordinary mismatch.
+Use `jsonMatch` for ordinary JSON, `referencesAnyPath` for paths, and `commandMatch` for command tokens. When output is absent, material is incomplete, or HITL has not finished, the Match becomes unavailable; it does not pretend to be an ordinary mismatch.
 
 For complete signatures, material states, and three-valued counting rules, see [Scoped assertions](https://github.com/NiceEval/NiceEval/blob/main/docs/feature/assertions/library/scoped-assertions.md).
 
@@ -230,7 +283,7 @@ t.check(t.reply, and(includes("required"), excludes("forbidden")));
 t.check(t.reply, or(includes("approved"), includes("accepted")));
 ```
 
-Matches within the same `and` / `or` must belong to the same domain. The internal result of a Boolean Match is `matched`, `mismatched`, or `unavailable`. `or` returns `unavailable` only when no child matches and at least one child's evidence is incomplete; it does not treat an unknown result as a negative one. A Match itself has no Verdict, score, or control flow. Use `.gate(minimum)` to set a measurement threshold on the registered `AssertionHandle`; `.score(n)` and `.orStop(minimum)` also belong to that handle.
+Matches within the same `and` / `or` must belong to the same domain. The internal result of a Boolean Match is `matched`, `mismatched`, or `unavailable`. `or` returns `unavailable` only when no child matches and at least one child's evidence is incomplete; it does not treat unknown as negative. A Match itself holds no Verdict, scoring, or control flow; `.gate(minimum)`, `.score(n)`, and `.orStop(minimum)` for a continuous measurement all belong to the registered AssertionHandle.
 
 The following lists stable fields on Match values themselves. Brands and evaluators are module-private implementation details, not author API.
 
@@ -274,13 +327,29 @@ readonly [matchRefinementBrand]: () => R;
 readonly kind: "score";
 ```
 
-#### `atLeast`
+{/* GENERATED:END value-assertion */}
+
+## Ordering conditions in a collection
+
+`inOrder` combines 2–64 ordinary value Matches into a collection Match, which you pass to `t.check` or to an application's collection assertion method.
+It accepts a read-only array or a `MaterialCollection` with a completeness state, and looks for a strictly increasing subsequence by original position; the items need not be adjacent.
 
 ```ts
-atLeast(threshold: number): ThresholdedScoreMatch<T>;
+import { equals, inOrder, not, or } from "niceeval/expect";
+
+t.check([1, 0, 2], inOrder([equals(1), equals(2)])).gate();
+t.check([2, 1], not(inOrder([equals(1), equals(2)]))).gate();
+t.check([3, 4], or(
+  inOrder([equals(1), equals(2)]),
+  inOrder([equals(3), equals(4)]),
+)).gate();
 ```
 
-{/* GENERATED:END value-assertion */}
+The same item cannot satisfy two steps, and each step can use `and` to constrain the same fact. The application is responsible for providing the formal commit order; a request being sent does not mean the operation was adopted or finished executing.
+When you only need both parties to have spoken, check existence separately.
+
+An incomplete collection returns undecidable. A complete collection passes when there is known ordering evidence, fails when no ordering is possible, and is undecidable when it can only hold by depending on unknown items.
+Diagnostics keep the original positions, material IDs, and step judgments. Ordering combinations of ToolMatch and EventMatch keep their own Agent scope and cannot be mixed with ordinary value steps.
 
 ## Custom matchers
 
@@ -298,4 +367,4 @@ const validEmail = () =>
 t.check(t.reply, validEmail());
 ```
 
-Use `defineValueMatch` for a custom Boolean Match and `defineScoreMatch` for a continuous score. Both compare only one candidate. Reading files, scanning events, deciding coverage, and changing a Verdict remain the responsibility of Assertion registration entry points and the Runner.
+Use `defineValueMatch` for a custom Boolean Match and `defineScoreMatch` for a continuous score. Both implement only a single-candidate comparison; reading files, scanning events, deciding coverage, and changing a Verdict remain the responsibility of Assertion registration entry points and the Runner.

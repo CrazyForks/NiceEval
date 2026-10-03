@@ -1,49 +1,69 @@
 ---
-title: "Set Up Evals for Your Agent Project"
+title: "Quickstart: Run Your First Eval"
 sidebarTitle: "Quickstart"
-description: "Install NiceEval, write three files, and run the first Eval against your own application in about 10 minutes."
+description: "Install NiceEval, write an Adapter, an Experiment, and an eval, get your first eval running against your own application in about ten minutes, and see the results in the terminal and the browser."
 ---
 
-Connecting an application needs three files: an **Adapter** calls the application, an **Experiment** fixes the subject under test and run count, and an **Eval** defines assertions. The steps below provide the shortest complete path, covering both automatic setup through a Coding Agent and manual setup.
+This page walks you through running your first eval against your own application. You write three files:
 
-## Set up with a Coding Agent (recommended)
+- **Adapter**: tells NiceEval how to call your application.
+- **Experiment**: says which Adapter to run against and with which model.
+- **Eval**: says which message to send and what counts as correct.
+
+There are two ways to do it. Having a Coding Agent write them is fastest; writing them yourself shows more clearly what each file is for.
+
+## Let a Coding Agent integrate it for you
 
 <Steps>
-  <Step title="Set up">
-    Send the following instruction to the Coding Agent you use, such as Codex, Claude Code, or another Agent that can modify the current project:
+  <Step title="Send the instruction to your Agent">
+    Open the Coding Agent you use in the current project, such as Claude Code or Codex, and send this message:
 
     ```text
-    Read https://niceeval.com/INIT.md and set up niceeval for the current repository: install it, integrate it with this project, and run the first Eval end to end. When finished, list the Experiment ID you created, the command to run it, and the command to view results.
-
+    Read https://niceeval.com/INIT.md, install and integrate niceeval into the current repository, and get the first eval running end to end. When done, list the Experiment ID you created, the run command, and the command to view results.
     ```
+
+    The Agent first explores your project, confirms which interface to test, then writes the three files and runs them once.
   </Step>
-  <Step title="Run evals">
-    Use the Experiment ID listed by the Agent. If it did not list one, first run `pnpm exec niceeval exp list` to see available Experiments.
+  <Step title="Run it again yourself">
+    Run with the Experiment ID the Agent listed at the end. If it did not list one, first see which Experiments exist with `pnpm exec niceeval exp list`:
 
     ```bash
     pnpm exec niceeval exp <experiment-id>
     ```
   </Step>
-  <Step title="View results">
+  <Step title="See the results">
     ```bash
-    pnpm exec niceeval query discover  # Discover read operations for AI, scripts, and CI
-    pnpm exec niceeval view            # Review published results in the browser
+    pnpm exec niceeval show
     ```
+
+    The terminal lists each eval's result, with failures first. For how to read the results, see [Read the results](#read-the-results) below.
   </Step>
 </Steps>
 
-## Set up manually
+## Integrate it yourself
 
-First start your application under test and confirm that it has a callable interface. The example below assumes `POST http://localhost:3000/chat`, whose request body accepts `message` and `model` and whose JSON response has a string `reply` field. If your interface differs, change the Adapter URL, request body, and response-reading code. If you do not yet have an application to start, choose a runnable project from [Examples](/examples).
+### Prepare the application under test
+
+First start your application and confirm it has an interface you can call. The example below assumes:
+
+- the interface is `POST http://localhost:3000/chat`;
+- the request body is `{ "message": "...", "model": "..." }`;
+- the response body is `{ "reply": "..." }`.
+
+If your interface differs, that is fine; you only change the address, the request body, and the line that reads the reply in the Adapter. If you do not have an application you can start yet, pick a runnable project from [Examples](/examples) first.
+
+### Install
 
 ```bash
 pnpm add -D niceeval
 pnpm exec niceeval init
 ```
 
-### Adapter
+`init` creates `niceeval.config.ts`. It also writes a section into `AGENTS.md` or `CLAUDE.md` so your Coding Agent reads the docs that match the installed version.
 
-An Adapter connects an Agent to [NiceEval](https://niceeval.com/). The three integration tiers range from a non-invasive connection to modifying the Agent configuration, and unlock different Eval capabilities. See [Tier](/explanation/tier).
+### Write the Adapter
+
+The Adapter does one thing: send the eval's messages to your application, then hand the reply back to NiceEval.
 
 ```ts
 // agents/my-agent.ts
@@ -53,11 +73,11 @@ export default defineAgent({
   name: "my-agent",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input, ctx) {
-    // Example address: replace it with your Agent's real endpoint. HTTP, a CLI, or an SDK all work if send() can get reply text.
+    // Replace with your own application's address
     const r = await fetch("http://localhost:3000/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: input.text, model: ctx.model }), // ← experiment.model arrives here through ctx.model
+      body: JSON.stringify({ message: input.text, model: ctx.model }), // ctx.model comes from the Experiment
       signal: ctx.signal,
     });
     const body = await r.json();
@@ -69,7 +89,9 @@ export default defineAgent({
 });
 ```
 
-### Experiment
+`events` is how NiceEval understands the reply. Here it hands back only one assistant message; later you can add events for tool calls, usage, and more.
+
+### Write the Experiment
 
 ```ts
 // experiments/my-agent.ts
@@ -78,13 +100,15 @@ import myAgent from "../agents/my-agent.ts";
 
 export default defineExperiment({
   description: "my-agent baseline",
-  model: "gpt-4o",
   agent: myAgent,
+  model: "gpt-4o",
   attempts: 1,
 });
 ```
 
-### Eval
+The file name is the Experiment ID, here `my-agent`. To compare another model later, copy this file and change `model`; the evals stay the same.
+
+### Write the eval
 
 ```ts
 // evals/refund-policy.eval.ts
@@ -92,44 +116,63 @@ import { defineEval } from "niceeval";
 import { pattern } from "niceeval/expect";
 
 export default defineEval({
-  description: "Refund-policy question",
+  description: "Answers the refund policy correctly",
   async test(t) {
     await t.send("What is your refund policy?");
     t.succeeded();
-    t.check(t.reply, pattern(/30\s*days|one month/i));  // Wording varies, so use an equivalent regex rather than one exact phrase
+    t.check(t.reply, pattern(/30\s*days|one month/i));
   },
 });
 ```
 
+The model's wording changes every time, so this uses a regex to match "30 days" or "one month" instead of requiring an exact match.
+
+### Run
+
 ```bash
-pnpm exec niceeval exp my-agent   # Run it
-pnpm exec niceeval query discover              # Discover available read operations
-pnpm exec niceeval view                        # Review the current published results in the browser
+pnpm exec niceeval exp my-agent
 ```
 
-At this point, the first Eval has run successfully.
+The terminal shows progress while it runs. When it finishes, you see output like this:
 
-This minimal Adapter supports only **single-turn** calls; a second turn does not include the first turn's history. Multi-turn sessions, tool-call events (for `t.calledTool()`), HITL, and tracing are optional capabilities you can add later. Existing Evals do not need to change when you extend the setup by following [Connect Your Agent](/tutorials/connect-your-agent).
+```text
+╭─ PASSED ─────────────────────────────────────────────────────── 12s ─╮
+│ 1 passed · 0 failed · 0 errored  (0 reused)                          │
+╰──────────────────────────────────────────────────────────────────────╯
 
-## Compare with a complete project
+╭─ RESULTS ───────────────────────────────────── 1 run configuration ─╮
+│ my-agent                                                             │
+│   refund-policy  1/1 passed                                          │
+╰──────────────────────────────────────────────────────────────────────╯
 
-After the first Eval succeeds, go to [Examples](/examples) and choose a complete project by subject under test. Those pages provide runnable source code. General operating steps are in the matching Tutorials task page.
-
-## Put it in CI
-
-```yaml
-name: evals
-on: [pull_request]
-jobs:
-  evals:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - run: npm ci
-      - run: npm exec niceeval exp my-agent
+╭─ NEXT ───────────────────────────────────────────────────────────────╮
+│ my-agent                                                             │
+│   show: niceeval show --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
+│   view: niceeval view --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706     │
+╰──────────────────────────────────────────────────────────────────────╯
 ```
 
-<Tip>
-  Read [Author Evals](/tutorials/authoring) and [Evaluation Kinds and Assertions](/tutorials/evaluation-kinds), then replace the example with a real scenario.
-</Tip>
+Your first eval is now running.
+
+## Read the results
+
+The title tells you the conclusion of this run:
+
+| Title | Meaning | What to do first |
+|---|---|---|
+| `PASSED` | All assertions were met. | Keep adding evals. |
+| `FAILED` | The application replied normally, but at least one assertion was not met. | See what the Agent actually replied, and decide whether the application is wrong or the assertion is too strict. |
+| `ERRORED` | No result could be obtained, for example the application was not running, the interface returned an error, or the Adapter threw an exception. | Look at the `error:` line in the `FAILURES` panel, which usually shows the cause directly; for more detail, run the `details:` command below it. |
+
+Each failed Attempt has a line `details: niceeval show @<locator>` below it. Copy it to see that run's conversation and assertions in the terminal. To see the whole run, copy the `show:` command in the `NEXT` panel; to browse the conversation and durations in the browser, copy the `view:` line.
+
+For more ways to view results, see [View Run Results](/tutorials/viewing-results).
+
+## Next steps
+
+This minimal Adapter only supports single-turn conversations: the second turn does not carry the first turn's history, and tool calls are not visible. Choose based on what you need next:
+
+- To test multi-turn conversations, tool calls, or usage: extend the Adapter following [Write send](/tutorials/write-send); existing evals stay unchanged.
+- To write more evals that tell results apart better: read [Write Evals](/tutorials/authoring).
+- To compare two models or two prompt versions: read [Organize Experiments](/tutorials/write-experiment).
+- To run automatically on PRs: read [CI Integration](/tutorials/ci-integration).

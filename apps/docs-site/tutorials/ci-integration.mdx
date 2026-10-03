@@ -1,39 +1,56 @@
 ---
-title: "Run NiceEval in CI"
+title: "Run Evals Automatically in CI to Block Regressions"
 sidebarTitle: "CI Integration"
-description: "Use the process exit status for a CI gate, retain the final receipt, and provide a JUnit file to the platform."
+description: "Run the same niceeval exp on every PR and turn CI red when evals fail. Keep this run's Run ID for later steps to read, and hand a JUnit file to your CI platform for display."
 ---
 
-When CI runs an Experiment, the process exit status decides whether the gate passes. `--json` provides feedback from the current process, and its final receipt contains the Invocation's `runIds`. A JUnit file gives the CI platform test results to display.
+Someone changed a prompt, tried it locally twice, decided it was fine, and merged it. The next day you discover that another class of questions now gets every answer wrong. Put the evals in CI so every PR runs them automatically, and regressions are caught before merge.
 
-## Basic command
+CI runs the same `niceeval exp` you use locally, with no extra configuration:
 
-Whenever a required Boolean condition is mismatched, a measurement falls below its `.gate(minimum)` threshold, or execution errors, [NiceEval](https://niceeval.com/) exits with a nonzero status. Both Eval kinds read explicit gates; there is no global strict mode, and reading results does not turn a stop-only condition into a gate. Put requirements that must block a merge directly in Eval source so CI and local runs read the same Verdicts.
+- When evals fail, a run errors, or the run is interrupted, the process exits with a non-zero status and CI turns red.
+- With `--json`, the last line is this run's receipt, which contains the new Run IDs that later steps can use to read results.
+- With `--junit <path>`, it writes a JUnit file so the CI platform can display results per test case.
+
+## Decide what turns CI red
+
+Whether CI turns red depends only on the process exit status. Any of the following exits with a non-zero status:
+
+- A pass/fail eval has an Attempt that did not pass.
+- A scored eval has an explicit `.gate()` that was not met, for example a measured value below the minimum of `.gate(minimum)`.
+- An Attempt errored (`errored`), or not every planned Attempt got a result.
+- The run was interrupted, or the results could not be saved.
+
+A scored eval without a failed gate counts as success even when its score is low. To have a low score block the merge, add `.gate()` to the matching assertion in the eval. There is no global strict switch; CI and local runs read the same eval source and reach the same verdicts.
+
+## Run the evals
 
 ```sh
-npx niceeval exp ci --json --junit ./artifacts/niceeval-junit.xml
+pnpm exec niceeval exp ci --json --junit ./artifacts/niceeval-junit.xml
 ```
 
-This command has three outputs:
+This command gives CI three things:
 
-- Exit status: CI uses it to pass or fail the job.
-- NDJSON: Progress and diagnostics describe the current process; the final receipt describes the Invocation.
-- JUnit: A temporary file for the CI platform.
+- Exit status: CI uses it to decide whether this step succeeded or failed.
+- NDJSON output from `--json`: the earlier lines describe run progress and diagnostics, and the last line is the receipt.
+- JUnit file: for the CI platform to read and display.
 
-JUnit and external-platform files do not own the Record. The quiescent Record's named channels retain the persisted Verdict, Usage, Assertions, and diagnostics.
+JUnit is only a display format for the CI platform. Verdicts, usage, assertions, and diagnostics are still saved in the project's `.niceeval/record.sqlite`, and later inspection reads from there.
 
-## GitHub Actions example
+## Configure GitHub Actions
 
-This step retains JSON output and correctly preserves the exit status from `niceeval exp`:
+The step below saves the JSON output while passing the exit status of `niceeval exp` back to CI correctly:
 
 ```yaml
 - name: Run evals
   shell: bash
   run: |
     set -o pipefail
-    npx niceeval exp ci --json --junit ./artifacts/niceeval-junit.xml \
+    pnpm exec niceeval exp ci --json --junit ./artifacts/niceeval-junit.xml \
       | tee ./artifacts/niceeval.ndjson
     exit "${PIPESTATUS[0]}"
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
 - name: Upload JUnit
   if: always()
@@ -43,19 +60,26 @@ This step retains JSON output and correctly preserves the exit status from `nice
     path: ./artifacts/niceeval-junit.xml
 ```
 
-Inject model credentials through CI secrets into variables required by the command. Do not put credentials in an Experiment, receipt, JUnit file, or log.
+Without `set -o pipefail` and `exit "${PIPESTATUS[0]}"`, the exit status comes from `tee`, and failing evals do not turn CI red.
 
-## Use the receipt in a later step
+Inject model credentials as CI secrets into the environment variables the command needs, such as `ANTHROPIC_API_KEY` above. Do not write credentials into the Experiment, receipt, JUnit, or logs. For which variable each Agent reads, see [Configuration and Environment Variables](/tutorials/configuration).
 
-After an Invocation is created successfully, the final NDJSON line contains its receipt. A later script can read its `runIds` and select an explicit Run for View or construct a query request:
+## Read this run's results in later steps
+
+Once the run starts, the last NDJSON line is the receipt. Its `receipt.createdRunIds` lists the Runs created this time, and later steps use it to open the results:
 
 ```sh
-pnpm exec niceeval query discover
-pnpm exec niceeval view --run 01J9ZK3M6P4T7V9X2C5N8QW0RY --no-open
+pnpm exec niceeval show --run 01J9ZK3M6P4T7V9X2C5N8QW0RY
 ```
 
-If an input error ends the command before an Invocation exists, there is no receipt. Correct the command, Experiment, or selection condition instead of guessing a Run ID.
+To have a script process the results, first find the available queries, then send a complete request:
 
-## Keep feedback readable
+```sh
+pnpm --silent exec niceeval query discover
+```
 
-CI logs are for the current process's progress and diagnostics. For business results, AI, scripts, and CI first run `query discover`; people use the receipt's `runIds` with `view`.
+If the command exits before the run starts because of an argument, configuration, or selection error, there is no receipt, and the terminal prints `error:`. Fix the command, Experiment, or selection directly. Do not guess a Run ID.
+
+## Keep CI logs readable
+
+CI logs are for watching run progress and diagnostics. To dig into results, a person runs `niceeval show --run <run-id>` or `niceeval view --run <run-id>` locally with the Run ID from the receipt; scripts and AI run `query discover` first. Do not treat progress and diagnostic lines as a long-term result format.

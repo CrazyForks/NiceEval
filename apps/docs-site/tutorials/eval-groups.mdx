@@ -1,56 +1,51 @@
 ---
-title: "Reuse Sandboxes with Eval Groups"
+title: "Use Eval Groups to Let Related Evals Share a Sandbox"
 sidebarTitle: "Eval Groups"
-description: "Use defineEvalGroup to declare compatible members explicitly: one Sandbox is reused in stable ID order within a group, other groups keep running in parallel, and shared preparation belongs in the right Sandbox Layer."
+description: "When several groups of evals each need a heavy toolchain, group them with defineEvalGroup: each group shares one Sandbox and runs in sequence, while different groups run in parallel as usual."
 ---
 
-When a batch of evals shares a heavy toolchain, you usually need two things at once: do not create a Sandbox repeatedly for every task,
-but do not make the whole batch serial merely to reuse one. `defineEvalGroup()` puts compatible evals
-inside one physical reuse boundary. Attempts that really dispatch within a group run serially in stable order and reuse one Sandbox;
-other groups and ungrouped evals can still use other concurrency slots.
+Your eval set has 20 Rust tasks and 30 Python tasks. Every Rust task needs an environment with cargo and dependencies installed, which takes five minutes to set up. Installing it for every task is too slow; chaining all 50 tasks with `sandboxReuse` is also too slow, since the Python tasks have no reason to wait for the Rust tasks.
 
-| What you get | Runtime behavior |
+Eval groups solve this. Use `defineEvalGroup()` to put the 20 Rust tasks into one group: the group shares one Sandbox and runs its evals in ID order, while the Python tasks and other groups run in parallel as usual.
+
+| What you get | How it behaves at run time |
 | --- | --- |
-| Pay for common preparation fewer times | Sandbox creation and group-level `setup()` run only once per group instance |
-| Stable serialization within a group | The Runner orders normalized eval IDs and dispatches only one Attempt in the group at a time |
-| Preserve throughput between groups | Other groups and ungrouped evals can run in parallel |
-| Keep results comparable individually | Every Attempt still has its own Assertions, Verdict, usage, and File Changes |
+| Pay for shared preparation fewer times | Each group Sandbox is created only once, and group-level preparation runs only once |
+| Stable order within the group | The group is sorted by eval ID, and only one Attempt runs at a time |
+| Groups still run in parallel | Different groups and ungrouped evals can run at the same time |
+| Results can still be compared individually | Each Attempt still has its own assertions, verdict, usage, and file changes |
 
-Eval groups schedule only Attempts that need to execute for real in this run. Carried results never enter the group's Sandbox;
-`--rerun`, `attempts`, and early exit keep their existing Experiment behavior.
+An eval group only schedules the Attempts that really need to run this time. Evals that reuse last results do not enter the group Sandbox; the rules for `--rerun`, `attempts`, and early exit are the same as without groups.
 
-## Choose the right reuse mode first
+## Choose the right kind of reuse first
 
-| Task | Use |
+| Task | How |
 | --- | --- |
-| One or a few compatible eval groups need to reuse the same Sandbox while other groups should keep running in parallel | `defineEvalGroup()` |
-| All selected regular evals in an Experiment can run in any order and you only need several reuse lanes | `sandboxReuse: true` |
-| Every Attempt needs a fresh `$HOME`, `/tmp`, and background processes | Do not reuse Sandboxes; adjust concurrency only |
+| One or a few groups of compatible evals should share a Sandbox while other groups run in parallel as usual | `defineEvalGroup()` |
+| All evals the Experiment selects can run in any order, and you only want a few lanes that share Sandboxes | `sandboxReuse: true` |
+| Every Attempt needs a fresh `$HOME`, `/tmp`, and background processes | Do not reuse Sandboxes; only tune concurrency |
 
-One Experiment cannot both select eval groups and declare `sandboxReuse: true`. Eval groups already own their reuse boundary;
-when both appear, NiceEval reports `eval-group-sandbox-reuse-conflict` before the Provider creates a Sandbox.
+The same Experiment cannot both select eval groups and declare `sandboxReuse: true`. Both decide which evals share a Sandbox; when both appear, the run reports `eval-group-sandbox-reuse-conflict` before creating any Sandbox.
 
 ## Step 1: Put the group file next to its members
 
-Place `eval-group.ts` in a named directory under `evals/`. The directory path becomes the eval-group ID:
+Create a directory under `evals/` and put the members and `eval-group.ts` in it. The directory's path is the group ID:
 
 ```text
 evals/
 └── workflow/
-    ├── eval-group.ts          # eval-group ID: workflow
+    ├── eval-group.ts          # Group ID: workflow
     ├── 01-index/
-    │   └── eval.ts            # eval ID: workflow/01-index
+    │   └── eval.ts            # Eval ID: workflow/01-index
     └── 02-query/
-        └── eval.ts            # eval ID: workflow/02-query
+        └── eval.ts            # Eval ID: workflow/02-query
 ```
 
-NiceEval discovers only `evals/**/eval-group.ts`. Do not name it `*.eval-group.ts` and do not put it at
-`evals/eval-group.ts`; the latter has no usable group ID.
+NiceEval only recognizes the file name `evals/**/eval-group.ts`. Naming it `*.eval-group.ts` means it is not discovered; putting it at `evals/eval-group.ts` does not work either, because it has no enclosing directory to serve as the group ID.
 
-## Step 2: Use a factory result to declare members
+## Step 2: List the members in the group file
 
-Each member continues to default-export the result of `defineEval()` or `defineScoreEval()`. The group file imports those results,
-then lists compatible members in one closed set:
+Each member default-exports the return value of `defineEval()` or `defineScoreEval()` as usual. The group file imports these return values and lists them in `evals`:
 
 ```ts
 // evals/workflow/eval-group.ts
@@ -64,26 +59,27 @@ export default defineEvalGroup({
 });
 ```
 
-`evals` must not be empty. It accepts only objects actually returned by the factories—not eval IDs, directory prefixes,
-`glob`, `tag`, or `selector`. NiceEval does not collect files from the directory automatically either. Adding, removing, or reordering members is explicit in the
-`eval-group.ts` diff.
+When writing `evals`:
 
-Every member must have the same evaluation kind: all `defineEval()` results or all `defineScoreEval()` results. Discovery rejects a mixed group before Experiment filtering or Sandbox planning, and lists both sets of Eval IDs so you can split the group.
+- It cannot be empty, and only accepts imported return values. Eval IDs, directory prefixes, `glob`, `tag`, and `selector` are not allowed.
+- NiceEval does not collect files from the same directory automatically. Adding or removing members always shows up in the diff of `eval-group.ts`.
+- Members must be either all `defineEval()` or all `defineScoreEval()`. When they are mixed, the run reports an error before planning Sandboxes and lists the eval IDs of both kinds, so you can split them into two groups.
+- An eval belongs to at most one group, and cannot be listed twice in the same group.
 
-The `evals` array declares members, not business order. The Runner always sorts normalized eval IDs stably; changing
-only the array positions does not change scheduling behavior or the group fingerprint. Put a result dependency such as “build first, then query” into
-one eval. Eval groups do not implement a business-order API.
+Array order does not decide execution order. Within a group, evals always run sorted by eval ID, and moving array positions does not change scheduling. When you need a dependency such as "build first, then query", write both steps in the same eval. Ordering members by business sequence is not supported yet.
 
-`onUnavailable` is required. `"stop-group"` stops later dispatch in the group when the physical Sandbox cannot be created, reset, or prepared;
-`"replace-sandbox"` retires the current instance first, then lets the next slot try to establish a replacement instance.
-Omitting the policy fails while loading `eval-group.ts`, so the Runner does not have to guess the cost and side effects after failure for its author.
+`onUnavailable` is required. It decides what happens when the group Sandbox cannot be created, reset, or prepared:
 
-An eval can belong to at most one group, and it cannot appear more than once in the same group. Experiments and the CLI still select evals:
-selecting `workflow/02-query` does not pull `workflow/01-index` into this run.
+- `"stop-group"`: the rest of this group's evals are no longer dispatched.
+- `"replace-sandbox"`: discard the current Sandbox and try creating a new one for the next Attempt.
 
-## Step 3: Let the Experiment provide a reusable Sandbox
+Without it, loading `eval-group.ts` reports an error. Whether to spend more money rebuilding or to stop after a failure is your decision; NiceEval does not guess for you.
 
-Most projects let an Experiment choose the Provider and `template`; the eval group owns only the reuse queue:
+Which evals run is still decided by the Experiment and the command line. When only `workflow/02-query` is selected, `workflow/01-index` is not pulled into this run automatically.
+
+## Step 3: Have the Experiment provide the Sandbox
+
+In most projects, the Experiment chooses the Provider and `template`, and the eval group only decides "which evals share a Sandbox":
 
 ```ts
 // experiments/codex.ts
@@ -102,53 +98,53 @@ export default defineExperiment({
 });
 ```
 
-Do not write `sandboxReuse: true` here. `maxConcurrency: 4` caps the whole Experiment; it does not run four Attempts from one group at once.
-It lets other eval groups or ungrouped evals use the remaining concurrency slots.
+Do not write `sandboxReuse: true` here. `maxConcurrency: 4` is the cap for the whole Experiment and does not make the same group run four at once; the remaining concurrency slots go to other groups and ungrouped evals.
 
-Eval groups support only Sandbox Agents and Providers that support reuse. Direct Agents cannot run eval groups.
+Eval groups only work with Agents that run in a Sandbox and Providers that support reuse. An Agent without a Sandbox cannot run eval groups.
 
-## Step 4: Check the group ID and selection result first
+## Step 4: Confirm the grouping before running
 
-Confirm selection with `--dry`; it creates no Sandbox:
-
-```bash
-npx niceeval exp codex --dry
-```
-
-The minimal project above shows:
-
-```text
-plan: 2 attempts · 2 evals × 1 run configuration · attempts 1
-codex  workflow/01-index [group workflow]   new
-codex  workflow/02-query [group workflow]   new
-```
-
-After confirming that the two selected evals display the same group ID, run:
+First look at the plan with `--dry`; it creates no Sandbox and calls no model:
 
 ```bash
-npx niceeval exp codex
+pnpm exec niceeval exp codex --dry
 ```
 
-The current scheduler orders members by normalized eval ID. When `attempts` is greater than 1, consecutive Attempts for one member
-enter the group lane before the next member. This is a stable scheduling rule, not a cross-eval data-dependency contract.
-Slots that early exit or result carry do not dispatch are skipped directly.
+Confirm that both member evals appear in the plan, then check whether they belong to the same group. In the machine-readable plan, each item carries `evalGroupId`:
 
-## Put common preparation on the eval group
+```bash
+pnpm --silent exec niceeval exp codex --dry --json
+```
 
-One Sandbox plan can receive declarations from the Experiment, eval group, and eval, but only one of the three layers can provide a template.
-The usual split is:
+Both evals' `evalGroupId` should be `workflow`. When the field is missing, first check that the group file's name and location are `evals/workflow/eval-group.ts`. After confirming, run:
 
-| Declaration location | What belongs there | Execution frequency |
+```bash
+pnpm exec niceeval exp codex
+```
+
+Within the group, evals queue by eval ID. When `attempts` is greater than 1, the Attempts of one eval run back to back before the next eval's turn. Positions that do not need to run because of early exit or result reuse are skipped directly. This is only a stable queueing rule; it cannot be used to pass data between evals.
+
+After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
+
+## Put shared preparation on the eval group
+
+Sandbox preparation can be written in three places: the Experiment, the eval group, and the eval. Only one of the three can choose `template`. A common split:
+
+| Written on | What fits there | How often it runs |
 | --- | --- | --- |
-| The Experiment's `sandbox` | Provider `template` that changes with the Agent or model configuration | Once per Sandbox in the group |
-| The eval group's `sandbox` + `.before()` | Shared toolchain, common checkout, and warmed build cache | Reused by action fingerprint |
-| A member's own `sandbox` + `.before()` | Starter files, dependencies, and public materials for only that task | Planned for each real Attempt |
+| The Experiment's `sandbox` | A Provider `template` that varies with the Agent or model | Once per group Sandbox |
+| The eval group's `sandbox` + `.before()` | Toolchains, shared repositories, and build cache warm-up used by the whole group | Reuses the last preparation result when content has not changed |
+| A member's own `sandbox` + `.before()` | Starting code, dependencies, and public materials that belong only to this eval | Every Attempt that really runs |
 
-An eval group can provide its own `SandboxLayer`:
+Write the eval group's preparation steps as `sandboxLayer()`:
 
 ```ts
 import { defineEvalGroup } from "niceeval";
-import { changeFrequency, sandboxLayer, shell } from "niceeval/sandbox";
+import {
+  changeFrequency,
+  sandboxLayer,
+  shell,
+} from "niceeval/sandbox";
 import buildIndex from "./01-index/eval.ts";
 import queryIndex from "./02-query/eval.ts";
 
@@ -163,37 +159,33 @@ export default defineEvalGroup({
 });
 ```
 
-The group command context and Agent Context can both read `ctx.evalGroup.id` and
-`ctx.evalGroup.definitionHash`. Shared functions can also serve ungrouped evals, so the type keeps `evalGroup`
-optional. When you need to isolate a cache or service namespace outside `workdir`, first check that the field exists, then derive a key from the group ID.
+Members cannot choose `template`, but they can add their own `.before()` / `.after()` commands. The preparation steps of the Experiment, eval group, members, and Agent are placed in one order: dependencies first, then ascending `changeFrequency`. So a rarely changing step in the eval group can come before a frequently changing step in the Experiment.
 
-Members cannot provide a `template`, but they can contribute command-only `.before()` / `.after()` actions. Experiment, group, member, and Agent actions enter the same dependency graph. Once dependencies are satisfied, the smallest `changeFrequency` runs first, so a stable group action can precede a more volatile Experiment action.
+Lifecycle callbacks and Agent Context within a group can read `ctx.evalGroup.id` and `ctx.evalGroup.definitionHash`. The same function may also serve ungrouped evals, so `evalGroup` is an optional field. When you need to isolate caches or service names by group outside `workdir`, first check that the field exists, then build names from the group ID.
 
-## Do not treat eval groups as task dependency graphs
+## Do not rely on group order to pass results
 
-Between Attempts, NiceEval resets `workdir` to the state after common preparation. A file written to `workdir` by one task is not an input to the next;
-`$HOME`, `/tmp`, global installations, and background processes can remain. Do not reuse a Sandbox if you cannot accept those leftovers.
+After each Attempt, NiceEval restores `workdir` to its state when shared preparation finished. Files an earlier eval wrote into `workdir` are not visible to a later one; `$HOME`, `/tmp`, global installs, and background processes may stay behind. When you cannot accept those leftovers, do not reuse Sandboxes.
 
-An eval group also does not guarantee that the preceding task executes. Result carry, CLI filtering, budget exhaustion, and interruption can leave members out of this run's Sandbox.
-When a later step must read a file from an earlier step, put both steps in one eval. Put evals in the same reusable group only when their shared state belongs outside `workdir` and every eval can independently produce a valid Verdict.
+An earlier eval may not even run. Result reuse, command-line filtering, an exhausted budget, and interruption can all keep a member out of the Sandbox this time. When a later step must read a file from an earlier step, write both steps in the same eval. Only put evals in the same group when what they share already lives outside `workdir` and each eval can reach a verdict on its own.
 
 ## Common errors
 
 | Error | Fix |
 | --- | --- |
-| `eval-group-member-unresolved` | Import the default object returned by the factory from the eval entry point; do not reconstruct it or write a string ID. |
-| `eval-group-member-overlap` | Put every eval in only one group and list it once. |
-| `eval-group-member-layer` | Remove the Provider template from the member; keep command-only `.before()` / `.after()` actions. |
-| A load-time error says `onUnavailable` is missing | Explicitly choose `"stop-group"` or `"replace-sandbox"`; do not omit the failure policy. |
-| `eval-group-sandbox-reuse-conflict` | Remove `sandboxReuse: true` from the Experiment. |
-| `eval-group-direct-agent` | Use a Sandbox Agent or stop selecting grouped evals in this Experiment. |
-| `sandbox.reuse-unavailable` | Switch to a Provider that supports Sandbox reuse. |
-| `eval-group-incompatible` | Make members receive the same physical Sandbox plan, or split groups by compatible `template`. |
+| `eval-group-member-unresolved` | Import the object the member file originally default-exports; do not reconstruct the object or write a string ID |
+| `eval-group-member-overlap` | Put each eval in only one group, and list it only once |
+| `eval-group-member-layer` | Remove the Provider template from the member and keep only `.before()` / `.after()` commands |
+| Loading reports a missing `onUnavailable` | Write `"stop-group"` or `"replace-sandbox"` explicitly |
+| `eval-group-sandbox-reuse-conflict` | Remove `sandboxReuse: true` from the Experiment |
+| `eval-group-direct-agent` | Switch to an Agent that runs in a Sandbox, or stop this Experiment from selecting grouped evals |
+| `sandbox.reuse-unavailable` | Switch to a Provider that supports Sandbox reuse |
+| `eval-group-incompatible` | Make the members' Sandbox configuration consistent, or split them into several groups by `template` |
 
-## Continue reading
+## Read next
 
-- [Reuse Complete Evaluation Conditions with Plugins](/tutorials/plugins)—combine declarations needed by a group, Experiment, or member into an explicit occurrence while preserving the eval group's Docker Sandbox reuse boundary.
-- [Reuse Sandboxes](/tutorials/sandbox-reuse)—the lifecycle and leftover-state boundary for ordinary batches that suit `sandboxReuse: true`.
-- [Tune Concurrency](/tutorials/concurrency)—how eval groups work with global and Experiment concurrency caps.
-- [Configure Sandbox Providers](/tutorials/sandbox-providers)—choose a `template`, set lifetime, and write a `SandboxLayer`.
-- [Rerun and Carry Results](/tutorials/rerun-and-cache)—which Attempts enter this run's group queue.
+- [Reuse Complete Eval Conditions with Plugins](/tutorials/plugins): write a full set of conditions needed by groups, experiments, or members once, and attach it where needed.
+- [Reuse Sandboxes](/tutorials/sandbox-reuse): when the whole batch suits sharing Sandboxes, the lifecycle and leftover boundaries of `sandboxReuse: true`.
+- [Tune Concurrency](/tutorials/concurrency): how eval groups work with the global and Experiment concurrency caps.
+- [Sandbox Provider Configuration](/tutorials/sandbox-providers): choose a `template`, set lifetimes, and write preparation steps.
+- [Rerun and Reuse](/tutorials/rerun-and-cache): which Attempts enter the group queue this time.

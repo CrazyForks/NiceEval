@@ -6,19 +6,21 @@ description: "Write an Adapter's send function in seven steps: send messages, co
 
 import { TurnRoundtrip } from '/snippets/diagram-turn-roundtrip.jsx';
 
-[Adapter](/explanation/adapter) defines the `send` contract: it receives `TurnInput` and `AgentContext`, and returns a `Turn`. This tutorial starts by sending one message, then progressively adds the capabilities needed for a complete integration. Each step adds only a small amount of code; existing parts are marked `// … omitted`. At the end of every step, you will find the assertions the new data supports. After completing any step, write those assertions in an Eval, rerun `npx niceeval exp`, then inspect multi-turn traces, usage, tool events, or pending requests in `niceeval view`.
+[Adapter](/explanation/adapter) defines the `send` contract: it receives `TurnInput` and `AgentContext`, and returns a `Turn`. This tutorial starts with one message, then adds the capabilities for a complete integration. Each step adds a little code; existing parts are marked `// … omitted`. Each step ends with the assertions its data supports. Add those assertions to an eval, rerun `pnpm exec niceeval exp`, then use `pnpm exec niceeval show` in the terminal or `pnpm exec niceeval view` in the browser to inspect conversations, usage, tool events, and pending requests.
 
-Three principles run through the tutorial:
+Five principles run through the tutorial:
 
 - **Connect the interface your users already use.** The Adapter calls the same endpoint and receives the same shape. Do not create an interface just for Evals or import internal application code to call a function directly. See [Connect Your Agent](/tutorials/connect-your-agent) for why.
+- **Keep service lifecycle outside the Adapter.** Start and check the real target with the project's development command, deployment script, or CI before running an Experiment. `send` does not spawn services, and evals do not install, start, or replace the system under test.
+- **Limit access to credentials.** The target process and Adapter each read only the credentials they need. Keep secrets out of source code, eval workspaces, events, and final replies.
 - **Hand-write transport only.** The URL, authentication, and request body depend on the application. `niceeval/adapter` supplies converters from raw responses to the standard event stream. `ctx.session` supplies the state APIs needed to continue sessions and resume a paused HITL interaction.
 - **Send runtime feedback through `ctx`, not directly to the terminal.** Use `ctx.progress(...)` for long steps. Use `ctx.diagnostic(...)` for degradation or error context you need to inspect after a run. Throw when execution cannot continue. Do not call `console.log/error` or write `process.stdout/stderr` from an Adapter.
 
-<TurnRoundtrip />
+<TurnRoundtrip locale="en" />
 
 ## Confirm the application interface shape
 
-[NiceEval](https://niceeval.com/) does not define a new application protocol. Existing applications commonly use one of these protocols or a variation of one. Built-in converters support these response shapes:
+Before writing `send`, identify your application's response shape. [NiceEval](https://niceeval.com/) does not define a new application protocol. Its built-in converters support the common shapes below; choosing the matching converter saves you from writing event mappings:
 
 | Protocol | Defined by | Description | Reference |
 |---|---|---|---|
@@ -30,7 +32,7 @@ The following steps use a Chat Completions-shaped interface. Steps two and four 
 
 ## Step 1: send one message and receive a reply
 
-The smallest `send` does three things: send `input.text` to the application's interface, put the reply in one `message` event, and report this Turn's `status`:
+First let the eval send a message and receive a reply. This is the starting point for every assertion. The smallest `send` does three things: send `input.text` to the application API, put the reply in a `message` event, and report the Turn's `status`:
 
 ```ts
 // agents/chat-app.ts
@@ -73,13 +75,15 @@ if (!res.requestId) {
 }
 ```
 
-`progress` is not persisted. A diagnostic is written to an Attempt-owned channel and can be reviewed from the selected Run's details page. Throw directly when an HTTP connection fails or a response cannot be parsed. The Runner records the failure in `agent.run` and forms an `errored` Verdict in the `niceeval.verdict` channel.
+`progress` appears only while running and is not saved. A diagnostic is saved with the Attempt's results and appears in its details after the run. Throw if the HTTP connection fails or the response cannot be parsed. The Attempt is marked `errored`, with the error phase `agent.run`. Use `pnpm exec niceeval show @<locator>` to read the full error.
 
 **This step supports** direct value checks on `t.reply` (`t.check(t.reply, includes(...))` or `pattern(...)`), all Judge conversation material, and **model comparison** on the Experiment side. `ctx.model` comes from an Experiment's `model`. The Runner passes it through unchanged; the Adapter only forwards it. See [Tier](/explanation/tier) for the integration tiers.
 
 It has two obvious limits: every Turn is a new conversation, so a second `t.send` cannot continue the first; and it cannot see tool calls at all. The next two steps solve one of those limits each.
 
-## Step 2: continue prior messages
+## Step 2: carry earlier messages
+
+The first version of `send` starts a new conversation every turn. A second `t.send` cannot continue the first. To test a multi-turn conversation, `send` must remember earlier messages.
 
 The Runner promises one thing for sessions: **every `send` in one session line receives the same `ctx.session`; a new session line—the Eval's first Turn or the line after `t.newSession()`—receives a completely new one.**
 
@@ -122,7 +126,7 @@ export default defineAgent({
 });
 ```
 
-Notice that there is **no first-Turn branch**. On a new session line, `ctx.session.get(historySlot)` naturally returns `undefined`, and `?? []` normalizes it to empty history. The first-send form is the natural result of a new line, not a condition you need to check. You do not need to declare any capability on `defineAgent`, either: connect `ctx.session` and multi-turn continues; omit it and every Turn starts a new conversation.
+No first-turn branch is needed. On a new session line, `ctx.session.get(historySlot)` returns `undefined`; `?? []` turns it into empty history. The first turn is simply empty history plus a new message. There is no extra capability to declare on `defineAgent`: use `ctx.session` to continue the conversation, or omit it to start a new one each turn.
 
 When the application interface accepts a session ID, history lives on the server and the Adapter records only that ID. Change only these two places inside `send`:
 
@@ -134,11 +138,11 @@ When the application interface accepts a session ID, history lives on the server
 
 `capture` writes only when no ID has been recorded. A backend that repeats an ID—or even changes it due to a fork—cannot overwrite the line currently being continued.
 
-**This step supports** multi-turn conversations and session isolation with `t.newSession()`.
+**This step supports** multi-turn conversations and session isolation through `t.newSession()`. Write a two-turn eval where the second refers to the first. If the reply loses context, check that the request includes the history or session ID.
 
 ## Step 3: record usage
 
-An Agent that answers correctly but burns ten times as many tokens should not receive the same score as a frugal one. Usage is `usage`, the fourth field on `Turn` alongside `events` and `status`. When the application interface returns usage, report it truthfully; the Runner accumulates it Turn by Turn into the session line and the entire run. A Chat Completions-shaped response includes `usage`, so copy it over. The rest of `send` is exactly the same as step two:
+An Agent that answers correctly but spends ten times as many tokens should not score the same as a frugal one. To limit usage and cost, `send` must report usage for each turn in the `Turn.usage` field, alongside `events` and `status`. Report what the application returns; the runner adds it across the session and run. A Chat Completions response includes `usage`, so copy it over. The rest of `send` is unchanged from step two:
 
 ```ts
     // … transport and session are the same as step two; omitted
@@ -152,17 +156,21 @@ An Agent that answers correctly but burns ten times as many tokens should not re
     };
 ```
 
-The full `Usage` fields also include optional `cacheReadTokens` / `cacheCreationTokens`, reasoning-token count `reasoningTokens`, request count `requests`, and `costUSD`. Fill `costUSD` only when a Provider or Adapter truthfully returns observed USD cost. Never put upstream estimates, a model-catalog price table, or a local calculation there. Fill each field only when the interface actually reports it. If the interface reports no usage, omit `usage` entirely; other assertions are unaffected.
+`Usage` also has optional fields: `cacheReadTokens`, `cacheCreationTokens`, `reasoningTokens`, `requests`, and `costUSD`. Fill each only when the API provides it. If no usage is returned, omit `usage` entirely; other assertions are unaffected.
 
-The Runner always calculates `estimatedCostUSD` independently from the `model`, reported token usage, and its Config/runtime price table; observed `costUSD` does not change that calculation. The Experiment budget and `t.maxCost()` use the estimate. Fixed Inspection operations read sealed Usage and never consume the Runner estimate.
+Fill `costUSD` only with actual USD cost returned by the Provider or application. Do not put upstream estimates, model price tables, or local calculations in it.
 
-When the Config/runtime price table cannot form a Runner estimate, `t.maxCost()` is `unavailable`; missing data must never become `0`. When an explicit zero rate truly produces `estimatedCostUSD: 0`, `0` is a valid estimate and is still evaluated against the limit.
+Budgets and `t.maxCost()` use a separate value: the runner calculates `estimatedCostUSD` from `model`, reported token usage, and the price table. It does so even when `costUSD` is present. See the [defineConfig reference](/reference/define-config) for prices and [Control run cost](/tutorials/control-run-cost) for budgets.
 
-**This step supports** `t.maxTokens()` / `t.maxCost()` assertions and usage in reports and `niceeval view`.
+If the model has no price in the table, the runner cannot estimate its cost and `t.maxCost()` returns `unavailable`, not zero. If an explicitly configured zero rate produces `estimatedCostUSD: 0`, that zero is a valid estimate and is compared with the limit.
+
+**This step supports** `t.maxTokens()` / `t.maxCost()` and usage in `niceeval show --usage` and `niceeval view`. If `show` has no usage, check whether the API response includes it and whether `send` returned it.
 
 ## Step 4: parse tools into events
 
-An application's response contains more than reply text. In a Chat Completions-shaped response, `tool_calls` records the tools called in this Turn. An Adapter's most important job is to **normalize an interface response into the standard event stream**: one object for each thing that happened this Turn, ordered by actual occurrence in `Turn.events`, with one of the ten types below. For actual field values, [the contract page has a complete one-Turn example](/explanation/adapter).
+To assert which tools the Agent called and in what order, `send` must report tool calls. The response can contain more than reply text: Chat Completions uses `tool_calls` to record calls from this turn.
+
+The Adapter's main job is to **translate the API response into the standard event stream**: one object for each event, in its actual order, in `Turn.events`. Each object uses one of the types below. For field values, see the [complete one-turn example](/explanation/adapter).
 
 ```ts
 import type { CommandProjection } from "niceeval/adapter";
@@ -226,7 +234,7 @@ For a different interface shape, use the matching piece:
 | Streaming: token-by-token or argument-by-argument deltas | The protocol's official reducer; use `deltaStream({ toOps })` only when it has none | One “frame type → operation” mapping table |
 | Final answer only | A few hand-written events | Start with one `message`; step one is this tier |
 
-Built-in converters work by response shape, not by assuming an application protocol. Only a delta stream without a ready-made reducer from the protocol side needs a mapping. That mapping declares only the operation corresponding to each frame; `deltaStream` handles concatenation, pairing, and landing timing.
+Built-in converters use the response shape, not the application's business protocol. Write a mapping only for a delta stream whose protocol provides no reducer. The mapping states what each frame does; `deltaStream` handles concatenation, pairing, and when to form a complete event.
 
 After normalization, the events you emit determine the assertion families Eval authors can write:
 
@@ -235,11 +243,11 @@ After normalization, the events you emit determine the assertion families Eval a
 | `message` | `t.reply`, `t.check(turn.message, includes(...))` / `pattern(...)`, Judge conversation material |
 | Tool `operation.started` / `operation.finished`, paired by `operationId` | `turn.calledTool()` / `turn.toolOrder()` / `turn.maxToolCalls()` / `turn.noFailedActions()`… |
 | `input.requested`, with status `"waiting"` | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, `t.respond()` (step five) |
-| `thinking` / `compaction` / `error` | Reports and diagnostics; there is currently no corresponding public `eventMatch` selector |
+| `thinking` / `compaction` / `error` | Reports and diagnostics; you can also pass raw `events` to an ordinary `check(events, match)` |
 
 A Chat Completions response **does not guarantee a complete process record**. An application can finish its tool loop server-side and return only a final answer. Therefore, `turnFromChatCompletion` returns no completeness proof. Positive assertions such as `calledTool` work, while negative assertions such as `notCalledTool` report incomplete evidence. The Responses protocol requires the `output` array to record the complete process, so `turnFromResponses` carries a completeness proof and negative assertions are trustworthy. The difference in trustworthiness comes from the interface contract.
 
-**This step supports** tool assertions including `turn.calledTool()`, `turn.toolOrder()`, `turn.maxToolCalls()`, and `turn.noFailedActions()`. For ordering across Turns, use `session` as the receiver instead.
+**This step supports** `turn.calledTool()`, `turn.toolOrder()`, `turn.maxToolCalls()`, and `turn.noFailedActions()`. For ordering across Turns, use `session` instead of `turn`. After the run, inspect tools with `pnpm exec niceeval show @<locator> --execution`. If a tool is missing, check the response's tool fields and your mapping.
 
 ## Step 5: HITL
 
@@ -248,7 +256,7 @@ When an application stops mid-Turn to wait for a person—for tool approval or m
 - **The pausing Turn** returns `status: "waiting"` and emits an `input.requested` event with a stable `id` for every pending question. `t.check(turn.status, equals("waiting"))` and `t.requireInputRequest()` read them, and answers match by this `id`.
 - **The answer Turn** reaches the Adapter from an Eval's `t.respond(...)` as **another ordinary `send`** on the same session line with the same state. A human decision arrives structurally through `input.responses`; each entry carries `requestId`, `optionId`, or `text`. See [Inputs for the Different Answers](/explanation/adapter#inputs-for-the-different-answers) for the shapes. The Adapter gives that decision back to the application, then continues fetching the result. For a call a human rejects, set the tool `operation.finished` event's `status` to `"rejected"`, not `"failed"`: rejection is a human decision, not a tool failure, so `noFailedActions()` does not misfire.
 
-The “scene read halfway through when the Turn paused”—for example, an SSE stream read halfway through—also lives on `ctx.session`. Create an Adapter-private slot with `createSessionSlot<Pending>()`, call `ctx.session.set(slot, pending)` when it pauses, then call `ctx.session.take(slot)` at the beginning of the answer Turn to recover it. Taking clears it, so it is consumed once.
+Store unfinished work, such as a partly read SSE stream, in `ctx.session` too. Declare private state with `createSessionSlot<Pending>()`, save it with `ctx.session.set(...)` when waiting, and retrieve it with `ctx.session.take(...)` at the start of the answering turn. Taking clears the value, so it can be consumed only once.
 
 HITL almost always occurs on a streaming interface because the pause happens in the middle of a stream. This example therefore switches to an application that passes native events through SSE. It exercises every preceding step together; see the complete runnable version in the [tier1 example](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/tier1):
 
@@ -306,15 +314,15 @@ export default defineAgent({
 });
 ```
 
-For an interface that does not need HITL, delete the three pause-scene parts—`Pending`, its slot, and the opening `take` branch—and keep the rest. See [HITL](/explanation/hitl) for the complete mental model of pausing, answering, and resuming.
+For an interface without HITL, remove the three waiting-related parts: `Pending`, `pendingSlot`, and the initial `take` branch. Keep the rest. See [HITL](/explanation/hitl) for the complete waiting, answering, and resuming flow.
 
-**This step supports** `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`. You can assert a human-rejected call precisely with `calledTool(toolMatch(..., { status: "rejected" }))`.
+**This step supports** `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`. Assert a rejected call with `calledTool(toolMatch(..., { status: "rejected" }))`. If `t.requireInputRequest()` finds no request, check that the waiting turn returned both `status: "waiting"` and an `input.requested` event.
 
 ## Step 6: connect OTel traces
 
-When an application is already instrumented—standard OTel HTTP server instrumentation is enough—the integration has two halves: one is startup configuration, and the other belongs in `send`. Distinguishing them means distinguishing what never changes from what changes every Turn.
+To inspect each turn's model calls and tool duration in the browser, connect the application's OTel traces. Standard OTel HTTP server instrumentation is enough. Configure one part once at application startup; pass the other part through `send` on every turn.
 
-**The endpoint is startup configuration; it is not passed from `send`.** [NiceEval](https://niceeval.com/)'s OTLP receiver address is the same for every run, so it does not go through `ctx`. Fix the receiver port in `niceeval.config.ts`, point the application's OTel exporter at that fixed URL during startup, and you never need to change it again no matter how many Evals follow:
+**Configure the receiver address at application startup, outside `send`.** [NiceEval](https://niceeval.com/) uses the same OTLP receiver address for each run. Fix its port in `niceeval.config.ts` and point the application's OTel exporter to it at startup; subsequent eval runs need no changes:
 
 ```ts
 // niceeval.config.ts
@@ -340,11 +348,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces node server.js
 
 `ctx.telemetry` appears only when OTel integration is configured. Spreading `undefined` when it is not configured is safe, so this line can remain permanently. Spans still arrive without this header, but attribution degrades to time windows and that Agent's Turns fall back to serial execution. Carrying it is what makes attribution accurate under concurrency.
 
-**This step supports** the per-Turn call waterfall in `niceeval view`, including model calls, tool execution, duration, and tokens. Assertions still read events produced by earlier steps; spans are only for the waterfall. For receiver configuration and span-attribution rules, see [OTel Integration](/tutorials/connect-otel).
+**This step supports** a per-turn waterfall in `niceeval view`, including model calls, tool execution, duration, and tokens. Assertions still read events from the earlier steps; spans only supply the waterfall. For an empty or incomplete waterfall, see [OTel integration](/tutorials/connect-otel).
 
 ## Step 7: pass through Experiment flags for A/B comparison
 
-Once an application exposes variants as switchable configuration, an Experiment declares `flags`, and the Runner passes them unchanged through `ctx.flags` to `send` every Turn. The Adapter does not interpret their meaning; it forwards them in the request and the application switches variants from the parameter:
+To compare prompt versions or strategies, expose them as switchable application configuration. The Experiment declares `flags`; the runner passes them unchanged to `send` through `ctx.flags` on every turn. The Adapter forwards them without interpreting them, and the application selects its variant:
 
 ```ts
       // … the rest of send is the same as before; omitted
@@ -367,13 +375,13 @@ export default defineExperiment({
 });
 ```
 
-Two Experiment files, each declaring its own `flags`, can run the same Evals separately through `npx niceeval exp` to form an A/B comparison. This is Tier 3 of the three integration tiers because the application must cooperate by exposing switches. For the cost and payoff, see [Tier](/explanation/tier). See [Experiments and Lifecycles](/tutorials/write-experiment) for `flags`, `model`, `attempts`, and the other Experiment fields.
+Declare `flags` in two Experiment files and run the same evals with `pnpm exec niceeval exp` to compare them. This is Tier 3 integration because the application must expose the switches. See [Tier](/explanation/tier) for effort and benefits, and [Write experiments](/tutorials/write-experiment) for `flags`, `model`, `attempts`, and other fields.
 
-**This step supports** score comparison across variants over the same Evals.
+**This step supports** comparing the same evals across variants. After both runs finish, compare them with `pnpm exec niceeval show --experiment <id> --experiment <id>` or `pnpm exec niceeval view`. If the scores are almost identical, first confirm the application actually reads the request's `flags`.
 
 ## Reference: the five t APIs as send sees them
 
-After writing the seven steps, look back at the five Eval-side driving APIs. Reaching `send`, they are one function receiving different fields; there is no second method to implement:
+After these seven steps, revisit the five APIs that drive conversations from evals. On the Adapter side, each uses the same `send` function with different fields; there is no second method to implement:
 
 | Eval-side API | Adapter call | What `send` receives |
 |---|---|---|

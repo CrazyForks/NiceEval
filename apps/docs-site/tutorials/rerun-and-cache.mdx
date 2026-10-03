@@ -1,27 +1,20 @@
 ---
-title: "Rerun and Carry Results"
-sidebarTitle: "Rerun and Carry"
-description: "See whether each slot executes, is adopted automatically, or is accepted by an operator, and understand how those relationships enter the Record."
+title: "Rerun Only the Evals Affected by a Change"
+sidebarTitle: "Rerun and Reuse"
+description: "After changing a prompt, an eval, or the model, use --dry to see which results will be reused and which will rerun, then control the scope with --rerun and accept."
 ---
 
-Every Invocation creates a new Run. A Run's expected slots define this run's denominator, and each slot has at most one Member. A Member identifies the Attempt that completely occupies the slot:
+You fixed a tool call bug in your Agent and want to confirm it is really fixed. The full eval suite takes an hour and costs tens of dollars, but this change only affects a few of the evals.
 
-| Relationship | Meaning |
-| --- | --- |
-| `origin` | The Attempt's actual execution slot is the current slot. |
-| `reference` | The slot adopts an Attempt published in another Run. |
+NiceEval remembers each eval's last result. When you run the same Experiment again, evals that were not affected by this change and already have a conclusion from last time reuse their old results directly, and the rest run again. You do not need to pick evals by hand.
 
-How each position formed—execution, automatic carry, or operator acceptance—is stored with the target Run. An Attempt always retains the `origin` that actually executed it; adoption does not copy Verdicts, Usage, or other business values.
+## Look at the plan before running
 
-## Inspect the plan first
-
-Use `--dry` before a run. It uses published results to list, one by one, why a position will execute or adopt a result.
+Add `--dry`, and NiceEval only lists the plan, without calling the model or creating a Sandbox:
 
 ```sh
-npx niceeval exp checkout --dry
+pnpm exec niceeval exp checkout --dry
 ```
-
-Example output:
 
 ```text
 PLAN
@@ -29,51 +22,59 @@ checkout  cart/add-item  ordinal 0  reuse @1K1P0VJAPVJ12
 checkout  cart/add-item  ordinal 1  execute: input-identity-changed
 ```
 
-If information is missing, invalid, unsupported, or in a different domain, the planner explains why and executes the slot rather than treating it as adoptable.
+Each line is one Attempt. After `reuse` is the locator of the old result to reuse; after `execute` is the reason for rerunning. The `input-identity-changed` on the second line above means this eval's input changed, for example you changed the eval, the Fixture, or the model.
 
-## Conditions for automatic adoption
+When the result differs from what you expected, look at the reason first. For example, if you only changed a group name in the report but see the whole batch as `execute`, some input that affects results changed along with it.
 
-For an Attempt to be adopted automatically, all of these conditions must hold:
+## Which results are reused
 
-- Its Verdict is an adoptable terminal Verdict.
-- Its input identity matches the current input.
-- Its execution duration satisfies the current timeout.
-- This Invocation's `--rerun` permits its Verdict to be adopted.
-- This Invocation does not require real execution with `--keep-sandbox`.
+An old Attempt is reused automatically only when all of the following hold:
 
-Input and configuration identities are opaque values with domains. Values are compared only when their domains match byte-for-byte. Verdict and eligibility information give planning its long-lived basis.
+- It already has a clear conclusion, `passed` or `failed`. `errored` means it did not complete last time, so it always reruns.
+- The eval, Fixture, model, Agent, scoring criteria, and run conditions are all the same as this time.
+- Its duration did not exceed this run's `timeout`.
+- This run's `--rerun` did not ask to rerun it.
+- This run did not request real execution with `--keep-sandbox`.
 
-When an Attempt is adopted automatically, its eligibility, identity, and reason are stored with the target Run. The Member keeps only the reference; it does not copy those explanations or the Attempt's business values.
+Changing only the Experiment's `description` or `labels` does not invalidate old results. Eval files are different: when the file content changes, that eval reruns.
 
 ## Control the rerun scope
 
 ```sh
-# By default, adopt eligible passed and failed Attempts.
-npx niceeval exp checkout
+# Default: reuse eligible passed and failed results
+pnpm exec niceeval exp checkout
 
-# Rerun failed Attempts.
-npx niceeval exp checkout --rerun
+# Reverify after a bug fix: rerun what failed last time, keep reusing what passed
+pnpm exec niceeval exp checkout --rerun
 
-# Execute every selected slot again.
-npx niceeval exp checkout --rerun all
+# The model provider updated its service but local files did not change: rerun everything
+pnpm exec niceeval exp checkout --rerun all
 ```
 
-Changing `--rerun` affects this Invocation only. It never modifies an existing Run or Attempt.
+A bare `--rerun` is the same as `--rerun failed`, and evals that already passed do not rerun. To redo the passed ones too, you must write `--rerun all`.
 
-## Explicitly accept an existing Attempt
+`--rerun` only affects this run and does not change existing results.
 
-A changed identity does not necessarily mean a historical result is no longer valid, but NiceEval does not guess for the operator. First get the complete locator from a dry run or results page and review the candidate Attempt. When it remains valid under the new configuration, accept it explicitly:
+## Confirm old results still hold under a new configuration
+
+Sometimes a change makes NiceEval decide that old results cannot be reused, but you know they are actually unaffected. For example, you added a logging switch to the Agent, and this eval's behavior did not change at all. NiceEval does not guess for you; you need to accept them explicitly:
 
 ```sh
-npx niceeval accept @1K1P0VJAPVJ12
+pnpm exec niceeval accept @1K1P0VJAPVJ12
 ```
 
-`accept` publishes a new adopting Run and does not modify the source Attempt. To accept several results at once, put every locator in one command. NiceEval preflights all inputs atomically so it never accepts only half of them.
+`accept` creates a new Run that references this old Attempt, and the original Attempt stays unchanged. To accept several, put all the locators in one command; NiceEval checks every input first and never accepts only half of them.
 
-For how to obtain candidate locators, what to review, atomic preflight, and failure handling, see [Review and Accept Historical Attempts](/tutorials/accept-results).
+For how to get candidate locators and what to check before accepting, see [Review and Accept Historical Attempts](/tutorials/accept-results).
 
-## Published results are immutable
+## See the results after the run
 
-An Attempt cannot change after publication. Every read uses the values published in the Record at that time; new Runs and new facts only appear through a new publication. When an Attempt or reference is invalid, the fixed operation marks that position `core-invalid`, not `not-recorded`.
+When the run ends, the terminal's `NEXT` panel lists the Runs created this time, with two commands to view each in the terminal and in the browser:
 
-After a run finishes, use the receipt's `runIds` to select results. For viewing steps, see [View Results](/tutorials/viewing-results).
+```sh
+pnpm exec niceeval show --run <run-id>
+```
+
+Both reused and rerun evals appear in this Run, and the pass rate is computed over the complete batch. Do not use `show --experiment` to view results before `exp` has finished; at that point there may be no published results yet.
+
+For the full ways to view results, see [View Run Results](/tutorials/viewing-results). For how reuse and rerun decisions work, see [Runner](/explanation/runner).

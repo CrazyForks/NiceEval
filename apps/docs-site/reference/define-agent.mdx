@@ -1,26 +1,31 @@
 ---
-title: "defineAgent and defineSandboxAgent: Adapter Reference"
+title: "Define What You Evaluate: Adapter Reference"
 sidebarTitle: "Define an Adapter"
-description: "Reference for defineAgent and defineSandboxAgent: AgentContext, AgentSession, the Sandbox interface, and shared Sandbox helpers."
+description: "Context, assertion methods, and resource lifecycle for custom Adapters and Agent integrations."
 ---
 
 import { TurnRoundtrip } from '/snippets/diagram-turn-roundtrip.jsx';
 
-Every [NiceEval](https://niceeval.com/) Agent is an Adapter: code that knows how to drive a particular backend and translate its output into the standard event stream. The Runner only calls `agent.send(input, ctx)`.
+An Adapter connects the object you evaluate and provides its operations and evidence. Agents, games, and ordinary applications all use NiceEval's Experiments, assertions, and result queries.
 
-<TurnRoundtrip />
+A custom object provides native methods through `defineAdapter` and can bind domain checks in `assertions`; several implementations share an interface and assertions through `defineAdapterContract`.
+For the complete definition and how to run it, see [Evaluate a custom application](/tutorials/custom-application).
+
+`defineAgent` and `defineSandboxAgent` below are dedicated to conversational integration, using `send` to return the standard event stream.
+
+<TurnRoundtrip locale="en" />
 
 ## `defineAgent`
 
-Use this for direct Agent integration:
+Use this for direct agent integration:
 
 ```ts
 import { completeEvidenceCoverage, defineAgent } from "niceeval/adapter";
 ```
 
-An Agent produced by `defineAgent` always has `Agent.kind: "direct"`. That is an internal discriminator; you do not declare it. `t` has no capability that must be declared to unlock it. Filesystem assertions such as `t.sandbox` exist only on an Agent constructed by `defineSandboxAgent`, whose `kind` is `"sandbox"`. Everything else is determined by the events that `send` actually returns and by use of `ctx.session`; see the [Capabilities reference](/reference/capabilities). The complete field set appears below in Agent and Adapter Context fields.
+An Agent produced by `defineAgent` always has `Agent.kind` set to `"direct"` (an internal discriminator you do not declare). `t` has no capability bits that must be declared to unlock them; filesystem assertions such as `t.sandbox` exist only on Agents built with `defineSandboxAgent` (`kind: "sandbox"`). Everything else is determined by the events `send` actually returns and how `ctx.session` is used; see the [Capabilities reference](/reference/capabilities). For the complete field set, see "Agent and Adapter Context fields" below.
 
-### Direct Agent example
+### Direct agent example
 
 ```ts
 export default defineAgent({
@@ -38,20 +43,20 @@ export default defineAgent({
 ## `input` (`TurnInput`)
 
 <ResponseField name="text" type="string">
-  The text supplied to the current `t.send(...)`.
+  The text passed to the current `t.send(...)`.
 </ResponseField>
 
 <ResponseField name="files" type="readonly InputFile[] | undefined">
-  Files attached to this turn, such as images. An Adapter that does not support multimodal input can ignore them.
+  Files attached to this turn (images and so on). An adapter that does not support multimodal input can ignore them.
 </ResponseField>
 
 <ResponseField name="responses" type="readonly InputResponse[] | undefined">
-  Present only on response turns (`t.respond` / `t.respondAll`): structured responses for each request, matched by `requestId`.
+  Present only on response turns (`t.respond` / `t.respondAll`): structured answers per request, matched by `requestId`.
 </ResponseField>
 
 ## `defineSandboxAgent`
 
-Use this for a coding-Agent CLI. The resulting `Agent.kind` is always `"sandbox"`. Filesystem assertions such as `t.sandbox` and `t.sandbox.fileChanged()` are available only for this kind of Agent. The complete field set appears below under `SandboxAgentDef` in Agent and Adapter Context fields. The complete methods on `ctx.sandbox`—the `Sandbox` interface—appear further below under Sandbox interface.
+Use this for coding agent CLIs. The resulting `Agent.kind` is always `"sandbox"`; filesystem assertions such as `t.sandbox` and `t.sandbox.fileChanged()` are unlocked only on this kind of agent. The complete field set is also in "Agent and Adapter Context fields" below, under `SandboxAgentDef`. The complete methods of `ctx.sandbox` (the `Sandbox` interface) are in "Sandbox interface" further below.
 
 ```ts
 import { completeEvidenceCoverage, defineSandboxAgent } from "niceeval/adapter";
@@ -85,11 +90,181 @@ export default defineExperiment({
 
 ## Agent and Adapter Context fields
 
-The construction parameters for `defineAgent` (`DirectAgentDef`) and `defineSandboxAgent` (`SandboxAgentDef`), plus `ctx` (`AgentContext`) received by both `send(input, ctx)` functions:
+The construction parameters of `defineAgent` (`DirectAgentDef`) and `defineSandboxAgent` (`SandboxAgentDef`),
+plus the `ctx` (`AgentContext`) that both receive in `send(input, ctx)`:
+
+A custom Adapter's `create(ctx)` uses `AdapterCreateContext`, and its cleanup callback uses `AdapterCleanupContext`.
 
 {/* GENERATED:BEGIN agent-def */}
 
 {/* This block is generated by pnpm run repo docs reference from source comments. Do not edit it by hand; to change the copy, edit the corresponding source TSDoc/JSDoc (see packages/repo-tools/src/docs/reference-compiler.ts for the mapping). */}
+
+### `AdapterAssertionsFactoryContext`
+
+#### `app`
+
+```ts
+readonly app: MatchContext<Context>;
+```
+
+#### `check`
+
+```ts
+readonly check: AssertionCheck<"polymorphic", Context>;
+```
+
+### `AdapterCleanupContext`
+
+#### `timeoutMs`
+
+```ts
+readonly timeoutMs: number;
+```
+
+A fixed millisecond budget for the whole cleanup window; it is not renewed per callback.
+
+#### `deadlineAt`
+
+```ts
+readonly deadlineAt: number;
+```
+
+The Unix millisecond deadline fixed when the cleanup window actually starts.
+
+#### `signal`
+
+```ts
+readonly signal: AbortSignal;
+```
+
+Independent of the execution signal; aborts when the whole Adapter cleanup window reaches its deadline.
+
+### `AdapterCreateContext`
+
+#### `models`
+
+```ts
+readonly models: ResolvedModelSlots;
+```
+
+Frozen application model selections for this Attempt.
+
+#### `recordUsage`
+
+```ts
+recordUsage(input: import("./adapter-usage.ts").AdapterUsageInput): void;
+```
+
+#### `sealUsage`
+
+```ts
+sealUsage(input: import("./adapter-usage.ts").AdapterUsageSeal): void;
+```
+
+Close application usage admission and declare whether the recorded collection is complete.
+
+#### `attach`
+
+```ts
+attach(input: import("./adapter-attachments.ts").AdapterAttachmentInput): Promise<import("./adapter-attachments.ts").AdapterAttachmentReceipt>;
+```
+
+#### `recordTrace`
+
+```ts
+recordTrace<Event extends import("./adapter-execution-trace.ts").ExecutionTraceEvent>(
+  input: import("./adapter-execution-trace.ts").ExecutionTraceInput<Event>,
+): Promise<import("./adapter-execution-trace.ts").ExecutionTraceReceipt>;
+```
+
+#### `evalId`
+
+```ts
+readonly evalId: string;
+```
+
+The public ID of the current Eval.
+
+#### `experimentId`
+
+```ts
+readonly experimentId: string;
+```
+
+The public ID of the current Experiment.
+
+#### `attempt`
+
+```ts
+readonly attempt: number;
+```
+
+The zero-based index of the current Attempt.
+
+#### `signal`
+
+```ts
+readonly signal: AttemptSignal;
+```
+
+The Attempt execution signal; its reason distinguishes timeout from cancelled, and it is not used for the cleanup window.
+
+#### `model`
+
+```ts
+readonly model?: string;
+```
+
+The model selected by the Experiment.
+
+#### `reasoningEffort`
+
+```ts
+readonly reasoningEffort?: string;
+```
+
+The reasoning effort selected by the Experiment.
+
+#### `flags`
+
+```ts
+readonly flags: Flags;
+```
+
+The read-only flags the Experiment passes to the Adapter.
+
+#### `progress`
+
+```ts
+progress(update: ProgressUpdate): void;
+```
+
+Updates the human-readable progress of the current Attempt.
+
+#### `diagnostic`
+
+```ts
+diagnostic(input: DiagnosticInput): void;
+```
+
+Appends a structured diagnostic to the current Attempt.
+
+#### `log`
+
+```ts
+log(message: string): void;
+```
+
+Appends a log line to the current Attempt.
+
+#### `onCleanup`
+
+```ts
+onCleanup(cleanup: (context: AdapterCleanupContext) => void | Promise<void>): void;
+```
+
+Registers release of an Attempt-local resource. Callbacks run in global LIFO order; one failure does not skip the rest.
+Zero-argument callbacks can still be passed directly. The context passed in is frozen, and callbacks in the same cleanup window share one signal.
 
 ### `DirectAgentDef`
 
@@ -99,7 +274,7 @@ The construction parameters for `defineAgent` (`DirectAgentDef`) and `defineSand
 name: string;
 ```
 
-The Agent display name and identifier. It enters `Agent.name` unchanged. It is not a registry lookup key; it is used only for display, result attribution, and deduplication fingerprints.
+The agent's display name/identifier, copied verbatim into `Agent.name`. It is not a registry lookup key; it is used only for display, result attribution, and the dedupe fingerprint.
 
 #### `evidenceCoverage`
 
@@ -107,7 +282,7 @@ The Agent display name and identifier. It enters `Agent.name` unchanged. It is n
 evidenceCoverage: EvidenceCoverage;
 ```
 
-This Adapter's normal evidence-coverage declaration. Use `completeEvidenceCoverage` for complete collection.
+This Adapter's normal evidence coverage declaration; use `completeEvidenceCoverage` for complete collection.
 
 #### `setup`
 
@@ -115,7 +290,7 @@ This Adapter's normal evidence-coverage declaration. Use `completeEvidenceCovera
 setup?: DirectAgentSetup;
 ```
 
-Once per Attempt. A Direct Agent receives no Sandbox. Use it for one-time preparation such as opening a connection or authenticating.
+Once per attempt. A Direct Agent does not receive a Sandbox; commonly used for one-time preparation such as opening connections and authentication.
 
 #### `tracing`
 
@@ -123,7 +298,7 @@ Once per Attempt. A Direct Agent receives no Sandbox. Use it for one-time prepar
 tracing?: Omit<AgentTracing, "configure">;
 ```
 
-OTLP-export configuration: how the system under test sends traces to an endpoint through environment-based injection.
+OTLP export configuration: how the system under test sends traces to the endpoint (env-based injection).
 
 #### `spanMapper`
 
@@ -131,15 +306,15 @@ OTLP-export configuration: how the system under test sends traces to an endpoint
 spanMapper?: SpanMapper;
 ```
 
-A thin native-span-to-canonical mapper. When omitted, the generic heuristic applies. It affects only the waterfall.
+A thin mapper from native spans → canonical; omitted uses the generic heuristic. Affects only the waterfall.
 
 #### `send`
 
 ```ts
-send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
+send(input: TurnInput, ctx: AgentSendContext): Promise<Turn>;
 ```
 
-Once per turn: sends a turn prompt directly to a function, SDK, or service endpoint, then parses the response into events.
+Once per turn: sends one turn's prompt directly to a function, SDK, or service endpoint, and parses the response into events. The author callback keeps the Promise ABI.
 
 #### `classifySendFailure`
 
@@ -147,7 +322,7 @@ Once per turn: sends a turn prompt directly to a function, SDK, or service endpo
 classifySendFailure?: SendFailureClassifier;
 ```
 
-Optional classifier for a send execution failure. See `Agent.classifySendFailure`.
+Optional send execution failure classifier: see `Agent.classifySendFailure`.
 
 #### `teardown`
 
@@ -155,7 +330,8 @@ Optional classifier for a send execution failure. See `Agent.classifySendFailure
 teardown?: DirectAgentTeardown;
 ```
 
-Cleanup before the run ends. It runs once in `finally` if and only if this Attempt reached the `setup` point. A `setup` throw does not exempt it.
+Cleanup before the run ends, executed if and only if this attempt reached the `setup` point (a `setup` throw does not exempt it),
+run once in finally.
 
 ### `SandboxAgentDef`
 
@@ -165,7 +341,7 @@ Cleanup before the run ends. It runs once in `finally` if and only if this Attem
 name: string;
 ```
 
-The Agent display name and identifier. It enters `Agent.name` unchanged. It is not a registry lookup key; it is used only for display, result attribution, and deduplication fingerprints.
+The agent's display name/identifier, copied verbatim into `Agent.name`. It is not a registry lookup key; it is used only for display, result attribution, and the dedupe fingerprint.
 
 #### `evidenceCoverage`
 
@@ -173,7 +349,15 @@ The Agent display name and identifier. It enters `Agent.name` unchanged. It is n
 evidenceCoverage: EvidenceCoverage;
 ```
 
-This Adapter's normal evidence-coverage declaration. Use `completeEvidenceCoverage` for complete collection.
+This Adapter's normal evidence coverage declaration; use `completeEvidenceCoverage` for complete collection.
+
+#### `sandbox`
+
+```ts
+sandbox?: SandboxLayer<"command-only">;
+```
+
+The Adapter's own Sandbox actions; an Agent cannot choose or contribute a template.
 
 #### `ensure`
 
@@ -181,7 +365,7 @@ This Adapter's normal evidence-coverage declaration. Use `completeEvidenceCovera
 ensure: AgentEnsure | readonly AgentEnsure[];
 ```
 
-One item or an array is normalized into Agent layers in declaration order.
+A single entry or an array is normalized into Agent layers in declaration order.
 
 #### `installers`
 
@@ -189,7 +373,8 @@ One item or an array is normalized into Agent layers in declaration order.
 installers?: readonly AgentInstaller[];
 ```
 
-Paired installation layers. Omission means this Adapter supplies only a probe protocol. On a miss, the Runner names the exact missing identity at `agent.ensure`. The factory normalizes omission to an empty array.
+Paired installation layers; omitted means this adapter provides only the probe protocol, and on a miss the Runner
+names the exact missing identity at `agent.ensure`. The factory normalizes an omission into an empty array.
 
 #### `setup`
 
@@ -197,7 +382,9 @@ Paired installation layers. Omission means this Adapter supplies only a probe pr
 setup?: AgentSetup;
 ```
 
-Once per Attempt, not once per send: write `config.toml`, authentication configuration, and stable run configuration such as model/base/auth for this Attempt. CLI probing, installation, and rechecking belong to `agent.ensure`. The Runner calls it once after the Sandbox is ready—after layer prepare/ensure/baseline—and before the first send. It returns no value.
+Once per Attempt (not once per send): writes config.toml / authentication configuration (model/base/auth and other
+runtime configuration that does not change within this Attempt). Probing, installing, and rechecking the CLI belong to `agent.ensure`. The runner calls it once after the Sandbox
+is ready (after layer prepare/ensure/baseline) and before the first send; it returns no value.
 
 #### `tracing`
 
@@ -205,7 +392,7 @@ Once per Attempt, not once per send: write `config.toml`, authentication configu
 tracing?: AgentTracing;
 ```
 
-OTLP-export configuration: how a CLI in the Sandbox sends traces to an endpoint through environment variables or a configuration file. It is separated from setup.
+OTLP export configuration: how to make the CLI in the Sandbox send traces to the endpoint (env / config file), split out of setup.
 
 #### `spanMapper`
 
@@ -213,15 +400,15 @@ OTLP-export configuration: how a CLI in the Sandbox sends traces to an endpoint 
 spanMapper?: SpanMapper;
 ```
 
-A thin native-span-to-canonical mapper. When omitted, the generic heuristic applies. It affects only the waterfall.
+A thin mapper from native spans → canonical; omitted uses the generic heuristic. Affects only the waterfall.
 
 #### `send`
 
 ```ts
-send(input: TurnInput, ctx: SandboxAgentContext): Promise<Turn>;
+send(input: TurnInput, ctx: SandboxAgentSendContext): Promise<Turn>;
 ```
 
-Once per turn: run the prompt fresh or with resume, then parse it into events.
+Once per turn: runs the prompt (fresh / resume) and parses it into events. The author callback keeps the Promise ABI.
 
 #### `classifySendFailure`
 
@@ -229,7 +416,7 @@ Once per turn: run the prompt fresh or with resume, then parse it into events.
 classifySendFailure?: SendFailureClassifier;
 ```
 
-Optional classifier for a send execution failure. See `Agent.classifySendFailure`.
+Optional send execution failure classifier: see `Agent.classifySendFailure`.
 
 #### `teardown`
 
@@ -237,7 +424,8 @@ Optional classifier for a send execution failure. See `Agent.classifySendFailure
 teardown?: AgentTeardown;
 ```
 
-Cleanup before the Sandbox is destroyed. It runs once in `finally` if and only if this Attempt reached the `setup` point. A `setup` throw does not exempt it.
+Cleanup before the Sandbox is destroyed, executed if and only if this attempt reached the `setup` point (a `setup` throw does not exempt it),
+run once in finally.
 
 ### `AgentContext`
 
@@ -247,7 +435,10 @@ Cleanup before the Sandbox is destroyed. It runs once in `finally` if and only i
 readonly signal: AbortSignal;
 ```
 
-A soft cancellation signal that combines an Attempt timeout, a run-level interruption such as user Ctrl+C, and an Eval's own cancellation request. See `src/runner/attempt.ts`. An Adapter can check it selectively or pass it directly to `fetch` to exit gracefully early, but it is not the only hard boundary. Even when an Adapter ignores it completely, the Runner uses `Effect.timeoutTo` as a backstop to force cleanup, including stopping a Sandbox container.
+Soft cancellation signal: combines the attempt timeout, run-level interruption (user Ctrl+C), and the Eval's own interruption request
+(see src/runner/attempt.ts). An adapter can optionally check it (or pass it straight to `fetch`) to exit
+gracefully early, but it is not the only hard boundary: even if the adapter ignores it entirely, the runner uses
+`Effect.timeoutTo` as a backstop to force teardown (stopping the Sandbox container).
 
 #### `model`
 
@@ -255,7 +446,7 @@ A soft cancellation signal that combines an Attempt timeout, a run-level interru
 readonly model?: string;
 ```
 
-The model name for this Attempt, passed through from the Experiment's `model` field. A Sandbox Agent typically writes it to configuration during setup; a Direct Agent typically chooses a model with it during send.
+The model name used by this attempt, passed through from the Experiment's `model` field. Sandbox agents usually write it into configuration in setup; direct agents usually use it in send to select the model.
 
 #### `reasoningEffort`
 
@@ -263,15 +454,18 @@ The model name for this Attempt, passed through from the Experiment's `model` fi
 readonly reasoningEffort?: string;
 ```
 
-The model reasoning-effort level. It belongs with `model`: the Experiment decides it, and omission does not override the Agent's native default.
+The model's reasoning effort; owned the same way as model: the Experiment decides it, and when omitted the agent's native default is not overridden.
 
 #### `flags`
 
 ```ts
-readonly flags: Readonly<globalThis.Record<string, JsonValue>>;
+readonly flags: ExperimentFlags;
 ```
 
-The Experiment's `flags` field passes through unchanged. Its contents and shape are entirely defined by the Experiment author, such as `{ webResearch: true }` or `{ systemPrompt: "..." }`. An Adapter reads fields according to its own convention; the framework neither interprets nor validates them. The name intentionally avoids the CLI-parsed `flag`, which represents how the run operates, such as `--timeout` / `--budget`; the two concepts are unrelated.
+The Experiment's `flags` field passed through verbatim; its content and structure are entirely defined by the Experiment author
+(such as `{ webResearch: true }`, `{ systemPrompt: "..." }`). The adapter reads its fields by its own convention;
+the framework itself neither interprets nor validates the content. The name deliberately avoids the CLI-parsed
+`flag` (run-level --timeout/--budget and so on); the two are unrelated concepts.
 
 #### `experimentId`
 
@@ -279,7 +473,11 @@ The Experiment's `flags` field passes through unchanged. Its contents and shape 
 readonly experimentId?: string;
 ```
 
-The path-derived Experiment ID, from the same source as result attribution `runWho` / `AgentRun.experimentId`. It is `undefined` when a run does not use an Experiment, such as an AgentRun constructed directly outside the CLI. Typical uses include a SandboxLayer command isolating cross-Attempt infrastructure by Experiment, or an Adapter selecting authentication or routing by Experiment. It is a separate dimension from `flags`, which holds concrete Experiment-condition values: this is only a stable identifier for which Experiment runs, not its conditions.
+The Experiment id derived from the path (the same source as result attribution `runWho` / `AgentRun.experimentId`); undefined when not running
+through an Experiment (such as outside the CLI, constructing `AgentRun` directly). Typical uses:
+a SandboxLayer command isolating cross-attempt infrastructure content per Experiment, or an adapter switching authentication / routing per Experiment.
+It is a different dimension from `flags` (the concrete
+values of Experiment conditions): this is only a stable identifier of "which Experiment is running" and carries no condition content.
 
 #### `evalId`
 
@@ -287,7 +485,9 @@ The path-derived Experiment ID, from the same source as result attribution `runW
 readonly evalId?: string;
 ```
 
-The Eval ID for the current Attempt. The NiceEval Runner always fills it from the discovered Eval identity; a third party constructing `AgentContext` directly can omit it. An Adapter can use it to locate read-only host assets beside the task, but cannot use it to bypass isolation of hidden Sandbox criteria.
+The eval ID of the current Attempt. The NiceEval Runner always fills it from the Eval identity after discovery;
+third parties constructing AgentContext directly can omit it. An Adapter can use it to locate read-only host assets in the same directory as the task,
+but must not use it to bypass the Sandbox's hidden-criteria isolation.
 
 #### `evalGroup`
 
@@ -298,7 +498,7 @@ readonly evalGroup?: {
 };
 ```
 
-The current Attempt's Eval Group. It is omitted for an ungrouped Eval.
+The eval group of the current Attempt; omitted for ungrouped Evals.
 
 #### `attempt`
 
@@ -306,7 +506,7 @@ The current Attempt's Eval Group. It is omitted for an ungrouped Eval.
 readonly attempt?: AttemptRef;
 ```
 
-The current Attempt reference supplied by the Runner. A third party constructing context directly can omit it.
+The current Attempt reference filled in by the Runner; third parties constructing the context directly can omit it.
 
 #### `session`
 
@@ -320,7 +520,12 @@ readonly session: AgentSession;
 readonly telemetry?: Telemetry;
 ```
 
-Present only when OTel integration is configured, through the Agent's `tracing` block or Config telemetry. It provides OTLP-trace receiving information for this run: the endpoint plus environment variables for environment-based export. The Agent's `tracing` block declares how to give it to a CLI. For environment-based export, spread `ctx.telemetry.env` into send. For file-based export, write configuration in `tracing.configure`. For remote HTTP integration, send only needs to spread headers into the request headers, with one new traceparent per turn. The endpoint is startup configuration fixed by `defineConfig({ telemetry: { port } })`, not passed from here.
+Present only when OTel integration is configured (the agent's `tracing` block / the config's telemetry exists):
+this run's OTLP traces receiver information (endpoint + env for env-based export).
+How to hand it to the CLI is declared by the agent's `tracing` block: env-based spreads ctx.telemetry.env
+into send; file-based writes configuration in tracing.configure. A remote HTTP integration's send
+only needs to spread headers into the request headers (a new traceparent per turn); the endpoint is fixed by startup configuration
+(defineConfig(&#123; telemetry: &#123; port &#125; &#125;)) and is not passed from here.
 
 #### `progress`
 
@@ -328,7 +533,10 @@ Present only when OTel integration is configured, through the Agent's `tracing` 
 progress(update: ProgressUpdate): void;
 ```
 
-Scoped feedback that reports what is happening now, such as a turn, tool, or installation progress. It is short-lived state: the Human profile updates its active line, `agent` / `ci` do not print every update, and it does not enter final results. Do not call it for every token or delta. The Runner attributes the call to the current lifecycle phase—`agent.setup`, `agent.run`, or `agent.teardown`—so callers cannot impersonate another phase. See `docs/feature/experiments/library.md`.
+Scoped feedback: reports what is happening right now (turn / tool / install progress). Short-lived state: the Human profile
+updates the active line, `agent`/`ci` do not print each one, and it does not enter the final result; do not call it for every token/delta.
+The runner attributes it by the lifecycle phase the callback is currently in (agent.setup / agent.run / agent.teardown);
+the caller cannot impersonate another phase (see docs/feature/experiments/library.md).
 
 #### `diagnostic`
 
@@ -336,7 +544,9 @@ Scoped feedback that reports what is happening now, such as a turn, tool, or ins
 diagnostic(input: DiagnosticInput): void;
 ```
 
-Scoped feedback that reports a problem that should remain after the run ends, such as protocol degradation, incomplete data, or a cleanup problem. It is a durable event: it enters the Attempt's diagnostics and permanent output in every profile, and `dedupeKey` deduplicates it. Even `level: "error"` does not change `Turn.status` or a Verdict. Throw when execution cannot continue.
+Scoped feedback: reports problems that should remain after the run ends (protocol downgrade, incomplete data, cleanup issues).
+A permanent event that lands in the attempt's diagnostics and each profile's permanent output; deduplicated by `dedupeKey`.
+Even with level "error" it does not change Turn.status / verdict; throw when you cannot continue.
 
 #### `log`
 
@@ -344,22 +554,23 @@ Scoped feedback that reports a problem that should remain after the run ends, su
 log(msg: string): void;
 ```
 
-An alias for `progress({ message: msg })`, not a second channel. See Attempt phases in `docs/feature/experiments/cli.md`. When timeout fails, the most recent lines join the result's error information to help locate the step that stalled.
+An explicit timeout breadcrumb. It also updates the Human active line, and the most recent entries are merged into the result's error information
+on a timeout failure; do not use it to carry user messages, tool input, or other text meant only for short-lived display.
 
 {/* GENERATED:END agent-def */}
 
-`ctx.session` (`AgentSession`) is a state slot for one session line. Every `send` on the same session line receives the same `ctx.session`. A new session line—the first turn of an Eval or after `t.newSession()`—receives a fresh one. Its accessors are:
+`ctx.session` (`AgentSession`) is the state slot for one session line: every `send` on the same session line gets the same `ctx.session`, and a new session line (the Eval's first turn / after `t.newSession()`) gets a fresh one. Accessors:
 
-- `id?: string` / `capture(id): void`: use these for session continuation when the service remembers history. `id` is the session ID recorded for this line, or `undefined` for a new line. `capture` records the returned ID only when none has been recorded.
-- `createSessionSlot<T>(name)`: creates a typed slot in Adapter module scope. Slots are isolated by symbol identity.
-- `get(slot)` / `set(slot, value)`: get and set client history or Adapter-private state.
-- `take(slot)`: reads and removes a HITL paused-turn state for one-time consumption.
+- `id?: string` / `capture(id): void` — for session continuation when the server keeps history: `id` is the session id this line has recorded (`undefined` on a new line), and `capture` records the returned id (it takes effect only if none has been recorded yet).
+- `createSessionSlot<T>(name)` — creates a typed slot at Adapter module scope. Slots are isolated by symbol identity.
+- `get(slot)` / `set(slot, value)` — store and read client-side history or Adapter-private state.
+- `take(slot)` — reads and deletes the HITL pause state, consumed once.
 
 For the complete contract, see [Adapter concepts](/explanation/adapter#context-agentcontext).
 
 ## Sandbox interface
 
-For a Sandbox Agent, `ctx.sandbox` (`Sandbox`) is the handle for the current isolated environment. `Sandbox` extends `SandboxOperations` and `SandboxTransferOperations`; the members below are grouped by their declaring interface. `CommandOptions` are optional parameters for `runCommand` / `runShell`:
+`ctx.sandbox` (`Sandbox`) of a Sandbox agent is the handle to the current isolated environment. `Sandbox` extends `SandboxOperations` and `SandboxTransferOperations`; all members are listed below by declaring interface. `CommandOptions` holds the options for `runCommand` / `runShell`:
 
 {/* GENERATED:BEGIN sandbox-methods */}
 
@@ -373,7 +584,7 @@ For a Sandbox Agent, `ctx.sandbox` (`Sandbox`) is the handle for the current iso
 readonly workdir: string;
 ```
 
-The absolute project or Workspace root inside the Sandbox. It is the default cwd for Agent commands and the location of the Git baseline commit. Relative paths for every method resolve from it; omitted `cwd` and `targetDir` also use it.
+The absolute path of the project/workspace root inside the Sandbox (the default cwd for agent commands, and where the git baseline is committed). Relative paths in every method resolve against it, and omitting `cwd`/`targetDir` also lands here.
 
 #### `runCommand`
 
@@ -381,7 +592,8 @@ The absolute project or Workspace root inside the Sandbox. It is the default cwd
 runCommand(cmd: string, args?: readonly string[], opts?: CommandOptions): Promise<CommandResult>;
 ```
 
-Runs one command. `args` are separate argv values and are not interpreted by a shell, so no `&&`, pipes, or glob expansion occurs. Prefer it for one executable, externally supplied arguments, or input that must avoid shell injection.
+Runs a single command; `args` are passed as separate argv entries and are not interpreted by a shell (no `&&`, pipes, or glob expansion).
+Prefer it when you only want to run one executable, arguments come from external input, or you are worried about injection.
 
 #### `runShell`
 
@@ -389,7 +601,8 @@ Runs one command. `args` are separate argv values and are not interpreted by a s
 runShell(script: string, opts?: CommandOptions): Promise<CommandResult>;
 ```
 
-Runs a complete script through the shell (bash), with support for `&&`, pipes, `$()`, redirects, and similar shell syntax. Use it when you need to compose commands or branch on conditions.
+Runs a whole script interpreted by a shell (bash), supporting `&&`, pipes, `$()`, redirection, and so on.
+Use it when you need to chain several commands or branch on conditions.
 
 #### `runCommandOrThrow`
 
@@ -401,7 +614,9 @@ runCommandOrThrow(
 ): Promise<SuccessfulCommandResult>;
 ```
 
-Runs one command like `runCommand`, but throws `SandboxCommandExitError` on a nonzero exit. Its message contains a bounded, cleaned, redacted stderr tail, falling back to stdout when stderr is empty. The complete output remains in the error's `result`; a successful result has `exitCode: 0` at the type level.
+Runs a single command like `runCommand`, but throws `SandboxCommandExitError` on a non-zero exit. The error message includes
+a bounded, cleaned, and redacted stderr tail; it falls back to stdout when stderr is empty. The full output is kept in the exception's
+`result` field. A successful result's `exitCode` is fixed to `0` in its type.
 
 #### `runShellOrThrow`
 
@@ -409,7 +624,8 @@ Runs one command like `runCommand`, but throws `SandboxCommandExitError` on a no
 runShellOrThrow(script: string, opts?: CommandOptions): Promise<SuccessfulCommandResult>;
 ```
 
-Runs a shell script like `runShell`, but throws `SandboxCommandExitError` on a nonzero exit. Its error summary, complete output, and successful-result semantics match `runCommandOrThrow`.
+Runs a shell script like `runShell`, but throws `SandboxCommandExitError` on a non-zero exit. The error summary,
+full output, and successful result semantics are the same as `runCommandOrThrow`.
 
 #### `readText`
 
@@ -417,7 +633,7 @@ Runs a shell script like `runShell`, but throws `SandboxCommandExitError` on a n
 readText(path: string): Promise<string>;
 ```
 
-Reads UTF-8 text from a file in the Sandbox. It throws when the file does not exist.
+Reads the text content (UTF-8) of a file inside the Sandbox. Throws when the file does not exist.
 
 #### `writeText`
 
@@ -425,7 +641,7 @@ Reads UTF-8 text from a file in the Sandbox. It throws when the file does not ex
 writeText(path: string, content: string): Promise<void>;
 ```
 
-Writes a UTF-8 text file in the Sandbox, creating missing parent directories.
+Writes a UTF-8 text file inside the Sandbox; missing parent directories are created automatically.
 
 #### `readBytes`
 
@@ -433,7 +649,7 @@ Writes a UTF-8 text file in the Sandbox, creating missing parent directories.
 readBytes(path: string): Promise<Uint8Array>;
 ```
 
-Reads exact file bytes from the Sandbox. The public contract does not depend on Node `Buffer`.
+Reads a file's exact bytes inside the Sandbox; the public contract is not bound to Node Buffer.
 
 #### `writeBytes`
 
@@ -441,7 +657,7 @@ Reads exact file bytes from the Sandbox. The public contract does not depend on 
 writeBytes(path: string, content: Uint8Array): Promise<void>;
 ```
 
-Writes exact file bytes in the Sandbox, creating missing parent directories.
+Writes a file's exact bytes inside the Sandbox; missing parent directories are created automatically.
 
 #### `pathExists`
 
@@ -449,7 +665,7 @@ Writes exact file bytes in the Sandbox, creating missing parent directories.
 pathExists(path: string): Promise<boolean>;
 ```
 
-Checks whether a file or directory path exists in the Sandbox.
+Checks whether a file or directory path exists inside the Sandbox.
 
 ### `SandboxTransferOperations`
 
@@ -501,7 +717,7 @@ downloadDirectory(
 stop(): Promise<void>;
 ```
 
-Destroys compute resources held by the Sandbox, such as a container or microVM. The Sandbox cannot be used after this call. Whether it is safe to call repeatedly depends on the Provider; do not rely on that.
+Destroys the compute resources the Sandbox occupies (container/microVM). The Sandbox cannot be used after the call; whether repeated calls are safe varies by provider, so do not rely on it.
 
 #### `sandboxId`
 
@@ -509,7 +725,7 @@ Destroys compute resources held by the Sandbox, such as a container or microVM. 
 readonly sandboxId: string;
 ```
 
-The stable identifier for this Sandbox: a Provider-native ID such as a Docker container-ID prefix. It associates session state with the same Sandbox across calls and appears in logs.
+This Sandbox's stable identifier (each provider's native ID, such as a Docker container ID prefix); used to correlate session state of the same Sandbox across calls, and for log display.
 
 #### `otlpHost`
 
@@ -518,11 +734,10 @@ readonly otlpHost: string | null;
 ```
 
 The placement capability of the OTLP receiver.
-
-- `string`: the Sandbox can reach the host receiver through this hostname.
-- `null`: the Provider does not promise host callback access. The Runner tries to start an Attempt-scoped receiver inside the Sandbox. This does not guarantee tracing succeeds; when the image lacks the receiver runtime, NiceEval records only a supplemental diagnostic.
-
-`defineConfig({ telemetry: { host } })` can explicitly override it after the author provides a controlled tunnel.
+- `string`: the host receiver is reachable from inside the Sandbox through this hostname.
+- `null`: the provider does not promise a connection back to the host; the runner tries to start an attempt-scope receiver inside the Sandbox.
+  This does not guarantee tracing succeeds; when the image lacks the runtime the receiver needs, only a supplemental diagnostic is recorded.
+`defineConfig({ telemetry: { host } })` can override it explicitly when the author already provides a controlled tunnel.
 
 #### `appendLog`
 
@@ -530,7 +745,8 @@ The placement capability of the OTLP receiver.
 appendLog?(line: string): Promise<void>;
 ```
 
-Optional. Writes a line into the container's main log, which PID 1 tails, so `docker logs` and the Docker UI Logs tab can show Agent activity turn by turn. The docker Provider implements it; other Providers can omit it.
+Optional: writes a line into the container's "main log" (which PID1 tails), so `docker logs` /
+the Logs tab of the Docker UI shows the agent's turn-by-turn activity live. Implemented by the docker provider; others can omit it.
 
 ### `CommandOptions`
 
@@ -540,9 +756,12 @@ Optional. Writes a line into the container's main log, which PID 1 tails, so `do
 readonly sensitiveValues?: readonly string[];
 ```
 
-Known sensitive plaintext handled by this command, such as an API key, token, or HTTP-header value. The Runner still gives the original values to the Provider to execute, but replaces every exact value before persisting any timing, commands, execution, or error evidence. This array itself is not persisted or added to a fingerprint. Empty strings are ignored.
+Sensitive plaintext this command is known to handle (such as API keys, tokens, HTTP header values). The Runner still hands the
+original values to the provider for execution, but replaces these values exactly before any timing / commands / execution / error evidence is persisted;
+this array itself is never persisted and does not enter the fingerprint. Empty strings are ignored.
 
-This is explicit provenance, not a secret scanner. Free text that is not declared cannot be identified reliably. When a caller first encodes or splits a value, also register the encoded form that will actually appear in the command or output.
+This is explicit provenance, not a secret scanner: unregistered free text cannot be reliably identified; if the caller encodes or splits a value
+first, also register the encoded form that will actually appear in the command/output.
 
 #### `env`
 
@@ -550,7 +769,10 @@ This is explicit provenance, not a secret scanner. Free text that is not declare
 readonly env?: Readonly<globalThis.Record<string, string>>;
 ```
 
-Adds or overrides environment variables for this command, layering them on Sandbox default environment rather than clearing defaults. `PATH` is Sandbox-managed: each Provider retains the `PATH` it computed and does not guarantee this option can override it. To extend `PATH`, use the Sandbox factory's `pathPrepend`; see PATH: managed variable and `pathPrepend` in `docs/feature/sandbox/library.md`.
+Adds/overrides environment variables for this command (layered on the Sandbox default environment without clearing defaults). `PATH` is a Sandbox
+managed variable; each provider keeps the `PATH` it computed and does not guarantee it can be overridden here; to extend PATH, use
+the Sandbox factory's `pathPrepend` (see docs/feature/sandbox/library.md "PATH: managed variable and
+pathPrepend").
 
 #### `cwd`
 
@@ -558,7 +780,7 @@ Adds or overrides environment variables for this command, layering them on Sandb
 readonly cwd?: string;
 ```
 
-The working directory for this command. When omitted, it is `Sandbox.workdir`. A relative path resolves from workdir, and an absolute path is used unchanged.
+This command's working directory; omitted lands on `Sandbox.workdir`. Relative paths resolve against the workdir, and absolute paths are used as is.
 
 #### `stream`
 
@@ -566,7 +788,10 @@ The working directory for this command. When omitted, it is `Sandbox.workdir`. A
 readonly stream?: boolean;
 ```
 
-Also sends this command's output to the Sandbox's native log stream, so `docker logs` and the Docker UI Logs tab show it live. Enable it for Agent commands such as `codex exec`, `bub run`, or `claude` to see the Agent's **raw output** in container logs. Each Provider implements it differently: docker tees to a file tailed by PID 1, while an unsupported Provider ignores it. How logs surface is the Provider's concern; the Adapter only declares intent.
+Also sends this command's output into the Sandbox's "native log stream" (so `docker logs` / the Logs tab of the Docker UI
+shows it live). Turn it on for agent commands (codex exec / bub run / claude) to see the agent's raw output in the container
+log. Each provider implements it (docker: tee into the file PID1 tails;
+unsupported providers ignore it); how the log surfaces is the provider's business, and the adapter only declares intent.
 
 #### `onStdout`
 
@@ -574,7 +799,9 @@ Also sends this command's output to the Sandbox's native log stream, so `docker 
 readonly onStdout?: (chunk: string) => void | Promise<void>;
 ```
 
-Called for each stdout chunk from the command. The callback is only short-lived feedback while running; full stdout remains unchanged in the returned `CommandResult`. When a Provider cannot truly stream, it must at least call once with complete stdout after the command ends; it cannot silently drop it.
+Called once for each stdout chunk of the command. The callback is only for short-lived feedback while running; the full stdout still appears verbatim
+in the returned `CommandResult`. When the provider does not support real streaming, it calls it at least once with the full
+stdout after the command ends; it must not drop it silently.
 
 #### `onStderr`
 
@@ -582,7 +809,7 @@ Called for each stdout chunk from the command. The callback is only short-lived 
 readonly onStderr?: (chunk: string) => void | Promise<void>;
 ```
 
-The stderr counterpart to `onStdout`; complete stderr remains in `CommandResult`.
+The stderr counterpart of `onStdout`; the full stderr is still kept in `CommandResult`.
 
 #### `user`
 
@@ -590,9 +817,14 @@ The stderr counterpart to `onStdout`; complete stderr remains in `CommandResult`
 readonly user?: string;
 ```
 
-Overrides the execution identity for this command. When omitted, it uses the Sandbox default identity declared by the environment itself: Docker image `USER`, Compose service `user:`, or E2B template default user. See Execution identity in `docs/feature/sandbox/library.md`.
+Overrides the execution identity of this command; omitted = the Sandbox default identity (the identity the environment declares itself: the Docker image `USER`,
+the Compose service `user:`, the E2B template default user; see
+docs/feature/sandbox/library.md "Execution identity").
 
-The semantics are consistent across Providers, while each maps it to its native mechanism: Docker uses `exec --user`; E2B uses `{ user }`; Vercel accepts only `"root"` and maps it to `{ sudo: true }`, with other values erroring. A Provider that is root for the whole lifetime treats it as a no-op. A Provider that cannot change identity at all can reject it, but **omission and an explicit value keep the same semantics** across Providers.
+The semantics are consistent across providers, and each provider maps them to its own native mechanism (docker: `exec --user`; E2B:
+`{ user }`; Vercel: accepts only `"root"`, mapped to `{ sudo: true }`, other values error).
+Providers that run as root throughout treat it as a no-op; providers that cannot switch identity at all may not support it (and throw), but **the semantics of omission and
+explicit values stay consistent** and do not vary by provider.
 
 #### `timeoutMs`
 
@@ -600,7 +832,9 @@ The semantics are consistent across Providers, while each maps it to its native 
 readonly timeoutMs?: number;
 ```
 
-The upper bound for this command itself, in milliseconds. **Omission is normal**: when omitted, the limit is the Attempt deadline's remaining time. See timeout ownership in `docs/feature/sandbox/architecture.md`. The Provider layer has no independent default. An explicitly shorter value is an intentional declaration and applies normally; when it expires, the attribution is command-explicit timeout.
+This command's own limit (milliseconds). **Omitting it is the norm**: when omitted, the limit = the remaining attempt deadline
+(see docs/feature/sandbox/architecture.md "Deadline ownership"); the provider layer has no independent default.
+Passing a shorter value explicitly is an intentional declaration and takes effect as usual; on hitting it, the attribution is recorded as "explicit command timeout".
 
 #### `signal`
 
@@ -608,10 +842,11 @@ The upper bound for this command itself, in milliseconds. **Omission is normal**
 readonly signal?: AbortSignal;
 ```
 
-Cancels this managed command tree. Before its Promise settles, a Provider must confirm that the command tree has ended. When it cannot terminate it precisely, it must retire the whole Sandbox rather than close only the transport and leave a process in the background.
+Cancels this managed command tree. The provider must confirm the command tree has terminated before the Promise settles; when it cannot terminate
+precisely, it should retire the whole Sandbox rather than only closing the transport and leaving processes in the background.
 
 {/* GENERATED:END sandbox-methods */}
 
 ## ctx and t
 
-`ctx` is the runtime context an Adapter sees. `t` is the test context an Eval author sees. They use the same runtime data, but have different responsibilities.
+`ctx` is the run context the adapter side sees. `t` is the test context the Eval author sees. Both use the same run data, but have different responsibilities.

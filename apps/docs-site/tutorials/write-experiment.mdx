@@ -1,12 +1,14 @@
 ---
-title: "Experiments and Lifecycles"
-sidebarTitle: "Experiments"
-description: "Write Experiments that select an Agent, pass model and flags, set Attempts, budgets, concurrency, and Sandboxes, and start and stop Experiment-level shared services with setup / teardown."
+title: "Organize Experiments: Compare Models, Prompts, and Agents"
+sidebarTitle: "Organize Experiments"
+description: "Use defineExperiment to fix the Agent under test, model, flags, and number of runs. Write two Experiments that differ in only one variable over the same evals to compare two models or two prompt versions."
 ---
 
-An Experiment is check-in-able runtime configuration. It records which Adapter and model a group of Evals targets, which flags are on, how many times to run, and the budget, all under `experiments/`. CLI positional arguments only select Evals; they do not temporarily change an Agent or runtime configuration.
+You wrote a new system prompt and want to know whether it is better or worse than the old one. The evals already exist; now you need to run them against both versions and look at the results side by side.
 
-## The smallest Experiment
+That is what Experiments are for. An eval only says "what to send and what counts as correct"; an Experiment says "what to run it against": which Agent, which model, which flags, how many times, and how much to spend before stopping. Keeping them separate means the same evals can compare any two configurations.
+
+## A minimal experiment
 
 ```ts
 // experiments/local.ts
@@ -18,11 +20,42 @@ export default defineExperiment({
 });
 ```
 
-`agent` holds an already configured Agent instance. The URL, authentication, and protocol details of the subject under test usually go to the Adapter factory. The Runner does not store a separate `agentConfig` field.
+The file path is the Experiment ID, here `local`. `agent` holds an already configured Adapter instance; connection parameters such as the address and auth of the application under test are passed to the Adapter factory and are not written anywhere else.
 
-## Compare System Prompt effects on an Agent
+```bash
+pnpm exec niceeval exp local
+```
 
-Use flags to configure two Experiments with different prompts and compare them. The two cells differ by **one variable only**—here, `flags.promptVariant`—and every other field is byte-for-byte the same. The fewer differences there are, the more clearly a score difference can be attributed:
+## Compare two models
+
+One Experiment file is one configuration. To compare two models, write two files and change only the `model` line:
+
+```text
+experiments/
+  models/gpt-5.4.ts
+  models/deepseek-v4-pro.ts
+```
+
+```ts
+// experiments/models/gpt-5.4.ts
+import { defineExperiment } from "niceeval";
+import { webAgent } from "../../agents/web-agent.ts";
+
+export default defineExperiment({
+  description: "gpt-5.4",
+  agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
+  model: "gpt-5.4",
+  attempts: 3,
+});
+```
+
+`model` is passed to the Adapter as `ctx.model`. The Adapter must put it into the request it sends to the application, or the application will not really switch models; see [Connect Your Agent](/tutorials/connect-your-agent).
+
+`attempts: 3` runs each eval 3 times. The Agent answers differently every time, so a pass rate from a single run does not say much.
+
+## Compare two prompt versions
+
+The prompt version lives inside the application, and NiceEval cannot see it. The approach is the same as A/B testing in a product: the application accepts a flag and switches the prompt based on it; the Experiment assigns the flag's value.
 
 ```ts
 // experiments/prompts/v1.ts
@@ -31,367 +64,155 @@ import { webAgent } from "../../agents/web-agent.ts";
 
 export default defineExperiment({
   description: "System Prompt v1 (baseline)",
-  agent: webAgent({
-    baseUrl: "https://staging.example.com",
-  }),
+  agent: webAgent({ baseUrl: "https://staging.example.com" }),
   model: "gpt-5.4",
-  flags: {
-    promptVariant: "v1",     // ← The only variable
-  },
-  attempts: 1,
+  flags: { promptVariant: "v1" }, // The only difference between the two files
+  attempts: 3,
   budget: 5,
 });
 ```
 
-```ts
-// experiments/prompts/v2.ts
-import { defineExperiment } from "niceeval";
-import { webAgent } from "../../agents/web-agent.ts";
+`experiments/prompts/v2.ts` changes `promptVariant` to `"v2"` and is otherwise identical word for word. The less the two configurations differ, the more the score difference can be attributed to the prompt.
 
-export default defineExperiment({
-  description: "System Prompt v2 (candidate)",
-  agent: webAgent({
-    baseUrl: "https://staging.example.com",
-  }),
-  model: "gpt-5.4",
-  flags: {
-    promptVariant: "v2",     // ← The only variable
-  },
-  attempts: 1,
-  budget: 5,
-});
-```
-
-The most common mistake is to write the same `flags` in both cells, or to pin the same `model` in a model comparison—including giving both the same environment-variable default. The run completes and the report appears, but the two columns compare the same configuration and reveal nothing.
-
-`model` reaches the Adapter as `ctx.model`. If your Agent supports model selection, construct the request yourself.
-
-`flags` reaches the Adapter as `ctx.flags` and is also available to an Eval as `t.flags`.
-
-Their semantics match a product A/B-test feature flag. Write the Adapter to send flags to your Agent, then have the Agent switch its System Prompt or behavior from them:
+The Adapter forwards `ctx.flags` to the application unchanged:
 
 ```ts
 // agents/web-agent.ts
 async send(input, ctx) {
-  await fetch(`${baseUrl}/api/turn`, {
+  const r = await fetch(`${baseUrl}/api/turn`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message: input.text,
-      model: ctx.model,
-      flags: ctx.flags,
-    }),
+    body: JSON.stringify({ message: input.text, model: ctx.model, flags: ctx.flags }),
     signal: ctx.signal,
   });
+  // ...translate the reply into events
 }
 ```
 
-## Write a group of Experiments
+`flags` is a flat object whose values can only be strings, finite numbers, or booleans. Nested objects, arrays, `null`, and explicit `undefined` are all rejected before the run. Evals can read the same values with `t.flags`.
 
-One Experiment file is one configuration cell. To compare several models, Agents, or flag values, write several files. Directories only determine IDs:
+When you need to check that flags are valid or fill in defaults, declare a synchronous `parseFlags(input: unknown)` on the Adapter. Its return value decides the type of `flags` in the experiment, and the normalized value takes part in the result reuse decision.
+
+The most common mistake is writing the same `flags` or the same `model` in both files, for example both reading the default of the same environment variable. Runs and reports look normal, but the two columns compare the same configuration.
+
+## Run a group, or just one cell
+
+Positional arguments select Experiments by ID prefix. Directories only organize IDs and batch selection:
+
+```bash
+pnpm exec niceeval exp prompts      # All experiments under prompts/
+pnpm exec niceeval exp prompts/v2   # Only the v2 cell
+```
+
+When one cell's result looks odd and needs reproducing on its own, write its full ID; you do not need to run the whole group first or move other files away. Follow it with an eval ID prefix to run only a few evals:
+
+```bash
+pnpm exec niceeval exp prompts/v2 refund-policy
+```
+
+To confirm before running which evals run and how many times, add `--dry`; see [Select and Preview the Run Scope](/tutorials/select-and-preview).
+
+## See the comparison
+
+After both configurations run, view each in the terminal:
+
+```bash
+pnpm exec niceeval show --experiment prompts/v1 --experiment prompts/v2
+```
+
+Each Experiment's `Summary` lists these items:
 
 ```text
-experiments/
-  prompts/baseline.ts
-  prompts/concise.ts
-  retrieval/with-retrieval.ts
+  Observed   12/12
+  Verdicts   8 passed; 4 failed; 0 errored; 0 skipped
+  Pass rate  66.67%
 ```
 
-```bash
-npx niceeval exp prompts
+`Observed` is the number of Attempts with results out of the planned number. When the two numbers differ, some Attempts have no result yet, and the pass rate cannot be compared directly with the other side.
+
+Besides the pass rate, look at duration, tokens, cost, and the kinds of failures. A configuration with a slightly higher pass rate at double the cost is not necessarily worth switching to. To compare two Runs side by side, see [Compare Pinned Runs](/tutorials/compare-runs); to view in the browser, use `niceeval view`.
+
+## Make the comparison meaningful
+
+- Keep the set of evals unchanged during the comparison; otherwise the two sides are not comparing the same evals.
+- For highly non-deterministic Agents, especially Coding Agents, run each configuration at least 3 times.
+- Change one variable at a time. If you switch the model and the prompt together, you cannot tell which one deserves the credit.
+- Group failures by cause; do not just look at the total score.
+
+## Run only some evals
+
+Each Experiment chooses which evals to run with `evals`, defaulting to all. You can write an array of ID prefixes, or a function:
+
+```ts
+evals: (eval) => eval.id.startsWith("coding/") && eval.tags.includes("coding"),
 ```
 
-The report compares these selected Experiments directly; it needs no additional grouping field.
-
-To validate one configuration only, use its full ID as a positional argument:
-
-```bash
-npx niceeval exp prompts/concise
-```
-
-This is useful for per-configuration debugging. You can confirm whether one cell's change reaches the target without first running the whole group or moving other configuration files out of the directory.
+`eval.id` is the in-project ID derived from the file path, not an absolute path, so you can test it directly with `startsWith`.
 
 ## Common fields
 
-| Field | Use |
-| --- | --- |
-| `agent` | Selects and configures an Adapter. Required. |
-| `model` | One model name, passed through as `ctx.model`. |
-| `reasoningEffort` | One reasoning-effort setting (such as `"high"`), passed through as `ctx.reasoningEffort` / `t.reasoningEffort`; its ownership matches `model`. |
-| `flags` | Experiment conditions—A/B-test feature flags—as any JSON object, passed through as `ctx.flags` / `t.flags`. |
-| `attempts` | Maximum runs for each Eval × configuration pair. |
-| `earlyExit` | Stops repeated runs after the first pass. Off by default; `attempts` runs to completion to measure the full pass rate. |
-| `evals` | `"*"`, an array of ID prefixes, or a function that visits read-only Eval descriptions and returns a Boolean. |
-| `timeoutMs` | Timeout for one Attempt. |
-| `budget` | Budget ceiling for this configuration cell. |
-| `maxConcurrency` | Concurrency ceiling for this configuration cell. |
-| `sharedState` | An exclusive key for a checkpoint shared across Invocations. It coordinates state; it does not provide storage. |
-| `sandbox` | One `SandboxLayer`. Its factory declares one Provider-native template and can chain `.before()` / `.after()` actions. |
-| `plugins` | Explicitly attached NiceEval Plugin occurrences; reuse a complete condition consisting of identity, flags, Sandbox commands, lifecycles, or an Agent Extension. |
-| `setup` | An Experiment-level Hook that runs once on your own machine and starts services all Attempts share. See below. |
-| `teardown` | The Experiment-level Hook paired with `setup`. It runs once after all Attempts finish, if and only if the `setup` point was reached. See below. |
+| Field | Purpose |
+|---|---|
+| `agent` | Choose and configure the Adapter. Required |
+| `model` | A single model name, passed to the Adapter through `ctx.model` |
+| `reasoningEffort` | Reasoning effort, for example `"high"`, passed through `ctx.reasoningEffort` / `t.reasoningEffort` |
+| `flags` | Experiment conditions, passed through `ctx.flags` / `t.flags` |
+| `attempts` | The maximum number of runs per eval |
+| `earlyExit` | Stop the remaining Attempts after one pass. Off by default; running all of them gives the full pass rate |
+| `evals` | `"*"`, an array of ID prefixes, or a function returning a Boolean |
+| `timeoutMs` | Timeout per Attempt |
+| `budget` | This configuration's spending cap, in US dollars |
+| `maxConcurrency` | How many Attempts this configuration runs at once |
+| `labels` | Annotations used only for report grouping; neither the Adapter nor evals can read them |
+| `sandbox` | The Sandbox used by Coding Agents; see [Sandbox](/tutorials/sandbox-providers) |
+| `plugins` | Reuse a complete set of run conditions; see [Plugin](/tutorials/plugins) |
+| `setup` / `teardown` | Start and stop services shared by the whole experiment; see [Start Shared Experiment Services](/tutorials/experiment-services) |
+| `sharedState` | An exclusive key for sharing state across runs; see [Start Shared Experiment Services](/tutorials/experiment-services#save-state-across-attempts) |
 
-## Pass a runtime address without invalidating cached results
+For the full set of fields, see the [defineExperiment reference](/reference/define-experiment).
 
-`flags` record Experiment conditions, and the whole bag participates in cache eligibility. Do not put a tunnel address in `flags`: it gets a new URL every time the tunnel restarts, which would invalidate every completed result on every restart.
+## Different evals need different environments
 
-The address is available only after `setup` starts it. Keep it in the lifecycle closure, then let the Agent factory or a Sandbox callback use it. It is not an Experiment condition, and no general API writes it as a Report field:
-
-```ts
-let endpoint: string | undefined;
-
-export default defineExperiment({
-  agent: nowledgeAgent(() => ({ url: endpoint! })),
-  sandbox: e2bSandbox({ template: "niceeval-agents" })
-    .before(async sandbox => {
-      await sandbox.writeText(".nowledge/env", `NMEM_URL=${endpoint!}\n`);
-    }),
-  async setup(ctx) {
-    endpoint = (await nowledgeTunnel({ signal: ctx.signal })).url;
-  },
-});
-```
-
-When the URL changes and you rerun, completed work is still adopted and only missing work runs:
-
-```bash
-$ pnpm exec niceeval exp compare/codex--nowledge
-╭─ PLAN ──────────────────────────────────────────╮
-│ 36 attempts · 36 evals × 1 configs              │
-│ 24 of 36 reuse from cache · 12 to run           │
-╰─────────────────────────────────────────────────╯
-```
-
-The address serves only this Invocation. Adopted results are not rewritten with its new value. Long-lived conditions you need to compare must be declared as stable Experiment configuration.
-
-A service version is different: write `flags: { memoryVersion: "0.10.39" }`. Changing a version can change behavior, so it should rerun results. The test is **whether it is a comparable Experiment condition**: if so, put it in `flags`; if it is only this Invocation's connection coordinate, keep it in lifecycle code or external-service configuration. There is no general callback, custom data family, or registration point for writing arbitrary values into results. Use `labels` for annotations used only to group reports that neither an Adapter nor an Eval needs to read.
-
-## Start a service shared by an Experiment
-
-Some resources have one instance per Experiment and are shared by all Attempts: a tunnel to an internal memory service, an Experiment-specific mock server, or a license lease. Put them in a pair of Experiment-level `setup` / `teardown` Hooks, each of which runs at most once. `setup` runs before the Experiment's first Attempt that needs dispatch. `teardown` runs after all Attempts finish, including an interrupted run, if and only if the `setup` point was reached. A thrown `setup` still reaches `teardown`, so cleanup must defend against variables that may not have been assigned. When every prior result is adopted and this Experiment has no Attempt that must actually run, neither `setup` nor `teardown` runs:
-
-```ts
-// Keep the address and key obtained by setup in module variables. Teardown and the Agent in this file
-// run after setup and can read them directly for every Attempt.
-let tunnel: { url: string; apiKey: string; stop(): Promise<void> };
-
-export default defineExperiment({
-  agent: nowledgeAgent(() => ({ url: tunnel.url, apiKey: tunnel.apiKey })),
-  evals: ["memory/"],
-  async setup(ctx) {
-    ctx.progress({ message: "starting nowledge tunnel" });
-    tunnel = await nowledgeTunnel({ signal: ctx.signal });
-  },
-  async teardown(ctx) {
-    ctx.progress({ message: "stopping nowledge tunnel" });
-    await tunnel?.stop(); // Setup can throw before assigning it, but teardown still arrives here.
-  },
-});
-```
-
-While `setup` runs, the terminal's `ACTIVE` section shows `experiment setup · <experiment-id>`. The `ctx.progress(...)` message updates at the end of that row. Its Attempts count as queued while they wait; this is not a hang. In CI or Agent output, the start and finish of `setup` and `teardown` each append one line.
-
-When `setup` throws, every Attempt in this Experiment is recorded as `errored` with code `experiment-setup-failed` and appears individually in the report. Other Experiments in the batch continue normally: an environment that cannot start should neither pretend to be green nor take unrelated work down with it.
-
-Releasing resources in `teardown` is mandatory. Put it behind `try/finally` so it runs no matter whether earlier observability code fails. Observability work—a health check or metrics reporting—is best effort. Give it a short timeout, do not let failure block release, and skip it when `ctx.signal.aborted`. On an interruption path, one possibly stuck observation must not stand before tearing down a tunnel or returning a lease:
-
-```ts
-async teardown(ctx) {
-  try {
-    if (!ctx.signal.aborted) {
-      await tunnel?.probe({ timeoutMs: 10_000 }).catch(() => {});
-    }
-  } finally {
-    await tunnel?.stop(); // Release is mandatory, regardless of observability success or failure.
-  }
-},
-```
-
-`setup` / `teardown` own one service per Experiment on your machine. To prepare an environment **inside a Sandbox** per Experiment before the Agent runs—install binaries, warm it, load and save state across Attempts—attach actions to the spec in the `sandbox` field instead:
-
-```ts
-export default defineExperiment({
-  agent: codexAgent({ mcpServers: [mempalMcp] }),
-  sandbox: e2bSandbox({ template: "fasteval-agents" })
-    .before(async (sandbox, context) => {
-      await mempalLoad(sandbox, "codex");
-      context.onCleanup(async (sandbox) => {
-        await mempalSave(sandbox, "codex");
-      });
-    }),
-  sandboxReuse: true,
-  maxConcurrency: 1,                    // Serial within this Invocation
-  sharedState: { key: "mempal/codex/cohort-a" },
-});
-```
-
-`maxConcurrency: 1` serializes only this Invocation. `sharedState.key` protects the checkpoint across Invocations in the same project Coordination domain. The lease starts before Experiment setup or Sandbox creation and ends after registered Sandbox cleanup, Provider finalizers, and Experiment teardown. It provides mutual exclusion only; storage, atomic write-back, forced-kill recovery, and cross-machine coordination remain the author's responsibility.
-
-Bake fixed Agent CLIs, system packages, and large model caches into an image, template, or snapshot first, or declare them as low-frequency `.before()` actions. NiceEval can reuse an unchanged Docker preparation prefix instead of rebuilding fixed installation work when an Eval or final `.env` action changes. For how to derive a prebuilt environment from official Docker images, E2B templates, or a Vercel runtime, see [Sandbox Provider: Build on the Official Baselines to Speed Things Up](/tutorials/sandbox-providers#build-on-the-official-baselines-to-speed-things-up).
-
-For action ordering, caching, dynamic callbacks, and cleanup semantics, see [Sandbox Provider: Prepare the Sandbox in a deterministic order](/tutorials/sandbox-providers#prepare-the-sandbox-in-a-deterministic-order).
-
-### Cooperate with Sandbox callbacks
-
-An Experiment-level Hook starts a host-side service. A Sandbox callback writes its coordinates before an Attempt and registers state-saving cleanup immediately. The two layers connect through module variables in the same file, and the Runner guarantees their order: the Experiment-level `setup` is earlier than any Sandbox callback for that Experiment, so the callback always reads an assigned variable:
-
-```ts
-// experiments/compare/claude--nowledge.ts
-import { defineExperiment } from "niceeval";
-import { e2bSandbox } from "niceeval/sandbox";
-import { nowledgeAgent, nowledgeTunnel } from "../../agents/nowledge.ts";
-import { loadMemoryState, saveMemoryState } from "../shared/memory-state.ts";
-
-let tunnel: { url: string; apiKey: string; stop(): Promise<void> };
-
-export default defineExperiment({
-  agent: nowledgeAgent(() => ({ url: tunnel.url, apiKey: tunnel.apiKey })),
-  evals: ["memory/"],
-  maxConcurrency: 1,
-  sharedState: { key: "nowledge/claude/cohort-a" },
-  sandbox: e2bSandbox({ template: "niceeval-agents" })
-    .before(async (sandbox, ctx) => {
-      // Once per real Attempt, after Experiment-level setup: write host-side coordinates into the Sandbox.
-      await sandbox.writeText(
-        ".nowledge/config.json",
-        JSON.stringify({ url: tunnel.url, apiKey: tunnel.apiKey }),
-      );
-      await loadMemoryState(sandbox, ctx.experimentId);
-      ctx.onCleanup(async (sandbox) => {
-        await saveMemoryState(sandbox, ctx.experimentId);
-      });
-    }),
-  async setup(ctx) {
-    tunnel = await nowledgeTunnel({ signal: ctx.signal }); // Once for the whole Experiment, on the host.
-  },
-  async teardown() {
-    await tunnel?.stop(); // Tear down after every Attempt finishes.
-  },
-});
-```
-
-Read an Experiment file from top to bottom as a complete run description. Host resources that run once for the whole Experiment are in the Experiment-level Hook pair. Per-Attempt Sandbox writes and registered cleanup live in the chained `sandbox` callback and read the Experiment-level output. How an Agent connects to the subject under test and an Eval's Fixtures belong in the Agent definition and `EvalDef`, not the Experiment file.
-
-### Share one lifecycle implementation across Experiments
-
-A comparison group often has several Experiments aimed at the same kind of infrastructure: for example, Claude and Codex cells for one memory product, with identical startup and shutdown mechanics. Put that work in a **factory function** that returns a full kit sharing one closure: the Experiment-level Hook pair, a getter Agents and MCP factories use to read coordinates, and a Sandbox command that writes the coordinates into a Sandbox. Each Experiment file calls the factory separately, so it has the same code but its own instance and coordinates:
-
-```ts
-// experiments/shared/nowledge.ts — one lifecycle implementation; one instance and coordinates per Experiment
-import type { ExperimentHookContext } from "niceeval";
-import type { SandboxCommand } from "niceeval/sandbox";
-
-export function nowledgeLifecycle() {
-  let instance: string | undefined;
-  let env: { url: string; apiKey: string } | undefined;
-
-  return {
-    /** The Agent / MCP factory reads connection information through this closure value; it exists only after setup. */
-    endpoint: () => env!,
-
-    async setup(ctx: ExperimentHookContext) {
-      instance = `exp-${ctx.experimentId.replace(/[^A-Za-z0-9]+/g, "-")}`;
-      ctx.progress({ message: `[nowledge] activating ${instance}` });
-      await memctl("up", instance); // Container + tunnel, with a fresh memory store
-      env = await readInstanceEnv(instance);
-    },
-
-    async teardown(ctx: ExperimentHookContext) {
-      if (!instance) return; // Setup threw before an instance was created, so there is nothing to clean up.
-      await memctl("down", instance); // Release is mandatory.
-    },
-
-    /** Once per real Attempt: write closure coordinates into the Sandbox. */
-    sandboxBefore(): SandboxCommand {
-      return async (sandbox) => {
-        await sandbox.writeText(
-          ".nowledge/env",
-          `NMEM_URL=${env!.url}\nNMEM_API_KEY=${env!.apiKey}\n`,
-        );
-      };
-    },
-  };
-}
-```
-
-In an Experiment file, changing Agents changes only the Agent lines; four lifecycle lines complete the connection:
-
-```ts
-// experiments/compare/codex-gpt-5.4--nowledge.ts
-const nowledge = nowledgeLifecycle();
-export default defineExperiment({
-  agent: codexAgent(nowledgeCodexConfig(nowledge.endpoint)),
-  sandbox: e2bSandbox({ template: CODEX_TEMPLATE }).before(nowledge.sandboxBefore()),
-  setup: nowledge.setup,
-  teardown: nowledge.teardown,
-  maxConcurrency: 1, // Centralized memory store: Attempts accumulate serially.
-});
-```
-
-Two disciplines keep several Experiments running the same code concurrently from stepping on each other:
-
-- **The factory creates only a closure at import time. It does no I/O and reads no configuration.** Experiment files are imported during `niceeval exp` discovery; an import-time throw would take unrelated Experiments in the same batch down with it. Leave hard failures for `setup`.
-- **Runtime coordinates live in the factory closure, not a module-level singleton.** Two concurrent Experiments in one batch each have their own copy and cannot overwrite each other. Coordinates exist only after `setup`.
-
-When starting several service instances is too expensive and the Experiments in one batch must share one instance, replace per-Experiment instances with reference counting: start on the first entrant and stop after the last leaves.
-
-```ts
-// experiments/shared/nowledge-shared.ts
-let refs = 0;
-let starting: Promise<void> | undefined;
-let service: { url: string; stop(): Promise<void> } | undefined;
-
-export const sharedNowledge = {
-  async setup() {
-    refs += 1;
-    starting ??= startNowledge().then((s) => { service = s; });
-    await starting; // Concurrent Experiments wait for the same start. A failed start throws for each.
-  },
-  async teardown() {
-    refs -= 1;
-    if (refs === 0) {
-      await service?.stop(); // A failed start leaves service unassigned, so skip defensively.
-      service = undefined;
-      starting = undefined;
-    }
-  },
-};
-```
-
-The paired trigger rule keeps the count balanced: `teardown` runs only when its same-layer `setup` point was reached, and it still runs when `setup` throws. `refs` cannot leak.
-
-The lifecycle boundary is this batch. A service that should survive **across runs**—start it once, then run `niceeval exp` repeatedly—still belongs to external orchestration such as `docker compose`; pass its URL through an environment variable.
-
-## Give different Evals different prebuilt environments
-
-A batch of real tasks can need different runtime and dependency versions. Put the specific template-bearing factory directly on each Eval so the task and execution environment remain one declaration:
+A batch of real tasks may need different runtime versions, for example some tasks need Python 3.9. In that case, write the Sandbox directly on the eval, so the task and the environment it needs live together:
 
 ```ts
 // evals/astropy-2021.eval.ts
 export default defineEval({
   sandbox: e2bSandbox({ template: "codex-python39" }),
   async test(t) {
-    // Drive the task and verify the result.
+    // Send the task and verify the result
   },
 });
 ```
 
+When several evals share the same environment, reuse it with an ordinary function:
+
 ```ts
-// evals/shared/python39.ts — reuse with ordinary TypeScript; do not create a profile registry
+// evals/shared/python39.ts
 import { e2bSandbox } from "niceeval/sandbox";
 
 export const python39 = () => e2bSandbox({ template: "codex-python39" });
 ```
 
-```ts
-// experiments/e2b.ts — the Eval owns the template; the Experiment owns only the Agent
-import { defineExperiment } from "niceeval";
+The Experiment then only needs to specify the Agent, and the same Experiment can still cover every eval. Before creating any Sandbox, NiceEval checks that each eval's environment is compatible with the Experiment's configuration.
 
+## One application with several models
+
+When the application has different internal roles such as planning, replying, and reviewing, each using its own model, assign them by purpose with `models`:
+
+```ts
 export default defineExperiment({
-  agent: codexAgent(),
+  adapter: workflowAdapter,
+  models: {
+    planner: { model: "provider/model-a" },
+    responder: { model: "provider/model-b" },
+    reviewer: { model: "provider/model-a" },
+  },
 });
 ```
 
-There is no profile registry or Sandbox creator table registered by source kind. Each factory owns both its support declaration and implementation. Physical planning validates every selected Eval before it creates any Sandbox. Share repeated templates with ordinary TypeScript helpers. One Experiment can still cover every Eval; link planning pairs each Eval layer with the Experiment layer in turn.
+The Adapter reads this configuration from `ctx.models` and hands it to the application, and on each model request it writes the matching `modelSlot` in `ctx.recordUsage`. That way usage and cost can be counted separately by purpose; roles that are never called incur no cost.
 
-For comparison design across configurations, see [Experiment Matrices](/tutorials/experiments). For how an Adapter uses `ctx.model` and `ctx.flags`, see [Adapter](/explanation/adapter).
+`models` cannot be written together with `model` or `reasoningEffort`. Agent-style Adapters use only a single `model`.
+
+After the run, use `niceeval show @<locator> --usage` to see each model's usage and cost in one run. When Judge usage was not reported, it shows as unavailable, and the total cost gives only the known part.

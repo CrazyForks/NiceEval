@@ -1,35 +1,57 @@
 ---
-title: "Stop Unproductive Runs When Infrastructure Fails"
+title: "Cut Losses When Credentials Expire or a Service Goes Down"
 sidebarTitle: "Handle Execution Failures"
-description: "Understand automatic retries, declare the scope of deterministic failures, and resume incomplete evals after fixing them."
+description: "Learn which failures NiceEval retries automatically; when you find faults that are bound to fail, such as expired credentials or a disconnected shared service, stop the remaining Attempts and, after fixing them, rerun only what did not finish."
 ---
 
-NiceEval automatically retries transient failures that clearly did not reach the Agent, such as rate limits and some network errors. If a failure guarantees that later Attempts in the same Experiment or Eval will fail, you can stop them immediately.
+A batch of 200 evals reaches the 30th, and the API key expires. The remaining 170 are bound to fail, yet each one would still create a Sandbox, call the model, and consume budget.
 
-## Understand automatic retries first
+NiceEval handles two cases:
 
-Automatic retries require no configuration. While a retry waits, the Attempt's active row shows a message like this:
+- For transient failures such as rate limits and network blips, as long as it can confirm the Agent has not received the request yet, NiceEval retries automatically, and you do not need to do anything.
+- For faults such as expired credentials or a disconnected shared service, retrying does not help. You can declare in code which scope it affects, and NiceEval stops dispatching the remaining related Attempts. After the fix, rerun only what did not finish; results already reached are kept as usual.
+
+## First tell a run error from a wrong answer
+
+Before fixing anything, check which kind the failed Attempt is:
+
+- `errored`: the run itself did not complete and produced no result that can be scored. For example, the target service did not start, the protocol does not match, credentials are invalid, a dependency is missing, or the Adapter threw. Fix the run environment and rerun.
+- `failed`: the Attempt completed, but some business assertion was not met. It may really expose a problem in the system under test, or it may mean a criterion is too strict or written wrong. First look at the same Attempt's input, output, assertions, and evidence, then decide whether to change the system under test or the eval.
+
+Do not attribute a real business failure to infrastructure, and do not change criteria just to turn everything green.
+
+A scored eval finishing only means scoring is over. How well it did depends on the score and each assertion; a low-score result does not count as full marks just because it finished.
+
+To see an Attempt's error text, copy the locator the terminal gives you:
+
+```sh
+pnpm exec niceeval show @<attempt-locator>
+```
+
+## Understand automatic retries
+
+Automatic retries need no configuration. While waiting to retry, the Attempt's progress line shows something like:
 
 ```text
 turn retry 2/4 (rate_limit) — waiting 8s
 ```
 
-After a retry succeeds, the Verdict and event stream retain only the successful Turn. When the retries run out, the Attempt becomes `errored` and its error includes a summary:
+After a successful retry, scoring and the conversation record keep only the successful Turn. When retries run out, the Attempt becomes `errored`, and the error contains a summary:
 
 ```text
 retries exhausted (4 attempts, rate_limit)
 ```
 
-Without that summary, NiceEval did not retry the error. Requests the Agent has already accepted, or whose acceptance status is uncertain, are never retried automatically because repeating them might duplicate side effects.
+Without this summary, NiceEval did not retry the error. Requests the Agent has already received, or that cannot be confirmed as not received, are never retried automatically, to avoid repeating operations with side effects.
 
-## Declare the scope when you discover a failure
+## Declare the affected scope when you find a fault
 
-When you inspect a shared service or a Fixture yourself, throw an error with a scope directly:
+When you check a shared service or Fixture yourself, you can throw an error that carries the affected scope:
 
-- `ExperimentFatalError` stops unstarted Attempts in the same Experiment. Use it for shared services, shared credentials, and Experiment-level configuration failures.
-- `EvalFatalError` stops only unstarted Attempts in the current Eval. Use it for a deterministically missing Fixture or a prerequisite that belongs only to that Eval.
+- `ExperimentFatalError` stops the Attempts of the same experiment that have not started. It suits shared services, shared credentials, and experiment-level configuration faults.
+- `EvalFatalError` stops only the current eval's Attempts that have not started. It suits a Fixture that is deterministically missing, or prerequisite resources dedicated to that eval.
 
-This Eval stops its remaining Attempts when its Fixture is missing:
+The eval below stops its own remaining Attempts when the Fixture is missing:
 
 ```ts
 // evals/coding/fix-button.eval.ts
@@ -40,16 +62,17 @@ export default defineEval({
     const fixture = await t.sandbox.runCommand("test", ["-f", "src/Button.tsx"]);
     if (fixture.exitCode !== 0) {
       throw new EvalFatalError(
-        "The Fixture is missing src/Button.tsx. Run pnpm fixtures:sync, then rerun the Eval.",
+        "Fixture is missing src/Button.tsx. Run pnpm fixtures:sync first, then rerun the eval.",
       );
     }
 
-    await t.send("Fix the Button keyboard-focus issue.");
+    await t.send("Fix the Button keyboard focus issue.");
   },
 });
 ```
 
-When a shared service is unavailable, make that check inside a real Eval's `test(t)` callback. Replace `serviceHealthUrl` with your service's health endpoint, then use `ExperimentFatalError` to stop the Experiment's remaining Attempts:
+When a shared service is unreachable, put the check in the `test(t)` callback of a real eval. First replace
+`serviceHealthUrl` with the service's health check address, then use `ExperimentFatalError` to stop the remaining Attempts of the same experiment:
 
 ```ts
 // evals/coding/shared-service-health.eval.ts
@@ -62,7 +85,7 @@ export default defineEval({
     const health = await t.sandbox.runCommand("curl", ["-fsS", serviceHealthUrl]);
     if (health.exitCode !== 0) {
       throw new ExperimentFatalError(
-        "The shared service is unreachable. Check the service and tunnel, then rerun the Experiment.",
+        "The shared service is unreachable. Check the service and tunnel, then rerun the experiment.",
         { cause: health.stderr },
       );
     }
@@ -70,11 +93,11 @@ export default defineEval({
 });
 ```
 
-The error message appears in the terminal and the run record. State what happened and what the reader should do next.
+The error message appears in the terminal and in the run record. State what happened and how to fix it next.
 
-## Identify shared services that disconnect during a run
+## Recognize a shared service that disconnects mid-run
 
-Some shared services work when an Experiment begins but disconnect later. An SDK, CLI, or network library usually throws that failure. Use an Experiment's `classifyFailure` to recognize your own service address:
+Some shared services are fine when the experiment starts but disconnect during the run. Such failures are usually thrown by an SDK, CLI, or network library. You can recognize your own service address with the experiment's `classifyFailure`:
 
 ```ts
 // experiments/compare.ts
@@ -83,7 +106,7 @@ import { defineExperiment } from "niceeval";
 const serviceHost = "memory.internal.example";
 
 export default defineExperiment({
-  // Agent and Sandbox configuration omitted
+  // agent and sandbox configuration omitted
   classifyFailure({ text }) {
     const isOurService = text.includes(serviceHost);
     const isConnectionFailure = /ECONNREFUSED|ENOTFOUND|connection refused/i.test(text);
@@ -100,22 +123,30 @@ export default defineExperiment({
 });
 ```
 
-Recognize only services whose scope you can determine. Do not treat every `ECONNREFUSED` as an Experiment-level failure: the Agent can see the same error while reaching another site.
+Only recognize services whose affected scope you are sure of. Do not treat every `ECONNREFUSED` as an experiment-level fault, because the Agent may hit the same error when visiting other sites.
 
-## Resume the run after fixing it
+## After fixing, rerun what did not finish
 
-After stopping work, failed Attempts are recorded as `errored`. Attempts that never began are `unstarted`, and the run status shows `incomplete`.
+Once loss-cutting takes effect, Attempts in that scope that have not started are no longer dispatched and are recorded as `unstarted`, and the run status shows `incomplete`. Attempts already running finish and record their results honestly; those that triggered the fault are recorded as `errored`.
 
-After you fix the service, credentials, or Fixture, rerun the original command. NiceEval keeps the passed results and runs the parts that were previously `errored` or `unstarted`.
+First look at this run's results and confirm that the stopped scope matches what you expected. The Run ID is in the terminal's `NEXT` panel:
 
-```shell
-npx niceeval exp compare evals/coding
+```sh
+pnpm exec niceeval show --run <run-id>
 ```
 
-To inspect an Attempt's raw error and retry summary, use the locator printed by the terminal:
+You can also view it in the browser with `pnpm exec niceeval view --run <run-id>`. To see an Attempt's raw error and retry summary, copy its locator:
 
-```shell
+```sh
 pnpm exec niceeval show @<attempt-locator> --execution
 ```
 
-A custom Adapter can provide `classifySendFailure` when it has a dedicated pre-acceptance rejection signal. See its type and boundaries in the [`defineSandboxAgent` reference](/reference/define-agent#definesandboxagent).
+After fixing the service, credentials, or Fixture, run the original command again:
+
+```sh
+pnpm exec niceeval exp compare evals/coding
+```
+
+`errored` and `unstarted` Attempts run again, and passed results are reused as usual. Add `--dry` before running to confirm which will rerun; for the rules, see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).
+
+If a custom Adapter can clearly recognize a protocol signal meaning "the request was rejected and not yet accepted", it can provide `classifySendFailure` to mark such failures as retryable. For field types and boundaries, see the [`defineSandboxAgent` reference](/reference/define-agent#definesandboxagent).

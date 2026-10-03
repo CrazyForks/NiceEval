@@ -1,75 +1,82 @@
 ---
-title: "Recover After a Forced Kill"
-description: "After kill -9, a CI timeout, or a power loss interrupts a process, preserve published results, close a Run that lost its owner, and reclaim leftover Sandboxes."
+title: "Recover after a forced kill"
+sidebarTitle: "Recover after a kill"
+description: "After kill -9, a CI timeout, or a power loss interrupts the process, keep the results that already finished, end the Run that lost its process, and reclaim leftover Sandboxes."
 ---
 
-When `niceeval exp` is interrupted directly by `kill -9`, a CI time limit, or power loss, the process cannot run its cleanup. Published Attempts remain readable in the project's single `.niceeval/record.sqlite`; unpublished work never becomes partial public fact.
+When `niceeval exp` is interrupted directly by `kill -9`, a CI time limit, or a power loss, the process has no chance to clean up. Attempts that already finished are still saved in the project's `.niceeval/record.sqlite` and can be read as usual; unfinished ones never leave half-written results.
 
-Normal Ctrl+C and SIGTERM follow a controlled interruption path: NiceEval publishes completed Attempts and closes the remaining slots with an interruption reason. This page covers only cases where the process never had a chance to clean up.
+When you press Ctrl+C or send SIGTERM normally, NiceEval cleans up by itself: it saves the finished Attempts and marks the remaining planned Attempts as interrupted. This page only covers cases where the process had no chance to clean up.
 
-## Inspect published results first
+## Look at the saved results first
 
-List the Runs created by the Invocation. If you have the Invocation ID, use it to narrow the list:
-
-```bash
-niceeval run list --invocation <invocation-id>
-niceeval run show <run-id>
-niceeval view --run <run-id>
-```
-
-An `active` Run still shows published Attempts, while unpublished expected slots appear as `pending`. Do not decide that it can be taken over from elapsed time, an expired PID, or a stopped heartbeat.
-
-## Close a Run that lost its owner
-
-Recover only after confirming that the original process has ended:
+List the Runs this run created. If you got the `invocationId` from `--json` output or the CI log, use it to narrow the list:
 
 ```bash
-niceeval run recover <run-id> --yes
+pnpm exec niceeval run list --invocation <invocation-id>
+pnpm exec niceeval run show <run-id>
+pnpm exec niceeval show --run <run-id>
 ```
 
-`run recover` verifies the former owner's exact process identity. After verification succeeds, it closes the Run as `interrupted` and records an absence reason for each unpublished slot. It does not delete the Run or published Attempts, and it does not let the old generation write again.
+You can also look in the browser: `pnpm exec niceeval view --run <run-id>`.
 
-The command refuses recovery when evidence is insufficient. Confirm that the original process, CI job, and any remote workers have stopped, then check again; do not substitute a timeout or "it has waited too long" for owner evidence.
+A Run that was force-killed is still `active`. It shows the Attempts that already finished, and the ones that did not run show as `pending`. Do not decide it can be taken over based on how long it has run, an expired PID, or a stopped heartbeat.
 
-To obtain results again, rerun the original Experiment. The new Invocation creates a new Run; whether it adopts existing Attempts depends on the current Experiment's eligibility and `--rerun` policy.
+## End the Run that lost its process
+
+Run the recovery only after confirming the original process has ended:
+
+```bash
+pnpm exec niceeval run recover <run-id> --yes
+```
+
+`run recover` first verifies that the original process really has ended. Once verified, it marks the Run `interrupted` and records why each unfinished Attempt is missing. It does not delete the Run or the finished Attempts, and the original process cannot write again even if it lingers.
+
+When the evidence is insufficient, the command refuses to recover. In that case, first confirm that the original process, the CI job, and any remote workers have all stopped, then retry. Do not bypass this check because "it has waited long enough".
+
+## Rerun the unfinished part
+
+When you need complete results, run the original Experiment again. The new run creates a new Run; Attempts that finished last time and meet the reuse conditions are reused, and the rest run again. Before running, you can add `--dry` to see which will be reused and which will rerun. For the rules, see [Rerun only the evals affected by a change](/tutorials/rerun-and-cache).
 
 ## Reclaim Sandboxes left by a forced kill
 
-Sandboxes running at the time of a forced kill do not enter the retention registry. First inspect orphaned instances without modifying them:
+Sandboxes that were running at the time of a forced kill are not registered, so `niceeval sandbox list` does not show them. First list these leftover instances read-only:
 
 ```bash
-niceeval sandbox list --orphans
+pnpm exec niceeval sandbox list --orphans
 ```
 
-After confirmation, reclaim them:
+After confirming, reclaim them:
 
 ```bash
-niceeval sandbox prune
+pnpm exec niceeval sandbox prune
 ```
 
-- `orphan` means the owner on the same host is proven to have ended and the Sandbox can be destroyed safely.
-- `unverified` means the instance came from another host or cannot be confirmed; it is not deleted by default. Use `niceeval sandbox prune --force` only after confirmation.
+- `orphan` means the process that created it on the same host is proven to have ended, so it can be destroyed safely.
+- `unverified` means it came from another host or cannot be confirmed, and it is not deleted by default. Use `pnpm exec niceeval sandbox prune --force` only after confirming nobody is using it.
 - Compose companion containers and networks are listed and destroyed as a group.
-- Vercel Sandbox has no queryable orphan channel; it is reclaimed under the Provider's retention policy.
-- Environments retained with `--keep-sandbox` are unaffected by `prune`; continue managing them with `niceeval sandbox stop`.
+- Vercel Sandbox leftovers cannot be looked up; they are reclaimed when the Provider's retention period ends.
+- Environments kept with `--keep-sandbox` are not affected by `prune`. Keep managing them with `niceeval sandbox stop`; see [Keep Sandbox state to debug problems](/troubleshooting/debug-sandbox).
 
 ## Recover a shared-state lease
 
-An Experiment that declares `sharedState.key` does not start a new Invocation with the same key until the original owner releases the lease normally or an operator completes explicit recovery. First run the inspection command without a token to read current owner evidence:
+For an Experiment that declares `sharedState.key`, only one run can hold the same key at a time. When the original run did not release it normally, new runs keep waiting until you recover it explicitly.
+
+First run the check command without a token to see the current holder's information:
 
 ```bash
-niceeval exp <experiment> --teardown \
+pnpm exec niceeval exp <experiment> --teardown \
   --recover-shared-state <key>
 ```
 
-After confirming that the original owner has ended and that the remote service and checkpoint it controlled are quiescent, copy the displayed token and confirm explicitly:
+After confirming that the original run has ended, and that the remote services and checkpoints it operated on have stopped changing, copy the token the command shows and confirm explicitly:
 
 ```bash
-niceeval exp <experiment> --teardown \
+pnpm exec niceeval exp <experiment> --teardown \
   --recover-shared-state <key> \
   --owner-token <displayed-token> \
   --confirm-owner-terminated \
   --confirm-remote-quiesced
 ```
 
-Recovery reruns `teardown` only for that Experiment. A wrong or stale token, or failed cleanup, never releases a later owner's lease. After fixing teardown, retry with the currently displayed token.
+Recovery reruns `teardown` only for this Experiment. When the token is wrong, the token has expired, or teardown fails, the lease is not released, and later holders' leases are not affected. After fixing teardown, try again with the token currently shown.

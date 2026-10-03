@@ -1,16 +1,17 @@
 ---
 title: "defineConfig: Project Defaults"
 sidebarTitle: "defineConfig"
-description: "defineConfig reference: judge, reporters, concurrency, timeout, and Sandbox defaults."
+description: "defineConfig reference: Judge Runtime, Reporters, concurrency, timeout, and Sandbox defaults."
 ---
 
 `defineConfig` is the default export from `niceeval.config.ts` at the project root and holds only project-level defaults. Agent, model, Flags, Attempts, and Experiment budgets belong in `defineExperiment` files under `experiments/`.
 
 ```ts
 import { defineConfig } from "niceeval";
+import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judge: { model: "gpt-5.4-mini" },
+  judgeRuntime: OpenAIProvider({ model: "gpt-5.4-mini", maxOutputTokens: 512 }),
   maxConcurrency: 4,
   timeoutMs: 300_000,
 });
@@ -29,7 +30,8 @@ export default defineConfig({
 name?: LocalizedText;
 ```
 
-The project name, shown in the hero (`<h1>`) at the top of `niceeval view`; it falls back to a generic title when omitted. It can be a string, or text in multiple locales (such as `{ en: "...", "zh-CN": "..." }`) that switches with the view language.
+The project name, shown in the hero (`<h1>`) at the top of `niceeval view`; it falls back to a generic title when omitted.
+It can be a string, or text in multiple locales (such as `{ en: "...", "zh-CN": "..." }`) that switches with the view language.
 
 #### `workspace`
 
@@ -37,15 +39,15 @@ The project name, shown in the hero (`<h1>`) at the top of `niceeval view`; it f
 workspace?: string;
 ```
 
-The workspace root uploaded into a Sandbox. It defaults to the project root, and an Eval's Sandbox view starts from here.
+The workspace root uploaded into a Sandbox; it defaults to the project root. An Eval's Sandbox view starts from here.
 
-#### `judge`
+#### `judgeRuntime`
 
 ```ts
-judge?: JudgeConfig;
+judgeRuntime?: JudgeProvider;
 ```
 
-The project-level default Judge configuration (`model` / `baseUrl` / `apiKeyEnv`). `EvalDef.judge` can override it per Eval.
+The project-level default Judge Provider; an Eval or Experiment can replace the model or the whole Provider.
 
 #### `reporters`
 
@@ -53,7 +55,7 @@ The project-level default Judge configuration (`model` / `baseUrl` / `apiKeyEnv`
 reporters?: Reporter[];
 ```
 
-The project-level default Reporter list, such as persisting or uploading results. `EvalDef.reporters` merges with it.
+The project-level default Reporter list (for example, persisting or uploading results); `EvalDef.reporters` merges with it.
 
 #### `maxConcurrency`
 
@@ -61,7 +63,7 @@ The project-level default Reporter list, such as persisting or uploading results
 maxConcurrency?: number;
 ```
 
-The project-level default concurrency limit. The CLI Flag or Experiment setting with the same name has higher priority; there is no environment-variable layer.
+The project-level default concurrency limit; the CLI flag or Experiment setting with the same name has higher priority (there is no environment-variable layer).
 
 #### `maxBuildConcurrency`
 
@@ -69,7 +71,23 @@ The project-level default concurrency limit. The CLI Flag or Experiment setting 
 maxBuildConcurrency?: number;
 ```
 
-Concurrency for preparing Sandbox images at the Run level. It is independent of Attempt concurrency and defaults safely to `2` when omitted.
+Run-level concurrency for preparing Sandbox images; independent of Attempt concurrency, with a safe default of 2 when omitted.
+
+#### `maxSetupPrefixConcurrency`
+
+```ts
+maxSetupPrefixConcurrency?: number;
+```
+
+Run-level concurrency for preparing the PreparedArtifact prefix DAG; independent of build and Attempt concurrency.
+
+#### `sandboxCache`
+
+```ts
+sandboxCache?: SandboxCacheConfig;
+```
+
+The project-level SetupPrefix cache default; an Experiment or an explicit CLI flag can override it.
 
 #### `timeoutMs`
 
@@ -77,7 +95,7 @@ Concurrency for preparing Sandbox images at the Run level. It is independent of 
 timeoutMs?: number;
 ```
 
-The project-level default timeout for one Attempt, in milliseconds. The CLI Flag, Experiment, or `EvalDef` setting with the same name takes priority.
+The project-level default timeout for one Attempt (milliseconds); the CLI flag, Experiment, or `EvalDef` setting with the same name has higher priority.
 
 #### `telemetry`
 
@@ -85,9 +103,14 @@ The project-level default timeout for one Attempt, in milliseconds. The CLI Flag
 telemetry?: { host?: string; port?: number };
 ```
 
-OTLP receiver configuration: the only entry point inside a niceeval project. It does not read `NICEEVAL_OTLP_*` environment variables. `port` pins the receiving port. In fixed-port mode, a long-running service points `OTEL_EXPORTER_OTLP_ENDPOINT` once at `http://localhost:<port>/v1/traces`, and does not need to change it for any number of Eval runs. When omitted, each run dynamically assigns a temporary port and supplies it to the Adapter through `ctx.telemetry`. The tradeoff is that only one niceeval process on the machine can use a fixed port at a time, and an error occurs if another process already uses that port. Choose an available port and write it here.
-
-`host` is the receiver hostname reported to the Adapter, not the listening address, which is always `0.0.0.0`. It defaults to `"127.0.0.1"`. Override it only after providing a controlled tunnel or reachable route. A Docker Sandbox puts the receiver inside the Sandbox by default and does not rely on an implicit host gateway.
+OTLP receiver configuration, the only entry point inside a niceeval project (it does not read `NICEEVAL_OTLP_*` environment variables).
+`port` pins the receiving port (fixed-port mode: a long-running service points `OTEL_EXPORTER_OTLP_ENDPOINT` once at
+`http://localhost:<port>/v1/traces`, and never changes it no matter how many Eval runs follow). When omitted, each run dynamically assigns
+a temporary port (handed to the Adapter through `ctx.telemetry`). The tradeoff: with a fixed port, only one niceeval process can run on the machine at a time,
+and an error occurs if another process holds that port; pick a free port and write it back here.
+`host` is the receiver hostname reported to the Adapter (not the listening address, which is always `0.0.0.0`); it defaults to
+`"127.0.0.1"`. Override it here only when you already provide a controlled tunnel or reachable route; a Docker Sandbox
+puts the receiver inside the Sandbox by default and does not rely on an implicit host gateway.
 
 #### `pricing`
 
@@ -95,10 +118,14 @@ OTLP receiver configuration: the only entry point inside a niceeval project. It 
 pricing?: globalThis.Record<string, PriceOverride>;
 ```
 
-User overrides or additions to the built-in price table (`o11y/prices.json`), looked up by model. See Observability · Usage and Cost. A key can be an exact model name or a `provider/*` wildcard, which applies a self-hosted or gateway discount in bulk by Provider. Exact keys take priority over wildcards. `pricing` drives only the `estimatedCostUSD` estimate from `estimateCost`; it is unrelated to `usage.costUSD`, the observed gateway cost. Both facts exist independently and neither fills in for the other. This is a runtime/Config price table; fixed Inspection operations do not take it as another input.
+User overrides or additions on top of the built-in price table (`o11y/prices.json`), looked up by model (see Observability
+· Usage and Cost). A key can be an exact model name or a `provider/*` wildcard (to override self-hosted or gateway discounts in bulk per Provider);
+exact keys take priority over wildcards. The Runner uses it to compute the budget estimate for `maxCost`; the Adapter physical-call
+collector seals a matching explicit fixed profile as a call-bound estimate proof only when reported cost is absent.
+Inspection reads only sealed proofs; it does not take mutable config as an operation input, and does not backfill historical calls by endpoint.
 
 {/* GENERATED:END config-fields */}
 
-> Cost boundary: this `pricing` provides only Runner Config/runtime price-table input. The Runner produces `estimatedCostUSD` from the `model`, reported token usage, and this table whether or not `Usage.costUSD` exists. The Experiment budget and `t.maxCost()` use that estimate; `Usage.costUSD` does not. Fixed Inspection operations do not turn runtime pricing configuration into another input.
+> Cost boundary: this `pricing` only provides the Runner's Config/runtime price-table input. Whether or not `Usage.costUSD` already exists, the Runner independently produces `estimatedCostUSD` from the `model`, the reported token usage, and this table. The Experiment budget and `t.maxCost()` use that estimate; `Usage.costUSD` does not drive it. Reading results uses fixed Inspection operations, which do not turn runtime price configuration into another input.
 
-[NiceEval](https://niceeval.com/) keeps environment preparation in ordinary code. An Eval writes its own required files in `test(t)`, and an Agent's preparation belongs in Adapter setup. `Config` deliberately has no `sandbox` field and does not auto-detect a Provider. Declare a template-bearing `SandboxLayer` on the Eval or Experiment, so link planning can determine its owner and pairing result before it creates any resources.
+[NiceEval](https://niceeval.com/) keeps environment preparation in ordinary code: files an Eval needs go in `test(t)`, and an Agent's own preparation goes in the Adapter's setup. `Config` deliberately has no `sandbox` field and does not auto-detect a Provider. Declare a template-bearing `SandboxLayer` on the Eval or Experiment so link planning settles its owner and pairing result before creating any resources.

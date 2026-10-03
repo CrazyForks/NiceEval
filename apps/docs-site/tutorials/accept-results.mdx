@@ -1,72 +1,82 @@
 ---
-title: "Review and Accept Historical Attempts"
+title: "Confirm Old Results Still Hold and Skip a Rerun"
 sidebarTitle: "Accept Historical Attempts"
-description: "Get candidate locators from --dry, inspect immutable Attempts, explicitly accept selected results with niceeval accept, and verify the denominator and origin with a new Run ID."
+description: "When configuration changes and NiceEval will not reuse old results, but you have confirmed they are unaffected, accept them explicitly with niceeval accept and save a paid rerun."
 ---
 
-Automatic carry can be rejected when configuration identity changes. If you have reviewed a historical Attempt and confirmed that it still holds under the new configuration, use `niceeval accept` to accept it explicitly.
+You moved your company's base image from an old registry to a new one. The image content did not change by a single byte; only the image address in the Experiment changed. NiceEval sees that the configuration changed, so it does not reuse the last results automatically, and `--dry` shows that the whole batch must run again. You know the change does not affect any task, but rerunning the whole batch costs real money.
 
-Do not use this command to bypass a real change in evaluation conditions. Rerun and collect new evidence when the task, assertions, Agent behavior, or Sandbox starting point has changed.
+In this case, use `niceeval accept` to accept those old results explicitly. NiceEval does not let them through on your word alone. It verifies on its own that the change really does not affect the results. Only two kinds of change pass that check:
 
-## Get candidate locators from the plan
+- The Experiment was renamed and nothing else changed. You can also rename directly with `niceeval exp rename`; see the [CLI reference](/reference/cli).
+- The image reference of the official `dockerSandbox` changed address, but both the old and new references spell out the same `@sha256:` digest and a complete platform. Tag-only images do not qualify, because the content a tag points to may have changed.
 
-Preview the current target first:
+Any change to the model, flags, Judge, task, assertions, or scores is rejected with `accept-ineligible`. Those changes can really change the result, so you should rerun.
+
+## Find acceptable old results in the run plan
+
+First preview the Experiment you are about to run:
 
 ```sh
 pnpm exec niceeval exp checkout --dry
 ```
 
-Historical results blocked by an identity difference show their full Attempt locator and a runnable `accept` suggestion. The locator is the only scope authorized by this operation; the command never implicitly selects other results from the same Run or Experiment.
+Old results that cannot be reused automatically because of a configuration change show their full Attempt locator, along with an `accept` command you can copy directly. The locators you put in the command are the entire scope of the acceptance. NiceEval does not accept other results from the same Run or the same Experiment along the way.
 
-## Inspect the historical Attempt
+If all the old results come from the same Run and all of them can be accepted, `--dry` suggests `niceeval accept --run <run-id> --dry` instead, so you can preview the whole Run at once.
 
-Use the full locator to inspect the immutable result in the terminal:
+## Check the old result before accepting it
+
+Open the old Attempt in the terminal with its full locator:
 
 ```sh
 pnpm exec niceeval show @1K1P0VJAPVJ12
 ```
 
-Review the Verdict, Assertions, usage, timing, and evidence. To review the source Run's full denominator, also use:
+Check the verdict, assertions, usage, duration, and evidence, and confirm this is the result you want to keep. When you need to see the whole Run it belonged to, open that Run:
 
 ```sh
+pnpm exec niceeval show --run <source-run-id>
 pnpm exec niceeval view --run <source-run-id>
 ```
 
-## Accept the results you need in one operation
+## Accept the results you need
 
 ```sh
 pnpm exec niceeval accept @1K1P0VJAPVJ12
 ```
 
-When one Experiment has several results to accept, put their locators in the same command:
+When the same Experiment has several results to accept, put all the locators in one command:
 
 ```sh
 pnpm exec niceeval accept @1K1P0VJAPVJ12 @1K1P0VJAPVJ13
 ```
 
-NiceEval validates every input before it proceeds. If any locator is invalid, ineligible, or conflicts with another input, the command publishes no business result at all.
+To see what would happen without writing anything, add `--dry`.
 
-After success, every target slot points to the original Attempt with `reference` and records the `accepted` action. The source Attempt's facts, source Run, and locator are neither modified nor copied.
+NiceEval checks every input first. If any locator is invalid, ineligible, or conflicts with another input, the command writes no results at all. It never accepts half of them.
 
-## Verify the new Run
+On success, NiceEval creates a new Run that references the original Attempts in the matching positions and records that you accepted them explicitly. The original Attempt, its Run, and its locator stay unchanged, and the result is not copied.
 
-Success feedback shows the new Run ID:
+## Check the new Run
+
+The success output shows the new Run ID. Open it to confirm the results:
 
 ```sh
-pnpm exec niceeval view --run <accepted-run-id>
+pnpm exec niceeval show --run <accepted-run-id>
 ```
 
-This Run retains the current Experiment's full expected-slot denominator. Positions selected in the command are `accepted`; sibling slots not selected are `not-dispatched`. When you accept only part of the positions, the Report accurately shows incomplete result coverage.
+The denominator of this Run is still every Attempt the current Experiment plans to run. Positions you accepted show as `accepted`, and positions you did not accept show as `not-dispatched`. If you accepted only some of them, the report shows honestly that the results are incomplete.
 
-Every `accept` publishes a new Run. It never modifies or merges with a previous invocation. Put results in one command when they need to form the same acceptance boundary.
+Each `accept` creates a new Run. It does not modify or merge an earlier acceptance. To get a batch of results into the same Run, put them in the same command.
 
 ## Common failures
 
 | Error | Next step |
 | --- | --- |
-| `malformed-locator` | Copy the complete uppercase locator from `--dry` or a fixed query result; do not use an old UUID or ambiguous prefix. |
-| `locator-not-found` | Confirm that you are reading the same Record. When reading a copied SQLite file, pass `--record` explicitly to `show`. |
-| `accept-ineligible` | Follow the message to check the Verdict, timeout, identity, or Observability. Rerun if you cannot prove the result still holds. |
-| `duplicate-accept-member` | Keep one locator for every target slot and remove duplicate or conflicting input. |
+| `malformed-locator` | Copy the full uppercase locator from the `--dry` or `show` output. Do not use an old UUID or a shortened prefix. |
+| `locator-not-found` | Make sure you run the command in the same project that produced the locator, and copy it exactly from the `--dry` or `show` output. |
+| `accept-ineligible` | Follow the hint to check the verdict, timeout, configuration change, or duration record. When you cannot prove the old result still holds, run it again. |
+| `duplicate-accept-member` | Keep only one locator per position and remove duplicate or conflicting inputs. |
 
-For the choice between automatic carry and forced reruns, see [Rerun and Carry Results](/tutorials/rerun-and-cache).
+To choose between automatic reuse and a forced rerun, see [Rerun Only the Evals Affected by a Change](/tutorials/rerun-and-cache).

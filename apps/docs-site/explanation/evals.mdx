@@ -1,12 +1,14 @@
 ---
-title: "Evals in NiceEval: lifecycle, Verdicts, and files"
+title: "Eval cases in NiceEval: lifecycle, verdicts, and files"
 sidebarTitle: "Evals"
-description: "An Eval is a test case: a description and a test function, kept agent-neutral. Learn how Evals are discovered, scheduled, scored, and reported."
+description: "An eval case says what to send and what counts as correct, without binding to a system under test. Learn how eval cases are discovered, scheduled, scored, and reported."
 ---
 
-An Eval is a runnable test case. It is usually exported from a `*.eval.ts` file and declared with `defineEval`.
+An eval case says what to send and what counts as correct. It is usually exported from a `*.eval.ts` file and declared with `defineEval`.
 
-## What an Eval contains
+It reads like a unit test, but the output of the system under test is nondeterministic. The same eval case runs several times according to the Experiment's `attempts`. Each run is one Attempt, and together they give a pass rate or a score.
+
+## What an eval case contains
 
 ```ts
 import { defineEval } from "niceeval";
@@ -30,10 +32,10 @@ Core fields:
 | Field | Description |
 |---|---|
 | `description` | A human-readable description shown in reports |
-| `sandbox` | An optional Sandbox layer owned by the Eval; omit it when the Experiment provides the template-bearing layer |
+| `sandbox` | Optional. This eval case's own Sandbox configuration; omit it when the Experiment already names the prebuilt environment |
 | `test(t)` | The interaction and assertion logic |
 
-An Eval does not declare which Agent to run. It stays agent-neutral by default, so the same Eval can run against different Agents under different Experiments. The Experiment chooses the Agent; the CLI does not override it ad hoc.
+An eval case does not declare which Agent to use, so the same eval case can run against different Agents under different Experiments. The Agent is an Experiment field, and the CLI does not override it ad hoc.
 
 <Note>
   Do not write `id` or `name` by hand. [NiceEval](https://niceeval.com/) derives the ID from the file path.
@@ -48,57 +50,57 @@ npx niceeval exp local weather
 npx niceeval exp local weather/brooklyn
 ```
 
-This keeps IDs stable and readable, and naturally aligned with the directory structure. Positional arguments use a string prefix: `terminal-swe-bench` also matches `terminal-swe-bench-astropy-1`; the following character does not have to be `/`.
+IDs follow the directory structure, so they are stable and readable. Filtering matches by string prefix: `terminal-swe-bench` also matches `terminal-swe-bench-astropy-1`, and the next character does not have to be `/`.
 
 ## Lifecycle
 
 <Steps>
-  <Step title="Discovery">
+  <Step title="Discover">
     The Runner loads `*.eval.ts` files and Fixture directories under `evals/`.
   </Step>
-  <Step title="Scheduling">
-    It creates an execution plan from concurrency, cache, attempts, and early exit.
+  <Step title="Schedule">
+    It combines concurrency, result reuse, `attempts`, and earlyExit to produce the Attempts for this run.
   </Step>
-  <Step title="agent.send">
-    `t.send()` calls the selected Adapter and receives a standard `Turn`.
+  <Step title="Call the system under test">
+    `t.send()` calls the Adapter selected by the Experiment and receives a standard `Turn`.
   </Step>
-  <Step title="Assertions and Verdict">
-    [NiceEval](https://niceeval.com/) collects value assertions, scoped assertions, and Judge measurements, then registers score contributions.
+  <Step title="Check">
+    NiceEval records every check: value assertions, assertions on the Turn and Session, Judge scores, and each item's score contribution.
   </Step>
-  <Step title="Final state">
-    A pass-style Eval folds assertion results into its final Verdict; a score-style Eval accumulates its official score.
+  <Step title="Judge the outcome">
+    A pass/fail eval combines the check results into a final verdict; a scored eval accumulates a score.
   </Step>
-  <Step title="Report">
-    The console and Reporters output results. Run facts and published Attempt facts are written to the one `.niceeval/record.sqlite` file.
+  <Step title="Save and report">
+    The terminal and Reporters output results; the Run and published Attempts are written to `.niceeval/record.sqlite`.
   </Step>
 </Steps>
 
-## Verdict types
+## Four verdicts
 
-A pass-style Eval Attempt has exactly four terminal states:
+Each Attempt of a pass/fail eval gets exactly one of four verdicts:
 
 <CardGroup cols={2}>
   <Card title="passed" icon="circle-check" color="#22c55e">
-    Every required Boolean Assertion matched, every measurement with `.gate(minimum)` met its threshold, and no execution error occurred.
+    Every required Boolean check is satisfied, every measurement with `.gate(minimum)` reaches its minimum, and no execution error occurred.
   </Card>
   <Card title="failed" icon="circle-xmark" color="#ef4444">
-    At least one required Boolean condition mismatched, or a measurement with `.gate(minimum)` fell below its threshold.
+    At least one required Boolean check is not satisfied, or a measurement with `.gate(minimum)` falls below its minimum.
   </Card>
   <Card title="errored" icon="triangle-exclamation" color="#f59e0b">
-    An execution exception, timeout, or authoring error means this execution cannot form a trustworthy conclusion.
+    An execution exception, a timeout, or a mistake in the eval code means this run cannot reach a trustworthy conclusion.
   </Card>
   <Card title="skipped" icon="forward" color="#6b7280">
-    The Eval actively skipped itself, usually with `t.skip(reason)`.
+    The eval case skipped itself, usually with `t.skip(reason)`.
   </Card>
 </CardGroup>
 
-A score-style Eval's primary reading is its cumulative earned score; higher is better. A score of `0` is normal when there are no score items. The default report shows earned score and does not count normal closed states as pass rate, while retaining the Verdict. A `failed + complete` result cannot enter successful rankings.
+A scored eval is read mainly by its accumulated score, and higher is better. With no scoring items, the score is `0`. Reports show the score by default and do not count it toward the pass rate, but the verdict is still kept. A result with a `failed` verdict does not enter the success ranking even if its score was fully computed.
 
-The `points` in `.score(points)` are the weight of one contribution, not a fixed total score. The default report does not automatically convert earned score into a percentage. Historical mixed Records created before homogeneous admission remain readable, with pass-style and score-style primary readings displayed separately.
+The `points` in `.score(points)` is the weight of that item, not the total score. Reports do not convert scores to percentages automatically. When one Experiment contains both kinds of evals, the report shows the pass rate and the score separately.
 
 ## Verdicts and measurements
 
-Boolean `matched` enters the Verdict by default in a pass-style Eval and is record-only by default in a score-style Eval. Continuous measurements and Judge output are measurements in `[0, 1]`. Both Eval kinds use `.gate(minimum)` on the handle to include a threshold in the Verdict. A failed gate keeps the earned score in a score-style Eval. See [Assert](/explanation/assert) for the complete rules.
+In pass/fail evals, Boolean checks affect the verdict by default. In scored evals, Boolean checks are only recorded by default. Continuous measurements and Judge scores are numbers between 0 and 1. Both kinds of evals use `.gate(minimum)` to set a minimum, and falling below it gives `failed`. In a scored eval, the score already earned is kept when a gate is not met. See [Assertion and Match](/explanation/assert) for the complete rules.
 
 ## The `*.eval.ts` convention
 
@@ -110,9 +112,9 @@ evals/
    └─ refund.eval.ts  # id: billing/refund
 ```
 
-## Array exports and data-driven tests (Dataset fan-out)
+## Array exports and data-driven tests (dataset fan-out)
 
-A file can default-export an array of `defineEval(...)` calls to generate multiple cases from the same logic:
+A file can also default-export an array of `defineEval(...)` calls, generating multiple eval cases from the same logic:
 
 ```ts
 export default rows.map((row) =>
@@ -126,9 +128,9 @@ export default rows.map((row) =>
 );
 ```
 
-This generates IDs such as `sql/0000` and `sql/0001`. See [Dataset fan-out](/tutorials/dataset-fanout).
+This generates IDs such as `sql/0000` and `sql/0001`. See [Data-driven tests](/tutorials/dataset-fanout).
 
 ## Related reading
 
-- [Experiment](/explanation/experiment) — The other half: who to evaluate and how to run it, and why it is separate from the Eval (late binding).
-- [Assert](/explanation/assert) — Assertion and Verdict rules.
+- [Experiment](/explanation/experiment) — The other half: what to evaluate and how to run it, and why it is separate from eval cases.
+- [Assert](/explanation/assert) — Assertion and verdict rules.

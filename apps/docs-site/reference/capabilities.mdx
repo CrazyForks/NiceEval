@@ -19,7 +19,7 @@ There is no separate `capabilities` field on `defineAgent` / `defineSandboxAgent
 | `tracing` (OTLP receiver → `niceeval view` waterfall) | Configure `tracing` for a CLI-style Agent. Configure a fixed `telemetry` port for a long-running application | Spans go only to the timing waterfall; they cannot fill a gap in behavior evidence |
 | Cross-turn continuation and `t.newSession()` isolation | Continue the backend session with `ctx.session.id` / `capture`, or save typed adapter-private history with `ctx.session.get` / `set` | The session connection determines actual behavior; do not infer it from an evidence bit |
 | HITL (`t.respond()`) | `send` returns `status: "waiting"` and `input.requested` | The next response is matched by structured request ID |
-| Compaction visibility | An official parser or complete manual mapping emits a `compaction` event | Raw events go to reports and diagnostics; there is currently no public `eventMatch` selector |
+| Compaction visibility | An official parser or complete manual mapping emits a `compaction` event | Raw events go to reports and diagnostics; they can also be the subject of an ordinary `check(events, match)` |
 
 ## The required six-channel declaration
 

@@ -20,7 +20,7 @@ The three built-in Sandbox Agents—`claude-code`, `codex`, and `bub`—do not a
 
 | Agent | Send and receive | Event stream | Session continuation | HITL | Tracing | Notes |
 |---|---|---|---|---|---|---|
-| `claude-code` | ✅ | ✅ | ✅ (`claude --resume <id>`) | ❌ | ✅ (`http/protobuf` → OTLP, beta Flag) | The built-in parser emits raw `compaction` events for Reports and diagnostics; there is currently no public `eventMatch` selector. |
+| `claude-code` | ✅ | ✅ | ✅ (`claude --resume <id>`) | ❌ | ✅ (`http/protobuf` → OTLP, beta Flag) | The built-in parser emits raw `compaction` events automatically, read by Reports, diagnostics, and an ordinary `check(events, match)` |
 | `codex` | ✅ | ✅ | ✅ (`codex exec resume <id>`) | ❌ | ✅ (`http/json` → OTLP) | The built-in parser emits `compaction` events. |
 | `bub` | ✅ | ✅ | ✅ (`--session-id` + tape continuation) | ❌ | ✅ (`http/protobuf` → OTLP) | The built-in parser emits `compaction` events. |
 

@@ -1,58 +1,109 @@
 ---
 title: "Control the Cost of a Run"
 sidebarTitle: "Control Run Cost"
-description: "Use attempts, early exit, budget, concurrency, and result carry for distinct controls over statistical samples, dispatch stopping, spending protection, and resource use."
+description: "One eval run can cost tens of dollars. Depending on what you want to control, use attempts, early exit, budget, concurrency, and result reuse."
 ---
 
-Before controlling cost, decide what you need to reduce. These controls answer different questions and cannot replace one another.
+A full eval run calls the model hundreds of times, plus Sandbox costs, so the bill easily exceeds expectations. Before controlling cost, decide what you want to save: the number of repeated runs, a ceiling for when things go wrong, or the resources used at the same time.
 
-| Goal | Use |
+Each setting controls one thing, and they cannot replace each other.
+
+| Goal | How |
 | --- | --- |
-| Measure the full stability distribution | Set `attempts: N`; all attempts run by default. |
-| Confirm that it can succeed at least once | Use `--early-exit`. |
-| Add spending protection for each Experiment | Use `--budget <dollars>`. |
-| Limit resources used at the same time | Use `--max-concurrency <number>`. |
-| Skip results that are unaffected | Use default carry or `--rerun`. |
-| Spread Sandbox creation and setup costs | Use `sandboxReuse`. |
+| Measure the full stability distribution | Set `attempts: N`; all of them run by default. |
+| Only confirm it can succeed at least once | Use `--early-exit`. |
+| Protect each Experiment's spending | Use `--budget <USD>`. |
+| Limit resources used at the same time | Use `--max-concurrency <count>`. |
+| Skip results that were not affected | Use default reuse or `--rerun`. |
+| Spread Sandbox creation and preparation costs | Use `sandboxReuse`. |
 
-## Preview the run matrix first
+## See how much will run before running
+
+Before spending money, confirm how many evals and Experiments this run selects, and how many times each eval runs:
 
 ```sh
 pnpm exec niceeval exp regression --dry
 ```
 
-Confirm the number of evals, Experiments, and Attempts first. `--dry` does not predict final model cost, but it catches an incorrect scope or excessive repeat count before dispatch.
+`--dry` calls no model and creates no Sandbox. The first line gives the total number of Attempts in this plan, and each following line is one eval, marking which will reuse last results and which will run again.
 
-## Use early exit when one success is enough
+`--dry` does not predict the final cost. Its job is to catch a wrong scope or too many repetitions before dispatch. When the total is much larger than expected, check the Experiment's `evals` selection and `attempts` first.
+
+## Stop at the first pass when you only care whether it can succeed
+
+When you only want to know "can this task be done" and do not care about the pass rate distribution, turn on early exit:
 
 ```sh
 pnpm exec niceeval exp regression --early-exit
 ```
 
-After one Attempt for an eval passes, its remaining undispatched Attempts are written as `not-dispatched`. In-flight Attempts for the same eval receive cancellation through `ctx.signal`. They stop promptly only when the Adapter observes that signal.
+After one Attempt of an eval gets `passed`, that eval's Attempts that have not started are no longer dispatched and are recorded as `not-dispatched`. Attempts of the same eval that are already running receive a cancellation signal through `ctx.signal`; how quickly they end depends on whether the Adapter responds to that signal promptly.
 
-An Attempt for that eval that settles after a passing sibling has triggered early exit is excluded from the results.
+Attempts of the same eval that return after early exit triggers do not enter the results.
 
-`failed`, `errored`, and `skipped` do not trigger early exit. Do not enable it when you need the complete pass-rate distribution.
+`failed`, `errored`, or `skipped` do not trigger early exit. Do not turn this on when you need the full pass rate distribution. Under default concurrency, several Attempts of the same eval may already be running at once, so nothing is saved; to make it really save money, see [Make early exit actually save money](/tutorials/concurrency#make-early-exit-actually-save-money).
 
-## Set a protective spending limit
+## Set a protective spending ceiling
+
+When you worry that a run might get out of hand and spend more than expected, set a dollar ceiling:
 
 ```sh
 pnpm exec niceeval exp regression --budget 25
 ```
 
-The budget is calculated separately for each Experiment ID. For each completed Attempt, NiceEval derives `estimatedCostUSD` from the Experiment's `model`, reported token usage, and the Config/runtime price table, then adds that estimate to the budget. `usage.costUSD` is observed Provider or Adapter data and never drives the budget. When the accumulated estimate reaches the limit, NiceEval stops dispatching new Attempts; it does not terminate work already running.
+The budget is calculated separately for each Experiment ID. As each Attempt completes, NiceEval estimates its cost (`estimatedCostUSD`) from the Experiment's `model`, the reported token usage, and the price table, then adds it to the budget. The actual amount `usage.costUSD` reported by a Provider or Adapter is only for display and does not take part in the budget decision.
 
-`--budget` is therefore a protective limit, not an exact bill. Final spending can briefly exceed the setting while concurrent work is still settling. If NiceEval lacks a model, token usage, or matching price, it cannot form `estimatedCostUSD`; `usage.costUSD` does not fill that gap. The Runner warns instead of pretending that the budget is still enforceable.
+When the cumulative estimate reaches the ceiling, NiceEval stops dispatching new Attempts; those already running are not stopped midway. So `--budget` is a protective ceiling, not an exact bill: while several concurrent tasks have not settled, the final cost can briefly exceed the setting.
 
-Budget exhaustion leaves a `budget_exhausted` diagnostic, writes undispatched positions as `not-dispatched`, and exits with a nonzero status. Rerun the same scope with a higher budget: eligible completed Attempts carry forward and only the remaining positions run.
+When the budget runs out, you see:
 
-## Concurrency controls resource use only
+- a `budget_exhausted` diagnostic;
+- Attempts that were not dispatched in time recorded as `not-dispatched`;
+- the command exiting with a non-zero status.
+
+After raising the budget, rerun the same scope. Attempts that already completed and qualify for reuse are reused directly, and only the remainder runs.
+
+When `model`, token usage, or a matching price is missing, NiceEval cannot compute an estimated cost, and `usage.costUSD` cannot fill the gap. The run then gives a warning instead of pretending the budget is still in effect. When you see this warning, first confirm the Experiment sets `model` and the Adapter reports token usage.
+
+## Concurrency only controls resource use
+
+When the local machine or the Provider cannot keep up, limit the number of Attempts running at once:
 
 ```sh
 pnpm exec niceeval exp regression --max-concurrency 4
 ```
 
-The concurrency limit caps evals running at once; it is not a spending limit. Use `--budget` for spending protection. Sandbox build concurrency is controlled separately by `--max-build-concurrency`.
+A concurrency limit is not a cost limit; cost protection still uses `--budget`. Sandbox build concurrency is controlled by a separate flag, `--max-build-concurrency`.
 
-For more ways to spread environment preparation cost, see [Reuse Sandboxes](/tutorials/sandbox-reuse). To choose whether to rerun only failures or everything, see [Rerun and Carry Results](/tutorials/rerun-and-cache).
+To also spread out the creation and preparation time of each Sandbox, see [Reuse Sandboxes](/tutorials/sandbox-reuse). To choose between rerunning only failures and revalidating everything, see [Rerun and Reuse Results](/tutorials/rerun-and-cache).
+
+## See how much was spent
+
+After the run, view the cost of one Attempt or a whole experiment in the terminal:
+
+```sh
+pnpm exec niceeval show @attempt-locator
+pnpm exec niceeval show --experiment regression
+```
+
+To browse in the browser, run `pnpm exec niceeval view`.
+
+The Attempt page first shows the combined cost of the application and the Judge:
+
+- When the cost is complete, it shows the total.
+- When receipts, prices, or complete call records are missing, it shows the known subtotal and which parts are missing.
+- An explicitly recorded zero amount counts as a known cost. Money already spent on failures and retries is kept too.
+
+Model purpose, each actual call, and Judge costs are in the breakdown below.
+
+The experiment page sums the latest result of each Attempt of each eval, counting the same original Attempt only once. Old results replaced by a rerun are not added, and results that were not rerun are kept. So it shows the cost of the current batch of results, not a bill for all historical runs. Omitting a few rows in the breakdown does not reduce the total; different currencies are shown separately without exchange-rate conversion.
+
+## Have a custom Adapter report cost
+
+For costs from your own application Adapter to appear on the pages above, report the usage of each call:
+
+- Use `ctx.recordUsage(call)` to report the final snapshot of each physical call.
+- After all records are obtained, call `ctx.sealUsage({ state: "complete" })` to tell NiceEval this record is complete.
+- When only part of the records could be read, call `ctx.sealUsage({ state: "partial", reason: "source-incomplete" })`.
+
+An empty record that was not declared complete shows as an unknown cost, never as zero.

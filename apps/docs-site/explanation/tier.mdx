@@ -1,26 +1,26 @@
 ---
 title: "Integration tiers: three levels of investment, three sets of capabilities"
-sidebarTitle: "Tier"
+sidebarTitle: "Integration tiers"
 description: "Integration has three tiers based on where the Adapter connects and what additional observability data it receives: Tier 1 connects only send, Tier 2 adds OTel, and Tier 3 changes the application to expose Experiment flags. Learn what each tier provides and when to move up."
 ---
 
 import { TierLadder } from '/snippets/diagram-tier-ladder.jsx';
 
-Connecting [NiceEval](https://niceeval.com/) is not an all-or-nothing project. Based on where the Adapter connects and what additional observability data it receives, integration has three tiers. Each tier adds one kind of investment to the previous tier and provides a new set of capabilities; every Eval you have already written keeps working unchanged.
+Connecting [NiceEval](https://niceeval.com/) is not an all-or-nothing project. Based on where the Adapter connects and what additional observability data it receives, integration has three tiers. Each tier adds one kind of investment to the previous tier and provides a new set of capabilities; every eval case you have already written keeps working unchanged.
 
-<TierLadder />
+<TierLadder locale="en" />
 
 ## Tier 1: connect only `send`
 
 You do not change a line of application code. Integration is a single Adapter file whose `send` communicates through the same interface your user-facing frontend already uses.
 
-**The full assertion set is available at this tier.** That includes text assertions and Judge checks, structured-output validation, multi-turn and session isolation, HITL approval flows, tool assertions from event mapping, and usage assertions from the usage returned by `send`. Every Verdict comes from the `Turn` returned by `send`; the next two tiers add no assertions. If the application interface exposes model selection, **model comparison** Experiments also belong here: the Experiment's `model` reaches the Adapter through `ctx.model` and only needs to be forwarded with the request.
+**The full assertion set is available at this tier.** That includes text assertions and Judge checks, structured-output validation, multi-turn and session isolation, HITL approval flows, tool assertions from event mapping, and usage assertions from the usage returned by `send`. Every verdict comes from the `Turn` returned by `send`; the next two tiers add no assertions. If the application interface exposes model selection, **model comparison** Experiments also belong here: the Experiment's `model` reaches the Adapter through `ctx.model` and only needs to be forwarded with the request.
 
 Most teams start here, and many need nothing more.
 
 ## Tier 2: `send` + OTel
 
-Use the same `send` and event mapping, but have the application also send its OTel spans to [NiceEval](https://niceeval.com/). If the application is already instrumented with AI SDK telemetry, LangGraph, OpenLLMetry / OpenInference, or its own `gen_ai` spans, this requires no application change. Otherwise, add generic OTel initialization. That is observability work, not a change customized for evals.
+Use the same `send` and event mapping, but have the application also send its OTel spans to [NiceEval](https://niceeval.com/). If the application is already instrumented with AI SDK telemetry, LangGraph, OpenLLMetry / OpenInference, or its own `gen_ai` spans, this requires no application change. Otherwise, add generic OTel initialization. That is observability work, not a change customized for eval cases.
 
 This tier provides **observability**: the call waterfall in `niceeval view`. Each model call and tool execution inside the application appears in a per-turn timeline with its latency and tokens. Assertions are unaffected: spans go only into the waterfall, not the event stream or assertions. See [OTel Integration](/tutorials/connect-otel) for the path.
 
@@ -36,11 +36,11 @@ The first two tiers are **non-intrusive**. You start the application in its norm
 
 ## How to move up
 
-The three tiers are progressive rather than mutually exclusive. Start at Tier 1 for a baseline and model comparisons. Move to Tier 2 when you need the call waterfall. Move to Tier 3 when you need to compare variants inside the application. Each upgrade only adds something to the Adapter or application. See [Experiments](/explanation/experiment) for how to organize comparisons on the Experiment side.
+The three tiers are progressive rather than mutually exclusive. Start at Tier 1 for a baseline and model comparisons. Move to Tier 2 when you need the call waterfall. Move to Tier 3 when you need to compare variants inside the application. Each upgrade only adds something to the Adapter or application. See [Experiment](/explanation/experiment) for how to organize comparisons on the Experiment side.
 
 ## Related reading
 
 - [Connect Your Agent](/tutorials/connect-your-agent) — The integration overview: minimal integration and parameter channels.
 - [Adapter](/explanation/adapter) — The contract itself: what `send` receives and returns, and how `ctx.model` / `ctx.telemetry` / `ctx.flags` appear at each tier.
 - [OTel Integration](/tutorials/connect-otel) — The full Tier 2 path.
-- [Experiments](/explanation/experiment) — How to declare model / flags comparisons in an Experiment.
+- [Experiment](/explanation/experiment) — How to declare model / flags comparisons in an Experiment.

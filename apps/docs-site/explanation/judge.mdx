@@ -4,18 +4,19 @@ sidebarTitle: "Judge"
 description: "Use a rubric, anchors, and explicit material to assess open-ended output, adding images when needed."
 ---
 
-Judge uses a separate model to assess factual consistency, summary faithfulness, or clarity of explanation. It is a managed evaluator. Ordinary custom `ScoreMatch` values remain pure; `defineJudge`, the built-in factories, and the managed `defineScoreMatch` path all use the same Assertion path.
+Judge uses a separate grading model to assess factual consistency, summary faithfulness, and explanation quality. It is a managed evaluator. Ordinary custom
+`ScoreMatch` values stay pure functions; `defineJudge`, the built-in factories, and the advanced managed `defineScoreMatch` all take the same Assertion path.
 
 ## Declare a scoring definition
 
-Define the criterion at module scope. `rubric` describes the dimensions to evaluate, and `anchors` provide calibration points for a continuous quality scale:
+Write the criterion at module scope. `rubric` describes the dimensions to evaluate, and `anchors` give calibration points on a continuous quality scale:
 
 ```ts
 import { defineJudge } from "niceeval";
 
 const explainsRisk = defineJudge({
   name: "explains-risk",
-  rubric: "Evaluate whether explanation covers compatibility, rollback, and data risks for the change.",
+  rubric: "Based on change, evaluate whether explanation covers compatibility, rollback, and data risks.",
   anchors: [
     { measurement: 0, description: "Does not explain a concrete risk or rollback plan" },
     { measurement: 0.5, description: "Explains some risks but omits one key point" },
@@ -24,11 +25,12 @@ const explainsRisk = defineJudge({
 });
 ```
 
-When `anchors` is omitted, NiceEval uses 0 and 1 as the default endpoints. `measurement` may be any finite value in `[0, 1]`; the endpoints do not limit the result to two classes or represent model confidence.
+When `anchors` is omitted, NiceEval uses 0 and 1 as the two default endpoints. A measurement can be any finite value in `[0,1]`;
+the endpoints do not limit the output to two classes, and they are not model confidence.
 
 ## Select evaluation material
 
-Pass the values needed for the decision directly to `t.judge`. The Eval `judge` option only selects the model configuration for this Eval:
+Pass the values needed for the decision directly to `t.judge`. The eval's `judge` only selects the model configuration for this eval:
 
 ```ts
 export default defineEval({
@@ -44,42 +46,45 @@ export default defineEval({
 });
 ```
 
-Material accepts strings, finite numbers, booleans, `null`, arrays, and plain objects. Use field names that express application meaning, such as `change` and `explanation`; you do not need to serialize the object first. NiceEval creates a bounded JSON snapshot when the Assertion is registered, so later mutations to the original object do not change the request.
+Material uses strings, finite numbers, booleans, null, arrays, and plain objects. Field names should express application meaning, such as `change` and
+`explanation`; you do not need to join the object into text first. NiceEval creates a bounded JSON snapshot when the Assertion is registered, so later changes to the original object do not change the request.
 
-When you need to inspect image content, put `judgeImage({ body, mediaType })` in the material. It freezes PNG or JPEG bytes without creating another Judge or making an additional request. The image and text are sent in the same Judge call and stored in the same Assertion evidence. See [Add image material](/tutorials/verify-judge#add-image-material) for the setup.
+When you need to inspect image content, put `judgeImage({ body, mediaType })` in the material. It freezes PNG or JPEG bytes without creating another Judge or sending an extra request. The image and text are sent in the same Judge call and saved in the same Assertion's evidence. For the setup steps, see [Add image material](/tutorials/verify-judge#attach-image-material).
 
-`t.judge(material, explainsRisk)` and `t.check(material, explainsRisk)` each register one measurement Assertion. They share the material snapshot, budget, evaluation, audit, sealing, and handle; there is no Match allowlist.
+`t.judge(material, explainsRisk)` and `t.check(material, explainsRisk)` each register one measurement Assertion. They share the material snapshot, budget, evaluation, audit, result saving, and handle; there is no Match allowlist.
 
 ## Use built-in Judges directly
 
-Root `t`, Session, and Turn provide built-in methods that return `MeasurementAssertionHandle<Kind>` Assertions. For example:
+Root `t`, Session, and Turn all provide built-in methods that return an Assertion's `MeasurementAssertionHandle<Kind>`. For example:
 
 ```ts
 import { eventMatch } from "niceeval/expect";
-
 const answer = await t.send("List the risks and rollback steps.");
 answer.closeQA("Does this turn explain the risks and actionable rollback steps?")
   .gate(0.8).label("Rollback explanation");
 
-// For a specific check, select all assistant messages explicitly.
+// For a special check, select all assistant messages explicitly.
 answer.closeQA(
   eventMatch("message", { role: "assistant" }),
   "Do all messages clearly explain the risks?",
 ).gate(0.8);
 ```
 
-`closeQA(selector, question, options?)` sends all matched material to one Judge in its original order. The question is an acceptance criterion to answer using only the material, not an expected answer.
-Agent's `closeQA(question, options?)` uses the current Turn, Session, or Attempt's complete recorded history, including messages and tool facts. It does not select only the final reply or successful operations.
-An explicit `EventMatch` selects from the three event views. For questions about tool inputs and outputs, use a `ToolMatch` or custom `MaterialMatch`.
-These forms compose a scoring Match and pass it to the same `check`. Application assertions such as `usedNoTools()` encapsulate a fixed criterion and do not accept another Match.
-The decision is 1 when satisfied, 0 when not satisfied, and `unavailable` when evidence is insufficient. A complete empty collection yields 0 without a model call. Missing or oversized material is not filled with zero or truncated before scoring.
+`closeQA(selector, question, options?)` sends all matched material to one Judge call in its original order. The question is an acceptance question answered only from the material, not a preset answer.
+An Agent's `closeQA(question, options?)` uses the complete recorded history of that Turn, Session, or Attempt by default, including messages and tool facts. It does not pick only the last reply or successful operations.
+An explicit EventMatch selects from the three event views. For questions about tool inputs and receipts, use a ToolMatch or a custom MaterialMatch.
 
-For material from another application, use a custom `MaterialMatch`. An Adapter's `create` provides the application context. The synchronous reader in `defineMaterialMatch` reads the current read-only context when the Assertion is registered.
-The selector predicate evaluates one item; `and` applies its conditions to the same item. Use `t.check(selector).gate()` for ordinary existence checks and `t.closeQA(selector, question).gate(0.8)` for a question about the whole matched collection.
+All these forms compose a scoring Match and pass it to the same `check`. Application assertions such as `usedNoTools()` wrap a fixed criterion and do not accept another Match.
+The result is 1 when the condition holds, 0 when it does not, and `unavailable` when evidence is insufficient. A complete empty set gives 0 without calling the model; missing or oversized material is not filled with zero or truncated before scoring.
 
-`factuality`, `faithfulness`, `instructionFollowing`, and `pairwisePreference` take explicit material, construct a Match, and pass it through the same `check` receiver.
+An Adapter provides the application ctx through `create`, and the synchronous reader in `defineMaterialMatch` reads the current read-only ctx when the Assertion is registered.
+A selector's predicate judges one item only; `and` constrains the same item. Use `t.check(selector).gate()` for ordinary existence checks and `t.closeQA(selector, question).gate(0.8)` for a question about the whole set.
+
+`factuality`, `faithfulness`, `instructionFollowing`, and `pairwisePreference` take explicit material, build a Match, and pass it to the same `check`.
 
 ## Configure the Judge Provider
+
+Project configuration selects the service explicitly with a named Provider factory. This example connects to OpenAI or an explicitly compatible gateway:
 
 ```ts
 import { defineConfig } from "niceeval";
@@ -96,32 +101,39 @@ export default defineConfig({
 });
 ```
 
-`OpenAIProvider`, `VercelProvider`, `OpenRouterProvider`, and `TypesafeProvider` are exported from `niceeval/judge`. Vercel denotes AI Gateway, not Vercel Sandbox or a general AI SDK model object.
+| Factory | Service | Default key variable |
+| --- | --- | --- |
+| `OpenAIProvider` | OpenAI or an explicitly compatible gateway | `OPENAI_API_KEY` |
+| `VercelProvider` | Vercel AI Gateway | `AI_GATEWAY_API_KEY` |
+| `OpenRouterProvider` | OpenRouter | `OPENROUTER_API_KEY` |
+| `TypesafeProvider` | TypeSafe System One | `TYPESAFE_API_KEY` |
 
-To change only the model for one Eval, set `judge: "another-model"`; the selected Provider's endpoint, credential source, and execution limits remain in effect. An Eval or Experiment can also provide a complete Provider, which replaces the service, default model, and limits.
+All four factories are exported from `niceeval/judge`. The Vercel factory means AI Gateway, not Vercel Sandbox or a general AI SDK model object.
 
-NiceEval uses the selected Provider's managed protocol to obtain a finite `[0, 1]` measurement and public rationale. Chat Providers use forced-function requests; TypeSafe uses `/systemone`. With no model or key, no network request is sent and the Assertion is `unavailable`. Transport failures and timeouts are `unavailable`; HTTP 400, protocol incompatibility, and invalid responses are `errored`.
+When one eval only needs a different model, write just this field:
 
-TypeSafe supports score, classify, and batch classify, but not extract. Therefore `faithfulness()` on `TypesafeProvider` is `unavailable`; it is not converted to an overall score or a different denominator.
+```ts
+export default defineEval({
+  judge: "another-model",
+  async test(t) {
+    const answer = await t.send("What is the capital of France?");
+    t.factuality({ input: "What is the capital of France?", output: answer.message, expected: "Paris" }).gate(1);
+  },
+});
+```
+
+This keeps the global Provider's endpoint, credential source, and execution limits, and replaces only `model`.
+Evals and Experiments can also provide a complete Provider, which replaces the service, default model, and limits as a whole.
+There is no rule that guesses the service from the hostname, model prefix, or an existing key.
+
+NiceEval uses the selected Provider's managed protocol request to get a finite `[0,1]` measurement and a public rationale. Chat services use forced-function requests, and TypeSafe uses `/systemone`. With no model or key configured, no network request is sent and the Assertion is `unavailable`. Transport failures or timeouts are `unavailable`; HTTP 400, protocol incompatibility, or invalid responses are `errored`. Static configuration validation does not probe the network.
+
+TypeSafe uses the `/systemone` protocol. It supports score, classify, and batch classify, but not extract.
+So `faithfulness()` on `TypesafeProvider` gives `unavailable`; it is not converted to an overall score or a different denominator.
 
 ## Thresholds and scores
 
-Pass-style and score-style Evals call `.gate(minimum)` on the registered handle to form a quality gate. Score-style Evals can also call `.score(points)`; the contribution is measurement multiplied by points. Gate and score may be called in either order, and both execute the Judge only once.
+Both pass/fail and scored evals call `.gate(minimum)` on the registered handle to form a quality gate. Scored evals can also call
+`.score(points)`, and the contribution is the measurement times points. Gate and score can be combined in either order, and both run the Judge only once.
 
-## Configuration, preflight, and failures
-
-Static configuration validation does not probe the endpoint. A missing Provider or key leaves the Assertion `unavailable`; transport failures and timeouts are `unavailable`; HTTP 400, protocol incompatibility, and invalid responses are `errored`.
-
-The Judge's reason goes in the general `explanation`. Sealed results retain the frozen material and the evidence sent to the model, including image evidence.
-
-## Reading results
-
-`niceeval view`, fixed `query` operations, and failure feedback create summaries from the same sealed Assertion results. Failed and unavailable entries appear first. Configured measurements display their actual value and required threshold. Judge has no special Assertion-result or display branch.
-
-Successful requests save the exact material that was sent. A path, URL, alt text, or ordinary base64 string is not visual input; only explicit image material becomes an image part in the model API request.
-
-## Related reading
-
-- [Assertions and Matches](/explanation/assert) — Registration at call time and the two Eval types.
-- [Pass-style and score-style Evals](/tutorials/evaluation-kinds) — Choosing a threshold, gate, or score contribution.
-- [Drive](/explanation/drive) — Turns, sessions, and material across turns.
+Successful requests save the fixed material actually sent. A path, URL, alt text, or ordinary base64 string is not visual input; only explicit image material becomes the image part of the model API request.

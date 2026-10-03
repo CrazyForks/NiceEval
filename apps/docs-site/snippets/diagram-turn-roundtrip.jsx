@@ -3,12 +3,12 @@
  * 一图一个组件，内容写死在组件里。样式在 styles/diagram-turn-roundtrip.css，
  * 写法约束见 snippets/diagram-sandbox-mode.jsx 开头。
  */
-export const TurnRoundtrip = () => (
+export const TurnRoundtrip = ({ locale = "zh" }) => (
   <div className="ne-w ne-rt">
     <div className="ne-hd">
-      一次 t.send 的完整往返
+      {locale === "en" ? "A complete t.send round trip" : "一次 t.send 的完整往返"}
       <span className="ne-hd-hint">
-        <span className="ne-mono">▸</span> 去程 · <span className="ne-mono">◂</span> 回程
+        <span className="ne-mono">▸</span> {locale === "en" ? "Outbound ·" : "去程 ·"} <span className="ne-mono">◂</span> {locale === "en" ? "Inbound" : "回程"}
       </span>
     </div>
     <div className="ne-rt-scroll">
@@ -20,14 +20,14 @@ export const TurnRoundtrip = () => (
           NiceEval
         </div>
         <div className="ne-rt-head" style={{ gridColumn: 5, gridRow: 1 }}>
-          Adapter（你写）
+          {locale === "en" ? "Adapter (you write)" : "Adapter（你写）"}
         </div>
 
         <div className="ne-rt-aside ne-lit" style={{ gridColumn: 7, gridRow: "1 / 5", animationDelay: "1.5s" }}>
-          <div className="ne-rt-aside-name">你的应用</div>
-          <div className="ne-rt-aside-line">前端在用的接口</div>
-          <div className="ne-rt-aside-line">响应 / SSE 流</div>
-          <div className="ne-rt-aside-line">一行不改</div>
+          <div className="ne-rt-aside-name">{locale === "en" ? "Your application" : "你的应用"}</div>
+          <div className="ne-rt-aside-line">{locale === "en" ? "Your frontend's API" : "前端在用的接口"}</div>
+          <div className="ne-rt-aside-line">{locale === "en" ? "Response / SSE stream" : "响应 / SSE 流"}</div>
+          <div className="ne-rt-aside-line">{locale === "en" ? "No changes" : "一行不改"}</div>
         </div>
 
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 1, gridRow: 2, animationDelay: "0s" }}>
@@ -37,7 +37,7 @@ export const TurnRoundtrip = () => (
           ▸
         </span>
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 3, gridRow: 2, animationDelay: "0.5s" }}>
-          组装 TurnInput + ctx
+          {locale === "en" ? "Build TurnInput + ctx" : "组装 TurnInput + ctx"}
         </div>
         <span className="ne-rt-arrow ne-lit" style={{ gridColumn: 4, gridRow: 2, animationDelay: "0.75s" }}>
           ▸
@@ -56,13 +56,13 @@ export const TurnRoundtrip = () => (
           ◂
         </span>
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 3, gridRow: 3, animationDelay: "2.95s" }}>
-          折叠 events 成事实
+          {locale === "en" ? "Reduce events into facts" : "折叠 events 成事实"}
         </div>
         <span className="ne-rt-arrow ne-rt-back ne-lit" style={{ gridColumn: 4, gridRow: 3, animationDelay: "2.7s" }}>
           ◂
         </span>
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 5, gridRow: 3, animationDelay: "2.45s" }}>
-          翻译成 events
+          {locale === "en" ? "Translate into events" : "翻译成 events"}
         </div>
         <span className="ne-rt-arrow ne-rt-back ne-lit" style={{ gridColumn: 6, gridRow: 3, animationDelay: "2.2s" }}>
           ◂
@@ -72,7 +72,7 @@ export const TurnRoundtrip = () => (
           t.calledTool()...
         </div>
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 3, gridRow: 4, animationDelay: "4.1s" }}>
-          更新 t.reply 与用量
+          {locale === "en" ? "Update t.reply and usage" : "更新 t.reply 与用量"}
         </div>
         <div className="ne-rt-cell ne-lit" style={{ gridColumn: 5, gridRow: 4, animationDelay: "4.3s" }}>
           return Turn
@@ -83,7 +83,7 @@ export const TurnRoundtrip = () => (
       <span className="ne-pill">t.send</span>
       <span className="ne-pill">t.sendFile</span>
       <span className="ne-pill">t.respond</span>
-      <span className="ne-rt-pillnote">都是运行器侧的统一事件入口；adapter 只实现 send。</span>
+      <span className="ne-rt-pillnote">{locale === "en" ? "These are unified event entry points on the runner side; the Adapter only implements send." : "都是运行器侧的统一事件入口；adapter 只实现 send。"}</span>
     </div>
   </div>
 );

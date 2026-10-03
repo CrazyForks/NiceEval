@@ -366,7 +366,7 @@
     },
     {
       "source": "/guides/experiments",
-      "destination": "/tutorials/experiments"
+      "destination": "/tutorials/write-experiment"
     },
     {
       "source": "/guides/fixtures",
@@ -455,6 +455,10 @@
     {
       "source": "/zh/tutorials/experiments",
       "destination": "/zh/tutorials/write-experiment"
+    },
+    {
+      "source": "/tutorials/experiments",
+      "destination": "/tutorials/write-experiment"
     }
   ],
   "navigation": {
@@ -471,54 +475,78 @@
                 "pages": [
                   "introduction",
                   "tutorials/quickstart",
-                  "tutorials/configuration",
-                  "tutorials/agent-onboarding"
+                  "tutorials/agent-onboarding",
+                  "tutorials/configuration"
                 ]
               },
               {
-                "group": "Connect Your Agent",
+                "group": "Connect Your Application",
                 "pages": [
                   "tutorials/connect-your-agent",
                   "tutorials/write-send",
-                  "tutorials/connect-otel",
-                  "tutorials/sandbox-agent",
-                  "tutorials/install-custom-sandbox-agent",
-                  "tutorials/sandbox-providers",
-                  "tutorials/docker-in-docker",
-                  "tutorials/nixos-managed-dind",
-                  "tutorials/sandbox-reuse"
+                  "tutorials/custom-application",
+                  "tutorials/connect-otel"
                 ]
               },
               {
                 "group": "Write Evals",
                 "pages": [
                   "tutorials/authoring",
-                  "tutorials/eval-groups",
-                  "tutorials/plugins",
-                  "tutorials/write-experiment",
-                  "tutorials/select-and-preview",
-                  "tutorials/experiments",
-                  "tutorials/fixtures",
-                  "tutorials/dataset-fanout",
-                  "tutorials/criteria-files",
                   "tutorials/evaluation-kinds",
-                  "tutorials/verify-judge"
+                  "tutorials/dataset-fanout",
+                  "tutorials/verify-judge",
+                  "tutorials/niceeval-taste",
+                  "tutorials/niceeval-taste-application"
                 ]
               },
               {
-                "group": "Run, Observe & Publish",
+                "group": "Evaluate Coding Agents",
                 "pages": [
-                  "tutorials/rerun-and-cache",
-                  "tutorials/accept-results",
-                  "tutorials/control-run-cost",
-                  "tutorials/debug-lifecycle-plan",
-                  "tutorials/handle-execution-failures",
-                  "tutorials/concurrency",
-                  "tutorials/ci-integration",
-                  "tutorials/reporters",
+                  "tutorials/sandbox-agent",
+                  "tutorials/fixtures",
+                  "tutorials/criteria-files",
+                  "tutorials/install-custom-sandbox-agent",
+                  "tutorials/sandbox-providers",
+                  "tutorials/prebuilt-sandbox"
+                ]
+              },
+              {
+                "group": "Experiments and Comparisons",
+                "pages": [
+                  "tutorials/write-experiment",
+                  "tutorials/select-and-preview",
+                  "tutorials/experiment-services",
+                  "tutorials/control-run-cost"
+                ]
+              },
+              {
+                "group": "Review Results and Iterate",
+                "pages": [
                   "tutorials/viewing-results",
                   "tutorials/compare-runs",
+                  "tutorials/rerun-and-cache",
+                  "tutorials/accept-results",
                   "tutorials/agent-feedback-loop"
+                ]
+              },
+              {
+                "group": "Concurrency and Reuse",
+                "pages": [
+                  "tutorials/concurrency",
+                  "tutorials/sandbox-reuse",
+                  "tutorials/eval-groups",
+                  "tutorials/plugins"
+                ]
+              },
+              {
+                "group": "Infrastructure and CI",
+                "pages": [
+                  "tutorials/ci-integration",
+                  "tutorials/reporters",
+                  "tutorials/handle-execution-failures",
+                  "tutorials/debug-lifecycle-plan",
+                  "tutorials/docker-in-docker",
+                  "tutorials/nixos-managed-dind"
                 ]
               },
               {
@@ -538,15 +566,16 @@
                 "group": "Core Model",
                 "pages": [
                   "explanation/overview",
-                  "explanation/record",
                   "explanation/evals",
                   "explanation/experiment",
                   "explanation/adapter",
-                  "explanation/tier"
+                  "explanation/tier",
+                  "explanation/results-flow",
+                  "explanation/record"
                 ]
               },
               {
-                "group": "Interaction & Assertions",
+                "group": "Interaction and Scoring",
                 "pages": [
                   "explanation/drive",
                   "explanation/hitl",
@@ -612,7 +641,7 @@
                 ]
               },
               {
-                "group": "Full Eval Projects",
+                "group": "Complete Eval Projects",
                 "pages": [
                   "examples/ai-agent-application",
                   "examples/coding-agent-extensions"

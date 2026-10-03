@@ -1,27 +1,29 @@
 ---
 title: "Configure Managed DinD on NixOS"
 sidebarTitle: "NixOS Managed DinD"
-description: "Use NiceEval's NixOS module to deploy a managed rootless Docker profile and verify the host environment with doctor."
+description: "Deploy a managed rootless Docker profile with NiceEval's NixOS module, and verify the host environment with doctor."
 ---
 
-Managed rootless DinD is for running untrusted Agents on a shared NixOS host. NiceEval's NixOS module creates a dedicated system user, rootless Docker daemon, capacity-limited data volume, resource slice, and watchdog. Day-to-day NiceEval runs do not need `sudo`, but the initial deployment and system-configuration updates require administrator access.
+Managed rootless DinD suits running untrusted Agents on a shared NixOS host. NiceEval's NixOS module creates a dedicated system user, a rootless Docker daemon, a capacity-limited data disk, a resource slice, and a watchdog. Day-to-day NiceEval runs do not need `sudo`, but the first deployment and system configuration updates need administrator privileges.
 
-If you can trust the Agent or run only in a disposable VM, read [Let a Sandbox Use Docker](/tutorials/docker-in-docker) first to choose a Docker socket or raw privileged DinD. Neither needs this host profile.
+This page only covers the NixOS deployment entry point. The Docker profile itself is a Linux host capability, not something specific to NixOS. Ubuntu, Debian, and other systemd Linux distributions need an equivalent host service installed. macOS users can run NiceEval and the matching Linux host service inside an OrbStack Linux machine; Apple `container` currently needs a separate NiceEval Provider. For the exact boundaries and commands, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker#use-orbstack-on-macos).
+
+If the task can trust the Agent, or runs only in a disposable VM, first read [Let the Sandbox Use Docker](/tutorials/docker-in-docker) and choose Docker socket or raw privileged DinD. They do not need the host profile on this page.
 
 ## Prerequisites
 
-Before you begin, confirm that:
+Before starting, confirm:
 
-- NixOS manages its system configuration with flakes.
-- The host uses systemd and cgroup v2.
-- You know the NixOS username that runs NiceEval day to day.
-- The host has enough CPU, memory, and disk for eval containers.
+- NixOS manages system configuration with flakes;
+- the host uses systemd and cgroup v2;
+- you know the NixOS user name that runs NiceEval day to day;
+- the host has enough CPU, memory, and disk to leave for eval containers.
 
-The following examples assume that the system-configuration repository already has `flake.nix`, the configuration is named `my-host`, and the day-to-day username is `alice`. Replace them with your own values.
+The steps below assume the system configuration repository already has a `flake.nix`, the configuration name is `my-host`, and the day-to-day user name is `alice`. Replace them with your own values.
 
-## Add the NiceEval module
+## Bring in the NiceEval module
 
-Add NiceEval as an input in the system configuration's `flake.nix`, then put its module in the host's `modules`:
+Add the NiceEval input to the system configuration's `flake.nix`, and put the module into the host's `modules`:
 
 ```nix title="flake.nix"
 {
@@ -42,9 +44,9 @@ Add NiceEval as an input in the system configuration's `flake.nix`, then put its
 }
 ```
 
-After the first Nix command, Nix writes NiceEval's exact commit to `flake.lock`. Commit that lock file so different machines do not use different module versions at an unreviewed time.
+After the first Nix command runs, Nix writes NiceEval's specific commit into your `flake.lock`. Commit this lock file, so different machines do not use different module versions at unconfirmed times.
 
-## Declare a profile
+## Declare the profile
 
 Declare a profile named `default` in the NixOS configuration:
 
@@ -61,6 +63,8 @@ Declare a profile named `default` in the NixOS configuration:
       pids = 4096;
       maxContainers = 2;
       maxBuilds = 1;
+      ephemeralDiskBytes = "6G";
+      dockerDataAllocationCount = 2;
     };
 
     aggregate = {
@@ -77,9 +81,82 @@ Declare a profile named `default` in the NixOS configuration:
 }
 ```
 
-`capacity` is the budget NiceEval may assign to eval work. `aggregate` is the hard limit shared by the daemon, build processes, watchdog, and eval containers, so none of its values can be smaller than `capacity`. Leave the difference for host-side overhead.
+Each group of numbers controls one thing:
 
-`loop-ext4` creates a sparse image at `/var/lib/niceeval/docker-profiles/default.img` and mounts it as Docker's data root. `size` is the profile's disk limit; it does not mean a rebuild immediately consumes that much physical space.
+- `capacity`: the total NiceEval can hand out to eval tasks.
+- `ephemeralDiskBytes`: the most disk each Sandbox's Docker data can use.
+- `dockerDataAllocationCount`: the most Sandboxes that can hold Docker data space at once.
+- `aggregate`: the hard cap on the Docker daemon, build processes, host services, and eval containers combined; each item must not be smaller than `capacity`. The difference between them is left for host-side overhead.
+
+`backing = "loop-ext4"` creates a separate ext4 filesystem at `/var/lib/niceeval/docker-profiles/default.img` and limits disk usage per directory. The host service gives each Sandbox a dedicated directory from it, mounted at the Sandbox's `/var/lib/docker`. Do not declare `tmpfs` for this path as well: Docker images and BuildKit cache in the Sandbox should use disk and should not count toward the host's `Shmem`.
+
+This shared loop filesystem only handles run-time disk quota and isolation; it cannot save the results of preparation steps. Preparation steps that declare `sandboxState.dockerData` show `Unsupported` in `niceeval debug` and really execute every time. To let such steps be reused directly next time, you need the fixed storage configuration in the next section; for the caching rules of preparation steps, see [Choose and Configure a Sandbox](/tutorials/sandbox-providers).
+
+## Let Docker preparation steps be reused next time
+
+When preparation steps such as `docker load` are slow, you may want the Docker images and volumes in the Sandbox to be reused directly next time. This needs a separate raw profile with fixed-size storage:
+
+```nix title="configuration.nix"
+services.niceeval.dockerProfiles.harness-raw = {
+  enable = true;
+  securityLevel = "raw-dind-storage/v1";
+  rawDockerSocket = "/run/docker.sock";
+  rawDockerRootDir = "/var/lib/docker";
+  capacity = {
+    cpus = 8; memory = "16G"; pids = 4096;
+    maxContainers = 2; maxBuilds = 1;
+    ephemeralDiskBytes = "4G";
+    dockerDataAllocationCount = 2;
+  };
+  aggregate = { cpus = 10; memory = "20G"; pids = 6144; };
+  storage = {
+    size = "80G";
+    backing = "fixed-image-ext4";
+    rootDir = "/data/niceeval/docker-profiles/harness-raw";
+  };
+  setupPrefix = { enable = true; seedCount = 10; };
+};
+```
+
+### Estimate disk space
+
+This configuration pre-allocates:
+
+- 2 run spaces of 4 GiB each (matching `dockerDataAllocationCount = 2`);
+- 10 read-only seeds of 4 GiB each (`seedCount = 10`), used to save prepared Docker state;
+- 2 worst-case temporary copies.
+
+That is 56 GiB in total. With `storage.size = "80G"`, after ext4 metadata and reserved blocks are deducted, the remaining available space (`f_bavail`) must still be enough for failure recovery.
+
+Seeds are not cleaned up automatically. Once all 10 are used, the profile refuses to save new preparation results and does not overwrite old seeds.
+
+`fixed-image-ext4` can only be used with a raw profile. It keeps using the existing daemon's `DockerRootDir`, but puts fixed storage, host configuration, and logs under a separate `fixed-image-v1` path. `rootDir` must be an absolute path that is not the root directory; mount dependencies, manifests, and writable paths are all derived from it.
+
+### Switch to fixed storage
+
+Before switching, make this profile completely idle:
+
+- no running or queued Attempts, builds, or containers;
+- no NiceEval proxy containers or Attempt networks on the default daemon.
+
+Deployment does not rewrite the old `loop-ext4` image file. The old image, configuration, and logs are all kept, so you can roll back with downtime if needed.
+
+Enabling fixed storage is a separate deployment operation; it does not happen automatically with `nixos-rebuild switch` or at boot. Start the two services in order:
+
+```bash
+sudo systemctl start niceeval-docker-profile-fixed-activation-harness-raw.service
+sudo systemctl restart niceeval-docker-profile-fixed-watchdog-harness-raw.service
+```
+
+Start or restart the second only after the first succeeds. Each successful activation saves a read-only version snapshot, and the `current` pointer switches to the new version atomically.
+
+On a normal boot, the host service finds the current version through the `current` pointer, checks the mount holding `rootDir`, the outer ext4, the seed registry, and checksums, then restores the data mounts. When any of these does not match, the host service does not start accepting Attempts. When the data disk does not exist, it does not create a same-named directory on the root disk and keep going either.
+
+### Before the seeds run out
+
+When seeds are nearly used up, first check the activation service's status, which lists the capacity currently available, reserved, retirable, and reclaimable. Replacing seeds is manual: stop accepting new Attempts, wait for existing tasks to finish, and publish a new version under the exclusive lock.
+
+An old version must be explicitly retired before its space can be reclaimed. Only a version that is neither the current one nor the previous one can be retired. After reclamation, that version can no longer be used for rollback.
 
 ## Apply the system configuration
 
@@ -90,16 +167,16 @@ nix flake check
 sudo nixos-rebuild switch --flake .#my-host
 ```
 
-The module adds `alice` to the profile's access group. After rebuilding, sign out of the current login session and sign in again so the new supplementary group membership takes effect. Rerunning commands only in the old shell does not refresh supplementary groups.
+The module adds `alice` to the profile's access group. After the rebuild, log out of the current session and log in again so the new group membership takes effect. Rerunning commands in an old shell does not refresh supplementary groups.
 
-After signing in again, check the services:
+After logging in again, check the services:
 
 ```bash
 systemctl status niceeval-docker-profile-default.service
 systemctl status niceeval-docker-profile-watchdog-default.service
 ```
 
-Both should show `active (running)`. If either fails, read the corresponding unit log:
+Both services should show `active (running)`. On failure, read the matching unit's logs:
 
 ```bash
 journalctl -u niceeval-docker-profile-default.service -b
@@ -108,20 +185,22 @@ journalctl -u niceeval-docker-profile-watchdog-default.service -b
 
 ## Verify the profile
 
-In an eval project with NiceEval installed, run these commands as the day-to-day user:
+Go into an eval project that has NiceEval installed, and run as the day-to-day user:
 
 ```bash
 pnpm exec niceeval docker profile list
 pnpm exec niceeval docker profile doctor default
 ```
 
-`list` should show `default`. `doctor` always checks the descriptor, Unix socket, cgroup, capacity, watchdog, offline assets, a cold build, and a constrained outer container with nested Docker. Use the host profile for production evals only after every check passes.
+`list` should list `default`. `doctor` checks, in order, the profile descriptor, Unix socket, cgroup, capacity, host services, offline resources, and one cold build, then starts a restricted outer container and runs an Alpine container inside it. Only after everything passes can this profile be used for formal evals.
 
-Do not use `sudo pnpm exec niceeval ...` to bypass a permissions error. If the day-to-day user cannot access the profile, first confirm that the username is in `accessUsers`, then sign in again and rerun doctor.
+When one item fails, `doctor` points out which. First check the matching service's logs as in the previous section.
+
+Do not bypass permission errors with `sudo pnpm exec niceeval ...`. When the day-to-day user cannot access the profile, first confirm the user name is in `accessUsers`, then log in again and rerun doctor.
 
 ## Use it in an Experiment
 
-After the host passes verification, reference the same alias in an Experiment's Docker Sandbox:
+After the host passes acceptance, reference the same alias in the Experiment's Docker Sandbox:
 
 ```ts
 dockerAccess: {
@@ -131,11 +210,13 @@ dockerAccess: {
 },
 ```
 
-The Experiment must also declare per-container CPU, memory, PID, read-only-rootfs, and tmpfs settings. See the full configuration in [Let a Sandbox Use Docker](/tutorials/docker-in-docker#managed-rootless-dind). Start once with a small `maxConcurrency`, then increase concurrency according to the profile's `capacity`.
+The Experiment must also declare each Sandbox's CPU, memory, process count, `dockerDataBytes`, a read-only root filesystem, and tmpfs for the other writable paths. For the full configuration, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker#managed-rootless-dind).
+
+Run once with a small `maxConcurrency` first, then raise concurrency based on the profile's `capacity`. After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
 
 ## Update the module
 
-When you need to update the NiceEval module, update its input in the system-configuration repository, inspect the diff, then rebuild:
+When you need to update the NiceEval module, update the matching input in the system configuration repository, check the diff, and rebuild:
 
 ```bash
 nix flake update niceeval
@@ -143,4 +224,4 @@ nix flake check
 sudo nixos-rebuild switch --flake .#my-host
 ```
 
-An update changes host services; updating npm dependencies in the eval project alone is not enough. Keep the old generation, and clean up NixOS generations only after doctor and a real eval both pass.
+Updates change the host services, so updating only the npm dependency in the eval project is not enough. Keep the old NixOS generation, and clean it up only after `doctor` and real evals both pass.

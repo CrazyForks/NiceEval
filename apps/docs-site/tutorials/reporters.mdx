@@ -1,63 +1,78 @@
 ---
-title: "Connect the Current Run to External Systems"
-sidebarTitle: "Reporter Integration"
-description: "Use a Reporter, JUnit, and a receipt to send current-Invocation information to an external system while preserving Record ownership boundaries."
+title: "Report Run Results to External Systems Such as Braintrust"
+sidebarTitle: "Reporters"
+description: "When your team already uses Braintrust or its own dashboard, use a Reporter to send results there during the run; use JUnit for CI platforms; and use the Run ID in the receipt for later scripts to read results."
 ---
 
-A Reporter serves the current Invocation. It can send the current run's results to an external observability system, but it does not own published results and cannot replace later fixed `query` or `view` use.
+Your team already looks at experiment results in Braintrust, or has an internal dashboard. You want results to show up there automatically after NiceEval runs, without exporting them by hand.
+
+That is what a Reporter does: during this one run, it sends results to an external system. It only handles reporting for "this run", and the results NiceEval saves do not change because of it. To reread, compare, or share results afterwards, you still use `show`, `view`, and `query`.
+
+One `niceeval exp` produces all of these at once:
 
 ```text
-Current Invocation
-    ├─ terminal and --json feedback
+This run
+    ├─ Terminal output, or NDJSON from --json
     ├─ Reporter → external system
-    ├─ --junit → CI-platform file
-    └─ receipt → invocationId and runIds
+    ├─ --junit → JUnit file for the CI platform
+    └─ receipt → invocationId and createdRunIds
 
-Published results
-    └─ Run, Member, Attempt, and inspectable run facts
+Saved results (.niceeval/record.sqlite)
+    └─ Runs, Attempts, and viewable run records
 ```
 
-## What a Reporter is for
+## Choose the right way to report
 
-Configure a Reporter for the run you need to observe, and let it handle results visible to the current process. An external system can receive a run summary, Attempt results, or links. To read complete business facts, reopen published facts using the receipt's `runIds`.
+| You want to | Use |
+| --- | --- |
+| Push results to Braintrust or an internal dashboard | Reporter |
+| Have the CI platform show results per test case | `--junit <path>` |
+| Let later scripts find this run's results | The receipt from `--json` output |
+
+## Push to an external system with a Reporter
+
+Configure the project's default Reporters in `reporters` in `niceeval.config.ts`; an eval's `reporters` are merged with them. For field descriptions, see the [defineConfig reference](/reference/define-config).
+
+A Reporter gets the results known during this run. The external system can receive a run summary, each Attempt's result, or viewing links. To read the complete results, reopen the saved results with the Run ID from the receipt.
 
 A Reporter cannot:
 
-- Treat external-system data as a business value in the Record.
-- Replace Verdicts, Usage, assertions, or diagnostics with external reporting.
-- Make later fixed `query` or `view` reads come from the external system.
-- Write results from the external system back into the Record.
+- treat data in the external system as NiceEval results;
+- replace the verdicts, usage, assertions, or diagnostics NiceEval saves;
+- make `query`, `show`, or `view` read data from the external system instead;
+- write the external system's results back into `.niceeval/record.sqlite`.
 
-## Use JUnit in CI
+## Output JUnit in CI
 
-JUnit is the most direct external integration:
+The most direct way to connect a CI platform is JUnit:
 
 ```sh
-npx niceeval exp ci --junit ./artifacts/niceeval-junit.xml
+pnpm exec niceeval exp ci --junit ./artifacts/niceeval-junit.xml
 ```
 
-NiceEval writes that file atomically. A CI platform reads it to display annotations and test results. It is the delivery format for this Invocation only; it never becomes the owner of Record facts.
+NiceEval writes a temporary file first, then replaces the target file in one step, so the CI platform never reads half-written content. JUnit only describes this run, and the results NiceEval saves remain authoritative. For the full CI configuration, see [Run Evals Automatically in CI](/tutorials/ci-integration).
 
-## Use JSON and the receipt
+## Link later steps with the receipt
 
 ```sh
-npx niceeval exp checkout --json
+pnpm exec niceeval exp checkout --json
 ```
 
-`--json` emits NDJSON for the current process. Its final receipt contains `invocationId`, `runIds`, start time, end time, and completion. External automation can retain the receipt, then use its `runIds` with fixed Inspection operations.
+`--json` outputs this run's NDJSON. The last line is the receipt, containing `invocationId`, `createdRunIds`, `publicationCutoff`, the start time, the end time, and `completion`. External automation can save the receipt, then open the matching Runs with `createdRunIds`:
 
 ```sh
+pnpm exec niceeval show --run 01J9ZK3M6P4T7V9X2C5N8QW0RY
 pnpm exec niceeval view --run 01J9ZK3M6P4T7V9X2C5N8QW0RY
 ```
 
-Do not treat progress or diagnostic lines as a long-lived result format. They serve the current Invocation; complete business facts belong to the published Record.
+When a script needs structured results, first run `pnpm --silent exec niceeval query discover` to find the available queries.
 
-## Principles for external integrations
+Do not treat progress or diagnostic lines as a long-term result format. They only describe what is happening in this run.
 
-1. Let external reporting consume only information the current Invocation knows.
-2. Keep credentials in runtime variables, not output.
-3. Use the exit status for a CI gate.
-4. Use a receipt's `runIds` to connect external workflows to inspectable results.
-5. Use the receipt's `runIds` with `view` to review published facts, or use `query` for automation.
+## Principles for connecting external systems
 
-For CI commands and JUnit, read [CI Integration](/tutorials/ci-integration).
+1. External reporting uses only information known during this run.
+2. Credentials go in environment variables and are never written into any output.
+3. CI gates look at the exit status.
+4. Use the receipt's `createdRunIds` to link external workflows with the results NiceEval saves.
+5. When results need review, people open that Run with `show` or `view`, and automated flows use `query`.

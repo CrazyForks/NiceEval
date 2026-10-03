@@ -1,18 +1,20 @@
 ---
-title: "Data-driven Testing (Dataset Fan-out): Run One Eval Suite Across Many Data Rows"
-sidebarTitle: "Data-driven Testing"
-description: "Export an array or keyed record from a .eval.ts file to fan one eval implementation out into many cases. Use loadYaml or loadJson to read external datasets and obtain stable IDs."
+title: "Data-Driven Tests: Generate Many Evals from One Dataset"
+sidebarTitle: "Data-Driven Tests"
+description: "When dozens of evals share the same logic and differ only in input, export an array or object from one .eval.ts and generate many evals from one set of logic. You can also read an external dataset with loadYaml or loadJson and give each case a stable ID."
 ---
 
 import { DatasetFanout } from '/snippets/diagram-dataset-fanout.jsx';
 
-Data-driven testing (dataset fan-out) fits many tests with the same structure and different inputs. Typical examples include SQL generation, intent classification, retrieval QA, and tool selection.
+You are evaluating a SQL generation feature and have 80 "question + expected result" samples. The check logic is the same for each: send the question, run the SQL, compare the result. If you write one file per sample, changing the check logic once means changing it in 80 places.
 
-<DatasetFanout />
+Data-driven tests let you write the logic once and generate many evals from a dataset. Large sets of same-shaped tests such as intent classification, retrieval QA, and tool selection are a good fit.
 
-## How it works
+<DatasetFanout locale="en" />
 
-When there is no external business ID, a `.eval.ts` file default-exports an array:
+## Export a set of evals from one file
+
+Put the samples in an array, use `map` to generate a `defineEval` for each row, and default-export the whole array. The check logic is written once, and changing it applies to every sample:
 
 ```ts
 import { defineEval } from "niceeval";
@@ -34,18 +36,18 @@ export default rows.map((row) =>
 );
 ```
 
-## Generated IDs
+## Confirm each eval's ID
 
-If the file is `evals/sql.eval.ts`, the generated IDs are:
+When you export an array, NiceEval numbers each eval by position. If the file is `evals/sql.eval.ts`, the generated IDs are:
 
 ```text
 sql/0000
 sql/0001
 ```
 
-The numeric suffix is zero-padded, making IDs stable to reference and filter.
+The numbers are zero-padded to a fixed width, which makes them easy to reference and filter by prefix. Note that when the array order changes, the same sample's ID changes with it.
 
-When the data source already carries a stable case, issue, or benchmark ID, default-export a keyed record instead:
+When the data source already has stable case, issue, or benchmark IDs, export an object instead and use those IDs as keys:
 
 ```ts
 export default Object.fromEntries(
@@ -62,9 +64,13 @@ export default Object.fromEntries(
 );
 ```
 
-If the file is `evals/swelancer.eval.ts` and the key is `15193`, the ID is `swelancer/15193`. A key must be a nonempty path segment: it cannot be `.` or `..` and cannot contain `/`, `\\`, or control characters. NiceEval discovers keys in lexicographic order, so a changed data-source order does not change execution order.
+When the file is `evals/swelancer.eval.ts` and the key is `15193`, the ID is `swelancer/15193`. A key must be one non-empty path segment: it cannot be `.` or `..`, and cannot contain `/`, `\\`, or control characters. NiceEval sorts keys lexicographically, so when the data source returns them in a different order, the run order and IDs stay the same.
 
-## Load from YAML or JSON
+Before running, use `pnpm exec niceeval exp local sql --dry` to confirm which IDs were generated and how many there are.
+
+## Read a dataset from YAML or JSON
+
+As samples grow, a separate data file is easier to maintain. Read it with `loadYaml` or `loadJson`, passing a validation function:
 
 ```ts
 import { loadYaml } from "niceeval/loaders";
@@ -84,32 +90,36 @@ cases:
     sql: SELECT COUNT(*) FROM users;
 ```
 
-`loadYaml` and `loadJson` require a decoder. An unvalidated dynamic value exists only at the decoder boundary. After validation, the returned value is strongly typed data you can use directly.
+`loadYaml` and `loadJson` require a validation function (decoder). The file content only appears as an unknown type inside the validation function; once validation passes, the return value is typed data you can use directly. When the data file has the wrong format, the validation function throws, and this eval file fails to load.
 
-## Filter dataset evals
+## Run only part of the dataset
+
+Write an eval ID prefix after the Experiment to run only some of them:
 
 ```bash
 # Run the whole dataset
-npx niceeval exp local sql
+pnpm exec niceeval exp local sql
 
-# Run only the first array case
-npx niceeval exp local sql/0000
+# Run only the first entry in the array
+pnpm exec niceeval exp local sql/0000
 
-# Run one keyed case
-npx niceeval exp local swelancer/15193
+# Run one entry from an object export
+pnpm exec niceeval exp local swelancer/15193
 ```
 
-## Datasets versus separate files
+After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`. Each sample is an independent eval, and the failing ones are listed separately.
+
+## Choose a dataset or separate files
 
 <Tabs>
   <Tab title="Use a dataset">
-    Cases have exactly the same structure; the main differences are the input and expected output.
+    Every sample follows exactly the same flow; only the input and expected output differ.
   </Tab>
   <Tab title="Use separate files">
-    Each case has a different flow or Assertions, or needs different Agent configuration.
+    Each case has a different flow, different assertions, or needs a different Agent configuration.
   </Tab>
 </Tabs>
 
 <Tip>
-  Datasets fit broad horizontal coverage. Separate eval files fit behaviorally complex scenarios.
+  A dataset suits covering one feature with many similar samples; separate eval files suit scenarios with complex flows.
 </Tip>

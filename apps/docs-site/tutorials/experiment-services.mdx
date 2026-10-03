@@ -1,0 +1,243 @@
+---
+title: "Start Shared Experiment Services"
+sidebarTitle: "Shared Experiment Services"
+description: "Use an Experiment's setup / teardown to start and stop tunnels, mock servers, or leases shared by the whole experiment, and hand run-time addresses to the Agent and Sandbox without invalidating existing results."
+---
+
+You are evaluating a Coding Agent connected to a memory service. The memory service runs on an internal network, so before each eval run you open a tunnel, get a temporary address, and tell the Agent the address. Opening the tunnel once is enough for dozens of Attempts to share; after everything finishes, you must remember to close it.
+
+Resources like this, "one per experiment, shared by all Attempts", go in the Experiment's `setup` and `teardown`.
+
+## Write a setup / teardown pair
+
+```ts
+// experiments/memory/codex.ts
+import { defineExperiment } from "niceeval";
+import { nowledgeAgent, nowledgeTunnel } from "../../agents/nowledge.ts";
+
+// Coordinates from setup live in a module variable, so teardown and the Agent can read them
+let tunnel: { url: string; apiKey: string; stop(): Promise<void> } | undefined;
+
+export default defineExperiment({
+  agent: nowledgeAgent(() => ({ url: tunnel!.url, apiKey: tunnel!.apiKey })),
+  evals: ["memory/"],
+  async setup(ctx) {
+    ctx.progress({ message: "starting nowledge tunnel" });
+    tunnel = await nowledgeTunnel({ signal: ctx.signal });
+  },
+  async teardown(ctx) {
+    ctx.progress({ message: "stopping nowledge tunnel" });
+    await tunnel?.stop();
+  },
+});
+```
+
+Both callbacks run on your own machine, each at most once:
+
+- `setup` runs before the first Attempt of this experiment that really executes.
+- `teardown` runs after all Attempts finish, and also runs when the run is interrupted.
+- Once `setup` has started, `teardown` always runs, even if `setup` throws. So `teardown` must guard against variables that were never assigned; the example above uses `tunnel?.stop()`.
+- When all last results can be reused and not a single Attempt needs to really execute this time, neither runs.
+
+While `setup` runs, the terminal's `ACTIVE` area shows a line `experiment setup · <experiment id>`, and messages from `ctx.progress(...)` update at the end of that line. During this time the experiment's Attempts count as queued; nothing is stuck.
+
+## What happens when setup fails
+
+When `setup` throws, every Attempt of this experiment is recorded as `errored`, with error code `experiment-setup-failed`. Other experiments in the same batch run as usual. An environment that did not start is never counted as a pass, and does not drag other experiments down.
+
+## Guarantee release first in teardown
+
+Releasing resources must happen; observation such as health checks and metric reporting is only best effort. Wrap them in `try/finally` so an observation error cannot block release, and skip observation directly when the run is interrupted:
+
+```ts
+async teardown(ctx) {
+  try {
+    if (!ctx.signal.aborted) {
+      await tunnel?.probe({ timeoutMs: 10_000 }).catch(() => {});
+    }
+  } finally {
+    await tunnel?.stop();
+  }
+},
+```
+
+## Do not put run-time addresses in flags
+
+The tunnel gets a new URL every time it restarts. `flags` are experiment conditions; when a value changes, results already finished can no longer be reused. Putting a temporary address in `flags` means every tunnel restart forces the whole batch to rerun.
+
+Keep the address in a module variable and let the Agent factory or Sandbox callback read it:
+
+```ts
+let endpoint: string | undefined;
+
+export default defineExperiment({
+  agent: nowledgeAgent(() => ({ url: endpoint! })),
+  sandbox: e2bSandbox({ template: "niceeval-agents" })
+    .before(async (sandbox) => {
+      await sandbox.writeText(".nowledge/env", `NMEM_URL=${endpoint!}\n`);
+    }),
+  async setup(ctx) {
+    endpoint = (await nowledgeTunnel({ signal: ctx.signal })).url;
+  },
+});
+```
+
+When you run again with a new URL, finished results are reused as usual and only what is missing runs:
+
+```text
+$ pnpm exec niceeval exp compare/codex--nowledge
+╭─ PLAN ──────────────────────────────────────────╮
+│ 36 attempts · 36 evals × 1 configs              │
+│ 24 of 36 reuse from cache · 12 to run           │
+╰─────────────────────────────────────────────────╯
+```
+
+To decide where a value belongs, ask: is it an experiment condition you want to compare?
+
+- Yes, such as the memory service version `0.10.39`, where a different version may really behave differently: put it in `flags`, and rerun when it changes.
+- No, it is just this run's connection coordinates: keep it in `setup` and a module variable.
+- An annotation only used to group reports: write it in `labels`.
+
+## Prepare the environment in the Sandbox
+
+`setup` / `teardown` manage services on your machine. Preparation that must happen in the Sandbox before the Agent runs, such as writing configuration, installing binaries, or loading previously saved state, attaches to the `sandbox`'s `.before()`. It runs once for each Attempt that really executes, always after `setup`, so it can read the variables `setup` assigned:
+
+```ts
+// experiments/compare/claude--nowledge.ts
+import { defineExperiment } from "niceeval";
+import { e2bSandbox } from "niceeval/sandbox";
+import { nowledgeAgent, nowledgeTunnel } from "../../agents/nowledge.ts";
+import { loadMemoryState, saveMemoryState } from "../shared/memory-state.ts";
+
+let tunnel: { url: string; apiKey: string; stop(): Promise<void> } | undefined;
+
+export default defineExperiment({
+  agent: nowledgeAgent(() => ({ url: tunnel!.url, apiKey: tunnel!.apiKey })),
+  evals: ["memory/"],
+  maxConcurrency: 1,
+  sharedState: { key: "nowledge/claude/cohort-a" },
+  sandbox: e2bSandbox({ template: "niceeval-agents" })
+    .before(async (sandbox, ctx) => {
+      // Write the host-side coordinates into the Sandbox
+      await sandbox.writeText(
+        ".nowledge/config.json",
+        JSON.stringify({ url: tunnel!.url, apiKey: tunnel!.apiKey }),
+      );
+      await loadMemoryState(sandbox, ctx.experimentId);
+      ctx.onCleanup(async (sandbox) => {
+        await saveMemoryState(sandbox, ctx.experimentId);
+      });
+    }),
+  async setup(ctx) {
+    tunnel = await nowledgeTunnel({ signal: ctx.signal });
+  },
+  async teardown() {
+    await tunnel?.stop();
+  },
+});
+```
+
+Read from top to bottom, this file is the complete run description: services with one copy per experiment are in `setup` / `teardown`, and per-Sandbox preparation and cleanup are in `.before()` and `ctx.onCleanup`.
+
+Fixed installations such as Agent CLIs and system packages are best baked into an image or template first. NiceEval reuses unchanged preparation steps and does not reinstall just because an eval changed. See [Prebuilt Sandbox Environments · Continue building from the official baseline](/tutorials/prebuilt-sandbox#continue-building-from-the-official-baseline).
+
+## Save state across Attempts
+
+In the example above, each Attempt loads memory at the start and saves it back at the end, so memory accumulates eval by eval. This requires Attempts to run strictly one after another:
+
+- `maxConcurrency: 1` makes the Attempts in this run serial.
+- `sharedState.key` prevents you from running the same experiment in another terminal at the same time, with both sides interleaving reads and writes of the same state.
+
+`sharedState` only guarantees that one run holds the key at a time. Storage itself, atomic write-back, and recovery after an abnormal interruption are still your responsibility. Do not put secrets in the key.
+
+## Share the same start/stop code across experiments
+
+In comparison experiments, several experiments often target the same kind of infrastructure, for example Claude Code and Codex each connected to the same memory product. Write the start/stop as a factory function and call it once in each experiment file: the code is written once, while instances and coordinates stay separate:
+
+```ts
+// experiments/shared/nowledge.ts
+import type { ExperimentHookContext } from "niceeval";
+import type { SandboxCommand } from "niceeval/sandbox";
+
+export function nowledgeLifecycle() {
+  let instance: string | undefined;
+  let env: { url: string; apiKey: string } | undefined;
+
+  return {
+    /** The Agent factory reads connection info through this; it has a value only after setup */
+    endpoint: () => env!,
+
+    async setup(ctx: ExperimentHookContext) {
+      instance = `exp-${ctx.experimentId.replace(/[^A-Za-z0-9]+/g, "-")}`;
+      ctx.progress({ message: `[nowledge] activating ${instance}` });
+      await memctl("up", instance);
+      env = await readInstanceEnv(instance);
+    },
+
+    async teardown() {
+      if (!instance) return; // setup failed before starting an instance, so there is nothing to clean up
+      await memctl("down", instance);
+    },
+
+    /** Once per Attempt: write the coordinates into the Sandbox */
+    sandboxBefore(): SandboxCommand {
+      return async (sandbox) => {
+        await sandbox.writeText(".nowledge/env", `NMEM_URL=${env!.url}\nNMEM_API_KEY=${env!.apiKey}\n`);
+      };
+    },
+  };
+}
+```
+
+Wire it up in the experiment file with four lines:
+
+```ts
+// experiments/compare/codex--nowledge.ts
+const nowledge = nowledgeLifecycle();
+
+export default defineExperiment({
+  agent: codexAgent(nowledgeCodexConfig(nowledge.endpoint)),
+  sandbox: e2bSandbox({ template: CODEX_TEMPLATE }).before(nowledge.sandboxBefore()),
+  setup: nowledge.setup,
+  teardown: nowledge.teardown,
+  maxConcurrency: 1,
+});
+```
+
+Keep two rules when writing it this way, so several experiments running concurrently do not overwrite each other:
+
+- When the factory function is called, it only creates a closure, with no I/O and no configuration reads. `niceeval exp` imports experiment files during discovery, and a throw at that point drags down unrelated experiments in the same batch. Put every operation that can fail in `setup`.
+- Run-time coordinates live in the factory closure, not in a module-level singleton. Two parallel experiments each hold their own copy and do not overwrite each other.
+
+When running several copies of the service is too expensive and a batch of experiments must share one instance, use reference counting: the first to arrive starts it, and the last to leave closes it.
+
+```ts
+// experiments/shared/nowledge-shared.ts
+let refs = 0;
+let starting: Promise<void> | undefined;
+let service: { url: string; stop(): Promise<void> } | undefined;
+
+export const sharedNowledge = {
+  async setup() {
+    refs += 1;
+    starting ??= startNowledge().then((s) => { service = s; });
+    await starting; // Concurrent experiments wait for the same start
+  },
+  async teardown() {
+    refs -= 1;
+    if (refs === 0) {
+      await service?.stop(); // service has no value when start failed
+      service = undefined;
+      starting = undefined;
+    }
+  },
+};
+```
+
+Because `teardown` always runs in pairs with any `setup` that started, the count always returns to 0 and never leaks.
+
+## Services that live across several runs
+
+A service started by `setup` does not outlive this one `niceeval exp`. For a service that should be started ahead of time and used across several runs, start and stop it with an external tool such as `docker compose`, then pass the address to the Adapter through an environment variable.
+
+For the full parameters of `setup` and `teardown`, see [Experiment](/explanation/experiment). For the order, caching, and cleanup of Sandbox preparation steps, see [Sandbox · Prepare the Sandbox in order](/tutorials/sandbox-providers#prepare-the-sandbox-in-order).
