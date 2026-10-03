@@ -40,9 +40,9 @@ Short-task benchmarks ask "can it do the job?" MemoryBench asks "does memory mak
 
 The task pool is made of real development tasks: multi-repo continuous tasks, bug fixes, and implementing features from issues. Every task has to run through to verification in a real environment; agent output is checked automatically, not graded by human eyes.
 
-Controlled variables are the core of the design. The model is fixed, the agent framework is fixed, the task order is fixed. The only thing that changes is the memory layer, so any observed difference can be attributed to the memory mechanism itself.
+Controlled variables are the core of the design. The model is fixed, the agent framework is fixed, the task order is fixed. The memory layer is the variable under comparison. Interpreting the results also requires repeated runs, task-level comparisons, and attention to resource budgets to establish whether differences are consistent.
 
-We focus on three metrics: task completion rate, whether tasks get finished; first-pass success rate, how often a task is done right the first time; and bugs fixed, how many get resolved per unit of time. Concrete numbers will be released gradually in future versions — this post covers directional findings.
+We focus on three metrics: task completion rate, whether tasks get finished; first-pass success rate, how often a task is done right the first time; and bugs fixed, how many get resolved per unit of time. This post describes the evaluation design and questions to investigate; it does not report completion-rate gains or product rankings.
 
 ```mermaid
 flowchart LR
@@ -55,20 +55,20 @@ flowchart LR
   F --> G["Compare the delta memory brings"]
 ```
 
-## Initial findings (directional)
+## Questions to investigate
 
-The first batch of results already points in a few directions; specific numbers will come later.
+Does memory improve task completion? We want to compare results by task type, including cross-repo work that requires revisiting earlier information and single-file tasks.
 
-First, memory does improve completion rates, but the effect varies by task type. On cross-repo tasks that require repeatedly revisiting past information, the memory layer's gain is most obvious; on single-file, one-shot tasks, the gain approaches zero.
+Does memory add execution time? Retrieval costs, irrelevant information, and stale records need to be examined alongside task completion.
 
-Second, there are counterintuitive cases: on some tasks memory actually slows the agent down. Retrieving irrelevant information, or treating stale memories as current facts, makes the agent spend extra time in the wrong direction. Memory isn't automatically better when added — quality and timing matter just as much.
+Does recall accuracy predict task performance? Connecting retrieval results to task outcomes can help establish whether remembered information actually helped the agent.
 
-Third, product rankings don't fully match recall-accuracy rankings. The products that score highest on recall-style benchmarks don't always bring the biggest gains on real tasks. That's a side confirmation: recalling accurately and using well are two different things.
+These are questions for the benchmark to answer. Any reported conclusion should include the task-set version, model and run configuration, sample size, and inspectable run records.
 
 ## How to participate
 
 We welcome any memory solution to come and be tested. Submit via PR.
 
-The leaderboard will keep evolving. As the task pool grows, historical results may re-rank as the task set changes; we keep the full logs of every run to guarantee reproducibility.
+The leaderboard will keep evolving. As the task pool grows, historical results may re-rank as the task set changes; comparisons need matching task-set versions and run configurations. Logs help inspect execution, but do not by themselves guarantee reproducibility.
 
 We look forward to seeing more memory products and more integration approaches on the board. Memory is the next bottleneck for long-horizon agent work — let's measure it properly together.
