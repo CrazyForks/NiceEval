@@ -84,6 +84,11 @@ Docs contribution 只把显式领域挂到 `pnpm run repo docs` 下，也不解�
 
 `pnpm test` 仍是代码测试入口，包括 Unit 验证；它不承担 Test Trace 的发现和显示。
 
+Site 的四个操作共用 Node 24 选择逻辑。当前进程为 Node 24 时直接使用；否则依次检查
+`NICEEVAL_DOCS_NODE_BIN`、Homebrew 的 Node 24、`PATH` 和 `mise where node@24`。
+候选必须通过实际版本检查，选中目录只加入 Mint 子进程的 `PATH`，不修改用户 shell 或安装全局工具。
+找不到 Node 24 时命令失败，并提示安装或设置显式目录。
+
 Test inventory 的单 Repo 入口是 `pnpm run repo docs test inventory --repo <id>`。它与全仓 `audit` 共用 E2E registry、隔离复制、candidate/Testkit 注入、安装和原生 collection，只返回当前 CLI 可消费的 Git-private `neinv_...` ID。formal evidence 与 regression 关系只接收该 ID，不接收任意 receipt 路径。
 
 inventory 文件没有公开 format 或兼容期，也不是可编辑输入；CLI 实现变化、完整性检查失败或 ID 丢失时重新 collection。底层 runner adapter 不作为独立 CLI 暴露 `--cwd` collection。

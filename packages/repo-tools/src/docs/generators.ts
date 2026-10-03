@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
 import { Effect } from "effect";
-import { ChildProcess, type ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { compileDiffCode } from "./diff-code-compiler.js";
 import { DocsFileError, type DocsDomainError, DocsProcessError, errorMessage } from "./errors.js";
@@ -170,8 +170,41 @@ interface DocsSitePreparation {
   readonly summary: string;
 }
 
-function prepareDocsSite(): Effect.Effect<DocsSitePreparation, DocsFileError> {
-  return Effect.try({
+const findDocsNodeBin = Effect.fn("findDocsNodeBin")(function*() {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const executable = process.platform === "win32" ? "node.exe" : "node";
+  const output = (command: string, args: readonly string[]) => spawner.string(
+    ChildProcess.make(command, args),
+  ).pipe(
+    Effect.timeout("3 seconds"),
+    Effect.catch(() => Effect.succeed("")),
+    Effect.map((value) => value.trim()),
+  );
+  const candidates = new Set([
+    process.env.NICEEVAL_DOCS_NODE_BIN,
+    "/opt/homebrew/opt/node@24/bin",
+    "/usr/local/opt/node@24/bin",
+    ...(process.env.PATH ?? "").split(delimiter).filter(Boolean),
+  ]);
+  for (const candidate of candidates) {
+    if (candidate === undefined) continue;
+    const version = yield* output(join(candidate, executable), ["--version"]);
+    if (/^v24\.\d+\.\d+$/.test(version)) return candidate;
+  }
+  // Ask mise for its installed version instead of assuming its data directory.
+  const miseRoot = yield* output("mise", ["where", "node@24"]);
+  if (miseRoot !== "") {
+    const candidate = join(miseRoot, "bin");
+    const version = yield* output(join(candidate, executable), ["--version"]);
+    if (/^v24\.\d+\.\d+$/.test(version)) return candidate;
+  }
+  return undefined;
+});
+
+const prepareDocsSite = Effect.fn("prepareDocsSite")(function*(): Effect.fn.Return<
+  DocsSitePreparation, DocsFileError, ChildProcessSpawner.ChildProcessSpawner
+> {
+  const cacheSummary = yield* Effect.try({
     try: () => {
       const mintCache = join(homedir(), ".mintlify", "mint");
       const versionMarker = join(mintCache, "mint-version.txt");
@@ -182,24 +215,7 @@ function prepareDocsSite(): Effect.Effect<DocsSitePreparation, DocsFileError> {
         cacheSummary = "Removed an incomplete Mintlify-managed preview cache.";
       }
 
-      const nodeMajor = Number(process.versions.node.split(".")[0]);
-      if (nodeMajor === 24) return { path: undefined, summary: cacheSummary };
-      const executable = process.platform === "win32" ? "node.exe" : "node";
-      const supportedNodeBin = [
-        process.env.NICEEVAL_DOCS_NODE_BIN,
-        "/opt/homebrew/opt/node@24/bin",
-        "/usr/local/opt/node@24/bin",
-      ].find((candidate) => candidate !== undefined && existsSync(join(candidate, executable)));
-      if (supportedNodeBin === undefined) {
-        throw new Error(
-          `NiceEval docs require Node 24; current version is ${process.versions.node}. ` +
-          "Install Node 24 or set NICEEVAL_DOCS_NODE_BIN to its bin directory.",
-        );
-      }
-      return {
-        path: `${supportedNodeBin}${delimiter}${process.env.PATH ?? ""}`,
-        summary: `${cacheSummary} Using Node 24 from ${supportedNodeBin}.`,
-      };
+      return cacheSummary;
     },
     catch: (error) => new DocsFileError({
       operation: "prepare docs site",
@@ -207,7 +223,23 @@ function prepareDocsSite(): Effect.Effect<DocsSitePreparation, DocsFileError> {
       message: errorMessage(error),
     }),
   });
-}
+  if (Number(process.versions.node.split(".")[0]) === 24) {
+    return { path: undefined, summary: cacheSummary };
+  }
+  const supportedNodeBin = yield* findDocsNodeBin();
+  if (supportedNodeBin === undefined) {
+    return yield* new DocsFileError({
+      operation: "prepare docs site",
+      path: join(homedir(), ".mintlify", "mint"),
+      message: `NiceEval docs require Node 24; current version is ${process.versions.node}. ` +
+        "Install Node 24 or set NICEEVAL_DOCS_NODE_BIN to its bin directory.",
+    });
+  }
+  return {
+    path: `${supportedNodeBin}${delimiter}${process.env.PATH ?? ""}`,
+    summary: `${cacheSummary} Using Node 24 from ${supportedNodeBin}.`,
+  };
+});
 
 export type DocsSiteOperation = "prepare" | "dev" | "validate" | "links";
 
