@@ -2,177 +2,155 @@
 
 # NiceEval
 
-**Прогрессивный, Agent Native инструмент оценки AI-агентов с отличным DX**
+**Пишите оценки как модульные тесты, сравнивайте агентов как в эксперименте**
 
-[![typescript](https://img.shields.io/badge/typescript-5.6-blue?style=flat-square)](../tsconfig.json)
+[![typescript](https://img.shields.io/badge/typescript-5.6-blue?style=flat-square)](../packages/niceeval/tsconfig.json)
 [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](../package.json)
-[![docs](https://img.shields.io/badge/docs-readable-111827?style=flat-square)](../docs/README.md)
+[![docs](https://img.shields.io/badge/docs-niceeval.com-111827?style=flat-square)](https://niceeval.com/docs/introduction)
 [![discord](https://img.shields.io/badge/discord-join%20chat-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/yTMdZjFFJ)
 
 [English](../README.md) | [中文](../README.zh.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [français](README.fr.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Português](README.pt.md)
 
 </div>
 
-NiceEval — это инструмент оценки AI-агентов, который помогает командам измерять, оценивать и улучшать AI в продакшене. С NiceEval команды могут сравнивать модели, итеративно улучшать агентов, находить регрессии и постоянно улучшать свои AI-приложения, используя реальные данные пользователей.
+Вы изменили промпт, сменили модель, написали новый Skill для Claude Code или настроили промпты NPC в игре. Стало ли действительно лучше?
 
-NiceEval по своей сути local-first: ваши evals выполняются в вашем собственном окружении. Когда вашей команде нужно поделиться оценками или отслеживать регрессии, вы можете отправить Report на такие платформы, как BrainTrust, или экспортировать собственный отчёт.
+Чаще всего ответ получают после нескольких ручных проб, полагаясь на ощущения. Но ответы LLM непредсказуемы: на один и тот же вопрос модель сейчас ответит верно, а в следующий раз ошибётся. Три успешные попытки не доказывают, что изменение полезно и ничего не сломало в другом месте.
 
-## Зачем нужен NiceEval, если уже есть DeepEval, LangFuse, BrainTrust
-NiceEval — это Agent-Native инструмент оценки. Схема Dataset / golden — «построить Input и Expected Output» — плохо подходит для оценки реальных агентов.
-Сегодня агентов нужно оценивать в детализированных сценариях — многораундовые диалоги, взаимодействие нескольких агентов, вызовы инструментов, загрузка Skill'ов — и с этим NiceEval справляется лучше.
+NiceEval заменяет ощущения фактами. Основной сценарий — агенты, но оценивать можно любое приложение на базе LLM. На TypeScript вы описываете, что считать правильным: какой инструмент вызвать, что должен содержать ответ, проходят ли тесты после изменения кода, остаётся ли игровой мир согласованным после взаимодействия. NiceEval подключается к проверяемой системе, многократно запускает её, выставляет оценки и сохраняет диалоги, вызовы инструментов, изменения файлов, время и стоимость каждого запуска для сравнения и расследования.
 
-Также NiceEval сосуществует с LangFuse и BrainTrust: их можно использовать для трейсинга или загружать в них результаты оценки.
+Написание оценок похоже на модульные тесты, а их использование — на эксперименты:
 
-## Архитектура
+- **Предотвращайте регрессии**: после изменения промпта, модели или зависимостей запускайте те же проверки и смотрите, не снизилась ли доля успешных результатов.
+- **Сравнивайте варианты**: запускайте одинаковые проверки с двумя моделями, двумя версиями промпта, с установленным Skill и без него. Различия будут видны в числах и отдельных записях.
+- **Подключайте CI**: блокируйте изменения, если оценка ниже порога.
+- **Расширяйте покрытие**: превращайте сбои из реального использования в новые проверки, которые будут выполняться при каждом следующем изменении.
 
-NiceEval поддерживает два способа подключения — в зависимости от того, нужна ли тестируемому агенту изолированная файловая система в песочнице.
-
-**Режим 1: Sandbox (Docker, E2B) — для запуска Codex, Claude Code и других coding agent'ов, которым нужна песочница**
-
-```text
-   evals/*.eval.ts
-        │
-        ▼
-   ┌─────────────────────┐
-   │      NiceEval       │
-   └─────────────────────┘
-        │
-        │ Адаптер Agent (официальный)
-        ▼
-   ┌──────────────────────────────┐
-   │        Docker Sandbox        │
-   │  ┌────────────────────────┐  │
-   │  │ Codex / Claude Code    │  │
-   │  │ приложения, которым    │  │
-   │  │ нужна изолированная ФС │  │
-   │  └────────────────────────┘  │
-   └──────────────────────────────┘
-```
-
-**Режим 2: Прямое подключение — напрямую к вашему собственному AI Agent**
-
-```text
-   evals/*.eval.ts
-        │
-        ▼
-   ┌─────────────────────┐
-   │      NiceEval       │
-   └─────────────────────┘
-        │
-        │ Адаптер Agent (официальный или собственная реализация)
-        ▼
-   ┌──────────────────────────────┐
-   │  Ваш собственный AI Agent    │
-   │    (AI SDK·LangGraph·Pi)     │
-   └──────────────────────────────┘
-```
-
-- **Ядро NiceEval** отвечает за обнаружение eval'ов, планирование запусков, выставление оценок, генерацию отчётов и артефактов.
-- **Адаптер Agent** — открытая граница: вы сами решаете, как вызывать тестируемую систему.
-- Coding agent'ам, которым нужна изоляция файловой системы, подходит **Docker Sandbox**; ваш собственный AI Agent можно подключить напрямую, без Docker.
-
-## Ключевые концепции вкратце
-
-| Концепция | Одной строкой |
-|---|---|
-| Eval | Тестовый сценарий: пишется в `evals/*.eval.ts`, описывает, что именно проверяется. |
-| Experiment | Конфигурация запуска, которую можно закоммитить в репозиторий: определяет, какой Adapter, какая model и какие flags использовать. |
-| Adapter | Слой подключения к тестируемой системе: реализуйте один метод `send` — и получите обратно стандартный поток событий. |
-| Sandbox | Нужен только coding agent'ам, которым требуется изолированное рабочее пространство; агенту с прямым web-подключением песочница не нужна. |
-| Tier | Три уровня усилий по интеграции Adapter: Tier 1 подключает только `send`, Tier 2 добавляет OTel для получения waterfall-диаграммы вызовов, Tier 3 вносит инвазивные изменения ради feature A/B-тестирования. |
-
-Полный глоссарий см. в [обзоре архитектуры](https://niceeval.com/docs/concepts/overview).
+Всё работает на вашей машине и в вашем CI. Регистрация не нужна.
 
 ## Пример
 
+Проверим погодного помощника: в ответ на вопрос о погоде он должен действительно вызвать `get_weather`, а не выдумать ответ.
+
 ```ts
-// evals/eval-tool-call.eval.ts
+// evals/weather-tool.eval.ts
 import { defineEval, defineJudge } from "niceeval";
 import { includes, jsonMatch, pattern, toolMatch } from "niceeval/expect";
 
-const groundedWeatherAnswer = defineJudge({
+const groundedAnswer = defineJudge({
   name: "grounded-weather-answer",
-  rubric: "Does the reply use the tool's weather data?",
+  rubric: "Does the assistant answer using the tool's weather data rather than refusing or being vague?",
 });
 
 export default defineEval({
-  judge: groundedWeatherAnswer,
-  description: "Проверяет, что агент корректно вызывает инструмент при вопросах о погоде в реальном времени и отвечает на основе его результата",
+  description: "Call the weather tool and answer using its result",
+  judge: groundedAnswer,
 
   async test(t) {
-    const turn = await t.send("Какая сегодня погода в Beijing?");
+    const turn = await t.send("What's the weather in Beijing today?");
     turn.succeeded();
 
-    await t.group("вызывает get_weather с правильным городом", () => {
-      turn.calledTool(toolMatch("get_weather", { input: jsonMatch({ city: "Beijing" }) }));
-      t.check(turn.message, pattern(/°C|температура|погода|солнечно|облачно|дождь/));
-    });
+    // Check deterministic facts with deterministic rules
+    turn.calledTool(toolMatch("get_weather", { input: jsonMatch({ city: "Beijing" }) }));
+    t.check(turn.message, pattern(/°C|temperature|sunny|cloudy|rain/));
 
-    const second = await t.send("А как насчёт Shanghai завтра?");
+    // The second turn should retain the context
+    const second = await t.send("What about Shanghai tomorrow?");
     t.check(second.message, includes("Shanghai"));
 
-    t.check({ question: turn.input, answer: turn.message }, groundedWeatherAnswer.atLeast(0.7)).gate();
+    // Let a judge model assess open-ended quality
+    t.judge({ question: turn.input, answer: turn.message }, groundedAnswer).gate(0.7);
   },
 });
 ```
 
+Какого агента и с какой моделью запускать, задаётся в Experiment отдельно от проверок. Поэтому одни и те же проверки можно напрямую использовать для сравнения двух моделей или версий промпта:
+
 ```ts
 // experiments/local.ts
 import { defineExperiment } from "niceeval";
-import { webAgent } from "./adapter"; // ваш собственный agent adapter, подключённый к тестируемому web agent
+import { webAgent } from "../agents/web-agent"; // Your own Adapter, a few dozen lines
 
 export default defineExperiment({
   agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
-  model: "gpt-5.5"
+  model: "gpt-5.5",
 });
 ```
 
 ```sh
-pnpm exec niceeval exp local eval-tool-call  // запустить только eval-tool-call с experiment local
-pnpm exec niceeval view // посмотреть результаты оценки
+pnpm exec niceeval exp local weather-tool   # Run only weather-tool with the local experiment
+pnpm exec niceeval show                     # See results in the terminal, failures first
+pnpm exec niceeval view                     # Browse conversations and tool calls in the browser
 ```
+
+Полный запускаемый проект находится в [`examples/zh/ai-sdk/`](../examples/zh/ai-sdk/).
+
+## Что можно оценивать?
+
+**Собственные AI-приложения.** Неважно, используют они AI SDK, LangGraph, Pi или собственный цикл агента и на каком языке написаны. Достаточно доступного интерфейса: HTTP, WebSocket или SDK. Напишите Adapter, который отправляет запросы и преобразует ответы в события, понятные NiceEval. Затем проверяйте содержимое ответов, вызовы инструментов, структурированные результаты и расход ресурсов.
+
+**Агентов для программирования и их расширения.** NiceEval запускает Claude Code, Codex, OpenCode и других агентов в Docker или облачном Sandbox, предоставляет настоящий репозиторий и задачу, а затем оценивает результат по тестам самого проекта и изменениям файлов. Так можно выяснить, действительно ли Skill, Plugin или memory помогает агенту лучше работать.
+
+**Любые AI-приложения, включая игры на базе LLM.** Проверяемая система не обязана быть диалоговым агентом. Игры с LLM, социальные AI-приложения и генеративные процессы часто предлагают действия вроде публикации поста, ответа или хода NPC вместо обмена сообщениями. Через `defineAdapter` передайте эти операции непосредственно проверкам. Вызывайте типизированные `t.post(...)` и `t.reply(...)`, проверяйте структурированные результаты и состояние мира, а оценку открытых качественных вопросов поручайте Judge.
+
+```ts
+// evals/social-journey.eval.ts — the system under test is an AI-powered social app
+export default x.defineEval({
+  description: "Post and reply, get responses from AI characters, and keep the social world coherent",
+  async test(t) {
+    const initial = await t.visitDiscoveryPage();
+    const post = await t.post({ intent: "Invite everyone to photograph the city at night", withImage: true });
+    t.check(post, authoredPost(initial.viewerId)).label("The post belongs to the current player");
+
+    const reply = await t.reply({ postId: post.id, intent: "Add the meeting point at the riverside path entrance" });
+    const responses = await t.waitForReplies(reply.id);
+    t.check(responses.length, greaterThan(0)).label("AI characters respond");
+    t.check(worldMaterial(await t.refreshFeed()), coherentSocialWorld()).label("Social relationships remain intact after refresh");
+  },
+});
+```
+
+Полный проект в [`examples/zh/llm-x/`](../examples/zh/llm-x/) — социальное приложение на базе AI. Проверки охватывают публикации, ответы, реакции AI-персонажей, обновление ленты и генерацию изображений к постам.
+
+## Почему не использовать сразу DeepEval, LangFuse или Braintrust?
+
+DeepEval — зрелый фреймворк оценки на Python с богатой библиотекой метрик. NiceEval делает другие акценты:
+
+- **Нативный TypeScript**: проверки, Adapters и Experiments — типизированный TS-код на том же языке, что и ваш агент.
+- **Проверка процесса**: для выполнения задачи часто нужны несколько ходов диалога, вызовы инструментов, чтение файлов и изменения кода. Итоговый ответ — лишь одна часть. NiceEval проверяет эти факты напрямую, не требуя заранее собрать эталонный датасет.
+- **Оценка в реальном окружении**: агенты для программирования работают в Docker или облачных Sandbox. Результат оценивается по тестам проекта и изменениям файлов, а не только по тексту ответа.
+- **Сравнительные эксперименты как основная возможность**: проверки отделены от выбора проверяемой системы. Одни и те же случаи напрямую сравнивают модели, промпты и расширения.
+
+Платформы наблюдаемости вроде LangFuse и Braintrust отвечают на вопрос «Что произошло в продакшене?», а оценки — «Достаточно ли хорошо это поведение?». NiceEval сосредоточен на втором вопросе и локальном цикле разработки: написать проверки, запустить их, изучить результаты, улучшить агента. Эти инструменты совместимы: продолжайте смотреть продакшен-трейсы и отправляйте результаты NiceEval в Braintrust.
 
 ## Быстрый старт
 
+Быстрее всего поручить интеграцию тому агенту для программирования, которым вы уже пользуетесь. Отправьте ему следующее:
+
 ```text
-READ https://niceeval.com/INIT.md and set up niceeval for this repo: install it, integrate it with this project, and run the first eval end to end.
+Прочитай https://niceeval.com/INIT.md, установи и интегрируй niceeval в текущий репозиторий и выполни первую проверку от начала до конца.
 ```
 
-Начните со своего сценария:
-
-- [Если вам нужно оценить ваш плагин для Claude Code / Codex](https://niceeval.com/docs/example/claude-code-codex-plugin)
-- [Если вам нужно оценить ваш Skill для Claude Code / Codex](https://niceeval.com/docs/example/claude-code-codex-skill)
-- [Если вам нужно оценить ваше AI Agent приложение](https://niceeval.com/docs/example/ai-agent-application)
-
-
-## Roadmap
-Официальные адаптеры
-- [ ] Agent-приложения
-  - [x] Claude Code
-  - [x] Codex
-  - [x] Bub
-  - [ ] OpenClaw
-  - [ ] Hermess Agent
-  - [ ] Alma
-  - [ ] ...
-
-- [ ] Agent-фреймворки
-  - [x] AI SDK
-  - [x] Claude SDK
-  - [x] Codex SDK
-  - [x] Pi Agent SDK
-  - [ ] LangGraph
-  - [ ] vm0
-  - [ ] Cursor Agent SDK
+Для самостоятельной настройки следуйте [быстрому старту](https://niceeval.com/docs/tutorials/quickstart) и создайте три файла. Первый результат можно получить примерно за десять минут.
 
 ## Документация
 
-- [Быстрый старт](https://niceeval.com/docs/quickstart)
+- [Введение](https://niceeval.com/docs/introduction): что такое NiceEval и когда он полезен
+- [Быстрый старт](https://niceeval.com/docs/tutorials/quickstart): запуск первой проверки
+- [Запускаемые примеры](https://niceeval.com/docs/examples): проекты интеграции с AI SDK, Claude SDK, Codex SDK, Pi и LangGraph
+- [Оценка расширений агентов для программирования](https://niceeval.com/docs/examples/coding-agent-extensions): измерение эффекта Skills и Plugins в сравнительных экспериментах
 
-# Благодарности
-Этот проект был вдохновлён нижеперечисленными проектами, а также ИИ, изучавшим их код при написании NiceEval:
-- [eve](https://eve.dev): основное вдохновение для DX и API
+## Официальные адаптеры
+
+- Агенты для программирования: Claude Code, Codex, Bub, OpenCode, Hermes Agent, OpenClaw; Alma запланирован
+- Фреймворки агентов: AI SDK, Claude SDK, Codex SDK, Pi Agent SDK, LangGraph; vm0 и Cursor Agent SDK запланированы
+
+## Благодарности
+
+Проект вдохновлён следующими работами; часть кода написана AI, обучавшимся на них:
+
+- [eve](https://eve.dev): основной источник вдохновения для DX и дизайна API
 - [agent eval](https://github.com/vercel-labs/agent-eval)
 - [ponytail](https://github.com/DietrichGebert/ponytail)
 
-Мы благодарим [Linux.do](https://linux.do/) за поддержку и обратную связь на ранних этапах разработки проекта.
+Спасибо [Linux.do](https://linux.do/) за поддержку и обратную связь на раннем этапе разработки.
