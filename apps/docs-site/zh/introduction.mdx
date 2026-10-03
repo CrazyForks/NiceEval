@@ -58,6 +58,15 @@ export default defineEval({
 
 “对着哪个 Agent、用哪个模型跑”不写在评估用例里，而是写在 Experiment 里。同一批评估用例因此可以直接用来比较两个模型或两版 prompt。
 
+## 评估用来做什么
+
+评估写起来像单元测试，用起来更像实验。同一批评估用例可以服务几种目的：
+
+- **防回归**：改 prompt、换模型、升级依赖后重跑同一批评估，看通过率有没有掉。见[修改后只重跑受影响的评估](/zh/tutorials/rerun-and-cache)。
+- **做对比**：同一批评估对着两个模型、两版 prompt、装与不装某个 Skill 各跑一遍，逐题比较结果。见[编写实验](/zh/tutorials/write-experiment)和[比较两次运行](/zh/tutorials/compare-runs)。
+- **进 CI**：评估不通过就让 PR 变红。见 [CI 集成](/zh/tutorials/ci-integration)。
+- **越用越全**：真实使用中暴露的失败，补成一条新的评估用例，以后每次改动都会检查到它。
+
 ## 能评什么
 
 <CardGroup cols={3}>
@@ -108,9 +117,14 @@ export default x.defineEval({
 
 ## 和 DeepEval、LangFuse、Braintrust 有什么不同
 
-准备一份输入和标准答案再逐条比对，这套做法适合问答。但 Agent 做对一件事，往往要经过多轮对话、几次工具调用、读文件、改代码，最终答案只是其中一环。NiceEval 的断言直接落在这些过程事实上，不要求你先攒一份 golden 数据集。
+DeepEval 是成熟的 Python 评估框架，指标库丰富。NiceEval 的取舍不同：
 
-LangFuse、Braintrust 更偏线上 tracing 和监控。NiceEval 专注“写评估、跑评估、看结果、改 Agent”这一段本地开发循环。两者可以共存：你继续用它们看线上 trace，也可以把 NiceEval 的结果上报给 Braintrust。
+- **TypeScript 原生**：评估用例、Adapter、Experiment 都是带类型的 TypeScript 代码。
+- **断言落在过程上**：Agent 做对一件事，往往要经过多轮对话、几次工具调用、读文件、改代码，最终答案只是其中一环。NiceEval 直接断言这些过程事实，不要求你先攒一份 golden 数据集。
+- **在真实环境里判分**：Coding Agent 跑在 Sandbox 里，用项目自己的测试和文件改动判分，而不是只给回复打分。
+- **对照实验是一等公民**：评估用例和 Experiment 分开，同一批评估用例直接比较模型、prompt 和扩展。
+
+LangFuse、Braintrust 这类可观测平台回答“线上发生了什么”，评估回答“这个行为够不够好”。NiceEval 专注后者，以及“写评估、跑评估、看结果、改 Agent”这一段本地开发循环。两者可以共存：你继续用它们看线上 trace，也可以把 NiceEval 的结果上报给 Braintrust。
 
 ## 会反复见到的几个词
 
