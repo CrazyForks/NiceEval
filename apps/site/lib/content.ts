@@ -51,7 +51,7 @@ export const copy = {
       humans: {
         label: "For humans",
         cta: "Docs",
-        caption: "Read the quickstart guide, then write an eval and run it across targets without building a bespoke harness.",
+        caption: "Read the docs and build evals for your agent in 10 minutes.",
       },
       agents: {
         label: "For agents",
@@ -59,7 +59,7 @@ export const copy = {
         caption: "Paste this prompt into your coding agent so it installs and wires up NiceEval on its own.",
       },
     },
-    heroTitle: "AI-Native Eval for Agents.",
+    heroTitle: "Evals built for agents.",
     copyCommand: "Copy command",
     copied: "copied",
     github: "GitHub",
@@ -69,9 +69,9 @@ export const copy = {
     runStatusPassed: "passed",
     workflowLabel: "NiceEval workflow",
     steps: [
-      ["Connect", "Connect your agent — or CC/Codex — via an adapter plus o11y."],
+      ["Connect", "Connect your own agent, Claude Code, or Codex through an adapter and OpenTelemetry."],
       ["Define", "Write evals and experiments the way you'd write unit tests."],
-      ["Evaluate", "Evaluate in parallel."],
+      ["Evaluate", "Run evals in parallel, then read the results in your terminal or browser."],
     ],
     setupEyebrow: "Eval examples",
     setupTitle: "eval chats, tool calls, and coding agents",
@@ -80,14 +80,14 @@ export const copy = {
     loopEyebrow: "Agents are users too",
     loopTitle: "turn evals into a loop",
     loopCaption:
-      "The NiceEval CLI is designed for agents as much as for humans — not just an evaluation tool, but a framework that loops: build evals, run them, improve the agent system. Every output has an agent-readable face, so a coding agent drives the whole loop over bash.",
+      "The NiceEval CLI treats coding agents as users too. Build evals, run them, read the failures, and improve your agent. Every step works over bash, and every failure comes with a locator the agent can follow.",
     loopTerminalLabel: "terminal",
     // 环上四段弧线箭头:[标题, 对应的 CLI 命令]。标题一个词,命令用缩略形态,
     // 两者都必须极短——写在弧带内部,长了会撑出弧带。重跑不单列:环回到 eval 就是重跑。
     loopSteps: [
       ["eval", "exp local"],
-      ["triage", "query discover"],
-      ["evidence", "query run"],
+      ["triage", "show @…"],
+      ["evidence", "--execution"],
       ["refine", "claude"],
     ],
     blogPage: {
@@ -104,7 +104,7 @@ export const copy = {
     },
   },
   zh: {
-    titleHome: "NiceEval —— 为你的 AI 应用打造的 Agent-Native 的评估框架与 Harness 配套",
+    titleHome: "NiceEval：Agent-Native 评估框架",
     titleBlog: "Agent 评测博客",
     meta: "NiceEval 是框架无关的 Agent 评估工具，为你的 Agent 或 Coding Agent 构建评估提供完整的闭环。",
     navStart: "开始",
@@ -120,22 +120,22 @@ export const copy = {
       agents: {
         label: "给 Agent",
         command: initPrompt,
-        caption: "把这段 prompt 粘贴给你的 CodeX/Claude Code",
+        caption: "把这段 prompt 粘贴给你的 Codex 或 Claude Code，让它自己装好 NiceEval",
       },
     },
     heroTitle: "更适合 Agent 的评估。",
     copyCommand: "复制命令",
     copied: "已复制",
     github: "GitHub",
-    visualLabel: "NiceEval 终端演示:跑一次实验,再对照两个模型",
-    visualLabelAgents: "终端演示:Claude Code 装上 NiceEval、跑完评估、修掉失败项",
+    visualLabel: "NiceEval 终端演示：跑一次实验，再对照两个模型",
+    visualLabelAgents: "终端演示：Claude Code 装上 NiceEval、跑完评估、修掉失败项",
     replay: "重放动画",
     runStatusPassed: "通过",
     workflowLabel: "NiceEval 工作流",
     steps: [
-      ["接入", "通过适配器与o11y,接入你的 Agent 或者 CC/Codex"],
+      ["接入", "通过 Adapter 与 OpenTelemetry，接入你的 Agent、Claude Code 或 Codex"],
       ["定义", "像写单元测试一样写评估与实验"],
-      ["评估", "并行评估"],
+      ["评估", "并行运行评估，在终端或浏览器里查看结果"],
     ],
     setupEyebrow: "Eval 示例",
     setupTitle: "Eval 对话、工具调用与 Coding Agent",
@@ -144,12 +144,12 @@ export const copy = {
     loopEyebrow: "Agent 也是用户",
     loopTitle: "把评估变成循环",
     loopCaption:
-      "NiceEval 的 CLI 把 Agent 也当成用户来设计——它不只是评估工具，而是构建评估、执行评估、优化 Agent 系统的循环框架。每个输出都有给 agent 读的一面，coding agent 靠 bash 就能跑完整个循环。",
+      "NiceEval 的 CLI 把 coding agent 也当成用户。构建评估、运行评估、读失败、改进 Agent，每一步都能在 bash 里完成，每个失败都带着 agent 能继续追查的 locator。",
     loopTerminalLabel: "终端",
     loopSteps: [
       ["评估", "exp local"],
-      ["诊断", "query discover"],
-      ["证据", "query run"],
+      ["诊断", "show @…"],
+      ["证据", "--execution"],
       ["优化", "claude"],
     ],
     blogPage: {

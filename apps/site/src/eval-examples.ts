@@ -48,17 +48,17 @@ const multiTurnImage: EvalExample = {
   id: "multi-turn-image",
   // 改编自 examples/zh/ai-sdk/evals/multi-turn-image.eval.ts
   meta: {
-    gateBadge: "1/0.7",
-    gateLine: 23,
+    gateBadge: "≥ 0.7",
+    gateLine: 21,
     highlights: {
-      11: "turn1",
-      12: "succeeded",
-      13: "noTools",
-      14: "turn2",
-      15: "recognize",
-      16: "turn3",
-      19: "followup",
-      23: "gate",
+      10: "turn1",
+      11: "succeeded",
+      12: "noTools",
+      13: "turn2",
+      14: "recognize",
+      15: "turn3",
+      18: "followup",
+      21: "gate",
     },
     replyKeys: ["turn1", "turn2", "turn3"],
   },
@@ -72,7 +72,6 @@ const multiTurnImage: EvalExample = {
       'const imageContext = defineJudge({ name: "image-context", rubric: "Does the last reply stay grounded in the earlier image?" });',
       "",
       "export default defineEval({",
-      "  judge: imageContext,",
       '  description: "Evaluate an agent\'s multimodal ability across a multi-turn conversation",',
       "",
       "  async test(t) {",
@@ -87,7 +86,7 @@ const multiTurnImage: EvalExample = {
       "      t.check(third.message, pattern(/white/i));",
       "    });",
       "",
-      '    t.check({ earlierImageFacts: ["blue background", "white square"], question: third.input, answer: third.message }, imageContext.atLeast(0.7)).gate();',
+      '    t.judge({ earlierImageFacts: ["blue background", "white square"], question: third.input, answer: third.message }, imageContext).gate(0.7);',
       "  },",
       "});",
     ],
@@ -96,7 +95,7 @@ const multiTurnImage: EvalExample = {
       noTools: "first.usedNoTools() passes only when turn 1's captured action evidence can prove there was no tool call; incomplete coverage becomes unavailable.",
       recognize: "t.check(second.message, pattern(...)) checks only turn 2's reply, so a matching phrase in another turn cannot satisfy it.",
       followup: "t.check(third.message, pattern(...)) checks the final follow-up directly instead of relying on a cross-turn text scan.",
-      gate: "The Judge binds the final Turn's managed input and reply views; the run only passes with a measurement at or above 0.7.",
+      gate: "t.judge() hands the earlier image facts, the final question, and the answer to the image-context Judge. .gate(0.7) means the run only passes with a score of 0.7 or higher.",
     },
     traces: {
       turn1: { duration: "2.1s", calls: 0, events: [
@@ -130,7 +129,6 @@ const multiTurnImage: EvalExample = {
       'const imageContext = defineJudge({ name: "image-context", rubric: "最后一轮回复是否基于先前图片？" });',
       "",
       "export default defineEval({",
-      "  judge: imageContext,",
       '  description: "评估 agent 在多轮对话中多模态的能力",',
       "",
       "  async test(t) {",
@@ -145,7 +143,7 @@ const multiTurnImage: EvalExample = {
       "      t.check(third.message, pattern(/白|white/i));",
       "    });",
       "",
-      '    t.check({ earlierImageFacts: ["蓝色背景", "白色方块"], question: third.input, answer: third.message }, imageContext.atLeast(0.7)).gate();',
+      '    t.judge({ earlierImageFacts: ["蓝色背景", "白色方块"], question: third.input, answer: third.message }, imageContext).gate(0.7);',
       "  },",
       "});",
     ],
@@ -154,7 +152,7 @@ const multiTurnImage: EvalExample = {
       noTools: "first.usedNoTools() 只会在第一轮已捕获的 action 证据足以证明没有工具调用时通过；覆盖不完整会得到 unavailable。",
       recognize: "t.check(second.message, pattern(...)) 只检查第 2 轮回复，别的 Turn 出现匹配词也不能让它通过。",
       followup: "t.check(third.message, pattern(...)) 直接检查最后一次追问的回复，不依赖跨 Turn 文本扫描。",
-      gate: "Judge 绑定最后一个 Turn 的受管输入和回复 View；Measurement 达到 0.7 才算通过。",
+      gate: "t.judge() 把先前的图片事实、最后一次提问和回答交给 image-context Judge；.gate(0.7) 表示得分达到 0.7 才算通过。",
     },
     traces: {
       turn1: { duration: "2.1s", calls: 0, events: [
@@ -182,18 +180,18 @@ const multiTurnImage: EvalExample = {
 
 const weatherTool: EvalExample = {
   id: "weather-tool",
-  // 改编自 examples/zh/ai-sdk-v7/evals/weather-tool.eval.ts
+  // 改编自 examples/zh/tier1/ai-sdk-v7/evals/weather-tool.eval.ts
   meta: {
-    gateBadge: "1/0.7",
-    gateLine: 25,
+    gateBadge: "≥ 0.7",
+    gateLine: 23,
     highlights: {
-      11: "turn1",
-      14: "calledTool",
-      15: "notCalledTool",
-      16: "eventOrder",
-      17: "message",
-      19: "budget",
-      25: "gate",
+      10: "turn1",
+      13: "calledTool",
+      14: "notCalledTool",
+      15: "eventOrder",
+      16: "message",
+      18: "budget",
+      23: "gate",
     },
     replyKeys: ["turn1"],
   },
@@ -207,7 +205,6 @@ const weatherTool: EvalExample = {
       'const weatherAnswer = defineJudge({ name: "weather-answer", rubric: "Did the answer give concrete weather data instead of hedging?" });',
       "",
       "export default defineEval({",
-      "  judge: weatherAnswer,",
       '  description: "Live weather must go through get_weather — no making it up",',
       "",
       "  async test(t) {",
@@ -224,7 +221,7 @@ const weatherTool: EvalExample = {
       "      t.maxCost(0.05);",
       "    });",
       "",
-      "    t.check({ question: turn.input, answer: turn.message }, weatherAnswer.atLeast(0.7)).gate();",
+      "    t.judge({ question: turn.input, answer: turn.message }, weatherAnswer).gate(0.7);",
       "  },",
       "});",
     ],
@@ -234,7 +231,7 @@ const weatherTool: EvalExample = {
       eventOrder: "turn.eventOrder() checks this Turn's sequence: the tool call fired, the result came back, and only then did the assistant answer.",
       message: "The reply must show visible evidence of the weather data — calling the tool but never answering the user also fails.",
       budget: "Budget assertions cap tool calls and cost, so a passing run is also an affordable run.",
-      gate: "The weather-answer Judge scores whether the answer contains concrete weather data; the run needs at least 0.7 to pass.",
+      gate: "t.judge() asks the weather-answer Judge whether the answer gives concrete weather data. .gate(0.7) means the run needs a score of at least 0.7 to pass.",
     },
     traces: {
       turn1: { duration: "1.8s", calls: 1, events: [
@@ -261,7 +258,6 @@ const weatherTool: EvalExample = {
       'const weatherAnswer = defineJudge({ name: "weather-answer", rubric: "回答是否给出了具体天气数据，而不是含糊其辞？" });',
       "",
       "export default defineEval({",
-      "  judge: weatherAnswer,",
       '  description: "实时天气必须走 get_weather 工具，不许编造",',
       "",
       "  async test(t) {",
@@ -278,7 +274,7 @@ const weatherTool: EvalExample = {
       "      t.maxCost(0.05);",
       "    });",
       "",
-      "    t.check({ question: turn.input, answer: turn.message }, weatherAnswer.atLeast(0.7)).gate();",
+      "    t.judge({ question: turn.input, answer: turn.message }, weatherAnswer).gate(0.7);",
       "  },",
       "});",
     ],
@@ -288,7 +284,7 @@ const weatherTool: EvalExample = {
       eventOrder: "turn.eventOrder() 检查这一轮事件序：先发起工具调用、拿到结果，然后才由助手回复。",
       message: "回复里必须出现天气数据的可见证据——只调工具不回答用户也算失败。",
       budget: "预算断言限制工具调用次数和成本，通过的 run 同时也是省钱的 run。",
-      gate: "weather-answer Judge 给「是否给出具体天气数据」打分，达到 0.7 才算通过。",
+      gate: "t.judge() 让 weather-answer Judge 给「是否给出具体天气数据」打分；.gate(0.7) 表示达到 0.7 才算通过。",
     },
     traces: {
       turn1: { duration: "1.8s", calls: 1, events: [
@@ -315,12 +311,12 @@ const sandboxArtifact: EvalExample = {
   // → python3 输出 351.0；第 1 轮 16s，整个 Attempt 51.4s / $0.296。
   meta: {
     gateBadge: "matched",
-    gateLine: 15,
+    gateLine: 16,
     highlights: {
-      7: "sandbox",
-      9: "turn1",
-      12: "fileChanged",
-      15: "stdout",
+      8: "sandbox",
+      10: "turn1",
+      13: "fileChanged",
+      16: "stdout",
     },
     replyKeys: ["turn1"],
   },

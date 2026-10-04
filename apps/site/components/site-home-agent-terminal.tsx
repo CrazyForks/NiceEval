@@ -3,11 +3,12 @@
 import { Appear, Cursor, Line, TerminalWindow, Typed, useAnimated, useTimeline } from "./site-terminal-shell";
 
 // Hero「给 Agent 看」的终端动画:同一个仓库,换成 Claude Code 在驱动 niceeval。
-// 粘一句 prompt 之后,coding agent 自己装包、写 eval、跑 `--json` 事件流、按 locator 下钻、
+// 粘一句 prompt 之后,coding agent 自己装包、写 eval、跑实验、按 locator 下钻、
 // 改代码、只重跑失败项——这就是「Agent 也是用户」那条闭环在终端里的样子。
 //
-// niceeval 侧的每一行仍然是真实输出:`--json` 是 stdout 上的 NDJSON 事件流,字段名复用
-// Results 词表(docs/feature/experiments/cli.md「机器怎么读」),locator 是继续调查的主键。
+// niceeval 侧的每一行沿用正式输出形态:`exp` 的结束反馈见 docs/feature/experiments/cli.md
+// 「结束反馈与 receipt」,`show` 见 docs/feature/inspection/cli.md。locator 是继续调查的主键,
+// 格式是 @1 加 12 位大写 Crockford base32。
 // Claude Code 侧沿用它自己的转录版式(banner、`>` 提示、`●` 工具调用、`⎿` 结果、折叠计数)。
 // 这段输出不做 i18n —— 终端里就是这一套英文字面量。
 
@@ -62,22 +63,23 @@ const STEPS: Step[] = [
     at: 6600,
     outAt: 9700,
     tool: "Bash",
-    arg: "niceeval exp compare --json",
+    arg: "niceeval exp compare",
     spinner: { verb: "Evaluating", seconds: 127, tokens: "3.4k" },
     out: [
-      '{"format":"niceeval.exp","schemaVersion":1,"event":"start","total":8,"configs":2,"concurrency":4,"reused":2}',
-      '{"event":"failure","locator":"@1bwcxxiy","evalId":"checkout/apply-coupon","experimentId":"compare/gpt-5.4","severity":"gate","assertion":"cart total reflects the SAVE20 coupon","matcher":"equals(80)","expected":80,"received":100}',
-      '{"event":"result","status":"failed","passed":7,"failed":1,"errored":0,"reused":2,"completion":"complete"}',
+      "FAILED · 7 passed · 1 failed · 0 errored  (2 reused)",
+      "✗ @1MEMY3VCQ6B5B  checkout/apply-coupon  [compare/gpt-5.4]",
+      "  gate: cart total reflects the SAVE20 coupon",
+      "  details: niceeval show @1MEMY3VCQ6B5B",
     ],
-    more: "+6 lines (ctrl+o to expand)",
+    more: "+9 lines (ctrl+o to expand)",
   },
   {
     kind: "tool",
     at: 10400,
     outAt: 11000,
     tool: "Bash",
-    arg: "niceeval query run --request attempt.json",
-    out: ["Read the fixed attempt.get request for @1bwcxxiy"],
+    arg: "niceeval show @1MEMY3VCQ6B5B --execution",
+    out: ["Execution @1MEMY3VCQ6B5B · captured · complete"],
     more: "+41 lines (ctrl+o to expand)",
   },
   {
@@ -101,18 +103,16 @@ const STEPS: Step[] = [
     at: 13400,
     outAt: 15200,
     tool: "Bash",
-    arg: "niceeval exp compare --rerun --json",
+    arg: "niceeval exp compare checkout/apply-coupon",
     spinner: { verb: "Rerunning", seconds: 71, tokens: "1.2k" },
-    out: [
-      '{"event":"result","status":"passed","passed":1,"failed":0,"errored":0,"reused":0,"completion":"complete"}',
-    ],
+    out: ["PASSED · 2 passed · 0 failed · 0 errored  (0 reused)"],
   },
   {
     kind: "text",
     at: 15800,
     lines: [
-      "Fixed — checkout/apply-coupon now passes on both configs. For the fixed comparison:",
-      "niceeval query run --request runs-compare.json",
+      "Fixed — checkout/apply-coupon now passes on both configs. To review the results:",
+      "niceeval show",
     ],
   },
 ];

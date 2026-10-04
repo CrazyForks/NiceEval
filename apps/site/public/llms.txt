@@ -10,7 +10,7 @@
 ## Docs
 
 - [Full documentation index](https://niceeval.com/docs/llms.txt): Concepts, guides, and reference pages for adapters, experiments, evals, scoring, sandboxes, and the CLI.
-- [Quickstart](https://niceeval.com/docs/quickstart): 5-minute path to a first running eval.
+- [Quickstart](https://niceeval.com/docs/quickstart): The shortest path to a first running eval.
 
 ## 中文
 

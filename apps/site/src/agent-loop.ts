@@ -1,7 +1,9 @@
 // Landing page「Agent 反馈闭环」区块的终端帧数据。四帧对应闭环四步，
 // 步骤标题/说明的 en/zh 文案在 lib/content.ts 的 loopSteps 里，组件按下标配对。
 //
-// 机器调查通过固定 Query request；人需要连续阅读时在第一方 View 中打开同一 locator。
+// 输出形态取自正式 CLI 契约：exp 的结束反馈见 docs/feature/experiments/cli.md「结束反馈与 receipt」，
+// show 的 Attempt 概览与 --execution 见 docs/feature/inspection/cli.md「niceeval show」。
+// locator 必须是合法格式：@1 加 12 位大写 Crockford base32。
 
 export type LoopLineKind = "cmd" | "pass" | "fail" | "dim" | "plain" | "blank";
 
@@ -17,60 +19,68 @@ export type LoopFrame = {
 
 const line = (kind: LoopLineKind, text = ""): LoopLine => ({ kind, text });
 
+const LOCATOR = "@1K1P0VJAPVJ12";
+const RUN_ID = "8f3d6f62-1d34-4cf3-99c7-84ba3c483706";
+
 export const loopFrames: LoopFrame[] = [
   {
     id: "run",
     lines: [
-      line("cmd", "$ niceeval exp local --output agent --force"),
-      line("fail", "NICEEVAL RESULT failed"),
-      line("plain", "summary: 14 passed, 1 failed, 0 errored"),
-      line("plain", "failures:"),
-      line("fail", "  - @1k2m9qtr weather/brooklyn [local]"),
-      line("dim", "      gate: tool was never called"),
-      line("plain", "next:"),
-      line("dim", "  niceeval query discover"),
-      line("dim", "  niceeval query run --request runs-list.json"),
+      line("cmd", "$ niceeval exp local"),
+      line("fail", "FAILED                                                38s"),
+      line("plain", "14 passed · 1 failed · 0 errored  (0 reused)"),
+      line("blank"),
+      line("plain", "FAILURES                                 1 failed attempt"),
+      line("fail", `✗ ${LOCATOR}  weather/brooklyn  [local]`),
+      line("dim", "  gate: get_weather was never called"),
+      line("dim", `  details: niceeval show ${LOCATOR}`),
+      line("blank"),
+      line("plain", "NEXT"),
+      line("dim", `  show: niceeval show --run ${RUN_ID}`),
+      line("dim", `  view: niceeval view --run ${RUN_ID}`),
     ],
   },
   {
     id: "inspect",
     lines: [
-      line("cmd", "$ niceeval query discover"),
-      line("plain", "fixed operations: runs.list · run.get · attempt.get · attempt.trace"),
-      line("dim", "discover describes the protocol; it does not read a Record"),
+      line("cmd", `$ niceeval show ${LOCATOR}`),
+      line("plain", `Attempt ${LOCATOR}`),
+      line("dim", "  Experiment  local"),
+      line("dim", "  Eval        weather/brooklyn"),
+      line("fail", "  Verdict     failed"),
       line("blank"),
-      line("plain", "next:"),
-      line("dim", "  niceeval query run --request runs-list.json"),
-      line("dim", "  niceeval query run --request attempt.json"),
+      line("plain", "Assertions    available · 4 entries"),
+      line("fail", "  ✗ gate  get_weather was never called"),
       line("blank"),
-      line("plain", "human review:"),
-      line("dim", "  niceeval view @1k2m9qtr"),
+      line("plain", "Next"),
+      line("dim", `  niceeval show ${LOCATOR} --execution`),
+      line("dim", `  niceeval show ${LOCATOR} --source`),
     ],
   },
   {
     id: "evidence",
     lines: [
-      line("cmd", "$ niceeval query run --request attempt.json"),
-      line("plain", "execute the selected fixed attempt.get request"),
-      line("dim", "sealed attempt · weather/brooklyn · failed"),
-      line("fail", "gate · tool was never called"),
-      line("dim", "evidence: @1k2m9qtr"),
-      line("pass", "follow-up: attempt.trace · attempt.sources"),
+      line("cmd", `$ niceeval show ${LOCATOR} --execution`),
+      line("plain", `Execution ${LOCATOR} · captured · complete`),
       line("blank"),
-      line("dim", "open niceeval view @1k2m9qtr for human reading"),
+      line("plain", "  user: What's the weather in Brooklyn right now?"),
+      line("plain", "  assistant: It's probably mild and partly cloudy in Brooklyn."),
+      line("blank"),
+      line("fail", "  0 tool calls · get_weather was available"),
+      line("dim", "  end of trace"),
     ],
   },
   {
     id: "converge",
     lines: [
-      line("cmd", '$ claude "the weather/brooklyn eval failed — fix my bot"'),
-      line("plain", "● Bash(niceeval query run --request attempt.json)"),
-      line("dim", "  └ gate · tool was never called"),
-      line("plain", "● The eval found the bot answers weather without calling get_weather."),
+      line("cmd", '$ claude "weather/brooklyn failed — fix my bot"'),
+      line("plain", `● Bash(niceeval show ${LOCATOR} --execution)`),
+      line("dim", "  └ answered without calling get_weather"),
+      line("plain", "● The bot guesses the weather instead of calling get_weather."),
       line("pass", "● Update(agents/my-agent.ts)"),
-      line("dim", "  └ call get_weather before answering"),
-      line("blank"),
-      line("plain", "● Done — re-run the experiment to verify."),
+      line("dim", "  └ require get_weather for live weather questions"),
+      line("plain", "● Bash(niceeval exp local weather/brooklyn)"),
+      line("pass", "  └ PASSED · 1 passed · 0 failed · 0 errored"),
     ],
   },
 ];

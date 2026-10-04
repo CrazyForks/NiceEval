@@ -13,16 +13,20 @@ import {
   useTimeline,
 } from "./site-terminal-shell";
 
-// Hero 终端动画:运行 Eval 后，机器先发现固定 Inspection operation，再执行固定 request；
-// 人需要连续阅读时在第一方 View 中打开相同结果。数字是自洽的演示值，终端内容不做 i18n。
+// Hero 终端动画:跑一次对比实验，再用 `niceeval show` 在同一个终端里读当前结果。
+// 结束反馈的面板形态见 docs/feature/experiments/cli.md「结束反馈与 receipt」，
+// show 的版式见 docs/feature/inspection/cli.md「当前 Results 示例」。数字是自洽的演示值，终端内容不做 i18n。
 
 // ---- 一次自洽的运行:8 attempt = 4 eval × 2 config,2 条缓存携入,6 条本次派发。
 // 计数、成本、矩阵三处的数字彼此对得上:本次派发 330.5k tok / $0.51,矩阵覆盖全部 8 条。
 const CMD_RUN = "niceeval exp compare";
-const CMD_SHOW = "niceeval query run --request runs-compare.json";
+const CMD_SHOW = "niceeval show";
 const RUN_SECONDS = 127;
 const RUN_COST_USD = 0.51;
-const FAILED_LOCATOR = "@1bwcxxiy";
+// locator 格式:@1 加 12 位大写 Crockford base32。
+const FAILED_LOCATOR = "@1MEMY3VCQ6B5B";
+const RUN_GPT = "4c1e9a07-6b2d-4f3a-9e85-2d7f0b6c1a93";
+const RUN_SONNET = "b83f2d14-90ce-4a6b-8f17-5e2a9c40d7b8";
 const FAILED_EVAL = "checkout/apply-coupon";
 const FAILED_WHO = "compare/gpt-5.4";
 const FAILED_ASSERTION = "gate: cart total reflects the SAVE20 coupon";
@@ -42,14 +46,11 @@ const T = {
   cmd2Start: 12900,
   cmd2Done: 15000,
   head2: 15350,
-  table: 15700,
-  row1: 15850,
-  row2: 16000,
-  row3: 16150,
-  row4: 16300,
-  totals: 16600,
-  delta: 16800,
-  end: 17300,
+  table: 15800,
+  row1: 16000,
+  row2: 16200,
+  hidden: 16500,
+  end: 17100,
 } as const;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -257,10 +258,12 @@ export default function TerminalDemo({ ariaLabel, replayLabel }: { ariaLabel: st
 
       {now >= T.failures ? (
         <Appear>
-          <Panel title="FAILURES">
-            <PanelRow>{`${FAILED_LOCATOR}  ${FAILED_EVAL}  [${FAILED_WHO}]`}</PanelRow>
+          <Panel title="FAILURES" meta="1 failed attempt">
+            <PanelRow>
+              <b className="fail">✗</b> {`${FAILED_LOCATOR}  ${FAILED_EVAL}  [${FAILED_WHO}]`}
+            </PanelRow>
             <PanelRow className="soft">{`  ${FAILED_ASSERTION}`}</PanelRow>
-            <PanelRow className="soft">{`        ${FAILED_FACTS}`}</PanelRow>
+            <PanelRow className="soft">{`  details: niceeval show ${FAILED_LOCATOR}`}</PanelRow>
           </Panel>
         </Appear>
       ) : null}
@@ -268,14 +271,12 @@ export default function TerminalDemo({ ariaLabel, replayLabel }: { ariaLabel: st
       {now >= T.next ? (
         <Appear>
           <Panel title="NEXT">
-            <PanelRow>Catalog: niceeval query discover</PanelRow>
-            <PanelRow>Runs:    niceeval query run --request runs-list.json</PanelRow>
-            <PanelRow>Attempt: niceeval query run --request attempt.json</PanelRow>
-            <PanelRow>Compare: niceeval query run --request runs-compare.json</PanelRow>
-            <PanelRow>{`Human:   niceeval view ${FAILED_LOCATOR}`}</PanelRow>
-            <PanelDivider title="RESULTS" />
-            <PanelRow className="soft">.niceeval/compare/gpt-5.4/2026-07-30T09-14-22-118Z-i080</PanelRow>
-            <PanelRow className="soft">.niceeval/compare/sonnet-5/2026-07-30T09-14-22-140Z-b3kq</PanelRow>
+            <PanelRow>compare/gpt-5.4</PanelRow>
+            <PanelRow className="soft">{`  show: niceeval show --run ${RUN_GPT}`}</PanelRow>
+            <PanelRow className="soft">{`  view: niceeval view --run ${RUN_GPT}`}</PanelRow>
+            <PanelRow>compare/sonnet-5</PanelRow>
+            <PanelRow className="soft">{`  show: niceeval show --run ${RUN_SONNET}`}</PanelRow>
+            <PanelRow className="soft">{`  view: niceeval view --run ${RUN_SONNET}`}</PanelRow>
           </Panel>
         </Appear>
       ) : null}
@@ -295,78 +296,46 @@ export default function TerminalDemo({ ariaLabel, replayLabel }: { ariaLabel: st
 
       {now >= T.head2 ? (
         <Appear>
-          <Line>compare · 2 conditions · paired by eval id · baseline compare/gpt-5.4</Line>
-          <Line className="soft">common 4 · compare/gpt-5.4 only 0 · compare/sonnet-5 only 0</Line>
+          <Line>Current results</Line>
+          <Line className="soft term-indent-4">Covered 8/8 · Gaps 0 · 7 passed; 1 failed; 0 errored; 0 skipped</Line>
         </Appear>
       ) : null}
 
       {now >= T.table ? (
         <div className="term-table">
-          <span className="soft">eval</span>
-          <span className="soft">gpt-5.4</span>
-          <span className="soft">sonnet-5</span>
-          <span className="soft">Δ sonnet-5</span>
+          <span className="soft">Experiment</span>
+          <span className="soft">Covered</span>
+          <span className="soft">Gaps</span>
+          <span className="soft">Pass rate</span>
           {now >= T.row1 ? (
             <>
-              <span>checkout/apply-coupon</span>
+              <span>compare/gpt-5.4</span>
+              <span>4/4</span>
+              <span>0</span>
               <span>
-                <b className="fail">✗</b> 84.9k $0.14
+                <b className="fail">75.00%</b>
               </span>
-              <span>
-                <b className="pass">✓</b> 61.2k $0.09
-              </span>
-              <span className="soft">⇄ -23.7k -$0.05</span>
             </>
           ) : null}
           {now >= T.row2 ? (
             <>
-              <span>checkout/refund-window</span>
+              <span>compare/sonnet-5</span>
+              <span>4/4</span>
+              <span>0</span>
               <span>
-                <b className="pass">✓</b> 52.4k $0.08
+                <b className="pass">100.00%</b>
               </span>
-              <span>
-                <b className="pass">✓</b> 57.9k $0.09
-              </span>
-              <span className="soft">+5.5k +$0.01</span>
-            </>
-          ) : null}
-          {now >= T.row3 ? (
-            <>
-              <span>support/order-status</span>
-              <span>
-                <b className="pass">✓</b> ↩ 2h 38.1k $0.06
-              </span>
-              <span>
-                <b className="pass">✓</b> ↩ 2h 35.2k $0.05
-              </span>
-              <span className="soft">-2.9k -$0.01</span>
-            </>
-          ) : null}
-          {now >= T.row4 ? (
-            <>
-              <span>support/escalation</span>
-              <span>
-                <b className="pass">✓</b> 40.3k $0.06
-              </span>
-              <span>
-                <b className="pass">✓</b> 33.8k $0.05
-              </span>
-              <span className="soft">-6.5k -$0.01</span>
-            </>
-          ) : null}
-          {now >= T.totals ? (
-            <>
-              <span className="soft">totals</span>
-              <span>3/4 passed 215.7k $0.34</span>
-              <span>4/4 passed 188.1k $0.28</span>
-              <span />
             </>
           ) : null}
         </div>
       ) : null}
 
-      {now >= T.delta ? (
-        <Line className="soft">common vs baseline · pass rate +25.0pt · tokens -27.6k · cost -$0.06</Line>
+      {now >= T.hidden ? (
+        <Appear>
+          <Line>{`Attempts · compare/gpt-5.4`}</Line>
+          <Line className="soft term-indent-4">{`Eval ${FAILED_EVAL}  ${FAILED_LOCATOR}  failed  41.20 s`}</Line>
+          <Line className="soft term-indent-4">3 passed Attempts hidden</Line>
+        </Appear>
       ) : null}
 
       {now >= T.end ? (
