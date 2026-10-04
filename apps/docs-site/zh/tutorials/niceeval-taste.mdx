@@ -15,6 +15,53 @@ description: "让同事只读评估用例正文，就能说出它测什么、什
 - **少造概念。** 能用已有事实、简单条件和几行算术表达，就不要命名新的业务概念。少一个概念比少几行代码更重要。
 - **不知道就是不知道。** 缺记录、缺 token、材料超限时，保留“不可判定”，不要补成 0 或 false。
 
+## 一切检查都是 `t.check`
+
+NiceEval 只有一种检查：`t.check(事实, Match)`。事实是被检查的值，Match 是比较规则。调用时立即登记一条检查，返回的 handle 只配置这一条，比如 `.gate()`、`.score()`、`.orStop()`、`.label()`。
+
+其它检查方法都是 `t.check` 的简写，读取的事实、比较规则和结果保存方式完全一样：
+
+| 简写 | 等价于 |
+| --- | --- |
+| `turn.calledTool(m)` | `turn.check(turn.toolCalls, m)` |
+| `turn.maxToolCalls(n)` | 检查本轮工具调用的确切次数，用 `atMost(n)` 比较 |
+| `t.maxTokens(n)`、`t.maxCost(usd)` | 检查 Adapter 上报的用量，用 `atMost(...)` 比较 |
+| `t.judge(material, judge)` | `t.check(material, judge)` |
+| `closeQA(问题)` | 把问题和当前范围的材料编成评分 Match，再交给 `check` |
+
+所以学会一套规则就够了：先选事实，再选 Match，最后在 handle 上决定它是门槛、计分还是停止条件。简写只是让常见的事实不用自己去取。
+
+### 能用 Match 表达的，就用 Match
+
+判据尽量写成 Match，而不是先在 JavaScript 里算出 `true` 或一个数，再交给 `check`。Match 会保留三种结果：满足、不满足、不可判定。它还会记下比较规则和命中的证据，报告里能看到为什么通过、为什么失败。
+
+手写计算会丢掉这些信息。`calls.filter(...).length === 1` 只剩一个布尔值，记录不完整时还会把未知项当成没有发生。
+
+| 想表达什么 | 用这些 Match |
+| --- | --- |
+| 选中某类工具调用或事件 | `toolMatch`、`eventMatch`，输入输出用 `jsonMatch`、`commandMatch`、`referencesAnyPath` |
+| 次数 | `toolMatch(...).exactly(n)`、`.atLeast(n)` |
+| 组合多个条件 | `and`、`or`、`not` |
+| 集合里有几项满足、只看满足的那些、逐项投影 | `countWhere`、`filterWhere`、`mapEach`、`mapValue` |
+| 先后顺序 | `inOrder` |
+| 数值上下限 | `atMost`、`atLeast`、`lessThan`、`greaterThan` |
+| 文本与结构 | `includes`、`pattern`、`equals`、`matches` |
+
+对照一下两种写法：
+
+```ts
+// 不推荐：判据藏在计算里，记录不完整时会算错
+const ok = items.filter((item) => item.status === "done").length >= 3;
+t.check(ok, isTrue());
+
+// 推荐：判据写在 Match 上，集合不完整时保留不可判定
+t.check(items, countWhere(matches(DoneItem), atLeast(3))).label("至少完成三项");
+```
+
+`satisfies` 和 `defineValueMatch` 留到组合器确实表达不了的时候再用。它们只比较一个值，诊断里只剩你写的名字。
+
+Match 本身不带门槛、分值和控制流。同一个 Match 在通过制里可以是门槛，在计分制里可以是 5 分，这些都写在 handle 上，不写进 Match。
+
 被测对象是对话式 Agent 时，读完本页就够了。被测对象提供客服记录、游戏状态这类业务事实时，再读[自定义应用的评估判据](/zh/tutorials/niceeval-taste-application)。
 
 ## Agent 类评估
@@ -50,7 +97,7 @@ export default defineScoreEval({
       maxAuditBytes: 1024 * 1024,
     }).score(80).label("建议有依据");
 
-    t.check(t.usage.totalTokens, atMost(10_000)).gate().label("用量上限");
+    t.maxTokens(10_000).gate().label("用量上限");
     t.check(t.elapsedMs, atMost(30_000)).gate().label("运行耗时上限");
   },
 });
@@ -59,7 +106,8 @@ export default defineScoreEval({
 读这条评估时，能直接看出这几件事：
 
 - **分数怎么来。** 正确查询得 20 分，建议有依据得 80 分。用量和耗时只设门槛，不计分。
-- **为什么查询要用确定性检查。** 调了哪个工具、传了什么参数，是能直接读到的事实，不需要 Judge 猜。
+- **为什么查询要用确定性检查。** 调了哪个工具、传了什么参数，是能直接读到的事实，不需要 Judge 猜。工具名、输入、状态和次数全写在一个 `toolMatch` 上，`calledTool` 只是把本轮的工具调用交给它比较。
+- **这些检查其实是同一种。** `succeeded`、`calledTool`、`closeQA`、`maxTokens` 和最后的 `t.check` 都登记一条检查，后面的 `.gate()`、`.score()`、`.orStop()` 用法也完全一样。
 - **为什么建议要交给 Judge。** 回复里出现“雨”或“伞”，不能证明建议正确。工具返回下雨、Agent 也建议带伞时，还要 Judge 判断理由有没有编造天气。
 - **为什么用 `.orStop()`。** 查询成功是第二轮的前提，查询失败时再问带伞就没有意义。如果你的任务允许查询失败后说明原因，就要为这条路径另写判据，不能照搬这里的前提。
 
@@ -87,7 +135,7 @@ export default defineScoreEval({
 - `judge("是否调用了天气工具？")`：调没调用是能直接读到的事实，让模型再判断一遍只会多一个出错的机会。
 - `reply.includes("抱歉")`：关键词看不出拒绝是否合理，这需要 Judge 结合上下文判断。
 
-用量和耗时也有现成的字段。`t.usage` 是 Adapter 上报的用量，`t.elapsedMs` 是这次运行的墙钟时间。不要在评估里自己累计日志、维护模型价格表，也不要把缺失的 token 补成 0。Adapter 没有上报的调用不会出现在 `t.usage` 里，字段存在不代表所有外部调用都被记下了。
+用量和耗时也有现成的检查。`t.maxTokens(n)` 和 `t.maxCost(usd)` 比较 Adapter 上报的用量，`t.elapsedMs` 是这次运行的墙钟时间，交给 `atMost` 比较即可。不要在评估里自己累计日志、维护模型价格表，也不要把缺失的 token 补成 0。Adapter 没有上报的调用不会出现在 `t.usage` 里，字段存在不代表所有外部调用都被记下了。
 
 ## 交付前的共同检查
 
@@ -103,7 +151,9 @@ export default defineScoreEval({
 
 两种题型的默认值不同。计分制（`defineScoreEval`）里，普通检查默认只记录结果，加了 `.score()` 才计分、加了 `.gate()` 才成为门槛。通过制（`defineEval`）里，检查默认就影响通过与否。不要把两种题型的默认规则混用，详见[通过制与计分制](/zh/tutorials/evaluation-kinds)。
 
-自己算出一个 0 到 1 之间的比例时，用 `t.score(ratio, { weight: 50 })` 计分，贡献是 ratio × 50。只传一个数的 `t.score(points)` 表示直接加这么多分，两者含义不同。公式不需要先包装成 Match。比例未知时，传入带不可用状态的值，这一项仍占 50 分的权重，不会被当成 0 分。
+“满足就得分”的项，直接在检查上接 `.score(n)`，不要先算出布尔值再换算成分数。比如“至少完成三项得 10 分”，写成 `t.check(items, countWhere(matches(DoneItem), atLeast(3))).score(10)`。
+
+只有业务本身定义了比例公式，组合器又表达不了时，才自己算出一个 0 到 1 之间的比例。这时用 `t.score(ratio, { weight: 50 })` 计分，贡献是 ratio × 50。只传一个数的 `t.score(points)` 表示直接加这么多分，两者含义不同。比例未知时，传入带不可用状态的值，这一项仍占 50 分的权重，不会被当成 0 分。
 
 Judge 打分这类 0 到 1 的测量值，用 `.gate(minimum)` 设最低分，用 `.orStop(minimum)` 在低于最低分时停止。已经写了 `.gate(minimum)` 时，后面的 `.orStop()` 可以不传参数，沿用同一个最低分。证据不可用时保留不可用状态，不要先改成 `false` 或 `0` 再停止。
 
@@ -134,6 +184,7 @@ Judge 打分这类 0 到 1 的测量值，用 `.gate(minimum)` 设最低分，�
 - Judge 拿到了完整的相关材料吗？问题能根据这些材料回答吗？
 - 缺记录、缺 token、未知费用和超出容量，都保留为不可判定，而不是零吗？
 - 不打开函数实现，能读出状态、数量、阈值和组合关系吗？
-- Match 只负责选材料、组合小条件吗？现成字段或几行算术，有没有被多余的业务名字包起来？
+- 每项检查都能读成“哪个事实，用哪个 Match 比较”吗？能用现成 Match 组合的，有没有写成手算的布尔值或计数？
+- 自定义 Match 只在组合器表达不了时才出现吗？它有没有被起一个多余的业务名字？
 - 得分和门槛都能直接看到吗？前提不满足时，依赖它的后续检查停下了吗？
 - 验证经过了真实运行和公开的结果命令吗？局部检查和真实运行分开说明了吗？
