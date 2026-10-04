@@ -57,12 +57,6 @@ interface CalledToolContract {
     positive: string;
     negative: string;
   };
-  allowedCalledToolOptions: string[];
-  forbiddenMatchOptionFields: string[];
-  count: {
-    minimum: number;
-    forbidden: string[];
-  };
   command: {
     matcher: string;
     forbidInlineRegexOrPredicate: boolean;
@@ -291,45 +285,9 @@ function splitTopLevelArguments(text: string): string[] {
   return parts;
 }
 
-function topLevelObjectFields(text: string): string[] {
-  if (!text.trimStart().startsWith("{")) return [];
-  const fields = new Set<string>();
-  let braces = 0;
-  let quote: "'" | '"' | "`" | undefined;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (quote !== undefined) {
-      if (char === "\\") index += 1;
-      else if (char === quote) quote = undefined;
-      continue;
-    }
-    if (char === "'" || char === '"' || char === "`") {
-      quote = char;
-      continue;
-    }
-    if (char === "{") {
-      braces += 1;
-      continue;
-    }
-    if (char === "}") {
-      braces -= 1;
-      continue;
-    }
-    if (braces !== 1) continue;
-    const field = /^(?:\s|,)*(?:readonly\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\s*:/.exec(text.slice(index));
-    if (field === null) continue;
-    const name = field[1];
-    if (name === undefined) continue;
-    fields.add(name);
-    index += field[0].length - 1;
-  }
-  return [...fields];
-}
-
 /**
  * 作者示例的 calledTool 契约不靠逐页命中名单维护。规则数据来自 writing-rules.json，
- * 这里仅把「第二参数只允许 count」「零计数与 predicate 不可用」翻成对代码片段的检查。
+ * 这里仅把「两个方法都只接收一个参数」「命令匹配不内联正则或 predicate」翻成对代码片段的检查。
  */
 export function lintCalledToolContractText(
   file: string,
@@ -345,70 +303,14 @@ export function lintCalledToolContractText(
     const opening = start + match[0].lastIndexOf("(");
     const end = balancedEnd(content, opening);
     if (end === undefined) continue;
-    const args = splitTopLevelArguments(content.slice(opening + 1, end));
-    const second = args[1];
-    const line = lineAt(content, start);
-
-    if (method === contract.methods.negative && second !== undefined) {
-      hits.push({
-        file,
-        line,
-        rule: "calledToolContract",
-        message: `${contract.methods.negative} 只接收 ToolMatch 或名称；零匹配不通过 count 表示`,
-      });
-      continue;
-    }
-    if (method !== contract.methods.positive || second === undefined) continue;
-    const option = topLevelObjectFields(second).find(
-      (field) => !contract.allowedCalledToolOptions.includes(field),
-    );
-    if (option !== undefined) {
-      hits.push({
-        file,
-        line,
-        rule: "calledToolContract",
-        message: `${contract.methods.positive} 的第二参数只允许 ${contract.allowedCalledToolOptions.join("、")}；${option} 属于 ToolMatch`,
-      });
-    }
-  }
-
-  const countZero = /\bcount\s*:\s*0\b/g;
-  for (const match of content.matchAll(countZero)) {
+    // 多行调用的尾逗号会切出空串，它不是第二个参数。
+    const args = splitTopLevelArguments(content.slice(opening + 1, end)).filter((arg) => arg !== "");
+    if (args[1] === undefined) continue;
     hits.push({
       file,
-      line: lineAt(content, match.index ?? 0),
+      line: lineAt(content, start),
       rule: "calledToolContract",
-      message: `count 必须不小于 ${contract.count.minimum}；需要零匹配时使用 ${contract.methods.negative}`,
-    });
-  }
-
-  const atLeastZero = /\bcount\s*:\s*\{\s*atLeast\s*:\s*0\b/g;
-  for (const match of content.matchAll(atLeastZero)) {
-    hits.push({
-      file,
-      line: lineAt(content, match.index ?? 0),
-      rule: "calledToolContract",
-      message: `count 必须不小于 ${contract.count.minimum}；需要零匹配时使用 ${contract.methods.negative}`,
-    });
-  }
-
-  const nonIntegerCount = /\bcount\s*:\s*(?:-\d|\d+\.\d)|\bcount\s*:\s*\{\s*atLeast\s*:\s*(?:-\d|\d+\.\d)/g;
-  for (const match of content.matchAll(nonIntegerCount)) {
-    hits.push({
-      file,
-      line: lineAt(content, match.index ?? 0),
-      rule: "calledToolContract",
-      message: "count 只接受正整数或 { atLeast: 正整数 }",
-    });
-  }
-
-  const countPredicate = /\bcount\s*:\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][A-Za-z0-9_$]*)\s*=>/g;
-  for (const match of content.matchAll(countPredicate)) {
-    hits.push({
-      file,
-      line: lineAt(content, match.index ?? 0),
-      rule: "calledToolContract",
-      message: `count 只接受${contract.count.forbidden.includes("predicate") ? "正整数或 { atLeast: 正整数 }" : "声明的计数形状"}，不接受 predicate`,
+      message: `${method} 只接收一个 ToolMatch 或工具名；input、output、status 与次数都写在 toolMatch 上`,
     });
   }
 
@@ -907,15 +809,6 @@ export function validateRules(): string[] {
     if (contract.roots.length === 0) problems.push("calledToolContract.roots 不能为空");
     if (!contract.methods.positive || !contract.methods.negative) {
       problems.push("calledToolContract.methods 必须声明正断言和负断言方法");
-    }
-    if (!contract.allowedCalledToolOptions.includes("count")) {
-      problems.push("calledToolContract.allowedCalledToolOptions 必须保留 count");
-    }
-    if (!["input", "output", "status"].every((field) => contract.forbiddenMatchOptionFields.includes(field))) {
-      problems.push("calledToolContract.forbiddenMatchOptionFields 必须拦 input、output 与 status");
-    }
-    if (contract.count.minimum !== 1 || !contract.count.forbidden.includes("0") || !contract.count.forbidden.includes("predicate")) {
-      problems.push("calledToolContract.count 必须固定为正整数并禁用 0 与 predicate");
     }
     if (contract.command.matcher !== "commandMatch" || !contract.command.forbidInlineRegexOrPredicate) {
       problems.push("calledToolContract.command 必须要求 commandMatch 并拦局部正则和 predicate");

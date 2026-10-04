@@ -146,27 +146,25 @@ describe("文档可读性守护", () => {
     );
   });
 
-  it("calledTool 示例只把 count 放在第二参数，并拒绝零计数和局部命令匹配", () => {
+  it("calledTool 示例只接收一个参数，并拒绝局部命令匹配", () => {
     const rules = JSON.parse(readFileSync(join(ROOT, "docs/writing-rules.json"), "utf8"));
     const contract = rules.publicApiExamples.calledToolContract;
     const hits = lintCalledToolContractText(
       "docs/feature/assertions/example.md",
       [
         'turn.calledTool("shell", { input: { command: /pnpm test/ } });',
-        "turn.calledTool(toolMatch(\"shell\"), { count: 0 });",
-        "turn.calledTool(toolMatch(\"shell\"), { count: { atLeast: 0 } });",
-        "turn.calledTool(toolMatch(\"shell\"), { count: (n) => n > 1 });",
+        "turn.calledTool(toolMatch(\"shell\"), { count: 2 });",
         "turn.notCalledTool(toolMatch(\"shell\"), { count: 1 });",
+        'turn.calledTool(toolMatch("get_weather", { input: jsonMatch({ city: "Taipei" }) }).exactly(1));',
+        'turn.notCalledTool("web_search");',
       ].join("\n"),
       contract,
     );
 
     expect(hits.map((hit) => hit.message)).toEqual([
-      "calledTool 的第二参数只允许 count；input 属于 ToolMatch",
-      "notCalledTool 只接收 ToolMatch 或名称；零匹配不通过 count 表示",
-      "count 必须不小于 1；需要零匹配时使用 notCalledTool",
-      "count 必须不小于 1；需要零匹配时使用 notCalledTool",
-      "count 只接受正整数或 { atLeast: 正整数 }，不接受 predicate",
+      "calledTool 只接收一个 ToolMatch 或工具名；input、output、status 与次数都写在 toolMatch 上",
+      "calledTool 只接收一个 ToolMatch 或工具名；input、output、status 与次数都写在 toolMatch 上",
+      "notCalledTool 只接收一个 ToolMatch 或工具名；input、output、status 与次数都写在 toolMatch 上",
       "命令匹配使用 commandMatch，不在 JSON 片段内写正则或 predicate",
     ]);
   });

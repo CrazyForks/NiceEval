@@ -34,19 +34,19 @@
         "subject": "subject 是 Assertion 调用时读取的显式 value，或 receiver 选择的 scope snapshot。",
         "match": "Match 是可复用、不可变、确定性且无副作用的值比较规则；它没有 identity、callsite 或 policy。",
         "assertion": "Assertion 绑定 subject、evaluator、callsite、source order 与 groupPath；调用时冻结这些值。",
-        "handle": "AssertionHandle 配置同一 entry 的 key、label、score、atLeast、ifCovered 或 orStop，不登记第二条 Assertion。",
+        "handle": "AssertionHandle 配置同一 entry 的 key、label、gate、score、optional、ifCovered 或 orStop，不登记第二条 Assertion。",
         "result": "AssertionResult 统一保存 subject a、evaluator 或 Match b、evaluation、evidence、policy 与 pass 或 score 投影，不退化成成功或失败字符串。",
-        "specializedCheck": "succeeded、calledTool、loadedSkill 与 Judge recipe 是 check(a,b) 的特殊化入口；方法替作者取得 subject a 并构造 evaluator b，保存规则不变。",
+        "specializedCheck": "succeeded、calledTool、maxTokens 与 judge／closeQA 是 check(a,b) 的特殊化入口；方法替作者取得 subject a 并构造 Match b，保存规则不变。",
         "pass": "Pass Eval 的 Attempt Verdict 是 passed、failed、errored 或 skipped。",
-        "score": "Score Eval 只有累计 score；没有 Attempt Verdict、总分、百分比或另一种数值单位。"
+        "score": "Score Eval 同时拥有四态 Verdict 与累计 earned score；低分不算失败，只有显式 gate 失败才得到 failed。没有隐含总分或百分比。"
       },
       "authoring": {
         "check": "t.check(value, match) 严格只有两个参数，并返回同一条已登记 Assertion 的 handle。",
         "scopes": "t.succeeded()、session.succeeded()、turn.succeeded() 与 calledTool 等 scoped 方法直接登记 Boolean Assertion。",
-        "judge": "Judge recipe 直接登记 measurement Assertion。Pass Eval 必须用 atLeast(n) 将它封口为 Boolean condition。",
+        "judge": "Judge 经 t.judge(material, definition) 或 t.check(material, definition) 登记 measurement Assertion；需要质量门槛时在 handle 上用 .gate(minimum)。JudgeDefinition 没有 atLeast()。",
         "score": "Score Eval 用 handle.score(n) 让已有 Assertion 贡献 score，或用 t.score(n) 直接登记 score contribution。",
         "usage": "只有 Usage Assertion 提供 ifCovered()；它只处理 Agent 创建时已声明的 usage 不可用。",
-        "stop": "orStop() 是同一 Assertion handle 的 async barrier；Boolean 或已经 atLeast 的 measurement 才能使用它。"
+        "stop": "orStop() 是同一 Assertion handle 的 async barrier；Boolean 直接使用，已有 gate(minimum) 的 measurement 用无参 orStop()，尚无 condition 的 measurement 用 orStop(minimum)。"
       },
       "examples": [
         {
@@ -59,7 +59,7 @@
         },
         {
           "bad": "t.score(\"质量\", quality, { max: 10 });",
-          "good": "turn.judge.autoevals.closedQA(\"质量\").score(10);"
+          "good": "t.judge({ task, answer: turn.message }, quality).score(10);"
         },
         {
           "bad": "await check.stopOnFailure();",
@@ -75,7 +75,7 @@
       }
     },
     "calledToolContract": {
-      "$why": "calledTool 与 notCalledTool 的选择器、计数和证据语义只由 scoped-assertions.md 定义。其它页面可以展示旅程，但不能把旧的 name + input/output/status options、零计数或局部命令匹配重新带回作者面。",
+      "$why": "calledTool 与 notCalledTool 的选择器、计数和证据语义只由 scoped-assertions.md 定义。两者只接收一个参数：ToolMatch（calledTool 另接受正向 occurrence Match）或工具名。input、output、status 写在 toolMatch 的选项里，次数写成 toolMatch(...).exactly(n) / .atLeast(n)；其它页面不能把第二参数 options、零计数或局部命令匹配重新带回作者面。",
       "roots": [
         "docs/feature/assertions",
         "docs/feature/eval/use-case/calledtool.md",
@@ -86,26 +86,7 @@
         "positive": "calledTool",
         "negative": "notCalledTool"
       },
-      "selector": "ToolMatch，或只按名称选择的 name 薄糖",
-      "allowedCalledToolOptions": [
-        "count"
-      ],
-      "forbiddenMatchOptionFields": [
-        "input",
-        "output",
-        "status"
-      ],
-      "count": {
-        "minimum": 1,
-        "allowed": [
-          "positive integer",
-          "{ atLeast: positive integer }"
-        ],
-        "forbidden": [
-          "0",
-          "predicate"
-        ]
-      },
+      "selector": "ToolMatch、正向 occurrence Match，或只按名称选择的 name 薄糖；次数由 ToolMatch 的 .exactly(n) / .atLeast(n) 表达",
       "command": {
         "matcher": "commandMatch",
         "forbidInlineRegexOrPredicate": true
@@ -134,7 +115,7 @@
         "roots": [
           "apps/docs-site/zh"
         ],
-        "use": "在 Pass Eval 中写 Boolean Assertion，或为 measurement 配置 atLeast(n)",
+        "use": "在 Pass Eval 中写 Boolean Assertion，或为 measurement 配置 .gate(minimum)",
         "why": "CLI 已把 --strict 当未知选项拒绝，公开站继续展示会让用户复制出启动前即失败的命令"
       }
     ],
