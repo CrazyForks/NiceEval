@@ -9,6 +9,7 @@ const agent = claudeCodeAgent({
   env: {
     ...claudeCodeProviderEnv,
     // Surface provider failures before this short control reaches its deadline.
+    API_TIMEOUT_MS: "60000",
     CLAUDE_CODE_MAX_RETRIES: "0",
   },
   settingsFile: "configs/claude-code/no-web.json",
