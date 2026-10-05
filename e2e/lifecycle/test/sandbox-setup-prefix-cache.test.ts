@@ -864,7 +864,9 @@ export default defineEval({
               const started = events.filter((event) => event.event === "prefix-child-started")
                 .map((event) => event.detail.branch);
               const ready = events.some((event) => event.event === "prefix-children-ready");
-              throw new Error(`Incus rendezvous: children=${JSON.stringify(started)}, ready=${ready}`, { cause });
+              const recentQueries = events.filter((event) => event.event === "query").slice(-12)
+                .map(({ detail }) => `${detail.method} ${detail.path}?project=${detail.project}`);
+              throw new Error(`Incus rendezvous: children=${JSON.stringify(started)}, ready=${ready}, recentQueries=${JSON.stringify(recentQueries)}`, { cause });
             }
             const atChildrenBarrier = await readIncusJournal(journalPath);
 

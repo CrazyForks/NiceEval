@@ -159,6 +159,16 @@ function query(args) {
         return { kind: "value", value: { name: pool, driver: "dir", config: { source: "/data/niceeval-sandbox-dev" } } };
       }
       if (pathname === "/1.0/images") {
+        // Each child resolves its base before admission. Hold the second child
+        // here until the first copy exists, so its inventory observes the clone
+        // before metadata PATCH. Instance listings also occur in preflight and
+        // reconciliation, so gating those would block the first child itself.
+        if (gateRoot && project === "niceeval-eval-dev" && state.pendingClone === undefined
+          && Object.keys(projectInstances(state, "niceeval-artifacts-dev")).length === 2
+          && Object.keys(projectInstances(state, project)).length === 0) {
+          if (state.childBaseResolved) return { kind: "await-clone" };
+          state.childBaseResolved = true;
+        }
         return { kind: "value", value: [{
           fingerprint: digest,
           aliases: [{ name: imageName }],
@@ -167,15 +177,6 @@ function query(args) {
         }] };
       }
       if (pathname === "/1.0/instances") {
-        // Let one child reserve and copy before the other takes its inventory.
-        // Otherwise both admissions can finish before either copy, leaving the
-        // later metadata PATCH waiting for inventory that will never occur.
-        if (gateRoot && project === "niceeval-eval-dev" && state.pendingClone === undefined
-          && Object.keys(projectInstances(state, "niceeval-artifacts-dev")).length === 2
-          && Object.keys(projectInstances(state, project)).length === 0) {
-          if (state.childAdmissionStarted) return { kind: "await-clone" };
-          state.childAdmissionStarted = true;
-        }
         return { kind: "value", value: Object.values(projectInstances(state, project)) };
       }
       if (pathname.startsWith("/1.0/instances/")) {
