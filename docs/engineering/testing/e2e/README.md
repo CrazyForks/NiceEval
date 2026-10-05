@@ -285,6 +285,7 @@ nested Docker 不在这个普通 `dockerSandbox({ source })` owner 的测试涉�
 共享准备前缀 DAG case 仍通过安装后 CLI 与 fake Incus provider boundary 执行真实 Incus lifecycle，但不与 Lifecycle 的其它长测
 同时运行。Lifecycle Repo 使用独占 CI batch；默认原生命令先完成其余并行 suite，再单独运行该 case。case 的两条 child prepare
 以 provider journal 和文件系统 rendezvous 建立偏序，等待只与 CLI 进程终态竞速，不把固定 wall-clock deadline 当作并发 oracle。
+fake Incus 先放行一个 child 的 admission，待其 dependent clone 出现后才放行另一个 child 的 inventory；metadata PATCH 继续等待后者的两次 inventory。这样明确建立 copy-before-PATCH 的竞争窗口，避免两个 admission 都先于 copy 完成而让 fixture 自身死锁。
 
 ### Docker profile cold build
 

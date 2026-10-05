@@ -151,7 +151,7 @@ function query(args) {
   journal("query", { method, path: pathname, project, body });
 
   if (method === "GET") {
-    const result = withLock((state) => {
+    const read = () => withLock((state) => {
       if (pathname === "/1.0") return { kind: "value", value: { api_version: "1.0" } };
       if (pathname.startsWith("/1.0/projects/")) return { kind: "value", value: { name: decodeURIComponent(pathname.split("/").at(-1)) } };
       if (pathname.includes("/storage-pools/") && !pathname.includes("/volumes/")) {
@@ -167,6 +167,15 @@ function query(args) {
         }] };
       }
       if (pathname === "/1.0/instances") {
+        // Let one child reserve and copy before the other takes its inventory.
+        // Otherwise both admissions can finish before either copy, leaving the
+        // later metadata PATCH waiting for inventory that will never occur.
+        if (gateRoot && project === "niceeval-eval-dev" && state.pendingClone === undefined
+          && Object.keys(projectInstances(state, "niceeval-artifacts-dev")).length === 2
+          && Object.keys(projectInstances(state, project)).length === 0) {
+          if (state.childAdmissionStarted) return { kind: "await-clone" };
+          state.childAdmissionStarted = true;
+        }
         return { kind: "value", value: Object.values(projectInstances(state, project)) };
       }
       if (pathname.startsWith("/1.0/instances/")) {
@@ -193,6 +202,12 @@ function query(args) {
       }
       return { kind: "absent" };
     });
+    let result = read();
+    while (result.kind === "await-clone") {
+      // The copy must retain access to the fixture state lock while we wait.
+      sleep(10);
+      result = read();
+    }
     maybeBlock(label);
     if (result.kind === "absent") absent(); else envelope(result.value);
     return;
