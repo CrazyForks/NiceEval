@@ -24,7 +24,7 @@ export const DEFAULT_OMP_CLI_VERSION = "17.3.5";
 export const DEFAULT_BUN_VERSION = "1.3.14";
 
 /** DeepSeek Harness CLI (npm `@deepseek-ai/dsh`). */
-export const DEFAULT_DEEPSEEK_HARNESS_CLI_VERSION = "0.1.0-rc.7";
+export const DEFAULT_DEEPSEEK_HARNESS_CLI_VERSION = "0.1.7-rc.2";
 
 /**
  * 有官方公共基线制品的 coding agent。
@@ -85,7 +85,7 @@ export const AGENT_BASELINE_RECIPE_REVISION: globalThis.Record<CodingAgentBaseli
   // r3: 同上「跨 provider 基线工具面统一」配方变更(含可写性)
   openclaw: 4,
   omp: 2,
-  "deepseek-harness": 2,
+  "deepseek-harness": 1,
 };
 
 /**
