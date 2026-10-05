@@ -35,6 +35,7 @@ Regression: [ACTIVE 进度隐藏用户消息与工具细节](../../../../../memo
 ## 仓库验收
 
 - `coding` Experiment 选中本仓库的 coding task、session-resume 与 WebSearch 正例。`locked-down` 用完全相同的 WebSearch 请求验证 deny 反例。
+- Coding task 验证 Write、Edit、Bash 的成功事件与最终文件内容。模型可先探测不存在的文件并恢复；这类额外失败事件不否定已完成的任务，也不能被适配器隐藏。
 - Claude Code 原生 streaming tool 事件可在当前 physical send 内确认完整 command input，因此 session-resume
   拥有上述 live tool 投影；它不从结束后的 transcript 伪造实时 detail。
 - `hitl` 验证原生选项暂停与恢复。`hitl-content` 用同一 Eval 验证普通内容轮因没有待输入请求而判为 failed；验收脚本列全 Claude Code 协议 Eval ID。
