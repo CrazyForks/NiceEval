@@ -6,7 +6,11 @@ import { sandbox } from "../sandbox.ts";
 const agent = claudeCodeAgent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   baseUrl: process.env.ANTHROPIC_BASE_URL,
-  env: claudeCodeProviderEnv,
+  env: {
+    ...claudeCodeProviderEnv,
+    // Surface provider failures before this short control reaches its deadline.
+    CLAUDE_CODE_MAX_RETRIES: "0",
+  },
   settingsFile: "configs/claude-code/no-web.json",
 });
 
