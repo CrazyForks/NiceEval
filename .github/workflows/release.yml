@@ -6,7 +6,10 @@ name: Release
 # link 的工作树冒充某个历史发行版。CI 从标签名解析版本，在 runner 本地写入
 # package.json（不写回仓库），只 pack 一次，再发布同一份 tgz。
 #
-# 前置:在仓库 Settings → Secrets → Actions 配好 NPM_TOKEN(npm automation token)。
+# 前置：在 npm 的 niceeval 包设置中添加 GitHub Actions Trusted Publisher：
+# owner=NiceEval，repository=NiceEval，workflow=release.yml，environment 留空，
+# 显式允许 npm publish。使用 OIDC 短期凭据，不注入长期 npm token。
+# 新配置须在两天内首次成功发布；验证后禁止传统 token 发布并撤销旧发布 token。
 # 根 install 只准备工具依赖，不触发 prepare。后面的 `pnpm pack` 是唯一构建点：
 # prepare 生成 dist/** 与随包 INDEX.md。最后的 `npm publish <tgz>` 发布同一份
 # 已校验制品，不再重建或重新 pack；E2E 由独立 workflow 持续运行，不在发版时重跑。
@@ -25,8 +28,7 @@ on:
         type: string
 
 permissions:
-  contents: write # 创建 release 需要
-  id-token: write # npm provenance 需要
+  contents: read
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
@@ -155,12 +157,28 @@ jobs:
     name: Publish exact tarball to npm
     needs: prepare-release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 创建 GitHub Release
+      id-token: write # npm Trusted Publishing 与 provenance
     steps:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Verify npm supports trusted publishing
+        run: |
+          node --input-type=module <<'EOF'
+          import { execFileSync } from 'node:child_process';
+          const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
+          const [major, minor, patch] = version.split('.').map(Number);
+          if (!(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))) {
+            throw new Error(`npm >= 11.5.1 is required for trusted publishing; found ${version}`);
+          }
+          console.log(`npm ${version} supports trusted publishing`);
+          EOF
 
       - name: Download exact release candidate
         uses: actions/download-artifact@v8
@@ -171,7 +189,6 @@ jobs:
       - name: Publish exact tarball
         env:
           EXPECTED_SHA256: ${{ needs.prepare-release.outputs.candidate_sha256 }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
