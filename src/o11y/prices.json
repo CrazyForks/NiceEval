@@ -198,8 +198,8 @@
       "cacheRead": 0.2
     },
     "GLM-4.7": {
-      "in": 3.5,
-      "out": 14
+      "in": 0.42,
+      "out": 2.2
     },
     "GLM-5.1": {
       "in": 0.8571,
@@ -208,6 +208,10 @@
     "GLM-5.2": {
       "in": 1.4,
       "out": 4.4
+    },
+    "GLM-5.3": {
+      "in": 1.2,
+      "out": 4.18
     },
     "GalrionSoftworks/MN-LooseCannon-12B-v1": {
       "in": 0.493,
@@ -284,11 +288,6 @@
       "out": 0.95,
       "cacheRead": 0.11,
       "cacheWrite": 0.44
-    },
-    "JetBrains/Mellum2-12B-A2.5B-Instruct": {
-      "in": 0.05,
-      "out": 0.1,
-      "cacheRead": 0.05
     },
     "KBLab/kb-whisper-large": {
       "in": 0.0023,
@@ -382,7 +381,7 @@
     "MiniMax-M2.5-highspeed": {
       "in": 0.6,
       "out": 2.4,
-      "cacheRead": 0.06,
+      "cacheRead": 0.03,
       "cacheWrite": 0.375
     },
     "MiniMax-M2.7": {
@@ -406,9 +405,8 @@
       "cacheWrite": 0.375
     },
     "MiniMaxAI/MiniMax-M1-80k": {
-      "in": 0.6052,
-      "out": 2.4225,
-      "cacheRead": 0.3026
+      "in": 0.55,
+      "out": 2.2
     },
     "MiniMaxAI/MiniMax-M2": {
       "in": 0.3,
@@ -460,11 +458,6 @@
       "in": 0.3,
       "out": 1.2,
       "cacheRead": 0.15
-    },
-    "OpenPipe/Qwen3-14B-Instruct": {
-      "in": 0.05,
-      "out": 0.22,
-      "cacheRead": 0.05
     },
     "Pro/MiniMaxAI/MiniMax-M2.5": {
       "in": 0.3,
@@ -679,7 +672,7 @@
     },
     "Qwen/Qwen3-VL-30B-A3B-Instruct": {
       "in": 0.15,
-      "out": 0.55
+      "out": 0.6
     },
     "Qwen/Qwen3-VL-30B-A3B-Thinking": {
       "in": 0.29,
@@ -745,9 +738,9 @@
       "out": 3.2
     },
     "Qwen/Qwen3.6-27B-TEE": {
-      "in": 0.3,
+      "in": 0.25,
       "out": 2,
-      "cacheRead": 0.029999999999999992
+      "cacheRead": 0.024999999999999994
     },
     "Qwen/Qwen3.6-35B-A3B": {
       "in": 0.1,
@@ -783,9 +776,9 @@
       "out": 3.48
     },
     "Qwen/Qwen3.8-27B-TEE": {
-      "in": 0.24,
-      "out": 2.2,
-      "cacheRead": 0.023999999999999994
+      "in": 0.039,
+      "out": 1.25,
+      "cacheRead": 0.003899999999999999
     },
     "Qwen/Qwen3.8-Flash": {
       "in": 0.113,
@@ -838,6 +831,10 @@
     "Qwen3.5-397B-A17B": {
       "in": 0.6,
       "out": 3.6
+    },
+    "Qwen3.6-Flash": {
+      "in": 0.18,
+      "out": 1.03
     },
     "Qwen3.8-27B": {
       "in": 0.08,
@@ -940,14 +937,14 @@
       "cacheRead": 0.4
     },
     "TEE/glm-5.1": {
-      "in": 1.5,
-      "out": 5.25,
-      "cacheRead": 0.3
+      "in": 0.7,
+      "out": 2.5,
+      "cacheRead": 0.18
     },
     "TEE/glm-5.1-thinking": {
-      "in": 1.5,
-      "out": 5.25,
-      "cacheRead": 0.3
+      "in": 0.7,
+      "out": 2.5,
+      "cacheRead": 0.18
     },
     "TEE/glm-5.2": {
       "in": 1.4,
@@ -1093,6 +1090,11 @@
       "in": 0.408,
       "out": 0.595,
       "cacheRead": 0.204
+    },
+    "TheDrummer/Skyfall-31B-v4.2": {
+      "in": 0.12,
+      "out": 0.15,
+      "cacheRead": 0.06
     },
     "TheDrummer/UnslopNemo-12B-v4.1": {
       "in": 0.493,
@@ -1397,18 +1399,8 @@
       "out": 0.5
     },
     "alibaba/qwen-3-32b": {
-      "in": 0.16,
-      "out": 0.64
-    },
-    "alibaba/qwen-3.6-max-preview": {
-      "in": 1.3,
-      "out": 7.8,
-      "cacheRead": 0.13,
-      "cacheWrite": 1.625
-    },
-    "alibaba/qwen-coder-plus": {
-      "in": 0.502,
-      "out": 1.004
+      "in": 0.15,
+      "out": 0.6
     },
     "alibaba/qwen-flash": {
       "in": 0.05,
@@ -1419,10 +1411,6 @@
     "alibaba/qwen-max": {
       "in": 1.6,
       "out": 6.4
-    },
-    "alibaba/qwen-omni-turbo": {
-      "in": 0.2,
-      "out": 0.8
     },
     "alibaba/qwen-plus": {
       "in": 0.4,
@@ -1436,14 +1424,10 @@
       "cacheRead": 0.08,
       "cacheWrite": 0.5
     },
-    "alibaba/qwen3-235b-a22b-thinking": {
-      "in": 0.4,
-      "out": 4
-    },
     "alibaba/qwen3-coder": {
-      "in": 1.5,
-      "out": 7.5,
-      "cacheRead": 0.3
+      "in": 0.22,
+      "out": 1.8,
+      "cacheRead": 0.022
     },
     "alibaba/qwen3-coder-30b-a3b": {
       "in": 0.15,
@@ -1459,20 +1443,9 @@
       "in": 0.5,
       "out": 1.2
     },
-    "alibaba/qwen3-coder-plus": {
-      "in": 1,
-      "out": 5,
-      "cacheRead": 0.2,
-      "cacheWrite": 1.25
-    },
     "alibaba/qwen3-max": {
       "in": 1.2,
       "out": 6
-    },
-    "alibaba/qwen3-max-preview": {
-      "in": 1.2,
-      "out": 6,
-      "cacheRead": 0.24
     },
     "alibaba/qwen3-max-thinking": {
       "in": 1.2,
@@ -1487,28 +1460,16 @@
       "in": 0.15,
       "out": 1.2
     },
-    "alibaba/qwen3-vl-235b-a22b-instruct": {
-      "in": 0.4,
-      "out": 1.6
-    },
-    "alibaba/qwen3-vl-flash": {
-      "in": 0.05,
-      "out": 0.4,
-      "cacheRead": 0.01
-    },
     "alibaba/qwen3-vl-instruct": {
-      "in": 0.4,
-      "out": 1.6
+      "in": 0.2,
+      "out": 0.88,
+      "cacheRead": 0.11
     },
     "alibaba/qwen3-vl-plus": {
       "in": 0.2,
       "out": 1.6,
       "cacheRead": 0.04,
       "cacheWrite": 0.25
-    },
-    "alibaba/qwen3-vl-thinking": {
-      "in": 0.4,
-      "out": 4
     },
     "alibaba/qwen3.5-122b-a10b": {
       "in": 0.4,
@@ -1551,11 +1512,6 @@
       "out": 1.5,
       "cacheRead": 0.05,
       "cacheWrite": 0.3125
-    },
-    "alibaba/qwen3.6-max-preview": {
-      "in": 1.3,
-      "out": 7.8,
-      "cacheRead": 0.13
     },
     "alibaba/qwen3.6-plus": {
       "in": 0.5,
@@ -1820,6 +1776,10 @@
       "in": 0.07,
       "out": 0.2
     },
+    "amazon/qwen.qwen3-coder-next": {
+      "in": 0.6,
+      "out": 1.44
+    },
     "amazon/zai.glm-4.7-flash": {
       "in": 0.07,
       "out": 0.4
@@ -1975,6 +1935,12 @@
       "cacheRead": 0.2,
       "cacheWrite": 2.5
     },
+    "anthropic-claude-5.5-haiku": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
     "anthropic-claude-fable-5": {
       "in": 10,
       "out": 50,
@@ -2065,6 +2031,12 @@
       "cacheRead": 0.1,
       "cacheWrite": 1.25
     },
+    "anthropic.claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
     "anthropic.claude-opus-4-1-20250805-v1:0": {
       "in": 15,
       "out": 75,
@@ -2128,7 +2100,7 @@
     "anthropic.claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "anthropic/claude-3-7-sonnet-20250219": {
@@ -2214,10 +2186,23 @@
       "out": 5,
       "cacheRead": 0.1
     },
+    "anthropic/claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
+    "anthropic/claude-haiku-5.5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
     "anthropic/claude-haiku-latest": {
-      "in": 1,
-      "out": 5,
-      "cacheRead": 0.1
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
     },
     "anthropic/claude-opus-4": {
       "in": 13,
@@ -2498,7 +2483,7 @@
     "anthropic/claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "anthropic/claude-sonnet-5.5": {
@@ -2510,7 +2495,7 @@
     "anthropic/claude-sonnet-5.5:thinking": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "anthropic/claude-sonnet-5:thinking": {
@@ -2522,7 +2507,7 @@
     "anthropic/claude-sonnet-latest": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "apac.amazon.nova-lite-v1:0": {
@@ -2577,6 +2562,12 @@
       "out": 5.5,
       "cacheRead": 0.11,
       "cacheWrite": 1.375
+    },
+    "au.anthropic.claude-haiku-5-5": {
+      "in": 0.11,
+      "out": 0.55,
+      "cacheRead": 0.011,
+      "cacheWrite": 0.1375
     },
     "au.anthropic.claude-opus-4-6-v1": {
       "in": 5.5,
@@ -2645,6 +2636,46 @@
       "out": 19.992,
       "cacheRead": 4.998
     },
+    "auto/mistralai/codestral-2508": {
+      "in": 0.3138,
+      "out": 0.9413,
+      "cacheRead": 0.0314
+    },
+    "auto/mistralai/ministral-14b-2512": {
+      "in": 0.2092,
+      "out": 0.2092,
+      "cacheRead": 0.0209
+    },
+    "auto/mistralai/ministral-3b-2512": {
+      "in": 0.1046,
+      "out": 0.1046,
+      "cacheRead": 0.0105
+    },
+    "auto/mistralai/ministral-8b-2512": {
+      "in": 0.1569,
+      "out": 0.1569,
+      "cacheRead": 0.0157
+    },
+    "auto/mistralai/mistral-large-2512": {
+      "in": 0.5229,
+      "out": 1.5688,
+      "cacheRead": 0.0523
+    },
+    "auto/mistralai/mistral-large-4": {
+      "in": 0.7112,
+      "out": 2.1859,
+      "cacheRead": 0.0732
+    },
+    "auto/mistralai/mistral-medium-3.5": {
+      "in": 1.5688,
+      "out": 7.8442,
+      "cacheRead": 0.1569
+    },
+    "auto/mistralai/mistral-small-2603": {
+      "in": 0.1569,
+      "out": 0.6275,
+      "cacheRead": 0.0157
+    },
     "aws-bedrock/claude-fable-5": {
       "in": 10,
       "out": 50,
@@ -2668,6 +2699,12 @@
       "out": 5,
       "cacheRead": 0.1,
       "cacheWrite": 1.25
+    },
+    "aws-bedrock/claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
     },
     "aws-bedrock/claude-opus-4-1-20250805": {
       "in": 15,
@@ -2738,7 +2775,7 @@
     "aws-bedrock/claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "aws-bedrock/grok-4-3": {
@@ -2862,7 +2899,7 @@
     "azure-anthropic/claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "azure/gpt-4.1": {
@@ -3005,9 +3042,22 @@
       "in": 0.15,
       "out": 0.6
     },
+    "baai/bge-m3": {
+      "in": 0.01,
+      "out": 0
+    },
+    "baai/bge-reranker-v2-m3": {
+      "in": 0.01,
+      "out": 0
+    },
     "baichuan/baichuan-m2-32b": {
       "in": 0.07,
       "out": 0.07
+    },
+    "baidu/cobuddy": {
+      "in": 0.28,
+      "out": 1.13,
+      "cacheRead": 0.07
     },
     "baidu/deepseek-v4-flash": {
       "in": 0.44,
@@ -3028,21 +3078,9 @@
       "in": 0.07,
       "out": 0.28
     },
-    "baidu/ernie-4.5-21B-a3b-thinking": {
-      "in": 0.07,
-      "out": 0.28
-    },
     "baidu/ernie-4.5-300b-a47b-paddle": {
       "in": 0.28,
       "out": 1.1
-    },
-    "baidu/ernie-4.5-vl-28b-a3b": {
-      "in": 0.14,
-      "out": 0.56
-    },
-    "baidu/ernie-4.5-vl-28b-a3b-thinking": {
-      "in": 0.39,
-      "out": 0.39
     },
     "baidu/ernie-4.5-vl-424b-a47b": {
       "in": 0.42,
@@ -3435,6 +3473,11 @@
       "cacheRead": 0.016,
       "cacheWrite": 0.064
     },
+    "callstack/apex": {
+      "in": 0.5,
+      "out": 3,
+      "cacheRead": 0.2
+    },
     "canopywave/deepseek-v4-flash": {
       "in": 0.14,
       "out": 0.28,
@@ -3648,6 +3691,30 @@
       "out": 5,
       "cacheRead": 0.1,
       "cacheWrite": 1.25
+    },
+    "claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
+    "claude-haiku-5-5@default": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
+    "claude-haiku-5-5@eu": {
+      "in": 0.11,
+      "out": 0.55,
+      "cacheRead": 0.02,
+      "cacheWrite": 0.14
+    },
+    "claude-haiku-5.5": {
+      "in": 0.113,
+      "out": 0.563,
+      "cacheRead": 0.011,
+      "cacheWrite": 0.14
     },
     "claude-mythos-5": {
       "in": 10,
@@ -3984,7 +4051,7 @@
     "claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "claude-sonnet-5-5@default": {
@@ -4000,10 +4067,10 @@
       "cacheWrite": 2.75
     },
     "claude-sonnet-5.5": {
-      "in": 2,
-      "out": 10,
-      "cacheRead": 0.2,
-      "cacheWrite": 2.5
+      "in": 2.25,
+      "out": 11.249,
+      "cacheRead": 0.225,
+      "cacheWrite": 2.813
     },
     "claude-sonnet-5@default": {
       "in": 2,
@@ -4028,19 +4095,19 @@
       "cacheRead": 0.9
     },
     "claw-high": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "claw-low": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2,
       "cacheWrite": 0.08333
     },
     "claw-medium": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "cline-pass/deepseek-v4-flash": {
@@ -4145,6 +4212,10 @@
       "out": 3.96,
       "cacheRead": 0.044
     },
+    "cloudflare/@cf/meta/llama-3.2-1b-instruct": {
+      "in": 0.027,
+      "out": 0.201
+    },
     "cloudflare/@cf/meta/llama-guard-3-8b": {
       "in": 0.484,
       "out": 0.03
@@ -4165,14 +4236,18 @@
       "in": 0.0605,
       "out": 0.4
     },
+    "codestral-2": {
+      "in": 0.3,
+      "out": 0.9
+    },
     "codestral-2501": {
       "in": 0.3,
       "out": 0.9
     },
     "codestral-2508": {
-      "in": 0.368,
-      "out": 1.103,
-      "cacheRead": 0.037
+      "in": 0.3,
+      "out": 0.9,
+      "cacheRead": 0.03
     },
     "codestral-latest": {
       "in": 0.3,
@@ -4528,6 +4603,18 @@
       "cacheRead": 0.1,
       "cacheWrite": 1.00002
     },
+    "databricks/databricks-qwen3-next-80b-a3b-instruct": {
+      "in": 0.15001,
+      "out": 1.20001,
+      "cacheRead": 0.015001,
+      "cacheWrite": 0.15001
+    },
+    "databricks/databricks-qwen3-next-80b-a3b-instruct@eu": {
+      "in": 0.15001,
+      "out": 1.20001,
+      "cacheRead": 0.015001,
+      "cacheWrite": 0.15001
+    },
     "deep-deepseek-v4-flash": {
       "in": 0.154,
       "out": 0.308,
@@ -4563,9 +4650,44 @@
       "out": 0.4,
       "cacheRead": 0.02
     },
+    "deepinfra/Gryphe/MythoMax-L2-13b": {
+      "in": 0.4,
+      "out": 0.4
+    },
+    "deepinfra/Qwen/Qwen3-235B-A22B-Instruct-2507": {
+      "in": 0.09,
+      "out": 0.55
+    },
+    "deepinfra/Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+      "in": 0.4,
+      "out": 1.6
+    },
+    "deepinfra/Qwen/Qwen3-Max": {
+      "in": 1.2,
+      "out": 6,
+      "cacheRead": 0.24
+    },
+    "deepinfra/Qwen/Qwen3-Next-80B-A3B-Instruct": {
+      "in": 0.09,
+      "out": 1.1
+    },
+    "deepinfra/Qwen/Qwen3-VL-235B-A22B-Instruct": {
+      "in": 0.2,
+      "out": 0.88,
+      "cacheRead": 0.11
+    },
+    "deepinfra/Qwen/Qwen3-VL-30B-A3B-Instruct": {
+      "in": 0.15,
+      "out": 0.6
+    },
     "deepinfra/deepseek-ai/DeepSeek-R1": {
       "in": 0.7,
       "out": 2.4
+    },
+    "deepinfra/deepseek-ai/DeepSeek-R1-0528": {
+      "in": 0.5,
+      "out": 2.15,
+      "cacheRead": 0.35
     },
     "deepinfra/deepseek-ai/DeepSeek-V3": {
       "in": 0.32,
@@ -4636,11 +4758,6 @@
       "out": 0.25,
       "cacheRead": 0.015
     },
-    "deepinfra/hy3": {
-      "in": 0.14,
-      "out": 0.58,
-      "cacheRead": 0.035
-    },
     "deepinfra/inkling": {
       "in": 0.95,
       "out": 4.05,
@@ -4673,6 +4790,10 @@
       "out": 1.2,
       "cacheRead": 0.04
     },
+    "deepinfra/microsoft/WizardLM-2-8x22B": {
+      "in": 0.48,
+      "out": 0.48
+    },
     "deepinfra/mimo-v2.6-flash": {
       "in": 0.14,
       "out": 0.28,
@@ -4682,6 +4803,10 @@
       "in": 0.435,
       "out": 0.87,
       "cacheRead": 0.0036
+    },
+    "deepinfra/moonshotai/Kimi-K2-Instruct": {
+      "in": 0.5,
+      "out": 2
     },
     "deepinfra/moonshotai/Kimi-K2.5": {
       "in": 0.45,
@@ -4732,11 +4857,6 @@
     "deepinfra/qwen3.5-9b": {
       "in": 0.1,
       "out": 0.15
-    },
-    "deepinfra/qwen3.8-2.4t-a95b": {
-      "in": 2,
-      "out": 6,
-      "cacheRead": 0.2
     },
     "deepinfra/stepfun-ai/Step-3.5-Flash": {
       "in": 0.09,
@@ -4997,11 +5117,6 @@
       "in": 0.574,
       "out": 1.721
     },
-    "deepseek-v3-2": {
-      "in": 0.57,
-      "out": 1.71,
-      "cacheRead": 0.57
-    },
     "deepseek-v3-2-exp": {
       "in": 0.287,
       "out": 0.431
@@ -5037,11 +5152,6 @@
       "in": 0.142,
       "out": 0.284,
       "cacheRead": 0.0284
-    },
-    "deepseek-v4-flash-0731-284b": {
-      "in": 0.2,
-      "out": 0.5,
-      "cacheRead": 0.1
     },
     "deepseek-v4-flash-0731-fast": {
       "in": 0.28,
@@ -5113,14 +5223,19 @@
       "out": 0.66,
       "cacheRead": 0.0033
     },
+    "deepseek-v4.1-flash-552b": {
+      "in": 0.25,
+      "out": 1,
+      "cacheRead": 0.1
+    },
     "deepseek-v4.1-flash-fast": {
-      "in": 0.3,
+      "in": 0.01,
       "out": 1.2,
       "cacheRead": 0,
       "cacheWrite": 0.09
     },
     "deepseek-v4.1-flash-fast-fp4": {
-      "in": 0.3,
+      "in": 0.01,
       "out": 1.2,
       "cacheRead": 0,
       "cacheWrite": 0.09
@@ -5176,17 +5291,9 @@
       "out": 2.5,
       "cacheRead": 0.04
     },
-    "deepseek/deepseek-ocr": {
-      "in": 0.03,
-      "out": 0.03
-    },
     "deepseek/deepseek-ocr-2": {
       "in": 0.03,
       "out": 0.03
-    },
-    "deepseek/deepseek-prover-v2-671b": {
-      "in": 0.7,
-      "out": 2.5
     },
     "deepseek/deepseek-r1": {
       "in": 0.7,
@@ -5199,18 +5306,6 @@
     "deepseek/deepseek-r1-0528-qwen3-8b": {
       "in": 0.06,
       "out": 0.09
-    },
-    "deepseek/deepseek-r1-distill-llama-70b": {
-      "in": 0.8,
-      "out": 0.8
-    },
-    "deepseek/deepseek-r1-distill-qwen-14b": {
-      "in": 0.15,
-      "out": 0.15
-    },
-    "deepseek/deepseek-r1-distill-qwen-32b": {
-      "in": 0.3,
-      "out": 0.3
     },
     "deepseek/deepseek-r1-turbo": {
       "in": 0.7,
@@ -5229,10 +5324,6 @@
       "in": 0.28,
       "out": 1.14
     },
-    "deepseek/deepseek-v3-turbo": {
-      "in": 0.4,
-      "out": 1.3
-    },
     "deepseek/deepseek-v3.1": {
       "in": 0.55,
       "out": 1.66
@@ -5242,9 +5333,9 @@
       "out": 1
     },
     "deepseek/deepseek-v3.2": {
-      "in": 0.28,
-      "out": 0.42,
-      "cacheRead": 0.028
+      "in": 0.259,
+      "out": 0.8,
+      "cacheRead": 0.14
     },
     "deepseek/deepseek-v3.2-exp": {
       "in": 0.27,
@@ -5268,6 +5359,11 @@
     "deepseek/deepseek-v4-flash-0423": {
       "in": 0.139,
       "out": 0.278
+    },
+    "deepseek/deepseek-v4-flash-0423:thinking": {
+      "in": 0.14,
+      "out": 0.28,
+      "cacheRead": 0.03
     },
     "deepseek/deepseek-v4-flash-0731": {
       "in": 0.08,
@@ -5331,15 +5427,14 @@
       "cacheRead": 0.006,
       "cacheWrite": 0.3
     },
-    "deepseek/deepseek-v4.1-flash-fast": {
-      "in": 0.3,
-      "out": 1.2,
-      "cacheRead": 0.006
-    },
     "deepseek/deepseek-v4.1-flash:thinking": {
       "in": 0.13,
       "out": 0.52,
       "cacheRead": 0.006
+    },
+    "deepseek/deepseek_v3": {
+      "in": 0.89,
+      "out": 0.89
     },
     "devstral-2": {
       "in": 0.4,
@@ -5401,20 +5496,10 @@
       "out": 1.377,
       "cacheRead": 0.2295
     },
-    "doubao-seed-1-6-250615": {
-      "in": 0.204,
-      "out": 0.51,
-      "cacheRead": 0.102
-    },
     "doubao-seed-1-6-251015": {
       "in": 0.11875,
       "out": 1.18747,
       "cacheRead": 0.02375
-    },
-    "doubao-seed-1-6-flash-250615": {
-      "in": 0.0374,
-      "out": 0.374,
-      "cacheRead": 0.0187
     },
     "doubao-seed-1-6-flash-250828": {
       "in": 0.02227,
@@ -5559,6 +5644,16 @@
       "in": 1.67,
       "out": 3.33
     },
+    "entrim/deepseek-v4.1-flash": {
+      "in": 0.2,
+      "out": 0.6,
+      "cacheRead": 0.005
+    },
+    "entrim/glm-5.3-flash": {
+      "in": 0.1,
+      "out": 0.35,
+      "cacheRead": 0.0175
+    },
     "ernie-4.5-21b-a3b-thinking": {
       "in": 0.07,
       "out": 0.28
@@ -5581,11 +5676,6 @@
       "in": 0.75,
       "out": 3,
       "cacheRead": 0.75
-    },
-    "ernie-x1.1-preview": {
-      "in": 0.15,
-      "out": 0.6,
-      "cacheRead": 0.075
     },
     "essentialai/Rnj-1-Instruct": {
       "in": 0.15,
@@ -5626,6 +5716,12 @@
       "out": 5.5,
       "cacheRead": 0.11,
       "cacheWrite": 1.375
+    },
+    "eu.anthropic.claude-haiku-5-5": {
+      "in": 0.11,
+      "out": 0.55,
+      "cacheRead": 0.011,
+      "cacheWrite": 0.1375
     },
     "eu.anthropic.claude-opus-4-5-20251101-v1:0": {
       "in": 5.5,
@@ -5690,7 +5786,7 @@
     "eu.anthropic.claude-sonnet-5-5": {
       "in": 2.2,
       "out": 11,
-      "cacheRead": 0.22,
+      "cacheRead": 0.11,
       "cacheWrite": 2.75
     },
     "eu.mistral.pixtral-large-2502-v1:0": {
@@ -5846,14 +5942,19 @@
       "cacheRead": 0.014
     },
     "flexai/DeepSeek-V4-Flash-0731": {
-      "in": 0.06,
-      "out": 0.18,
-      "cacheRead": 0.009
+      "in": 0.0192,
+      "out": 0.27,
+      "cacheRead": 0.0029
     },
     "flexai/DeepSeek-V4.1-Flash": {
-      "in": 0.14,
-      "out": 0.42,
-      "cacheRead": 0.021
+      "in": 0.09,
+      "out": 0.18,
+      "cacheRead": 0.0135
+    },
+    "flexai/Muse-Glimmer-30B": {
+      "in": 0.35,
+      "out": 1.5,
+      "cacheRead": 0.0525
     },
     "flexai/Step-3.7-Flash": {
       "in": 0.2,
@@ -6241,6 +6342,11 @@
       "out": 2.5,
       "cacheRead": 0.03
     },
+    "gemini-nano-banana-2.1": {
+      "in": 1.5,
+      "out": 30,
+      "cacheRead": 0.15
+    },
     "gemini-omni-flash-preview": {
       "in": 1.5,
       "out": 17.5
@@ -6356,6 +6462,11 @@
       "out": 0.38,
       "cacheRead": 0.06
     },
+    "gemma-4-26b-a4b-it-chimeraxheretic": {
+      "in": 0.12,
+      "out": 0.38,
+      "cacheRead": 0.06
+    },
     "gemma-4-26b-a4b-it-darksoul": {
       "in": 0.12,
       "out": 0.38,
@@ -6431,6 +6542,11 @@
       "cacheRead": 0.05
     },
     "gemma-4-31b-it-novelist": {
+      "in": 0.1,
+      "out": 0.45,
+      "cacheRead": 0.05
+    },
+    "gemma-4-31b-it-scarlet": {
       "in": 0.1,
       "out": 0.45,
       "cacheRead": 0.05
@@ -6552,7 +6668,7 @@
     "glm-5-2": {
       "in": 1.4,
       "out": 4.4,
-      "cacheRead": 1.4
+      "cacheRead": 0.14
     },
     "glm-5-2-260617": {
       "in": 1.18747,
@@ -6694,12 +6810,6 @@
       "out": 0.325,
       "cacheRead": 0.0195
     },
-    "glm-5.3-flash-fp4": {
-      "in": 0.15,
-      "out": 0.5,
-      "cacheRead": 0,
-      "cacheWrite": 0.23
-    },
     "glm-5.3-flash:fast": {
       "in": 0.15,
       "out": 0.5
@@ -6797,6 +6907,12 @@
       "cacheRead": 0.1,
       "cacheWrite": 1.25
     },
+    "global.anthropic.claude-haiku-5-5": {
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
+    },
     "global.anthropic.claude-opus-4-5-20251101-v1:0": {
       "in": 5,
       "out": 25,
@@ -6860,7 +6976,7 @@
     "global.anthropic.claude-sonnet-5-5": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "global.moonshotai.kimi-k3": {
@@ -6920,6 +7036,12 @@
       "in": 2,
       "out": 6,
       "cacheRead": 0.5
+    },
+    "global.zai.glm-5.3": {
+      "in": 1.68,
+      "out": 5.28,
+      "cacheRead": 0.312,
+      "cacheWrite": 2.1
     },
     "gonka24/deepseek-v4-flash": {
       "in": 0.065,
@@ -7101,6 +7223,14 @@
       "in": 0.04,
       "out": 0.08
     },
+    "google/deep-research-max-preview-04-2026": {
+      "in": 2,
+      "out": 12
+    },
+    "google/deep-research-preview-04-2026": {
+      "in": 2,
+      "out": 12
+    },
     "google/diffusiongemma": {
       "in": 0.05,
       "out": 0.15,
@@ -7271,16 +7401,16 @@
       "cacheWrite": 0.041667
     },
     "google/gemini-3.7-flash": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "google/gemini-3.8-flash": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "google/gemini-3.8-flash-lite-tts": {
       "in": 0.5,
@@ -7311,15 +7441,19 @@
       "out": 0
     },
     "google/gemini-flash-latest": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "google/gemini-flash-lite-latest": {
       "in": 0.25,
       "out": 1.5,
       "cacheRead": 0.025
+    },
+    "google/gemini-nano-banana-2.1": {
+      "in": 1.5,
+      "out": 7.5
     },
     "google/gemini-omni-flash-preview": {
       "in": 1.5,
@@ -7380,6 +7514,11 @@
       "in": 0.1056,
       "out": 0.3344,
       "cacheRead": 0.0528
+    },
+    "google/gemma-4-26b-a4b-it-maas": {
+      "in": 0.15,
+      "out": 0.6,
+      "cacheRead": 0.015
     },
     "google/gemma-4-26b-a4b-it:thinking": {
       "in": 0.13,
@@ -7934,6 +8073,16 @@
       "in": 0.00437,
       "out": 0
     },
+    "greenference/deepseek-v4.1-flash": {
+      "in": 0.22,
+      "out": 0.88,
+      "cacheRead": 0.007
+    },
+    "greenference/gpt-oss-20b": {
+      "in": 0.009,
+      "out": 0.045,
+      "cacheRead": 0.0045
+    },
     "greg-1-mini": {
       "in": 0.07,
       "out": 0.15,
@@ -8172,19 +8321,19 @@
       "out": 2.989
     },
     "hermes-high": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "hermes-low": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2,
       "cacheWrite": 0.08333
     },
     "hermes-medium": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "hf:MiniMaxAI/MiniMax-M3": {
@@ -8299,11 +8448,6 @@
       "in": 0.017,
       "out": 0.112
     },
-    "ibm-granite/granite-4.1-8b": {
-      "in": 0.05,
-      "out": 0.1,
-      "cacheRead": 0.05
-    },
     "ibm-granite/granite-4.2-8b": {
       "in": 0.06,
       "out": 0.25,
@@ -8370,16 +8514,6 @@
       "in": 0.56,
       "out": 2.24,
       "cacheRead": 0.11
-    },
-    "inclusionai/ling-2.6-1t": {
-      "in": 0.3,
-      "out": 2.5,
-      "cacheRead": 0.06
-    },
-    "inclusionai/ling-2.6-flash": {
-      "in": 0.1,
-      "out": 0.3,
-      "cacheRead": 0.02
     },
     "inclusionai/ling-3.0-flash": {
       "in": 0.06,
@@ -8463,8 +8597,8 @@
       "cacheRead": 0.2465
     },
     "infomaniak/mistralai/Ministral-3-14B-Instruct-2512": {
-      "in": 0.33675,
-      "out": 0.449
+      "in": 0.33618,
+      "out": 0.44824
     },
     "inkling": {
       "in": 1.0888,
@@ -8488,13 +8622,17 @@
       "in": 0.114,
       "out": 0.114
     },
+    "ionos/Qwen/Qwen3-Coder-Next": {
+      "in": 0.16809,
+      "out": 0.89648
+    },
     "ionos/meta-llama/Llama-3.3-70B-Instruct": {
-      "in": 0.729625,
-      "out": 0.729625
+      "in": 0.72839,
+      "out": 0.72839
     },
     "ionos/openai/gpt-oss-120b": {
-      "in": 0.168375,
-      "out": 0.729625
+      "in": 0.16809,
+      "out": 0.72839
     },
     "jamba-large": {
       "in": 2,
@@ -8515,6 +8653,12 @@
       "out": 5.5,
       "cacheRead": 0.11,
       "cacheWrite": 1.375
+    },
+    "jp.anthropic.claude-haiku-5-5": {
+      "in": 0.11,
+      "out": 0.55,
+      "cacheRead": 0.011,
+      "cacheWrite": 0.1375
     },
     "jp.anthropic.claude-opus-4-7": {
       "in": 5.5,
@@ -8640,6 +8784,12 @@
       "in": 0.6,
       "out": 3
     },
+    "kimi-k2.5@eu": {
+      "in": 0.72,
+      "out": 3.6,
+      "cacheRead": 0.72,
+      "cacheWrite": 0.72
+    },
     "kimi-k2.6": {
       "in": 0.95,
       "out": 4
@@ -8748,16 +8898,6 @@
       "in": 0.3,
       "out": 1.2,
       "cacheRead": 0.06
-    },
-    "kwaipilot/kat-coder-pro": {
-      "in": 0.3,
-      "out": 1.2,
-      "cacheRead": 0.06
-    },
-    "kwaipilot/kat-coder-pro-v2.5": {
-      "in": 0.74,
-      "out": 2.96,
-      "cacheRead": 0.15
     },
     "laguna-s-2.1": {
       "in": 0.09,
@@ -9028,11 +9168,6 @@
       "in": 0.74,
       "out": 0.74
     },
-    "meta-llama/Llama-3.1-70B-Instruct": {
-      "in": 0.8,
-      "out": 0.8,
-      "cacheRead": 0.8
-    },
     "meta-llama/Llama-3.1-8B-Instruct": {
       "in": 0.06,
       "out": 0.06
@@ -9099,14 +9234,6 @@
       "in": 0.7526,
       "out": 0.7526
     },
-    "meta-llama/llama-3-70b-instruct": {
-      "in": 0.51,
-      "out": 0.74
-    },
-    "meta-llama/llama-3-8b-instruct": {
-      "in": 0.04,
-      "out": 0.04
-    },
     "meta-llama/llama-3.1-70b-instruct": {
       "in": 0.4,
       "out": 0.4
@@ -9129,7 +9256,8 @@
     },
     "meta-llama/llama-4-maverick": {
       "in": 0.1875,
-      "out": 0.6525
+      "out": 0.6525,
+      "cacheRead": 0.05
     },
     "meta-llama/llama-4-maverick-17b-128e-instruct-fp8": {
       "in": 0.27,
@@ -9228,9 +9356,13 @@
       "in": 0.35,
       "out": 1.15
     },
+    "meta/llama-4-scout-17b-16e-instruct-maas": {
+      "in": 0.25,
+      "out": 0.7
+    },
     "meta/muse-glimmer-30b": {
       "in": 0.3,
-      "out": 1.1,
+      "out": 1.2,
       "cacheRead": 0.04
     },
     "meta/muse-spark-1.1": {
@@ -9335,6 +9467,11 @@
       "out": 1.0154,
       "cacheRead": 0.0042
     },
+    "mimo-v2.6-pro-flex": {
+      "in": 0.5655,
+      "out": 1.131,
+      "cacheRead": 0.0234
+    },
     "mimo-v2.6-pro-rl": {
       "in": 0.4,
       "out": 0.8
@@ -9351,6 +9488,16 @@
     "mimo/mimo-v2.5-pro": {
       "in": 0.435,
       "out": 0.87
+    },
+    "mindai/macaron-v1-tall": {
+      "in": 0.2475,
+      "out": 1.43,
+      "cacheRead": 0.044
+    },
+    "mindai/macaron-v1-venti": {
+      "in": 0.825,
+      "out": 2.475,
+      "cacheRead": 0.165
     },
     "minicpm-v-4.5": {
       "in": 0.651,
@@ -9580,26 +9727,27 @@
       "cacheWrite": 0.2
     },
     "ministral-14b-2512": {
-      "in": 0.33,
-      "out": 0.33
+      "in": 0.2,
+      "out": 0.2,
+      "cacheRead": 0.02
     },
     "ministral-3b": {
       "in": 0.04,
       "out": 0.04
     },
     "ministral-3b-2512": {
-      "in": 0.123,
-      "out": 0.123,
-      "cacheRead": 0.012
+      "in": 0.1,
+      "out": 0.1,
+      "cacheRead": 0.01
     },
     "ministral-3b-latest": {
       "in": 0.04,
       "out": 0.04
     },
     "ministral-8b-2512": {
-      "in": 0.179,
-      "out": 0.179,
-      "cacheRead": 0.017
+      "in": 0.15,
+      "out": 0.15,
+      "cacheRead": 0.015
     },
     "ministral-8b-latest": {
       "in": 0.1,
@@ -9655,6 +9803,21 @@
       "in": 0.5,
       "out": 1.5
     },
+    "mistral-large-4": {
+      "in": 0.68,
+      "out": 2.09,
+      "cacheRead": 0.07
+    },
+    "mistral-large-4-0": {
+      "in": 0.765,
+      "out": 2.351,
+      "cacheRead": 0.079
+    },
+    "mistral-large-4@eu": {
+      "in": 0.68,
+      "out": 2.09,
+      "cacheRead": 0.07
+    },
     "mistral-large-latest": {
       "in": 0.5,
       "out": 1.5,
@@ -9678,6 +9841,10 @@
       "in": 1.5,
       "out": 7.5,
       "cacheRead": 0.15
+    },
+    "mistral-medium-3": {
+      "in": 0.4,
+      "out": 2
     },
     "mistral-medium-3-5": {
       "in": 1.5,
@@ -9803,7 +9970,8 @@
     },
     "mistral/codestral-2508": {
       "in": 0.3,
-      "out": 0.9
+      "out": 0.9,
+      "cacheRead": 0.03
     },
     "mistral/codestral-latest": {
       "in": 0.3,
@@ -9880,6 +10048,11 @@
       "out": 1.5,
       "cacheRead": 0.05
     },
+    "mistral/mistral-large-4": {
+      "in": 1.36,
+      "out": 4.18,
+      "cacheRead": 0.14
+    },
     "mistral/mistral-large-latest": {
       "in": 2,
       "out": 6,
@@ -9909,8 +10082,8 @@
       "cacheRead": 0.15
     },
     "mistral/mistral-nemo": {
-      "in": 0.04,
-      "out": 0.17
+      "in": 0.029,
+      "out": 0.03
     },
     "mistral/mistral-nemo-12b-instruct": {
       "in": 0.038,
@@ -10097,6 +10270,16 @@
       "out": 1.5,
       "cacheRead": 0.05
     },
+    "mistralai/mistral-large-4": {
+      "in": 0.68,
+      "out": 2.09,
+      "cacheRead": 0.07
+    },
+    "mistralai/mistral-large-4-0": {
+      "in": 0.68,
+      "out": 2.09,
+      "cacheRead": 0.07
+    },
     "mistralai/mistral-medium-3": {
       "in": 0.4,
       "out": 2,
@@ -10275,9 +10458,9 @@
       "cacheRead": 0.19
     },
     "moonshotai/Kimi-K2.6-TEE": {
-      "in": 0.5,
-      "out": 2.85,
-      "cacheRead": 0.04999999999999999
+      "in": 0.45,
+      "out": 1.95,
+      "cacheRead": 0.04499999999999999
     },
     "moonshotai/Kimi-K2.7-Code": {
       "in": 0.95,
@@ -10296,9 +10479,9 @@
       "cacheWrite": 4.5
     },
     "moonshotai/Kimi-K3-TEE": {
-      "in": 3,
-      "out": 15,
-      "cacheRead": 0.29999999999999993
+      "in": 1.85,
+      "out": 9.5,
+      "cacheRead": 0.18499999999999997
     },
     "moonshotai/chat-completion/models/Kimi-K2_6": {
       "in": 0.95,
@@ -10323,7 +10506,8 @@
     },
     "moonshotai/kimi-k2-thinking": {
       "in": 0.6,
-      "out": 2.5
+      "out": 2.5,
+      "cacheRead": 0.15
     },
     "moonshotai/kimi-k2-thinking-maas": {
       "in": 0.6,
@@ -10341,9 +10525,9 @@
       "cacheRead": 0.1
     },
     "moonshotai/kimi-k2.5:thinking": {
-      "in": 0.3,
-      "out": 1.9,
-      "cacheRead": 0.15
+      "in": 0.375,
+      "out": 2,
+      "cacheRead": 0.07
     },
     "moonshotai/kimi-k2.6": {
       "in": 0.95,
@@ -10480,6 +10664,11 @@
       "in": 0.14,
       "out": 0.28,
       "cacheRead": 0.028
+    },
+    "nebius/Qwen/Qwen3-235B-A22B-Instruct-2507": {
+      "in": 0.2,
+      "out": 0.6,
+      "cacheRead": 0.2
     },
     "nebius/deepseek-ai/DeepSeek-V4-Flash-0731": {
       "in": 0.14,
@@ -11029,8 +11218,7 @@
     },
     "nvidia/nemotron-3-nano-30b-a3b": {
       "in": 0.05,
-      "out": 0.2,
-      "cacheRead": 0.03
+      "out": 0.2
     },
     "nvidia/nemotron-3-super-120b-a12b": {
       "in": 0.08,
@@ -11056,9 +11244,9 @@
       "out": 0.2
     },
     "nvidia/nemotron-3.5-lightning": {
-      "in": 0.039,
-      "out": 0.18,
-      "cacheRead": 0.0195
+      "in": 0.025,
+      "out": 0.12,
+      "cacheRead": 0.0125
     },
     "nvidia/nemotron-3.5-lightning:thinking": {
       "in": 0.05,
@@ -11329,6 +11517,12 @@
       "out": 12.5,
       "cacheRead": 0.125,
       "cacheWrite": 3.125
+    },
+    "openai-gpt-61-sol-ultrafast": {
+      "in": 15,
+      "out": 75,
+      "cacheRead": 0.75,
+      "cacheWrite": 18.75
     },
     "openai-gpt-image-1": {
       "in": 5,
@@ -12379,10 +12573,6 @@
       "out": 2.08,
       "cacheRead": 0.1625
     },
-    "qwen-coder-plus": {
-      "in": 0.502,
-      "out": 1.004
-    },
     "qwen-deep-research": {
       "in": 7.742,
       "out": 23.367
@@ -12458,8 +12648,8 @@
       "out": 3.2
     },
     "qwen-vl-ocr": {
-      "in": 0.72,
-      "out": 0.72
+      "in": 0.07,
+      "out": 0.16
     },
     "qwen-vl-plus": {
       "in": 0.21,
@@ -12539,8 +12729,8 @@
       "cacheRead": 0.32
     },
     "qwen/qwen-mt-plus": {
-      "in": 0.25,
-      "out": 0.75
+      "in": 2.46,
+      "out": 7.37
     },
     "qwen/qwen-plus": {
       "in": 0.26,
@@ -12548,28 +12738,15 @@
       "cacheRead": 0.052,
       "cacheWrite": 0.325
     },
-    "qwen/qwen-plus-2025-07-28": {
-      "in": 0.26,
-      "out": 0.78
-    },
     "qwen/qwen-turbo": {
       "in": 0.04998,
       "out": 0.2006,
       "cacheRead": 0.02499
     },
     "qwen/qwen-vl-max": {
-      "in": 0.8,
-      "out": 3.2,
-      "cacheRead": 0.16
-    },
-    "qwen/qwen-vl-plus": {
-      "in": 0.21,
-      "out": 0.63,
-      "cacheRead": 0.042
-    },
-    "qwen/qwen2.5-7b-instruct": {
-      "in": 0.07,
-      "out": 0.07
+      "in": 0.23,
+      "out": 0.58,
+      "cacheRead": 0.023
     },
     "qwen/qwen2.5-coder-32b-instruct": {
       "in": 0.2006,
@@ -12582,24 +12759,25 @@
       "cacheRead": 0.4
     },
     "qwen/qwen3-14b": {
-      "in": 0.2275,
-      "out": 0.91
+      "in": 0.12,
+      "out": 0.24
     },
     "qwen/qwen3-235b-a22b": {
-      "in": 0.455,
-      "out": 1.82
+      "in": 0.287,
+      "out": 1.147,
+      "cacheRead": 0.0574
     },
     "qwen/qwen3-235b-a22b-2507": {
-      "in": 0.1495,
-      "out": 0.598
+      "in": 0.09,
+      "out": 0.55
     },
     "qwen/qwen3-235b-a22b-fp8": {
       "in": 0.2,
       "out": 0.8
     },
     "qwen/qwen3-235b-a22b-instruct-2507": {
-      "in": 0.23,
-      "out": 0.92
+      "in": 0.15,
+      "out": 0.8
     },
     "qwen/qwen3-235b-a22b-instruct-2507-maas": {
       "in": 0.22,
@@ -12610,20 +12788,18 @@
       "out": 3
     },
     "qwen/qwen3-30b-a3b": {
-      "in": 0.13,
-      "out": 0.52
+      "in": 0.12,
+      "out": 0.5
     },
     "qwen/qwen3-30b-a3b-fp8": {
       "in": 0.09,
       "out": 0.45
     },
     "qwen/qwen3-30b-a3b-instruct-2507": {
-      "in": 0.13,
-      "out": 0.52
-    },
-    "qwen/qwen3-30b-a3b-thinking-2507": {
-      "in": 0.2,
-      "out": 2.4
+      "in": 0.09,
+      "out": 0.3,
+      "cacheRead": 0.09,
+      "cacheWrite": 0
     },
     "qwen/qwen3-32b": {
       "in": 0.08,
@@ -12633,29 +12809,22 @@
       "in": 0.1,
       "out": 0.45
     },
-    "qwen/qwen3-4b-fp8": {
-      "in": 0.03,
-      "out": 0.03
-    },
     "qwen/qwen3-8b": {
-      "in": 0.117,
-      "out": 0.455
-    },
-    "qwen/qwen3-8b-fp8": {
-      "in": 0.035,
-      "out": 0.138
+      "in": 0.47,
+      "out": 0.47,
+      "cacheRead": 0.235
     },
     "qwen/qwen3-coder": {
       "in": 0.3,
       "out": 1.2
     },
     "qwen/qwen3-coder-30b-a3b-instruct": {
-      "in": 0.45,
-      "out": 2.25
+      "in": 0.07,
+      "out": 0.28
     },
     "qwen/qwen3-coder-480b-a35b-instruct": {
-      "in": 1.5,
-      "out": 7.5
+      "in": 0.29,
+      "out": 1.2
     },
     "qwen/qwen3-coder-flash": {
       "in": 0.3,
@@ -12664,87 +12833,68 @@
       "cacheWrite": 0.375
     },
     "qwen/qwen3-coder-next": {
-      "in": 0.3,
-      "out": 1.5
-    },
-    "qwen/qwen3-coder-next@eu": {
-      "in": 0.3,
+      "in": 0.2,
       "out": 1.5
     },
     "qwen/qwen3-coder-plus": {
       "in": 1,
-      "out": 5,
-      "cacheRead": 0.2,
-      "cacheWrite": 1.25
+      "out": 5
     },
     "qwen/qwen3-embedding-4b": {
       "in": 0.01,
       "out": 0
     },
+    "qwen/qwen3-embedding-8b": {
+      "in": 0.07,
+      "out": 0
+    },
     "qwen/qwen3-max": {
       "in": 1.2,
-      "out": 6,
-      "cacheRead": 0.24,
-      "cacheWrite": 1.5
+      "out": 6
     },
     "qwen/qwen3-max-2026-01-23": {
       "in": 1.2002,
       "out": 6.001,
       "cacheRead": 0.6001
     },
-    "qwen/qwen3-max-thinking": {
-      "in": 0.78,
-      "out": 3.9
-    },
-    "qwen/qwen3-max@eu": {
-      "in": 1.2,
-      "out": 6,
-      "cacheRead": 0.24,
-      "cacheWrite": 1.5
-    },
     "qwen/qwen3-next-80b-a3b-instruct": {
       "in": 0.15,
-      "out": 1.2
+      "out": 1.5
     },
     "qwen/qwen3-next-80b-a3b-thinking": {
       "in": 0.15,
-      "out": 1.2
-    },
-    "qwen/qwen3-omni-30b-a3b-instruct": {
-      "in": 0.25,
-      "out": 0.97
+      "out": 1.5
     },
     "qwen/qwen3-omni-30b-a3b-thinking": {
       "in": 0.25,
       "out": 0.97
     },
+    "qwen/qwen3-reranker-8b": {
+      "in": 0.05,
+      "out": 0
+    },
     "qwen/qwen3-vl-235b-a22b-instruct": {
-      "in": 0.4,
-      "out": 1.6
+      "in": 0.21,
+      "out": 1.9,
+      "cacheRead": 0.1
     },
     "qwen/qwen3-vl-235b-a22b-thinking": {
-      "in": 0.4,
-      "out": 4
+      "in": 0.287,
+      "out": 2.867,
+      "cacheRead": 0.0574
     },
     "qwen/qwen3-vl-30b-a3b-instruct": {
-      "in": 0.13,
-      "out": 0.52
+      "in": 0.15,
+      "out": 0.6
     },
     "qwen/qwen3-vl-30b-a3b-thinking": {
-      "in": 0.2,
-      "out": 2.4
-    },
-    "qwen/qwen3-vl-32b-instruct": {
-      "in": 0.104,
-      "out": 0.416
+      "in": 0.29,
+      "out": 1
     },
     "qwen/qwen3-vl-8b-instruct": {
-      "in": 0.117,
-      "out": 0.455
-    },
-    "qwen/qwen3-vl-8b-thinking": {
-      "in": 0.18,
-      "out": 2.1
+      "in": 0.25,
+      "out": 0.75,
+      "cacheRead": 0.12
     },
     "qwen/qwen3-vl-plus": {
       "in": 0.2,
@@ -12793,7 +12943,8 @@
     "qwen/qwen3.5-flash": {
       "in": 0.029,
       "out": 0.287,
-      "cacheRead": 0.0058
+      "cacheRead": 0.0029,
+      "cacheWrite": 0.03625
     },
     "qwen/qwen3.5-flash-02-23": {
       "in": 0.065,
@@ -12835,7 +12986,8 @@
     "qwen/qwen3.6-35b-a3b": {
       "in": 0.15,
       "out": 1,
-      "cacheRead": 0.05
+      "cacheRead": 0.15,
+      "cacheWrite": 0
     },
     "qwen/qwen3.6-35b-a3b:thinking": {
       "in": 0.112,
@@ -12849,9 +13001,8 @@
       "cacheWrite": 0.24
     },
     "qwen/qwen3.6-max-preview": {
-      "in": 1.027,
-      "out": 6.162,
-      "cacheWrite": 1.28375
+      "in": 1.31,
+      "out": 7.88
     },
     "qwen/qwen3.6-plus": {
       "in": 0.32,
@@ -12905,7 +13056,17 @@
       "in": 0.8,
       "out": 4
     },
+    "qwen/qwen3.8-27b-antislop": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
     "qwen/qwen3.8-27b-cybersecurity": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
+    "qwen/qwen3.8-27b-darkidol": {
       "in": 0.1,
       "out": 0.6,
       "cacheRead": 0.05
@@ -12915,10 +13076,30 @@
       "out": 1.5,
       "cacheRead": 0.125
     },
+    "qwen/qwen3.8-27b-fimi": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
     "qwen/qwen3.8-27b-hemmingway": {
       "in": 0.25,
       "out": 1.5,
       "cacheRead": 0.125
+    },
+    "qwen/qwen3.8-27b-kimiko": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
+    "qwen/qwen3.8-27b-kiwen": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
+    "qwen/qwen3.8-27b-novelist": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
     },
     "qwen/qwen3.8-27b-obliterated": {
       "in": 0.25,
@@ -12935,15 +13116,25 @@
       "out": 1.5,
       "cacheRead": 0.125
     },
+    "qwen/qwen3.8-27b-swift": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
+    "qwen/qwen3.8-27b-synthia": {
+      "in": 0.1,
+      "out": 0.6,
+      "cacheRead": 0.05
+    },
     "qwen/qwen3.8-27b-uncensored": {
-      "in": 0.15,
-      "out": 1.2,
-      "cacheRead": 0.125
+      "in": 1,
+      "out": 3,
+      "cacheRead": 0.22
     },
     "qwen/qwen3.8-27b-uncensored:thinking": {
-      "in": 0.15,
-      "out": 1.2,
-      "cacheRead": 0.125
+      "in": 1,
+      "out": 3,
+      "cacheRead": 0.22
     },
     "qwen/qwen3.8-27b:thinking": {
       "in": 0.15,
@@ -13005,10 +13196,6 @@
     "qwen/qwenLM/models/Qwen3-30B-A3B-Thinking-2507": {
       "in": 0.36,
       "out": 1.3
-    },
-    "qwen/qwq-plus": {
-      "in": 0.8,
-      "out": 2.4
     },
     "qwen2-5-14b-instruct": {
       "in": 0.35,
@@ -13156,11 +13343,6 @@
       "in": 0.25,
       "out": 1.5,
       "cacheRead": 0.25
-    },
-    "qwen3-6-max-preview": {
-      "in": 1.31,
-      "out": 7.88,
-      "cacheRead": 1.31
     },
     "qwen3-6-plus": {
       "in": 0.5,
@@ -13316,11 +13498,6 @@
     "qwen3-vl-30b-a3b-instruct": {
       "in": 0.15,
       "out": 0.6
-    },
-    "qwen3-vl-flash": {
-      "in": 0.05,
-      "out": 0.4,
-      "cacheRead": 0.01
     },
     "qwen3-vl-plus": {
       "in": 0.137,
@@ -13494,6 +13671,39 @@
       "out": 0.28,
       "cacheRead": 0.028
     },
+    "reka-ai/deepseek-v4-flash": {
+      "in": 0.11,
+      "out": 0.66,
+      "cacheRead": 0.007
+    },
+    "reka-ai/deepseek-v4-pro": {
+      "in": 1.2,
+      "out": 3.3,
+      "cacheRead": 0.13
+    },
+    "reka-ai/glm-5.3": {
+      "in": 1.17,
+      "out": 3.96,
+      "cacheRead": 0.234
+    },
+    "reka-ai/glm-5.3-flash": {
+      "in": 0.15,
+      "out": 0.5,
+      "cacheRead": 0.015
+    },
+    "reka-ai/qwen3.8-27b": {
+      "in": 0.2,
+      "out": 2.5,
+      "cacheRead": 0.05
+    },
+    "reka-ai/reka-edge-2603": {
+      "in": 0.1,
+      "out": 0.1
+    },
+    "reka-edge-2603": {
+      "in": 0.1,
+      "out": 0.1
+    },
     "rekaai/reka-edge": {
       "in": 0.1,
       "out": 0.1
@@ -13613,22 +13823,6 @@
       "out": 4,
       "cacheRead": 0.15
     },
-    "sao10K/L3-8B-stheno-v3.2": {
-      "in": 0.05,
-      "out": 0.05
-    },
-    "sao10K/l3-70b-euryale-v2.1": {
-      "in": 1.48,
-      "out": 1.48
-    },
-    "sao10K/l3-8b-lunaris": {
-      "in": 0.05,
-      "out": 0.05
-    },
-    "sao10K/l31-70b-euryale-v2.2": {
-      "in": 1.48,
-      "out": 1.48
-    },
     "sao10k/l3-lunaris-8b": {
       "in": 0.04,
       "out": 0.05
@@ -13667,21 +13861,34 @@
       "out": 0.1
     },
     "scaleway/deepseek-v4-flash-0731": {
-      "in": 0.449,
-      "out": 0.898,
-      "cacheRead": 0.0898
+      "in": 0.44824,
+      "out": 0.89648,
+      "cacheRead": 0.089648
     },
     "scaleway/gemma-3-27b-it": {
       "in": 0.287125,
       "out": 0.57425
     },
     "scaleway/gpt-oss-120b": {
-      "in": 0.168375,
-      "out": 0.6735
+      "in": 0.16809,
+      "out": 0.67236
     },
     "scaleway/llama-3.3-70b-instruct": {
-      "in": 1.01025,
-      "out": 1.01025
+      "in": 1.00854,
+      "out": 1.00854
+    },
+    "scaleway/qwen3-235b-a22b-instruct-2507": {
+      "in": 0.84045,
+      "out": 2.52135
+    },
+    "scaleway/qwen3-coder-30b-a3b-instruct": {
+      "in": 0.22412,
+      "out": 0.89648
+    },
+    "sciforium/deepseek-v4.1-flash": {
+      "in": 0.246,
+      "out": 0.944,
+      "cacheRead": 0.012
     },
     "scx-ai-gp/deepseek-v4.1-flash": {
       "in": 0.15,
@@ -13702,6 +13909,11 @@
       "in": 1.4,
       "out": 4.4,
       "cacheRead": 0.26
+    },
+    "scx-ai-gp/glm-5.3-fast": {
+      "in": 2.8,
+      "out": 8.8,
+      "cacheRead": 0.56
     },
     "scx-ai-gp/glm-5.3-flash": {
       "in": 0.088,
@@ -13908,6 +14120,12 @@
       "out": 0.3,
       "cacheRead": 0.15
     },
+    "space-bunny": {
+      "in": 0.15,
+      "out": 0.6,
+      "cacheRead": 0.03,
+      "cacheWrite": 0
+    },
     "spacexai/grok-4.1-fast-non-reasoning": {
       "in": 0.2,
       "out": 0.5,
@@ -14014,10 +14232,6 @@
       "out": 1.5,
       "cacheRead": 0.025,
       "cacheWrite": 0.3125
-    },
-    "stealth/space-bunny-alpha": {
-      "in": 0.05,
-      "out": 0.15
     },
     "step-1-32k": {
       "in": 2.05,
@@ -14255,10 +14469,10 @@
       "out": 1.2,
       "cacheRead": 0.06
     },
-    "tencent/step-5-preview": {
-      "in": 1,
-      "out": 2.7,
-      "cacheRead": 0.05
+    "tensorx/deepseek/deepseek-r1-0528": {
+      "in": 0.66,
+      "out": 2.6,
+      "cacheRead": 0.165
     },
     "tensorx/deepseek/deepseek-v4-flash-0731": {
       "in": 0.25,
@@ -14603,6 +14817,12 @@
       "cacheRead": 0.11,
       "cacheWrite": 1.375
     },
+    "us.anthropic.claude-haiku-5-5": {
+      "in": 0.11,
+      "out": 0.55,
+      "cacheRead": 0.011,
+      "cacheWrite": 0.1375
+    },
     "us.anthropic.claude-opus-4-1-20250805-v1:0": {
       "in": 15,
       "out": 75,
@@ -14672,7 +14892,7 @@
     "us.anthropic.claude-sonnet-5-5": {
       "in": 2.2,
       "out": 11,
-      "cacheRead": 0.22,
+      "cacheRead": 0.11,
       "cacheWrite": 2.75
     },
     "us.deepseek.r1-v1:0": {
@@ -14769,17 +14989,11 @@
       "out": 6.6,
       "cacheRead": 0.55
     },
-    "v0-1.0-md": {
-      "in": 3,
-      "out": 15
-    },
-    "v0-1.5-lg": {
-      "in": 15,
-      "out": 75
-    },
-    "v0-1.5-md": {
-      "in": 3,
-      "out": 15
+    "us.zai.glm-5.3": {
+      "in": 1.848,
+      "out": 5.808,
+      "cacheRead": 0.3432,
+      "cacheWrite": 2.31
     },
     "venice-uncensored": {
       "in": 0.4,
@@ -14797,32 +15011,38 @@
     "vertex-anthropic/claude-haiku-4-5": {
       "in": 1,
       "out": 5,
-      "cacheRead": 0.1
+      "cacheRead": 0.1,
+      "cacheWrite": 1.25
     },
     "vertex-anthropic/claude-opus-4-5-20251101": {
       "in": 5,
       "out": 25,
-      "cacheRead": 0.5
+      "cacheRead": 0.5,
+      "cacheWrite": 6.25
     },
     "vertex-anthropic/claude-opus-4-6": {
       "in": 5,
       "out": 25,
-      "cacheRead": 0.5
+      "cacheRead": 0.5,
+      "cacheWrite": 6.25
     },
     "vertex-anthropic/claude-opus-4-7": {
       "in": 5,
       "out": 25,
-      "cacheRead": 0.5
+      "cacheRead": 0.5,
+      "cacheWrite": 6.25
     },
     "vertex-anthropic/claude-sonnet-4-5": {
       "in": 3,
       "out": 15,
-      "cacheRead": 0.3
+      "cacheRead": 0.3,
+      "cacheWrite": 3.75
     },
     "vertex-anthropic/claude-sonnet-4-6": {
       "in": 3,
       "out": 15,
-      "cacheRead": 0.3
+      "cacheRead": 0.3,
+      "cacheWrite": 3.75
     },
     "vertex-anthropic/claude-sonnet-5": {
       "in": 2,
@@ -14986,46 +15206,50 @@
       "cacheWrite": 0.041667
     },
     "vertex/gemini-3.7-flash": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-3.7-flash@eu": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-3.7-flash@us": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-3.8-flash": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-3.8-flash@eu": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-3.8-flash@us": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
     },
     "vertex/gemini-flash-latest": {
-      "in": 0.75,
-      "out": 3.75,
-      "cacheRead": 0.075,
-      "cacheWrite": 0.041667
+      "in": 1.5,
+      "out": 7.5,
+      "cacheRead": 0.15,
+      "cacheWrite": 0.083333
+    },
+    "vertex/gemini-nano-banana-2.1": {
+      "in": 1.5,
+      "out": 7.5
     },
     "vertex/gemini-pro-latest": {
       "in": 2,
@@ -15138,9 +15362,8 @@
       "out": 0.513
     },
     "voxtral-small-2507": {
-      "in": 0.123,
-      "out": 0.368,
-      "cacheRead": 0.012
+      "in": 0.1,
+      "out": 0.4
     },
     "voxtral-small-latest": {
       "in": 0.1,
@@ -15232,9 +15455,9 @@
       "cacheWrite": 1
     },
     "x-ai/grok-latest": {
-      "in": 1.6,
-      "out": 4.8,
-      "cacheRead": 0.4
+      "in": 2,
+      "out": 6,
+      "cacheRead": 0.5
     },
     "xai.grok-4.20-non-reasoning": {
       "in": 1.25,
@@ -15497,20 +15720,25 @@
       "out": 8.7,
       "cacheRead": 0.036
     },
-    "xiaomimimo/mimo-v2-flash": {
-      "in": 0.1,
-      "out": 0.3,
-      "cacheRead": 0.3
-    },
-    "xiaomimimo/mimo-v2-pro": {
-      "in": 2,
-      "out": 6,
-      "cacheRead": 0.4
+    "xiaomimimo/mimo-v2.5": {
+      "in": 0.168,
+      "out": 0.336,
+      "cacheRead": 0.0034
     },
     "xiaomimimo/mimo-v2.5-pro": {
       "in": 0.522,
       "out": 1.044,
       "cacheRead": 0.0043
+    },
+    "xiaomimimo/mimo-v2.6-flash": {
+      "in": 0.14,
+      "out": 0.28,
+      "cacheRead": 0.0028
+    },
+    "xiaomimimo/mimo-v2.6-pro": {
+      "in": 0.435,
+      "out": 0.87,
+      "cacheRead": 0.0036
     },
     "xpersona-frieren-coder": {
       "in": 1.5,
@@ -15588,19 +15816,19 @@
       "cacheRead": 0.3
     },
     "z-ai/glm-4.6": {
-      "in": 0.43,
-      "out": 1.75,
-      "cacheRead": 0.08
+      "in": 0.5,
+      "out": 2,
+      "cacheRead": 0.1
     },
     "z-ai/glm-4.6-original": {
-      "in": 0.35,
-      "out": 1.4,
-      "cacheRead": 0.175
+      "in": 0.5,
+      "out": 2,
+      "cacheRead": 0.1
     },
     "z-ai/glm-4.6:thinking": {
-      "in": 0.35,
-      "out": 1.4,
-      "cacheRead": 0.175
+      "in": 0.5,
+      "out": 2,
+      "cacheRead": 0.1
     },
     "z-ai/glm-4.6v": {
       "in": 0.3,
@@ -15659,14 +15887,14 @@
       "cacheWrite": 0.6
     },
     "z-ai/glm-5-original": {
-      "in": 1,
-      "out": 3.2,
-      "cacheRead": 0.2
+      "in": 0.6,
+      "out": 1.9,
+      "cacheRead": 0.1
     },
     "z-ai/glm-5-original:thinking": {
-      "in": 1,
-      "out": 3.2,
-      "cacheRead": 0.2
+      "in": 0.6,
+      "out": 1.9,
+      "cacheRead": 0.1
     },
     "z-ai/glm-5-turbo": {
       "in": 0.9,
@@ -15681,9 +15909,9 @@
       "cacheWrite": 1
     },
     "z-ai/glm-5.1:thinking": {
-      "in": 0.75,
-      "out": 2.6,
-      "cacheRead": 0.15
+      "in": 0.7,
+      "out": 2.5,
+      "cacheRead": 0.18
     },
     "z-ai/glm-5.2": {
       "in": 0.6,
@@ -15744,14 +15972,14 @@
       "cacheRead": 0.3
     },
     "z-ai/glm-5.3:thinking": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "z-ai/glm-5:thinking": {
-      "in": 0.5,
-      "out": 2.55,
-      "cacheRead": 0.13
+      "in": 0.6,
+      "out": 1.9,
+      "cacheRead": 0.1
     },
     "z-ai/glm-5v-turbo": {
       "in": 1.2,
@@ -15764,8 +15992,8 @@
       "cacheRead": 0.24
     },
     "z-ai/glm-latest": {
-      "in": 1,
-      "out": 3.2,
+      "in": 0.6,
+      "out": 1.1,
       "cacheRead": 0.2
     },
     "zai-glm-5-1": {
@@ -15817,6 +16045,10 @@
       "in": 1.4,
       "out": 4.4,
       "cacheRead": 0.26
+    },
+    "zai-org/AutoGLM-Phone-9B-Multilingual": {
+      "in": 0.035,
+      "out": 0.138
     },
     "zai-org/GLM-4.5": {
       "in": 0.6,
@@ -16129,10 +16361,10 @@
       "cacheWrite": 12.5
     },
     "~anthropic/claude-haiku-latest": {
-      "in": 1,
-      "out": 5,
-      "cacheRead": 0.1,
-      "cacheWrite": 1.25
+      "in": 0.1,
+      "out": 0.5,
+      "cacheRead": 0.01,
+      "cacheWrite": 0.125
     },
     "~anthropic/claude-opus-latest": {
       "in": 4,
@@ -16143,23 +16375,23 @@
     "~anthropic/claude-sonnet-latest": {
       "in": 2,
       "out": 10,
-      "cacheRead": 0.2,
+      "cacheRead": 0.1,
       "cacheWrite": 2.5
     },
     "~deepseek/deepseek-flash-latest": {
-      "in": 0.003,
-      "out": 2.4,
-      "cacheRead": 0.003
+      "in": 0.0333,
+      "out": 0.1332,
+      "cacheRead": 0.000666
     },
     "~deepseek/deepseek-pro-latest": {
-      "in": 0.1901,
-      "out": 4.2,
-      "cacheRead": 0.19
+      "in": 0.24948,
+      "out": 0.74844,
+      "cacheRead": 0.007938
     },
     "~deepseek/deepseek-v4-flash-latest": {
-      "in": 0.0152,
-      "out": 1.28,
-      "cacheRead": 0.0152
+      "in": 0.0128,
+      "out": 0.768,
+      "cacheRead": 0.0128
     },
     "~google/gemini-flash-latest": {
       "in": 0.75,
@@ -16174,9 +16406,9 @@
       "cacheWrite": 0.375
     },
     "~moonshotai/kimi-latest": {
-      "in": 0.66,
-      "out": 13,
-      "cacheRead": 0.45
+      "in": 0.73,
+      "out": 10,
+      "cacheRead": 0.55
     },
     "~openai/gpt-astra-latest": {
       "in": 10,
@@ -16213,14 +16445,14 @@
       "cacheRead": 0.5
     },
     "~z-ai/glm-flash-latest": {
-      "in": 0.0352,
-      "out": 0.5,
+      "in": 0.0232,
+      "out": 1.2,
       "cacheRead": 0.0232
     },
     "~z-ai/glm-latest": {
-      "in": 0.03,
-      "out": 12,
-      "cacheRead": 0.03
+      "in": 0.055,
+      "out": 5,
+      "cacheRead": 0.06
     }
   }
 }
