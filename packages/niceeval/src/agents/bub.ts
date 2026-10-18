@@ -63,7 +63,7 @@ export interface BubConfig {
    */
   skills?: SkillSpec[];
   /**
-   * 装哪一版 Bub(PyPI 版本号,如 `"0.4.0"`)。省略时用 NiceEval 钉的默认版本;
+   * 装哪一版 Bub(PyPI 版本号,如 `"0.5.1"`)。省略时用 NiceEval 钉的默认版本;
    * 永远是确定版本,不装 latest —— 被测对象的版本要能从实验配置读出来。
    */
   version?: string;
@@ -122,7 +122,7 @@ function resolvePin(config?: BubConfig): BubInstallPin {
     requirement: config?.version ? bubRequirement(config.version) : DEFAULT_BUB_REQUIREMENT,
     otelPlugin: config?.otelPlugin ?? DEFAULT_BUB_OTEL_PLUGIN,
     // NiceEval can reproduce the default release's upstream lock exactly. A caller-selected
-    // historical Bub version owns a different closure, so do not silently apply 0.4.0's pins.
+    // historical Bub version owns a different closure, so do not silently apply the default pins.
     dependencyOverrides: version === DEFAULT_BUB_VERSION ? DEFAULT_BUB_DEPENDENCY_OVERRIDES : [],
   };
 }

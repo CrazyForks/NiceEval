@@ -23,7 +23,7 @@ NiceEval 只读取构建结果的 ID，不提供跨 Provider 的构建命令。D
 
 - Codex 送进 Sandbox 的是自带运行时的原生安装包，镜像里没有 Node 也能装。
 - Claude Code 要求镜像里有 npm。
-- 默认的 Bub 0.4.0 除了 OTel 插件，还固定了 `any-llm-sdk==1.17.0` 和 `openai==2.31.0`。Bub 版本、这两个依赖、OTel 插件或 Python 插件列表任何一项变了，都会重新安装，不能只凭 `command -v bub` 判断已经装好。用旧安装标记做的预制环境会重装一次。你显式选了其它 Bub 版本时，它依赖的其它包由你自己负责。
+- 默认的 Bub 0.5.1 除了 OTel 插件，还固定了 `any-llm-sdk==1.22.1` 和 `openai==2.31.0`。Bub 版本、这两个依赖、OTel 插件或 Python 插件列表任何一项变了，都会重新安装，不能只凭 `command -v bub` 判断已经装好。用旧安装标记做的预制环境会重装一次。你显式选了其它 Bub 版本时，它依赖的其它包由你自己负责。
 
 ## 从官方基线继续构建
 

@@ -8,7 +8,7 @@ export const DEFAULT_CLAUDE_CODE_CLI_VERSION = "2.1.207";
  * 换版本时同批核对 `bub-install-spec.ts` 的 OTel 插件 pin：插件与 Bub 的 tape 协议同代，
  * 配错代不会安装失败，而是时间轨静默为空。
  */
-export const DEFAULT_BUB_VERSION = "0.4.0";
+export const DEFAULT_BUB_VERSION = "0.5.1";
 
 /** OpenCode CLI（npm `opencode-ai`）默认钉的版本。 */
 export const DEFAULT_OPENCODE_CLI_VERSION = "1.18.5";
@@ -73,8 +73,7 @@ export const AGENT_BASELINE_RECIPE_REVISION: globalThis.Record<CodingAgentBaseli
   // r4: 同上「USER node」配方变更
   // r5: 同上「跨 provider 基线工具面统一」配方变更(含可写性)
   codex: 6,
-  // r2: 跨 provider 基线工具面统一(同上,含可写性)
-  bub: 3,
+  bub: 1,
   // r2: 同上「USER node」配方变更
   // r3: 同上「跨 provider 基线工具面统一」配方变更(含可写性)
   opencode: 4,

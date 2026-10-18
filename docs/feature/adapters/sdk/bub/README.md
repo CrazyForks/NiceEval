@@ -21,7 +21,7 @@ Python package 集合属于安装 checkpoint key，配置变化必须触发重�
 Bub 从 PyPI 装，版本是 `version` 字段，省略时用 NiceEval 钉的默认版本：
 
 ```ts
-bubAgent({ version: "0.4.0" })                      // 默认就是它，写出来只为把版本记进实验
+bubAgent({ version: "0.5.1" })                      // 默认就是它，写出来只为把版本记进实验
 bubAgent({                                          // 往回钉一代:插件要一起往回钉
   version: "0.3.9",
   otelPlugin:
@@ -29,7 +29,7 @@ bubAgent({                                          // 往回钉一代:插件要
 })
 ```
 
-- **NiceEval 总是钉一个确定版本**，不装 latest：被测对象的版本必须能从实验配置读出来，否则两次跑分不可比。默认的 Bub 0.4.0 还复现其上游 lock 中的 `any-llm-sdk==1.17.0` 与 `openai==2.31.0`，避免相同 Bub 版本因安装日期不同而改变模型请求协议。
+- **NiceEval 总是钉一个确定版本**，不装 latest：被测对象的版本必须能从实验配置读出来，否则两次跑分不可比。默认的 Bub 0.5.1 还复现其上游 lock 中的 `any-llm-sdk==1.22.1` 与 `openai==2.31.0`，避免相同 Bub 版本因安装日期不同而改变模型请求协议。
 - **`otelPlugin` 与 `version` 同代才有 tracing。**
   行为轨来自 Bub tape，时间轨来自 `bub-tapestore-otel` 插件，插件按 tape 协议的形态读数据：新插件从 `bub.tape` 取类型（要求 Bub ≥ 0.3.10），旧插件按 republic 的类型校验（配 Bub ≤ 0.3.9）。
   配错代不会安装失败，而是 span 全被拒、时间轨静默为空——所以往回钉 `version` 时必须同批钉配套的 `otelPlugin`（复盘见 [memory](../../../../../memory/bub-tapestore-otel-tapeentry-drift.md)）。

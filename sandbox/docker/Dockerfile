@@ -123,7 +123,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
       --overrides /opt/bub-override.txt \
       --with 'git+https://github.com/bubbuild/bub-contrib.git@34715077877041b21472dcca39d91529296a1a9e#subdirectory=packages/bub-tapestore-otel' \
  && mkdir -p $HOME/.local/share/niceeval \
- && printf '%s' '7319e17be62e' > $HOME/.local/share/niceeval/bub-install-hash
+ && printf '%s' '6c00aa1e85a1' > $HOME/.local/share/niceeval/bub-install-hash
 
 # Bub 没有 --version；--help 会完成同一条入口的 Python import 与 CLI 初始化。
 RUN $HOME/.local/bin/bub --help >/dev/null

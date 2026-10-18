@@ -15,13 +15,13 @@ export const DEFAULT_BUB_OTEL_PLUGIN =
 export const DEFAULT_BUB_REQUIREMENT = bubRequirement(DEFAULT_BUB_VERSION);
 
 /**
- * Bub 0.4.0 的上游 lockfile 所验证的模型客户端闭包。
+ * Bub 0.5.1 的上游 lockfile 所验证的模型客户端闭包。
  *
- * Bub 自己的 PyPI metadata 没有限定这两个传递依赖；若只钉 `bub==0.4.0`，每次安装仍会
+ * Bub 自己的 PyPI metadata 没有精确锁定这两个依赖；若只钉 `bub==0.5.1`，每次安装仍会
  * 解析当天最新的客户端，使同一实验在没有配置变更时改变请求协议。
  */
 export const DEFAULT_BUB_DEPENDENCY_OVERRIDES = [
-  "any-llm-sdk==1.17.0",
+  "any-llm-sdk==1.22.1",
   "openai==2.31.0",
 ] as const;
 
