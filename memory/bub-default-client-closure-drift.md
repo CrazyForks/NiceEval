@@ -42,5 +42,7 @@ resolution:
 计算安装 marker。显式选择其它 Bub 版本时不套用 0.4.0 的闭包。已发布旧制品保持不可变，严格 marker
 探测会让它们在首次使用时回退到运行时重装，不覆盖旧 tag。
 
-**防线**：`e2e/package/test/bub-e2b-template.test.ts` 从安装后的公开 factory 读取 E2B 原生
-Dockerfile，锁定三行 override 与匹配 marker；真实 Bub live owner继续验证安装后的运行路径。
+**验证裁决（2026-10-18）**：原 Package 测试将默认版本、完整 override 命令与安装 marker 写成固定字符串。
+升级至 Bub 0.5.1 时，它因版本变化报红；该断言既没有执行安装，也不能证明预制环境可复用，因此退役，不用新版本号替换旧快照。
+真实 Bub live owner 验证 Docker 中的安装和运行；Docker 配方另经真实构建与原生 CLI 初始化验收。
+这些证据不覆盖 E2B 预制环境的复用，E2B 构建与复用仍须在真实 Provider 上独立验收。

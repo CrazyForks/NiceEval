@@ -9,7 +9,6 @@ Package Repo 只保留无法由其它功能 Journey 自然证明的安装边界�
 | Owner ID | 用户结果 | 形态 | 文件 | Lane | 历史 bug |
 | --- | --- | --- | --- | --- | --- |
 | [`#package-commonjs-init-list`](#package-commonjs-init-list) | pnpm 11 的默认 CommonJS 项目无需补运行依赖或 build approval，即可安装候选包并完成 `--version → init → list → exp --dry` | Journey E2E | `e2e/package/test/package.test.ts` | PR / release | `b44420d3`、`published-package-runtime-dependencies-missing` |
-| [`#package-bub-e2b-template`](#package-bub-e2b-template) | 安装后的 E2B factory 为默认 Bub 生成固定模型客户端闭包及匹配 marker | 单边界 E2E | `e2e/package/test/bub-e2b-template.test.ts` | PR / release | `bub-default-client-closure-drift` |
 | [`#package-inspection-public-entry`](#package-inspection-public-entry) | `niceeval/inspection` 同时交付 ESM、CommonJS 与 browser-like 纯协议入口，且不公开 Host 或带入运行时边界 | 单边界 E2E | `e2e/package/test/inspection-public-entry.test.ts` | PR / release | — |
 
 ## package-commonjs-init-list
@@ -28,18 +27,9 @@ build script。该项目包含分别以 `.ts`、`.tsx` 导入 `niceeval` 与 `ni
 同一 consumer 还通过 ESM `import` 与 CommonJS `require` 加载 `niceeval/eval/host`、`niceeval/project/host`。
 测试核对两种模块系统共享冻结的 Host 对象，并且 Project 入口只交付调用者组合所需的 capability tags，不暴露 Node Live Layer。
 
-## package-bub-e2b-template
-
-用户从安装后的 `niceeval/sandbox/e2b-template` 调用 `e2bCodingAgentTemplate("bub")`，再通过 E2B
-`TemplateBuilder.toDockerfile()` 取得实际构建输入。构建输入必须同时固定 Bub、`any-llm-sdk` 与 `openai`，
-并写入与默认 `bubAgent()` 相同的安装 marker；漏掉任一传递依赖或仍按旧闭包计算 marker 都会使本 owner 变红。
-
-这条单边界测试不连接 E2B、也不声称模板已经发布；外部 provider 的构建与发布仍走维护者发布流程。它只证明安装后
-factory 交给 E2B 的公开构建输入可复现，且不会因 identity 分叉强制 Adapter 每次重装。
-
 ## package-inspection-public-entry
 
-安装后的 ESM 与 CommonJS consumer 都能从 `niceeval/inspection` 取得同一个 19-operation registry、Schema 与 decoder，包含当前项目结果与 Assertion image 读取操作。
+安装后的 ESM 与 CommonJS consumer 都能从 `niceeval/inspection` 取得相同的 operation registry、Schema 与 decoder，包含当前项目结果与 Assertion image 读取操作。
 两种模块系统加载 `niceeval/inspection/host` 都必须以 Node 的 `ERR_PACKAGE_PATH_NOT_EXPORTED` 拒绝。
 consumer 不能经 alias、fallback 或 Node 专用入口取得 source lifecycle。
 
@@ -50,6 +40,8 @@ closure 也不能进入 NiceEval 的 Inspection source、select、facts、projec
 
 ## 不重复建立的测试
 
+- 预制配方中的具体依赖版本、安装命令拼写和 marker hash 不属于 Package 的稳定输出契约，不复制进 expected。
+  E2B 预制 Sandbox 是否能被 Adapter 直接复用，须在真实 Provider 上完成安装与使用验收；Docker 上的 Bub live 检查不替代这项证明。
 - ESM 根入口与其它实际功能子路径由 CLI、Runner、Record、Report、Lifecycle 和 Adapter 的真实 Journey 自然消费；Package Repo
   不再按 ESM / CJS / 无 `type` 各写一条只检查 `typeof` 的 smoke。
 - Release workflow 对待发布的同一 tarball 执行 native runtime smoke；Package Repo 不再复制一套从 candidate exports

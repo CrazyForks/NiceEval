@@ -52,6 +52,10 @@ Unit fixture 只显式填写本 case 有语义的字段；机械默认值由测�
 E2E 不手写内部 Run、Attempt 或 Report DTO；它们通过真实 Eval / Experiment 产生结果，再从公开 CLI、包导出、
 HTTP 或浏览器读取。只有“旧 Record 兼容性”本身是契约时，才签入最小旧格式 fixture，并把 schema version 写成独立字面量。
 
+固定值须有独立语义：输入 fixture 的内容、已声明的协议值和附件摘要可以作为 oracle。
+默认依赖版本、计算出的安装指纹和内部命令拼接不能直接抄进 expected；正常升级或等价改写不应让行为测试失败。
+从生产常量读取这些值再拼出同一份脚本，也不能证明安装成功或 Sandbox 可复用。
+
 稳定的定义、逐类预算、逐文件审计与 blocking 条件见[测试总纲](README.md#稳定性变更预算)。
 
 ## 功能归属与 Bug 回归

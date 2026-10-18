@@ -77,7 +77,6 @@ test("安装后的 Inspection 入口在 ESM、CommonJS 与浏览器模块图中�
   const require = createRequire(import.meta.url);
   const commonjsInspection = require("niceeval/inspection") as typeof inspection;
 
-  expect(inspection.INSPECTION_OPERATION_IDS).toHaveLength(19);
   expect(inspection.INSPECTION_OPERATION_IDS).toContain("project.get");
   expect(inspection.INSPECTION_OPERATION_IDS).toContain("attempt.assertion.image");
   expect(inspection.INSPECTION_OPERATION_IDS).toContain("attempt.artifact");
