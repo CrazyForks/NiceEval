@@ -60,6 +60,7 @@
             "externalNetwork": true
           },
           "artifacts": [
+            ".e2e-artifacts/**",
             ".niceeval/**",
             "junit.xml"
           ]

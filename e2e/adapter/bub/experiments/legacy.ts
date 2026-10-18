@@ -18,6 +18,13 @@ export default defineExperiment({
     apiBase: process.env.OPENAI_BASE_URL,
     version: "0.3.9",
     otelPlugin: LEGACY_OTEL_PLUGIN,
+    // Match Bub 0.3.9's upstream uv.lock. The installer's prerelease policy
+    // otherwise selects Republic 0.6 alpha, which removed AsyncTapeStore.
+    pythonPlugins: [
+      { package: "republic==0.5.8" },
+      { package: "any-llm-sdk==1.13.0" },
+      { package: "openai==2.31.0" },
+    ],
   }),
   // 只跑 coding-task 一条:版本线是新增的覆盖维度,不是新增的协议行为
   // (预算见 docs/engineering/testing/e2e/adapter/README.md「仓库 Eval 预算」),

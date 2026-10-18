@@ -512,6 +512,8 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## 环境 · 发布 · CI · 部署
 
+- [ci-artifact-text-redaction-corrupts-sqlite](ci-artifact-text-redaction-corrupts-sqlite.md) — CI 把二进制 SQLite 按 UTF-8 文本脱敏，破坏失败诊断记录；尚需同时满足保密与公开 Query 可读性。
+
 - 已修 [published-package-runtime-dependencies-missing](published-package-runtime-dependencies-missing.md) — 发布包曾缺失 CLI 必需的 Effect，且 autoevals、tsx 与 Effect 可选原生加速链要求 pnpm 11 build approval；改为精确运行依赖、随包纯 JS 闭包、无 lifecycle 的加载器，并以空项目 tarball smoke 与接管矩阵守护
 - [worktree-consumption-stale-index-and-version](worktree-consumption-stale-index-and-version.md) — 工作树 link 消费读到旧 INDEX.md(prepare 时点产物)与旧 `--version`(CI 写版本不回写仓库);消费前先 `pnpm install` / `build:index`,dist/report 同形
 - 已修 [e2e-repo-needs-react-dep-for-show](e2e-repo-needs-react-dep-for-show.md) — 没有前端的消费方项目(如 pi-agent-core E2E 仓库)跑裸 `niceeval show` 报 `Cannot find package 'react'`:react/react-dom 只是可选 peerDependency,不装就用不了默认内建报告;修为该仓库自己显式加这两个依赖

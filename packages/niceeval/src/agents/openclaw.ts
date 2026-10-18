@@ -66,13 +66,13 @@ function openClawPluginLayer(
   const identity = {
     agent: "openclaw-plugins",
     version: cliVersion,
-    revision: exactNpmPluginRevision(plugins),
+    revision: `umask-022:${exactNpmPluginRevision(plugins)}`,
   };
   const verifyFiles = `const fs=require("node:fs"),path=require("node:path");` +
     `const expected=${JSON.stringify(plugins)},base=path.join(process.env.HOME,".openclaw");` +
     `const projects=path.join(base,"npm/projects"),found=[];` +
     `for(const dir of fs.readdirSync(projects)){const root=path.join(projects,dir),p=JSON.parse(fs.readFileSync(path.join(root,"package.json"),"utf8"));` +
-    `for(const [name,version] of Object.entries(p.dependencies||{})){const pkg=JSON.parse(fs.readFileSync(path.join(root,"node_modules",name,"package.json"),"utf8"));` +
+    `for(const [name,version] of Object.entries(p.dependencies||{})){const packageRoot=path.join(root,"node_modules",name);if(fs.statSync(packageRoot).mode&0o002)process.exit(1);const pkg=JSON.parse(fs.readFileSync(path.join(packageRoot,"package.json"),"utf8"));` +
     `const manifest=JSON.parse(fs.readFileSync(path.join(root,"node_modules",name,"openclaw.plugin.json"),"utf8"));found.push({name,version,pkgVersion:pkg.version,id:manifest.id});}}` +
     `if(found.length!==expected.length)process.exit(1);` +
     `const config=JSON.parse(fs.readFileSync(path.join(base,"openclaw.json"),"utf8"));` +
@@ -85,9 +85,13 @@ function openClawPluginLayer(
       installMode: "sandbox-network",
       install: async (sandbox, context) => {
         const installs = plugins
-          .map((plugin) => `openclaw plugins install --pin ${shellQuote(plugin.spec)}`)
+          .map((plugin) => `openclaw plugins install --force --pin ${shellQuote(plugin.spec)}`)
           .join("\n");
+        // Docker exec can inherit umask 0000. OpenClaw refuses world-writable
+        // plugin roots; use ordinary package permissions and let its native
+        // installer replace a previously blocked installation.
         const script = `set -eu
+umask 022
 ids=$(openclaw plugins list --json | node -e ${shellQuote(`let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const x=JSON.parse(s);for(const p of x.plugins||[])if(p.origin==="global")console.log(p.id)})`)})
 for id in $ids; do openclaw plugins uninstall --force "$id"; done
 ${installs}`;

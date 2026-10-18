@@ -102,6 +102,9 @@ export function buildChildEnv(
   // compatibility translation scoped to those explicit consumers so the Bub
   // and Codex product owners can distinguish an implementation that reads only
   // OPENAI_* from one that silently falls back to a legacy name.
+  // BASE is not a sensitive-name suffix, so the generic filter above does not
+  // remove a legacy value loaded from the developer's root .env.
+  delete env.BUB_API_BASE;
   if (repoId === "adapter/hermes" || repoId === "adapter/openclaw" || repoId === "adapter/opencode") {
     if (env.OPENAI_API_KEY !== undefined) env.BUB_API_KEY = env.OPENAI_API_KEY;
     if (env.OPENAI_BASE_URL !== undefined) env.BUB_API_BASE = env.OPENAI_BASE_URL;
