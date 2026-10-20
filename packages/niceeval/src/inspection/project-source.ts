@@ -30,14 +30,15 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
         Effect.try(() => openHostOwnedRecordReadSession(input.recordPath!)),
         (opened) => Effect.sync(() => opened.close()),
       );
-    const cutoff = session.readSealedRunSummaryPage("", 1).cutoff;
+    const cutoff = session.sealedCutoff();
     source = Object.freeze({
       kind: "project-record" as const,
       cutoff: () => cutoff,
+      findExperimentRunIds: session.findExperimentRunIds,
       readRunResource: session.readRunResource,
       readSealedRunSummaryPage: session.readSealedRunSummaryPage,
       findAttemptLocatorCandidates: session.findAttemptLocatorCandidates,
-      readSealedRunCore: session.readSealedRunCore,
+      readSealedRunCore: (runId: string) => session.readSealedRunCore(runId, true),
       readContentPage: session.readContentChunkPage,
       readCollectionPage: session.readCollectionItemPage,
     });
@@ -51,39 +52,47 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
   }
   const target = yield* prepareCurrentTarget(input);
   const runs = yield* Effect.try(() => loadInspectionRuns(source));
-  type Ref = { readonly resolved: ResolvedInspectionAttempt | undefined; readonly sourceRunId: string; readonly publication: Extract<ReadableRunResource["slots"][number]["publication"], { state: "published" }> | undefined };
-  const assessmentRuns: CurrentAssessmentRun<Ref>[] = runs.map((run) => ({
-    createdRevision: run.physical.createdRevision,
-    document: run.run,
-    members: run.members.map((member) => ({
-      document: member,
-      bindingRevision: run.physical.members.find((row) => row.slotId === member.slotId)?.bindingRevision,
-      attempt: member.attempt === null ? null : {
-        resolved: resolveInspectionMemberAttempt(runs, run, member),
-        sourceRunId: run.run.runId,
-        publication: published(resources.find((resource) => resource.runId === run.run.runId)?.slots.find((slot) => slot.slotId === member.slotId)?.publication),
-      },
-    })),
-  }));
+  const publishedAttemptIds = new Map(runs.map((run) => [run.run.runId,
+    new Set(run.physical.attempts.filter((attempt) => attempt.publicationIdentity !== undefined).map((attempt) => attempt.attemptId))]));
+  const slotsByRunId = new Map(resources.map((resource) => [resource.runId, new Map(resource.slots.map((slot) => [slot.slotId, slot]))]));
+  type Ref = { readonly action: "executed" | "carried" | "accepted"; readonly resolved: ResolvedInspectionAttempt | undefined; readonly sourceRunId: string; readonly publication: Extract<ReadableRunResource["slots"][number]["publication"], { state: "published" }> | undefined };
+  const assessmentRuns: CurrentAssessmentRun<Ref>[] = runs.map((run) => {
+    const physicalBySlot = new Map(run.physical.members.map((row) => [row.slotId, row]));
+    const slots = slotsByRunId.get(run.run.runId);
+    return {
+      createdRevision: run.physical.createdRevision,
+      document: run.run,
+      members: run.members.map((member) => ({
+        document: member,
+        bindingRevision: physicalBySlot.get(member.slotId)?.bindingRevision,
+        attempt: member.attempt === null ? null : {
+          resolved: resolveInspectionMemberAttempt(runs, run, member),
+          sourceRunId: run.run.runId,
+          action: member.action as "executed" | "carried" | "accepted",
+          publication: published(slots?.get(member.slotId)?.publication),
+        },
+      })),
+    };
+  });
   const lifecycleRuns = yield* mergeCurrentAssessmentRuns(assessmentRuns, resources);
   type Attempt = Ref & CurrentAssessmentAttempt;
-  const assessments = yield* assessCurrentTarget<Ref, Attempt, CurrentResultSource, never>(target, {
+  const assessments = yield* assessCurrentTarget<Ref, Attempt, CurrentResultSource, Error>(target, {
     runs: lifecycleRuns,
     byRunId: new Map(lifecycleRuns.map((run) => [run.document.runId, run])),
     selectionHasProblem: false,
     coreIssues: [],
     readAttempt: (ref: Ref) => Effect.succeed(ref.resolved === undefined ? { state: "missing" as const } : {
       state: "available" as const,
-      value: { ...ref, document: ref.resolved.attempt, publicationAvailable: ref.publication !== undefined || ref.resolved.origin.physical.attempts.some((attempt) => attempt.attemptId === ref.resolved!.attempt.attemptId && attempt.publicationIdentity !== undefined) },
+      value: { ...ref, document: ref.resolved.attempt, publicationAvailable: ref.publication !== undefined || publishedAttemptIds.get(ref.resolved.origin.run.runId)?.has(ref.resolved.attempt.attemptId) === true },
     }),
-    readAssertions: (attempt) => Effect.sync(() => {
+    readAssertions: (attempt) => Effect.try(() => {
       const read = readInspectionAssertions(attempt.resolved!);
       if (read.state === "available") return { state: "available" as const, value: read.value };
       if (read.state === "not-recorded") return { state: "not-recorded" as const };
       if (read.state === "unsupported") return { state: "unsupported" as const, family: NiceEvalRecordAttachments.assertions.family, revision: read.attachment!.physical.familyRevision };
       return { state: "invalid" as const, issues: [recordIssue("record-schema-invalid", ["assertions", "current-invalid"])] as const };
     }),
-    readActivities: (attempt) => Effect.sync(() => {
+    readActivities: (attempt) => Effect.try(() => {
       const definition = NiceEvalRecordAttachments.runnerActivities.attempt;
       const attachment = attemptAttachment(attempt.resolved!, definition.family);
       if (attachment === undefined) return { state: "not-recorded" as const };
@@ -98,7 +107,7 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
       sourceRunId: attempt.sourceRunId,
       locator: attempt.resolved!.locator,
       relation: attempt.sourceRunId === attempt.document.originRunId ? "origin" : "reference",
-      action: attempt.publication?.action ?? (runs.find((run) => run.run.runId === attempt.sourceRunId)!.members.find((member) => member.attempt?.attemptId === attempt.document.attemptId)!.action as "executed" | "carried" | "accepted"),
+      action: attempt.publication?.action ?? attempt.action,
     }),
   });
   bindProjectInput(source, { cutoffIdentity: source.cutoff().identity, target, assessments, runs, resources: Object.freeze(resources) });

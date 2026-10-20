@@ -15,6 +15,21 @@ selection、typed fact codec、browser-neutral selector 与确定的 result mean
 `facts.ts` 是所有 operation 共用的 facts reader。它在读取开始时固定 source identity 与 `PublicationCutoff`；operation
 不能另开 reader 或拥有 lifecycle。selection 只能使用领域 identity，不能暴露 cursor、rowid、文件位置或调用方 page size。
 
+## 读取信任与成本
+
+项目内 operational reader 信任 Host-owned ProjectDatabase 已由 writer 在 publication / Seal 事务验证的闭包。
+打开只校验 exact schema、migration ready 与 legacy 边界，并以 BEGIN 固定 PublicationCutoff；不重新执行全库
+quick_check、foreign_key_check 或全部 Run Seal 验证。实际读取的 Core、Attachment 仍严格解码并检查身份与关系。
+
+外部或捕获 Record 必须在 private generation 完整验证后才可进入同一读取路径；migration、seal/recovery 与显式完整性维护
+继续拥有全量校验。此信任边界不承诺抵御同时篡改 Host-owned 本机 database 的攻击者。
+
+读取成本与所选事实和输出成正比，不与无关 Record payload 总量成正比。精确 locator 和 Run 使用已有身份索引，只加载目标
+及其引用 origin；Experiment 先筛选 Run metadata，再加载匹配 Core 与必要 origin，不读取其它 Experiment 的 collection 或 Content。
+
+当前 Results 可以读取全部候选 Core，但附件只在 operation 请求对应 family 时读取、严格解码；未请求的 trace、Content 和 collection
+不参与启动验证。固定 cutoff 身份来自 publication clock，分页与刷新不重新散列全部历史 Seal。成员与资源拼装使用身份索引。
+
 ## Run 读取
 
 Run 的列表 operation 只有 `run.list`，详情 operation 只有 `run.get`。

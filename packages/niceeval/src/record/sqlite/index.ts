@@ -12,6 +12,8 @@ import {
 import { sqliteError } from "./errors.ts";
 import {
   findAttemptLocatorCandidates as findAttemptLocatorCandidatesOnConnection,
+  findExperimentRunIds as findExperimentRunIdsOnConnection,
+  readSealedRunCutoff as readSealedRunCutoffOnConnection,
   readSealedRunSummaryPage as readSealedRunSummaryPageOnConnection,
   readCollectionItemPage as readCollectionItemPageOnConnection,
   readContentChunkPage as readContentChunkPageOnConnection,
@@ -27,6 +29,7 @@ import {
   type ContentChunkPage,
   type SealedRunDocument,
   type SealedRunCore,
+  type SealedRunCutoff,
   type SealedRunSummary,
   type SealedRunSummaryPage,
 } from "./types.ts";
@@ -111,13 +114,15 @@ export interface PinnedRecordReadSession {
   readonly kind: "canonical" | "private-generation";
   readonly deadlineEpochMs: number;
   readonly publicationCutoff: () => PublicationCutoff;
+  readonly sealedCutoff: () => SealedRunCutoff;
+  readonly findExperimentRunIds: (experimentId: string) => readonly string[];
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
   readonly listRunResources: (input?: Parameters<typeof listRunResourcesOnConnection>[1]) => ReturnType<typeof listRunResourcesOnConnection>;
   readonly readSealedRunSummary: (runId: string) => SealedRunSummary | undefined;
   readonly readSealedRunSummaryPage: (afterRunId?: string, pageSize?: number, expectedCutoffIdentity?: string) => SealedRunSummaryPage;
   readonly findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) => AttemptLocatorCandidates;
   readonly readSealedRunDocument: (runId: string) => SealedRunDocument | undefined;
-  readonly readSealedRunCore: (runId: string) => SealedRunCore | undefined;
+  readonly readSealedRunCore: (runId: string, lazyAttachments?: boolean) => SealedRunCore | undefined;
   readonly readContentChunkPage: (contentId: string, afterOrdinal: number, pageSize: number) => ContentChunkPage;
   readonly readCollectionItemPage: (attachmentId: string, afterOrdinal: number, pageSize: number) => CollectionItemPage;
   readonly close: () => void;
@@ -127,7 +132,6 @@ function openPinnedRecordReadSession(
   path: string,
   kind: "canonical" | "private-generation",
   deadlineEpochMs: number,
-  validation: "complete" | "host-validated-generation" = "complete",
 ): PinnedRecordReadSession {
   if (!Number.isSafeInteger(deadlineEpochMs) || deadlineEpochMs <= Date.now()) {
     throw sqliteError("record-resource-limit-exceeded", "open-read-session", "pinned read deadline must be a future safe integer");
@@ -159,22 +163,25 @@ function openPinnedRecordReadSession(
     return result;
   };
   try {
-    // BEGIN occurs before the authoritative schema + Seal pass. Every later
+    // BEGIN occurs before the authoritative schema pass. Every later
     // read observes this same WAL/file generation until close rolls it back.
     connection.db.exec("BEGIN");
     const publicationCutoff = currentPublicationCutoffOnConnection(connection);
     const cutoffIdentity = publicationCutoffIdentity(publicationCutoff);
     validateExactSchema(connection);
-    if (validation === "complete") {
-      verifyAllSealedRuns(connection, false, deadlineEpochMs);
-    } else if (kind !== "private-generation") {
-      throw sqliteError("record-database-invalid", "open-read-session", "only an admitted private generation may skip repeated validation");
-    }
+    // Both sources have an admission owner: the project writer or the hostile
+    // importer. Re-check selected facts, not every historical Seal, on reads.
+    let sealedCutoff: SealedRunCutoff | undefined;
+    const readCutoff = () => sealedCutoff ??= readBounded("read-sealed-cutoff", () =>
+      readSealedRunCutoffOnConnection(connection, cutoffIdentity));
     assertUsable("open-read-session");
     return Object.freeze({
       kind,
       deadlineEpochMs,
       publicationCutoff: () => publicationCutoff,
+      sealedCutoff: readCutoff,
+      findExperimentRunIds: (experimentId: string) => readBounded("find-experiment-runs", () =>
+        findExperimentRunIdsOnConnection(connection, experimentId)),
       readRunResource: (runId: string) => readBounded("read-run-resource", () =>
         readRunResourceOnConnection(connection, runId, publicationCutoff)),
       listRunResources: (input: Parameters<typeof listRunResourcesOnConnection>[1]) => readBounded("list-run-resources", () =>
@@ -184,7 +191,7 @@ function openPinnedRecordReadSession(
         if (expectedCutoffIdentity !== undefined && expectedCutoffIdentity !== cutoffIdentity) {
           throw sqliteError("record-command-conflict", "page-sealed-runs", "publication cutoff changed; restart pagination");
         }
-        const page = readSealedRunSummaryPageOnConnection(connection, afterRunId, pageSize, undefined, deadlineEpochMs);
+        const page = readSealedRunSummaryPageOnConnection(connection, afterRunId, pageSize, undefined, deadlineEpochMs, readCutoff());
         return Object.freeze({
           ...page,
           cutoff: Object.freeze({ ...page.cutoff, identity: cutoffIdentity }),
@@ -193,7 +200,10 @@ function openPinnedRecordReadSession(
       findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) => readBounded("find-attempt-locator", () =>
         findAttemptLocatorCandidatesOnConnection(connection, locator, maximumCandidateRuns)),
       readSealedRunDocument: (runId: string) => readBounded("read-sealed-run-document", () => readSealedRunDocumentOnConnection(connection, runId)),
-      readSealedRunCore: (runId: string) => readBounded("read-sealed-run-core", () => readSealedRunCoreOnConnection(connection, runId)),
+      readSealedRunCore: (runId: string, lazyAttachments = false) => readBounded("read-sealed-run-core", () =>
+        readSealedRunCoreOnConnection(connection, runId, lazyAttachments
+          ? (read) => readBounded("read-sealed-attachment", read)
+          : undefined)),
       readContentChunkPage: (contentId: string, afterOrdinal: number, pageSize: number) => readBounded("read-content-page", () =>
         readContentChunkPageOnConnection(connection, contentId, afterOrdinal, pageSize)),
       readCollectionItemPage: (attachmentId: string, afterOrdinal: number, pageSize: number) => readBounded("read-collection-page", () =>
@@ -244,7 +254,7 @@ export function openHostOwnedRecordReadSession(
   generationPath: string,
   deadlineEpochMs = Date.now() + RECORD_SQLITE_VALIDATION_DEADLINE_MS,
 ): PinnedRecordReadSession {
-  return openPinnedRecordReadSession(generationPath, "private-generation", deadlineEpochMs, "host-validated-generation");
+  return openPinnedRecordReadSession(generationPath, "private-generation", deadlineEpochMs);
 }
 
 function withSession<A>(session: PinnedRecordReadSession, use: (session: PinnedRecordReadSession) => A): A {

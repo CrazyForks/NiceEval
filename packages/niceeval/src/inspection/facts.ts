@@ -46,6 +46,7 @@ import {
   type InspectionJson,
 } from "./codec.ts";
 import type { InspectionFactSource } from "./source.ts";
+import { InspectionSha256 } from "./bytes.ts";
 import type { ReadableRunResource } from "../run/storage/types.ts";
 
 export interface DecodedInspectionAttachment {
@@ -100,6 +101,19 @@ export type InspectionAssertionsRead =
 const RUN_PAGE_SIZE = 100;
 const ATTEMPT_CANDIDATE_RUN_LIMIT = 64;
 const ATTEMPT_TARGET_MEMBER_LIMIT = 256;
+const decodedRuns = new WeakMap<InspectionFactSource, Map<string, LoadedInspectionRun>>();
+
+function readInspectionRun(source: InspectionFactSource, runId: string): LoadedInspectionRun | undefined {
+  let cache = decodedRuns.get(source);
+  if (cache === undefined) decodedRuns.set(source, cache = new Map());
+  const cached = cache.get(runId);
+  if (cached !== undefined) return cached;
+  const physical = source.readSealedRunCore(runId);
+  if (physical === undefined) return undefined;
+  const decoded = decodeInspectionRun(source, physical);
+  cache.set(runId, decoded);
+  return decoded;
+}
 
 /**
  * Pins the source cutoff, exhausts the fixed Run-summary pagination, then
@@ -150,11 +164,11 @@ export function loadInspectionRuns(
     throw factsError("Run pagination did not close the pinned sealed cutoff");
   }
   return Object.freeze(summaries.map((summary) => {
-    const physical = source.readSealedRunCore(summary.runId);
-    if (physical === undefined) {
+    const run = readInspectionRun(source, summary.runId);
+    if (run === undefined) {
       throw factsError(`Sealed Run ${summary.runId} disappeared from the pinned cutoff`);
     }
-    return decodeInspectionRun(source, physical);
+    return run;
   }));
 }
 
@@ -166,8 +180,8 @@ export function loadSelectedInspectionRuns(
   const cutoff = source.cutoff();
   const loaded: LoadedInspectionRun[] = [];
   for (const runId of new Set(runIds)) {
-    const physical = source.readSealedRunCore(runId);
-    if (physical !== undefined) loaded.push(decodeInspectionRun(source, physical));
+    const run = readInspectionRun(source, runId);
+    if (run !== undefined) loaded.push(run);
   }
   requireCutoff(source.cutoff(), cutoff);
   return Object.freeze(loaded);
@@ -181,10 +195,7 @@ export function loadInspectionRunResource(
   const cutoff = source.cutoff();
   const resource = source.readRunResource(runId);
   if (resource === undefined) return undefined;
-  const physical = source.readSealedRunCore(runId);
-  const published = physical === undefined
-    ? undefined
-    : decodeInspectionRun(source, physical);
+  const published = readInspectionRun(source, runId);
   requireCutoff(source.cutoff(), cutoff);
   if (resource.published > 0 && published === undefined) {
     throw factsError(`Run ${runId} has published bindings without a readable Core`);
@@ -220,13 +231,13 @@ function validateRunResourceCore(
   }
 }
 
-/** Strictly decodes all Core documents and Attachment JSON for one sealed Run. */
+/** Strictly decodes Core, then decodes each Attachment only on first use. */
 export function decodeInspectionRun(
   source: InspectionFactSource,
   physical: SealedRunCore,
 ): LoadedInspectionRun {
   const run = decodedRight(
-    decodeRunDocument(parseJson(physical.runCoreBytes, "Run Core")),
+    decodeRunDocument(parseVerifiedJson(physical.runCoreBytes, physical.runCoreDigest, "Run Core")),
     "Run Core is invalid",
   );
   if (run.runId !== physical.runId) {
@@ -240,7 +251,7 @@ export function decodeInspectionRun(
     const decoded = Schema.decodeUnknownResult(
       RecordSlotIdentitySchema,
       RecordExactParseOptions,
-    )(parseJson(stored.coreBytes, "Slot Core"));
+    )(parseVerifiedJson(stored.coreBytes, stored.coreDigest, "Slot Core"));
     const slot = decodedRight(decoded, "Slot Core is invalid");
     const expected = run.expectedSlots[index];
     if (
@@ -258,7 +269,7 @@ export function decodeInspectionRun(
 
   const members = physical.members.map((stored) => {
     const member = decodedRight(
-      decodeMemberDocument(parseJson(stored.coreBytes, "Member Core")),
+      decodeMemberDocument(parseVerifiedJson(stored.coreBytes, stored.coreDigest, "Member Core")),
       "Member Core is invalid",
     );
     if (
@@ -273,7 +284,7 @@ export function decodeInspectionRun(
   });
   const attempts = physical.attempts.map((stored) => {
     const attempt = decodedRight(
-      decodeAttemptDocument(parseJson(stored.coreBytes, "Attempt Core")),
+      decodeAttemptDocument(parseVerifiedJson(stored.coreBytes, stored.coreDigest, "Attempt Core")),
       "Attempt Core is invalid",
     );
     if (
@@ -300,9 +311,19 @@ export function decodeInspectionRun(
     ) {
       throw factsError("Attachment ownership does not match its sealed Run");
     }
+    let value: InspectionJson | undefined;
+    let decoded = false;
     return Object.freeze({
       physical: attachment,
-      value: parseInspectionJson(attachment.canonicalBytes, "Attachment"),
+      get value(): InspectionJson {
+        if (!decoded) {
+          verifyDigest(attachment.canonicalBytes, attachment.canonicalDigest, "Attachment");
+          verifyDigest(attachment.logicalInventoryBytes, attachment.inventoryDigest, "Attachment inventory");
+          value = parseInspectionJson(attachment.canonicalBytes, "Attachment");
+          decoded = true;
+        }
+        return value!;
+      },
     });
   });
 
@@ -382,31 +403,50 @@ export function resolveInspectionAttempt(
   });
 }
 
-/** Resolves one already loaded target Member without consulting a platform index. */
+interface InspectionMemberIndex {
+  readonly origins: ReadonlyMap<string, { readonly run: LoadedInspectionRun; readonly attempts: ReadonlyMap<string, AttemptDocument>; readonly members: ReadonlyMap<string, MemberDocument> }>;
+  readonly targets: ReadonlyMap<string, ReadonlyMap<string, readonly InspectionAttemptTarget[]>>;
+}
+const memberIndexes = new WeakMap<readonly LoadedInspectionRun[], InspectionMemberIndex>();
+
+function memberIndex(runs: readonly LoadedInspectionRun[]): InspectionMemberIndex {
+  const cached = memberIndexes.get(runs);
+  if (cached !== undefined) return cached;
+  const origins = new Map(runs.map((run) => [run.run.runId, {
+    run, attempts: new Map(run.attempts.map((attempt) => [attempt.attemptId, attempt])),
+    members: new Map(run.members.map((member) => [member.slotId, member])),
+  }]));
+  const targets = new Map<string, Map<string, InspectionAttemptTarget[]>>();
+  for (const run of runs) for (const member of run.members) {
+    if (member.attempt === null) continue;
+    const { originRunId, attemptId } = member.attempt;
+    let byAttempt = targets.get(originRunId);
+    if (byAttempt === undefined) targets.set(originRunId, byAttempt = new Map());
+    let members = byAttempt.get(attemptId);
+    if (members === undefined) byAttempt.set(attemptId, members = []);
+    members.push(Object.freeze({ run, member }));
+  }
+  for (const byAttempt of targets.values()) for (const members of byAttempt.values()) Object.freeze(members);
+  const index = { origins, targets };
+  memberIndexes.set(runs, index);
+  return index;
+}
+
+/** Resolves already loaded facts through one shared identity index. */
 export function resolveInspectionMemberAttempt(
   runs: readonly LoadedInspectionRun[],
   target: LoadedInspectionRun,
   member: MemberDocument,
 ): ResolvedInspectionAttempt | undefined {
   if (member.attempt === null) return undefined;
-  const origin = runs.find(({ run }) => run.runId === member.attempt!.originRunId);
-  const attempt = origin?.attempts.find((candidate) =>
-    candidate.attemptId === member.attempt!.attemptId &&
-    candidate.originRunId === member.attempt!.originRunId);
-  if (origin === undefined || attempt === undefined) return undefined;
-  const locator = encodeAttemptLocator(attempt.attemptId);
-  const targets = runs.flatMap((run) => targetMembers(run, attempt).map((candidate) =>
-    Object.freeze({ run, member: candidate })));
-  if (!targets.some(({ run, member: candidate }) =>
-    run.run.runId === target.run.runId && candidate.slotId === member.slotId)) {
-    return undefined;
-  }
-  return Object.freeze({
-    attempt,
-    origin,
-    locator,
-    targets: Object.freeze(targets),
-  });
+  const index = memberIndex(runs);
+  const origin = index.origins.get(member.attempt.originRunId);
+  const attempt = origin?.attempts.get(member.attempt.attemptId);
+  if (origin === undefined || attempt === undefined || attempt.originRunId !== member.attempt.originRunId) return undefined;
+  const targets = index.targets.get(attempt.originRunId)?.get(attempt.attemptId) ?? [];
+  const targetMember = index.origins.get(target.run.runId)?.members.get(member.slotId);
+  if (targetMember?.attempt?.originRunId !== attempt.originRunId || targetMember.attempt.attemptId !== attempt.attemptId) return undefined;
+  return Object.freeze({ attempt, origin: origin.run, locator: encodeAttemptLocator(attempt.attemptId), targets });
 }
 
 export function attemptAttachment(
@@ -695,4 +735,13 @@ function factsError(reason: string, cause?: unknown): Error {
 
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function verifyDigest(bytes: Uint8Array, digest: string, label: string): void {
+  if (new InspectionSha256().update(bytes).digestHex() !== digest) throw factsError(`${label} digest is invalid`);
+}
+
+function parseVerifiedJson(bytes: Uint8Array, digest: string, label: string): unknown {
+  verifyDigest(bytes, digest, label);
+  return parseJson(bytes, label);
 }

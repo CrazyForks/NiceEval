@@ -227,8 +227,9 @@ function selectOperation(
       });
     }
     case "experiment.get": {
-      const selected = loadInspectionRuns(source);
-      const overview = selectInspectionOverview(selected);
+      const matching = loadSelectedInspectionRuns(source, source.findExperimentRunIds(operation.experimentId));
+      const selected = loadReferencedOrigins(source, matching);
+      const overview = selectInspectionOverview(matching, selected);
       const experiment = overview.experiments.find(({ experimentId }) =>
         experimentId === operation.experimentId);
       if (experiment === undefined) {
@@ -242,14 +243,17 @@ function selectOperation(
       let unresolvedAttemptCount = 0;
       let selectedSlotCount = 0;
       let resolvedSlotCount = 0;
+      const origins = new Map<string, { readonly origin: LoadedInspectionRun; readonly attempts: ReadonlyMap<string, LoadedInspectionRun["attempts"][number]> }>(selected.map((origin) => [origin.run.runId, {
+        origin, attempts: new Map(origin.attempts.map((attempt) => [attempt.attemptId, attempt])),
+      }]));
       for (const cell of experimentCells) {
         for (const member of cell.members) {
           selectedSlotCount++;
           if (member.publication.state !== "published") { unresolvedAttemptCount++; continue; }
           const identity = member.publication;
-          const origin = selected.find(({ run }) => run.runId === identity.originRunId);
-          const attempt = origin?.attempts.find((candidate) => candidate.attemptId === identity.attemptId &&
-            candidate.originRunId === identity.originRunId);
+          const indexed = origins.get(identity.originRunId);
+          const origin = indexed?.origin;
+          const attempt = indexed?.attempts.get(identity.attemptId);
           if (origin === undefined || attempt === undefined) { unresolvedAttemptCount++; continue; }
           const resolved: ResolvedInspectionAttempt = Object.freeze({ origin, attempt,
             locator: encodeAttemptLocator(attempt.attemptId), targets: Object.freeze([]) });
@@ -696,7 +700,8 @@ function loadForOperation(source: InspectionFactSource, operation: InspectionOpe
     };
   }
   if (operation.kind === "experiment.get") {
-    return { selected: loadInspectionRuns(source), requestedRunIds: [], missingRunIds: [] };
+    return { selected: loadReferencedOrigins(source, loadSelectedInspectionRuns(source,
+      source.findExperimentRunIds(operation.experimentId))), requestedRunIds: [], missingRunIds: [] };
   }
   if (operation.kind === "runs.list") return { selected: [], requestedRunIds: [], missingRunIds: [] };
   if (operation.kind === "runs.compare") {

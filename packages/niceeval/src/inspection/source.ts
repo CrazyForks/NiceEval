@@ -51,6 +51,7 @@ export class InspectionIntegrityError extends Data.TaggedError("InspectionIntegr
 export interface InspectionFactSource {
   readonly kind: InspectionSource["kind"];
   readonly cutoff: () => SealedRunCutoff;
+  readonly findExperimentRunIds: (experimentId: string) => readonly string[];
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
   readonly readSealedRunSummaryPage: (
     afterRunId?: string,
@@ -154,6 +155,7 @@ function emptyOperationalFacts(): InspectionFactSource {
   return Object.freeze({
     kind: "project-record" as const,
     cutoff: () => EMPTY_OPERATIONAL_CUTOFF,
+    findExperimentRunIds: () => Object.freeze([]),
     readRunResource: () => undefined,
     readSealedRunSummaryPage: (afterRunId = "", _pageSize = 100, expectedCutoffIdentity?: string) => {
       if (expectedCutoffIdentity !== undefined && expectedCutoffIdentity !== EMPTY_OPERATIONAL_CUTOFF.identity) {
@@ -216,12 +218,13 @@ function sessionFacts(
   ));
   return Object.freeze({
     kind,
-    cutoff: () => observedCutoff ?? readPage("", 1).cutoff,
+    cutoff: () => observedCutoff ??= session.sealedCutoff(),
+    findExperimentRunIds: session.findExperimentRunIds,
     readRunResource: (runId: string) => session.readRunResource(runId),
     readSealedRunSummaryPage: readPage,
     findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) =>
       session.findAttemptLocatorCandidates(locator, maximumCandidateRuns),
-    readSealedRunCore: (runId: string) => session.readSealedRunCore(runId),
+    readSealedRunCore: (runId: string) => session.readSealedRunCore(runId, true),
     readContentPage: (contentId: string, afterOrdinal: number, pageSize: number) =>
       session.readContentChunkPage(contentId, afterOrdinal, pageSize),
     readCollectionPage: (attachmentId: string, afterOrdinal: number, pageSize: number) =>

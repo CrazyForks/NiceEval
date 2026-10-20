@@ -146,7 +146,7 @@ export interface SealedRunSummary {
 }
 
 export interface SealedRunCutoff {
-  /** Hash of the ordered (RunId, logical Seal identity) pairs in the pinned generation. */
+  /** Pinned publication identity; standalone inventory reads hash the ordered Seals. */
   readonly identity: string;
   readonly runCount: number;
 }

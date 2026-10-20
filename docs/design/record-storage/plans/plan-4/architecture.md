@@ -136,6 +136,14 @@ maintenance lease。SQLite file lock 防止 corruption，但不代替 NiceEval �
 
 普通 open 只验证 header、schema identity 与目标 operation 所需的索引，不扫描全部 Run，也不运行全库 `integrity_check`。数据库总 bytes 不是固定 open 工作量；巨大 schema、未 checkpoint WAL、crash recovery、慢 filesystem 和首次 page fault 仍会增加延迟。
 
+Host-owned operational reader 信任 writer 在 publication / Seal 事务验证的闭包，不在 open 执行 `quick_check`、
+`foreign_key_check` 或全部 Run Seal 验证。它仍要求 exact schema、migration ready、legacy fail-closed 与 BEGIN 固定的
+PublicationCutoff，并严格解码实际选中的 Core、Attachment 及其关系。读取成本与查询目标和输出成正比，不与无关 collection、
+Content 或 Record 总 payload 成正比；当前 Results 可以读取全部 Core，附件按所需 family 惰性读取与解码。
+
+外部及捕获 Record 的 hostile import、migration、seal/recovery 和显式完整性 maintenance 继续执行完整验证。
+本地 operational 信任不扩展到外部输入，也不承诺防御同时篡改 Host-owned 本机文件的攻击者。
+
 query/show 每次直接打开短 read-only connection，不支付 worker startup。
 Insight 不长期保持 read transaction；active revision 固定 sealed cutoff，detail RPC 用短 reader 重开同一 immutable facts。
 

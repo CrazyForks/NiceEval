@@ -559,14 +559,8 @@ function openRecordReaderAfterRuntimeAdmission(path: string): RecordDatabase {
     db.setAuthorizer(readerAuthorizer);
     validateExactSchema(connection);
     requireMigrationReady(connection);
-    const integrity = currentStatement(db, "PRAGMA quick_check").get() as Record<string, SQLOutputValue> | undefined;
-    if (integrity === undefined || decodeText(integrity.quick_check, "quick_check") !== "ok") {
-      throw sqliteError("record-database-invalid", "open", "ProjectDatabase integrity check failed");
-    }
-    const foreignKeyViolation = currentStatement(db, "PRAGMA foreign_key_check").get();
-    if (foreignKeyViolation !== undefined) {
-      throw sqliteError("record-database-invalid", "open", "ProjectDatabase foreign key closure is invalid");
-    }
+    // Full structure and closure validation belongs to import, publication and
+    // maintenance. Opening a Host-owned reader must not scan historical payload.
     return connection;
   } catch (cause) {
     db.close();

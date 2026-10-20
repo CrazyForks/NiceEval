@@ -61,6 +61,7 @@ import {
   type SealedAttachmentDocument,
   type SealedAttachmentMetadata,
   type SealedRunCore,
+  type SealedRunCutoff,
   type SealedRunDocument,
   type SealedRunSummary,
   type SealedRunSummaryPage,
@@ -1577,12 +1578,63 @@ function verifyRunPayloadClosures(connection: RecordDatabase, runId: string, ver
   }
 }
 
+/** Summary metadata never materializes Core, Attachment payload or collection rows. */
 export function readSealedRunSummary(connection: RecordDatabase, runId: string): SealedRunSummary | undefined {
-  const published = readPublishedSealedRun(connection, runId);
-  if (published === undefined) {
-    return undefined;
+  const row = recordStatement(connection, `SELECT r.run_id,r.writer_generation,r.started_at,
+    coalesce(r.logical_seal_identity,'published:' || (SELECT max(p.published_revision)
+      FROM ne18_attempt_publications p WHERE p.origin_run_id=r.run_id)) logical_seal_identity,
+    (SELECT count(*) FROM ne18_slots WHERE run_id=r.run_id) slot_count,
+    CASE WHEN EXISTS (SELECT 1 FROM ne18_run_resources WHERE run_id=r.run_id) THEN
+      (SELECT count(*) FROM ne18_run_slot_bindings WHERE target_run_id=r.run_id)+
+      (SELECT count(*) FROM ne18_run_slot_absences WHERE run_id=r.run_id)
+      ELSE (SELECT count(*) FROM ne18_members WHERE target_run_id=r.run_id) END member_count,
+    (SELECT count(*) FROM ne18_attempts a WHERE a.origin_run_id=r.run_id AND
+      (NOT EXISTS (SELECT 1 FROM ne18_run_resources WHERE run_id=r.run_id) OR EXISTS
+       (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=a.origin_run_id AND p.attempt_id=a.attempt_id))) attempt_count,
+    (SELECT count(*) FROM ne18_attachments a WHERE a.owner_run_id=r.run_id AND a.canonical_payload IS NOT NULL AND
+      (a.owner_kind='run' OR NOT EXISTS (SELECT 1 FROM ne18_run_resources WHERE run_id=r.run_id) OR EXISTS
+       (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=a.owner_run_id AND p.attempt_id=a.owner_attempt_id))) attachment_count,
+    (SELECT count(*) FROM ne18_contents c JOIN ne18_attachments a ON a.attachment_id=c.attachment_id
+      WHERE a.owner_run_id=r.run_id AND a.canonical_payload IS NOT NULL AND
+      (a.owner_kind='run' OR NOT EXISTS (SELECT 1 FROM ne18_run_resources WHERE run_id=r.run_id) OR EXISTS
+       (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=a.owner_run_id AND p.attempt_id=a.owner_attempt_id))) content_count,
+    (SELECT coalesce(sum(c.byte_length),0) FROM ne18_contents c JOIN ne18_attachments a ON a.attachment_id=c.attachment_id
+      WHERE a.owner_run_id=r.run_id AND a.canonical_payload IS NOT NULL AND
+      (a.owner_kind='run' OR NOT EXISTS (SELECT 1 FROM ne18_run_resources WHERE run_id=r.run_id) OR EXISTS
+       (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=a.owner_run_id AND p.attempt_id=a.owner_attempt_id))) content_bytes,
+    (SELECT count(*) FROM ne18_run_seal_entries WHERE run_id=r.run_id) seal_count
+    FROM ne18_runs r WHERE r.run_id=? AND NOT EXISTS
+      (SELECT 1 FROM ne18_run_deletion_tombstones d WHERE d.run_id=r.run_id)
+      AND (r.status='sealed' OR EXISTS (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=r.run_id))`).get(runId) as Row | undefined;
+  if (row === undefined) return undefined;
+  return Object.freeze({ runId: text(row, "run_id"), writerGeneration: text(row, "writer_generation"),
+    startedAt: text(row, "started_at"), logicalSealIdentity: text(row, "logical_seal_identity"),
+    slotCount: integer(row, "slot_count"), memberCount: integer(row, "member_count"), attemptCount: integer(row, "attempt_count"),
+    attachmentCount: integer(row, "attachment_count"), contentCount: integer(row, "content_count"),
+    contentByteLength: integer(row, "content_bytes"), sealEntryCount: integer(row, "seal_count") });
+}
+
+/** Pinned publication identity, plus a metadata-only count; no Seal hashing. */
+export function readSealedRunCutoff(connection: RecordDatabase, identity: string): SealedRunCutoff {
+  const row = recordStatement(connection, `SELECT count(*) count FROM ne18_runs r
+    WHERE NOT EXISTS (SELECT 1 FROM ne18_run_deletion_tombstones d WHERE d.run_id=r.run_id)
+      AND (status='sealed' OR EXISTS (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=r.run_id))`).get() as Row;
+  return Object.freeze({ identity, runCount: integer(row, "count") });
+}
+
+/** Filter lightweight Run metadata before loading any selected Core or payload. */
+export function findExperimentRunIds(connection: RecordDatabase, experimentId: string): readonly string[] {
+  requireIdentity(experimentId, "experimentId");
+  const selected = rows(connection, `SELECT r.run_id FROM ne18_runs r
+    LEFT JOIN ne18_run_resources resource ON resource.run_id=r.run_id
+    WHERE coalesce(resource.experiment_id,json_extract(r.core_payload,'$.experimentId'))=?
+      AND NOT EXISTS (SELECT 1 FROM ne18_run_deletion_tombstones d WHERE d.run_id=r.run_id)
+      AND (r.status='sealed' OR EXISTS (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=r.run_id))
+    ORDER BY r.run_id LIMIT ?`, experimentId, RECORD_SQLITE_MAX_VALIDATION_RUNS + 1);
+  if (selected.length > RECORD_SQLITE_MAX_VALIDATION_RUNS) {
+    throw sqliteError("record-resource-limit-exceeded", "find-experiment-runs", "Experiment exceeds its Run ceiling");
   }
-  return published.summary;
+  return Object.freeze(selected.map((row) => text(row, "run_id")));
 }
 
 export function listSealedRunSummaries(
@@ -1614,34 +1666,39 @@ export function readSealedRunSummaryPage(
   pageSize = 100,
   expectedCutoffIdentity?: string,
   deadlineEpochMs = Date.now() + RECORD_SQLITE_VALIDATION_DEADLINE_MS,
+  pinnedCutoff?: SealedRunCutoff,
 ): SealedRunSummaryPage {
   requireIdentity(afterRunId === "" ? "start" : afterRunId, "afterRunId");
   if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 256) {
     throw sqliteError("record-resource-limit-exceeded", "page-sealed-runs", "page size must be between 1 and 256");
   }
-  const cutoffHash = createHash("sha256");
-  cutoffHash.update("[");
-  let runCount = 0;
-  const inventory = recordStatement(connection, `SELECT run_id,
-    coalesce(logical_seal_identity,'published:' || (SELECT max(p.published_revision) FROM ne18_attempt_publications p
-      WHERE p.origin_run_id=ne18_runs.run_id)) logical_seal_identity
-    FROM ne18_runs WHERE NOT EXISTS (SELECT 1 FROM ne18_run_deletion_tombstones d WHERE d.run_id=ne18_runs.run_id)
-      AND (status='sealed' OR EXISTS
-        (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=ne18_runs.run_id))
-    ORDER BY run_id`).iterate() as unknown as Iterable<Row>;
-  for (const row of inventory) {
-    if (runCount >= RECORD_SQLITE_MAX_VALIDATION_RUNS) {
-      throw sqliteError("record-resource-limit-exceeded", "page-sealed-runs", "sealed cutoff exceeds its Run ceiling");
+  const cutoff = pinnedCutoff ?? (() => {
+    const cutoffHash = createHash("sha256");
+    cutoffHash.update("[");
+    let runCount = 0;
+    const inventory = recordStatement(connection, `SELECT run_id,
+      coalesce(logical_seal_identity,'published:' || (SELECT max(p.published_revision) FROM ne18_attempt_publications p
+        WHERE p.origin_run_id=ne18_runs.run_id)) logical_seal_identity
+      FROM ne18_runs WHERE NOT EXISTS (SELECT 1 FROM ne18_run_deletion_tombstones d WHERE d.run_id=ne18_runs.run_id)
+        AND (status='sealed' OR EXISTS
+          (SELECT 1 FROM ne18_attempt_publications p WHERE p.origin_run_id=ne18_runs.run_id))
+      ORDER BY run_id`).iterate() as unknown as Iterable<Row>;
+    for (const row of inventory) {
+      if (runCount >= RECORD_SQLITE_MAX_VALIDATION_RUNS) {
+        throw sqliteError("record-resource-limit-exceeded", "page-sealed-runs", "sealed cutoff exceeds its Run ceiling");
+      }
+      if ((runCount & 255) === 0 && Date.now() >= deadlineEpochMs) {
+        throw sqliteError("record-resource-limit-exceeded", "page-sealed-runs", "sealed cutoff exceeded its deadline");
+      }
+      if (runCount > 0) cutoffHash.update(",");
+      cutoffHash.update(JSON.stringify({ runId: text(row, "run_id"), logicalSealIdentity: text(row, "logical_seal_identity") }));
+      runCount += 1;
     }
-    if ((runCount & 255) === 0 && Date.now() >= deadlineEpochMs) {
-      throw sqliteError("record-resource-limit-exceeded", "page-sealed-runs", "sealed cutoff exceeded its deadline");
-    }
-    if (runCount > 0) cutoffHash.update(",");
-    cutoffHash.update(JSON.stringify({ runId: text(row, "run_id"), logicalSealIdentity: text(row, "logical_seal_identity") }));
-    runCount += 1;
-  }
-  cutoffHash.update("]");
-  const identity = cutoffHash.digest("hex");
+    cutoffHash.update("]");
+    const identity = cutoffHash.digest("hex");
+    return Object.freeze({ identity, runCount });
+  })();
+  const { identity, runCount } = cutoff;
   if (expectedCutoffIdentity !== undefined && expectedCutoffIdentity !== identity) {
     throw sqliteError("record-command-conflict", "page-sealed-runs", "sealed cutoff changed; restart pagination");
   }
@@ -1766,7 +1823,18 @@ export function readCollectionItemPage(
 }
 
 /** Bounded sealed Core projection. Collection item bytes and Content chunk bytes are never selected. */
-export function readPublishedSealedRun(connection: RecordDatabase, runId: string): PublishedSealedRun | undefined {
+type DeferredRecordRead = <A>(read: () => A) => A;
+
+function memoRecordRead<A>(read: () => A, defer?: DeferredRecordRead): () => A {
+  if (defer === undefined) {
+    const value = read();
+    return () => value;
+  }
+  let cached: { readonly value: A } | undefined;
+  return () => defer(() => (cached ??= { value: read() }).value);
+}
+
+export function readPublishedSealedRun(connection: RecordDatabase, runId: string, defer?: DeferredRecordRead): PublishedSealedRun | undefined {
   const run = recordStatement(connection, `SELECT run_id,writer_generation,started_at,status,
     coalesce(logical_seal_identity,'published:' || (SELECT max(p.published_revision) FROM ne18_attempt_publications p
       WHERE p.origin_run_id=ne18_runs.run_id)) logical_seal_identity,core_payload,core_digest,
@@ -1883,62 +1951,51 @@ export function readPublishedSealedRun(connection: RecordDatabase, runId: string
         coreBytes: transferableBytes(bytes(row, "core_payload")), coreDigest: text(row, "core_digest") });
     });
   const attachmentRows = rows(connection, `SELECT attachment_id,owner_kind,owner_run_id,owner_attempt_id,family,family_revision,
-    logical_identity,canonical_payload,canonical_digest,logical_inventory,inventory_digest,
-    (SELECT count(*) FROM ne18_collection_items i WHERE i.attachment_id=a.attachment_id) item_count,
-    (SELECT coalesce(sum(length(i.canonical_payload)),0) FROM ne18_collection_items i WHERE i.attachment_id=a.attachment_id) item_bytes
+    logical_identity,canonical_digest,inventory_digest
     FROM ne18_attachments a WHERE owner_run_id=?${publicationManaged ? ` AND canonical_payload IS NOT NULL AND
       (owner_kind='run' OR EXISTS (SELECT 1 FROM ne18_attempt_publications p
         WHERE p.origin_run_id=a.owner_run_id AND p.attempt_id=a.owner_attempt_id))` : ""} ORDER BY attachment_id`, runId);
   const attachments: SealedAttachmentMetadata[] = attachmentRows.map((row) => {
     const attachmentId = text(row, "attachment_id");
-    if (!(row.canonical_payload instanceof Uint8Array)) throw sqliteError("record-database-invalid", "read-published-run-core", `Attachment ${attachmentId} is not published`);
-    const references = rows(connection, `SELECT ordinal,target_owner_kind,target_family,canonical_payload,reference_digest
+    const payload = memoRecordRead(() => {
+      const stored = recordStatement(connection, `SELECT canonical_payload,logical_inventory FROM ne18_attachments WHERE attachment_id=?`)
+        .get(attachmentId) as Row;
+      return { canonicalBytes: transferableBytes(bytes(stored, "canonical_payload")),
+        logicalInventoryBytes: transferableBytes(bytes(stored, "logical_inventory")) };
+    }, defer);
+    const references = memoRecordRead(() => Object.freeze(rows(connection, `SELECT ordinal,target_owner_kind,target_family,canonical_payload,reference_digest
       FROM ne18_attachment_references WHERE attachment_id=? ORDER BY ordinal`, attachmentId).map((reference) => Object.freeze({
       ordinal: integer(reference, "ordinal"), owner: ownerKind(reference, "target_owner_kind"), family: text(reference, "target_family"),
       canonicalBytes: transferableBytes(bytes(reference, "canonical_payload")), referenceDigest: text(reference, "reference_digest"),
-    }));
-    const contents = rows(connection, `SELECT content_id,logical_handle,byte_length,overall_digest,chunk_count
+    }))), defer);
+    const contents = memoRecordRead(() => Object.freeze(rows(connection, `SELECT content_id,logical_handle,byte_length,overall_digest,chunk_count
       FROM ne18_contents WHERE attachment_id=? ORDER BY content_id`, attachmentId).map((content) => Object.freeze({
       contentId: text(content, "content_id"), logicalHandle: text(content, "logical_handle"), byteLength: integer(content, "byte_length"),
       digest: text(content, "overall_digest"), chunkCount: integer(content, "chunk_count"),
-    }));
+    }))), defer);
+    const collection = memoRecordRead(() => {
+      const aggregate = recordStatement(connection, `SELECT count(*) item_count,coalesce(sum(length(canonical_payload)),0) item_bytes
+        FROM ne18_collection_items WHERE attachment_id=?`).get(attachmentId) as Row;
+      return { count: integer(aggregate, "item_count"), byteLength: integer(aggregate, "item_bytes") };
+    }, defer);
     return Object.freeze({ attachmentId, ownerKind: ownerKind(row, "owner_kind"), ownerRunId: text(row, "owner_run_id"),
       ...(optionalText(row, "owner_attempt_id") === undefined ? {} : { ownerAttemptId: optionalText(row, "owner_attempt_id") }),
       family: text(row, "family"), familyRevision: integer(row, "family_revision"), logicalIdentity: text(row, "logical_identity"),
-      canonicalBytes: transferableBytes(bytes(row, "canonical_payload")), canonicalDigest: text(row, "canonical_digest"),
-      logicalInventoryBytes: transferableBytes(bytes(row, "logical_inventory")), inventoryDigest: text(row, "inventory_digest"),
-      references: Object.freeze(references), collectionItemCount: integer(row, "item_count"), collectionItemByteLength: integer(row, "item_bytes"),
-      contents: Object.freeze(contents) });
+      get canonicalBytes() { return payload().canonicalBytes; }, canonicalDigest: text(row, "canonical_digest"),
+      get logicalInventoryBytes() { return payload().logicalInventoryBytes; }, inventoryDigest: text(row, "inventory_digest"),
+      get references() { return references(); }, get contents() { return contents(); },
+      get collectionItemCount() { return collection().count; }, get collectionItemByteLength() { return collection().byteLength; } });
   });
   const core: SealedRunCore = Object.freeze({ runId: text(run, "run_id"), writerGeneration: text(run, "writer_generation"), startedAt: text(run, "started_at"),
     logicalSealIdentity: text(run, "logical_seal_identity"), ...(publicationManaged ? { publicationManaged: true, createdRevision: integer(publicationResource!, "created_revision") } : {}), recordCoreBytes: transferableBytes(bytes(record, "record_payload")),
     recordCoreDigest: text(record, "record_digest"), runCoreBytes, runCoreDigest,
     slots: Object.freeze(slots), attempts: Object.freeze(attempts), members: Object.freeze(members), attachments: Object.freeze(attachments) });
-  const contentCount = core.attachments.reduce((count, attachment) => count + attachment.contents.length, 0);
-  const contentByteLength = core.attachments.reduce(
-    (count, attachment) => count + attachment.contents.reduce((subtotal, content) => subtotal + content.byteLength, 0),
-    0,
-  );
-  const seal = recordStatement(connection, "SELECT count(*) seal_count FROM ne18_run_seal_entries WHERE run_id=?").get(runId) as unknown as Row;
-  const summary: SealedRunSummary = Object.freeze({
-    runId: core.runId,
-    writerGeneration: core.writerGeneration,
-    startedAt: core.startedAt,
-    logicalSealIdentity: core.logicalSealIdentity,
-    slotCount: core.slots.length,
-    memberCount: core.members.length,
-    attemptCount: core.attempts.length,
-    attachmentCount: core.attachments.length,
-    contentCount,
-    contentByteLength,
-    sealEntryCount: integer(seal, "seal_count"),
-  });
-  return Object.freeze({ core, summary });
+  return Object.freeze({ core, get summary() { return readSealedRunSummary(connection, runId)!; } });
 }
 
-/** Compatibility-shaped Core read backed by the sole publication projection. */
-export function readSealedRunCore(connection: RecordDatabase, runId: string): SealedRunCore | undefined {
-  return readPublishedSealedRun(connection, runId)?.core;
+/** Inspection may defer Attachment reads within its existing pinned session. */
+export function readSealedRunCore(connection: RecordDatabase, runId: string, defer?: DeferredRecordRead): SealedRunCore | undefined {
+  return readPublishedSealedRun(connection, runId, defer)?.core;
 }
 
 /** Fixed, decoded projection sufficient to rebuild sealed Core and attachment metadata. */

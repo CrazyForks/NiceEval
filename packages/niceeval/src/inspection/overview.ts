@@ -283,6 +283,7 @@ function selectLatestSlots(
   runs: readonly LoadedInspectionRun[],
   resolutionRuns: readonly LoadedInspectionRun[] = runs,
 ): readonly SelectedSlot[] {
+  const membersByRun = new Map(runs.map((run) => [run, new Map(run.members.map((member) => [member.slotId, member]))]));
   const latest = new Map<string, { readonly target: LoadedInspectionRun; readonly slot: RecordSlotIdentity }>();
   for (const target of runs) {
     for (const slot of target.run.expectedSlots) {
@@ -301,7 +302,7 @@ function selectLatestSlots(
       left.slot.attemptOrdinal - right.slot.attemptOrdinal ||
       compareText(left.target.run.runId, right.target.run.runId))
     .map(({ target, slot }): SelectedSlot => {
-      const member = target.members.find((candidate) => candidate.slotId === slot.slotId);
+      const member = membersByRun.get(target)?.get(slot.slotId);
       const resolved = member === undefined
         ? undefined
         : resolveInspectionMemberAttempt(resolutionRuns, target, member);

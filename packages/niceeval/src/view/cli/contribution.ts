@@ -19,6 +19,7 @@ import {
   openHostOwnedRecordReadSession,
   acquireProjectRecordReadSession,
 } from "../../record/sqlite/index.ts";
+import { publicationCutoffIdentity } from "../../run/storage/cutoff.ts";
 import { startExternalRecordImport } from "../../record/sqlite/external-record-import.ts";
 import { ProjectConfiguration, type ProjectConfigurationService } from "../../cli/project-configuration.ts";
 import { openCurrentProjectSource } from "../../inspection/project-source.ts";
@@ -189,7 +190,7 @@ function operationalCutoffAt(cwd: string) {
       Effect.mapError((cause) => failure("open operational sealed cutoff", cause)),
     );
     return yield* Effect.try({
-      try: () => session.readSealedRunSummaryPage("", 1).cutoff,
+      try: () => ({ identity: publicationCutoffIdentity(session.publicationCutoff()) }),
       catch: (cause) => failure("read operational sealed cutoff", cause),
     });
   }));
@@ -212,7 +213,7 @@ function withRecordSession(
   return Effect.acquireUseRelease(
     acquire,
     (session) => Effect.try({
-      try: () => session.readSealedRunSummaryPage("", 1).cutoff,
+      try: () => session.sealedCutoff(),
       catch: (cause) => failure(operation, cause),
     }),
     (session) => Effect.sync(() => session.close()),
