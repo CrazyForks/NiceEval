@@ -933,7 +933,7 @@ export function applyRename(
 export function accept(
   input: ExperimentHostAcceptRequest,
 ): Effect.Effect<readonly ExperimentHostAcceptedAttempt[], ExperimentHostError, ExperimentHostRequirements> {
-  return closeOperation("accept", acceptLocators({ ...input, recordRoot: undefined }).pipe(
+  return closeOperation("accept", acceptLocators(input).pipe(
     Effect.map((receipts) => freezeArray(receipts.map((receipt) => Object.freeze({
     invocationId: receipt.invocationId,
     runId: receipt.runId,
@@ -948,7 +948,7 @@ export function accept(
 export function planRunAccept(
   input: ExperimentHostAcceptRunRequest,
 ): Effect.Effect<ExperimentHostAcceptRunPlan, ExperimentHostError, ExperimentHostRequirements> {
-  return closeOperation("accept", planAcceptRun({ ...input, recordRoot: undefined }).pipe(
+  return closeOperation("accept", planAcceptRun(input).pipe(
     Effect.map((plan) => Object.freeze({
       sourceRunId: plan.sourceRunId,
       members: freezeArray(plan.members.map((member) => Object.freeze({
@@ -965,7 +965,7 @@ export function planRunAccept(
 export function applyRunAccept(
   input: ExperimentHostAcceptRunRequest,
 ): Effect.Effect<readonly ExperimentHostAcceptedAttempt[], ExperimentHostError, ExperimentHostRequirements> {
-  return closeOperation("accept", acceptRun({ ...input, recordRoot: undefined }).pipe(
+  return closeOperation("accept", acceptRun(input).pipe(
     Effect.map((receipts) => freezeArray(receipts.map((receipt) => Object.freeze({
       invocationId: receipt.invocationId,
       runId: receipt.runId,

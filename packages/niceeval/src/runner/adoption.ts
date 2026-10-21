@@ -319,12 +319,11 @@ export function parseExplicitAttemptLocator(
   return Effect.succeed(Object.freeze({ text: value, locator: parsed.locator }));
 }
 
-/** The public adapter boundary owns Record-root construction. */
+/** Adoption writes only to the discovered project's canonical Record. */
 export function adoptionRecordRoot(input: {
   readonly cwd: string;
-  readonly recordRoot?: string;
 }): Effect.Effect<RecordRoot, RecordRootConstructionError> {
-  const root = makeRecordRoot(resolve(input.cwd, input.recordRoot ?? ".niceeval"));
+  const root = makeRecordRoot(resolve(input.cwd, ".niceeval"));
   return Result.isFailure(root) ? Effect.fail(root.failure) : Effect.succeed(root.success);
 }
 

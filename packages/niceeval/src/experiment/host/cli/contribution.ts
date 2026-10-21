@@ -86,7 +86,6 @@ export const EXP_NORMAL_CLI_OPTIONS = Object.freeze({
   "keep-sandbox": optionalTier("Keep failed or all finished Sandboxes.", "failed", ["failed", "all"]),
   "early-exit": option("boolean", "Stop remaining attempts after a passing result."),
   "no-early-exit": option("boolean", "Force all configured attempts to run."),
-  record: option("string", "Use this Record root."),
   help: HELP_OPTION,
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
@@ -121,7 +120,6 @@ export const DEBUG_CLI_OPTIONS = Object.freeze({
 export const ACCEPT_CLI_OPTIONS = Object.freeze({
   run: option("string", "Accept every member of one exact source Run.", true),
   dry: option("boolean", "Preview acceptance without publishing a Run."),
-  record: option("string", "Use this Record root."),
   help: HELP_OPTION,
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
@@ -742,7 +740,6 @@ Run \`niceeval exp <path> --dry\` to preview a plan.
       config,
       ...selection(input.positionals, Array.isArray(input.values.experiment) ? input.values.experiment : undefined),
       ...(typeof input.values.tag === "string" ? { tag: input.values.tag } : {}),
-      ...(typeof input.values.record === "string" ? { recordRoot: input.values.record } : {}),
       overrides: overrides(input.values),
       preview: input.values.dry === true,
     }).pipe(Effect.mapError((cause) => failure("plan invocation", cause)));
@@ -892,21 +889,21 @@ const acceptCommand: CliCommandContribution<ExperimentCliRequirements, Experimen
     const { invocation, config } = yield* factsAndConfig();
     if (sourceRunId !== undefined) {
       if (input.values.dry === true) {
-        const plan = yield* experimentHost.acceptRun.plan({ cwd: invocation.cwd, config, runId: sourceRunId, ...(typeof input.values.record === "string" ? { recordRoot: input.values.record } : {}) }).pipe(
+        const plan = yield* experimentHost.acceptRun.plan({ cwd: invocation.cwd, config, runId: sourceRunId }).pipe(
           Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
 `)),
         );
         yield* write("stdout", acceptRunPlanText(plan));
         return 0;
       }
-      const accepted = yield* experimentHost.acceptRun.apply({ cwd: invocation.cwd, config, runId: sourceRunId, ...(typeof input.values.record === "string" ? { recordRoot: input.values.record } : {}) }).pipe(
+      const accepted = yield* experimentHost.acceptRun.apply({ cwd: invocation.cwd, config, runId: sourceRunId }).pipe(
         Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
 `)),
       );
       yield* write("stdout", acceptedRunText(sourceRunId, accepted));
       return 0;
     }
-    const result = yield* experimentHost.accept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals), ...(typeof input.values.record === "string" ? { recordRoot: input.values.record } : {}) }).pipe(
+    const result = yield* experimentHost.accept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals) }).pipe(
       Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
 `)),
     );
