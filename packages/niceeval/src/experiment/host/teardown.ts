@@ -98,6 +98,7 @@ function selectTeardowns(input: {
       selected: freezeArray(matched.map((experiment) => {
         const selection = resolveExperimentEvals({
           experimentId: experiment.id,
+          validateModelRequirements: false,
           selector: experiment.evals,
           cliPatterns: [],
           evals,

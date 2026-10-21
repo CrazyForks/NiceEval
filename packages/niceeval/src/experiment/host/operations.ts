@@ -288,9 +288,11 @@ function closeSelection(input: ExperimentHostSelectionInput, options: { readonly
       .map((experiment) => {
         const selection = resolveExperimentEvals({
           experimentId: experiment.id,
+          models: experiment.models,
+          tag: input.tag,
           selector: experiment.evals,
           cliPatterns: input.evalSelectors ?? [],
-          evals,
+          evals: discovered,
         });
         return Object.freeze({
           experiment,

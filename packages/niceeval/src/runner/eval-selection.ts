@@ -1,3 +1,4 @@
+import type { ResolvedModelSlots } from "../model-slots.ts";
 // 纯选题边界:发现结果 → EvalDescriptor 投影 → 用户谓词求值 → selectedEvalIds。
 // CLI 在构造每个 AgentRun 前对候选 eval 各调用一次谓词并把结果落进这里;下游(dry-run、
 // sandbox 查表、fingerprint/carry、attempt 展开、hook ctx、快照)只消费返回的
@@ -21,6 +22,9 @@ export function evalDescriptorOf(evalDef: DiscoveredEval): EvalDescriptor {
 
 export interface ResolveExperimentEvalsInput {
   experimentId: string;
+  models?: ResolvedModelSlots;
+  tag?: string;
+  validateModelRequirements?: boolean;
   selector: ExperimentAuthorFields["evals"];
   cliPatterns: readonly string[];
   evals: readonly DiscoveredEval[];
@@ -89,10 +93,22 @@ export function resolveExperimentEvals(input: ResolveExperimentEvalsInput): Reso
     if (!selectorFilter(evalDef)) continue;
     seen.add(evalDef.id);
     selectorEvals.push(evalDef);
+    if (input.tag !== undefined && !evalDef.tags.includes(input.tag)) continue;
     if (!patternFilter(evalDef.id)) continue;
     selectedEvals.push(evalDef);
   }
-  return { selectedEvals, selectedEvalIds: selectedEvals.map((e) => e.id), selectorEvals };
+  if (input.validateModelRequirements !== false) {
+    const errors = selectorEvals.flatMap((evalDef) => {
+      const missing = evalDef.requiredModelSlots?.filter((key) => !Object.hasOwn(input.models ?? {}, key)) ?? [];
+      return missing.length === 0 ? [] : [`Eval "${evalDef.id}" requires undeclared model slots: ${missing.join(", ")}`];
+    });
+    if (errors.length > 0) throw new TypeError(`Experiment "${experimentId}": ${errors.join("; ")}.`);
+  }
+  return {
+    selectedEvals,
+    selectedEvalIds: selectedEvals.map((e) => e.id),
+    selectorEvals: input.tag === undefined ? selectorEvals : selectorEvals.filter((evalDef) => evalDef.tags.includes(input.tag!)),
+  };
 }
 
 /** `resolveExperimentEvals` 选中的 eval 按题型分桶后的 id 列表(见 splitByEvaluationKind)。 */

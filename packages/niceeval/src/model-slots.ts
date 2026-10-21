@@ -20,6 +20,35 @@ const selections = Schema.Record(slotKey, Schema.Struct({
   reasoningEffort: Schema.optionalKey(modelText),
 })).check(Schema.makeFilter((value) => Object.keys(value).length > 0 && Object.keys(value).length <= 64));
 
+export interface ModelRequirements<Keys extends string = string> {
+  readonly models: Readonly<Record<Keys, ModelSlotSelection>>;
+}
+
+/** Share immutable model purposes without binding an Eval to one Experiment. */
+export function defineModelSlots<const Keys extends string>(
+  input: Readonly<Record<Keys, ModelSlotSelection>>,
+): Readonly<Record<Keys, ModelSlotSelection>> {
+  const decoded = Schema.decodeUnknownSync(selections, { onExcessProperty: "error" })(input);
+  return Object.freeze(Object.fromEntries(Object.keys(decoded).sort().map((key) =>
+    [key, Object.freeze({ ...decoded[key]! })],
+  ))) as Readonly<Record<Keys, ModelSlotSelection>>;
+}
+
+export function normalizeModelRequirements(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  const decoded = Schema.decodeUnknownSync(Schema.Struct({ models: selections }), { onExcessProperty: "error" })(value);
+  return Object.freeze(Object.keys(decoded.models).sort());
+}
+
+export function assertRequiredModelSlots(
+  required: readonly string[] | undefined,
+  models: ResolvedModelSlots | undefined,
+  subject: string,
+): void {
+  const missing = required?.filter((key) => !Object.hasOwn(models ?? {}, key)) ?? [];
+  if (missing.length > 0) throw new TypeError(`${subject} requires undeclared model slots: ${missing.join(", ")}.`);
+}
+
 export const ResolvedModelSlotsSchema: Schema.Codec<ResolvedModelSlots> = Schema.Record(slotKey, Schema.Struct({
   model: Schema.NullOr(modelText),
   reasoningEffort: Schema.NullOr(modelText),

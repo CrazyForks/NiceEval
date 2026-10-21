@@ -69,9 +69,11 @@ function discoverSelection(input: {
       .map((experiment): ExperimentHostSelection => {
         const selected = resolveExperimentEvals({
           experimentId: experiment.id,
+          models: experiment.models,
+          tag: input.tag,
           selector: experiment.evals,
           cliPatterns: input.evalPatterns ?? [],
-          evals,
+          evals: discoveredEvals,
         });
         return Object.freeze({
           experiment,

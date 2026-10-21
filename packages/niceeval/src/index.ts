@@ -164,5 +164,6 @@ export type { EvalUsage, EvalCacheRead } from "./o11y/eval-usage.ts";
 export type { AgentMatchContext } from "./context/assert-first.ts";
 
 export type { ModelSlotSelection, ResolvedModelSlot, ResolvedModelSlots } from "./model-slots.ts";
+export { defineModelSlots } from "./model-slots.ts";
 
 export type { CacheReadReport, CacheReadSummary } from "./o11y/cache-read.ts";

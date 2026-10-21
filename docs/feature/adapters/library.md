@@ -671,3 +671,54 @@ Adapter 先以 `ctx.attach` 接管已封存的原始证据，等待成功回执�
 单行字节上限必须在分行器缓存完整行之前执行，另设解压后累计字节上限及派生集合容量上限。
 压缩文件很小不证明解压后内容有界；流式输入也不允许把所有行重新累积成无界字符串或数组。
 容量超限明确标记受影响指标不可用，不能静默截断后声称完整。取消与失败均关闭流并释放文件句柄。
+
+
+## 共享模型用途声明
+
+`defineModelSlots({ mind: { model: "provider/model" }, speech: { model: "provider/model" } })` 返回自身复制的深冻结声明，保留精确键联合；不增加类型品牌、运行时品牌或注册表，也不冻结作者传入的对象。
+键和值仍遵守 ModelSlotSelection 的现有校验、64 个槽位上限与模型配置约束；它没有全局注册表，不启动资源。
+声明可直接传给多个 Experiment 的 models。每个 Experiment 仍决定模型选择，不要求与 Eval 的声明对象引用相同，也不要求模型值相等。
+
+Adapter 的 defineEval、defineScoreEval 绑定工厂接受 `requires: { models: slots }`。
+它只声明所需用途集合，不能替 Experiment 选择模型。test 上下文的 usage.cacheRead.rate 只接受声明键或无参数；拼错键在 TypeScript 编译期拒绝。
+不声明 requires 时保留宽 string 入口与调用期校验，作为一个 minor 版本的迁移期；默认不会把任意字符串强制缩窄为 never。
+
+```ts
+const slots = defineModelSlots({
+  mind: { model: "provider/reasoning-model" },
+  speech: { model: "provider/speech-model" },
+});
+const criterion = adapter.defineScoreEval({
+  requires: { models: slots },
+  test(t) {
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
+  },
+});
+// Experiment evals 仍使用路径前缀或 predicate，不改为定义对象数组。
+defineExperiment({ adapter, models: slots, evals: ["combat"] });
+```
+
+自定义 Adapter 的 defineAdapter 同样接受 requires.models。create(ctx) 的 ctx.models 键和 ctx.recordUsage 的 modelSlot 都收窄为声明键。
+可空物理关联仍允许 null 或省略，表达确实无法归因的调用；它们不是一个额外声明槽位。已有 flags、应用方法和 Assertion sugar 的推导必须保留。
+
+Adapter 声明的用途在 defineExperiment 归一化时校验。Eval 的用途在发现并求值 Experiment 的 evals 选择器后统一校验，发生在任何 Attempt、Adapter create 或数据库写入之前。
+校验的是完整 discovery 中 Experiment 选择的整个 Eval 集合，predicate 只求值一次，再应用 tag 与 CLI 临时前缀；错误包含 Experiment、Eval 和全部缺失键。额外声明的槽位合法。
+
+要求只按排序后的键存入归一化定义，不保存对象引用品牌，也不把声明里的模型值当作 Eval 配置。
+声明源码沿用既有 source closure 追踪范围；项目内相对静态导入可被追踪，不扩展到动态导入或外部包。这项加载前置条件不新增 RunContext、configHash 或 Usage 持久化字段。
+两个共享同组用途的 Experiment 可以选不同模型并复用同一 Eval；这不是 Eval 与 Experiment 的一对一绑定。
+
+验收包括安装后正反类型用例、两个不同模型 Experiment 复用同一 Eval、缺失槽位在 dry 阶段拒绝且 create 未执行、旧宽字符串入口及可空物理关联。
+单位品牌不加入该契约：模型用途约束与数值单位独立；毫秒与比例的类型扩展需另有实际误用证据和完整算术边界。
+
+
+根 defineEval / defineScoreEval 继续拥有 Agent 路径，不增加 requires；自定义 Adapter 作者使用绑定工厂，也可先解构同名函数。
+requires 是最小前置集合与静态作者约束。Experiment 的额外槽位合法；JavaScript 或类型断言使用额外已配置槽位仍被接纳，未配置槽位仍被拒绝。
+requires 的未知字段、null、数组、缺少 models、非法键或超额声明都在定义边界报错，不能降级成省略配置。
+
+精确键只从 requires.models 推导；test/create 参数使用 NoInfer 阻止 callback 反向放宽。先移除宽 rate、models 索引签名或 recordUsage 后再提供窄类型，不交叉保留宽签名。
+新增泛型追加在现有参数后并保留默认值。省略 requires 保留宽入口；已被作者标注成 Record<string, ModelSlotSelection> 的声明无法恢复字面量键，这时只提供运行时配置检查。
+带 parseFlags 与 assertions 的工厂同样保留 app、flags、sugar 和 score handle 的精确类型；这些组合都进入安装后正反编译验收。
+
+加载校验适用于 CLI 与 SDK 的 plan/check/run，以及 adoption 的当前定义准入。teardown 豁免用途前置要求，保持历史资源 teardown 可达；它仍遵守自身 adapter、安全与所有权检查。
+缺失用途的 dry 与 SDK plan 验收还需确认结果根没有新增数据库，或已有数据库未变化。不能仅以 create 未执行作为无写入证据。

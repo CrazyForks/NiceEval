@@ -1,7 +1,7 @@
 // @concord-file ne-surface-definition-entry
 // @concord-implements docs/feature/plugins/library.md
 import type { Adapter } from "./adapter.ts";
-import { normalizeModelSlots } from "./model-slots.ts";
+import { assertRequiredModelSlots, normalizeModelSlots } from "./model-slots.ts";
 import { parseAdapterFlags } from "./adapter-flags.ts";
 import { decodeExperimentFlags } from "./experiment/flags.ts";
 // 定义入口:把用户对象规格化成核心认得的形状。路径即身份 —— 这里禁止手写 id,
@@ -286,6 +286,7 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
     throw new TypeError("Experiment models is only supported by custom Adapters.");
   }
   const models = adapter.kind === "custom" ? normalizeModelSlots(def) : undefined;
+  if (adapter.kind === "custom") assertRequiredModelSlots(adapter.requiredModelSlots, models, `Adapter "${adapter.name}"`);
   const judgeRuntime = def.judgeRuntime === undefined
     ? undefined
     : normalizeDefinitionJudge(def.judgeRuntime, "defineExperiment() judgeRuntime");

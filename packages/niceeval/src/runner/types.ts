@@ -746,6 +746,7 @@ export type ScoreEvalInput<
 export interface EvalDefinitionFields<
   Sandbox extends SandboxLayer | undefined = SandboxLayer | undefined,
 > {
+  readonly requiredModelSlots?: readonly string[];
   readonly description?: string;
   readonly tags: readonly string[];
   /**

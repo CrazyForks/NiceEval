@@ -17,9 +17,9 @@ import {
 } from "./adapter-usage-projection.ts";
 
 /** Frozen cache report with author-facing selection by Experiment model purpose. */
-export interface EvalCacheRead extends CacheReadReport {
+export interface EvalCacheRead<ModelSlot extends string = string> extends CacheReadReport {
   /** Omit the slot for the total. An undeclared slot throws; missing observations remain unavailable. */
-  rate(modelSlot?: string): NumericMaterial;
+  rate(modelSlot?: ModelSlot): NumericMaterial;
 }
 
 function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): EvalCacheRead {
@@ -40,12 +40,12 @@ function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): 
 }
 
 /** Internal source-owned shape; package-root exposure belongs to the author facade. */
-export interface EvalUsage {
+export interface EvalUsage<ModelSlot extends string = string> {
   readonly source: "agent" | "adapter" | "unavailable";
   readonly scope: "turn" | "session" | "attempt";
   readonly basis: "reported-sends" | "recorded-calls" | "unbound";
   readonly cut: "call-time";
-  readonly cacheRead: EvalCacheRead;
+  readonly cacheRead: EvalCacheRead<ModelSlot>;
   readonly inputTokens: NumericMaterial;
   readonly inputTotalTokens: NumericMaterial;
   readonly outputTokens: NumericMaterial;

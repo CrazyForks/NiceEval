@@ -147,3 +147,18 @@ attempt.usage 专属预算为 16 MiB（超限显式失败），不扩展 experim
 unknown 状态计数单列并阻止 exact，不依赖输出 token 或成本。
 
 验收加入 2000 组与最大身份字符串的公开 Query 可读（仍遵守现有附件 1 MiB 预算）、旧 revision complete 仍 unavailable、unknown 且 token 齐全仍 unavailable。
+
+
+## 共享模型用途要求
+
+model-slots 拥有声明校验、冻结与键集合归一化。Adapter 的绑定定义层保存 Eval 要求；Adapter 定义保存自身要求并为 create 提供精确的作者类型。
+Experiment 归一化校验 Adapter 要求；统一 Eval selection 边界校验选中 Eval 的要求，CLI、SDK、dry 与执行使用同一判定。
+requires 是用途集合，不是运行时模型注入或 adapter contract identity 的替代物。已有 Adapter contract token 仍验证应用操作相容性。
+
+类型扩展通过带默认值的泛型与上下文替换保留旧调用。无 requires 的语义不变；带 requires 时只替换 usage.cacheRead.rate 与 Adapter models/recordUsage 的键类型。
+不改变 Usage 持久化、Record schema、cacheRead 报告数组或调用计数语义。实际执行仍按 Experiment 已配置集合验证 modelSlot；声明是最小前置要求，JavaScript 可使用额外已配置键。
+
+
+独立 Codex 审查的根工厂边界、推导输入和运行时集合问题已收敛：仅扩展绑定工厂，requires.models 是唯一推导输入，运行时保持配置集合语义。
+selection 接收完整 discovery 与规范化 models，校验整个 Experiment selector 集之后再筛 tag 和前缀；teardown 显式跳过新增要求校验。
+不增加声明品牌；严格解码并复制冻结声明与键列表。验收保留 app、flags、assertions 组合和 JavaScript 非法输入，避免只验证简化示例。

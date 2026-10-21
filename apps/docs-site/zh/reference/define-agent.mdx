@@ -144,7 +144,7 @@ readonly signal: AbortSignal;
 #### `models`
 
 ```ts
-readonly models: ResolvedModelSlots;
+readonly models: Readonly<Record<Slots, ResolvedModelSlot>>;
 ```
 
 Frozen application model selections for this Attempt.
@@ -152,7 +152,7 @@ Frozen application model selections for this Attempt.
 #### `recordUsage`
 
 ```ts
-recordUsage(input: import("./adapter-usage.ts").AdapterUsageInput): void;
+recordUsage(input: Omit<import("./adapter-usage.ts").AdapterUsageInput, "modelSlot"> & { readonly modelSlot?: Slots | null }): void;
 ```
 
 #### `sealUsage`

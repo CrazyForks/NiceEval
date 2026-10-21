@@ -515,6 +515,7 @@ export function prepareCurrentAdoptionTarget(input: {
     const selection = yield* Effect.try({
       try: () => resolveExperimentEvals({
         experimentId: experiment.id,
+        models: experiment.models,
         selector: experiment.evals,
         cliPatterns: [],
         evals: input.project.evals,
