@@ -81,6 +81,8 @@ export { defineMaterialMatch, defineContextMatch } from "../assertions/context-m
 export type { MaterialMatch, ContextBooleanMatch, ContextScoreMatch, MatchContext, ReadonlyMaterial, MatchFact, MaterialCollection, MaterialItem, MaterialCaptureBudget, FactCaptureBudget } from "../assertions/context-match.ts";
 
 export type { NumericMaterial } from "../assertions/match.ts";
+export { measured, quantile } from "../assertions/measurements.ts";
+export type { QuantileMethod, QuantileMaterial } from "../assertions/measurements.ts";
 
 export type { EvalUsage, EvalCacheRead } from "../o11y/eval-usage.ts";
 export type { CacheReadReport, CacheReadSummary } from "../o11y/cache-read.ts";

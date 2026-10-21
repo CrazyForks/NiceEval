@@ -9,6 +9,7 @@ import { evalE2E } from "./context.ts";
 import { assertionEntry, inspectAssertionEntries, inspectAttempt, type AssertionInspectionCheckpoint } from "./inspection.ts";
 
 const MATCHED_LABELS = [
+  "quantile:matched", "measured:matched",
   "inOrder.adjacent:matched", "inOrder.subsequence:matched", "inOrder.distinct-items:matched",
   "inOrder.known-witness:matched", "inOrder.alternatives:matched", "inOrder.not:matched",
   "inOrder.step-known-witness:matched", "inOrder.heard-movement:matched",
@@ -28,6 +29,7 @@ const MATCHED_LABELS = [
 ] as const;
 
 const MISMATCHED_LABELS = [
+  "quantile:mismatched",
   "inOrder.reverse:mismatched", "inOrder.empty:mismatched", "inOrder.single-item:mismatched",
   "inOrder.impossible:mismatched", "inOrder.not:mismatched", "inOrder.heard-movement:mismatched",
   "countWhere:mismatched", "filterWhere.mapEach:mismatched", "mapValue:mismatched",
@@ -46,6 +48,7 @@ const MISMATCHED_LABELS = [
 ] as const;
 
 const UNAVAILABLE_LABELS = [
+  "quantile.empty:unavailable", "quantile.invalid:unavailable", "measured:unavailable", "measured.invalid:unavailable",
   "inOrder.possible:unavailable", "inOrder.nonfinite:unavailable", "inOrder.null:unavailable",
   "inOrder.hole:unavailable", "inOrder.not:unavailable", "inOrder.step:unavailable",
   "inOrder.partial:unavailable", "inOrder.source:unavailable",

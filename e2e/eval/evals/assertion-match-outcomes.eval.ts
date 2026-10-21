@@ -1,5 +1,9 @@
 import { defineScoreEval } from "niceeval";
+import { deepStrictEqual, throws } from "node:assert";
 import {
+  atMost,
+  measured,
+  quantile,
   and,
   commandMatch,
   commandSucceeded,
@@ -45,6 +49,22 @@ const fixtureSchema = {
 export default defineScoreEval({
   description: "每个公开 Match factory 在真实 Eval 中发布 matched 与 mismatched 结果",
   async test(t) {
+    const samples = [3000, 0, 1000, 2000];
+    const median = quantile(samples, 0.5);
+    deepStrictEqual(median, { state: "exact", value: 1500, statistics: { sampleCount: 4, probability: 0.5, method: "linear" } });
+    deepStrictEqual(samples, [3000, 0, 1000, 2000]);
+    deepStrictEqual(quantile(samples, 0.9, { method: "nearest-rank" }), { state: "exact", value: 3000, statistics: { sampleCount: 4, probability: 0.9, method: "nearest-rank" } });
+    deepStrictEqual(measured(null, { unavailable: "no-actions" }), { state: "unavailable", reason: "no-actions" });
+    for (const p of [-0.1, 1.1, NaN, Infinity]) throws(() => quantile(samples, p), TypeError);
+    throws(() => measured(null, { unavailable: " " }), TypeError);
+    t.check(median, atMost(1500)).label("quantile:matched");
+    t.check(quantile(samples, 0.9), atMost(2500)).label("quantile:mismatched");
+    t.check(quantile([], 0.5), atMost(1200)).label("quantile.empty:unavailable");
+    t.check(quantile([0, NaN], 0.5), atMost(1200)).label("quantile.invalid:unavailable");
+    t.check(measured(0, { unavailable: "no-actions" }), atMost(0)).label("measured:matched");
+    t.check(measured(null, { unavailable: "no-actions" }), atMost(0)).label("measured:unavailable");
+    t.check(measured(Infinity, { unavailable: "no-actions" }), atMost(0)).label("measured.invalid:unavailable");
+
     const turn = await t.send("assertion/match-outcomes");
     await turn.succeeded().orStop();
 

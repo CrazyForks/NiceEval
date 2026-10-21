@@ -16,6 +16,24 @@ You changed a prompt, switched models, wrote a new Skill for a coding Agent, or 
 
 Everything runs on your own machine and in your CI. No account required.
 
+## Check numbers and ratios directly
+
+Inside `defineScoreEval`'s `test(t)`, score a precomputed ratio from 0 to 1 directly, without a custom fraction matcher:
+
+```ts
+import { atMost, isTrue, measured, quantile } from "niceeval/expect";
+
+t.score(completionRate, { weight: 20 });
+t.score(measured(optionalRate, { unavailable: "no-samples" }), { weight: 10 });
+t.check(ready, isTrue()).gate();
+t.check(measured(latencyMs, { unavailable: "no-actions" }), atMost(1200)).gate();
+t.check(quantile(intervalsMs, 0.9), atMost(3000)).gate();
+```
+
+`measured` preserves null as unavailable with a reason; it never treats it as zero. `t.score` requires a ratio between 0 and 1 and does not clamp it. Apply an explicit bound if your domain requires one.
+`quantile` uses linear interpolation by default; pass `{ method: "nearest-rank" }` to select that method. Its `statistics` contains the sample count, probability, and method. Empty samples return `no-samples`; invalid samples return `non-finite-sample`.
+For statistics that only need displaying, an Adapter can save a Markdown or JSON attachment with `ctx.attach`, without creating an always-true check.
+
 ## Start here
 
 <CardGroup cols={3}>
