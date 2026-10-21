@@ -1,0 +1,64 @@
+---
+title: "升级到 0.18"
+description: "共享模型用途、原生数值材料与公开入口调整"
+---
+
+0.18 保留 0.17 的 `t.usage.cacheRead.rate()` 与按用途查询方式，并增加可复用的用途类型声明。
+在评估项目中升级依赖：
+
+```sh
+pnpm add niceeval@^0.18.0
+```
+
+## 共享模型用途
+
+用 `defineModelSlots` 提取声明，实验的 `models` 与 Adapter 绑定评估的 `requires.models` 引用它。
+给 `defineAdapter` 同样添加 `requires.models` 后，`ctx.models` 与 `ctx.recordUsage` 的用途键也会被收窄。
+完整示例见[按用途检查缓存读取率](/zh/tutorials/control-run-cost#让模型用途名称参与类型检查)。
+
+0.18 继续接受省略 `requires` 的 0.17 写法，按调用时校验名称。
+根入口的 `defineEval`、`defineScoreEval` 属于 Agent 路径；共享声明只扩展 Adapter 绑定工厂。
+用途要求不会绑定具体实验或固定模型值。
+
+## 调整重复的导入入口
+
+| 原来的入口 | 0.18 写法 |
+| --- | --- |
+| 根入口的 `defineJudge`、`defineScoreMatch`、`defineMaterialMatch`、`defineContextMatch` | 从 `niceeval/expect` 导入 |
+| 根入口的 `factuality`、`faithfulness`、`instructionFollowing`、`pairwisePreference` | 从 `niceeval/expect` 导入 |
+| 根入口的 `readScoreMatchAudit` | 从 `niceeval/inspection` 导入 |
+| `niceeval/sandbox` 的 `resolveDockerProfileAlias` | 使用同入口的 `resolveDockerProfile` |
+| 根入口的 `requireEnv`、`getEnv`、`stripComments` | 取消公开导出，由项目自行提供需要的工具 |
+
+例如，自定义评分判据改为：
+
+```ts
+import { defineScoreEval } from "niceeval";
+import { defineScoreMatch } from "niceeval/expect";
+```
+
+判据的执行语义不变，原有根类型导出与错误类保留。
+环境工具原先将空字符串当作缺失；改用 `process.env` 时请明确保留还是改变这一行为。
+文本 matcher 的 `stripComments` 选项仍可使用，不受同名通用函数移除影响。
+
+## 替换项目数值工具
+
+```ts
+import { atMost, isTrue, measured, quantile } from "niceeval/expect";
+
+// value 为 null 时保留原因，不会把缺失转换成 0。
+t.check(measured(durationMs, { unavailable: "record-incomplete" }), atMost(3000)).gate();
+
+// 默认 linear；也可显式选择 nearest-rank。
+t.check(quantile(intervalsMs, 0.5), atMost(1200)).gate();
+t.check(quantile(intervalsMs, 0.9, { method: "nearest-rank" }), atMost(3000)).gate();
+
+// fraction 直接作为评分材料；无样本继续显示不可判定。
+t.score(measured(successRate, { unavailable: "no-samples" }), { weight: 1 });
+t.check(completed, isTrue()).gate();
+```
+
+`quantile` 返回值的 `statistics` 包含 `sampleCount`、`probability` 与 `method`。
+空集合返回 `no-samples`，非有限样本返回 `non-finite-sample`；非法概率或算法参数直接报错。
+`measured` 对非有限数值返回 `non-finite-number`。
+`fraction` 必须位于 `[0, 1]`，`t.score` 不会替作者截断越界值。

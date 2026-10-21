@@ -516,7 +516,8 @@
                   "tutorials/write-experiment",
                   "tutorials/select-and-preview",
                   "tutorials/experiment-services",
-                  "tutorials/control-run-cost"
+                  "tutorials/control-run-cost",
+                  "tutorials/upgrade-0-18"
                 ]
               },
               {
@@ -703,7 +704,8 @@
                   "zh/tutorials/write-experiment",
                   "zh/tutorials/select-and-preview",
                   "zh/tutorials/experiment-services",
-                  "zh/tutorials/control-run-cost"
+                  "zh/tutorials/control-run-cost",
+                  "zh/tutorials/upgrade-0-18"
                 ]
               },
               {

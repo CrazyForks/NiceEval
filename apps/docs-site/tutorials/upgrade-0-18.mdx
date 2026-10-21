@@ -1,0 +1,64 @@
+---
+title: "Upgrade to 0.18"
+description: "Shared model purposes, native numeric material, and public entry point changes"
+---
+
+0.18 retains `t.usage.cacheRead.rate()` and queries by purpose from 0.17, and adds reusable type declarations for purposes.
+Upgrade the dependency in your eval project:
+
+```sh
+pnpm add niceeval@^0.18.0
+```
+
+## Share model purposes
+
+Extract a declaration with `defineModelSlots`, then reference it from the experiment's `models` and the Adapter-bound eval's `requires.models`.
+Adding `requires.models` to `defineAdapter` also narrows the purpose keys in `ctx.models` and `ctx.recordUsage`.
+For a complete example, see [Check cache read rate by purpose](/tutorials/control-run-cost#type-check-model-purpose-names).
+
+0.18 still accepts the 0.17 syntax that omits `requires`, validating names at the call site.
+The root exports `defineEval` and `defineScoreEval` belong to the Agent path. Shared declarations extend only the Adapter-bound factories.
+Purpose requirements do not bind an eval to a specific experiment or fixed model values.
+
+## Update duplicate import entry points
+
+| Previous entry point | 0.18 syntax |
+| --- | --- |
+| `defineJudge`, `defineScoreMatch`, `defineMaterialMatch`, and `defineContextMatch` at the package root | Import from `niceeval/expect` |
+| `factuality`, `faithfulness`, `instructionFollowing`, and `pairwisePreference` at the package root | Import from `niceeval/expect` |
+| `readScoreMatchAudit` at the package root | Import from `niceeval/inspection` |
+| `resolveDockerProfileAlias` from `niceeval/sandbox` | Use `resolveDockerProfile` from the same entry point |
+| `requireEnv`, `getEnv`, and `stripComments` at the package root | Public exports are removed; provide the utilities your project needs |
+
+For example, import a custom scoring criterion as follows:
+
+```ts
+import { defineScoreEval } from "niceeval";
+import { defineScoreMatch } from "niceeval/expect";
+```
+
+Criteria retain their execution semantics. Existing root type exports and error classes remain available.
+The environment utilities treated empty strings as missing. When switching to `process.env`, explicitly choose whether to preserve or change that behavior.
+The text matcher's `stripComments` option remains available and is unaffected by the removal of the utility function with the same name.
+
+## Replace project numeric helpers
+
+```ts
+import { atMost, isTrue, measured, quantile } from "niceeval/expect";
+
+// Preserve the reason when the value is null, without converting missing data to 0.
+t.check(measured(durationMs, { unavailable: "record-incomplete" }), atMost(3000)).gate();
+
+// Defaults to linear; you can also explicitly choose nearest-rank.
+t.check(quantile(intervalsMs, 0.5), atMost(1200)).gate();
+t.check(quantile(intervalsMs, 0.9, { method: "nearest-rank" }), atMost(3000)).gate();
+
+// Use the fraction directly as scoring material; no samples still means unavailable.
+t.score(measured(successRate, { unavailable: "no-samples" }), { weight: 1 });
+t.check(completed, isTrue()).gate();
+```
+
+The `statistics` in the value returned by `quantile` contains `sampleCount`, `probability`, and `method`.
+An empty collection returns `no-samples`, and non-finite samples return `non-finite-sample`. Invalid probability or method arguments throw an error.
+`measured` returns `non-finite-number` for non-finite numbers.
+`fraction` must be within `[0, 1]`. `t.score` does not clamp out-of-range values for you.

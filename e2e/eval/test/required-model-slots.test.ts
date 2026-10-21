@@ -34,6 +34,18 @@ test.concurrent("共享用途要求在计划前拒绝缺失且同一 Eval 可复
       import assert from "node:assert/strict";
       import { Cause, Effect, Exit } from "effect";
       import { experimentHost } from "niceeval/experiment/host";
+      import { defineAdapter, defineModelSlots } from "niceeval";
+      const input = { mind: { model: "fixture/mind" } };
+      const shared = defineModelSlots(input);
+      assert.ok(Object.isFrozen(shared) && Object.isFrozen(shared.mind));
+      assert.equal(Object.isFrozen(input), false);
+      input.mind.model = "fixture/changed";
+      assert.equal(shared.mind.model, "fixture/mind");
+      for (const requires of [null, {}, { models: {} }, { models: shared, extra: true }]) {
+        assert.throws(() => defineAdapter({ name: "invalid", requires, create: () => ({}) }));
+      }
+      const bound = defineAdapter({ name: "valid", create: () => ({}) });
+      assert.throws(() => bound.defineEval({ requires: { models: shared, extra: true }, test() {} }));
       const exit = await Effect.runPromiseExit(experimentHost.invocation.plan({
         cwd: process.cwd(), experimentSelector: "required-purposes", config: {},
       }));

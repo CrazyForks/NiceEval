@@ -1,0 +1,18 @@
+---
+format: concord.document/v1
+id: duplicate-public-entrypoints
+title: 重复公开入口增加判据与工具的选择表面
+createdAt: 2026-10-21
+kind: memory
+memoryKind: problem
+state: open
+epoch: 0
+promotions: []
+history: []
+evidenceRequirement: concord.native-reliability/v1
+---
+根入口与 /expect 重复导出八个判据工厂，readScoreMatchAudit 也同时出现在根入口与 /inspection。
+此外根入口暴露与评估无关的环境和文本工具，Sandbox 暴露两个同实现 resolver 名称；未调用的锁期限常量仅为源码兼容保留。
+0.18 将判据构造收敛到 /expect，审计 reader 收敛到 /inspection，移除列举的工具导出与同义名称。
+核心实现、模块身份、类型与失败隔离出口保留；精确删除集合、迁移和验收见 docs/api-design.md。
+安装候选需证明保留出口存在、旧出口缺失，双模块与双声明消费者仍能工作。

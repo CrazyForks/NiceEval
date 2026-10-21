@@ -168,3 +168,43 @@ ctx.sealUsage({ state: "partial", reason: "usage-not-exposed" });
 ```
 
 Call `ctx.sealUsage({ state: "complete" })` only after obtaining the final records for all physical calls.
+
+## Type-check model purpose names
+
+Starting with 0.18, shared declarations let you reuse an eval across experiments while checking purpose names at compile time:
+
+```ts title="models.ts"
+import { defineModelSlots } from "niceeval";
+
+export const slots = defineModelSlots({
+  mind: { model: "provider/planner" },
+  speech: { model: "provider/speaker" },
+});
+```
+
+Declare requirements on the factories bound to your existing Adapter. You can also destructure `adapter.defineScoreEval`, but the factory with the same name at the package root does not accept `requires`:
+
+```ts title="evals/cache.eval.ts"
+import { atLeast } from "niceeval/expect";
+import { adapter } from "../adapter";
+import { slots } from "../models";
+
+export default adapter.defineScoreEval({
+  requires: { models: slots },
+  test(t) {
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
+    // rate("mimd") causes a TypeScript error; rate() still queries the total across all purposes.
+  },
+});
+```
+
+Use `defineExperiment({ adapter, models: slots, evals: ["cache"] })` in the experiment.
+Other experiments can choose different models for these purposes. `requires` requires the purposes to exist, without requiring identical model values.
+All evals selected by the experiment are checked when it loads. CLI tag or prefix filters cannot hide missing purposes.
+
+Pass `requires: { models: slots }` to `defineAdapter` as well to narrow both `ctx.models` and the `modelSlot` accepted by `ctx.recordUsage`.
+A `null` or omitted `modelSlot` still represents a call with no assigned purpose. When a declared purpose has no calls in this run, `rate` returns unavailable material with the reason `slot-has-no-calls`.
+
+The 0.17.x syntax that omits `requires` remains compatible with 0.18. Names are still validated at the call site.
+To migrate, first extract a shared declaration, then add `requires` to the Adapter and its bound evals separately.
+Do not annotate the declaration as `Record<string, ModelSlotSelection>` first. That loses the specific keys, so TypeScript cannot detect typos.

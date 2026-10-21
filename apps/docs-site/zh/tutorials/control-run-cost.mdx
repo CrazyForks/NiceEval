@@ -168,3 +168,43 @@ ctx.sealUsage({ state: "partial", reason: "usage-not-exposed" });
 ```
 
 确实拿到全部物理调用的最终记录后，再调用 `ctx.sealUsage({ state: "complete" })`。
+
+## 让模型用途名称参与类型检查
+
+从 0.18 起，共享声明让同一评估可用于多个实验，同时在编译时检查用途名称：
+
+```ts title="models.ts"
+import { defineModelSlots } from "niceeval";
+
+export const slots = defineModelSlots({
+  mind: { model: "provider/planner" },
+  speech: { model: "provider/speaker" },
+});
+```
+
+在已有 Adapter 的绑定工厂上声明要求。也可解构 `adapter.defineScoreEval`，但根入口的同名工厂不接受 `requires`：
+
+```ts title="evals/cache.eval.ts"
+import { atLeast } from "niceeval/expect";
+import { adapter } from "../adapter";
+import { slots } from "../models";
+
+export default adapter.defineScoreEval({
+  requires: { models: slots },
+  test(t) {
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
+    // rate("mimd") 会产生 TypeScript 错误；rate() 仍查询全部用途的合计。
+  },
+});
+```
+
+实验使用 `defineExperiment({ adapter, models: slots, evals: ["cache"] })`。
+其它实验可为这些用途选择不同模型；`requires` 要求用途存在，不要求模型值相同。
+加载实验时会检查它选中的全部评估，CLI 的标签或前缀过滤不能隐藏缺失用途。
+
+给 `defineAdapter` 也传入 `requires: { models: slots }`，即可同时收窄 `ctx.models` 和 `ctx.recordUsage` 的 `modelSlot`。
+`null` 或省略的 `modelSlot` 仍表示未归属到用途的调用。已声明但本次没有调用时，`rate` 返回原因 `slot-has-no-calls` 的不可用材料。
+
+0.17.x 中省略 `requires` 的写法在 0.18 继续兼容，名称仍在调用时校验。
+迁移时先提取共享声明，再给 Adapter 和绑定评估分别添加 `requires`。
+不要先把声明标注成 `Record<string, ModelSlotSelection>`，否则 TypeScript 已丢失具体键，无法检测拼写错误。
