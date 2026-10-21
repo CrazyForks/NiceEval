@@ -133,8 +133,11 @@ Candidate 就是当前 checkout 当场生成的待发布字节，不是 registry
 
 `run --artifact-root` 让 CI 指定独立于临时工作副本的证据根；runner 删除副本后保留其中的 `summary.json`、Repo receipt 与声明附件。
 原生测试参数在 `--` 后原样且只传一次。
+
 durable root 先物理锚定，系统级父目录 symlink 可以归一化。root 自身及其以下每层都必须是实目录。
 candidate、receipt 与 summary 在读写前拒绝 root 内的 symlink。
+隔离副本路径与依赖校验均使用物理目录；macOS 的 `/var`、`/tmp` 父目录别名与 Linux 普通路径走相同校验。
+调用方不需要设置 `TMPDIR`；副本内的 `node_modules/.pnpm` 目录链仍拒绝 symlink。
 `verify-release` 读取保留 tarball 时也做同一目录链核验。
 
 ## Owner 接管运行

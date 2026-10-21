@@ -317,10 +317,11 @@ export const runTakeover = (options: TakeoverOptions): Effect.Effect<TakeoverSum
     ),
   };
   let sourceSnapshotCleanup: TakeoverSummary["sourceSnapshotCleanup"] = { ok: true, detail: "source snapshot scratch was not created" };
-  const scratchRoot = yield* Effect.acquireRelease(
+  const declaredScratchRoot = yield* Effect.acquireRelease(
     fileSystem.makeTempDirectory({ prefix: "niceeval-e2e-takeover-scratch-" }).pipe(Effect.mapError((cause) => operationError("snapshot", cause))),
     (path) => fileSystem.remove(path, { recursive: true, force: true }).pipe(Effect.catch(() => Effect.void)),
   );
+  const scratchRoot = yield* fileSystem.realPath(declaredScratchRoot).pipe(Effect.mapError((cause) => operationError("snapshot", cause)));
   sourceSnapshotCleanup = { ok: true, detail: `removed ${scratchRoot}` };
   const suite = yield* Effect.try({ try: () => governanceSuiteForFile(root, selectedCase.path), catch: (cause) => operationError("evidence", cause) });
   const sourceSnapshotRoot = join(scratchRoot, "source");

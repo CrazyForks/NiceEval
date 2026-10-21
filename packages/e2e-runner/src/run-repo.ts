@@ -19,6 +19,8 @@ import {
 } from "./artifacts.ts";
 import {
   assertContainedRegularFile,
+  assertContainedRealDirectory,
+  assertRealDirectory,
   copyIntoContainedFile,
   ensureContainedRealDirectory,
   ensureRealDirectory,
@@ -399,7 +401,7 @@ const collectStage = (
 export const runRepoEffect = (
   repo: DiscoveredRepo,
   candidate: CandidateTarball,
-  scratchRoot: string,
+  declaredScratchRoot: string,
   artifactRoot: string,
   allSecretNames: ReadonlySet<string>,
   nativeArgs: readonly string[],
@@ -412,6 +414,7 @@ export const runRepoEffect = (
 > =>
   Effect.gen(function* () {
     const id = repo.manifest.id;
+    const scratchRoot = yield* assertRealDirectory(declaredScratchRoot, "isolated scratch root").pipe(Effect.mapError((cause) => problem(id, "run", cause)));
     const copy = join(scratchRoot, "runs", options.workdirKey ?? id);
     const stages: StageReceipt[] = [];
     const invocationIds: [string, ...string[]] = [randomUUID()];
@@ -600,7 +603,8 @@ export const runRepoEffect = (
                 fs(id, "run", (service) => service.readFileString(effectPackagePath)),
                 fs(id, "run", (service) => service.realPath(effectPackagePath)),
               ]);
-              const virtualStore = resolve(copy, "node_modules", ".pnpm");
+              // Compare physical paths on every host, while rejecting symlinks below the copy root.
+              const virtualStore = yield* assertContainedRealDirectory(copy, join(copy, "node_modules", ".pnpm"), "isolated pnpm virtual store");
               if (!effectRealPath.startsWith(`${virtualStore}/`))
                 return { ok: false as const, detail: `Effect resolution escapes the isolated pnpm virtual store: ${effectRealPath}` };
               if (!/"version"\s*:\s*"4\.0\.0-rc\.112"/.test(effectPackage))

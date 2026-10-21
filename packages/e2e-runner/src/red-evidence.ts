@@ -102,10 +102,11 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   if (repo === undefined || discovered.errors.length > 0) return yield* Effect.fail(new RedEvidenceError({ detail: `cannot freeze source for ${options.repoId}: ${discovered.errors.join("; ")}` }));
   const root = repoRootDir();
   const suite = yield* Effect.try({ try: () => governanceSuiteForFile(root, selected.path), catch: failure });
-  const scratch = yield* Effect.acquireRelease(
+  const declaredScratch = yield* Effect.acquireRelease(
     fileSystem.makeTempDirectory({ prefix: "niceeval-e2e-red-source-" }).pipe(Effect.mapError(failure)),
     (path) => fileSystem.remove(path, { recursive: true, force: true }).pipe(Effect.catch(() => Effect.void)),
   );
+  const scratch = yield* fileSystem.realPath(declaredScratch).pipe(Effect.mapError(failure));
   const sourceSnapshot = resolve(scratch, suite.root);
   yield* copyRepoIsolated(repo.dir, sourceSnapshot).pipe(Effect.mapError(failure));
   const sourceIdentity = yield* Effect.try({ try: () => resolveRepositorySourceIdentity(root, options.selector), catch: failure });

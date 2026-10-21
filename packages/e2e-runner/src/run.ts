@@ -19,6 +19,7 @@ import {
 } from "./run-repo.ts";
 import {
   ensureContainedRealDirectory,
+  ensureRealDirectory,
   writeContainedUtf8File,
 } from "./durable-path.ts";
 import type { Category, RepoReceipt, SelectionReceipt } from "./receipt.ts";
@@ -284,9 +285,7 @@ export const runEffect = (
             service.makeTempDirectory({ prefix: "niceeval-e2e-artifacts-" }),
           )
         : resolve(options.artifactRoot);
-    const durableRoot = yield* fs((service) =>
-      service.makeDirectory(artifactRoot, { recursive: true }),
-    ).pipe(Effect.as(artifactRoot));
+    const durableRoot = yield* ensureRealDirectory(artifactRoot, "run durable artifact root").pipe(Effect.mapError(rootError));
     let scratchSettled = false;
     yield* Effect.addFinalizer(() =>
       scratchSettled || options.keepWorkdir
