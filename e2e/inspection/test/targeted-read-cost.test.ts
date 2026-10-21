@@ -32,6 +32,27 @@ export default adapter.defineEval({ async test(t) { t.check(await t.read(), equa
       before.push(result.durationMs);
     }
 
+    // Grow Run metadata separately from the large-payload slice below. Every
+    // Run is produced through exp; the test never fabricates database rows.
+    await mkdir(join(projectRoot, "experiments/read-count"), { recursive: true });
+    for (let index = 0; index < 64; index += 1) {
+      await writeFile(join(projectRoot, `experiments/read-count/run-${index}.ts`), `
+import { defineExperiment } from "niceeval";
+import { adapter } from "../read-target.ts";
+export default defineExperiment({ adapter, evals: ["read-target"] });
+`);
+    }
+    const addedRuns = await niceeval.run(["exp", "read-count", "--json"], { timeoutMs: 180_000 });
+    expect(addedRuns.exitCode, addedRuns.diagnostic()).toBe(0);
+    expect(addedRuns.expReceipt().createdRunIds, addedRuns.diagnostic()).toHaveLength(64);
+    for (const [index, argv] of commands.entries()) {
+      const result = await niceeval.run(argv);
+      expect(result.exitCode, result.diagnostic()).toBe(0);
+      expect(result.stdout, result.diagnostic()).toContain(locator);
+      expect(result.durationMs, `Run inventory growth; ${argv.join(" ")}: before=${before[index]}ms; ${result.diagnostic()}`)
+        .toBeLessThan(before[index]! * 2 + 750);
+    }
+
     // Only public Adapter capture creates the unrelated collection. No reader,
     // table names, SQL instrumentation, or implementation counters are involved.
     await writeFile(join(projectRoot, "experiments/read-unrelated.ts"), `
