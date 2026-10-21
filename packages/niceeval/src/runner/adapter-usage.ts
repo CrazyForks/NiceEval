@@ -74,14 +74,14 @@ export class AdapterUsageCollector {
     try {
       if (this.sealed !== undefined) throw new Error("Adapter usage is already sealed");
       const decoded = Schema.decodeUnknownResult(UsageSealSchema, RecordExactParseOptions)(input);
-      if (Result.isFailure(decoded)) throw new Error("Invalid Adapter usage seal");
+      if (Result.isFailure(decoded)) throw new Error("Invalid Adapter usage seal: sealUsage partial reason must be 1-128 ASCII characters, start with a letter or digit, and contain only letters, digits, dot, underscore, colon, or hyphen; complete seals accept only state");
       this.sealed = Object.freeze({ ...decoded.success });
     } catch (cause) {
       this.failed ??= cause instanceof Error ? cause : new Error("Adapter usage capture failed");
       throw cause;
     }
   };
-  snapshot(): EvalUsage { return projectAdapterEvalUsage(deepFreeze(structuredClone(this.capture()))); }
+  snapshot(): EvalUsage { return projectAdapterEvalUsage(deepFreeze(structuredClone(this.capture())), this.models); }
   close(): AdapterUsageAttachment {
     this.closed = true;
     return this.capture();

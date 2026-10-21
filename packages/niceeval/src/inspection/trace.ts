@@ -1373,7 +1373,7 @@ function projectApplicationUsage(
     const read = readAdapterUsageAttachment(attachments.adapterUsage, models);
     const modelUsage = projectAdapterModelUsage(read.state === "available" ? read.value : null, models, {
       basis: "recorded-calls", reason: read.state === "invalid" ? "source-invalid" : "usage-not-recorded",
-    });
+    }, attachments.adapterUsage.physical.familyRevision === 4);
     const empty = {
       source: "adapter" as const,
       coverage: "recorded-calls" as const,
@@ -1461,7 +1461,7 @@ export function projectAdapterUsageTokens(
 
 function projectUsage(
   agentTurns: ReturnType<typeof readAgentTurns>,
-): Omit<InspectionAttemptUsageResult, "configuredModels" | "modelGroups" | "judgeUsage" | "totalCosts"> {
+): Omit<InspectionAttemptUsageResult, "configuredModels" | "modelGroups" | "judgeUsage" | "totalCosts" | "cacheRead"> {
   const sourceState = availability(agentTurns, USAGE_TARGETS);
   if (agentTurns.state !== "available") {
     return Object.freeze({

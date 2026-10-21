@@ -586,3 +586,80 @@ elapsedMs使用runtime的Attempt单调时钟起点到调用处的墙钟毫秒，
 
 用量 revision 4 保存必有的 modelSlot 与显式采集完整性；revision 1 与 2 只读投影用途为 null，revision 3 保留原用途。
 旧版本原金额与应用 costUSD 保留，新整局和实验总费用对缺少生产者声明的旧账本保留 application 缺口，不重写旧字节。
+
+
+## 缓存读取率
+
+`EvalUsage.cacheRead` 与 `attempt.usage.cacheRead` 提供同一缓存读取率报告。
+它只消费 Adapter 已接纳的物理调用，包括失败与重试，不读取应用日志，不包含 Judge 用量。
+Library 的快照在读取时冻结；Inspection 使用已发布账本，二者在同一采集截面下结果相同。
+
+```ts
+type CacheReadSummary = {
+  readonly rate: NumericMaterial;
+  readonly recordedCalls: number;
+  readonly coveredCalls: number;
+  readonly missingCacheReadCalls: number;
+  readonly missingInputTotalCalls: number;
+  readonly collectionComplete: boolean;
+  readonly unknownStatusCalls: number;
+  readonly reasons: readonly (
+    | "usage-not-recorded" | "source-invalid" | "adapter-usage-required"
+    | "collection-incomplete" | "call-status-unknown" | "no-calls" | "cache-read-missing"
+    | "input-total-missing" | "zero-input-total" | "unsafe-token-total"
+  )[];
+};
+type CacheReadReport = {
+  readonly total: CacheReadSummary;
+  readonly modelSlots: readonly ({ readonly modelSlot: string | null } & CacheReadSummary)[];
+  readonly models: readonly ({
+    readonly modelSlot: string | null;
+    readonly provider: string | null;
+    readonly model: string | null;
+  } & CacheReadSummary)[];
+};
+```
+
+`rate` 只返回 exact 或 unavailable，不返回 lower-bound。公式是同组调用的 `Σ cacheReadTokens / Σ inputTotalTokens`。
+每次调用优先采用独立观测到的 `inputTotalTokens`；缺少总量时，只有 input、cacheRead、cacheWrite 三个互斥桶全部已知才求和。
+不重复加入缓存桶，不平均逐次百分比，不按成功状态过滤调用。
+
+`coveredCalls` 表示 numerator 和 denominator 都已知的调用数；两个 missing 计数可重叠。
+即使 coverage 为 100%，未封存或 partial 账本也不可判定，因为外部调用可能尚未登记。
+unknown 状态计入 recordedCalls；token 齐全时也计入 coveredCalls，但 unknownStatusCalls 非零仍返回 call-status-unknown。outputTokens 与 cost 缺失不影响此指标。
+
+任何缺项、空组、零分母或聚合超过安全整数都使 rate unavailable；reasons 保留全部适用原因，顺序按上述联合排列。
+rate.reason 使用 reasons 的首项。缺失不补零；完整且有正输入总量的零缓存读取率为 exact zero。
+
+modelSlots 包含全部配置用途以及已观测的 null 用途；没有调用的配置用途仍显示 no-calls。
+models 按 `[modelSlot, provider, model]` 精确分组；null 保持未知，不能冒充配置值。
+排序逐字段采用 null 在前、字符串按 UTF-16 码元升序。用途最多 65 组，实际模型最多 4000 组，均不截断。
+这些上限来自现有配置与调用接纳预算，报告不再复制调用、附件或价格回执。
+
+attempt.usage 使用专属 16 MiB 响应预算，容纳 4000 组各身份最大 256 UTF-8 字节及 JSON 转义；超预算明确返回 evidence-budget-exceeded，不静默截断模型组。其他操作预算不变，experiment.get 的既有摘要不复制 cacheRead；详情通过 attempt.usage 读取。
+
+没有 Adapter 账本时 total unavailable，两个分组数组为空；revision 1–3 缺少生产者明确 seal 声明，即使原 collection 为 complete，也保留 collection-incomplete。当前 revision 4 由读取边界传递完整性声明，Library collector 使用当前 seal 状态。
+
+```ts
+const usage = t.usage;
+const mind = usage.cacheRead.modelSlots.find(group => group.modelSlot === "mind");
+t.check(mind?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" }, atLeast(0.6)).gate();
+```
+
+Show 与 View 展示总计、用途及实际模型的读取率、coveredCalls/recordedCalls、collectionComplete 和 reasons。
+人读界面可以折叠模型明细，但不能重新计算比率或把 unavailable 显示为零。
+
+## Adapter 汇总失败隔离
+
+Adapter 先以 `ctx.attach` 接管已封存的原始证据，等待成功回执，再登记可取得的 usage 并诚实 seal，最后计算派生指标。
+证据文件与用量事件互相独立时，各自完成接管；证据文件读取失败不能假称用量事件也已取得。
+成功回执只证明接管，持久保存仍要求 Attempt publication 成功。
+
+对已知且局部可处理的汇总失败，Adapter 返回带 reason 的 unavailable 数值材料，让其它可信指标继续登记。
+只捕获明确属于该指标的错误；未知异常、usage 接纳失败、附件归档失败和持久存储失败继续走执行错误路径。
+必要 gate 或评分贡献 unavailable 仍可使 Attempt errored，但已登记事实与已知 earned score 保留，不取得成功排名分数。
+
+大型日志使用带背压的字节流读取；解压、分行与 JSON parse 均设置上限。
+单行字节上限必须在分行器缓存完整行之前执行，另设解压后累计字节上限及派生集合容量上限。
+压缩文件很小不证明解压后内容有界；流式输入也不允许把所有行重新累积成无界字符串或数组。
+容量超限明确标记受影响指标不可用，不能静默截断后声称完整。取消与失败均关闭流并释放文件句柄。

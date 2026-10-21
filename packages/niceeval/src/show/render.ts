@@ -1636,8 +1636,21 @@ function totalCostBlocks(costs: UsageView["totalCosts"]): readonly TerminalPanel
   ];
 }
 
+function cacheReadBlocks(report: import("../o11y/cache-read.ts").CacheReadReport | undefined): readonly TerminalPanelContentBlock[] {
+  if (report === undefined) return [];
+  const row = (label: string, summary: import("../o11y/cache-read.ts").CacheReadSummary) => [
+    label, summary.rate.state === "exact" ? `${(summary.rate.value * 100).toFixed(2)}%` : "Unavailable",
+    `${summary.coveredCalls}/${summary.recordedCalls}`, summary.collectionComplete ? "Complete" : "Incomplete",
+    summary.reasons.join(", ") || "—",
+  ];
+  return [{ kind: "divider", title: "Cache read rate" }, { kind: "table",
+    columns: [{ header: "Scope" }, { header: "Rate" }, { header: "Covered calls" }, { header: "Collection" }, { header: "Reasons" }],
+    rows: [row("Total", report.total), ...report.modelSlots.map((group) => row(`Slot: ${group.modelSlot ?? "not-recorded"}`, group)),
+      ...report.models.map((group) => row(`${group.modelSlot ?? "not-recorded"} / ${group.provider ?? "not-recorded"} / ${group.model ?? "not-recorded"}`, group))], overflow: "wrap" }];
+}
+
 function modelUsageBlocks(
-  value: Pick<UsageView, "configuredModels" | "modelGroups" | "totalCosts"> & { readonly judgeUsage: import("../inspection/results.ts").JudgeUsageSummary },
+  value: Pick<UsageView, "configuredModels" | "modelGroups" | "totalCosts"> & { readonly judgeUsage: import("../inspection/results.ts").JudgeUsageSummary; readonly cacheRead?: import("../o11y/cache-read.ts").CacheReadReport },
 ): readonly TerminalPanelContentBlock[] {
   const configured = value.configuredModels;
   const groups = value.modelGroups;
@@ -1656,6 +1669,7 @@ function modelUsageBlocks(
     : [{ kind: "table", columns: [{ header: "Slot" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
       rows: configured.bindings.map((binding) => [binding.modelSlot, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
   return [
+    ...cacheReadBlocks(value.cacheRead),
     { kind: "divider", title: "Configured model slots" },
     ...configurationBlocks,
     { kind: "divider", title: "Actual model usage" },

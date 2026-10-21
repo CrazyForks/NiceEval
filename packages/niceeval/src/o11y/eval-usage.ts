@@ -1,3 +1,5 @@
+import { projectCacheRead, type CacheReadReport } from "./cache-read.ts";
+import type { ResolvedModelSlots } from "../model-slots.ts";
 import type { NumericMaterial } from "../assertions/match.ts";
 import type { ResolvedEvidenceCoverage } from "../assertions/coverage.ts";
 import type { PriceOverride, Usage } from "../types.ts";
@@ -20,6 +22,7 @@ export interface EvalUsage {
   readonly scope: "turn" | "session" | "attempt";
   readonly basis: "reported-sends" | "recorded-calls" | "unbound";
   readonly cut: "call-time";
+  readonly cacheRead: CacheReadReport;
   readonly inputTokens: NumericMaterial;
   readonly inputTotalTokens: NumericMaterial;
   readonly outputTokens: NumericMaterial;
@@ -73,12 +76,13 @@ function contributionCosts(
   });
 }
 
-export function projectAdapterEvalUsage(usage: ReadableAdapterUsageAttachment): EvalUsage {
+export function projectAdapterEvalUsage(usage: ReadableAdapterUsageAttachment, models?: ResolvedModelSlots): EvalUsage {
   return Object.freeze({
     source: "adapter",
     scope: "attempt",
     basis: "recorded-calls",
     cut: "call-time",
+    cacheRead: projectCacheRead(usage, models, true),
     inputTokens: adapterTokenMaterial(usage, "inputTokens"),
     inputTotalTokens: adapterTokenMaterial(usage, "inputTotalTokens"),
     outputTokens: adapterTokenMaterial(usage, "outputTokens"),
@@ -199,6 +203,7 @@ export function projectAgentEvalUsage(input: {
     scope: input.scope,
     basis: "reported-sends",
     cut: "call-time",
+    cacheRead: projectCacheRead(null, undefined, false, "adapter-usage-required"),
     inputTokens: agentTokenMaterial(input.contributions, "inputTokens", input.scope),
     inputTotalTokens: agentTokenMaterial(input.contributions, "inputTotalTokens", input.scope),
     outputTokens: agentTokenMaterial(input.contributions, "outputTokens", input.scope),

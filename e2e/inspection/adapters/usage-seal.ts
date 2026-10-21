@@ -14,6 +14,14 @@ export const usageSealAdapter = defineAdapter({
       },
       finishComplete() { ctx.sealUsage({ state: "complete" }); },
       finishPartial() { ctx.sealUsage({ state: "partial", reason: "journal-not-sealed" }); },
+      catchInvalidReason() {
+        try {
+          ctx.sealUsage({ state: "partial", reason: "AI event stream incomplete" });
+          return "seal unexpectedly succeeded";
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
       catchWriteAfterSeal() {
         try {
           ctx.recordUsage({

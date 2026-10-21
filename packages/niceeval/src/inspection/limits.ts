@@ -6,3 +6,6 @@ export const INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT = 4 * 1024 * 1024;
 
 /** Full source content, Judge audit and base64 encoding for assertion detail only. */
 export const INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT = 32 * 1024 * 1024;
+
+/** Complete cache groups for all 4000 admitted physical calls, including maximum escaped identities. */
+export const INSPECTION_ATTEMPT_USAGE_RESULT_BYTE_LIMIT = 16 * 1024 * 1024;

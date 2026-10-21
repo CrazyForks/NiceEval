@@ -1,3 +1,4 @@
+import { projectCacheRead } from "./cache-read.ts";
 import type { ReadableAdapterUsageAttachment, AdapterUsageCall, AdapterCallPriceReceipt } from "../record/family/adapter-usage/schema.ts";
 import { addCanonicalDecimals } from "../record/family/adapter-usage/pricing.ts";
 import type { NumericMaterial } from "../assertions/match.ts";
@@ -81,7 +82,9 @@ export function projectAdapterModelUsage(
     readonly basis: "recorded-calls" | "reported-sends" | "unavailable";
     readonly reason: "source-invalid" | "usage-not-recorded" | "physical-call-identity-not-recorded";
   } = { basis: "unavailable", reason: "usage-not-recorded" },
+  producerCompletenessKnown = true,
 ) {
+  const cacheRead = projectCacheRead(usage, models, producerCompletenessKnown, unavailable.reason === "physical-call-identity-not-recorded" ? "adapter-usage-required" : unavailable.reason);
   const counts = new Map<string, number>();
   for (const call of usage?.calls ?? []) {
     if (call.modelSlot !== null) counts.set(call.modelSlot, (counts.get(call.modelSlot) ?? 0) + 1);
@@ -96,6 +99,7 @@ export function projectAdapterModelUsage(
         }))),
       });
   if (usage === null) return Object.freeze({
+    cacheRead,
     configuredModels,
     modelGroups: Object.freeze({
       state: "unavailable" as const, ...unavailable,
@@ -125,6 +129,7 @@ export function projectAdapterModelUsage(
     });
   });
   return Object.freeze({
+    cacheRead,
     configuredModels,
     modelGroups: Object.freeze({
       state: "available" as const, basis: "recorded-calls" as const,

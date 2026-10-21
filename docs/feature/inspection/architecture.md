@@ -161,6 +161,10 @@ modelGroups 含 basis、state、groups、totalGroupCount、groupsTruncated、omi
 每组含 recordedCalls、tokens（inputTotalTokens/outputTokens/totalTokens）和官方 effective costs，完整性与已知小计分别保留。
 
 全部最多 4000 调用参与统计，最多预览 64 组；调用预览的 128 条上限不影响聚合。
+cacheRead 与 [Adapter Library](../adapters/library.md#缓存读取率) 使用相同纯投影，含 total、modelSlots 与 models。
+该报告不受 64 组旧预览限制；完整性由生产者 seal 声明单独判断，旧版账本不推断完整。
+attempt.usage 的最终响应预算为 16 MiB，超限返回 evidence-budget-exceeded，不截断 cacheRead 分组。
+
 Agent 为 reported-sends 与 physical-call-identity-not-recorded，不把配置模型或 Adapter 名称当作实际物理事实。
 
 judgeUsage 读取同一 origin Attempt 的独立物理调用账本；旧缺源为 unavailable，完整空账本为已知零调用，指标完整性独立于调用集合完整性。
@@ -175,7 +179,7 @@ Judge 调用、价证、有界预览与摘要的穷尽形状遵守[Judge 读面�
 
 usage 仅含 state、configuredModels、modelGroups、judgeUsage、totalCosts、totals，不重复调用预览。
 最多返回按 originRunId/locator 排序的 64 个 Attempt；未找到的成员单列。Judge 使用不含 calls/priceReceipts 的摘要。
-experiment.get 的最终 JSON 响应上限为 4 MiB；完整 aggregate/cells 保留逐断言证据完整度，因此独立于单 Attempt 用量的 512 KiB 上限。
+experiment.get 的最终 JSON 响应上限为 4 MiB；完整 aggregate/cells 保留逐断言证据完整度，因此独立于attempt.usage 的专属 16 MiB 上限。
 最终响应字节预算内保留完整 Attempt 摘要前缀，omittedAttemptCount 反映省略数量；保留摘要中的金额及完整度不变，不以预览重算总量。
 
 

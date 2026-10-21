@@ -38,7 +38,7 @@ import {
   type InspectionOperationId,
   type InspectionSourceProvenance,
 } from "./codec.ts";
-import { INSPECTION_RESULT_BYTE_LIMIT, INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT } from "./limits.ts";
+import { INSPECTION_ATTEMPT_USAGE_RESULT_BYTE_LIMIT, INSPECTION_RESULT_BYTE_LIMIT, INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT, INSPECTION_ASSERTION_DETAIL_BYTE_LIMIT } from "./limits.ts";
 import { projectAttemptAssertionDetail, projectAttemptAssertionImage } from "./assertions.ts";
 import {
   attemptAttachment,
@@ -422,7 +422,7 @@ function selectOperation(
       const resolved = requireAttemptFromSource(source, operation.kind, operation.locator);
       const metadata = resultMetadata(source, operation.kind, attemptRuns(resolved), [], [], [operation.locator]);
       let usage = projectAttemptUsage(traceAttachments(resolved));
-      while (utf8ByteLength(JSON.stringify({ ...metadata, usage })) > INSPECTION_RESULT_BYTE_LIMIT &&
+      while (utf8ByteLength(JSON.stringify({ ...metadata, usage })) > INSPECTION_ATTEMPT_USAGE_RESULT_BYTE_LIMIT &&
         (usage.judgeUsage.state === "complete" || usage.judgeUsage.state === "partial") && usage.judgeUsage.calls.length > 0) {
         usage = Object.freeze({ ...usage,
           judgeUsage: takeJudgeUsagePreview(usage.judgeUsage, usage.judgeUsage.calls.length - 1) });
@@ -1657,7 +1657,7 @@ function decodeRequiredResult<S extends Schema.ConstraintDecoder<unknown>>(
 }
 
 function requireInspectionResultBudget<Value>(operation: InspectionOperationId, value: Value): Value {
-  const byteLimit = operation === "experiment.get" ? INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT : INSPECTION_RESULT_BYTE_LIMIT;
+  const byteLimit = operation === "experiment.get" ? INSPECTION_EXPERIMENT_RESULT_BYTE_LIMIT : operation === "attempt.usage" ? INSPECTION_ATTEMPT_USAGE_RESULT_BYTE_LIMIT : INSPECTION_RESULT_BYTE_LIMIT;
   if (utf8ByteLength(JSON.stringify(value)) > byteLimit) {
     throw new InspectionOperationError({ code: "evidence-budget-exceeded", operation,
       reason: "Inspection result cannot fit in the result byte limit." });

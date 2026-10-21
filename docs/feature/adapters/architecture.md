@@ -119,3 +119,28 @@ Runner 在唯一 ACTIVE 出口先对完整文本做已知 secret redaction，再
 存在时按严格形状解码，未知 `kind`、未知字段或越过上限的值使 collection 为 invalid。`image` 块持久保存接纳时固定的
 `artifactId`、`mediaType`、`byteLength` 与 `sha256`；发布与读取按 evidence 引用的同一规则验证附件闭合，
 不符时返回 `inspection-record-integrity-failure`，不报成 `not-found`。旧读者不保证能读取带 `display` 的事件。
+
+
+## 缓存读取率投影边界
+
+[缓存读取率](library.md#缓存读取率)由 o11y 的纯投影拥有，输入是已验证 Adapter usage 与冻结的 ResolvedModelSlots。
+Runner 在读取 t.usage 时调用它，Inspection 在读取已发布 usage 后调用同一实现；Show 与 View 只格式化闭合报告。
+公开类型随 EvalUsage 从根包与 expect 类型入口导出，Inspection codec 严格验证同一报告形状。
+报告仅派生，不写入新的 Attachment、数据表或 migration，也不改变旧 usage 字节。
+
+聚合使用现有互斥桶语义，按调用先确定可信分母，再聚合；缺失分母不能用已知小计替代。
+完整性是账本与每个调用的联合条件，不从 Verdict、费用或截断后的调用列表推断。
+configured slots 提供空组身份，实际 provider/model 只来自调用事实；未知用途与未知模型保持 null。
+每个冻结报告仅包含计数、理由与 rate，不保留对可写 collector 的引用；后续 cleanup 不改写已登记 Assertion。
+
+验收从安装后的公开 Adapter、t.usage、query、show 与 View 进入。
+验证 token 加权、多用途同模型、同用途多模型、输入总量优先、完整桶回退、缺项、零输入、空用途、partial/unsealed、失败重试及超出 128 条调用的全量聚合。
+Query 与 Library 在同一采集截面逐字段一致，View 与 Show 展示同一数值和缺失原因；失败隔离保留已发布附件、usage 与已知 contribution。
+
+独立原生 Codex / GPT-6.1 Sol 静态审查为 CONDITIONAL，以下三项已收敛。
+
+attempt.usage 专属预算为 16 MiB（超限显式失败），不扩展 experiment.get 摘要。
+读取边界传入 producerCompletenessKnown，revision 1–3 固定 false，当前 collector 为 true，仅影响 cacheRead。
+unknown 状态计数单列并阻止 exact，不依赖输出 token 或成本。
+
+验收加入 2000 组与最大身份字符串的公开 Query 可读（仍遵守现有附件 1 MiB 预算）、旧 revision complete 仍 unavailable、unknown 且 token 齐全仍 unavailable。

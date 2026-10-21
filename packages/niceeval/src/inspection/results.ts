@@ -1,3 +1,4 @@
+import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
 import {
   AdapterCallPriceReceiptSchema,
@@ -978,6 +979,7 @@ const UsageTotalsSchema = Schema.Struct({
   costs: Schema.optional(EffectiveCostTotalSchema),
 });
 export const InspectionAttemptUsageResultSchema = Schema.Struct({
+  cacheRead: CacheReadReportSchema,
   configuredModels: ConfiguredModelsSchema,
   modelGroups: ModelGroupsSchema,
   judgeUsage: JudgeUsageSchema,
