@@ -12,7 +12,7 @@ import {
   sqliteMigrationLedgerSql,
 } from "../sqlite-migration-kernel.ts";
 import { isDockerCacheRepositoryRequest } from "../sandbox/docker-cache-repository.ts";
-import { isE2BCacheRequest } from "../sandbox/e2b-cache-repository.ts";
+import { E2B_CACHE_GENERATION_INDEX_SQL, E2B_CACHE_REPOSITORY, installE2BCacheSchemaV1, isE2BCacheRequest } from "../sandbox/e2b-cache-repository.ts";
 import { isIncusRepositoryRequest } from "../sandbox/incus/repository.ts";
 import {
   UserDatabaseInvalid,
@@ -42,7 +42,7 @@ const HostFormatIdentity = "niceeval-user-database/0.14.0";
 const UnsupportedPrereleaseIdentities = new Set(["niceeval-user-database/v2"]);
 const MigrationBaseline = "0.14.0";
 const CreateHostFormat = `CREATE TABLE ${HostFormatTable} (format_id TEXT PRIMARY KEY CHECK(format_id = '${HostFormatIdentity}')) STRICT`;
-const CurrentVersion = 1;
+const CurrentVersion = 2;
 
 function schemaObjectKey([type, name, table]: readonly string[]): string {
   return `${type}\u0000${name}\u0000${table}`;
@@ -80,6 +80,7 @@ const AllowedSchemaObjects = new Set<string>([
   ["index", "docker_setup_prefix_writer", "docker_setup_prefix_entries"],
   ["index", "docker_setup_prefix_replacement_scope", "docker_setup_prefix_replacement_scopes"],
   ["index", "e2b_cache_entries_cleanup", "e2b_cache_entries"],
+  ["index", "e2b_cache_entries_generation", "e2b_cache_entries"],
   ["trigger", "docker_setup_prefix_exact_base_insert", "docker_setup_prefix_entries"],
   ["trigger", "docker_setup_prefix_exact_base_update", "docker_setup_prefix_entries"],
   ["index", "sqlite_autoindex___niceeval_user_database_format_1", HostFormatTable],
@@ -217,10 +218,18 @@ const UserDatabaseMigrationCatalog = defineSqliteMigrationCatalog([
     version: 1,
     digest: Migration1Digest,
     apply: (database: DatabaseSync): void => {
-      for (const handler of userDatabaseRepositoryCatalog) handler.installCurrentSchema(database);
+      for (const handler of userDatabaseRepositoryCatalog) {
+        if (handler.id === E2B_CACHE_REPOSITORY) installE2BCacheSchemaV1(database);
+        else handler.installCurrentSchema(database);
+      }
       database.exec(CreateHostFormat);
       database.prepare(`INSERT INTO ${HostFormatTable}(format_id) VALUES (?)`).run(HostFormatIdentity);
     },
+  }),
+  Object.freeze({
+    version: 2,
+    digest: createHash("sha256").update(`niceeval.user-database/${MigrationBaseline}/migration/2\0`).update(E2B_CACHE_GENERATION_INDEX_SQL).digest("hex"),
+    apply: (database: DatabaseSync): void => { database.exec(E2B_CACHE_GENERATION_INDEX_SQL); },
   }),
 ], CurrentVersion);
 

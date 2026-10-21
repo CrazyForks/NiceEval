@@ -258,6 +258,7 @@ const EntriesTable = "e2b_cache_entries";
 const RootsTable = "e2b_cache_roots";
 const ReplacementHeadsTable = "e2b_cache_replacement_heads";
 const CleanupIndex = "e2b_cache_entries_cleanup";
+const GenerationIndex = "e2b_cache_entries_generation";
 const CreateEntries = `CREATE TABLE ${EntriesTable} (
   setup_prefix_key TEXT PRIMARY KEY,
   base_identity TEXT NOT NULL,
@@ -282,6 +283,7 @@ const CreateReplacementHeads = `CREATE TABLE ${ReplacementHeadsTable} (
   replacement_scope TEXT PRIMARY KEY,
   setup_prefix_key TEXT NOT NULL REFERENCES ${EntriesTable}(setup_prefix_key)
 ) STRICT`;
+export const E2B_CACHE_GENERATION_INDEX_SQL = `CREATE INDEX ${GenerationIndex} ON ${EntriesTable}(generation)`;
 const CreateCleanupIndex = `CREATE INDEX ${CleanupIndex} ON ${EntriesTable}(state, replacement_scope, setup_prefix_key)`;
 
 function exactSql(sql: string): string {
@@ -386,11 +388,12 @@ function assertCurrentSchema(database: DatabaseSync): void {
     ["table", RootsTable, RootsTable, CreateRoots],
     ["table", ReplacementHeadsTable, ReplacementHeadsTable, CreateReplacementHeads],
     ["index", CleanupIndex, EntriesTable, CreateCleanupIndex],
+    ["index", GenerationIndex, EntriesTable, E2B_CACHE_GENERATION_INDEX_SQL],
   ] as const;
   for (const [type, name, table, sql] of required) {
     const row = rows.find((candidate) => candidate.type === type && candidate.name === name && candidate.tbl_name === table);
     if (row === undefined || typeof row.sql !== "string" || exactSql(row.sql) !== exactSql(sql)) {
-      throw invalid(`schema does not match revision 1 (${name})`);
+      throw invalid(`schema does not match revision 2 (${name})`);
     }
   }
   const expectedObjects = new Set([
@@ -398,6 +401,7 @@ function assertCurrentSchema(database: DatabaseSync): void {
     RootsTable,
     ReplacementHeadsTable,
     CleanupIndex,
+    GenerationIndex,
     `sqlite_autoindex_${EntriesTable}_1`,
     `sqlite_autoindex_${EntriesTable}_2`,
     `sqlite_autoindex_${RootsTable}_1`,
@@ -408,8 +412,14 @@ function assertCurrentSchema(database: DatabaseSync): void {
   }
 }
 
-function installCurrentSchema(database: DatabaseSync): void {
+/** Frozen repository shape for the application migration 1 receipt. */
+export function installE2BCacheSchemaV1(database: DatabaseSync): void {
   database.exec(`${CreateEntries}; ${CreateRoots}; ${CreateReplacementHeads}; ${CreateCleanupIndex};`);
+}
+
+function installCurrentSchema(database: DatabaseSync): void {
+  installE2BCacheSchemaV1(database);
+  database.exec(E2B_CACHE_GENERATION_INDEX_SQL);
   assertCurrentSchema(database);
 }
 
