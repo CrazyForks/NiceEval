@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { defineScoreEval } from "niceeval";
 import { deepStrictEqual, throws } from "node:assert";
 import {
@@ -236,7 +237,8 @@ export default defineScoreEval({
     t.check("different", similarity("same")).gate(1)
       .score(1)
       .label("similarity:mismatched");
-    const customScore = defineScoreMatch<string>({ name: "custom score", score: (value) => value === "score-ok" ? 1 : 0 });
+    const commonjsDefineScoreMatch = createRequire(import.meta.url)("niceeval/expect").defineScoreMatch as typeof defineScoreMatch;
+    const customScore = commonjsDefineScoreMatch<string>({ name: "custom score", score: (value) => value === "score-ok" ? 1 : 0 });
     t.check("score-ok", customScore).gate(1)
       .score(1)
       .label("defineScoreMatch:matched");

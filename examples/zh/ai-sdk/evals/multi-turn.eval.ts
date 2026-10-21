@@ -1,4 +1,5 @@
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { includes, jsonMatch, toolMatch } from "niceeval/expect";
 
 const weatherAnswerQuality = defineJudge({

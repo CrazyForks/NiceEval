@@ -12,7 +12,7 @@ Judge uses a separate grading model to assess factual consistency, summary faith
 Write the criterion at module scope. `rubric` describes the dimensions to evaluate, and `anchors` give calibration points on a continuous quality scale:
 
 ```ts
-import { defineJudge } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const explainsRisk = defineJudge({
   name: "explains-risk",

@@ -100,7 +100,8 @@ Multi-turn conversation requires the Adapter to carry the previous turn's contex
 Questions like "is the answer grounded" or "is the tone right for elementary school students" cannot be written as a regex. Hand them to the Judge model to score:
 
 ```ts
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const grounded = defineJudge({
   name: "grounded-answer",

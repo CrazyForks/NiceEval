@@ -1,8 +1,6 @@
 import { Effect } from "effect";
-import {
-  defineAdapter,
-  defineJudge,
-} from "niceeval";
+import { defineAdapter } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { and, defineValueMatch, defineMaterialMatch, defineContextMatch, defineScoreMatch, type ScoreMatch } from "niceeval/expect";
 
 const limits = { maxAuditBytes: 2 * 1024 * 1024 };

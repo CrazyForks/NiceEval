@@ -270,7 +270,6 @@ export {
   parseDockerProfileRegistry,
   resolveDockerExecutionProfile,
   resolveDockerProfile,
-  resolveDockerProfileAlias,
   resolveDockerProfileSelector,
 } from "./docker-profile/registry.ts";
 export type {

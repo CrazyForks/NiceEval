@@ -13,7 +13,8 @@ feature: docs/feature/eval/README.md
 作者把完成判断所需的应用值组成命名 JSON 材料。
 
 ```ts
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const professionalTone = defineJudge({
   name: "professional-tone",

@@ -1,5 +1,6 @@
 import { OpenAIProvider } from "niceeval/judge";
-import { defineAdapter, defineJudge } from "niceeval";
+import { defineAdapter } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { equals } from "niceeval/expect";
 
 export const configurationApplication = defineAdapter({

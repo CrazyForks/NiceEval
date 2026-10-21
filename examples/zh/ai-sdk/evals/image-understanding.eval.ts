@@ -1,4 +1,5 @@
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { pattern } from "niceeval/expect";
 
 const imageDescriptionQuality = defineJudge({

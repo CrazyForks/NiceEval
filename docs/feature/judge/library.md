@@ -310,7 +310,7 @@ declare function judgeImage(input: JudgeImageInput): JudgeImage;
 不依赖附件 receipt、原目录或外部服务。
 
 ```ts
-import { defineJudge } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { judgeImage, VercelProvider } from "niceeval/judge";
 
 const quality = defineJudge({

@@ -1,16 +1,5 @@
-import {
-  defineAdapter,
-  defineExperiment,
-  type JsonValue,
-  defineJudge,
-  defineEval,
-  defineConfig,
-  type JudgeDefinition,
-  defineAdapterContract,
-  type AdapterCleanupContext,
-  type AdapterImplementationInput,
-  type AdapterAssertionsFactoryContext,
-} from "niceeval";
+import { defineAdapter, defineExperiment, type JsonValue, defineEval, defineConfig, type JudgeDefinition, defineAdapterContract, type AdapterCleanupContext, type AdapterImplementationInput, type AdapterAssertionsFactoryContext } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import type { AdapterCleanupContext as AdapterCleanupContextFromSubpath } from "niceeval/adapter";
 import type { AdapterAssertionsFactoryContext as AssertionsContextFromSubpath } from "niceeval/adapter";
 import { satisfies, defineScoreMatch, defineMaterialMatch, defineContextMatch, type AgentMatchContext, type MaterialCollection, type CollectionValue, toolMatch, eventMatch, type BooleanMatch, countWhere, filterWhere, mapEach, mapValue, equals, not, inOrder, or, and } from "niceeval/expect";

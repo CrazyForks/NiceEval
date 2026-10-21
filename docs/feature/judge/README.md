@@ -16,7 +16,8 @@ Judge 是使用受管模型能力的 `ScoreMatch`。`defineJudge` 与五个现�
 自由评分、分类映射与分解后聚合共享模型调用能力，分数含义由各算法明确声明。
 
 ```ts
-import { defineConfig, defineJudge } from "niceeval";
+import { defineConfig } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({

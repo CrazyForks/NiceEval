@@ -68,7 +68,8 @@ export default defineEval({
 
 ```ts
 import { readFile } from "node:fs/promises";
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { judgeImage } from "niceeval/judge";
 
 const actionQuality = defineJudge({

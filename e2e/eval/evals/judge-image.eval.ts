@@ -1,4 +1,5 @@
-import { defineAdapter, defineJudge } from "niceeval";
+import { defineAdapter } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { judgeImage } from "niceeval/judge";
 import { screenshotBytes } from "../fixtures/judge-image.ts";
 

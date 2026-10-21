@@ -385,3 +385,35 @@ loader 收 `URL` 就是这条判据的结果——判据文件按 eval 相对路
 
 本契约吸收 Swift 的“调用点清晰”、Google TypeScript 的描述性命名与 casing、Rust 的稳定动作词族，以及 Google Go 对查询和动作名字的区分。
 具体学了什么、哪些语言习惯不照搬，见[References · API 设计准则](references.md#api-设计准则)。
+
+## 公开入口的单一职责
+
+根入口提供作者定义与作者所需的错误值。本次只撤销下文列举的运行时导出，其余值与现有类型出口保留。
+
+`defineModelSlots` 继续从根入口导出。
+`ExperimentFatalError`、`EvalFatalError`、`failureClassOf` 和 `MigrationRequiredError` 也保留在根入口。
+
+判据构造统一从 `/expect` 导入：
+
+- `defineJudge`、`defineScoreMatch`、`defineMaterialMatch`、`defineContextMatch`。
+- `factuality`、`faithfulness`、`instructionFollowing`、`pairwisePreference`。
+
+根入口不再重复导出这些运行时值；能力和执行语义不变。审计 reader `readScoreMatchAudit` 只从 `/inspection` 导出。
+现有类型导出保留，不要求作者为本次入口收敛重新组织纯类型依赖。
+
+通用工具 `requireEnv`、`getEnv` 与 `stripComments` 不属于评估 Library 的公开职责。
+移除其根导出，内部进程变量读取及文本 matcher 的 `stripComments` 选项不变。
+Sandbox 的 profile 查找函数只保留 `resolveDockerProfile` 这个名称，删除同实现的 `resolveDockerProfileAlias`。
+内部不再保留没有调用点的 `CASE_LOCK_EXPIRY_MS` 常量。
+
+这些改动属于 minor 的入口迁移，不增加 deprecated 转发层。
+判据与审计 reader 只调整 import；Docker profile 查找函数改为保留名称。三个通用工具由调用方自行提供，
+不能只改 import；进程变量工具原来把空串当作缺失，迁移到 `process.env` 时需自行决定这一行为。
+同步对应设计正文、公开文档、示例和测试；生成区块由源 owner 及既有生成命令更新。
+不改变判据、资源或结果数据，不修改两个下游仓库。
+
+安装发布包后的验收分别检查 ESM/CJS 中保留入口存在、撤销入口缺失，且 `/expect` 工厂维持同一函数身份。
+保留入口构造的普通与受管 ScoreMatch、MaterialMatch、ContextMatch 必须能被真实 Assertion 消费。
+混合模块消费与 `.mts`、`.cts` 类型检查需包含保留的根类型；审计 reader 比较两种模块的解码行为，
+不要求独立浏览器 ESM bundle 与 CJS reader 的函数身份相同。
+当前 Record 读取、迁移恢复、资源账本和第三方协议解码不因名称含 legacy 而删除。

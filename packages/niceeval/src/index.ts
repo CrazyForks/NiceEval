@@ -3,13 +3,10 @@
 
 export { defineEval, defineScoreEval, defineEvalGroup, defineConfig, defineExperiment } from "./define.ts";
 export { defineAdapter, defineAdapterContract } from "./adapter.ts";
-export { defineJudge } from "./assertions/judge.ts";
 export type { JudgeAnchor, JudgeDefinition, JudgeOptions } from "./assertions/judge.ts";
-export { defineScoreMatch } from "./assertions/match.ts";
 export type { ManagedScoreMatchOptions, ScoreMatch, ScoreMatchAnchor, ScoreMatchContext, ScoreMatchLlmFailure, ScoreMatchResult } from "./assertions/match.ts";
 export type { AssertionEntryId } from "./assertions/identity.ts";
 export {
-  readScoreMatchAudit,
   type ScoreMatchAudit,
   type ScoreMatchAuditV3,
   type ScoreMatchAuditImageContent,
@@ -34,7 +31,6 @@ export type {
   PostRunBooleanAssertionHandle,
 } from "./assertions/api.ts";
 
-export { requireEnv, getEnv, stripComments } from "./util.ts";
 
 // 执行失败分类:抛出点糖衣类(声明死因波及多远)+ 结构守卫。判据、分类链与止损语义见
 // docs/feature/error-classification/README.md;`niceeval/adapter` 复导出同一份词表类型。
@@ -132,7 +128,6 @@ export type {
 } from "./adapter.ts";
 export type { ParsedTranscript } from "./o11y/parsers/index.ts";
 
-export { factuality, faithfulness, instructionFollowing, pairwisePreference } from "./assertions/judge-presets.ts";
 export type { JudgePresetOptions, FactualityMaterial, FaithfulnessMaterial, InstructionFollowingMaterial, PairwisePreferenceMaterial } from "./assertions/judge-presets.ts";
 export type { JudgeProvider, JudgeSelection } from "./judge/index.ts";
 export { MigrationRequiredError, type MigrationOccurrence, type ErrorSource } from "./error-assistance/index.ts";
@@ -154,7 +149,6 @@ export type {
   TraceJson,
 } from "./adapter-execution-trace.ts";
 
-export { defineMaterialMatch, defineContextMatch } from "./assertions/context-match.ts";
 export type { MaterialMatch, ContextBooleanMatch, ContextScoreMatch, MatchContext, ReadonlyMaterial, MatchFact, MaterialCollection, MaterialItem, MaterialCaptureBudget, FactCaptureBudget } from "./assertions/context-match.ts";
 
 export type { AttemptUsageSnapshot, AdapterAttemptUsageSnapshot } from "./o11y/adapter-usage-projection.ts";

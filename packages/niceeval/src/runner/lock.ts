@@ -14,8 +14,6 @@ export interface CaseLockRecord extends FencedOwner {
 }
 
 export const CASE_LOCK_HEARTBEAT_INTERVAL_MS = 10_000;
-/** Retained for source compatibility; elapsed time never authorizes takeover. */
-export const CASE_LOCK_EXPIRY_MS = 30_000;
 
 function caseId(experimentId: string, evalId: string): string {
   return JSON.stringify([experimentId, evalId]);

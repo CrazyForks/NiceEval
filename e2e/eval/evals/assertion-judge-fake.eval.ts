@@ -1,4 +1,5 @@
-import { defineAdapter, defineJudge } from "niceeval";
+import { defineAdapter } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const judging = defineJudge({
   name: "niceeval.e2e.marker-quality/v1",

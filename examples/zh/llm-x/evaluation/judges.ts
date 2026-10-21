@@ -1,4 +1,4 @@
-import { defineJudge, instructionFollowing } from "niceeval";
+import { defineJudge, instructionFollowing } from "niceeval/expect";
 
 export const discoveryRelevance = defineJudge({
   name: "discovery-relevance",

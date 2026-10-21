@@ -1,7 +1,7 @@
 // Regression note: memory/tsx-dynamic-import-require-cycle.md
 
 import { createE2EContext } from "@niceeval/testkit";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { expect, test } from "vitest";
@@ -57,6 +57,7 @@ const e2e = createE2EContext({
   },
   commands: {
     niceeval: [join(process.cwd(), "node_modules", ".bin", "niceeval")],
+    tsc: [join(process.cwd(), "node_modules", ".bin", "tsc")],
   },
 });
 // @feature docs/feature/eval/README.md
@@ -69,6 +70,34 @@ test("pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 C
     expect(dependencies?.["@niceeval/testkit"], `package.json ${field}`).toBeUndefined();
   }
   expect(existsSync(join(installedRoot, "packages", "testkit")), "候选包不得携带 packages/testkit").toBe(false);
+
+  const rootEntry = await import("niceeval");
+  const expectEntry = await import("niceeval/expect");
+  const inspectionEntry = await import("niceeval/inspection");
+  const sandboxEntry = await import("niceeval/sandbox");
+  const publicRequire = createRequire(import.meta.url);
+  const rootCommonjs = publicRequire("niceeval");
+  const expectCommonjs = publicRequire("niceeval/expect");
+  for (const name of ["defineJudge", "defineScoreMatch", "defineMaterialMatch", "defineContextMatch",
+    "factuality", "faithfulness", "instructionFollowing", "pairwisePreference"] as const) {
+    expect(typeof expectEntry[name], name).toBe("function");
+    expect(expectEntry[name], `ESM/CJS matcher identity: ${name}`).toBe(expectCommonjs[name]);
+    expect(Object.hasOwn(rootEntry, name), `root alias: ${name}`).toBe(false);
+    expect(Object.hasOwn(rootCommonjs, name), `CommonJS root alias: ${name}`).toBe(false);
+  }
+  for (const name of ["requireEnv", "getEnv", "stripComments", "readScoreMatchAudit"]) {
+    expect(Object.hasOwn(rootEntry, name), name).toBe(false);
+    expect(Object.hasOwn(rootCommonjs, name), name).toBe(false);
+  }
+  expect(typeof inspectionEntry.readScoreMatchAudit).toBe("function");
+  for (const value of [undefined, {}, { manifest: { schemaVersion: 999 } }]) {
+    expect(inspectionEntry.readScoreMatchAudit(value)).toEqual(
+      publicRequire("niceeval/inspection").readScoreMatchAudit(value),
+    );
+  }
+  expect(inspectionEntry.readScoreMatchAudit({})).toEqual({ state: "invalid" });
+  expect(typeof sandboxEntry.resolveDockerProfile).toBe("function");
+  expect(Object.hasOwn(sandboxEntry, "resolveDockerProfileAlias")).toBe(false);
 
   const labels = ["niceeval/eval/host", "niceeval/project/host"] as const;
   const esm = await Promise.allSettled(labels.map((specifier) => import(specifier)));
@@ -125,7 +154,19 @@ test("pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 C
     "niceeval/project/ProjectProcessFacts",
   ]);
 
-  await e2e.case("commonjs-init-list", async ({ commands: { niceeval }, paths }) => {
+  await e2e.case("commonjs-init-list", async ({ commands: { niceeval, tsc }, paths }) => {
+    for (const extension of ["mts", "cts"]) {
+      writeFileSync(join(paths.projectRoot, `public-surface.${extension}`), `
+        import { defineScoreEval, type ScoreMatch } from "niceeval";
+        import { defineScoreMatch, defineJudge, defineMaterialMatch, defineContextMatch } from "niceeval/expect";
+        import { readScoreMatchAudit } from "niceeval/inspection";
+        const score: ScoreMatch<number> = defineScoreMatch({ name: "fraction", score: (value: number) => value });
+        void [defineScoreEval, defineJudge, defineMaterialMatch, defineContextMatch, readScoreMatchAudit, score];
+      `);
+    }
+    const declarations = await tsc.run(["--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022",
+      "--module", "NodeNext", "public-surface.mts", "public-surface.cts"]);
+    expect(declarations.exitCode, declarations.diagnostic()).toBe(0);
     const version = await niceeval.run(["--version"]);
     expect(version.exitCode, version.diagnostic()).toBe(0);
     expect(version.stdout.trim()).toBe(packageJson.version);

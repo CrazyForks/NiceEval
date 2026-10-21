@@ -100,7 +100,8 @@ export default defineEval({
 “回答是否有依据”“语气是否适合小学生”这类问题，正则写不出来。把它交给裁判模型 Judge 打分：
 
 ```ts
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const grounded = defineJudge({
   name: "grounded-answer",

@@ -1,4 +1,5 @@
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const judging = defineJudge({
   name: "marker-unavailable",

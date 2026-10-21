@@ -26,7 +26,8 @@ This eval checks that a weather assistant actually calls `get_weather` when aske
 
 ```ts
 // evals/weather-tool.eval.ts
-import { defineEval, defineJudge } from "niceeval";
+import { defineEval } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { includes } from "niceeval/expect";
 
 const groundedAnswer = defineJudge({

@@ -421,8 +421,6 @@ export function resolveDockerProfile(
   });
 }
 
-export const resolveDockerProfileAlias = resolveDockerProfile;
-
 /** detached 读面可显式按 alias 或 stable ID 查找；两者同时命中不同 descriptor 时拒绝猜测。 */
 // @concord-code ne-sandbox-docker-profile-select
 // @concord-implements docs/feature/sandbox-docker-profiles/library.md

@@ -1,5 +1,5 @@
 import { OpenAIProvider } from "niceeval/judge";
-import { defineJudge } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 import { nativeReuse } from "../applications/native-reuse.ts";
 
 const quality = defineJudge({ name: "reuse-quality", rubric: "The value is 42." });

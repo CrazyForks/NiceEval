@@ -1,5 +1,6 @@
 import { Effect } from "effect";
-import { defineAdapter, defineScoreMatch } from "niceeval";
+import { defineAdapter } from "niceeval";
+import { defineScoreMatch } from "niceeval/expect";
 
 export const managedFailureApp = defineAdapter({ name: "managed-failure-app", create: () => ({ output: () => "answer" }) });
 const recovering = defineScoreMatch<string>({

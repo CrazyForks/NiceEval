@@ -12,7 +12,7 @@ Judge 用独立裁判模型评估事实一致性、摘要忠实度和说明质�
 在模块顶层写出标准。`rubric` 说明评价维度，`anchors` 给连续质量量尺提供可校准的落点：
 
 ```ts
-import { defineJudge } from "niceeval";
+import { defineJudge } from "niceeval/expect";
 
 const explainsRisk = defineJudge({
   name: "explains-risk",
