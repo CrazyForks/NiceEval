@@ -105,6 +105,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
     ...predecessors,
     { ...predecessors[0], version: "0.15-hooks" },
     { ...predecessors[0], version: "0.17" },
+    { ...predecessors[0], version: "0.18" },
     { ...predecessors[0], version: "0.17-nohooks" },
   ]) {
     await e2e.case(
@@ -181,7 +182,11 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
                 adapter: experiment.adapter,
                 model: experiment.context.model,
                 reasoningEffort: null,
-                flags: experiment.context.flags,
+                flags: predecessor.version === "0.18" ? {
+                  application: experiment.context.flags.application,
+                  agentId: experiment.context.flags.agentId,
+                  nestedApplication: "agentId",
+                } : experiment.context.flags,
               },
               labels: experiment.context.labels,
             },
@@ -192,7 +197,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
               attempt: expect.objectContaining({ originRunId: historicalSummary.runId }),
             }),
           ]);
-          if (predecessor.version === "0.15-hooks" || predecessor.version === "0.17") {
+          if (predecessor.version === "0.15-hooks" || predecessor.version === "0.17" || predecessor.version === "0.18") {
             expect(historicalDocument.run.value.context?.execution.experimentHooks).toEqual({
               version: 1, setup: "absent", teardown: "absent",
             });

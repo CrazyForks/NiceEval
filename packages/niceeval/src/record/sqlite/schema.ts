@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { RECORD_SQLITE_BASELINE_SQL } from "./current-schema.ts";
+import { RECORD_SQLITE_018_BASELINE_SQL } from "./legacy-schema-018.ts";
 import { RECORD_SQLITE_017_BASELINE_SQL } from "./legacy-schema-017.ts";
 
 export { RECORD_SQLITE_BASELINE_SQL } from "./current-schema.ts";
@@ -522,7 +523,7 @@ export const RECORD_SQLITE_017_TABLE_NAMES = Object.freeze([
 export const RECORD_SQLITE_SCHEMA_SQL = RECORD_SQLITE_BASELINE_SQL;
 
 export const RECORD_SQLITE_BASELINE_FINGERPRINT = createHash("sha256")
-  .update("niceeval.project-database.bootstrap/0.18\0")
+  .update("niceeval.project-database.bootstrap/0.19\0")
   .update(RECORD_SQLITE_BASELINE_SQL)
   .digest("hex");
 
@@ -541,3 +542,10 @@ export const RECORD_SQLITE_LEGACY_FINGERPRINTS = Object.freeze({
     .update(RECORD_SQLITE_LEGACY_BASELINE_SQL)
     .digest("hex"),
 });
+
+export { RECORD_SQLITE_018_BASELINE_SQL } from "./legacy-schema-018.ts";
+export const RECORD_SQLITE_018_TABLE_NAMES = Object.freeze(RECORD_SQLITE_017_TABLE_NAMES.map((table) => table.replace(/^ne_/u, "ne18_")));
+export const RECORD_SQLITE_018_FINGERPRINT = createHash("sha256")
+  .update("niceeval.project-database.bootstrap/0.18\0")
+  .update(RECORD_SQLITE_018_BASELINE_SQL)
+  .digest("hex");

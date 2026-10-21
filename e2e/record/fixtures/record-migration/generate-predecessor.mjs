@@ -13,9 +13,9 @@ const args = Object.fromEntries(process.argv.slice(2).map((value, index, values)
 const sourceVersion = args["--source"];
 const candidateArgument = args["--candidate"];
 const outputArgument = args["--out"];
-if ((sourceVersion !== "0.15" && sourceVersion !== "0.16" && sourceVersion !== "0.17") ||
+if ((sourceVersion !== "0.15" && sourceVersion !== "0.16" && sourceVersion !== "0.17" && sourceVersion !== "0.18") ||
     typeof candidateArgument !== "string" || typeof outputArgument !== "string") {
-  throw new Error("usage: node generate-predecessor.mjs --source 0.15|0.16|0.17 --candidate <tgz> --out <new-bundle-dir>");
+  throw new Error("usage: node generate-predecessor.mjs --source 0.15|0.16|0.17|0.18 --candidate <tgz> --out <new-bundle-dir>");
 }
 
 const candidate = resolve(candidateArgument);

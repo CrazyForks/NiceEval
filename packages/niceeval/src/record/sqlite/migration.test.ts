@@ -12,7 +12,7 @@ import { closeRecordDatabase, openRecordReader } from "./database.ts";
 import { exactLogicalSealIdentity, runSealEntry } from "./seal.ts";
 import type { SealEntry } from "./types.ts";
 
-type HistoricalFixture = "0.15" | "0.16" | "0.17" | "0.15-hooks" | "0.17-nohooks";
+type HistoricalFixture = "0.15" | "0.16" | "0.17" | "0.18" | "0.15-hooks" | "0.17-nohooks";
 
 async function withHistoricalDatabase(version: HistoricalFixture, body: (path: string) => Promise<void>) {
   const root = await mkdtemp(join(tmpdir(), "niceeval-migration-fence-"));
@@ -92,7 +92,7 @@ it.each(["0.15", "0.16", "0.17"] as const)("fences a %s idle connection without 
       expect(() => old.prepare(`INSERT INTO ${prefix}coordination_tickets(ticket_id) VALUES ('stale')`).run()).toThrow();
       const current = openRecordReader(path);
       try {
-        expect(current.db.prepare("SELECT created_at FROM ne18_record_metadata WHERE singleton=1").get()?.created_at)
+        expect(current.db.prepare("SELECT created_at FROM ne19_record_metadata WHERE singleton=1").get()?.created_at)
           .not.toBe("stale-writer");
       } finally {
         closeRecordDatabase(current);
@@ -118,9 +118,9 @@ it.each(["0.16", "0.17"] as const)("preserves a committed migration from %s unde
 
       const committed = new DatabaseSync(path, { readOnly: true });
       try {
-        expect(committed.prepare("SELECT format FROM ne18_record_metadata WHERE singleton=1").get()?.format)
-          .toBe("niceeval.project-database/0.18");
-        expect(committed.prepare("SELECT state FROM ne18_migration_state WHERE singleton=1").get()?.state)
+        expect(committed.prepare("SELECT format FROM ne19_record_metadata WHERE singleton=1").get()?.format)
+          .toBe("niceeval.project-database/0.19");
+        expect(committed.prepare("SELECT state FROM ne19_migration_state WHERE singleton=1").get()?.state)
           .toBe("committed");
       } finally {
         committed.close();
@@ -134,9 +134,9 @@ it.each(["0.16", "0.17"] as const)("preserves a committed migration from %s unde
       await expect(migrateHostOwnedProjectDatabase(path, 0)).resolves.toBe("current");
       const current = openRecordReader(path);
       try {
-        expect(current.db.prepare("SELECT state FROM ne18_migration_state WHERE singleton=1").get()?.state)
+        expect(current.db.prepare("SELECT state FROM ne19_migration_state WHERE singleton=1").get()?.state)
           .toBe("ready");
-        expect(current.db.prepare("SELECT created_at FROM ne18_record_metadata WHERE singleton=1").get()?.created_at)
+        expect(current.db.prepare("SELECT created_at FROM ne19_record_metadata WHERE singleton=1").get()?.created_at)
           .not.toBe("stale-snapshot");
       } finally {
         closeRecordDatabase(current);
@@ -179,7 +179,7 @@ it("rejects a corrupted but valid historical Run payload and rolls back schema c
     try {
       expect(preserved.prepare("SELECT format FROM record_metadata WHERE singleton=1").get()?.format)
         .toBe("niceeval.project-database/0.15");
-      expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name='ne18_record_metadata'").get()).toBeUndefined();
+      expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name='ne19_record_metadata'").get()).toBeUndefined();
     } finally {
       preserved.close();
     }
@@ -243,11 +243,11 @@ it("preserves exact 0.17 Core, closure, digest, and Seal bytes while replacing e
 
     const current = new DatabaseSync(path, { readOnly: true });
     try {
-      expect(current.prepare("SELECT run_id,core_payload,core_digest,logical_seal_identity FROM ne18_runs").get()).toEqual(run);
-      expect(current.prepare("SELECT * FROM ne18_attempt_publications").get()).toEqual(closure);
-      expect(current.prepare("SELECT * FROM ne18_run_slot_bindings ORDER BY target_run_id,slot_id").all()).toEqual(bindings);
-      expect(current.prepare("SELECT * FROM ne18_attachment_references ORDER BY attachment_id,ordinal").all()).toEqual(references);
-      expect(current.prepare("SELECT ordinal,entry_kind,logical_identity,digest FROM ne18_run_seal_entries ORDER BY ordinal").all()).toEqual(seal);
+      expect(current.prepare("SELECT run_id,core_payload,core_digest,logical_seal_identity FROM ne19_runs").get()).toEqual(run);
+      expect(current.prepare("SELECT * FROM ne19_attempt_publications").get()).toEqual(closure);
+      expect(current.prepare("SELECT * FROM ne19_run_slot_bindings ORDER BY target_run_id,slot_id").all()).toEqual(bindings);
+      expect(current.prepare("SELECT * FROM ne19_attachment_references ORDER BY attachment_id,ordinal").all()).toEqual(references);
+      expect(current.prepare("SELECT ordinal,entry_kind,logical_identity,digest FROM ne19_run_seal_entries ORDER BY ordinal").all()).toEqual(seal);
       expect(current.prepare("SELECT name FROM sqlite_schema WHERE name GLOB 'ne_*'").all()).toEqual([]);
     } finally {
       current.close();
@@ -273,7 +273,7 @@ it.each([
     try {
       expect(preserved.prepare("SELECT format FROM ne_record_metadata WHERE singleton=1").get()?.format)
         .toBe("niceeval.project-database/0.17");
-      expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name='ne18_record_metadata'").get()).toBeUndefined();
+      expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name='ne19_record_metadata'").get()).toBeUndefined();
     } finally {
       preserved.close();
     }
@@ -327,4 +327,64 @@ it("keeps legal opaque hooks in 0.15/0.16 migration and exactly rejects invalid 
       }
     });
   }
+});
+
+it.each(["existing", "missing"] as const)("migrates exact 0.18 rows with %s resources without changing publication", async (resources) => {
+  const { RECORD_SQLITE_018_TABLE_NAMES } = await import("./schema.ts");
+  const { findExperimentRunIds } = await import("./storage.ts");
+  await withHistoricalDatabase("0.18", async (path) => {
+    if (resources === "missing") {
+      // Historical generic Record writes may have Core without Run publication resources.
+      const input = new DatabaseSync(path);
+      input.exec(`DELETE FROM ne18_run_slot_bindings; DELETE FROM ne18_run_slot_absences;
+        DELETE FROM ne18_run_recoveries; DELETE FROM ne18_attempt_publications;
+        DELETE FROM ne18_run_expected_slots; DELETE FROM ne18_invocation_session_experiments;
+        DELETE FROM ne18_run_resources`);
+      input.close();
+    }
+    const before = new DatabaseSync(path, { readOnly: true, readBigInts: true });
+    const snapshot = new Map(RECORD_SQLITE_018_TABLE_NAMES.map((table) => [table, before.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]));
+    const inode = (await stat(path)).ino;
+    before.close();
+    expect(await migrateHostOwnedProjectDatabase(path)).toBe("migrated");
+    expect((await stat(path)).ino).toBe(inode);
+    const current = openRecordReader(path);
+    try {
+      for (const [table, expected] of snapshot) {
+        if (table === "ne18_record_metadata" || table === "ne18_migration_state") continue;
+        const actual = current.db.prepare(`SELECT * FROM ${table.replace(/^ne18_/u, "ne19_")} ORDER BY rowid`).all();
+        if (table === "ne18_runs") {
+          for (const row of actual) {
+            expect(row.experiment_id).toBe(JSON.parse(Buffer.from(row.core_payload as Uint8Array).toString("utf8")).experimentId);
+            expect(findExperimentRunIds(current, String(row.experiment_id))).toContain(row.run_id);
+            delete row.experiment_id;
+          }
+        }
+        expect(actual, table).toEqual(expected);
+      }
+      const plan = current.db.prepare("EXPLAIN QUERY PLAN SELECT run_id FROM ne19_runs WHERE experiment_id=? ORDER BY run_id").all("migration-agent");
+      expect(plan.some((row) => String(row.detail).includes("ne19_runs_experiment"))).toBe(true);
+      expect(current.db.prepare("SELECT name FROM sqlite_schema WHERE name LIKE 'ne18_%'").all()).toEqual([]);
+    } finally { closeRecordDatabase(current); }
+    expect(await migrateHostOwnedProjectDatabase(path)).toBe("current");
+    const backup = new DatabaseSync(projectDatabaseMigrationBackupPath(path, "niceeval.project-database/0.18"), { readOnly: true, readBigInts: true });
+    try { expect(backup.prepare("SELECT * FROM ne18_runs ORDER BY rowid").all()).toEqual(snapshot.get("ne18_runs")); }
+    finally { backup.close(); }
+  });
+});
+
+it("rejects a 0.18 resource whose Experiment differs from its validated Run Core", async () => {
+  await withHistoricalDatabase("0.18", async (path) => {
+    const original = new DatabaseSync(path);
+    const changed = original.prepare(`UPDATE ne18_run_resources SET experiment_id='wrong-experiment'
+      WHERE run_id=(SELECT r.run_id FROM ne18_runs r JOIN ne18_run_resources resource USING(run_id) LIMIT 1)`).run();
+    expect(Number(changed.changes)).toBe(1);
+    original.close();
+    const bytes = await readFile(path);
+    await expect(migrateHostOwnedProjectDatabase(path)).rejects.toThrow("experimentId differs from its resource");
+    expect(await readFile(path)).toEqual(bytes);
+    const preserved = new DatabaseSync(path, { readOnly: true });
+    try { expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name LIKE 'ne19_%'").all()).toEqual([]); }
+    finally { preserved.close(); }
+  });
 });

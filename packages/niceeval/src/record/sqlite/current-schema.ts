@@ -1,10 +1,10 @@
 /**
- * Exact current ProjectDatabase 0.18 schema, independent of frozen historical
+ * Exact current ProjectDatabase 0.19 schema, independent of frozen historical
  * baselines. Keep these bytes stable within this format: they own its fingerprint.
- * The disjoint namespace fences writers prepared against the 0.17 tables.
+ * The disjoint namespace fences writers prepared against the 0.18 tables.
  */
 export const RECORD_SQLITE_BASELINE_SQL = `
-CREATE TABLE ne18_record_metadata (
+CREATE TABLE ne19_record_metadata (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   format TEXT NOT NULL,
   storage_revision INTEGER NOT NULL CHECK (storage_revision > 0),
@@ -23,7 +23,7 @@ CREATE TABLE ne18_record_metadata (
   CHECK ((barrier_state = 'portable') = (portable_revision IS NOT NULL)),
   CHECK ((barrier_state = 'open') = (portable_gate_id IS NULL))
 ) STRICT;
-CREATE TABLE ne18_coordination_state (
+CREATE TABLE ne19_coordination_state (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   revision INTEGER NOT NULL CHECK (revision >= 0),
   operational_generation TEXT NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE ne18_coordination_state (
     (barrier_status = 'active' AND barrier_active_at IS NOT NULL)
   )
 ) STRICT;
-CREATE TABLE ne18_coordination_tickets (
+CREATE TABLE ne19_coordination_tickets (
   ticket_id TEXT PRIMARY KEY,
   sequence INTEGER NOT NULL UNIQUE CHECK (sequence > 0),
   host TEXT NOT NULL,
@@ -85,8 +85,9 @@ CREATE TABLE ne18_coordination_tickets (
   deadline INTEGER NOT NULL CHECK (deadline > 0),
   enqueued_at INTEGER NOT NULL CHECK (enqueued_at > 0)
 ) STRICT;
-CREATE TABLE ne18_runs (
+CREATE TABLE ne19_runs (
   run_id TEXT PRIMARY KEY,
+  experiment_id TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('open','sealing','sealed')),
   writer_generation TEXT NOT NULL,
   started_at TEXT NOT NULL,
@@ -105,8 +106,8 @@ CREATE TABLE ne18_runs (
   CHECK ((status = 'sealed') = (logical_seal_identity IS NOT NULL)),
   CHECK (status = 'open' OR core_payload IS NOT NULL)
 ) STRICT;
-CREATE TABLE ne18_slots (
-  run_id TEXT NOT NULL REFERENCES ne18_runs(run_id) ON DELETE CASCADE,
+CREATE TABLE ne19_slots (
+  run_id TEXT NOT NULL REFERENCES ne19_runs(run_id) ON DELETE CASCADE,
   slot_id TEXT NOT NULL,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   core_payload BLOB NOT NULL,
@@ -114,8 +115,8 @@ CREATE TABLE ne18_slots (
   PRIMARY KEY (run_id, slot_id),
   UNIQUE (run_id, ordinal)
 ) STRICT;
-CREATE TABLE ne18_attempts (
-  origin_run_id TEXT NOT NULL REFERENCES ne18_runs(run_id) ON DELETE CASCADE,
+CREATE TABLE ne19_attempts (
+  origin_run_id TEXT NOT NULL REFERENCES ne19_runs(run_id) ON DELETE CASCADE,
   attempt_id TEXT NOT NULL,
   attempt_locator TEXT NOT NULL CHECK (length(attempt_locator) = 14 AND substr(attempt_locator,1,2) = '@1'),
   publication_state TEXT NOT NULL DEFAULT 'staging' CHECK (publication_state IN ('staging','sealing','published')),
@@ -124,7 +125,7 @@ CREATE TABLE ne18_attempts (
   CHECK ((core_payload IS NULL) = (core_digest IS NULL)),
   PRIMARY KEY (origin_run_id, attempt_id)
 ) STRICT;
-CREATE TABLE ne18_members (
+CREATE TABLE ne19_members (
   target_run_id TEXT NOT NULL,
   slot_id TEXT NOT NULL,
   origin_run_id TEXT,
@@ -137,12 +138,12 @@ CREATE TABLE ne18_members (
     (action IN ('executed','carried','accepted') AND origin_run_id IS NOT NULL AND attempt_id IS NOT NULL) OR
     (action IN ('not-dispatched','interrupted') AND origin_run_id IS NULL AND attempt_id IS NULL)
   ),
-  FOREIGN KEY (target_run_id, slot_id) REFERENCES ne18_slots(run_id, slot_id) ON DELETE CASCADE
+  FOREIGN KEY (target_run_id, slot_id) REFERENCES ne19_slots(run_id, slot_id) ON DELETE CASCADE
 ) STRICT;
-CREATE TABLE ne18_attachments (
+CREATE TABLE ne19_attachments (
   attachment_id TEXT PRIMARY KEY,
   owner_kind TEXT NOT NULL CHECK (owner_kind IN ('run','attempt')),
-  owner_run_id TEXT NOT NULL REFERENCES ne18_runs(run_id) ON DELETE CASCADE,
+  owner_run_id TEXT NOT NULL REFERENCES ne19_runs(run_id) ON DELETE CASCADE,
   owner_attempt_id TEXT,
   family TEXT NOT NULL,
   family_revision INTEGER NOT NULL CHECK (family_revision > 0),
@@ -155,10 +156,10 @@ CREATE TABLE ne18_attachments (
   CHECK ((logical_inventory IS NULL) = (inventory_digest IS NULL)),
   CHECK ((owner_kind = 'run' AND owner_attempt_id IS NULL) OR (owner_kind = 'attempt' AND owner_attempt_id IS NOT NULL)),
   UNIQUE (owner_kind, owner_run_id, owner_attempt_id, family),
-  FOREIGN KEY (owner_run_id, owner_attempt_id) REFERENCES ne18_attempts(origin_run_id, attempt_id) ON DELETE CASCADE
+  FOREIGN KEY (owner_run_id, owner_attempt_id) REFERENCES ne19_attempts(origin_run_id, attempt_id) ON DELETE CASCADE
 ) STRICT;
-CREATE TABLE ne18_attachment_references (
-  attachment_id TEXT NOT NULL REFERENCES ne18_attachments(attachment_id) ON DELETE CASCADE,
+CREATE TABLE ne19_attachment_references (
+  attachment_id TEXT NOT NULL REFERENCES ne19_attachments(attachment_id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   target_owner_kind TEXT NOT NULL CHECK (target_owner_kind IN ('run','attempt')),
   target_family TEXT NOT NULL,
@@ -166,8 +167,8 @@ CREATE TABLE ne18_attachment_references (
   reference_digest TEXT NOT NULL CHECK (length(reference_digest) = 64),
   PRIMARY KEY (attachment_id, ordinal)
 ) STRICT;
-CREATE TABLE ne18_collection_items (
-  attachment_id TEXT NOT NULL REFERENCES ne18_attachments(attachment_id) ON DELETE CASCADE,
+CREATE TABLE ne19_collection_items (
+  attachment_id TEXT NOT NULL REFERENCES ne19_attachments(attachment_id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   logical_identity TEXT NOT NULL,
   canonical_payload BLOB NOT NULL,
@@ -175,9 +176,9 @@ CREATE TABLE ne18_collection_items (
   PRIMARY KEY (attachment_id, ordinal),
   UNIQUE (attachment_id, logical_identity)
 ) STRICT;
-CREATE TABLE ne18_contents (
+CREATE TABLE ne19_contents (
   content_id TEXT PRIMARY KEY,
-  attachment_id TEXT NOT NULL REFERENCES ne18_attachments(attachment_id) ON DELETE CASCADE,
+  attachment_id TEXT NOT NULL REFERENCES ne19_attachments(attachment_id) ON DELETE CASCADE,
   logical_handle TEXT NOT NULL,
   byte_length INTEGER CHECK (byte_length IS NULL OR byte_length >= 0),
   overall_digest TEXT CHECK (overall_digest IS NULL OR length(overall_digest) = 64),
@@ -185,15 +186,15 @@ CREATE TABLE ne18_contents (
   CHECK ((byte_length IS NULL) = (overall_digest IS NULL) AND (overall_digest IS NULL) = (chunk_count IS NULL)),
   UNIQUE (attachment_id, logical_handle)
 ) STRICT;
-CREATE TABLE ne18_content_chunks (
-  content_id TEXT NOT NULL REFERENCES ne18_contents(content_id) ON DELETE CASCADE,
+CREATE TABLE ne19_content_chunks (
+  content_id TEXT NOT NULL REFERENCES ne19_contents(content_id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   bytes BLOB NOT NULL CHECK (length(bytes) <= 262144),
   chunk_digest TEXT NOT NULL CHECK (length(chunk_digest) = 64),
   PRIMARY KEY (content_id, ordinal)
 ) STRICT;
-CREATE TABLE ne18_run_seal_entries (
-  run_id TEXT NOT NULL REFERENCES ne18_runs(run_id) ON DELETE CASCADE,
+CREATE TABLE ne19_run_seal_entries (
+  run_id TEXT NOT NULL REFERENCES ne19_runs(run_id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   entry_kind TEXT NOT NULL CHECK (entry_kind IN ('record','run','slot','member','attempt','attachment','attachment-reference','collection-item','content','content-chunk')),
   logical_identity TEXT NOT NULL,
@@ -201,54 +202,54 @@ CREATE TABLE ne18_run_seal_entries (
   PRIMARY KEY (run_id, ordinal),
   UNIQUE (run_id, entry_kind, logical_identity)
 ) STRICT;
-CREATE INDEX ne18_attachments_owner_family ON ne18_attachments(owner_kind, owner_run_id, owner_attempt_id, family);
-CREATE UNIQUE INDEX ne18_attachments_owner_family_unique ON ne18_attachments(owner_kind, owner_run_id, coalesce(owner_attempt_id,''), family);
-CREATE INDEX ne18_members_origin_attempt ON ne18_members(origin_run_id, attempt_id, target_run_id);
-CREATE INDEX ne18_attempts_locator ON ne18_attempts(attempt_locator, origin_run_id, attempt_id);
-CREATE INDEX ne18_references_target_family ON ne18_attachment_references(target_owner_kind, target_family);
-CREATE INDEX ne18_content_chunks_page ON ne18_content_chunks(content_id, ordinal);
-CREATE INDEX ne18_coordination_tickets_fifo ON ne18_coordination_tickets(sequence);
-CREATE TRIGGER ne18_coordination_ticket_barrier_insert BEFORE INSERT ON ne18_coordination_tickets WHEN (SELECT barrier_state FROM ne18_record_metadata WHERE singleton=1)!='open' BEGIN SELECT RAISE(ABORT, 'ProjectDatabase writer barrier is not open'); END;
-CREATE TRIGGER ne18_coordination_writer_barrier_update BEFORE UPDATE ON ne18_coordination_state WHEN NEW.writer_ticket_id IS NOT NULL AND (SELECT barrier_state FROM ne18_record_metadata WHERE singleton=1)!='open' BEGIN SELECT RAISE(ABORT, 'ProjectDatabase writer barrier is not open'); END;
-CREATE TRIGGER ne18_runs_sealed_update BEFORE UPDATE ON ne18_runs WHEN OLD.status = 'sealed' BEGIN SELECT RAISE(ABORT, 'sealed run is immutable'); END;
-CREATE TRIGGER ne18_runs_sealed_delete BEFORE DELETE ON ne18_runs WHEN OLD.status = 'sealed' BEGIN SELECT RAISE(ABORT, 'sealed run is immutable'); END;
-CREATE TRIGGER ne18_slots_sealed_insert BEFORE INSERT ON ne18_slots WHEN (SELECT status FROM ne18_runs WHERE run_id = NEW.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_slots_sealed_update BEFORE UPDATE ON ne18_slots WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_slots_sealed_delete BEFORE DELETE ON ne18_slots WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attempts_sealed_insert BEFORE INSERT ON ne18_attempts WHEN (SELECT status FROM ne18_runs WHERE run_id = NEW.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attempts_sealed_update BEFORE UPDATE ON ne18_attempts WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attempts_sealed_delete BEFORE DELETE ON ne18_attempts WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_members_sealed_insert BEFORE INSERT ON ne18_members WHEN (SELECT status FROM ne18_runs WHERE run_id = NEW.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_members_sealed_update BEFORE UPDATE ON ne18_members WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_members_sealed_delete BEFORE DELETE ON ne18_members WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attachments_sealed_insert BEFORE INSERT ON ne18_attachments WHEN (SELECT status FROM ne18_runs WHERE run_id = NEW.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attachments_attempt_published_insert BEFORE INSERT ON ne18_attachments WHEN NEW.owner_kind='attempt' AND (SELECT publication_state FROM ne18_attempts WHERE origin_run_id=NEW.owner_run_id AND attempt_id=NEW.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
-CREATE TRIGGER ne18_attachments_sealed_update BEFORE UPDATE ON ne18_attachments WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attachments_attempt_published_update BEFORE UPDATE ON ne18_attachments WHEN OLD.owner_kind='attempt' AND (SELECT publication_state FROM ne18_attempts WHERE origin_run_id=OLD.owner_run_id AND attempt_id=OLD.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
-CREATE TRIGGER ne18_attachments_sealed_delete BEFORE DELETE ON ne18_attachments WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_attachments_attempt_published_delete BEFORE DELETE ON ne18_attachments WHEN OLD.owner_kind='attempt' AND (SELECT publication_state FROM ne18_attempts WHERE origin_run_id=OLD.owner_run_id AND attempt_id=OLD.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
-CREATE TRIGGER ne18_references_sealed_insert BEFORE INSERT ON ne18_attachment_references WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_references_sealed_update BEFORE UPDATE ON ne18_attachment_references WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_references_sealed_delete BEFORE DELETE ON ne18_attachment_references WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_items_sealed_insert BEFORE INSERT ON ne18_collection_items WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_items_sealed_update BEFORE UPDATE ON ne18_collection_items WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_items_sealed_delete BEFORE DELETE ON ne18_collection_items WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_contents_sealed_insert BEFORE INSERT ON ne18_contents WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_contents_sealed_update BEFORE UPDATE ON ne18_contents WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_contents_sealed_delete BEFORE DELETE ON ne18_contents WHEN (SELECT r.status FROM ne18_attachments a JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_chunks_sealed_insert BEFORE INSERT ON ne18_content_chunks WHEN (SELECT r.status FROM ne18_contents c JOIN ne18_attachments a ON a.attachment_id=c.attachment_id JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=NEW.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_chunks_sealed_update BEFORE UPDATE ON ne18_content_chunks WHEN (SELECT r.status FROM ne18_contents c JOIN ne18_attachments a ON a.attachment_id=c.attachment_id JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=OLD.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_chunks_sealed_delete BEFORE DELETE ON ne18_content_chunks WHEN (SELECT r.status FROM ne18_contents c JOIN ne18_attachments a ON a.attachment_id=c.attachment_id JOIN ne18_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=OLD.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
-CREATE TRIGGER ne18_seal_entries_sealed_insert BEFORE INSERT ON ne18_run_seal_entries WHEN (SELECT status FROM ne18_runs WHERE run_id = NEW.run_id) != 'sealing' BEGIN SELECT RAISE(ABORT, 'Seal candidates require sealing state'); END;
-CREATE TRIGGER ne18_seal_entries_sealed_update BEFORE UPDATE ON ne18_run_seal_entries BEGIN SELECT RAISE(ABORT, 'Seal entries are immutable'); END;
-CREATE TRIGGER ne18_seal_entries_sealed_delete BEFORE DELETE ON ne18_run_seal_entries WHEN (SELECT status FROM ne18_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'Seal entries are immutable'); END;
+CREATE INDEX ne19_attachments_owner_family ON ne19_attachments(owner_kind, owner_run_id, owner_attempt_id, family);
+CREATE UNIQUE INDEX ne19_attachments_owner_family_unique ON ne19_attachments(owner_kind, owner_run_id, coalesce(owner_attempt_id,''), family);
+CREATE INDEX ne19_members_origin_attempt ON ne19_members(origin_run_id, attempt_id, target_run_id);
+CREATE INDEX ne19_attempts_locator ON ne19_attempts(attempt_locator, origin_run_id, attempt_id);
+CREATE INDEX ne19_references_target_family ON ne19_attachment_references(target_owner_kind, target_family);
+CREATE INDEX ne19_content_chunks_page ON ne19_content_chunks(content_id, ordinal);
+CREATE INDEX ne19_coordination_tickets_fifo ON ne19_coordination_tickets(sequence);
+CREATE TRIGGER ne19_coordination_ticket_barrier_insert BEFORE INSERT ON ne19_coordination_tickets WHEN (SELECT barrier_state FROM ne19_record_metadata WHERE singleton=1)!='open' BEGIN SELECT RAISE(ABORT, 'ProjectDatabase writer barrier is not open'); END;
+CREATE TRIGGER ne19_coordination_writer_barrier_update BEFORE UPDATE ON ne19_coordination_state WHEN NEW.writer_ticket_id IS NOT NULL AND (SELECT barrier_state FROM ne19_record_metadata WHERE singleton=1)!='open' BEGIN SELECT RAISE(ABORT, 'ProjectDatabase writer barrier is not open'); END;
+CREATE TRIGGER ne19_runs_sealed_update BEFORE UPDATE ON ne19_runs WHEN OLD.status = 'sealed' BEGIN SELECT RAISE(ABORT, 'sealed run is immutable'); END;
+CREATE TRIGGER ne19_runs_sealed_delete BEFORE DELETE ON ne19_runs WHEN OLD.status = 'sealed' BEGIN SELECT RAISE(ABORT, 'sealed run is immutable'); END;
+CREATE TRIGGER ne19_slots_sealed_insert BEFORE INSERT ON ne19_slots WHEN (SELECT status FROM ne19_runs WHERE run_id = NEW.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_slots_sealed_update BEFORE UPDATE ON ne19_slots WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_slots_sealed_delete BEFORE DELETE ON ne19_slots WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attempts_sealed_insert BEFORE INSERT ON ne19_attempts WHEN (SELECT status FROM ne19_runs WHERE run_id = NEW.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attempts_sealed_update BEFORE UPDATE ON ne19_attempts WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attempts_sealed_delete BEFORE DELETE ON ne19_attempts WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.origin_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_members_sealed_insert BEFORE INSERT ON ne19_members WHEN (SELECT status FROM ne19_runs WHERE run_id = NEW.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_members_sealed_update BEFORE UPDATE ON ne19_members WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_members_sealed_delete BEFORE DELETE ON ne19_members WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.target_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attachments_sealed_insert BEFORE INSERT ON ne19_attachments WHEN (SELECT status FROM ne19_runs WHERE run_id = NEW.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attachments_attempt_published_insert BEFORE INSERT ON ne19_attachments WHEN NEW.owner_kind='attempt' AND (SELECT publication_state FROM ne19_attempts WHERE origin_run_id=NEW.owner_run_id AND attempt_id=NEW.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
+CREATE TRIGGER ne19_attachments_sealed_update BEFORE UPDATE ON ne19_attachments WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attachments_attempt_published_update BEFORE UPDATE ON ne19_attachments WHEN OLD.owner_kind='attempt' AND (SELECT publication_state FROM ne19_attempts WHERE origin_run_id=OLD.owner_run_id AND attempt_id=OLD.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
+CREATE TRIGGER ne19_attachments_sealed_delete BEFORE DELETE ON ne19_attachments WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.owner_run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_attachments_attempt_published_delete BEFORE DELETE ON ne19_attachments WHEN OLD.owner_kind='attempt' AND (SELECT publication_state FROM ne19_attempts WHERE origin_run_id=OLD.owner_run_id AND attempt_id=OLD.owner_attempt_id)='published' BEGIN SELECT RAISE(ABORT, 'published attempt is immutable'); END;
+CREATE TRIGGER ne19_references_sealed_insert BEFORE INSERT ON ne19_attachment_references WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_references_sealed_update BEFORE UPDATE ON ne19_attachment_references WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_references_sealed_delete BEFORE DELETE ON ne19_attachment_references WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_items_sealed_insert BEFORE INSERT ON ne19_collection_items WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_items_sealed_update BEFORE UPDATE ON ne19_collection_items WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_items_sealed_delete BEFORE DELETE ON ne19_collection_items WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_contents_sealed_insert BEFORE INSERT ON ne19_contents WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=NEW.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_contents_sealed_update BEFORE UPDATE ON ne19_contents WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_contents_sealed_delete BEFORE DELETE ON ne19_contents WHEN (SELECT r.status FROM ne19_attachments a JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE a.attachment_id=OLD.attachment_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_chunks_sealed_insert BEFORE INSERT ON ne19_content_chunks WHEN (SELECT r.status FROM ne19_contents c JOIN ne19_attachments a ON a.attachment_id=c.attachment_id JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=NEW.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_chunks_sealed_update BEFORE UPDATE ON ne19_content_chunks WHEN (SELECT r.status FROM ne19_contents c JOIN ne19_attachments a ON a.attachment_id=c.attachment_id JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=OLD.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_chunks_sealed_delete BEFORE DELETE ON ne19_content_chunks WHEN (SELECT r.status FROM ne19_contents c JOIN ne19_attachments a ON a.attachment_id=c.attachment_id JOIN ne19_runs r ON r.run_id=a.owner_run_id WHERE c.content_id=OLD.content_id) != 'open' BEGIN SELECT RAISE(ABORT, 'run closure is immutable'); END;
+CREATE TRIGGER ne19_seal_entries_sealed_insert BEFORE INSERT ON ne19_run_seal_entries WHEN (SELECT status FROM ne19_runs WHERE run_id = NEW.run_id) != 'sealing' BEGIN SELECT RAISE(ABORT, 'Seal candidates require sealing state'); END;
+CREATE TRIGGER ne19_seal_entries_sealed_update BEFORE UPDATE ON ne19_run_seal_entries BEGIN SELECT RAISE(ABORT, 'Seal entries are immutable'); END;
+CREATE TRIGGER ne19_seal_entries_sealed_delete BEFORE DELETE ON ne19_run_seal_entries WHEN (SELECT status FROM ne19_runs WHERE run_id = OLD.run_id) != 'open' BEGIN SELECT RAISE(ABORT, 'Seal entries are immutable'); END;
 
 
-CREATE TABLE ne18_run_publication_clock (
+CREATE TABLE ne19_run_publication_clock (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   revision INTEGER NOT NULL CHECK (revision >= 0)
 ) STRICT;
-CREATE TABLE ne18_run_resources (
+CREATE TABLE ne19_run_resources (
   run_id TEXT PRIMARY KEY,
   invocation_id TEXT NOT NULL,
   experiment_id TEXT NOT NULL,
@@ -262,8 +263,8 @@ CREATE TABLE ne18_run_resources (
   CHECK ((terminal_state IS NULL) = (completed_at IS NULL)),
   CHECK ((terminal_state IS NULL) = (close_revision IS NULL))
 ) STRICT;
-CREATE TABLE ne18_run_expected_slots (
-  run_id TEXT NOT NULL REFERENCES ne18_run_resources(run_id) ON DELETE RESTRICT,
+CREATE TABLE ne19_run_expected_slots (
+  run_id TEXT NOT NULL REFERENCES ne19_run_resources(run_id) ON DELETE RESTRICT,
   slot_id TEXT NOT NULL,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   eval_id TEXT NOT NULL,
@@ -272,7 +273,7 @@ CREATE TABLE ne18_run_expected_slots (
   PRIMARY KEY (run_id, slot_id),
   UNIQUE (run_id, ordinal)
 ) STRICT;
-CREATE TABLE ne18_attempt_publications (
+CREATE TABLE ne19_attempt_publications (
   attempt_id TEXT PRIMARY KEY,
   attempt_locator TEXT NOT NULL CHECK (length(attempt_locator) = 14 AND substr(attempt_locator,1,2) = '@1'),
   origin_run_id TEXT NOT NULL,
@@ -280,31 +281,31 @@ CREATE TABLE ne18_attempt_publications (
   closure_payload BLOB NOT NULL,
   closure_digest TEXT NOT NULL CHECK (length(closure_digest) = 64),
   published_revision INTEGER NOT NULL UNIQUE CHECK (published_revision > 0),
-  FOREIGN KEY (origin_run_id, origin_slot_id) REFERENCES ne18_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
+  FOREIGN KEY (origin_run_id, origin_slot_id) REFERENCES ne19_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
 ) STRICT;
-CREATE TABLE ne18_run_slot_bindings (
+CREATE TABLE ne19_run_slot_bindings (
   target_run_id TEXT NOT NULL,
   slot_id TEXT NOT NULL,
-  attempt_id TEXT NOT NULL REFERENCES ne18_attempt_publications(attempt_id) ON DELETE RESTRICT,
+  attempt_id TEXT NOT NULL REFERENCES ne19_attempt_publications(attempt_id) ON DELETE RESTRICT,
   origin_run_id TEXT NOT NULL,
   origin_slot_id TEXT NOT NULL,
   attempt_publication_revision INTEGER NOT NULL CHECK (attempt_publication_revision > 0),
   action TEXT NOT NULL CHECK (action IN ('executed','carried','accepted')),
   binding_revision INTEGER NOT NULL UNIQUE CHECK (binding_revision > 0),
   PRIMARY KEY (target_run_id, slot_id),
-  FOREIGN KEY (target_run_id, slot_id) REFERENCES ne18_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT,
-  FOREIGN KEY (origin_run_id, origin_slot_id) REFERENCES ne18_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
+  FOREIGN KEY (target_run_id, slot_id) REFERENCES ne19_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT,
+  FOREIGN KEY (origin_run_id, origin_slot_id) REFERENCES ne19_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
 ) STRICT;
-CREATE TABLE ne18_run_slot_absences (
+CREATE TABLE ne19_run_slot_absences (
   run_id TEXT NOT NULL,
   slot_id TEXT NOT NULL,
   reason TEXT NOT NULL CHECK (reason IN ('early-exit-satisfied','budget-exhausted','stopped-by-failure','interrupted-before-publication','dispatch-failed')),
   absence_revision INTEGER NOT NULL CHECK (absence_revision > 0),
   PRIMARY KEY (run_id, slot_id),
-  FOREIGN KEY (run_id, slot_id) REFERENCES ne18_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
+  FOREIGN KEY (run_id, slot_id) REFERENCES ne19_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
 ) STRICT;
-CREATE TABLE ne18_run_recoveries (
-  run_id TEXT PRIMARY KEY REFERENCES ne18_run_resources(run_id) ON DELETE RESTRICT,
+CREATE TABLE ne19_run_recoveries (
+  run_id TEXT PRIMARY KEY REFERENCES ne19_run_resources(run_id) ON DELETE RESTRICT,
   previous_writer_generation TEXT NOT NULL,
   recovery_writer_generation TEXT NOT NULL,
   evidence_kind TEXT NOT NULL,
@@ -312,22 +313,25 @@ CREATE TABLE ne18_run_recoveries (
   evidence_observed_at TEXT NOT NULL,
   recovery_revision INTEGER NOT NULL UNIQUE CHECK (recovery_revision > 0)
 ) STRICT;
-CREATE TABLE ne18_run_deletion_tombstones (
-  run_id TEXT PRIMARY KEY REFERENCES ne18_run_resources(run_id) ON DELETE RESTRICT,
+CREATE TABLE ne19_run_deletion_tombstones (
+  run_id TEXT PRIMARY KEY REFERENCES ne19_run_resources(run_id) ON DELETE RESTRICT,
   terminal_state TEXT NOT NULL CHECK (terminal_state IN ('completed','interrupted','failed')),
   deleted_at TEXT NOT NULL,
   deletion_revision INTEGER NOT NULL UNIQUE CHECK (deletion_revision > 0)
 ) STRICT;
-CREATE INDEX ne18_run_resources_list ON ne18_run_resources(created_revision, run_id);
-CREATE INDEX ne18_run_resources_invocation ON ne18_run_resources(invocation_id, created_revision, run_id);
-CREATE INDEX ne18_attempt_publications_origin ON ne18_attempt_publications(origin_run_id, origin_slot_id);
-CREATE INDEX ne18_attempt_publications_locator ON ne18_attempt_publications(attempt_locator, origin_run_id, attempt_id);
-CREATE INDEX ne18_run_slot_bindings_attempt ON ne18_run_slot_bindings(attempt_id, target_run_id, slot_id);
-CREATE INDEX ne18_run_deletion_revision ON ne18_run_deletion_tombstones(deletion_revision, run_id);
-INSERT INTO ne18_run_publication_clock(singleton,revision) VALUES (1,0);
+CREATE INDEX ne19_runs_experiment ON ne19_runs(experiment_id,run_id);
+CREATE INDEX ne19_run_resources_experiment ON ne19_run_resources(experiment_id,created_revision,run_id);
+CREATE INDEX ne19_run_expected_slots_position ON ne19_run_expected_slots(eval_id,attempt_ordinal,run_id);
+CREATE INDEX ne19_run_resources_list ON ne19_run_resources(created_revision, run_id);
+CREATE INDEX ne19_run_resources_invocation ON ne19_run_resources(invocation_id, created_revision, run_id);
+CREATE INDEX ne19_attempt_publications_origin ON ne19_attempt_publications(origin_run_id, origin_slot_id);
+CREATE INDEX ne19_attempt_publications_locator ON ne19_attempt_publications(attempt_locator, origin_run_id, attempt_id);
+CREATE INDEX ne19_run_slot_bindings_attempt ON ne19_run_slot_bindings(attempt_id, target_run_id, slot_id);
+CREATE INDEX ne19_run_deletion_revision ON ne19_run_deletion_tombstones(deletion_revision, run_id);
+INSERT INTO ne19_run_publication_clock(singleton,revision) VALUES (1,0);
 
 
-CREATE TABLE ne18_invocation_sessions (
+CREATE TABLE ne19_invocation_sessions (
   invocation_id TEXT PRIMARY KEY,
   state TEXT NOT NULL CHECK (state IN ('active','recovering','completed','interrupted','failed')),
   owner_id TEXT NOT NULL,
@@ -347,25 +351,25 @@ CREATE TABLE ne18_invocation_sessions (
   CHECK (state IN ('active','recovering') OR active_projection IS NULL),
   CHECK ((state = 'recovering') = (recovering_at IS NOT NULL))
 ) STRICT;
-CREATE TABLE ne18_invocation_session_experiments (
-  invocation_id TEXT NOT NULL REFERENCES ne18_invocation_sessions(invocation_id) ON DELETE RESTRICT,
+CREATE TABLE ne19_invocation_session_experiments (
+  invocation_id TEXT NOT NULL REFERENCES ne19_invocation_sessions(invocation_id) ON DELETE RESTRICT,
   experiment_id TEXT NOT NULL,
-  run_id TEXT NOT NULL UNIQUE REFERENCES ne18_run_resources(run_id) ON DELETE RESTRICT,
+  run_id TEXT NOT NULL UNIQUE REFERENCES ne19_run_resources(run_id) ON DELETE RESTRICT,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   PRIMARY KEY (invocation_id, experiment_id),
   UNIQUE (invocation_id, ordinal)
 ) STRICT;
-CREATE TABLE ne18_invocation_session_queued_attempts (
-  invocation_id TEXT NOT NULL REFERENCES ne18_invocation_sessions(invocation_id) ON DELETE RESTRICT,
+CREATE TABLE ne19_invocation_session_queued_attempts (
+  invocation_id TEXT NOT NULL REFERENCES ne19_invocation_sessions(invocation_id) ON DELETE RESTRICT,
   attempt_id TEXT NOT NULL,
-  run_id TEXT NOT NULL REFERENCES ne18_run_resources(run_id) ON DELETE RESTRICT,
+  run_id TEXT NOT NULL REFERENCES ne19_run_resources(run_id) ON DELETE RESTRICT,
   slot_id TEXT NOT NULL,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   PRIMARY KEY (invocation_id, attempt_id),
   UNIQUE (invocation_id, ordinal),
-  FOREIGN KEY (run_id, slot_id) REFERENCES ne18_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
+  FOREIGN KEY (run_id, slot_id) REFERENCES ne19_run_expected_slots(run_id, slot_id) ON DELETE RESTRICT
 ) STRICT;
-CREATE TABLE ne18_case_locks (
+CREATE TABLE ne19_case_locks (
   case_id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,
   owner_generation INTEGER NOT NULL CHECK (owner_generation > 0),
@@ -376,11 +380,11 @@ CREATE TABLE ne18_case_locks (
   acquired_at TEXT NOT NULL,
   heartbeat_at TEXT NOT NULL
 ) STRICT;
-CREATE INDEX ne18_invocation_sessions_state ON ne18_invocation_sessions(state, started_at, invocation_id);
-CREATE INDEX ne18_invocation_session_experiments_invocation ON ne18_invocation_session_experiments(invocation_id, ordinal);
-CREATE INDEX ne18_invocation_session_queued_attempts_run ON ne18_invocation_session_queued_attempts(run_id, slot_id);
-CREATE INDEX ne18_case_locks_owner ON ne18_case_locks(owner_id, owner_generation);
-CREATE TABLE ne18_teardown_obligations (
+CREATE INDEX ne19_invocation_sessions_state ON ne19_invocation_sessions(state, started_at, invocation_id);
+CREATE INDEX ne19_invocation_session_experiments_invocation ON ne19_invocation_session_experiments(invocation_id, ordinal);
+CREATE INDEX ne19_invocation_session_queued_attempts_run ON ne19_invocation_session_queued_attempts(run_id, slot_id);
+CREATE INDEX ne19_case_locks_owner ON ne19_case_locks(owner_id, owner_generation);
+CREATE TABLE ne19_teardown_obligations (
   obligation_id TEXT PRIMARY KEY,
   experiment_id TEXT NOT NULL,
   owner_pid INTEGER NOT NULL CHECK (owner_pid > 0),
@@ -389,7 +393,7 @@ CREATE TABLE ne18_teardown_obligations (
   payload BLOB NOT NULL,
   UNIQUE (experiment_id, owner_pid)
 ) STRICT;
-CREATE TABLE ne18_shared_state_generations (
+CREATE TABLE ne19_shared_state_generations (
   state_key TEXT NOT NULL,
   generation INTEGER NOT NULL CHECK (generation > 0),
   parent_generation INTEGER NOT NULL CHECK (parent_generation >= 0),
@@ -403,7 +407,7 @@ CREATE TABLE ne18_shared_state_generations (
   PRIMARY KEY (state_key, generation),
   CHECK (parent_generation = generation - 1)
 ) STRICT;
-CREATE TABLE ne18_kept_sandboxes (
+CREATE TABLE ne19_kept_sandboxes (
   entry_id TEXT PRIMARY KEY,
   provider TEXT NOT NULL,
   sandbox_id TEXT NOT NULL,
@@ -412,8 +416,8 @@ CREATE TABLE ne18_kept_sandboxes (
   payload BLOB NOT NULL,
   UNIQUE (provider, sandbox_id)
 ) STRICT;
-CREATE TABLE ne18_kept_sandbox_operation_leases (
-  entry_id TEXT PRIMARY KEY REFERENCES ne18_kept_sandboxes(entry_id) ON DELETE CASCADE,
+CREATE TABLE ne19_kept_sandbox_operation_leases (
+  entry_id TEXT PRIMARY KEY REFERENCES ne19_kept_sandboxes(entry_id) ON DELETE CASCADE,
   generation INTEGER NOT NULL CHECK (generation > 0),
   token TEXT NOT NULL,
   holder TEXT NOT NULL,
@@ -424,12 +428,12 @@ CREATE TABLE ne18_kept_sandbox_operation_leases (
   acquired_at TEXT NOT NULL,
   ttl_ms INTEGER NOT NULL CHECK (ttl_ms > 0)
 ) STRICT;
-CREATE INDEX ne18_teardown_obligations_experiment ON ne18_teardown_obligations(experiment_id, owner_pid);
-CREATE INDEX ne18_shared_state_generations_head ON ne18_shared_state_generations(state_key, generation DESC);
-CREATE INDEX ne18_kept_sandboxes_kept_at ON ne18_kept_sandboxes(kept_at, entry_id);
+CREATE INDEX ne19_teardown_obligations_experiment ON ne19_teardown_obligations(experiment_id, owner_pid);
+CREATE INDEX ne19_shared_state_generations_head ON ne19_shared_state_generations(state_key, generation DESC);
+CREATE INDEX ne19_kept_sandboxes_kept_at ON ne19_kept_sandboxes(kept_at, entry_id);
 
 
-CREATE TABLE ne18_migration_state (
+CREATE TABLE ne19_migration_state (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   state TEXT NOT NULL CHECK (state IN ('committed','ready')),
   source_format TEXT,
