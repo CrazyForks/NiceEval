@@ -173,7 +173,6 @@ Run options:
   --dry                          plan without creating an Invocation
   --json                         write machine output or the Invocation event stream
   --junit <path>                 write a required JUnit report
-  --record <root>                use this Record root
 
 Recovery options:
   --teardown                     run only explicit Experiment teardown recovery
@@ -193,13 +192,12 @@ Options:
 `;
 
 const ACCEPT_HELP = `Accept exact historical Attempt locators:
-  niceeval accept @<locator>... [--record <root>]
-  niceeval accept --run <exact-run-id> [--dry] [--record <root>]
+  niceeval accept @<locator>...
+  niceeval accept --run <exact-run-id> [--dry]
 
 Options:
   --run <run-id>   accept one exact source Run
   --dry            preview a whole-Run acceptance without writing
-  --record <root>  use this Record root
   -h, --help       show this help
 `;
 
