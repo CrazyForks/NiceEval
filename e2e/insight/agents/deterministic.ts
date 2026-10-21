@@ -1,3 +1,4 @@
+import { hostSandboxTargetPlatform } from "@niceeval/testkit";
 import { Effect } from "effect";
 import { completeEvidenceCoverage, defineSandboxAgent, type Agent } from "niceeval/adapter";
 import { CustomSandboxMaterializationError, defineSandbox, shell } from "niceeval/sandbox";
@@ -6,9 +7,7 @@ import { createInspectionProcessSandbox } from "./process-sandbox.ts";
 export const deterministicSandbox = defineSandbox({
   name: "inspection-process-e2e",
   // This fixture executes real processes on the host, without a Linux VM.
-  targetPlatform: process.platform === "darwin"
-    ? { _tag: "Darwin", os: "darwin", arch: process.arch }
-    : { _tag: "Linux", os: "linux", arch: process.arch, libc: "gnu" },
+  targetPlatform: hostSandboxTargetPlatform(),
   exclusive: true,
   create: () => Effect.tryPromise({
     try: () => createInspectionProcessSandbox(),

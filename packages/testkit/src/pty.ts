@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readdirSync, readFileSync } from "node:fs";
 import type { Argv } from "./process.js";
+import { procIdentity, darwinProcessGroupState } from "./pty-process.js";
 
 const DEFAULT_COLUMNS = 120;
 const DEFAULT_ROWS = 40;
@@ -126,7 +127,8 @@ function errorCode(error: unknown): string | undefined {
 }
 
 function processGroupState(groupId: number): GroupTerminal {
-  if (process.platform !== "linux") throw new Error("PTY cleanup requires Linux /proc process identity");
+  if (process.platform === "darwin") return darwinProcessGroupState(groupId);
+  if (process.platform !== "linux") throw new Error("PTY cleanup requires Linux or macOS");
   let entries: string[];
   try {
     // Dirent discovery can lstat a PID that exits during enumeration. Read only
@@ -219,18 +221,6 @@ function validateArgv(argv: Argv): void {
   if (bytes > MAX_ARGV_BYTES) throw new Error(`PTY argv exceeds ${MAX_ARGV_BYTES} UTF-8 bytes`);
 }
 
-function procIdentity(pid: number): { readonly processGroupId: number; readonly sessionId: number } {
-  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-  const end = stat.lastIndexOf(")");
-  const fields = end < 0 ? [] : stat.slice(end + 2).trim().split(/\s+/);
-  const processGroupId = Number(fields[2]);
-  const sessionId = Number(fields[3]);
-  if (!Number.isSafeInteger(processGroupId) || !Number.isSafeInteger(sessionId)) {
-    throw new Error(`cannot decode process identity for ${pid}`);
-  }
-  return { processGroupId, sessionId };
-}
-
 function helperPath(): string {
   // Resolve the installed package, not this checkout. This is valid for both
   // ESM and CJS consumers and keeps the helper adjacent to the matching entry.
@@ -248,7 +238,7 @@ function asPattern(pattern: string | RegExp): (text: string) => boolean {
 }
 
 export async function startPty(argv: Argv, options: PtyOptions = {}): Promise<PtyHandle> {
-  if (process.platform !== "linux") throw new Error("startPty requires Linux");
+  if (process.platform !== "linux" && process.platform !== "darwin") throw new Error("startPty requires Linux or macOS");
   validateArgv(argv);
   const columns = positive(options.columns, DEFAULT_COLUMNS, "columns");
   const rows = positive(options.rows, DEFAULT_ROWS, "rows");
@@ -311,13 +301,14 @@ export async function startPty(argv: Argv, options: PtyOptions = {}): Promise<Pt
             case "configured":
               control.helperPid = Number(message.helperPid);
               control.helperGroupId = Number(message.helperGroupId);
-              control.helperSessionId = Number(message.helperSessionId);
-              if (!Number.isSafeInteger(control.helperPid) || !Number.isSafeInteger(control.helperGroupId) || !Number.isSafeInteger(control.helperSessionId)) {
+              if (message.helperSessionId === undefined) delete control.helperSessionId;
+              else control.helperSessionId = Number(message.helperSessionId);
+              if (!Number.isSafeInteger(control.helperPid) || !Number.isSafeInteger(control.helperGroupId) || (process.platform === "linux" && !Number.isSafeInteger(control.helperSessionId))) {
                 throw new Error("PTY helper configured frame has invalid process identity");
               }
               const helper = procIdentity(control.helperPid);
               if (helper.processGroupId !== control.helperGroupId || helper.sessionId !== control.helperSessionId) {
-                throw new Error("PTY helper configured frame did not match /proc identity");
+                throw new Error("PTY helper configured frame did not match OS process identity");
               }
               if (Number(message.columns) !== columns || Number(message.rows) !== rows) {
                 throw new Error("PTY helper configured frame did not preserve terminal dimensions");
@@ -390,7 +381,10 @@ export async function startPty(argv: Argv, options: PtyOptions = {}): Promise<Pt
       const launcherCommand = [process.execPath, helperPath(), socketPath, String(columns), String(rows)]
         .map(shellQuoteInternal)
         .join(" ");
-      return spawn("script", ["-q", "-e", "-f", "-O", "/dev/null", "--command", launcherCommand], {
+      const launcherArgs = process.platform === "darwin"
+        ? ["-q", "-F", "/dev/null", process.execPath, helperPath(), socketPath, String(columns), String(rows)]
+        : ["-q", "-e", "-f", "-O", "/dev/null", "--command", launcherCommand];
+      return spawn("script", launcherArgs, {
         cwd,
         env: options.env === undefined ? process.env : { ...process.env, ...options.env },
         detached: true,

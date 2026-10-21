@@ -66,11 +66,13 @@ Testkit 只接收稳定机械协议。页面动作、项目排除策略与领域
 
 ### PTY
 
-`startPty(argv, options)` 与 `withPty(argv, options, body)` 提供 Linux 上跨 Repo 可复用的真实 PTY。
+`startPty(argv, options)` 与 `withPty(argv, options, body)` 提供 Linux 与 macOS 上跨 Repo 可复用的真实 PTY。
 它们不接受 shell 字符串。`script` 的 command 只含严格 quote 后的 Testkit Node 入口、PTY 引导进程、socket 路径和终端尺寸，candidate argv 不进入该字符串。
 
 PTY 引导进程在 PTY 内设置 `stty` 行列，再经 mode `0600` 的私有 Unix socket 发送 `status: configured`。
-父端用 `/proc` 核验身份，只在该连接上送入长度有界、NUL-free 的 JSON `init { argv }` frame。
+父端在 Linux 用 `/proc` 核验 PID、PGID 与 session，在 macOS 用系统 `ps` 核验 PID 与 PGID；不把 BSD `ps` 的 session 指针当作 POSIX session ID。
+只在该连接上送入长度有界、NUL-free 的 JSON `init { argv }` frame。Linux 使用 util-linux `script`，macOS 使用 BSD `script` 的直接 argv 入口，不新增 Python 或原生扩展依赖。
+
 引导进程严格解码后才以 `spawn(argv[0], argv.slice(1))` 启动 detached candidate，并回报各进程的 PID、PGID、终态和尺寸。
 控制 frame 与 user argv 都不混入 terminal raw bytes。ESM 与 CJS 入口均从同一已安装 Testkit 目录定位 PTY 引导文件。
 
@@ -89,7 +91,9 @@ timeout cleanup 先终结 candidate group，再允许引导进程在 `graceMs` �
 `waitForText(pattern, { whileRunning: true })` 成功时，匹配 buffer 必须已出现、candidate group 仍活跃，receipt 也尚未封口。
 candidate 退出后才检查到的旧文本必须拒绝。超时、退出前未命中及其它等待失败都会先终止所拥有的进程组并释放 socket。
 
-默认调用应使用 `withPty` 或 `await using`。两者会依次执行 TERM、grace 和 KILL，再由 `/proc` 证明 candidate group、PTY 引导 session group 与 launcher group 已 gone 或仅剩 terminal zombie；无法证明时 fail closed。
+默认调用应使用 `withPty` 或 `await using`。两者会依次执行 TERM、grace 和 KILL，再由 Linux `/proc` 或 macOS `ps` 的全进程组快照证明 candidate group、PTY 引导进程组与 launcher group 已 gone 或仅剩 terminal zombie；无法证明时 fail closed。
+
+执行宿主进程的 fixture 使用 `hostSandboxTargetPlatform()` 声明真实宿主平台，由 Testkit 统一处理 OS、架构与 Linux libc。它不适用于 Docker 或远端 Sandbox，不得用宿主平台替换其真实执行目标。
 
 ## API 形状
 

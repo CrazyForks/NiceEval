@@ -1,3 +1,4 @@
+import { hostSandboxTargetPlatform } from "@niceeval/testkit";
 import { Effect } from "effect";
 import { defineExperiment } from "niceeval";
 import { defineSandbox } from "niceeval/sandbox";
@@ -6,7 +7,7 @@ import { createReadLimitedSandbox } from "../agents/read-limited-sandbox.ts";
 
 export const readLimitedSandbox = defineSandbox({
   name: "read-limited-e2e",
-  targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
+  targetPlatform: hostSandboxTargetPlatform(),
   exclusive: true,
   create: () => Effect.promise(() => createReadLimitedSandbox()),
 });

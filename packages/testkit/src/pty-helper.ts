@@ -1,9 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { procIdentity } from "./pty-process.js";
 import { createConnection } from "node:net";
 
 type ControlMessage =
-  | { readonly type: "status"; readonly phase: "configured"; readonly helperPid: number; readonly helperGroupId: number; readonly helperSessionId: number; readonly columns: number; readonly rows: number }
+  | { readonly type: "status"; readonly phase: "configured"; readonly helperPid: number; readonly helperGroupId: number; readonly helperSessionId?: number; readonly columns: number; readonly rows: number }
   | { readonly type: "status"; readonly phase: "candidate"; readonly pid: number; readonly processGroupId: number }
   | { readonly type: "status"; readonly phase: "exit"; readonly exitCode: number | null; readonly signal: NodeJS.Signals | null }
   | { readonly type: "status"; readonly phase: "error"; readonly message: string };
@@ -15,18 +15,6 @@ interface InitMessage {
 
 const MAX_ARGV_ITEMS = 256;
 const MAX_ARGV_BYTES = 64 * 1024;
-
-function procIdentity(pid: number): { readonly processGroupId: number; readonly sessionId: number } {
-  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-  const end = stat.lastIndexOf(")");
-  const fields = stat.slice(end + 2).trim().split(/\s+/);
-  const processGroupId = Number(fields[2]);
-  const sessionId = Number(fields[3]);
-  if (!Number.isSafeInteger(processGroupId) || !Number.isSafeInteger(sessionId)) {
-    throw new Error(`could not read process identity for ${pid}`);
-  }
-  return { processGroupId, sessionId };
-}
 
 async function send(socket: ReturnType<typeof createConnection>, message: ControlMessage): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -114,7 +102,7 @@ async function main(): Promise<void> {
       phase: "configured",
       helperPid: process.pid,
       helperGroupId: helper.processGroupId,
-      helperSessionId: helper.sessionId,
+      ...(helper.sessionId === undefined ? {} : { helperSessionId: helper.sessionId }),
       columns,
       rows,
     });

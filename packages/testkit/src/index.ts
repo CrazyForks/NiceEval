@@ -8,6 +8,7 @@ export * from "./exp-eval-outcomes.js";
 export * from "./live-exp-retry.js";
 export * from "./process-lifecycle.js";
 export * from "./pty.js";
+export * from "./host-platform.js";
 export * from "./primitives.js";
 export * from "./temp.js";
 export * from "./process-file-lock.js";
