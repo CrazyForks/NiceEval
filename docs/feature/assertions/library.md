@@ -98,3 +98,28 @@ await t.group("输出", () => {
 ```
 
 值比较见 [Value assertions](library/value-assertions.md)，scope 见 [Scoped assertions](library/scoped-assertions.md)，Score Eval 见 [Score Eval](library/score-points.md)。
+
+
+## 观测数值与分位数
+
+`expect` 导出 `measured(value: number | null, options: { unavailable: string }): NumericMaterial`。
+有限数值返回冻结的 exact 材料；null 返回携带作者原因的 unavailable。非有限数值返回 non-finite-number，绝不把 null 或无效数值转换成零。
+原因必须是非空字符串；undefined 和非 number/null 输入是作者错误，同步抛 TypeError。
+
+`quantile(samples: readonly number[], p: number, options?: { method?: "linear" | "nearest-rank" }): QuantileMaterial` 返回数值材料及冻结的 statistics。
+statistics 包含 sampleCount、probability 和 method。默认 linear 采用排序副本上的 h=(n-1)*p，在 floor(h) 与 ceil(h) 之间线性插值。
+nearest-rank 采用 max(1,ceil(n*p)) 的一基秩。p 必须是 [0,1] 有限数值；端点返回最小值、最大值，单样本返回自身。
+不修改输入；不丢弃坏样本。空数组为 no-samples，任一非有限或非数值样本为 non-finite-sample；无效 p、method 或非数组输入同步抛 TypeError。
+算法元数据随返回材料进入既有 Assertion source snapshot，不引入新的 criterion 或持久化版本，也不保存完整样本数组。
+
+```ts
+import { atMost, isTrue, measured, quantile } from "niceeval/expect";
+t.check(measured(latencyMs, { unavailable: "no-actions" }), atMost(1200)).gate();
+t.check(quantile(intervalsMs, 0.9), atMost(3000)).gate();
+t.check(ready, isTrue()).gate();
+t.score(measured(ratio, { unavailable: "no-samples" }), { weight: 20 });
+```
+
+`defineScoreEval` 中的 t.score(ratio, { weight }) 接受 [0,1] 比例或 NumericMaterial，不需要自定义 fraction matcher。
+越界比例是作者错误，不隐式 clamp；领域确需饱和计分时，作者显式限定范围。unavailable 保留权重并标为不可判定，不按零分伪造观测。
+纯报告不登记恒真 Assertion。Adapter 可用既有 ctx.attach 保存 Markdown 或 JSON 统计附件；单行展示的独立 note 模型不在此数值构造契约内。

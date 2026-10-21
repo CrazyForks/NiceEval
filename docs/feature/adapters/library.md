@@ -590,7 +590,7 @@ elapsedMs使用runtime的Attempt单调时钟起点到调用处的墙钟毫秒，
 
 ## 缓存读取率
 
-`EvalUsage.cacheRead` 与 `attempt.usage.cacheRead` 提供同一缓存读取率报告。
+`EvalUsage.cacheRead` 提供可直接断言的数值材料和报告数组；`attempt.usage.cacheRead` 保留同一报告的纯数据形状。
 它只消费 Adapter 已接纳的物理调用，包括失败与重试，不读取应用日志，不包含 Judge 用量。
 Library 的快照在读取时冻结；Inspection 使用已发布账本，二者在同一采集截面下结果相同。
 
@@ -620,6 +620,16 @@ type CacheReadReport = {
 };
 ```
 
+`EvalUsage.cacheRead` 的作者类型为 `EvalCacheRead`，扩展上述报告并提供 `rate(modelSlot?: string): NumericMaterial`。
+不传参数选择 total；传字符串精确选择 Experiment models 声明的用途。模型用途没有框架内置名单，单模型 model 简写对应 default。
+方法可解构调用，始终读取当前冻结快照，不随后续 recordUsage 或 sealUsage 改变。
+
+传入未声明用途会在调用处同步抛 TypeError，列出可选用途；拼写错误不会转成 unavailable。
+已声明用途在完整采集下没有调用返回 slot-has-no-calls，其余情况保留分组 rate 的原因，包括 collection-incomplete 和 zero-input-total。
+数组报告继续使用 no-calls；方法将空槽位原因具体化。无参数方法原样返回 total.rate。
+作者无需 find、可选链或自行构造 unavailable。方法不重算比例、不修改数组，也不进入 Query JSON 或持久数据。
+Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导槽位类型。
+
 `rate` 只返回 exact 或 unavailable，不返回 lower-bound。公式是同组调用的 `Σ cacheReadTokens / Σ inputTotalTokens`。
 每次调用优先采用独立观测到的 `inputTotalTokens`；缺少总量时，只有 input、cacheRead、cacheWrite 三个互斥桶全部已知才求和。
 不重复加入缓存桶，不平均逐次百分比，不按成功状态过滤调用。
@@ -641,9 +651,7 @@ attempt.usage 使用专属 16 MiB 响应预算，容纳 4000 组各身份最大 
 没有 Adapter 账本时 total unavailable，两个分组数组为空；revision 1–3 缺少生产者明确 seal 声明，即使原 collection 为 complete，也保留 collection-incomplete。当前 revision 4 由读取边界传递完整性声明，Library collector 使用当前 seal 状态。
 
 ```ts
-const usage = t.usage;
-const mind = usage.cacheRead.modelSlots.find(group => group.modelSlot === "mind");
-t.check(mind?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" }, atLeast(0.6)).gate();
+t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
 ```
 
 Show 与 View 展示总计、用途及实际模型的读取率、coveredCalls/recordedCalls、collectionComplete 和 reasons。
