@@ -73,11 +73,11 @@ export function acquireFreshImportGeneration(
   });
 }
 
-/** Promise ABI facade for callers that cannot retain an Effect Scope. */
-export function freshImportModule(absPath: string): Promise<{ default?: unknown }> {
-  return Effect.runPromise(Effect.scoped(
+/** Load one fresh entry while retaining the generation gate until import settles. */
+export function freshImportModule(absPath: string) {
+  return Effect.scoped(
     acquireFreshImportGeneration(dirname(absPath)).pipe(
       Effect.flatMap((fresh) => Effect.tryPromise(() => fresh.import(absPath))),
     ),
-  ));
+  );
 }

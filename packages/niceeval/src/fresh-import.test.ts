@@ -6,8 +6,10 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { defineAdapter, adapterAcceptsEval } from "./adapter.ts";
 import { defineExperiment } from "./define.ts";
-import { freshImportModule } from "./fresh-import.ts";
+import { freshImportModule as freshImportModuleEffect } from "./fresh-import.ts";
 import { prepareRuns } from "./experiment/host/operations.ts";
+
+const freshImportModule = (path: string) => Effect.runPromise(freshImportModuleEffect(path));
 
 describe("fresh project imports", () => {
   it("reloads project source while retaining a node_modules dependency instance", async () => {

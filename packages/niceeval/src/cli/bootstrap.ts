@@ -1,7 +1,7 @@
 // The one application runtime boundary. Library and command modules return
 // Effect values; this file is the only place NiceEval starts a runtime.
 
-import { Cause, Effect, Exit, Layer } from "effect";
+import { Cause, Effect, Exit, FiberSet, Layer } from "effect";
 import type * as Scope from "effect/Scope";
 import { cliProgram, renderCliFailure } from "./program.ts";
 import { composeCliCommands, type CliFeatureError } from "./contribution.ts";
@@ -38,6 +38,7 @@ import { DockerCacheAdministrationLive } from "../docker/cache-live.ts";
 import { NodeProjectLive } from "../project/node.ts";
 import { ProjectFileSystem, ProjectManifestFacts, ProjectProcessFacts } from "../project/services.ts";
 import { NodeViewBrowserLive, ViewBrowser } from "../view/browser.ts";
+import { ViewApplicationRuntime } from "../view/application-runtime.ts";
 import { summarizeUnknownError } from "../error-assistance/index.ts";
 
 // There is exactly one synchronous ownership state for the first signal. Node
@@ -123,6 +124,7 @@ type CliFeatureRequirements =
   | ProjectManifestFacts
   | ProjectProcessFacts
   | ViewBrowser
+  | ViewApplicationRuntime
   | Scope.Scope;
 
 const featureCommands = composeCliCommands<CliFeatureRequirements, CliFeatureError>(
@@ -140,7 +142,12 @@ const featureCommands = composeCliCommands<CliFeatureRequirements, CliFeatureErr
   ],
 );
 
-const application = Effect.scoped(cliProgram(featureCommands)).pipe(
+const application = Effect.scoped(Effect.gen(function* () {
+  // Capture this application's services once. HTTP callbacks share its runtime;
+  // the root Scope interrupts and drains every remaining callback fiber.
+  const run = yield* FiberSet.makeRuntimePromise();
+  return yield* cliProgram(featureCommands).pipe(Effect.provideService(ViewApplicationRuntime, { run }));
+})).pipe(
   // Application bootstrap is the sole provider of concrete Node services.
   // Command and library modules retain their real requirements for callers.
   Effect.provide(NodeRecordLive),

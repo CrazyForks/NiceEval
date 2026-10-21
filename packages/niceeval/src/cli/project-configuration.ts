@@ -132,16 +132,13 @@ export class ConfigModuleLoader extends Context.Service<ConfigModuleLoader, Conf
 export const ConfigModuleLoaderLive = Layer.effect(ConfigModuleLoader, Effect.gen(function* () {
   let canonical: { cwd: string; config: Config } | undefined;
   const mutex = yield* Semaphore.make(1);
-  const load = (operation: "loadOnce" | "rebuild", inputCwd: string) => mutex.withPermits(1)(Effect.tryPromise({
-    try: async () => {
-      const cwd = normalizedCwd(inputCwd);
-      if (operation === "loadOnce" && canonical?.cwd === cwd) return canonical.config;
-      const config = await (operation === "rebuild" ? rebuildConfigModule(cwd) : loadConfigModuleOnce(cwd));
-      canonical = { cwd, config };
-      return config;
-    },
-    catch: (cause) => new ConfigModuleLoadError({ cwd: normalizedCwd(inputCwd), operation, cause }),
-  }));
+  const load = (operation: "loadOnce" | "rebuild", inputCwd: string) => mutex.withPermits(1)(Effect.gen(function* () {
+    const cwd = normalizedCwd(inputCwd);
+    if (operation === "loadOnce" && canonical?.cwd === cwd) return canonical.config;
+    const config = yield* (operation === "rebuild" ? rebuildConfigModule(cwd) : loadConfigModuleOnce(cwd));
+    canonical = { cwd, config };
+    return config;
+  }).pipe(Effect.mapError((cause) => new ConfigModuleLoadError({ cwd: normalizedCwd(inputCwd), operation, cause }))));
   return { loadOnce: (cwd) => load("loadOnce", cwd), rebuild: (cwd) => load("rebuild", cwd) } satisfies ConfigModuleLoaderService;
 }));
 

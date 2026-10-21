@@ -16,6 +16,7 @@ import {
   type ViewHttpErrorDocument,
 } from "./http-protocol.ts";
 import type { ViewGeneration } from "./revision.ts";
+import type { ViewApplicationRuntimeService } from "./application-runtime.ts";
 
 export interface ViewServerError {
   readonly code: "view-server-failed";
@@ -30,8 +31,8 @@ export interface ViewServer {
 }
 
 interface RefreshSource {
-  readonly cutoffIdentity: () => Promise<string>;
-  readonly build: () => Promise<ViewGeneration>;
+  readonly cutoffIdentity: () => Effect.Effect<string, unknown>;
+  readonly build: () => Effect.Effect<ViewGeneration, unknown>;
 }
 
 interface ServerState {
@@ -43,6 +44,7 @@ interface ServerState {
 }
 
 interface ServerResources {
+  readonly runtime: ViewApplicationRuntimeService;
   server: Server;
   readonly sockets: Set<Socket>;
   readonly credential: string;
@@ -75,6 +77,7 @@ const SessionRequestSchema = Schema.Struct({ credential: Schema.String });
 
 /** Scope-owned, loopback-only transport for Vite assets and a validated Record generation. */
 export function openViewServer(input: {
+  readonly runtime: ViewApplicationRuntimeService;
   readonly initial: ViewGeneration;
   readonly port: number;
   readonly refreshEnabled?: boolean;
@@ -83,7 +86,7 @@ export function openViewServer(input: {
 }): Effect.Effect<ViewServer, ViewServerError, Scope.Scope> {
   return Effect.gen(function* () {
     const resources = yield* Effect.acquireRelease(
-      Effect.sync(() => makeResources(input.initial, input.refreshEnabled === true, input.refreshSource)),
+      Effect.sync(() => makeResources(input.runtime, input.initial, input.refreshEnabled === true, input.refreshSource)),
       closeResources,
     );
     const port = yield* listen(resources.server, input.port);
@@ -104,9 +107,10 @@ function viewEntryUrl(origin: string, credential: string, runIds: readonly strin
   return url.href;
 }
 
-function makeResources(initial: ViewGeneration, refreshEnabled: boolean, refreshSource?: RefreshSource): ServerResources {
+function makeResources(runtime: ViewApplicationRuntimeService, initial: ViewGeneration, refreshEnabled: boolean, refreshSource?: RefreshSource): ServerResources {
   const sockets = new Set<Socket>();
   const resources: ServerResources = {
+    runtime,
     server: undefined as unknown as Server,
     sockets,
     credential: randomBytes(32).toString("base64url"),
@@ -210,7 +214,9 @@ async function serveGeneration(resources: ServerResources, response: ServerRespo
       const generation = await prepareGeneration(resources);
       sendJson(response, 200, descriptor(resources, generation));
     } else {
-      const identity = await resources.refreshSource?.cutoffIdentity();
+      const identity = resources.refreshSource === undefined
+        ? undefined
+        : await resources.runtime.run(resources.refreshSource.cutoffIdentity());
       sendJson(response, 200, {
         ...descriptor(resources, resources.state.current),
         stale: resources.state.stale || (identity === undefined
@@ -232,7 +238,7 @@ function prepareGeneration(resources: ServerResources): Promise<ViewGeneration> 
   if (source === undefined || !resources.refreshEnabled) return Promise.resolve(resources.state.current);
   const preparing = (async () => {
     if (resources.closed) throw new Error("View is closing.");
-    const generation = await source.build();
+    const generation = await resources.runtime.run(source.build());
     if (resources.closed) {
       await retireGeneration(resources, generation);
       throw new Error("View is closing.");
@@ -286,7 +292,7 @@ async function serveInspection(resources: ServerResources, request: IncomingMess
   if (generation === undefined) return sendJson(response, 404, generationError("view-generation-not-found", "The requested generation is not available."));
   acquireLease(resources, generation);
   try {
-    const document = await inspectViewGeneration(generation, decoded.success.request);
+    const document = await resources.runtime.run(inspectViewGeneration(generation, decoded.success.request));
     sendJson(response, 200, document);
   } catch {
     sendJson(response, 500, Object.freeze({

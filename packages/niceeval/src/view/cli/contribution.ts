@@ -29,6 +29,7 @@ import { renderViewLifecycleEvent, VIEW_LIFECYCLE_PROTOCOL } from "../protocol.t
 import { buildViewGeneration } from "../render.ts";
 import type { ViewGeneration, ViewTarget } from "../revision.ts";
 import { openViewServer } from "../server.ts";
+import { ViewApplicationRuntime } from "../application-runtime.ts";
 
 const help = (summary: string) => Object.freeze({ summary, visibility: "public" as const });
 const option = (value: CliOptionDefinition): CliOptionDefinition => Object.freeze(value);
@@ -47,7 +48,7 @@ Usage:
   niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 `;
 
-type Requirements = CliArguments | CliInterruption | CliInvocationFacts | CliOutput | ViewBrowser | ProjectConfiguration | Scope.Scope;
+type Requirements = CliArguments | CliInterruption | CliInvocationFacts | CliOutput | ViewBrowser | ViewApplicationRuntime | ProjectConfiguration | Scope.Scope;
 type Error = CliFeatureError;
 const VIEW_RUN_SELECTION_LIMIT = 64;
 const RECORD_IMPORT_DEADLINE_MS = 30_000;
@@ -98,14 +99,16 @@ function runView(argv: readonly string[]): Effect.Effect<number, Error, Requirem
       const built = yield* buildRecordGeneration(sourcePath, facts.cwd, project, currentCapable, false);
       const initial = built.generation;
       const scope = yield* Effect.scope;
+      const runtime = yield* ViewApplicationRuntime;
       const server = yield* openViewServer({
+        runtime,
         initial, port, refreshEnabled: true, initialRunIds: runIds,
         refreshSource: {
-          cutoffIdentity: () => Effect.runPromise(operationalCutoffAt(facts.cwd).pipe(Effect.map((cutoff) => cutoff.identity))),
-          build: () => Effect.runPromise(buildRecordGeneration(sourcePath, facts.cwd, project, currentCapable, true).pipe(
+          cutoffIdentity: () => operationalCutoffAt(facts.cwd).pipe(Effect.map((cutoff) => cutoff.identity)),
+          build: () => buildRecordGeneration(sourcePath, facts.cwd, project, currentCapable, true).pipe(
             Effect.provideService(Scope.Scope, scope),
             Effect.map((next) => next.generation),
-          )),
+          ),
         },
       }).pipe(
         Effect.mapError((cause) => failure("open loopback View", cause)),
