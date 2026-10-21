@@ -340,6 +340,65 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       const canonicalBytes = await readFile(canonicalRecord);
       expect(canonicalBytes.includes(Buffer.from(unpublishedCanary, "utf8"))).toBe(false);
 
+      const carriedProcess = niceeval.start(
+        ["exp", "run-journey", "--rerun", "failed", "--json"],
+        { env: { NICEEVAL_RUN_JOURNEY_ENDPOINT: backend.endpoint }, timeoutMs: 90_000 },
+      );
+      try {
+        await whileRunning(backend.waitForAttempt(1, 2), carriedProcess, "the missing target Attempt reached its backend");
+        const carriedList = await niceeval.run(["run", "list", "--json"]);
+        expect(carriedList.exitCode, carriedList.diagnostic()).toBe(0);
+        const carried = only(carriedList.runListDocument().runs, (run) => run.state === "active", carriedList.diagnostic());
+        const carriedShow = await niceeval.run(["run", "show", carried.runId, "--json"]);
+        expect(carriedShow.exitCode, carriedShow.diagnostic()).toBe(0);
+        expect(carriedShow.runGetDocument().run).toMatchObject({
+          value: { state: "active" },
+          denominator: { expected: 2, published: 1, missing: 1 },
+          slots: expect.arrayContaining([
+            expect.objectContaining({ attemptOrdinal: 0, publication: expect.objectContaining({
+              state: "published", action: "carried", attemptLocator: published.publication.attemptLocator,
+              originRunId: active.runId, originSlotId: published.slotId,
+            }) }),
+            expect.objectContaining({ attemptOrdinal: 1, publication: { state: "pending" } }),
+          ]),
+        });
+        const carriedRequest = join(paths.projectRoot, "carried-active-run.query.json");
+        await writeFile(carriedRequest, `${JSON.stringify({
+          protocol: "niceeval.query/v1",
+          operation: { kind: "run.get", runId: carried.runId },
+        })}\n`, "utf8");
+        const carriedQuery = await niceeval.run(["query", "run", "--request", carriedRequest]);
+        expect(carriedQuery.exitCode, carriedQuery.diagnostic()).toBe(0);
+        const carriedRun = carriedQuery.querySuccess("run.get").run;
+        expect(carriedRun.value).toMatchObject({ runId: carried.runId, state: "active" });
+        expect(carriedRun.value.expectedSlots).toHaveLength(2);
+        expect(carriedRun.value).not.toHaveProperty("completedAt");
+        expect(carriedRun.value).not.toHaveProperty("context");
+        expect(carriedRun.denominator).toEqual({ expected: 2, published: 1, missing: 1 });
+        expect(carriedRun.slots).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            attemptOrdinal: 0, state: "carried", relation: "reference",
+            locator: published.publication.attemptLocator, outcome: "completed", verdict: "passed",
+          }),
+          expect.objectContaining({
+            attemptOrdinal: 1, state: "pending", relation: null, locator: null,
+            publication: { state: "pending" },
+          }),
+        ]));
+        expect(carriedRun.members).toEqual([
+          expect.objectContaining({ slotId: published.slotId, action: "carried", attempt: { originRunId: active.runId, attemptId: activeRun.run.members[0]!.attempt!.attemptId } }),
+        ]);
+        expect(carriedRun.attempts).toEqual([]);
+        backend.completeAttempt(1);
+        const carriedTerminal = await carriedProcess.done;
+        expect(carriedTerminal.exitCode, carriedTerminal.diagnostic()).toBe(0);
+        const completedQuery = await niceeval.run(["query", "run", "--request", carriedRequest]);
+        expect(completedQuery.exitCode, completedQuery.diagnostic()).toBe(0);
+        expect(completedQuery.querySuccess("run.get").run.value).toHaveProperty("context");
+      } finally {
+        await carriedProcess.dispose();
+      }
+
       const externalRecord = join(paths.projectRoot, "finished-record.sqlite");
       await rename(canonicalRecord, externalRecord);
       const externalAttemptReceipt = await niceeval.run([
