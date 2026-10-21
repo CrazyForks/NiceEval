@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
 // @feature docs/feature/adapters/README.md
+// @regression memory/adapter-cache-read-report.md
 test.concurrent("按用途与真实模型判定缓存读取率并解释覆盖缺口", async () => {
   await inspectionE2E.case("cache-read", { artifacts: inspectionCaseArtifacts() }, async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const request = join(projectRoot, "cache.request.json");
