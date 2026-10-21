@@ -115,11 +115,9 @@ Headless Adapter 使用 `ctx.recordUsage` 登记真实调用，并在采集结�
 ```ts
 import { atLeast } from "niceeval/expect";
 
-const planner = t.usage.cacheRead.modelSlots.find(group => group.modelSlot === "planner");
-t.check(
-  planner?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" },
-  atLeast(0.6),
-).gate();
+t.check(t.usage.cacheRead.rate("planner"), atLeast(0.6)).gate();
+// 不区分用途时，检查所有已登记调用的合计。
+t.check(t.usage.cacheRead.rate(), atLeast(0.6)).gate();
 ```
 
 读取率是同组调用的 **缓存读取 token 总量 / 含缓存输入 token 总量**，包括失败调用与重试。它不是逐次百分比的平均值。每次调用优先使用 `inputTotalTokens`；没有独立总量时，必须同时提供 `inputTokens`、`cacheReadTokens`、`cacheWriteTokens` 三个互斥桶。
@@ -129,3 +127,44 @@ t.check(
 缺失输入、未 seal、partial seal、unknown 调用状态、空组或零分母均返回 `unavailable`，`reasons` 列出原因。缺失不按零处理；完整且有正输入总量的零缓存读取率才是数值 0。旧账本没有明确的生产者完整性声明时，也返回不可判定。
 
 使用 `niceeval show <Attempt locator> --usage` 或 View 查看读取率、覆盖情况与原因；脚本通过 `attempt.usage` 的 `usage.cacheRead` 读取相同报告。已有 `recordUsage` 调用无需改名，但必须登记缓存 token，并在采集完成后诚实 seal。无需迁移历史结果文件。
+
+
+槽位名来自 Experiment 的 `models` 键，不是框架内置名单。`model` 单模型简写对应 `default`。
+传入未声明的槽位会在调用处报错，并列出可用名称。已声明但完整记录中没有调用的槽位返回 `slot-has-no-calls`；采集不完整时仍返回 `collection-incomplete`。
+Eval 可以被多个 Experiment 复用，因此此入口在运行回调里校验槽位，不在定义期检查动态字符串。
+
+### 登记黑盒 Agent 的用量
+
+Adapter 应按外部回执记录真实调用，并将 `modelSlot` 设为 Experiment 声明的用途，例如 `mind`。
+同一请求的流式增量和最终回执不能各登记一次；先按请求 ID 合并，收到最终回执后再登记。
+
+```ts
+// 单次 Claude 请求的最终 usage；字段缺失时保留 null。
+ctx.recordUsage({
+  callId: requestId,
+  modelSlot: "mind",
+  provider: observedProvider,
+  model: observedModel,
+  status: observedStatus,
+  inputTokens: usage.input_tokens ?? null,
+  cacheReadTokens: usage.cache_read_input_tokens ?? null,
+  cacheWriteTokens: usage.cache_creation_input_tokens ?? null,
+  outputTokens: usage.output_tokens ?? null,
+});
+```
+
+Claude 的 `input_tokens` 是未命中缓存的输入桶，含缓存总量需加上读取和写入桶，见 [Claude 缓存用量说明](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)。
+Codex 的 usage 若提供含缓存的 `input_tokens`，应映射到 `inputTotalTokens`，`cached_input_tokens` 映射到 `cacheReadTokens`，不要再把缓存加进总量。
+不能仅因命令成功退出就认定全部模型调用都已被记录；需核对所用 CLI 版本输出的是逐请求、Turn 还是会话合计。
+
+只有会话总量时，不要把多次物理调用伪装成一次调用，也不要把合计与明细同时登记。
+当前 `recordUsage` 的单位是物理调用；将会话合计保存在统计附件中，并声明 `partial`，缓存判据会诚实地显示不可判定。
+完全没有 usage 时同样声明 `partial`，不要填零或声明完整空账本：
+
+```ts
+ctx.sealUsage({ state: "partial", reason: "usage-not-exposed" });
+// 只提供会话总量、不能证明逐调用完整性时：
+// ctx.sealUsage({ state: "partial", reason: "session-totals-only" });
+```
+
+确实拿到全部物理调用的最终记录后，再调用 `ctx.sealUsage({ state: "complete" })`。

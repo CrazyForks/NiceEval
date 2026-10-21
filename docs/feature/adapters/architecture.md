@@ -126,6 +126,7 @@ Runner 在唯一 ACTIVE 出口先对完整文本做已知 secret redaction，再
 [缓存读取率](library.md#缓存读取率)由 o11y 的纯投影拥有，输入是已验证 Adapter usage 与冻结的 ResolvedModelSlots。
 Runner 在读取 t.usage 时调用它，Inspection 在读取已发布 usage 后调用同一实现；Show 与 View 只格式化闭合报告。
 公开类型随 EvalUsage 从根包与 expect 类型入口导出，Inspection codec 严格验证同一报告形状。
+
 EvalUsage 在纯报告外提供冻结的 EvalCacheRead，rate(modelSlot) 从该快照选择数值材料并统一处理缺失槽位。
 选择函数不依赖 this 或可写 collector，Inspection、Show 与 View 继续消费纯报告，不接收函数。
 报告仅派生，不写入新的 Attachment、数据表或 migration，也不改变旧 usage 字节。

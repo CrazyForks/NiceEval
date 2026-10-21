@@ -115,11 +115,9 @@ A Headless Adapter registers real calls with `ctx.recordUsage` and calls `ctx.se
 ```ts
 import { atLeast } from "niceeval/expect";
 
-const planner = t.usage.cacheRead.modelSlots.find(group => group.modelSlot === "planner");
-t.check(
-  planner?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" },
-  atLeast(0.6),
-).gate();
+t.check(t.usage.cacheRead.rate("planner"), atLeast(0.6)).gate();
+// Check the total across all recorded calls when no purpose is needed.
+t.check(t.usage.cacheRead.rate(), atLeast(0.6)).gate();
 ```
 
 The read rate is **total cache read tokens / total input tokens including cache** across calls in the same group, including failed calls and retries. It is not an average of per-call percentages. Each call uses `inputTotalTokens` first; without a separate total, it must provide all three mutually exclusive buckets: `inputTokens`, `cacheReadTokens`, and `cacheWriteTokens`.
@@ -129,3 +127,44 @@ The read rate is **total cache read tokens / total input tokens including cache*
 Missing input, no seal, a partial seal, an unknown call state, an empty group, or a zero denominator all return `unavailable`, with the causes listed in `reasons`. Missing data is not treated as zero; only a complete record with a positive input total and no cache reads yields the number 0. An old ledger without an explicit producer completeness declaration also returns `unavailable`.
 
 Use `niceeval show <Attempt locator> --usage` or View to see the read rate, coverage, and causes; scripts read the same report from `usage.cacheRead` in `attempt.usage`. Existing `recordUsage` calls need no renaming, but they must register cache tokens and seal honestly after collection completes. Historical result files need no migration.
+
+
+Slot names come from the Experiment's `models` keys, not a built-in list. The single-model `model` shorthand maps to `default`.
+Passing an undeclared slot throws at the call site and lists the available names. A declared slot with no calls in a complete collection returns `slot-has-no-calls`; an incomplete collection still returns `collection-incomplete`.
+An Eval can be reused across Experiments, so this API validates slots inside the running callback rather than checking dynamic strings at definition time.
+
+### Record usage from a black-box Agent
+
+Record actual calls from external receipts and set `modelSlot` to a purpose declared by the Experiment, such as `mind`.
+Do not record both streaming increments and the final receipt for the same request. Merge them by request ID first, then record the final receipt.
+
+```ts
+// Final usage for one Claude request; preserve missing fields as null.
+ctx.recordUsage({
+  callId: requestId,
+  modelSlot: "mind",
+  provider: observedProvider,
+  model: observedModel,
+  status: observedStatus,
+  inputTokens: usage.input_tokens ?? null,
+  cacheReadTokens: usage.cache_read_input_tokens ?? null,
+  cacheWriteTokens: usage.cache_creation_input_tokens ?? null,
+  outputTokens: usage.output_tokens ?? null,
+});
+```
+
+Claude's `input_tokens` is the uncached input bucket. Total input includes the cache read and write buckets; see [Claude cache usage](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+When Codex usage provides `input_tokens` inclusive of cached tokens, map it to `inputTotalTokens` and map `cached_input_tokens` to `cacheReadTokens`. Do not add the cached tokens to the total again.
+A successful command exit does not prove that every model call was recorded. Check whether your CLI version reports individual requests, Turns, or session totals.
+
+When only session totals are available, do not represent several physical calls as one call or record both totals and details.
+`recordUsage` currently records physical calls. Save session totals in a statistics attachment and seal as `partial`; cache criteria will remain unavailable.
+When no usage is exposed, also seal as `partial`, without filling in zeros or claiming a complete empty ledger:
+
+```ts
+ctx.sealUsage({ state: "partial", reason: "usage-not-exposed" });
+// Only session totals are available, without proof of per-call completeness:
+// ctx.sealUsage({ state: "partial", reason: "session-totals-only" });
+```
+
+Call `ctx.sealUsage({ state: "complete" })` only after obtaining the final records for all physical calls.
