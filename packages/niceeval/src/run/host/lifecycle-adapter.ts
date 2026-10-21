@@ -202,7 +202,7 @@ export const sqliteRunLifecycleAdapter: RunLifecycleAdapter = Object.freeze({
           recoveryWriterGeneration: `recovery-v1:${randomUUID()}`,
           completedAt: DateTime.formatIso(now),
           evidence: {
-            kind: "local-linux-process-terminated-v1",
+            kind: observation.evidenceKind,
             identity: observation.evidenceIdentity,
             observedAt: DateTime.formatIso(now),
           },
