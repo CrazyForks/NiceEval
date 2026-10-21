@@ -105,9 +105,28 @@ interface PublicationCutoff {
 }
 ```
 
+cutoff 只由这两个字段构成，固定它只读 publication clock 一行，不统计 Run 数，也不扫描历史 Run。
 Inspection 在开始时固定一个 cutoff，只读取 revision 不大于该值的事实。晚于 cutoff 创建的 Run 不存在；晚于
 cutoff 的 binding 仍为 pending；晚于 cutoff 的 close 不会让旧结果提前看到终态。continuation token 与 View
 generation 都绑定同一 cutoff；无法在当前 generation 继续时返回 restart-required。
+
+## 读取索引
+
+每条读取路径都由身份索引定位，成本随请求涉及的 Run、slot 与事实增长，不随无关 Run 数增长。
+当前格式必须提供以下访问路径：
+
+| 读取 | 访问路径 | 使用者 |
+|---|---|---|
+| 固定 cutoff | publication clock 单行 | 全部 Inspection 与 reuse planning |
+| exact Run | run resource 主键 | `run.get`、`run show`、reuse source |
+| exact locator | `(attempt_locator, origin_run_id, attempt_id)` | Attempt operation、显式采用 |
+| Experiment 的 Run | Run 行的 `(experiment_id, run_id)` | `experiment.get` |
+| Experiment 的 source 候选 | run resource 的 `(experiment_id, created_revision, run_id)` | reuse source barrier |
+| 逻辑位置的最近 Run | expected slot 的 `(eval_id, attempt_ordinal, run_id)`，与上一行联用 | reuse source barrier |
+| 全量 Run 列表 | `(created_revision, run_id)` | `run.list`、当前 Results |
+
+每个 Run 行都有 typed `experiment_id`；读取不按 Core JSON 回退筛选。没有 run resource 的历史 Run 只经 Run 行索引被发现。
+索引只保存身份与可见性，不保存 Inspection result、聚合指标或 policy 判断。
 
 ## 删除不变量
 
@@ -172,7 +191,8 @@ source adapter 只以文件只读方式捕获到私有目录，不让 SQLite 打
 此路径允许 SQLite 管理 SHM，但不写主库，不执行迁移、checkpoint 或 repair；历史格式、未知格式与待恢复状态拒绝。
 sidecar 只选择读取机制，不证明格式或 portable 身份。
 
-当前项目读取验证 ready schema、完整性、外键与全部 sealed Run。active 发布事实沿用既有项目读取语义，未发布 rows 不可见；
+当前项目读取只验证 ready schema 与 migration 边界，不重新执行全库完整性、外键或全部 Run 验证；信任边界与读取成本见 [Inspection 架构](../inspection/architecture.md#读取信任与成本)。
+全量验证属于私有捕获、迁移、recovery、portable gate 与显式完整性维护。active 发布事实沿用既有项目读取语义，未发布 rows 不可见；
 私有 generation 不因此获得 portable、执行或恢复资格。外部输入不使用此项目例外。
 
 私有捕获在首字节写入前取得私有权限，并对固定文件描述符执行两遍有界读取、摘要和文件身份复核。
@@ -205,13 +225,22 @@ Record 格式版本独立于 npm 包版本，不能用产品版本号推断数�
 | `niceeval.project-database/0.15` | `agentId: string` | 映射到会话适配器身份 |
 | `niceeval.project-database/0.16` | `application: ApplicationIdentity` | 按旧判别字段转换接入身份 |
 | `niceeval.project-database/0.17` | `adapter: AdapterIdentity`，Hook 声明可缺失 | 保留 Core 字节，迁移至独立可写表 |
-| `niceeval.project-database/0.18` | `adapter: AdapterIdentity` 与显式 Hook 声明 | 当前唯一写入格式 |
+| `niceeval.project-database/0.18` | `adapter: AdapterIdentity` 与显式 Hook 声明 | 为每个 Run 建立 typed Experiment 身份与读取索引 |
+| `niceeval.project-database/0.19` | 同 0.18 | 当前唯一写入格式 |
 
 0.15 的 Agent 与 0.16 的 Agent 分支可由旧格式事实确定为 `contract: "niceeval.agent/v1"`，没有显式行为版本则保存 `null`。
 0.16 的自定义应用分支保留原 name、contract 与 behaviorRevision，只改变其接入身份表示。
 
 历史格式中的合法 `experimentHooks` 声明逐字段保留，Run 与 Attempt publication closure 使用同一转换。
 声明缺失仍表示 unknown，迁移不补造 absent；非法版本、枚举值及其它未知字段拒绝。
+
+0.18 → 0.19 不改变任何 Core、digest、seal 或 publication 字节，只做两件事：
+
+- 从每个 Run 已验证的 Core 取出 `experimentId`，写入 Run 行自己的 typed `experiment_id` 列；已有 run resource 时两者必须相同，不同则拒绝迁移。
+- 建立下文[读取索引](#读取索引)。
+
+迁移不为缺少 run resource 的历史 Run 合成 resource、invocation、revision、expected slot 或 binding，也不推进 publication clock；这些 Run 的既有读取与 source barrier 语义保持不变。
+0.19 使用独立 `ne19_` 可写表。
 
 0.17 的 Core payload、digest 与 seal 保持原字节；0.18 使用独立 `ne18_` 可写表，移除旧 `ne_` 对象。
 0.17 必须处于 ready；尚未完成的旧迁移保留现场并拒绝升级，先用原版本完成恢复。

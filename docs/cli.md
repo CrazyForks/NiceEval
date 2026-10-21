@@ -118,7 +118,7 @@ reuse 与 explicit adoption 形成 reference Member，实际执行形成 origin 
 
 Run 为 `active` 时，create 与已发布 Attempt 已可读取。受控退出关闭 Run 与 writer、checkpoint 并 truncate WAL，再以内建只读
 路径验证 canonical `.niceeval/record.sqlite`。portable gate 通过后命令才返回 `InvocationReceipt`；调用方按 receipt 的
-`createdRunIds` 与 `publicationCutoff` 读取 Verdict、用量、耗时和详情。
+`createdRunIds` 读取 Verdict、用量、耗时和详情。
 
 ### 生命周期命令计划
 
@@ -181,7 +181,7 @@ CLI 与 Node runtime 只提供英语人读文本。每段文案由产生该反�
 持久化的业务事实由 Experiment Host 内部的 Runner 写入 Record Core 或五个固定 family。终端与
 `--json` 可以显示这些事实的当前摘要，但不得从反馈文本反向形成 Record 数据。
 
-`exp --json` 的最后一条机器输出是 receipt。调用方以进程退出状态和该 receipt 判断调用是否结束，再用 `query`、`createdRunIds` 与 `publicationCutoff` 读取业务数据。
+`exp --json` 的最后一条机器输出是 receipt。调用方以进程退出状态和该 receipt 判断调用是否结束，再用 `query` 与 `createdRunIds` 读取业务数据。
 
 ## 运行时与中断
 

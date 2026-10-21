@@ -17,7 +17,7 @@ niceeval session show <invocation-id> [--json]
 开始/结束时间、`published / expected` coverage 与 invocationId。`active` 的空 slot 显示 pending；终态空 slot 显示
 闭合 absence reason。
 
-`run show` 消费唯一 canonical Run Inspection operation，不拼接多份近义 operation。结果包含 Run identity、state、
+`run show` 消费唯一 canonical Run Inspection operation `run.get`，不拼接多份近义 operation，也不使用 Run Host 自己的投影。结果包含 Run identity、state、
 expected/published/missing、slot bindings、Attempt locators、absence、Verdict、score、Evidence、usage 与 limitations。
 
 `run delete` 只接受终态 Run。目标仍为 `active` 时提示先 recover；存在 incoming reference 时零删除，并列出依赖

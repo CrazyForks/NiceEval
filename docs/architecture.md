@@ -54,8 +54,19 @@ src/
 
 逐个能力落到哪个文件,查 [Source Map](source-map.md) ——那份表是源码定位的单一出处,本图只表达分层。
 
-边界规则一句话:**`agents/` 和 `sandbox/` 之外的任何文件,都不应出现 agent 名字或 sandbox 名字的行为分支。
-** 核心拿到的是接口,不是名字。
+边界规则一句话:**具名收容区之外的任何文件,都不应出现 agent 名字或 sandbox 名字的行为分支。**
+核心拿到的是接口,不是名字。
+
+具名收容区是一份闭集，新增一处必须先改这张表：
+
+| 收容区 | 允许出现的名字 | 理由 |
+|---|---|---|
+| `agents/` | 各 Agent 与 Adapter | 连接被测对象与协议的全部特殊性 |
+| `sandbox/` | 各 Sandbox provider | 隔离与运行位置的全部特殊性 |
+| `o11y/otlp/mappers/` | 发出 OTLP 的具体 Agent | 每家 telemetry 的属性名与语义不同；mapper 只把它们归一成标准事件流，不做行为决策 |
+| `docker/` | Docker | Docker 专属 profile、image cache 与 BuildKit 命令树，见下文 [CLI feature composition](#cli-feature-composition) |
+
+收容区之间也不交叉引用名字：`o11y/otlp/mappers/` 不读 Sandbox 名字，`docker/` 不读 Agent 名字。
 
 ## 程序设计边界：纯函数、完整 ADT 与 Effect
 
@@ -84,7 +95,7 @@ Effect-native Library API 继续返回 Effect；只有 CLI / application 入口�
 
 | 层 | 长期承诺 | 允许怎样变化 | Effect 的角色 |
 |---|---|---|---|
-| Host composition SDK | `experimentHost`、`coordinationHost`、`runHost` 与 `inspectionHost` 各拥有窄操作面 | CLI 与深度应用集成只组合这些入口，不穿透到 Runner、reader、SQLite schema 或 browser transport | 在 Host 边界组合 Layer、`Scope.Scope`、typed error 与 interruption |
+| Host composition SDK | `evalHost`、`experimentHost`、`coordinationHost`、`runHost` 与 `projectHost` 各拥有窄操作面；`niceeval/inspection` 只是协议入口，不是 Host | CLI 与深度应用集成只组合这些入口，不穿透到 Runner、reader、SQLite schema 或 browser transport | 在 Host 边界组合 Layer、`Scope.Scope`、typed error 与 interruption |
 | Run Core | Run identity/state、expected slots、Attempt origin/reference、Member action、publication revision 与 absence | 领域语义只在 Run Feature 演进；physical SQLite schema 独立演进 | 精确解码、publication transaction、writer fencing 与 Scope-bound I/O |
 | Producer / behavior | 产生所属固定事实，并维护 input/config/reuse identity | Assert-first evaluator、Plugin、matcher 与 Sandbox chain 可以独立变化 | 承接执行、并发与 interruption |
 | Inspection | 固定 typed registry、穷尽 request、四态 document、分母、limits、issues、Evidence 与三种 comparison | 当前 `project.get` 消费 Experiment Host 冻结的目标输入；历史 operation 只读已发布事实；用户不能注册公式或 SQL | `niceeval/inspection` 只导出 Schema、类型与 decoder；内部 selector 关闭 document |
@@ -240,29 +251,30 @@ Agent 的 `test(t)` 暴露会话 `TestContext`，其中方法能否读到完整�
 以 Sandbox Agent 的 Eval 为例。
 Direct Agent 跳过 Sandbox 创建、变更分类账与 diff 采集：
 
-1. **加载配置。
-   ** 对支持 Eval 替换的字段按 CLI → experiment → eval → `niceeval.config.ts` → 默认值求值。
+1. **加载配置。**
+   对支持 Eval 替换的字段按 CLI → experiment → eval → `niceeval.config.ts` → 默认值求值。
    不支持 Eval 替换的字段按各自专题声明的层级求值；见[配置与凭据的边界](#配置从代码来凭据从进程变量来)。
-2. **发现。
-   ** 扫 `evals/`,收集 `*.eval.ts` 与 `*.eval.tsx`;据路径推导 id,排序;按过滤器(id 前缀 / `--tag`)筛。
-3. **由 Experiment Host 建立运行。
-   ** CLI 调用 `experimentHost.plan()` 或 `experimentHost.run()`。Host 计算带 domain 的
-   input/config identity，并在其实现内通过内部 Run capability 建立带 `startedAt` 与完整
-   expected SlotId 的目标 Run draft。draft 没有完成标识，因此不是已发布 Run。
-4. **reuse planning。
-   ** `experimentHost` 在内部把当前 ProjectTarget、ExecutionTarget 和 Run capability 交给 Runner。
+2. **发现。**
+   扫 `evals/`,收集 `*.eval.ts` 与 `*.eval.tsx`;据路径推导 id,排序;按过滤器(id 前缀 / `--tag`)筛。
+3. **由 Experiment Host 建立运行。**
+   CLI 调用 `experimentHost.invocation.plan()` 或 `experimentHost.invocation.run()`。Host 计算带 domain 的
+   input/config identity，并在其实现内通过内部 Run capability 提交 Invocation start transaction。
+   该事务同时创建 Invocation Session 与带 `startedAt`、完整 expected SlotId 的 `active` Run；Run 提交后立即可被发现。
+   Run 可见不等于任何 Attempt 已发布，Attempt 逐个经第 12 步发布；完整生命周期见 [Run](feature/run/architecture.md)。
+4. **reuse planning。**
+   `experimentHost` 在内部把当前 ProjectTarget、ExecutionTarget 和 Run capability 交给 Runner。
    具名 policy 把每个 Slot 穷尽判为 reuse 或 gap。source barrier、禁止回扫、`reuseContract`、
    Verdict、fingerprint、timeout、`--rerun` 与 `--keep-sandbox` 都属于该 policy，不属于 Run Core。
    完整契约见 [Execution reuse planning](feature/experiments/cache.md)。
 
    planner/scheduler 只接收 gaps；Host 保留完整 Slot decision。
-5. **有界并发调度。
-   ** 全局至多 `maxConcurrency` 个 gap execution 在飞(全局信号量);设了 `maxConcurrency` 的实验另有一道实验级信号量,自己排队、不影响同批其它实验(见 [Runner](runner.md#调度有界并发))。
+5. **有界并发调度。**
+   全局至多 `maxConcurrency` 个 gap execution 在飞(全局信号量);设了 `maxConcurrency` 的实验另有一道实验级信号量,自己排队、不影响同批其它实验(见 [Runner](runner.md#调度有界并发))。
    重试不是 attempt 级耗时启发式：turn 重试只包 `agent.send` 且受受理证据门约束，Sandbox provisioning 与幂等文件 IO 各守自己的执行体；完整边界见[执行失败分类](feature/error-classification/architecture.md)与[Sandbox](feature/sandbox/architecture.md#provisioning-失败与重试)。
 6. **准备 Sandbox,交给 `test(t)`。**
    沙箱型按固定顺序完成下面几步:
    - Provider 按配对唯一的 template 启动 Sandbox 实例。
-   - 按 owner 顺序执行两层作者 layer 的 `prepare()` 命令(template owner 先、另一 owner 后,装二进制、预热、题目准备;这一步在变更分类账参照点之前,准备输出不进入任何归因视图)。
+   - 执行各 owner 的 before action(装二进制、预热、题目准备)。顺序只由 [Sandbox Layer · 顺序与依赖方向](feature/sandbox/layers.md#顺序与依赖方向) 定义;这一步在变更分类账参照点之前,准备输出不进入任何归因视图。
    - `agent.ensure` 循环安装 Agent CLI:探测、缺失时配对安装层 install、复检。
    - 打变更分类账参照点(runner 私有 git ledger,见 [Sandbox · 变更归因](feature/sandbox/architecture.md))。
    - 跑 agent 的 runtime `SandboxAgent.setup`(写鉴权与运行时配置)。
@@ -270,23 +282,23 @@ Direct Agent 跳过 Sandbox 创建、变更分类账与 diff 采集：
    作者按自己的顺序调 `t.sandbox.writeText` / `writeBytes` / `uploadDirectory`(准备起始文件)与 `t.sandbox.runCommand(..., { cwd })`(手工跑校验命令)。
    `t.send()` 驱动 agent——adapter 在沙箱里跑 CLI、抓 transcript、归一化成标准事件流。
    顺序、次数、要不要对 agent 隐藏某些文件,全部是 `test(t)` 里的普通代码决定;核心不插手,也不预设"先上传什么、后上传什么"这种固定编排。
-7. **封口 agent 归因轨迹。
-   ** `test(t)` 跑完后从分类账取得每个 send 区间自己的 before/after 端点，按 send 顺序形成完整轨迹，供
+7. **封口 agent 归因轨迹。**
+   `test(t)` 跑完后从分类账取得每个 send 区间自己的 before/after 端点，按 send 顺序形成完整轨迹，供
    `fileChanged` / `notInDiff` 等归因断言的 finalize 与固定 file-changes family 使用。它不把跨 send 区间的
    路径合成并集、`net` 或 hunk。fixture 写入和 agent 跑完后手工写入的校验材料都不在其中。
-8. **断言求值。
-   ** `test(t)` 里写入的作用域断言、值断言与 Judge，连同手工校验命令的结果断言，全部形成结构化 assertion 结果。
-9. **判定。
-   ** assertion 结果、执行错误与跳过原因共同形成一个互斥 Verdict（`passed` / `failed` /
+8. **断言求值。**
+   `test(t)` 里写入的作用域断言、值断言与 Judge，连同手工校验命令的结果断言，全部形成结构化 assertion 结果。
+9. **判定。**
+   assertion 结果、执行错误与跳过原因共同形成一个互斥 Verdict（`passed` / `failed` /
    `errored` / `skipped`，没有中间态）。它由 Assertions 与 Attempt outcome 解释，不另建持久
    family；未来 reuse planning 按自己的 policy 决定是否采用。
-10. **首过即停。
-   ** 若该 Attempt 形成 `passed` Verdict 且开了 `earlyExit`,`abort()` 掉同一 eval 的其余 Attempt。
-11. **收尾与留存。
-    ** finally 里按 `SandboxAgent.teardown` → 两层作者 layer 已登记 cleanup(按全局准备顺序逆序)→ Provider finalizer 的顺序收尾。
+10. **首过即停。**
+   若该 Attempt 形成 `passed` Verdict 且开了 `earlyExit`,`abort()` 掉同一 eval 的其余 Attempt。
+11. **收尾与留存。**
+    finally 里按 `SandboxAgent.teardown` → 各 owner 已登记的 after action(按实际登记栈逆序,见 [Cleanup](feature/sandbox/layers.md#cleanup))→ Provider finalizer 的顺序收尾。
     收尾只能追加 diagnostic event，不改已经形成的 Verdict；随后按留存决策销毁或留存沙箱(`--keep-sandbox`,见 [Sandbox · 留存](feature/sandbox/architecture.md#留存keep与注册表))。
-12. **经 Run Host 发布 Attempt、收口 Run，并返回 receipt。
-    ** `experimentHost` 把 ExecutionTarget、reuse intents 与 executed outcomes 交给内部 Runner。
+12. **经 Run Host 发布 Attempt、收口 Run，并返回 receipt。**
+    `experimentHost` 把 ExecutionTarget、reuse intents 与 executed outcomes 交给内部 Runner。
     reuse 与 explicit adoption 形成 reference Member，实际执行形成新 Attempt 及唯一 origin
     anchor；采用动作是 Member Core 事实，不另设 provenance family。
 
@@ -298,8 +310,8 @@ Direct Agent 跳过 Sandbox 创建、变更分类账与 diff 采集：
     把 pinned facts 传给同一内部 selector；当前 `project.get` 另消费 Experiment Host 冻结的目标输入。selector 关闭 selection、分母、missing、
     Evidence 与 comparison；CLI、Web 与 Testkit 使用 `niceeval/inspection` 的同一 Schema、类型与 decoder。
     Delivery 不重新读取 Run facts 或执行统计。
-13. **退出码。
-    ** 有 `failed` Verdict 或 `errored` Verdict → 非零退出；报告里两者分开列，供 CI 判红和诊断。
+13. **退出码。**
+    有 `failed` Verdict 或 `errored` Verdict → 非零退出；报告里两者分开列，供 CI 判红和诊断。
 
 ## 配置从代码来,凭据从进程变量来
 

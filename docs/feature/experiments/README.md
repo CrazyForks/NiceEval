@@ -94,8 +94,10 @@ interface EvalDescriptor {
 
 export default defineExperiment({
   description?: string;                       // 人读
-  agent: Agent;                              // 跑哪个 agent(adapter 实例)
+  agent?: Agent;                             // 对话 Adapter 的简写;agent 与 adapter 必须且只能提供一个
+  adapter?: Adapter;                         // 本实验使用的 Adapter 实现(见 Library · 自定义应用)
   model?: string;                            // 单个模型(agent 留空);省略=原生默认。跨模型对比写多个实验文件
+  models?: Readonly<Record<string, { model: string; reasoningEffort?: string }>>; // 普通 Adapter 的命名模型用途;与 model、reasoningEffort 互斥
   reasoningEffort?: string;                  // 推理努力程度(agent 留空);省略=原生默认。经 ctx.reasoningEffort / t.reasoningEffort 透传
   judgeRuntime?: JudgeSelection;                    // 本实验的裁判模型或完整 Provider；用于可签入的 Judge A/B
   flags?: Record<string, string | number | boolean>; // 扁平实验条件，经 ctx.flags / t.flags 传递（见 Library）
@@ -108,7 +110,9 @@ export default defineExperiment({
   timeoutMs?: number;                        // 单次运行超时
   sandbox?: SandboxLayer;                    // 本实验向主 Sandbox 贡献的一层:template-bearing factory 产物,
                                             // 或 sandboxLayer() 的命令链;省略等价于空的 command-only layer
+  sandboxCache?: SandboxCacheConfig;         // Host 的执行缓存策略(sandboxCache.setup: "use" | "bypass");不参与身份计算
   sandboxReuse?: true;                       // 多条 Attempt 可以共用 Sandbox；省略时每 Attempt 全新
+  plugins?: PluginStack<"experiment">;       // 本实验挂载的 Plugin(见 Plugins Library)
   sharedState?: { readonly key: string };    // 共享 checkpoint / 数据库的跨 Invocation 独占身份
   budget?: number;                           // 整个实验估算成本上限($),超了停止派发
   maxConcurrency?: number;                   // 只限制本 Invocation 内该实验的 attempt

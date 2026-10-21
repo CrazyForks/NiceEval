@@ -135,8 +135,8 @@ function getParserForAgent(agent: string) {
 
 ## Codex 怎么转换
 
-**输入形状和 Claude Code 完全不同。
-** Codex 走 OpenAI Responses API 的事件流,`--json` 输出的每一行是一个**细粒度的生命周期事件**,不是"一条消息"。
+**输入形状和 Claude Code 完全不同。**
+Codex 走 OpenAI Responses API 的事件流,`--json` 输出的每一行是一个**细粒度的生命周期事件**,不是"一条消息"。
 而且事件的 type 字段本身就不稳定——parser 第一步是 `const eventType = data.type || data.event || data.kind`,三个字段轮流试,这是应对 Codex 跨版本 / 跨 wire API 命名漂移的防御写法。
 
 **转换逻辑是一个大 `switch(eventType)`,不是 if/else 链**,分支比 Claude Code 多得多,因为 Codex 的事件粒度更细:
@@ -226,8 +226,8 @@ if (event.tool.name === 'shell') {
 `generateSummary` 只认 `_extractedPath` / `_extractedUrl` / `_extractedCommand` 这三个暗号字段,读不到才退回去猜通用字段名回退。
 **提取(这个字段在这家 CLI 的私有参数里叫什么)和聚合(这些字段怎么计数 / 去重)被这个命名约定彻底切开**——新增一个 agent,只要在它自己的 parser 后处理里填好这三个暗号字段,`generateSummary` 一行不用改。
 
-**call/result 配对是顺序性的,不是 id 性的。
-** shell 命令的成功状态是这样接上的:
+**call/result 配对是顺序性的,不是 id 性的。**
+shell 命令的成功状态是这样接上的:
 
 ```typescript
 case 'tool_result':
@@ -274,8 +274,8 @@ await sandbox.writeText('__agent_eval__/results.json', JSON.stringify(context, n
 
 ## 这次读源码对 niceeval 的启发
 
-- **显式 ID 配对比"数组里最后一条未配对条目"更稳。
-  ** niceeval 的 `operation.started` / `operation.finished` 靠 `operationId` 配对,不依赖工具调用严格顺序发生。
+- **显式 ID 配对比"数组里最后一条未配对条目"更稳。**
+  niceeval 的 `operation.started` / `operation.finished` 靠 `operationId` 配对,不依赖工具调用严格顺序发生。
   agent-eval 这份实现在并发或乱序工具调用下会错配,是个真实的设计取舍,不是理论问题。
 - **"暗号字段 + 通用回退"这个具体写法值得抄**,尤其是"提取"和"聚合"分离这一点;但**提取函数本身在多个 agent parser 间被复制而非共享**,是可以直接避免的重复,新写 parser 时不必照抄这一部分。
 - **一个 agent 的"采集"可以是多条互不相干的通道**(Codex 的 stdout 转写 vs 磁盘读实际模型),不是"一个 agent 一种采集方式"——设计 adapter 的采集逻辑时要按"这份数据要用来干什么"分别决定怎么采,而不是假设一种机制能满足所有需求。

@@ -268,24 +268,25 @@ Query 不接受旧 `t<N>.c<M>`、`cmd<N>` 或其它按显示位置派生的 hand
 
 CLI 只在 Node 中运行：Node source adapter 在一个固定 `PublicationCutoff` 下打开已发布 facts，随后调用内部 Inspection selector。
 它不启动 HTTP、sqlite-wasm、浏览器或 View session。request 只在固定 operation 的参数边界内选择 `overview.get`、Run、
-Attempt、精确 trace identity 或比较集合。命令不接受 SQL、`where`、JSON path、formula、数据库 cursor、rowid、文件位置或调用方
-指定的 page size。
+Attempt、精确 trace identity 或比较集合。命令不接受 SQL、`where`、JSON path、formula、数据库 cursor、rowid 或文件位置。
 
-machine consumer 需要原始 Run 层级或既有摘要时仍可使用 `run.get` 与 `run.summary`。需要一份与人读
-Run 概览相同的闭合 machine result 时使用新增的 `run.overview`：
+分页只用 operation 自己声明的有界参数，例如 opaque continuation 或 `attempt.assertion.image` 的 `offset/limit`；上限由 operation 固定，调用方不能放宽。
+
+Run 详情只有一个 operation：`run.get`。machine consumer、`show --run`、`run show` 与 Insight 的 Run debugger 都消费它，
+不存在按粒度拆开的近义 Run operation。
 
 ```json
 {
   "protocol": "niceeval.query/v1",
-  "operation": { "kind": "run.overview", "runId": "run_01JSHOW" }
+  "operation": { "kind": "run.get", "runId": "run_01JSHOW" }
 }
 ```
 
-`run.overview` 按 exact `runId` 一次交付：
+`run.get` 按 exact `runId` 一次交付：
 
-- Run/Experiment identity 与时间；
-- expected/observed denominator 和 Member state/locator/origin relation；
-- Verdict、score、coverage、usage 状态与摘要，以及 limitations。
+- Run/Experiment identity、state 与时间；
+- expected/published/missing denominator，以及每个 slot 的 binding、Member state、Attempt locator 与 origin relation；
+- Verdict、score、coverage、usage 状态与摘要，以及 issues 与 limitations。
 
 Run 已命中但 expected Member 未观测时，result 保留 `missing` Member 与不相等的 denominator。
 partial、not-recorded 或 unavailable 的 score、coverage、usage 不按失败或零补齐。
@@ -300,13 +301,12 @@ explanation 交付同一 operation 的读取范围与 fact kinds。failure 交�
 
 每个 source-bound success/explanation document 的 `source` 固定为
 `{ kind: facts.kind, publicationCutoffIdentity: facts.cutoff().identity }`。
-它不含路径，`runCount` 只在 `publicationCutoff` 中出现。codec 的 allowed/required fields、base envelope 与
-`runs.list` envelope 都使用这一字段。
+它不含路径。`PublicationCutoff` 只有 [Run 架构](../run/architecture.md#publicationcutoff) 定义的 `storeGeneration` 与 `revision`，不含 Run 计数；
+codec 的 allowed/required fields、base envelope 与 `run.list` envelope 都使用这一形状。
 
 这个 protocol document 只属于 CLI 编码边界，不是 Insight 输入、View DTO、缓存或第二份持久
 artifact。CLI、Web 与 Testkit 都从 `niceeval/inspection` 取得同一 Schema、类型与 decoder。Testkit 只在完整
-decode `InspectionDocument` 后按 `outcome` 和 operation 语义窄化，不维护宽松 JSON shape。浏览器在自己的 `PublicationCutoff` 上运行相同 operation、参数校验、row codec 与 result
-meaning；它不请求或反序列化 `query` stdout。
+decode `InspectionDocument` 后按 `outcome` 和 operation 语义窄化，不维护宽松 JSON shape。浏览器不打开 facts、不运行 selector：View Host 在 Node 进程内执行同一 operation，经 HTTP 返回 document；浏览器不请求或反序列化 `query` stdout。
 
 进度、argv 错误、无法读取 request、无法验证 source，以及无法形成 document 的进程失败只写
 stderr 并以非零状态退出。调用方不能根据 stderr 拼接部分 JSON，也不能把 stdout 的 document
@@ -374,9 +374,9 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   范围是各槽位最新已发布结果，明确标注 Latest recorded slots；不表示全部历史支出或当前源码中的目标集合。
 - 显式 `--record <file>` 使用历史 `overview.get`，标题为 `Recorded results`；与 `--experiment` 搭配时使用 exact `experiment.get`。
   这些路径不发现或求值当前项目。`--run` 与 Attempt locator 也始终读取固定历史事实。
-- 一个或多个 `--run` 逐个调用 exact `run.overview`，并且只消费这一份闭合 result。
+- 一个或多个 `--run` 逐个调用 exact `run.get`，并且只消费这一份闭合 result。
   它显示指定 Run 的 identity、时间、denominator、Member/Attempt locators、Verdict、score、coverage、usage 与 limitations。
-  CLI 不得组合 `run.get` 与 `run.summary`。重复 flag 的输入顺序不是业务排序 authority。
+  重复 flag 的输入顺序不是业务排序 authority。
 - `@<locator>` 在同一读取 cut 调用 `attempt.get` 和 `attempt.usage`，首先显示该 Attempt 的总费用，再显示精确身份、Verdict、score、coverage、Assertion
   摘要、section states 与 limitations。另给出可复制的 source、execution、timing、usage 和 diff 后续命令。
 - `@<locator> --source` 调用 `attempt.sources`，显示已封存 source 与 Assertion facts，保留

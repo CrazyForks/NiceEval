@@ -193,12 +193,14 @@ interface InvocationReceipt {
   readonly startedAt: string;
   readonly completedAt?: string;
   readonly completion: "completed" | "interrupted" | "failed";
-  readonly publicationCutoff: unknown;
+  readonly publicationCutoff: string;
 }
 ```
 
 receipt 不复制 locator、Verdict、Usage、cost 或 Attempt 计数。需要这些结果时，以
-`createdRunIds` 和 opaque `publicationCutoff` 构造固定 Inspection request。
+`createdRunIds` 构造固定 Inspection request。
+`publicationCutoff` 是调用结束时 Record 的 opaque publication 位置，只说明这份 receipt 观察到哪里，不是 Inspection request 的输入。
+后续 query 以 `createdRunIds` 选择 Run，读取执行 query 时的当前 generation；其间新发布的 reference 或删除会反映在结果中。
 
 进程退出码由本次 Runner 已知的 Verdict、执行错误和 Invocation completion 计算。receipt 只描述调用完成情况，不成为另一份结果摘要。
 

@@ -34,7 +34,7 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | 任务 | Task | 要让被测应用完成的操作序列；Agent 使用会话动作，自定义应用使用自己的方法 | [Eval](feature/eval/library.md) |
 | Fixture | Fixture | 第一次 `send` 前通过普通 Sandbox API 写入的起始素材,加 Eval layer `prepare()` 准备的内容;算 eval 归因,不进 agent diff | [Eval](feature/eval/README.md#defineeval-的形状) |
 | 本地传输清单 | transfer manifest | 普通本地上传实际读取的 source tree、内容摘要、Sandbox 目标与 send 区间;由 Runner 自动写入 | [本地测试文件](feature/eval/use-case/criteria-files.md) |
-| send 区间 | send window | 一次逻辑 `t.send()` 从发出到最终 settle 的区间,包含全部物理重试与静止确认;Sandbox diff 只反映各 send 区间内改动的并集 | [Agent contract](feature/adapters/architecture/agent-contract.md) |
+| send 区间 | send window | 一次逻辑 `t.send()` 从发出到最终 settle 的区间,包含全部物理重试与静止确认;Sandbox 归因按 send 顺序保留每个区间各自的 before/after 端点,不合并成并集 | [Agent contract](feature/adapters/architecture/agent-contract.md) |
 | 测试集 | Dataset | 共享同一 `test` 逻辑、只有输入不同的一组 case,`.map` 从输入数组生成多条 eval,id 零填充编号 | [Dataset fan-out](feature/eval/use-case/dataset-fanout.md) |
 | 发现 | Discovery | 扫 `evals/` 找 `*.eval.ts` / `*.eval.tsx` 与目录入口 `eval.ts`,按路径推导 id;同 id 双入口报重名 | [Eval](feature/eval/README.md) |
 | Attempt | Attempt | 一个 Run 中某个 Eval 的一次独立执行；拥有生命周期、Assertion 与 Verdict，Score Eval 还拥有 score，重复序号为 i | [Eval context](feature/eval/library/context.md) |
@@ -46,7 +46,7 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | 中文 | English | 含义 | 契约 |
 |---|---|---|---|
 | 断言 | Assertion | 对结果、行为、证据或资源使用提出的一项可写入的检查;产出 0–1 分数或 `unavailable` | [Assertions](./feature/assertions/README.md) |
-| 判定 | Verdict | Attempt-owned `niceeval.verdict` 文档中的四态值：`passed` / `failed` / `errored` / `skipped`；不是 Attempt lifecycle state | [Severity 与 Verdict](./feature/verdict/architecture.md) |
+| 判定 | Verdict | 由 Assertions 与 Attempt outcome 折叠出的四态值：`passed` / `failed` / `errored` / `skipped`；不另建持久 family，也不是 Attempt lifecycle state | [Severity 与 Verdict](./feature/verdict/architecture.md) |
 | 质量门 | quality gate (`gate`) | 显式 condition 不满足时使 Attempt 为 `failed`；没有全局 strict 或读时提升 | [Verdict](./feature/verdict/architecture.md) |
 | Judge 断言 | LLM-judged assertion | 把显式材料和 rubric 交给裁判模型求 measurement 的 Assertion；是否失败或计分由 handle 配置 | [LLM-as-a-judge](./feature/judge/library.md) |
 | 断言范围 | Assertion scope | `t.*` 看 Attempt、`session.*` 看 Agent Session、`turn.*` 看 Turn 已发生的事件 | [Scopes](./feature/assertions/architecture/scopes.md) |
@@ -94,22 +94,22 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | `t.sandbox` | EvalSandbox (`t.sandbox`) | 沙箱型 eval 的文件 IO、宿主传输、命令执行、断言与 diff 接口 | [Sandbox operations](feature/sandbox/library/operations.md) |
 | 变更分类账 | Change ledger | runner 私有的 git 分类账;只把参照点之后的改动放进 agent 归因视图 | [Sandbox architecture](feature/sandbox/architecture.md) |
 | Sandbox template | SandboxTemplate | 同时选择 Provider 并由其启动完整 Sandbox 实例的唯一起点；可以是 Compose、Dockerfile、image、E2B template 或 snapshot | [Sandbox Layer](feature/sandbox/layers.md#template-bearing-factory) |
-| Sandbox 能力要求 | Sandbox capability requirement | Eval 对 Sandbox 必须兑现的 provider-neutral 约束；它不选择 Provider，也不创建第二个 Sandbox origin | [Nested Docker PLAN-5](design/nested-docker-execution/plans/plan-5/README.md#%E8%83%BD%E5%8A%9B%E7%BB%91%E5%AE%9A) |
-| Docker 执行要求 | DockerExecutionRequirement | `docker/v1` 对私有 daemon、Compose、专用 kernel 与最低 Docker data 容量的穷尽要求 | [Nested Docker PLAN-5](design/nested-docker-execution/plans/plan-5/README.md#library-%E8%B0%83%E7%94%A8%E9%9D%A2) |
-| 专用 kernel | dedicated-kernel isolation (`dedicated-kernel/v1`) | Agent 的 Docker 权限止于当前 guest kernel，不能到达宿主 daemon、kernel 或其它 Attempt | [Nested Docker Architecture](design/nested-docker-execution/plans/plan-5/architecture.md#%E5%9B%9B%E4%B8%AA-owner) |
+| Sandbox 能力要求 | Sandbox capability requirement | Eval 对 Sandbox 必须兑现的 provider-neutral 约束；它不选择 Provider，也不创建第二个 Sandbox origin | [Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#requirement-与-capability) |
+| Docker 执行要求 | DockerExecutionRequirement | `docker/v1` 对私有 daemon、Compose、专用 kernel 与最低 Docker data 容量的穷尽要求 | [Nested Docker Library](feature/sandbox-nested-docker/library.md#sandboxrequirements) |
+| 专用 kernel | dedicated-kernel isolation (`dedicated-kernel/v1`) | Agent 的 Docker 权限止于当前 guest kernel，不能到达宿主 daemon、kernel 或其它 Attempt | [Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#四个-owner) |
 | Sandbox 实例 | Sandbox instance | Provider 启动的主 Sandbox；存在 sidecar、网络或服务时，同时点名这些伴随资源 | [Sandbox 实例与伴随资源](feature/sandbox/case.md) |
 | 主 Sandbox | —(`workspaceService` 对应实例) | Provider 启动的唯一执行空间;Agent、Eval、文件 API、workdir 与 diff 都锚定它 | [Sandbox 实例与伴随资源](feature/sandbox/case.md#主-sandbox-不变量) |
 | BuildKey | BuildKey | 一次 Provider 构建的输入身份,用于复用 Docker image 或 E2B template 构建结果 | [Sandbox 实例与伴随资源](feature/sandbox/case.md#buildkey-与-casekey两个身份各管一件事) |
-| 准备前缀 | SetupPrefix | Base 加上 occurrence 与 owner 包裹顺序规范化的零个或多个可缓存 before action 所形成的内容寻址 Sandbox 起点 | [准备前缀缓存](roadmap/sandbox-cache/setup-prefix/README.md) |
-| SetupPrefixKey | SetupPrefixKey | parent 前缀、规范化 steps、immutable inputs 与 Provider 捕获协议的链式内容身份 | [Setup Prefix Architecture](roadmap/sandbox-cache/setup-prefix/architecture.md#前缀身份) |
-| Provider artifact | Provider artifact | Provider 为 exact Sandbox template 或 SetupPrefix 捕获并验证的不可变 image、template、snapshot 或 volume 结果；物理 locator 不成为 Eval 语义 | [Nested Docker Cache](research/nested-docker-execution/cache/README.md#provider-artifact-%E4%B8%8D%E6%98%AF%E7%AC%AC%E4%BA%8C%E4%B8%AA-sandbox-template) |
+| 准备前缀 | SetupPrefix | Base 加上 occurrence 与 owner 包裹顺序规范化的零个或多个可缓存 before action 所形成的内容寻址 Sandbox 起点 | [Sandbox · 准备前缀](feature/sandbox/architecture.md#准备前缀的身份与验证边界) |
+| SetupPrefixKey | SetupPrefixKey | parent 前缀、规范化 steps、immutable inputs 与 Provider 捕获协议的链式内容身份 | [Sandbox · 准备前缀](feature/sandbox/architecture.md#准备前缀的身份与验证边界) |
+| Provider artifact | Provider artifact | Provider 为 exact Sandbox template 或 SetupPrefix 捕获并验证的不可变 image、template、snapshot 或 volume 结果；物理 locator 不成为 Eval 语义 | [Sandbox · 前缀缓存](feature/sandbox/architecture.md#前缀缓存是可失败的优化) |
 | Sandbox 状态面 | Sandbox state surface | 一个 before action 承诺写入的完整可观察状态范围；V1 只有完整 Sandbox 与 inner Docker data 两种 | [Sandbox Layer](feature/sandbox/layers.md#action-family-与-step) |
 | CaseKey | CaseKey | 完整 attempt 运行条件身份,携带门的判据 | [Sandbox 实例与伴随资源](feature/sandbox/case.md#buildkey-与-casekey两个身份各管一件事) |
 | Provider cache | Provider cache | Provider 为后续 Sandbox 保留的 Agent npm tarball、任务构建结果或原生 build cache；不属于结果携带或留存 Sandbox | [Provider Cache 生命周期](roadmap/sandbox-cache/cache-lifecycle/README.md) |
 | Cache Domain | Cache Domain | 单一 cache backend 的所有权、命中、lease 与回收边界；identity 改变时形成新 Domain | [Provider Cache Architecture](roadmap/sandbox-cache/cache-lifecycle/architecture.md#cache-domain) |
 | GC 计划 | GcPlan | 对一个 Cache Domain 的不可变回收授权预览；apply 只能因事实漂移缩减候选，不能扩大候选 | [Provider Cache CLI](roadmap/sandbox-cache/cache-lifecycle/cli.md#两阶段回收) |
 | Sandbox 留存能力 | SandboxRetention | Provider 返回的独立能力句柄；主实例与伴随资源同时 suspend，跨进程由 detached provider inspect / wake / destroy | [Sandbox 实例与伴随资源](feature/sandbox/case.md#收尾留存与注册表) |
-| Sandbox allocation | SandboxAllocation | 一条 Attempt 对 Provider 实例、私有磁盘与网络的 durable ownership 事实；用 generation fencing 与期望终态支撑 detached recovery | [Nested Docker Architecture](design/nested-docker-execution/plans/plan-5/architecture.md#sandboxallocation) |
+| Sandbox allocation | SandboxAllocation | 一条 Attempt 对 Provider 实例、私有磁盘与网络的 durable ownership 事实；用 generation fencing 与期望终态支撑 detached recovery | [Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#sandboxallocation) |
 | Docker storage profile | Docker storage profile | raw DinD显式选择的宿主声明；只证明 Docker data allocation磁盘配额、跨进程准入与强杀恢复 | [Docker 执行配置](feature/sandbox-docker-profiles/README.md) |
 | Docker data allocation | Docker data allocation | 每 Attempt独占、带 project quota hard limit的磁盘配额分配；固定挂到 inner `/var/lib/docker`，内部可由预建目录池兑现 | [Docker profile architecture](feature/sandbox-docker-profiles/architecture.md#单容器资源) |
 
@@ -147,6 +147,8 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | 模型(`model` 字段) | Model | Experiment 为 agent 指定的模型标识;省略则用 agent 原生默认 | [Experiments](feature/experiments/library.md) |
 | 推理强度 | Reasoning effort (`reasoningEffort`) | 独立于 `model` 的推理强度档位;归属与 `model` 一致 | [Experiments](feature/experiments/library.md) |
 | 首过即停 | EarlyExit | 一个 eval 先过一次即中止其余 Attempt 的策略;配置名 `earlyExit` | [Early exit](feature/experiments/use-case/early-exit.md) |
+| Eval Group | Eval Group (`defineEvalGroup`) | 由无业务顺序的 Eval 闭集组成；Runner 按规范化 Eval ID 串行复用一台物理 Sandbox，不同 Group 可以并行 | [Eval Group](feature/eval-groups/README.md) |
+| Plugin | Plugin | 挂在 Eval、Experiment 或 Eval Group 上的不可变条件蓝图；组合既有 owner contribution，不选择 Agent 或建立新运行时 | [Plugins](feature/plugins/README.md) |
 
 ### 预算护栏
 
@@ -160,13 +162,13 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 |---|---|---|---|
 | 运行器 | Runner | 负责发现、有界并发、重试、缓存与结果交付的调度引擎 | [Runner](runner.md) |
 | 生命周期 Hook | Hook | Experiment 与 Agent 层的成对 `setup` / `teardown` 回调;Sandbox 与 Eval 的准备走 layer 的 `prepare()` | [Runner](runner.md) |
-| Invocation | Invocation | 一次 CLI 调用的瞬时编排与 live 聚合边界；可创建多个 Run，但不成为持久领域实体 | [Runner](runner.md) |
+| Invocation | Invocation | 一次 CLI 调用的编排与 live 聚合边界；可创建多个 Run。编排与 live feedback 只属于当前进程，唯一 durable projection 是 Invocation Session | [Runner](runner.md) |
 | 派发 | Dispatch | 把一个 Attempt 交出去开始执行;排队等待不算派发,停止派发不抢占在飞项 | [Runner](runner.md) |
 | 并发位 | Concurrency slot | 全局 `maxConcurrency` 的一个名额,只在 Attempt 真正执行时占用 | [Runner](runner.md) |
 | 实验并发限制 | Experiment concurrency limit | `ExperimentDefinition.maxConcurrency` 对本 Invocation 内一个实验的 Attempt 并发限制 | [Max concurrency](feature/experiments/use-case/concurrency-max-global.md) |
 | 有效宽度 | Effective width | 全局并发位和实验并发限制共同允许的同时执行数 | [Runner](runner.md) |
 | 调度波次 | Scheduling waves | `ceil(Attempt 数 / 有效宽度)`;波次多的 Run 优先拿并发位 | [Runner](runner.md) |
-| 完成状态 | CompletionStatus | Invocation 的 `completed` / `interrupted` / `failed` 完成态，独立于 Verdict；Run 的完成由 `complete` 完成标识决定 | [Runner](runner.md) |
+| 完成状态 | CompletionStatus | Invocation 的 `completed` / `interrupted` / `failed` 完成态，独立于 Verdict；Run 的终态由 Run state 表达，不使用完成标识 | [Runner](runner.md) |
 
 ### 执行失败分类
 
@@ -234,6 +236,7 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | Selection audit | selection audit | 结果随附的选择依据、成员与排除说明；不是数据库 cursor 或文件位置 | [Inspection CLI](feature/inspection/cli.md#machine-输出与错误面) |
 | 执行沿用计划 | `ExecutionReusePlan` | 对当前逻辑位置保留 reuse 或 gap 适用性，再按运行选项选择沿用或执行；只读预览不分配 Run identity | [Cache](feature/experiments/cache.md#公开形状) |
 | 执行缺口 | Execution gap | 当前目标中没有合格 Attempt 的位置；不是 Attempt 或 Run state，也不是强制重跑选项；实际派发仍受预算与 early exit 约束 | [Cache](feature/experiments/cache.md#当前结果可用性与执行选择) |
+| 价格配置 | Pricing profile (`PricingProfile`) | 带内容身份与 coverage、只供固定 Inspection cost operation 投影成本的价格规则集合 | [Inspection](feature/inspection/README.md) |
 
 ### 结果交付（设计目标）
 
@@ -269,15 +272,12 @@ Roadmap 提出的候选原语单列在「候选术语」,链接 Roadmap 入口;�
 | 具名 Experiment 族 | Experiment family (`defineExperiments`) | 用一个 keyed record 展开多个普通 Experiment；文件路径与 key 共同形成稳定 ID | [具名 Experiment 族](roadmap/experiment-authoring/families/README.md) |
 | Fixture 内容命令 | Fixture content command (`putFixture`) | 把本地内容登记、digest-backed identity 与 `putContent` 组成一个普通 prepare command | [Fixture 内容命令](roadmap/sandbox-prepare/fixture-content/README.md) |
 | Agent Judge | Agent Judge | 作为 Assertion evaluator 运行的独立 Agent；调查证据后返回 measurement、理由与引用，不拥有 Verdict 或 score policy | [Agent Judge](roadmap/judge-runtimes/agent/README.md) |
-| Eval Group | Eval Group (`defineEvalGroup`) | 由无业务顺序的 Eval 闭集组成；Runner 按规范化 Eval ID 串行复用一台物理 Sandbox，不同 Group 可以并行 | [Eval Group](feature/eval-groups/README.md) |
-| Plugin | Plugin | 挂在 Eval、Experiment 或 Eval Group 上的不可变条件蓝图；组合既有 owner contribution，不选择 Agent 或建立新运行时 | [Plugins](feature/plugins/README.md) |
 | 准入健康 | Admission health | 每条 fresh slot 在 Agent 进入前，对 producer occurrence 做一次健康裁决；结果归 Run，不形成 Assertion | [准入健康](roadmap/admission-health/README.md) |
 | 状态 Cohort | State cohort | State Provider 颁发身份的一条持久状态 lineage，约束 Checkpoint、Region 与 schema 的共同归属 | [持久状态](roadmap/state/README.md) |
 | 状态 Checkpoint | State checkpoint | State cohort 内由 Provider 发布的 immutable exact 状态点；Comparable 状态必须带内容摘要 | [持久状态](roadmap/state/README.md) |
 | Eval Trajectory | Eval trajectory | 由源码路径定身份、用显式依赖组成，并能从 exact Checkpoint 跨 immutable Run segment 恢复的 Eval DAG | [Eval Trajectory](roadmap/eval-trajectories/README.md) |
 | Workspace 访问证据 | Workspace access evidence | 可信 Sandbox producer 归因给 Agent 进程树的逻辑文件操作集合 | [Workspace 访问证据](roadmap/workspace-access-evidence/README.md) |
 | 发现边界 | Discovery boundary | 显式目录入口拥有的递归 Eval discovery 范围；父级扫描在入口处停止向内发现 | [发现边界](roadmap/discovery-boundaries/README.md) |
-| 价格配置 | Pricing profile (`PricingProfile`) | 带内容身份与 coverage、只供固定 Inspection cost operation 投影成本的价格规则集合 | [Inspection](feature/inspection/README.md) |
 | Experiment 展示名 | Experiment display name (`displayName`) | 与 description、Experiment identity 分离且不参与 reuse、选择或去重的人类可读标签 | [Experiment 展示名](roadmap/experiment-authoring/display-names/README.md) |
 | Record 库存 | Record inventory | 在 frozen Record view 上按 canonical Run ID 枚举的只读库存；不推导最新结果 | [Record 库存](roadmap/record-inventory/README.md) |
 

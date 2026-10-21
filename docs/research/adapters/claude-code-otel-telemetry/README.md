@@ -68,8 +68,8 @@ claude_code.interaction          ← 每个 user prompt 起一个根 span
 
 ### 关键限制:内容默认全部脱敏
 
-**span 默认只有结构和计时,没有内容。
-** `user_prompt`、`tool_input`、工具执行的输入输出内容,默认都不出现在 span 属性里,要显式加:
+**span 默认只有结构和计时,没有内容。**
+`user_prompt`、`tool_input`、工具执行的输入输出内容,默认都不出现在 span 属性里,要显式加:
 
 ```bash
 export OTEL_LOG_USER_PROMPTS=1     # 把 prompt 原文带进去
@@ -112,8 +112,8 @@ span 只有结构与计时(未开内容 flag),行为轨与断言仍走 transcrip
 
 ## 判定:这条路径值不值得接
 
-**不建议现在替换行为轨(`StreamEvent[]`)的采集方式。
-** 磁盘旁读 transcript 免费给全量内容(prompt / 工具参数 / 工具输出 / 助手文本),OTel 版本要拿到同等内容得开三个额外 flag、还处于 beta(字段随时可能变,`user_prompt` 等内容属性文档原文写明"不是稳定 span schema 的一部分")。
+**不建议现在替换行为轨(`StreamEvent[]`)的采集方式。**
+磁盘旁读 transcript 免费给全量内容(prompt / 工具参数 / 工具输出 / 助手文本),OTel 版本要拿到同等内容得开三个额外 flag、还处于 beta(字段随时可能变,`user_prompt` 等内容属性文档原文写明"不是稳定 span schema 的一部分")。
 负断言完整性见 [断言证据](../../../feature/adapters/architecture/evidence.md)。
 
 **值得作为时间轨(`TraceSpan[]`)的可选升级路径考虑,分两档:**

@@ -14,8 +14,8 @@
 | E2B | `/home/user/workspace` |
 | Vercel Sandbox | `/vercel/sandbox` |
 
-契约一句话:**API 里任何沙箱侧相对路径,一律定位到 `workdir`;省略的 `targetDir` / `cwd` 默认就是 `workdir`;绝对路径原样使用。
-** 本地侧(宿主机)的相对路径则定位到 eval 定义文件所在目录。
+契约一句话:**API 里任何沙箱侧相对路径,一律定位到 `workdir`;省略的 `targetDir` / `cwd` 默认就是 `workdir`;绝对路径原样使用。**
+本地侧(宿主机)的相对路径则定位到 eval 定义文件所在目录。
 两侧各只有一个起点,学一次就够。
 
 为什么 workdir 是唯一正确的默认值:整条流水线都锚定在它上面——变更分类账以它为 work-tree、agent 的 cwd 在那里、send 区间的改动在那里折叠成 agent diff、`t.sandbox.fileChanged(...)` 的路径也是对着那里定位的。

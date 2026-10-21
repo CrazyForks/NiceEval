@@ -457,6 +457,10 @@ opaque callback、`defineSandboxCommand()`、runtime secret overlay、租约、�
 
 同一 canonical action lineage 的新运行时 generation 发布后，NiceEval 才立即淘汰已被替代的 Docker image 或 E2B snapshot。仍被 private clone、lease 或未完成 capture 使用的旧 generation 不会删除。最后一个 root 释放后再次尝试淘汰。
 
+generation 是 cache repository 内全局递增的整数，含义保持「已分配的最大值 + 1」。分配与 reserve 在同一个 immediate 写事务中完成。
+repository schema 为 generation 建立索引，分配只读索引端点，成本不随已保留或已 tombstone 的 entry 数增长。
+索引随 UserDatabase 的应用级相邻迁移进入，不在已存在的库上临时创建。
+
 删除失败保留登记并重试，不按年龄、名称或“不在当前 Run”猜测垃圾。用户声明的 image、template 与 snapshot 永不由 NiceEval 自动删除。作者可见的运行开关只有 `sandboxCache.setup: "use" | "bypass"` 和对应 CLI flag。
 
 ## 运行事实的唯一归属

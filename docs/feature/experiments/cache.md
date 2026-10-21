@@ -229,6 +229,22 @@ fingerprint/config identity 由上游已求值 ProjectTarget 用来生成组合 
 
 Record root 无法打开，或 malformed candidate 连 Experiment 归属都无法安全取得时，结果是整个 reuse planning 失败。ExecutionTarget 无法验证、target identity 重复、当前 ProjectTarget 缺少已求值输入，或 policy name/version 不受支持时也一样。maintenance 正在排他操作时，read / append 也无法开始；这不是 writer-to-writer 冲突。失败时不产生 ExecutionReusePlan。
 
+## 读取范围与 reader 生命周期
+
+reuse planning、dry assessment 与显式采用都只读请求范围内的事实，不预载项目全部历史。
+请求范围是当前目标的 `(experimentId, evalId, attemptOrdinal)` 集合，或显式采用的 exact locator 与 Run 集合。
+
+一次规划只开一个短 read transaction，在同一 PublicationCutoff 内依次完成：
+
+1. 经 [读取索引](../run/architecture.md#读取索引) 为每个逻辑位置选出 source barrier 规定的最近 Run，或按 exact locator 选出 origin 候选。
+2. 读取所选 Run 的 Core、必要 origin，以及资格判断需要的 Assertions 与 Runner Activities；附件只读 policy 用到的 family。
+3. 完成资格判断，形成只含安全值与精确引用的 detached plan，然后关闭 transaction。
+
+dispatch、Provider 调用与 binding 写事务都不持有这个 reader。binding transaction 只复核 Run、source、slot 与 CAS，不重新做资格判断。
+plan 不保留任何引用已关闭连接的惰性 getter；需要的字节在 transaction 关闭前读完。
+
+规划成本随请求位置数、匹配的 expected 历史与必需证据增长。同一 Experiment 的历史 Run 越多，source barrier 需要比较的 expected 行越多；无关 Experiment 的 Run 不参与。
+
 ## coordinator、planner 与 writer
 
 invocation coordinator 持有完整、不可变的 `ExecutionReusePlan`。planner/scheduler 只收到

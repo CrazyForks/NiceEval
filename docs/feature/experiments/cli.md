@@ -2,9 +2,9 @@
 
 `niceeval exp` 选择已签入的 Experiment，建立一个 `invocationId`，并为每个选中的 Experiment 建立 Run。多个
 Invocation 可以并发创建各自的 Run。命令结束时返回轻量的 `InvocationReceipt`；完整结果由
-receipt 的 `createdRunIds` 与 opaque `publicationCutoff` 构造固定 Inspection request 读取。
+receipt 的 `createdRunIds` 构造固定 Inspection request 读取。
 
-CLI 以 `experimentHost.list()`、`plan()` 与 `run()` 实现 `exp`，以具名只读 `experimentHost.debug()` 实现
+CLI 以 `experimentHost.catalog()`、`invocation.plan()` 与 `invocation.run()` 实现 `exp`，以具名只读 `experimentHost.debug()` 实现
 `debug`，以 `experimentHost.accept()` 实现 `accept`。运行时 dispatch claim 经
 `coordinationHost`，Run publication 使用 Runner 内部 owner-scoped capability。这些都是 CLI 的 Host composition；Experiment 作者 API
 不取得这些协作或持久化能力。
@@ -337,12 +337,12 @@ interface InvocationReceipt {
   readonly startedAt: string;
   readonly completedAt?: string;
   readonly completion: "completed" | "interrupted" | "failed";
-  readonly publicationCutoff: unknown;
+  readonly publicationCutoff: string;
 }
 ```
 
 receipt 不复制 locator、Verdict、usage、cost 或 Attempt 计数。需要这些值时，以
-`createdRunIds` 与 `publicationCutoff` 构造固定 Inspection request。
+`createdRunIds` 构造固定 Inspection request。`publicationCutoff` 的语义见 [Invocation receipt](architecture.md#invocation-receipt-与退出)。
 
 `createdRunIds` 穷尽包含已提交 create transaction 的 Run，不以 Run close 成功为门。
 收到 `SIGINT` 时，Runner 保留已发布 Attempt，并把其余 slot 以

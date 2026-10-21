@@ -36,7 +36,28 @@ Runner 等待这次 publication 后恢复中断，停止后续派发，再提交
 SIGKILL 可能在 ProjectDatabase 中留下 `active` Run 与未发布 aggregate，但不会产生半个公开 Attempt。普通读取继续展示
 Run、已发布 Attempt 与 pending slots，不根据时间推断 owner 已死，也不在打开时删除或晋升运行中 rows。
 
-`run recover` 必须取得精确 process identity 已终止的可验证证据。它以两阶段、可重试的 `active → recovering → interrupted` 收口。
+`run recover` 必须取得精确 process identity 已终止的可验证证据。
+writer 在取得 generation 时封存自己的 process identity；recover 在同一台机器上重新观察同样的字段。
+Linux 与 Darwin 是提供这种证据的平台，两者使用同一判定规则，只是取证位置不同：
+
+| 字段 | Linux | Darwin |
+|---|---|---|
+| 机器身份 | `/etc/machine-id` | IOPlatformUUID |
+| 启动身份 | `/proc/sys/kernel/random/boot_id` | `kern.bootsessionuuid` |
+| 进程隔离域 | `/proc/self/ns/pid` | 无，固定为整机 |
+| 进程启动时刻 | `/proc/<pid>/stat` 的 starttime | 内核保存的进程启动时刻，精度至少到秒 |
+
+判定按字段顺序进行：
+
+- 机器身份或进程隔离域不同：`unproven`，不能在别的机器上判定 owner 生死。
+- 启动身份不同：旧 owner 随上一次启动终止，判为 `terminated`。
+- 同一次启动内，pid 对应进程的启动时刻与封存值相同：`active`，recover 以 `run-owner-active` 拒绝。
+- 同一次启动内，pid 不存在或启动时刻不同：`terminated`。
+- 任一字段取证失败，或运行在其它平台：`unproven`，recover 以 `run-owner-termination-unproven` 拒绝。
+
+启动时刻只有秒级精度时，pid 在同一秒内被复用会被判为 `active`。这个误判只会拒绝恢复，不会接管仍在运行的 owner，因此可以接受。
+
+它以两阶段、可重试的 `active → recovering → interrupted` 收口。
 第一笔短事务 fence owner generation 并写入精确 recovery actor。第二笔短事务在 actor/generation 仍匹配时删除仅属该 owner 的未发布 aggregate。
 第二笔事务也写 recovery receipt，并把 Run 与 pending-slot absence reasons 共同收口。
 

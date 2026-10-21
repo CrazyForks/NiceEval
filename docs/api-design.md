@@ -11,17 +11,13 @@ CLI 的命令与 flag 另见 [CLI](cli.md)，但沿用同一条调用点清晰�
 API 应让第一次使用它的人在调用处看出“这一步要什么、会发生什么、得到什么”：
 
 ```ts
-const turnMetrics = Record.attemptCollection({
-  family: "acme.turn-metrics",
-  item: TurnMetricSchema,
-});
-
-yield* attempt.records.append(turnMetrics, metric);
-yield* attempt.records.close(turnMetrics, { state: "complete" });
+turn.calledTool(
+  toolMatch("get_weather", { input: jsonMatch({ city: "Taipei" }) }).exactly(1),
+);
 ```
 
-三个调用点分别说清事实定义、producer admission 与 collection completion。普通作者不会看到 SQLite、row、transaction、
-projection 或 converter；运行后读取由 fixed Inspection Operations 完成。
+三层分别说清断言范围、要匹配的工具调用与次数。作者不会看到事件流、Record family、SQLite 或 projection；
+运行后读取由 fixed Inspection Operations 完成。
 
 清晰优先于简短，但长度不是清晰的替代品。
 名字变长若能消除相邻 API 的实质歧义，就保留必要词；模块、参数和返回类型已经表达的信息不重复。
@@ -126,7 +122,7 @@ Record 的读取只经固定 Inspection operation 闭合，再交付给机器 `q
 因此 `latest` 不能只靠日常语感表示“最好用的当前结果”，`current` 也不能暗中表示“时间最大的 Run”。
 出处差异若不改变用户决策，就只保留为明细事实；不得因为实现能区分，就增加筛选器、转换或公开状态。
 
-`Record` 本身不是一次隐含的“最新结果”。它是由 immutable Run 构成的持久事实集。读取既有事实时，固定 Inspection operation 在短 scope 内形成带 expected-slot 分母的闭合 result；这份明确成员范围由该 operation 的 selector 定义。当前目标的复用与执行缺口由 reuse planning 产生，不能从读取结果反推。
+`Record` 本身不是一次隐含的“最新结果”。它是由 Run 与逐个发布、不可变的 Attempt 构成的持久事实集。读取既有事实时，固定 Inspection operation 在短 scope 内形成带 expected-slot 分母的闭合 result；这份明确成员范围由该 operation 的 selector 定义。当前目标的复用与执行缺口由 reuse planning 产生，不能从读取结果反推。
 
 ## Record、Inspection 与 Delivery 的调用形状
 
@@ -135,74 +131,31 @@ Record source 与 selection 属于 CLI 调用点。自动化通过 `query` 发�
 ```sh
 niceeval query run --request request.json
 niceeval view --run <run-id>
-niceeval view --record ./release.record.sqlite
 ```
 
-默认 source 是项目内 canonical `.niceeval/record.sqlite`。`--record` 接受一个外部 SQLite artifact，并始终把它当 hostile
-import。Node source adapter 在 Scope 内验证精确 current schema、SQLite 完整性和全部领域不变量。验证通过后才打开 facts 与
-Attachment I/O；根入口不导出 reader、selection handle 或 operation execution capability。
+`view` 只读取项目内 canonical `.niceeval/record.sqlite`，没有持久数据源参数；source 与 transport 规则见 [Insight CLI](feature/insight/cli.md)。
 
-深度应用组合可以使用 `niceeval/record/host`。Inspection 的唯一公开 Library 入口是纯跨运行时的
+深度应用组合使用 [公开 Host composition SDK](architecture.md#公开-host-composition-sdk)。Inspection 的唯一公开 Library 入口是纯跨运行时的
 `niceeval/inspection`；不存在 `/host` 子路径、alias、fallback 或 Node 专用公开面。
 它只导出固定协议的 typed registry、Schema、类型、完整 document decoder 与按 operation 语义窄化函数。
 reader、facts、SQLite、source selection 与 operation execution capability 都留在内部 Scope。
 
-Record 不提供局部 edit、mirror、proof、revision、migration 或防伪 API。`run delete` 通过 private generation 重写并在验证后
-原子替换 canonical 文件；事实含义改变时发布新的 Metric / Score identity。已发布 Attempt 不再修改。
+### 领域 API 不暴露持久写入
 
-### Record family 作者 API
-
-Record family 作者按 owner 选择 `defineAttemptRecord()` 或 `defineRunRecord()`。两者返回同一个 callable nominal
-definition `a`，不再要求作者分别管理 command factory、reader selector、reference target 与 Host contribution：
-
-```ts
-const energy = defineAttemptRecord({
-  family: "acme.energy",
-  schema: EnergySchema,
-  validate: validateEnergy,
-});
-
-const host = makeRecordHost({ records: [energy] });
-
-yield* attempt.record.write(energy({ joules: 42 }));
-const result = yield* reader.read(attemptOwner, energy);
-```
-
-`defineX` 仍表示声明并校验定义；调用 `energy(value)` 或 `energy(builderCallback)` 只构造惰性 command，不因此写盘。
-`record.write()` 准确表达 owner/family create-once staging mutation；它返回 `void` 不暗示 durable publication，只有
-Run Seal 才发布。`attach` 降为底层 persistence SPI 词汇，不出现在高层业务调用形状；`append` 也不成为通用 Record
-动作，因为逐条 mutation、排序、去重与 complete/partial 属于每个 family 的唯一领域 collector。
-
-`makeRecordHost()` 的规范输入只有 `{ records }`。新的高层 definition 直接是 `RecordContribution`；已有 family 的
-revision 和 migration 仍由底层 Attachment persistence 管理，并经明确 adapter 进入同一数组。高层只自动创建 revision
-`1`，不能从命名规则推导尚不存在的 revise API。
-
-### 领域 API 与内部 Record 分开
-
-普通 Eval 作者调用领域 API，不提交 Record command。一个 GPU SDK 的典型调用点是：
+NiceEval 不导出通用 durable definition、Record Host 或写入 API，边界见 [Run Library](feature/run/library.md)。
+普通 Eval 作者与 Plugin 作者调用领域 API；事实由所属 producer 的固定 collector 关闭后随 Attempt 发布：
 
 ```ts
 export default defineEval({
-  plugins: [
-    gpuEnergy({
-      meter: nvmlEnergyMeter({ device: 0 }),
-    }),
-  ],
+  plugins: pluginStack().use(gpuEnergy({ device: 0 })),
   async test(t) {
     await t.send("完成任务");
   },
 });
 ```
 
-领域 SDK 通过 `niceeval/capture` 定义 fixed Metric、Score 或 Artifact，再用 Capture token 固定 Producer identity 与 total
-obligation。普通 `TestContext`、Plugin Hook context 与 Eval / Experiment definition 不增加 `record()`、write grant 或通用
-service locator。
-
-`defineMetric()`、`defineScore()` 与 `defineArtifact()` 返回受限纯数据定义，不打开 Record。`defineMetricCapture()` 等函数把 definition
-与 producer 绑定成预注册 token；只有 host 在 actual Attempt Scope 中把 token 解释成内部 fixed-envelope command。
-
-完整调用点评审必须分别展示两种身份：普通消费者只看到领域 Plugin；SDK 作者看到 Capture definition 与 Inspection fields。任何一侧
-都不看到 Record schema、converter、installation 或 raw projection。
+普通 `TestContext`、Plugin Hook context 与 Eval / Experiment definition 不增加 `record()`、write grant 或通用 service locator。
+调用点评审只展示领域 Plugin 与 Inspection 结果，不展示 Record schema、converter、installation 或 raw projection。
 
 ## 可观察的选择差异必须进入公开形状
 
@@ -227,7 +180,7 @@ service locator。
 | 形状 | 使用条件 |
 |---|---|
 | 内部 `record.operation()` | NiceEval 自身导航或读取 Record Core 与 RecordAttachment；不形成公开子路径 |
-| `niceeval/inspection` | 纯跨运行时协议入口；从同一个 16-operation typed registry 导出 request/document Schema、类型、decoder 与语义窄化函数 |
+| `niceeval/inspection` | 纯跨运行时协议入口；从同一个 typed registry 导出 request/document Schema、类型、decoder 与语义窄化函数 |
 | 内部 `selectInspectionOperation(facts, operation)` | 从已打开且 pinned 的 facts 形成固定 Inspection document，并完成 selection policy 与分母判断；不是公开 Library API |
 
 “方法更短”或“自由函数更函数式”都不是理由。
@@ -240,8 +193,7 @@ service locator。
 operation 窄化函数取得对应结果类型。Testkit 也遵守这条顺序，不能先读 `operation` 或局部字段后自行断言类型。
 
 每个 success/explanation document 的 `source` 固定为
-`{ kind: facts.kind, sealedCutoffIdentity: facts.cutoff().identity }`。路径不会进入 document；`runCount`
-继续只属于 `sealedCutoff`，不在 `source` 复制。
+`{ kind: facts.kind, publicationCutoffIdentity: facts.cutoff().identity }`，完整定义见 [Inspection CLI](feature/inspection/cli.md#machine-输出与错误面)。
 
 ## 选择函数与判别字段共用语义词根
 
@@ -260,7 +212,7 @@ operation 窄化函数取得对应结果类型。Testkit 也遵守这条顺序�
 Inspection selection policy 是 operation 内部 ABI，不版本化。内建 identity 是 `explicit-runs` 与 `project-current`，输入分别由自己的具名 request shape 承载。`project-current` 比较当前项目目标与已有 Eligibility identity，并保留全部匹配结果；它不是按时间排序的模式。durable RecordAttachment persistence 仍保留独立 revision。不要把 execution `reuse | gap` 混进同一个 slot 联合。
 
 正交约束必须写成独立字段，但前提是它对应明确用户旅途。
-adoption、rename 或其它出处事实留在 Run-owned RecordAttachment，不进入 Member 核心，也不膨胀成组合选择模式。
+adoption 与 reuse 的采用动作是 Member Core 的 `action` 事实，见 [Run 架构](feature/run/architecture.md)；它们不膨胀成组合选择模式。
 
 ## 相邻 API 按选择维度成组设计
 
@@ -290,7 +242,7 @@ adoption、rename 或其它出处事实留在 Run-owned RecordAttachment，不�
 ```ts
 await writeFile("request.json", JSON.stringify({
   protocol: "niceeval.query/v1",
-  operation: { kind: "run.summary", runId },
+  operation: { kind: "run.get", runId },
 }));
 
 await niceeval(["query", "run", "--request", "request.json"]);
