@@ -133,7 +133,7 @@ t.check(t.usage.cacheRead.rate(), atLeast(0.6)).gate();
 传入未声明的槽位会在调用处报错，并列出可用名称。已声明但完整记录中没有调用的槽位返回 `slot-has-no-calls`；采集不完整时仍返回 `collection-incomplete`。
 Eval 可以被多个 Experiment 复用，因此此入口在运行回调里校验槽位，不在定义期检查动态字符串。
 
-### 登记黑盒 Agent 的用量
+### 登记命令行 Agent 的用量
 
 Adapter 应按外部回执记录真实调用，并将 `modelSlot` 设为 Experiment 声明的用途，例如 `mind`。
 同一请求的流式增量和最终回执不能各登记一次；先按请求 ID 合并，收到最终回执后再登记。

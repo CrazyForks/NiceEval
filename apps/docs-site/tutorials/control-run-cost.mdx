@@ -133,7 +133,7 @@ Slot names come from the Experiment's `models` keys, not a built-in list. The si
 Passing an undeclared slot throws at the call site and lists the available names. A declared slot with no calls in a complete collection returns `slot-has-no-calls`; an incomplete collection still returns `collection-incomplete`.
 An Eval can be reused across Experiments, so this API validates slots inside the running callback rather than checking dynamic strings at definition time.
 
-### Record usage from a black-box Agent
+### Record usage from a command-line Agent
 
 Record actual calls from external receipts and set `modelSlot` to a purpose declared by the Experiment, such as `mind`.
 Do not record both streaming increments and the final receipt for the same request. Merge them by request ID first, then record the final receipt.
