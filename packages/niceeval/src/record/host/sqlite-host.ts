@@ -229,6 +229,17 @@ export function selectPlanningSources(reader: RecordReadSession, positions: read
           attempt: { originRunId: publication.originRunId, attemptId: publication.attemptId } });
         if (Result.isFailure(decoded) || decoded.success.attempt === null) return yield* Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId, reason: "core-invalid" }));
         ids.add(publication.originRunId);
+        // A carried rename still needs its earlier accepted membership as
+        // proof. The latest barrier and origin alone cannot establish it.
+        if (publication.action === "carried") {
+          const witnesses = yield* pinnedRead(() => runtime.session.findAcceptedAttemptRunIds({
+            experimentId: resource.experimentId,
+            originRunId: publication.originRunId,
+            attemptId: publication.attemptId,
+            bindingRevision: publication.bindingRevision,
+          }));
+          for (const witness of witnesses) ids.add(witness);
+        }
         bindings.push(Object.freeze({ document: decoded.success, bindingRevision: publication.bindingRevision,
           attempt: attemptRef(runtime, decoded.success.attempt.originRunId, decoded.success.attempt.attemptId, publication.publicationIdentity) }));
       }

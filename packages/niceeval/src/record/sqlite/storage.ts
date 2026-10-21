@@ -1681,6 +1681,26 @@ export function findSourceBarrierCandidate(
   return legacy === undefined ? undefined : Object.freeze({ runId: text(legacy, "run_id"), createdRevision: 0 });
 }
 
+/** Locate adoption proofs for one exact Attempt without scanning Run Core. */
+export function findAcceptedAttemptRunIds(connection: RecordDatabase, request: {
+  readonly experimentId: string;
+  readonly originRunId: string;
+  readonly attemptId: string;
+  readonly bindingRevision: number;
+}, cutoffRevision: number): readonly string[] {
+  const selected = rows(connection, `SELECT b.target_run_id FROM ne19_run_slot_bindings b
+    JOIN ne19_run_resources r ON r.run_id=b.target_run_id
+    WHERE b.attempt_id=? AND b.origin_run_id=? AND b.action='accepted'
+      AND r.experiment_id=? AND b.binding_revision<=? AND b.binding_revision<=?
+      AND NOT EXISTS (SELECT 1 FROM ne19_run_deletion_tombstones d WHERE d.run_id=b.target_run_id)
+    ORDER BY b.target_run_id LIMIT ?`, request.attemptId, request.originRunId,
+  request.experimentId, request.bindingRevision, cutoffRevision, RECORD_SQLITE_MAX_VALIDATION_RUNS + 1);
+  if (selected.length > RECORD_SQLITE_MAX_VALIDATION_RUNS) {
+    throw sqliteError("record-resource-limit-exceeded", "find-accepted-attempt-runs", "Attempt exceeds its adoption proof ceiling");
+  }
+  return Object.freeze(selected.map((row) => text(row, "target_run_id")));
+}
+
 export function findExperimentRunIds(connection: RecordDatabase, experimentId: string): readonly string[] {
   requireIdentity(experimentId, "experimentId");
   const selected = rows(connection, `SELECT r.run_id FROM ne19_runs r

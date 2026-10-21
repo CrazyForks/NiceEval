@@ -14,6 +14,7 @@ import {
   findAttemptLocatorCandidates as findAttemptLocatorCandidatesOnConnection,
   findExperimentRunIds as findExperimentRunIdsOnConnection,
   findSourceBarrierCandidate as findSourceBarrierCandidateOnConnection,
+  findAcceptedAttemptRunIds as findAcceptedAttemptRunIdsOnConnection,
   readSealedRunCutoff as readSealedRunCutoffOnConnection,
   readSealedRunSummaryPage as readSealedRunSummaryPageOnConnection,
   readCollectionItemPage as readCollectionItemPageOnConnection,
@@ -120,6 +121,7 @@ export interface PinnedRecordReadSession {
   readonly sealedCutoff: () => SealedRunCutoff;
   readonly findExperimentRunIds: (experimentId: string) => readonly string[];
   readonly findSourceBarrierCandidate: (request: SourceBarrierRequest) => SourceBarrierCandidate | undefined;
+  readonly findAcceptedAttemptRunIds: (request: Parameters<typeof findAcceptedAttemptRunIdsOnConnection>[1]) => readonly string[];
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
   readonly listRunResources: (input?: Parameters<typeof listRunResourcesOnConnection>[1]) => ReturnType<typeof listRunResourcesOnConnection>;
   readonly readSealedRunSummary: (runId: string) => SealedRunSummary | undefined;
@@ -203,6 +205,8 @@ function openPinnedRecordReadSession(
       }),
       findSourceBarrierCandidate: (request: SourceBarrierRequest) => readBounded("find-source-barrier", () =>
         findSourceBarrierCandidateOnConnection(connection, request, publicationCutoff.revision)),
+      findAcceptedAttemptRunIds: (request: Parameters<typeof findAcceptedAttemptRunIdsOnConnection>[1]) => readBounded("find-accepted-attempt-runs", () =>
+        findAcceptedAttemptRunIdsOnConnection(connection, request, publicationCutoff.revision)),
       findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number, includeTargets = true) => readBounded("find-attempt-locator", () =>
         findAttemptLocatorCandidatesOnConnection(connection, locator, maximumCandidateRuns, includeTargets)),
       readSealedRunDocument: (runId: string) => readBounded("read-sealed-run-document", () => readSealedRunDocumentOnConnection(connection, runId)),
