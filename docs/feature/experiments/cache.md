@@ -246,7 +246,7 @@ plan 不保留任何引用已关闭连接的惰性 getter；需要的字节在 t
 plan 里的每个 reuse 或采用位置携带一个 Host 私有的 exact reference：project Record、`originRunId`、`attemptId` 与 `publicationIdentity`。
 它不持有 reader，可以在 transaction 关闭后传给 binding。
 binding transaction 凭它在自己的写事务中复核 origin publication 仍然存在且 identity 未变，不再打开第二个 read transaction。
-dry assessment 与 receipt 需要的 readback 同样在 read transaction 内物化成安全值。
+dry assessment 与 receipt 需要的 readback 同样在 read transaction 关闭前读成安全值。
 
 规划成本随请求位置数、匹配的 expected 历史与必需证据增长。同一 Experiment 的历史 Run 越多，source barrier 需要比较的 expected 行越多；无关 Experiment 的 Run 不参与。
 

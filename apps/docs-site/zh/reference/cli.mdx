@@ -116,7 +116,7 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--max-concurrency` | `niceeval exp` | number | 限制同时执行的 Attempt 数量。 |
 | `--max-build-concurrency` | `niceeval exp` | number | 限制同时准备 Sandbox build 的数量。 |
 | `--max-setup-prefix-concurrency` | `niceeval exp` | number | 限制同时准备 Sandbox setup prefix 的数量。 |
-| `--sandbox-setup-cache` | `niceeval exp` | string | 使用或绕过 Sandbox 准备缓存。 |
+| `--sandbox-setup-cache` | `niceeval exp` | string | Use or bypass the Sandbox setup cache. |
 | `--timeout` | `niceeval exp` | number | 以毫秒设置每个 Attempt 的超时时间。 |
 | `--budget` | `niceeval exp` | number | 以美元设置本次 Invocation 的预算。 |
 | `--junit` | `niceeval exp` | string | 写出必需的 JUnit 报告。 |
@@ -125,7 +125,6 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--rerun`（单独使用为 `failed`） / `--rerun=failed\|all` / `--rerun failed\|all` | `niceeval exp` | `failed` \| `all` | 要求重新运行失败目标或全部目标。 |
 | `--keep-sandbox`（单独使用为 `failed`） / `--keep-sandbox=failed\|all` | `niceeval exp` | `failed` \| `all` | 保留 failed 或全部已结束 Attempt 的 Sandbox。 |
 | `--early-exit` / `--no-early-exit` | `niceeval exp` | boolean | 某次结果通过后停止该评估用例余下的 Attempt。 |
-| `--record` | `niceeval exp`、`niceeval accept` | string | 使用指定的 NiceEval Record root。 |
 | `--json` | `niceeval exp list` | boolean | 写出该命令的机器文档或事件流。 |
 | `--run` | `niceeval exp rename` | string[] | 选择要采用到目标 Experiment 的一个精确 Run；重复传入会被拒绝。 |
 | `--dry` | `niceeval exp rename` | boolean | 预览显式 Experiment 重命名。 |
