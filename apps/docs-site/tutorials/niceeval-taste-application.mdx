@@ -123,6 +123,27 @@ Default-export the returned `evaluation` from an `.eval.ts` file and use the sam
 
 `observe(ctx)` executes or waits for the support task and returns read-only facts for the current Attempt. It responds to cancellation through `ctx.signal`, registers connection cleanup callbacks as needed, and reports usage through `ctx.recordUsage`. Correlate records, decode protocols, and validate time here, outside the eval body.
 
+### Keep summary failures from affecting other metrics
+
+First hand the sealed raw records to `ctx.attach` and wait for the archive receipt, then register the physical calls obtained with `ctx.recordUsage` and call `ctx.sealUsage`. Compute derived metrics such as latency and percentiles last. When evidence or usage comes from independent sources, complete each handoff separately, and do not treat "the file exists" as "archived".
+
+Return unavailable material only for known summary errors that clearly belong to a specific metric:
+
+```ts
+import type { NumericMaterial } from "niceeval/expect";
+
+const latency: NumericMaterial = {
+  state: "unavailable",
+  reason: "summary-capacity-exceeded",
+};
+```
+
+Keep registering other trustworthy metrics; let unknown exceptions keep propagating. Do not also catch attachment archive failures or usage collection failures as missing metrics. A missing required threshold still keeps the Attempt from passing, but registered facts and known scores are kept; persistence counts only once the Attempt is published successfully.
+
+Read large records with a backpressured stream. Limit the byte size of a single line before the line splitter buffers the whole line, and also limit cumulative decompressed bytes and the capacity of derived collections. Compressed file size cannot substitute for a decompressed capacity limit, and streamed input must not end up concatenated into an unbounded string or array. When a limit is exceeded, explicitly return the affected metrics as unavailable instead of silently keeping a prefix; on failure and cancellation, close the stream and release file handles.
+
+The partial reason for `sealUsage` is a non-secret ASCII identifier of 1–128 characters: the first character is a letter or digit, and the rest may be letters, digits, dots, underscores, colons, and hyphens. For example, `ai-event-stream-incomplete`; do not use a sentence with spaces.
+
 Completion status needs evidence:
 
 - A completed task has a completion event and a verified nonnegative `businessSeconds` value.

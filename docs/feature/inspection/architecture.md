@@ -179,6 +179,7 @@ Judge 调用、价证、有界预览与摘要的穷尽形状遵守[Judge 读面�
 
 usage 仅含 state、configuredModels、modelGroups、judgeUsage、totalCosts、totals，不重复调用预览。
 最多返回按 originRunId/locator 排序的 64 个 Attempt；未找到的成员单列。Judge 使用不含 calls/priceReceipts 的摘要。
+
 experiment.get 的最终 JSON 响应上限为 4 MiB；完整 aggregate/cells 保留逐断言证据完整度，因此独立于attempt.usage 的专属 16 MiB 上限。
 最终响应字节预算内保留完整 Attempt 摘要前缀，omittedAttemptCount 反映省略数量；保留摘要中的金额及完整度不变，不以预览重算总量。
 

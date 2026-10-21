@@ -107,3 +107,25 @@ For costs from your own application Adapter to appear on the pages above, report
 - When only part of the records could be read, call `ctx.sealUsage({ state: "partial", reason: "source-incomplete" })`.
 
 An empty record that was not declared complete shows as an unknown cost, never as zero.
+
+## Check cache read rate by model purpose
+
+A Headless Adapter registers real calls with `ctx.recordUsage` and calls `ctx.sealUsage` after collection ends. You can then set a cache read rate threshold directly with `t.usage.cacheRead`:
+
+```ts
+import { atLeast } from "niceeval/expect";
+
+const planner = t.usage.cacheRead.modelSlots.find(group => group.modelSlot === "planner");
+t.check(
+  planner?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" },
+  atLeast(0.6),
+).gate();
+```
+
+The read rate is **total cache read tokens / total input tokens including cache** across calls in the same group, including failed calls and retries. It is not an average of per-call percentages. Each call uses `inputTotalTokens` first; without a separate total, it must provide all three mutually exclusive buckets: `inputTokens`, `cacheReadTokens`, and `cacheWriteTokens`.
+
+`cacheRead.total` gives the result for the whole Attempt, `modelSlots` groups by purpose, and `models` further groups by the actual `provider` and `model`. Unknown identities stay `null` and are not filled in from configured values. `coveredCalls / recordedCalls` shows the input coverage of registered calls; `collectionComplete` separately shows whether collection is complete.
+
+Missing input, no seal, a partial seal, an unknown call state, an empty group, or a zero denominator all return `unavailable`, with the causes listed in `reasons`. Missing data is not treated as zero; only a complete record with a positive input total and no cache reads yields the number 0. An old ledger without an explicit producer completeness declaration also returns `unavailable`.
+
+Use `niceeval show <Attempt locator> --usage` or View to see the read rate, coverage, and causes; scripts read the same report from `usage.cacheRead` in `attempt.usage`. Existing `recordUsage` calls need no renaming, but they must register cache tokens and seal honestly after collection completes. Historical result files need no migration.

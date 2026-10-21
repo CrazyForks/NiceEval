@@ -107,3 +107,25 @@ Attempt 页面先显示应用和 Judge 的合计费用：
 - 只读到一部分记录时，调用 `ctx.sealUsage({ state: "partial", reason: "source-incomplete" })`。
 
 没有声明完整的空记录会显示为未知费用，不会显示成零。
+
+## 按模型用途检查缓存读取率
+
+Headless Adapter 使用 `ctx.recordUsage` 登记真实调用，并在采集结束后调用 `ctx.sealUsage`。随后可以直接用 `t.usage.cacheRead` 设置缓存读取率门槛：
+
+```ts
+import { atLeast } from "niceeval/expect";
+
+const planner = t.usage.cacheRead.modelSlots.find(group => group.modelSlot === "planner");
+t.check(
+  planner?.rate ?? { state: "unavailable", reason: "model-slot-not-recorded" },
+  atLeast(0.6),
+).gate();
+```
+
+读取率是同组调用的 **缓存读取 token 总量 / 含缓存输入 token 总量**，包括失败调用与重试。它不是逐次百分比的平均值。每次调用优先使用 `inputTotalTokens`；没有独立总量时，必须同时提供 `inputTokens`、`cacheReadTokens`、`cacheWriteTokens` 三个互斥桶。
+
+`cacheRead.total` 给出整个 Attempt 的结果，`modelSlots` 按用途分组，`models` 进一步按真实 `provider` 和 `model` 分组。未知身份保持 `null`，不会用配置值补齐。`coveredCalls / recordedCalls` 表示已登记调用的输入覆盖率；`collectionComplete` 单独表示采集是否完整。
+
+缺失输入、未 seal、partial seal、unknown 调用状态、空组或零分母均返回 `unavailable`，`reasons` 列出原因。缺失不按零处理；完整且有正输入总量的零缓存读取率才是数值 0。旧账本没有明确的生产者完整性声明时，也返回不可判定。
+
+使用 `niceeval show <Attempt locator> --usage` 或 View 查看读取率、覆盖情况与原因；脚本通过 `attempt.usage` 的 `usage.cacheRead` 读取相同报告。已有 `recordUsage` 调用无需改名，但必须登记缓存 token，并在采集完成后诚实 seal。无需迁移历史结果文件。

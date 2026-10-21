@@ -123,6 +123,27 @@ Adapter 要提供已经关联好的事实，让组合条件判断的是同一个
 
 `observe(ctx)` 执行或等待这次客服任务，返回当前 Attempt 的只读事实。它用 `ctx.signal` 响应取消，按需登记释放连接的回调，并通过 `ctx.recordUsage` 上报用量。记录关联、协议解码和时间校验都在这里完成，不放进评估正文。
 
+### 避免汇总失败影响其它指标
+
+先把封存的原始记录交给 `ctx.attach`，等待归档回执，再用 `ctx.recordUsage` 登记已取得的物理调用并调用 `ctx.sealUsage`。最后计算延迟、分位数等派生指标。证据或用量来自独立来源时，分别完成接管，不要把“文件存在”当成“已归档”。
+
+只对能够明确归属于某个指标的已知汇总错误返回不可用材料：
+
+```ts
+import type { NumericMaterial } from "niceeval/expect";
+
+const latency: NumericMaterial = {
+  state: "unavailable",
+  reason: "summary-capacity-exceeded",
+};
+```
+
+其它可信指标继续登记；未知异常继续抛出。不要把附件归档失败或用量采集失败也捕获成指标缺失。必要门槛缺失仍会使 Attempt 无法通过，但已登记的事实和已知分数会保留；持久保存以 Attempt 发布成功为准。
+
+大记录使用带背压的流读取。分行器缓存整行之前就要限制单行字节数，同时限制解压后的累计字节数和派生集合容量。压缩文件大小不能代替解压容量限制，流式输入也不能最终拼成无界字符串或数组。超限时明确返回受影响指标不可用，不能静默截取前缀；失败和取消都要关闭流、释放文件句柄。
+
+`sealUsage` 的 partial reason 使用 1–128 字符的非秘密 ASCII 标识：首字符为字母或数字，其余允许字母、数字、点、下划线、冒号和连字符。例如 `ai-event-stream-incomplete`；不要填带空格的句子。
+
 完成状态要有证据：
 
 - 任务完成时，要有完成事件，`businessSeconds` 是核验过的非负业务时间。
