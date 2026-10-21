@@ -3,7 +3,7 @@
 
 import { only } from "@niceeval/testkit";
 import { decodeExpPlanDocument } from "niceeval/experiment/host";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { runnerE2E, writeInspectionRequest } from "./context.ts";
@@ -58,6 +58,30 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     expect(changedTarget!.readbacks).toHaveLength(1);
     expect(changedTarget!.readbacks[0]!.source.locator).toBe(oldLocator);
     expect(changedTarget!.readbacks[0]!.verdict).toMatchObject({ state: "available", value: "passed" });
+
+    // Explicit acceptance must keep resolving the requested immutable origin
+    // after unrelated Experiments have added their own published Attempts.
+    writeFileSync(join(root, "experiments/locator-background.ts"), `
+import { defineAdapter, defineExperiment } from "niceeval";
+export const adapter = defineAdapter({ name: "locator-background", create: () => ({ read: () => "background" }) });
+export default defineExperiment({ adapter, evals: ["locator-background"] });
+`, "utf8");
+    writeFileSync(join(root, "evals/locator-background.eval.ts"), `
+import { equals } from "niceeval/expect";
+import { adapter } from "../experiments/locator-background.ts";
+export default adapter.defineEval({ async test(t) { t.check(await t.read(), equals("background")); } });
+`, "utf8");
+    mkdirSync(join(root, "experiments/locator-background-runs"), { recursive: true });
+    for (let index = 0; index < 32; index += 1) {
+      writeFileSync(join(root, `experiments/locator-background-runs/run-${index}.ts`), `
+import { defineExperiment } from "niceeval";
+import { adapter } from "../locator-background.ts";
+export default defineExperiment({ adapter, evals: ["locator-background"] });
+`, "utf8");
+    }
+    const background = await niceeval.run(["exp", "locator-background-runs", "--json"], { timeoutMs: 180_000 });
+    expect(background.exitCode, background.diagnostic()).toBe(0);
+    expect(background.expReceipt().createdRunIds, background.diagnostic()).toHaveLength(32);
 
     const accepted = await niceeval.run(["accept", oldLocator]);
     expect(accepted.exitCode, accepted.diagnostic()).toBe(0);
