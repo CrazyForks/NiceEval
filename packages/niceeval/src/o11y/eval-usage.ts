@@ -16,13 +16,36 @@ import {
   type EffectiveCallCost,
 } from "./adapter-usage-projection.ts";
 
+/** Frozen cache report with author-facing selection by Experiment model purpose. */
+export interface EvalCacheRead extends CacheReadReport {
+  /** Omit the slot for the total. An undeclared slot throws; missing observations remain unavailable. */
+  rate(modelSlot?: string): NumericMaterial;
+}
+
+function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): EvalCacheRead {
+  const declared = new Set(Object.keys(models ?? {}));
+  const rates = new Map(report.modelSlots.map((group) => [group.modelSlot, group.rate]));
+  return Object.freeze({
+    ...report,
+    rate: (modelSlot?: string): NumericMaterial => {
+      if (modelSlot === undefined) return report.total.rate;
+      if (!declared.has(modelSlot)) {
+        throw new TypeError(`Undeclared model slot ${JSON.stringify(modelSlot)}; declared slots: ${[...declared].join(", ") || "(none)"}.`);
+      }
+      const rate = rates.get(modelSlot);
+      if (rate !== undefined && !(rate.state === "unavailable" && rate.reason === "no-calls")) return rate;
+      return Object.freeze({ state: "unavailable", reason: "slot-has-no-calls" });
+    },
+  });
+}
+
 /** Internal source-owned shape; package-root exposure belongs to the author facade. */
 export interface EvalUsage {
   readonly source: "agent" | "adapter" | "unavailable";
   readonly scope: "turn" | "session" | "attempt";
   readonly basis: "reported-sends" | "recorded-calls" | "unbound";
   readonly cut: "call-time";
-  readonly cacheRead: CacheReadReport;
+  readonly cacheRead: EvalCacheRead;
   readonly inputTokens: NumericMaterial;
   readonly inputTotalTokens: NumericMaterial;
   readonly outputTokens: NumericMaterial;
@@ -82,7 +105,7 @@ export function projectAdapterEvalUsage(usage: ReadableAdapterUsageAttachment, m
     scope: "attempt",
     basis: "recorded-calls",
     cut: "call-time",
-    cacheRead: projectCacheRead(usage, models, true),
+    cacheRead: authorCacheRead(projectCacheRead(usage, models, true), models),
     inputTokens: adapterTokenMaterial(usage, "inputTokens"),
     inputTotalTokens: adapterTokenMaterial(usage, "inputTotalTokens"),
     outputTokens: adapterTokenMaterial(usage, "outputTokens"),
@@ -203,7 +226,7 @@ export function projectAgentEvalUsage(input: {
     scope: input.scope,
     basis: "reported-sends",
     cut: "call-time",
-    cacheRead: projectCacheRead(null, undefined, false, "adapter-usage-required"),
+    cacheRead: authorCacheRead(projectCacheRead(null, undefined, false, "adapter-usage-required")),
     inputTokens: agentTokenMaterial(input.contributions, "inputTokens", input.scope),
     inputTotalTokens: agentTokenMaterial(input.contributions, "inputTotalTokens", input.scope),
     outputTokens: agentTokenMaterial(input.contributions, "outputTokens", input.scope),

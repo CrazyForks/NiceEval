@@ -1,4 +1,5 @@
-import { atLeast, includes } from "niceeval/expect";
+import { atLeast, includes, type NumericMaterial } from "niceeval/expect";
+import { deepStrictEqual, throws } from "node:assert";
 import { cacheRead } from "../adapters/cache-read.ts";
 export default cacheRead.defineEval({
   description: "Cache read rate uses complete token-weighted physical calls",
@@ -26,7 +27,19 @@ export default cacheRead.defineEval({
       t.record({ callId: "partial", modelSlot: "planner", status: "succeeded", cacheReadTokens: 60, inputTotalTokens: 100 });
     }
     if (scenario !== "unsealed") t.finish(scenario === "partial");
-    if (scenario === "exact" || scenario === "capacity") t.check(t.usage.cacheRead.total.rate, atLeast(0.8)).gate();
+    const { rate } = t.usage.cacheRead;
+    const planner: NumericMaterial = rate("planner");
+    if (scenario === "exact" || scenario === "capacity") t.check(planner, atLeast(0.8)).gate();
+    const expected = scenario === "exact" ? { state: "exact", value: 910 / 1100 }
+      : scenario === "capacity" ? { state: "exact", value: 1 }
+      : scenario === "uncached" ? { state: "exact", value: 0 }
+      : { state: "unavailable", reason: ({ missing: "cache-read-missing", zero: "zero-input-total", unsafe: "unsafe-token-total", empty: "slot-has-no-calls" } as Record<string, string>)[scenario] ?? "collection-incomplete" };
+    deepStrictEqual(planner, expected);
+    throws(() => rate("absent-slot"), /Undeclared model slot.*absent-slot.*planner/);
+    throws(() => rate("toString"), /Undeclared model slot/);
+    deepStrictEqual(rate(), t.usage.cacheRead.total.rate);
+    deepStrictEqual(before.cacheRead.rate("planner"), { state: "unavailable", reason: "collection-incomplete" });
+    deepStrictEqual(rate("unused"), { state: "unavailable", reason: scenario === "partial" || scenario === "unsealed" ? "collection-incomplete" : "slot-has-no-calls" });
     t.check(JSON.stringify(before.cacheRead.total.rate), includes("collection-incomplete"));
     t.check(Object.isFrozen(t.usage.cacheRead.modelSlots) ? "frozen" : "mutable", includes("frozen"));
   },

@@ -82,7 +82,7 @@ export type { MaterialMatch, ContextBooleanMatch, ContextScoreMatch, MatchContex
 
 export type { NumericMaterial } from "../assertions/match.ts";
 
-export type { EvalUsage } from "../o11y/eval-usage.ts";
+export type { EvalUsage, EvalCacheRead } from "../o11y/eval-usage.ts";
 export type { CacheReadReport, CacheReadSummary } from "../o11y/cache-read.ts";
 
 export type { AgentMatchContext } from "../context/assert-first.ts";

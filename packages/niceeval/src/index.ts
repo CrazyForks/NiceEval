@@ -159,7 +159,7 @@ export type { MaterialMatch, ContextBooleanMatch, ContextScoreMatch, MatchContex
 
 export type { AttemptUsageSnapshot, AdapterAttemptUsageSnapshot } from "./o11y/adapter-usage-projection.ts";
 
-export type { EvalUsage } from "./o11y/eval-usage.ts";
+export type { EvalUsage, EvalCacheRead } from "./o11y/eval-usage.ts";
 
 export type { AgentMatchContext } from "./context/assert-first.ts";
 
