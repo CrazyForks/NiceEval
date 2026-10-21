@@ -67,7 +67,7 @@ test("provider 与 sandbox 错误只展示真实问题并给出所属 details", 
       expect(result.stdout).not.toMatch(/shared failure:|\bBuildKey\b|\btiming node\b|\bfailureId\b|\bcause:|\bfix:/u);
 
       const listRequest = await writeInspectionRequest(paths.projectRoot, "provider-error-runs", {
-        kind: "runs.list",
+        kind: "run.list",
       });
       const listed = await niceeval.run(["query", "run", "--request", listRequest]);
       expect(listed.exitCode, listed.diagnostic()).toBe(0);
@@ -75,20 +75,20 @@ test("provider 与 sandbox 错误只展示真实问题并给出所属 details", 
       expect(runIds).toHaveLength(5);
       const summaries = await Promise.all(runIds.map(async (runId, index) => {
         const request = await writeInspectionRequest(paths.projectRoot, `provider-error-${index}-summary`, {
-          kind: "run.summary", runId,
+          kind: "run.get", runId,
         });
         const queried = await niceeval.run(["query", "run", "--request", request]);
         expect(queried.exitCode, queried.diagnostic()).toBe(0);
-        return queried.runSummary();
+        return queried.run();
       }));
-      expect(summaries).toEqual(expect.arrayContaining([expect.objectContaining({ operation: "run.summary", issues: [] })]));
-      for (const { summary } of summaries) {
-        const run = summary.runs[0]!;
+      expect(summaries).toEqual(expect.arrayContaining([expect.objectContaining({ operation: "run.get", issues: [] })]));
+      for (const { run: detail } of summaries) {
+        const run = detail.value;
         const output = run.experimentId === "short-error" ? shortOutput : compact;
         expect(output).toContain(
           `${run.experimentId} show: niceeval show --run ${run.runId} view: niceeval view --run ${run.runId}`,
         );
-        for (const member of summary.members) {
+        for (const member of detail.slots) {
           if (member.locator !== null && member.state === "executed") {
             expect(output).toContain(`details: niceeval show ${member.locator}`);
           }
@@ -96,7 +96,7 @@ test("provider 与 sandbox 错误只展示真实问题并给出所属 details", 
       }
       expect(shortOutput).not.toContain("details: niceeval view");
       expect(compact).not.toContain("details: niceeval view");
-      const errorLocators = summaries.flatMap(({ summary }) => summary.members)
+      const errorLocators = summaries.flatMap(({ run }) => run.slots)
         .flatMap(({ locator, state }) => locator !== null && state === "executed" ? [locator] : []);
       expect(errorLocators).toHaveLength(4);
       for (const [index, locator] of errorLocators.entries()) {

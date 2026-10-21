@@ -32,11 +32,11 @@ export async function inspectRuns(
   niceeval: NiceEvalCommand,
   projectRoot: string,
   options: RunProcessOptions = {},
-): Promise<{ readonly receipt: ProcessReceipt; readonly document: QuerySuccessDocumentFor<"runs.list"> }> {
+): Promise<{ readonly receipt: ProcessReceipt; readonly document: QuerySuccessDocumentFor<"run.list"> }> {
   const requestPath = join(projectRoot, ".inspection-runs-list.json");
   await writeFile(requestPath, `${JSON.stringify({
     protocol: "niceeval.query/v1",
-    operation: { kind: "runs.list" },
+    operation: { kind: "run.list" },
   })}\n`, "utf8");
   const receipt = await niceeval.run(["query", "run", "--request", requestPath], options);
   return { receipt, document: receipt.runsList() };

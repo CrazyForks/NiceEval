@@ -20,10 +20,10 @@ test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持�
 
     const targetPath = join(paths.projectRoot, "experiments", "renamed.ts");
     await rename(join(paths.projectRoot, "experiments", "history.ts"), targetPath);
-    const sourceQuery = await writeInspectionRequest(paths.projectRoot, "source", { kind: "run.overview", runId: sourceRunId });
+    const sourceQuery = await writeInspectionRequest(paths.projectRoot, "source", { kind: "run.get", runId: sourceRunId });
     const sourceBefore = await niceeval.run(["query", "run", "--request", sourceQuery]);
     expect(sourceBefore.exitCode, sourceBefore.diagnostic()).toBe(0);
-    const sourceFacts = sourceBefore.runOverview().runOverview;
+    const sourceFacts = sourceBefore.run().run;
 
     const preview = await niceeval.run(["exp", "rename", "renamed", "--run", sourceRunId, "--dry"]);
     expect(preview.exitCode, preview.diagnostic()).toBe(0);
@@ -58,17 +58,17 @@ test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持�
     const carriedAgain = await niceeval.run(["exp", "renamed", "--json"]);
     expect(carriedAgain.exitCode, carriedAgain.diagnostic()).toBe(0);
     expect(only(carriedAgain.expEvents(), (event) => event.event === "start", carriedAgain.diagnostic())).toMatchObject({ reused: 1 });
-    const existingQuery = await writeInspectionRequest(paths.projectRoot, "existing-target", { kind: "run.overview", runId: existingRunId });
+    const existingQuery = await writeInspectionRequest(paths.projectRoot, "existing-target", { kind: "run.get", runId: existingRunId });
     const existingHistory = await niceeval.run(["query", "run", "--request", existingQuery]);
     expect(existingHistory.exitCode, existingHistory.diagnostic()).toBe(0);
-    expect(JSON.stringify(existingHistory.runOverview())).toContain(existingRunId);
+    expect(JSON.stringify(existingHistory.run())).toContain(existingRunId);
 
     const sourceAfter = await niceeval.run(["query", "run", "--request", sourceQuery]);
     expect(sourceAfter.exitCode, sourceAfter.diagnostic()).toBe(0);
-    expect(sourceAfter.runOverview().runOverview).toEqual(sourceFacts);
+    expect(sourceAfter.run().run).toEqual(sourceFacts);
 
     const definition = await readFile(targetPath, "utf8");
-    const listQuery = await writeInspectionRequest(paths.projectRoot, "runs", { kind: "runs.list" });
+    const listQuery = await writeInspectionRequest(paths.projectRoot, "runs", { kind: "run.list" });
     const beforeRejected = await niceeval.run(["query", "run", "--request", listQuery]);
     expect(beforeRejected.exitCode, beforeRejected.diagnostic()).toBe(0);
     await writeFile(targetPath, definition.replace("defineExperiment({", "defineExperiment({ attempts: 2,"));

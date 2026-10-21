@@ -10,10 +10,8 @@ const OPERATION_CATALOG = [
   "project.get",
   "overview.get",
   "experiment.get",
-  "runs.list",
+  "run.list",
   "run.get",
-  "run.summary",
-  "run.overview",
   "attempt.get",
   "attempt.assertion.detail",
   "attempt.assertion.image",
@@ -537,7 +535,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const operationRequestPath = join(projectRoot, "fixed-operation.request.json");
       let matcherToolOccurrenceId: string | undefined;
       const operations = [
-        { kind: "runs.list" },
+        { kind: "run.list" },
         { kind: "experiment.get", experimentId: "main" },
         { kind: "run.get", runId },
         { kind: "attempt.get", locator },

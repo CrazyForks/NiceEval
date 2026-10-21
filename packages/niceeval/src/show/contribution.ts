@@ -316,15 +316,15 @@ function runShow(
         if (runIds.length > 0) {
           const rendered: string[] = [];
           for (const runId of runIds) {
-            const document = yield* select("run.overview", () =>
+            const document = yield* select("run.get", () =>
               selectInspectionOperation(opened, {
-                kind: "run.overview",
+                kind: "run.get",
                 runId,
               }),
             );
             rendered.push(
               renderRun(
-                yield* project("run.overview", () => projectRun(document)),
+                yield* project("run.get", () => projectRun(document)),
               ),
             );
           }

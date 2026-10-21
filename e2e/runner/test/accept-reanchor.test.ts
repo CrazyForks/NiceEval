@@ -98,17 +98,15 @@ export default defineExperiment({ adapter, evals: ["locator-background"] });
     expect(newLocator).toBe(oldLocator);
 
     const acceptedRequest = await writeInspectionRequest(root, "accepted-run", {
-      kind: "run.summary", runId: acceptedRunId,
+      kind: "run.get", runId: acceptedRunId,
     });
     const acceptedCurrent = await niceeval.run(["query", "run", "--request", acceptedRequest]);
     expect(acceptedCurrent.exitCode, acceptedCurrent.diagnostic()).toBe(0);
-    const acceptedDocument = acceptedCurrent.runSummary();
-    expect(acceptedDocument).toMatchObject({ operation: "run.summary", issues: [] });
-    expect(acceptedDocument.summary.runs).toEqual([
-      expect.objectContaining({ runId: acceptedRunId }),
-    ]);
-    expect(acceptedDocument.summary.denominator).toEqual({ expected: 1, observed: 1 });
-    expect(acceptedDocument.summary.members).toEqual([
+    const acceptedDocument = acceptedCurrent.run();
+    expect(acceptedDocument).toMatchObject({ operation: "run.get", issues: [] });
+    expect(acceptedDocument.run.value).toMatchObject({ runId: acceptedRunId });
+    expect(acceptedDocument.run.denominator).toEqual({ expected: 1, published: 1, missing: 0 });
+    expect(acceptedDocument.run.slots).toEqual([
       expect.objectContaining({
         evalId: "accept/accept-target",
         locator: oldLocator,

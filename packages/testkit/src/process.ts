@@ -15,7 +15,6 @@ import {
 import {
   decodeRunDocument,
   type RunDocument,
-  type RunGetDocument,
   type RunListDocument,
 } from "./run-protocol.js";
 import {
@@ -338,10 +337,8 @@ export class ProcessReceipt {
 
   overview(): QuerySuccessDocumentFor<"overview.get"> { return this.querySuccess("overview.get"); }
   experiment(): QuerySuccessDocumentFor<"experiment.get"> { return this.querySuccess("experiment.get"); }
-  runsList(): QuerySuccessDocumentFor<"runs.list"> { return this.querySuccess("runs.list"); }
+  runsList(): QuerySuccessDocumentFor<"run.list"> { return this.querySuccess("run.list"); }
   run(): QuerySuccessDocumentFor<"run.get"> { return this.querySuccess("run.get"); }
-  runSummary(): QuerySuccessDocumentFor<"run.summary"> { return this.querySuccess("run.summary"); }
-  runOverview(): QuerySuccessDocumentFor<"run.overview"> { return this.querySuccess("run.overview"); }
   attempt(): QuerySuccessDocumentFor<"attempt.get"> { return this.querySuccess("attempt.get"); }
   attemptAssertionDetail(): QuerySuccessDocumentFor<"attempt.assertion.detail"> { return this.querySuccess("attempt.assertion.detail"); }
   attemptSources(): QuerySuccessDocumentFor<"attempt.sources"> { return this.querySuccess("attempt.sources"); }
@@ -368,13 +365,9 @@ export class ProcessReceipt {
     return document;
   }
 
-  /** Strictly decode `niceeval run show --json`; distinct from Inspection `run()`. */
-  runGetDocument(): RunGetDocument {
-    const document = this.runDocument("runGetDocument");
-    if (document.operation !== "run.get") {
-      this.runMismatch("runGetDocument", "run.get", document);
-    }
-    return document;
+  /** Strictly decode the canonical Inspection result from `niceeval run show --json`. */
+  runGetDocument(): QuerySuccessDocumentFor<"run.get"> {
+    return this.run();
   }
 
   private queryDocument(api: string): QueryDocument {

@@ -13,22 +13,21 @@ export interface RunMemberModel {
   readonly slotId: string;
   readonly evalId: string;
   readonly attemptOrdinal: number;
-  readonly state: "executed" | "carried" | "accepted" | "not-dispatched" | "interrupted" | "missing";
+  readonly state: "executed" | "carried" | "accepted" | "not-dispatched" | "interrupted" | "pending";
   readonly locator: string | null;
   readonly outcome: "completed" | "errored" | "cancelled" | "interrupted" | null;
   readonly verdict: "passed" | "failed" | "errored" | "skipped" | null;
-  readonly score?: InspectionSuccessDocumentFor<"run.summary">["summary"]["members"][number]["score"];
+  readonly score?: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["score"];
 }
 
 export function closeRun(
   run: InspectionSuccessDocumentFor<"run.get">,
-  summary: InspectionSuccessDocumentFor<"run.summary">,
 ): RunPageModel {
   return Object.freeze({
     runId: run.run.value.runId,
     experimentId: run.run.value.experimentId,
     adapter: run.run.value.context?.execution.adapter ?? null,
-    members: Object.freeze(summary.summary.members.map((member, index) => Object.freeze({
+    members: Object.freeze(run.run.slots.map((member, index) => Object.freeze({
       key: `${member.slotId}:${index}`,
       slotId: member.slotId,
       evalId: member.evalId,
@@ -37,7 +36,7 @@ export function closeRun(
       locator: member.locator,
       outcome: member.outcome,
       verdict: member.verdict,
-      ...(member.score === undefined ? {} : { score: member.score }),
+      ...(member.score === null ? {} : { score: member.score }),
     }))),
   });
 }

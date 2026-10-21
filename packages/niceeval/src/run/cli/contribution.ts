@@ -12,11 +12,18 @@ import {
   CliFeatureError,
   type CliCommandContribution,
 } from "../../cli/contribution.ts";
-import { canonicalJsonValue } from "../../inspection/index.ts";
+import {
+  canonicalJsonValue,
+  decodeInspectionOperation,
+  openInspectionSource,
+  operationalInspectionSource,
+  selectInspectionOperation,
+} from "../../inspection/index.ts";
+import { projectRun } from "../../show/model.ts";
+import { renderRun } from "../../show/render.ts";
 import { rawRunHost } from "../host/runtime.ts";
 import {
   RUN_PROTOCOL,
-  type RunGetDocument,
   type RunListDocument,
 } from "../protocol.ts";
 import type {
@@ -162,22 +169,21 @@ Usage:
     if (action === "show") {
       const unsupported = unsupportedOption(parsed, ["json"]);
       if (unsupported !== undefined) return yield* usage(`--${unsupported} is not valid with niceeval run show.`);
-      const shown = yield* rawRunHost.get({ cwd: facts.cwd, runId }).pipe(
-        Effect.mapError((cause) => failure("show", cause)),
-      );
+      const decoded = decodeInspectionOperation({ kind: "run.get", runId });
+      if (Result.isFailure(decoded)) return yield* Effect.fail(failure("show", decoded.failure));
+      const operation = decoded.success;
+      if (operation.kind !== "run.get") return yield* Effect.fail(failure("show", new Error("Invalid Run operation.")));
+      const shown = yield* Effect.scoped(Effect.gen(function* () {
+        const source = yield* openInspectionSource(operationalInspectionSource(facts.cwd));
+        return yield* Effect.try({
+          try: () => selectInspectionOperation(source, operation),
+          catch: (cause) => cause,
+        });
+      })).pipe(Effect.mapError((cause) => failure("show", cause)));
       if (json) {
-        yield* writeJson(Object.freeze({
-          protocol: RUN_PROTOCOL,
-          operation: "run.get",
-          run: shown.run,
-        }) satisfies RunGetDocument);
+        yield* writeJson(shown);
       } else {
-        yield* write("stdout", `${shown.run.runId}  ${shown.run.state}  ${shown.run.experimentId}\n` +
-          `started: ${new Date(shown.run.startedAt).toISOString()}\n` +
-          (shown.run.completedAt === undefined
-            ? ""
-            : `completed: ${new Date(shown.run.completedAt).toISOString()}\n`) +
-          `coverage: ${shown.run.coverage.published}/${shown.run.coverage.expected}\n`);
+        yield* write("stdout", renderRun(projectRun(shown)));
       }
       return 0;
     }

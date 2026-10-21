@@ -49,9 +49,9 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
       expect(summary.receipt.exitCode, summary.receipt.diagnostic()).toBe(0);
       expect(summary.document).toMatchObject({
         protocol: "niceeval.query/v1",
-        operation: "run.summary",
+        operation: "run.get",
         issues: [],
-        summary: { denominator: { expected: 12, observed: 12 } },
+        run: { denominator: { expected: 12, published: 12, missing: 0 } },
       });
       for (const [evalId, verdict] of [
         ["assertion-score/scored", "passed"],
@@ -61,13 +61,13 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
         ["assertion-score/stopped", "passed"],
         ["assertion-score/skipped", "skipped"],
       ] as const) {
-        expect(summary.document.summary.members.filter((member) =>
+        expect(summary.document.run.slots.filter((member) =>
           member.evalId === evalId && member.verdict === verdict
         )).toHaveLength(2);
       }
 
       const entriesByEval = new Map<string, (readonly ReturnType<typeof assertionEntry>[])[]>();
-      for (const member of summary.document.summary.members) {
+      for (const member of summary.document.run.slots) {
         expect(member.locator, `${member.evalId} must have a published Attempt locator`).toEqual(expect.any(String));
         const inspected = await inspectAttempt(niceeval, projectRoot, member.locator!, "attempt.get");
         expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);

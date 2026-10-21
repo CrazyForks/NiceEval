@@ -38,13 +38,13 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
 
     const runId = only(interrupted.expReceipt().createdRunIds, () => true, interrupted.diagnostic());
     const request = join(projectRoot, "capture-query.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.overview", runId } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.get", runId } }));
     const run = await niceeval.run(["query", "run", "--request", request]);
     expect(run.exitCode, run.diagnostic()).toBe(0);
-    const overview = run.querySuccess("run.overview").runOverview;
-    expect(overview.state).toBe("interrupted");
-    expect(overview.denominator).toEqual({ expected: 2, observed: 1 });
-    const member = only(overview.members, (entry) => entry.locator !== null, run.diagnostic());
+    const overview = run.querySuccess("run.get").run;
+    expect(overview.value.state).toBe("interrupted");
+    expect(overview.denominator).toEqual({ expected: 2, published: 1, missing: 1 });
+    const member = only(overview.slots, (entry) => entry.locator !== null, run.diagnostic());
     expect(member).toMatchObject({ state: "executed", verdict: "errored", outcome: "errored", score: { earned: 7 } });
     const locator = defined(member.locator, "cancelled Attempt must be published");
 

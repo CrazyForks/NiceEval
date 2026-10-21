@@ -18,8 +18,8 @@ import {
   InspectionAttemptDiffResultSchema, InspectionAttemptResultSchema,
   InspectionAttemptTimingResultSchema, InspectionAttemptUsageResultSchema,
   InspectionExperimentResultSchema, InspectionOverviewResultSchema,
-  InspectionRunOverviewResultSchema, InspectionRunResultSchema,
-  InspectionRunSummaryResultSchema, InspectionSourcesResultSchema,
+  InspectionRunResultSchema, InspectionRunListResultSchema,
+  InspectionSourcesResultSchema,
   InspectionTraceDetailResultSchema, InspectionTraceResultSchema,
 } from "./results.ts";
 
@@ -77,11 +77,6 @@ const ArtifactsResultSchema = Schema.Union([
     contentsTruncated: Schema.Boolean,
   }),
 ]);
-const SealedRunSummarySchema = Schema.Struct({
-  runId: Schema.String, writerGeneration: Schema.String, startedAt: Schema.String, logicalSealIdentity: Schema.String,
-  slotCount: Schema.Number, memberCount: Schema.Number, attemptCount: Schema.Number, attachmentCount: Schema.Number,
-  contentCount: Schema.Number, contentByteLength: Schema.Number, sealEntryCount: Schema.Number,
-});
 const ComparisonMemberSchema = Schema.Struct({
   key: Schema.String, runId: Schema.String, slotId: Schema.String, evalId: Schema.String,
   attemptOrdinal: Schema.Number, locator: Schema.String,
@@ -103,10 +98,8 @@ export const inspectionProtocolRegistry = Object.freeze({
   "project.get": spec({ request: operation("project.get", { experimentIds: Schema.optional(ProjectExperimentIdsSchema) }), result: { project: InspectionProjectResultSchema }, factKinds: ["current-project", "core", "assertions", "attempt-cost"] }),
   "overview.get": spec({ request: operation("overview.get", { runIds: Schema.optional(RunIdsSchema) }), result: { overview: InspectionOverviewResultSchema }, factKinds: ["core", "assertions", "attempt-cost"] }),
   "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "assertions", "attempt-cost", "agent-turns", "adapter-usage", "judge-usage"] }),
-  "runs.list": spec({ request: operation("runs.list", { continuation: Schema.optional(Schema.String) }), result: { runs: Schema.Array(SealedRunSummarySchema), continuation: Schema.optional(Schema.String) }, factKinds: ["core"] }),
-  "run.get": spec({ request: operation("run.get", { runId: RunIdSchema }), result: { run: InspectionRunResultSchema }, factKinds: ["core"] }),
-  "run.summary": spec({ request: operation("run.summary", { runId: RunIdSchema }), result: { summary: InspectionRunSummaryResultSchema }, factKinds: ["core", "assertions", "agent-turns"] }),
-  "run.overview": spec({ request: operation("run.overview", { runId: RunIdSchema }), result: { runOverview: InspectionRunOverviewResultSchema }, factKinds: ["core", "assertions", "agent-turns"] }),
+  "run.list": spec({ request: operation("run.list", { continuation: Schema.optional(Schema.String) }), result: { runs: InspectionRunListResultSchema, continuation: Schema.optional(Schema.String) }, factKinds: ["core"] }),
+  "run.get": spec({ request: operation("run.get", { runId: RunIdSchema }), result: { run: InspectionRunResultSchema }, factKinds: ["core", "assertions", "agent-turns", "adapter-usage", "judge-usage"] }),
   "attempt.get": spec({ request: operation("attempt.get", { locator: AttemptLocatorSchema }), result: { attempt: InspectionAttemptResultSchema }, factKinds: ["core", "assertions"] }),
   "attempt.assertion.detail": spec({ request: operation("attempt.assertion.detail", { locator: AttemptLocatorSchema, entryId: AssertionEntryIdSchema }), result: { assertion: AssertionDetailResultSchema }, factKinds: ["assertions", "agent-turns", "sources"] }),
   "attempt.assertion.image": spec({ request: operation("attempt.assertion.image", { locator: AttemptLocatorSchema,
@@ -165,7 +158,7 @@ const successSchema = (
   entry: (typeof inspectionProtocolRegistry)[InspectionOperationId],
 ): Schema.Codec<InspectionSuccessDocument, InspectionSuccessEncoded> => {
   const fields = Schema.fieldsAssign({ operation: Schema.Literal(id), ...entry.result });
-  const schema = id === "runs.list" ? RunsListSuccessMetadataSchema.pipe(fields)
+  const schema = id === "run.list" ? RunsListSuccessMetadataSchema.pipe(fields)
     : id === "runs.compare" ? CompareSuccessMetadataSchema.pipe(fields)
     : SuccessMetadataSchema.pipe(fields);
   // Object.entries erases the ID/result correlation established by the registry.
@@ -179,7 +172,7 @@ const explanationSchema = (id: InspectionOperationId, entry: (typeof inspectionP
     outcome: Schema.Literal("explanation"), operation: Schema.Literal(id),
     factKinds: Schema.Tuple(entry.factKinds.map((value) => Schema.Literal(value))),
   });
-  if (id === "runs.list") return RunsListSuccessMetadataSchema.pipe(fields);
+  if (id === "run.list") return RunsListSuccessMetadataSchema.pipe(fields);
   return SuccessMetadataSchema.pipe(fields);
 };
 export const InspectionExplanationDocumentSchema = Schema.Union(specs.map(([id, entry]) =>
@@ -209,7 +202,7 @@ export const InspectionDocumentSchema: Schema.Union<readonly [
 ]);
 
 type Registry = typeof inspectionProtocolRegistry;
-type MetadataFor<Kind extends InspectionOperationId> = Kind extends "runs.list"
+type MetadataFor<Kind extends InspectionOperationId> = Kind extends "run.list"
   ? Schema.Schema.Type<typeof RunsListSuccessMetadataSchema>
   : Kind extends "runs.compare"
     ? Schema.Schema.Type<typeof CompareSuccessMetadataSchema>
@@ -224,7 +217,7 @@ export type InspectionSuccessDocumentFor<Kind extends InspectionOperationId> = K
   : never;
 export type InspectionSuccessDocument = InspectionSuccessDocumentFor<InspectionOperationId>;
 type SuccessEncodedFor<Kind extends InspectionOperationId> = Kind extends InspectionOperationId
-  ? (Kind extends "runs.list" ? Schema.Codec.Encoded<typeof RunsListSuccessMetadataSchema>
+  ? (Kind extends "run.list" ? Schema.Codec.Encoded<typeof RunsListSuccessMetadataSchema>
       : Kind extends "runs.compare" ? Schema.Codec.Encoded<typeof CompareSuccessMetadataSchema>
       : Schema.Codec.Encoded<typeof SuccessMetadataSchema>)
     & { readonly operation: Kind }

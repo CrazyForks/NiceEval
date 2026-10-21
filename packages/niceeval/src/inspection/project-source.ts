@@ -38,6 +38,7 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
       cutoff: () => cutoff,
       findExperimentRunIds: session.findExperimentRunIds,
       readRunResource: session.readRunResource,
+      readRunResourcePage: (afterRunId = "", pageSize = 100) => session.listRunResources({ afterRunId, pageSize }),
       readSealedRunSummaryPage: session.readSealedRunSummaryPage,
       findAttemptLocatorCandidates: session.findAttemptLocatorCandidates,
       readSealedRunCore: (runId: string) => session.readSealedRunCore(runId, true),

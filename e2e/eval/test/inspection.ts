@@ -104,16 +104,16 @@ export async function inspectRunSummary(
   projectRoot: string,
   runId: string,
   options: RunProcessOptions = {},
-): Promise<{ readonly receipt: ProcessReceipt; readonly document: QuerySuccessDocumentFor<"run.summary"> }> {
+): Promise<{ readonly receipt: ProcessReceipt; readonly document: QuerySuccessDocumentFor<"run.get"> }> {
   const requestPath = join(projectRoot, `.inspection-run-summary-${runId}.json`);
   await writeFile(
     requestPath,
     `${JSON.stringify({
       protocol: "niceeval.query/v1",
-      operation: { kind: "run.summary", runId },
+      operation: { kind: "run.get", runId },
     })}\n`,
     "utf8",
   );
   const receipt = await niceeval.run(["query", "run", "--request", requestPath], options);
-  return { receipt, document: receipt.runSummary() };
+  return { receipt, document: receipt.run() };
 }

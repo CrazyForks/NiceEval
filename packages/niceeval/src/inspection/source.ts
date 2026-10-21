@@ -23,7 +23,7 @@ import {
 } from "../record/sqlite/index.ts";
 import { startExternalRecordImport } from "../record/sqlite/external-record-import.ts";
 import { publicationCutoffIdentity } from "../run/storage/cutoff.ts";
-import type { PublicationCutoff, ReadableRunResource } from "../run/storage/types.ts";
+import type { PublicationCutoff, ReadableRunResource, RunResourcePage } from "../run/storage/types.ts";
 
 export type InspectionSource =
   | {
@@ -53,6 +53,7 @@ export interface InspectionFactSource {
   readonly cutoff: () => PublicationCutoff & { readonly identity: string };
   readonly findExperimentRunIds: (experimentId: string) => readonly string[];
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
+  readonly readRunResourcePage: (afterRunId?: string, pageSize?: number) => RunResourcePage;
   readonly readSealedRunSummaryPage: (
     afterRunId?: string,
     pageSize?: number,
@@ -158,6 +159,11 @@ function emptyOperationalFacts(): InspectionFactSource {
     cutoff: () => EMPTY_OPERATIONAL_CUTOFF,
     findExperimentRunIds: () => Object.freeze([]),
     readRunResource: () => undefined,
+    readRunResourcePage: () => Object.freeze({
+      cutoff: Object.freeze({ storeGeneration: EMPTY_PUBLICATION_CUTOFF_IDENTITY, revision: 0 }),
+      runs: Object.freeze([]),
+      nextAfterRunId: null,
+    }),
     readSealedRunSummaryPage: (afterRunId = "", _pageSize = 100, expectedCutoffIdentity?: string) => {
       if (expectedCutoffIdentity !== undefined && expectedCutoffIdentity !== EMPTY_OPERATIONAL_CUTOFF.identity) {
         throw new InspectionSourceError({
@@ -211,6 +217,7 @@ function sessionFacts(
     cutoff: () => cutoff,
     findExperimentRunIds: session.findExperimentRunIds,
     readRunResource: (runId: string) => session.readRunResource(runId),
+    readRunResourcePage: (afterRunId = "", pageSize = 100) => session.listRunResources({ afterRunId, pageSize }),
     readSealedRunSummaryPage: readPage,
     findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) =>
       session.findAttemptLocatorCandidates(locator, maximumCandidateRuns),

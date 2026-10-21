@@ -32,17 +32,17 @@ test("createClaudeSdkEventStream 的锁定上游帧经 Experiment 和公开 CLI 
       const event = exactEval(events, EXPECTED[0], () => run.diagnostic());
 
       const summaryReceipt = await withInspectionRequest({
-        kind: "run.summary",
+        kind: "run.get",
         runId: receipt.createdRunIds[0]!,
       }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
       expect(summaryReceipt.exitCode, summaryReceipt.diagnostic()).toBe(0);
-      const summary = summaryReceipt.runSummary();
-      expect(summary).toMatchObject({ protocol: "niceeval.query/v1", operation: "run.summary" });
+      const summary = summaryReceipt.run();
+      expect(summary).toMatchObject({ protocol: "niceeval.query/v1", operation: "run.get" });
       expect(summary.selection).toMatchObject({
         selectedRunIds: [receipt.createdRunIds[0]!],
         missingRunIds: [],
       });
-      expect(JSON.stringify(summary.summary)).toContain(event.locator);
+      expect(JSON.stringify(summary.run)).toContain(event.locator);
 
       const sourcesReceipt = await withInspectionRequest({
         kind: "attempt.sources",

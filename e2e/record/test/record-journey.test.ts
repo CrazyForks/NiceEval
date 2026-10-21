@@ -49,9 +49,8 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
       expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
       const shown = receipt.runGetDocument();
       expect(shown.run).toMatchObject({
-        runId: active.runId,
-        state: "active",
-        coverage: { expected: 2, published: 0, missing: 2 },
+        value: { runId: active.runId, state: "active" },
+        denominator: { expected: 2, published: 0, missing: 2 },
       });
       expect(shown.run.slots).toHaveLength(2);
       expect(shown.run.slots).toEqual(expect.arrayContaining([
@@ -67,6 +66,8 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
       const queriedReceipt = await niceeval.run(["query", "run", "--request", request]);
       expect(queriedReceipt.exitCode, queriedReceipt.diagnostic()).toBe(0);
       const queried = queriedReceipt.querySuccess("run.get");
+      expect(queried.run).toEqual(shown.run);
+      expect(queried.run.denominator).toEqual({ expected: 2, published: 0, missing: 2 });
       expect(queried.run.value).toMatchObject({
         runId: active.runId,
         experimentId: "run-journey",
@@ -84,6 +85,9 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
       expect(human.stdout, human.diagnostic()).toContain("0/2 attempts observed");
       expect(human.stdout, human.diagnostic()).toContain("pending");
       expect(human.stdout, human.diagnostic()).not.toContain("Completed");
+      const directHuman = await niceeval.run(["run", "show", active.runId]);
+      expect(directHuman.exitCode, directHuman.diagnostic()).toBe(0);
+      expect(directHuman.stdout, directHuman.diagnostic()).toBe(human.stdout);
 
       expect(process.signal("SIGINT")).toBe(true);
       const interruptedReceipt = await process.done;
@@ -145,7 +149,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
     const historicalRequest = join(paths.projectRoot, "historical-run-summary.query.json");
     await writeFile(historicalRequest, `${JSON.stringify({
       protocol: "niceeval.query/v1",
-      operation: { kind: "run.summary", runId: historicalRunId },
+      operation: { kind: "run.get", runId: historicalRunId },
     })}\n`, "utf8");
 
     const backend = await createLoopbackBackend();
@@ -167,28 +171,26 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
     try {
       const startupReceipts = await Promise.all(startupReaders.map((reader) => reader.done));
       for (const receipt of startupReceipts) {
-        expect(receipt.exitCode, `Historical run.summary while starting a normal writer\n${receipt.diagnostic()}`).toBe(0);
-        const summary = receipt.runSummary().summary;
-        expect(summary.runs).toEqual([
-          expect.objectContaining({
+        expect(receipt.exitCode, `Historical run.get while starting a normal writer\n${receipt.diagnostic()}`).toBe(0);
+        const summary = receipt.run().run;
+        expect(summary.value).toMatchObject({
             runId: historicalRunId,
             experimentId: "run-journey",
             expectedSlots: expect.arrayContaining([
               expect.objectContaining({ attemptOrdinal: 0 }),
               expect.objectContaining({ attemptOrdinal: 1 }),
             ]),
-          }),
-        ]);
-        expect(summary.denominator).toEqual({ expected: 2, observed: 2 });
-        expect(summary.members).toHaveLength(2);
-        expect(summary.members).toEqual(expect.arrayContaining([0, 1].map((attemptOrdinal) =>
-          expect.objectContaining({ runId: historicalRunId, attemptOrdinal, state: "executed", outcome: "completed", verdict: "passed" })
+        });
+        expect(summary.denominator).toEqual({ expected: 2, published: 2, missing: 0 });
+        expect(summary.slots).toHaveLength(2);
+        expect(summary.slots).toEqual(expect.arrayContaining([0, 1].map((attemptOrdinal) =>
+          expect.objectContaining({ attemptOrdinal, state: "executed", outcome: "completed", verdict: "passed" })
         )));
       }
       await whileRunning(backend.waitForAttempt(0), process, "the first Attempt reached its backend");
       const historicalWhileActive = await niceeval.run(["query", "run", "--request", historicalRequest]);
       expect(historicalWhileActive.exitCode, historicalWhileActive.diagnostic()).toBe(0);
-      expect(historicalWhileActive.runSummary().summary.denominator).toEqual({ expected: 2, observed: 2 });
+      expect(historicalWhileActive.run().run.denominator).toEqual({ expected: 2, published: 2, missing: 0 });
       const active = await whileRunning(pollUntil(async () => {
         const receipt = await niceeval.run(["run", "list", "--json"]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
@@ -198,8 +200,8 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       expect(beforePublicationReceipt.exitCode, beforePublicationReceipt.diagnostic()).toBe(0);
       const beforePublication = beforePublicationReceipt.runGetDocument();
       expect(beforePublication.run).toMatchObject({
-        state: "active",
-        coverage: { expected: 2, published: 0, missing: 2 },
+        value: { state: "active" },
+        denominator: { expected: 2, published: 0, missing: 2 },
       });
       expect(beforePublication.run.slots).toEqual(expect.arrayContaining([
         expect.objectContaining({ attemptOrdinal: 0, publication: { state: "pending" } }),
@@ -212,9 +214,9 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
         const receipt = await niceeval.run(["run", "show", active.runId, "--json"]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
-        return document.run.coverage.published === 1 ? document : undefined;
+        return document.run.denominator.published === 1 ? document : undefined;
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the first Attempt publication" }), process, "the first Attempt publication became visible");
-      expect(shown.run).toMatchObject({ state: "active", coverage: { expected: 2, published: 1, missing: 1 } });
+      expect(shown.run).toMatchObject({ value: { state: "active" }, denominator: { expected: 2, published: 1, missing: 1 } });
       const published = only(shown.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(shown));
       expect(published).toMatchObject({
         evalId: "run-journey",
@@ -389,7 +391,7 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
         const receipt = await niceeval.run(["run", "show", active.runId, "--json"]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
-        return document.run.coverage.published === 1 ? document : undefined;
+        return document.run.denominator.published === 1 ? document : undefined;
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the first Attempt publication" }), process, "the first Attempt publication became visible");
       const published = only(before.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(before));
       if (published.publication.state !== "published") throw new Error("Expected a published slot");
@@ -404,7 +406,7 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
       const receipt = await niceeval.run(["run", "show", active.runId, "--json"]);
       expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
       const interrupted = receipt.runGetDocument();
-      expect(interrupted.run).toMatchObject({ state: "interrupted", coverage: { expected: 2, published: 1, missing: 1 } });
+      expect(interrupted.run).toMatchObject({ value: { state: "interrupted" }, denominator: { expected: 2, published: 1, missing: 1 } });
       expect(only(interrupted.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(interrupted))).toMatchObject({
         publication: { attemptId: published.publication.attemptId, attemptLocator: published.publication.attemptLocator },
       });
@@ -449,7 +451,7 @@ test.concurrent("存在引用时拒绝删除 origin，删除依赖后可安全�
         const receipt = await niceeval.run(["run", "show", origin.runId, "--json"]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
-        return document.run.coverage.published === 1 ? document : undefined;
+        return document.run.denominator.published === 1 ? document : undefined;
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the origin Attempt publication" }), process, "the origin Attempt publication became visible");
       const published = only(originShown.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(originShown));
       if (published.publication.state !== "published") throw new Error("Expected a published slot");
@@ -519,7 +521,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
         const receipt = await niceeval.run(["run", "show", active.runId, "--json"]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
-        return document.run.coverage.published === 1 ? document : undefined;
+        return document.run.denominator.published === 1 ? document : undefined;
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the first Attempt publication" }), process, "the first Attempt publication became visible");
       const published = only(beforeKill.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(beforeKill));
       if (published.publication.state !== "published") throw new Error("Expected a published slot");
@@ -530,7 +532,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       const activeReceipt = await niceeval.run(["run", "show", active.runId, "--json"]);
       expect(activeReceipt.exitCode, activeReceipt.diagnostic()).toBe(0);
       const stillActive = activeReceipt.runGetDocument();
-      expect(stillActive.run).toMatchObject({ state: "active", coverage: { expected: 2, published: 1, missing: 1 } });
+      expect(stillActive.run).toMatchObject({ value: { state: "active" }, denominator: { expected: 2, published: 1, missing: 1 } });
       expect(only(stillActive.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(stillActive))).toMatchObject({
         publication: { attemptLocator: published.publication.attemptLocator },
       });
@@ -561,7 +563,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       const resumedRunReceipt = await niceeval.run(["run", "show", resumedRunId, "--json"]);
       expect(resumedRunReceipt.exitCode, resumedRunReceipt.diagnostic()).toBe(0);
       const resumedRun = resumedRunReceipt.runGetDocument();
-      expect(resumedRun.run).toMatchObject({ state: "completed", coverage: { expected: 2, published: 2, missing: 0 } });
+      expect(resumedRun.run).toMatchObject({ value: { state: "completed" }, denominator: { expected: 2, published: 2, missing: 0 } });
       expect(only(resumedRun.run.slots, (slot) =>
         slot.publication.state === "published" && slot.publication.action === "carried",
       JSON.stringify(resumedRun))).toMatchObject({
@@ -577,7 +579,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       const recoveredReceipt = await niceeval.run(["run", "show", active.runId, "--json"]);
       expect(recoveredReceipt.exitCode, recoveredReceipt.diagnostic()).toBe(0);
       const recoveredRun = recoveredReceipt.runGetDocument();
-      expect(recoveredRun.run).toMatchObject({ state: "interrupted", coverage: { expected: 2, published: 1, missing: 1 } });
+      expect(recoveredRun.run).toMatchObject({ value: { state: "interrupted" }, denominator: { expected: 2, published: 1, missing: 1 } });
       expect(only(recoveredRun.run.slots, (slot) => slot.publication.state === "published", JSON.stringify(recoveredRun))).toMatchObject({
         publication: { attemptLocator: published.publication.attemptLocator },
       });

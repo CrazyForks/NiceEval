@@ -97,9 +97,9 @@ export interface RunView {
   readonly completedAt?: number;
   readonly expected: number;
   readonly observed: number;
-  readonly coverage: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["coverage"];
-  readonly usage: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["usage"];
-  readonly limitations: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["limitations"];
+  readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["coverage"];
+  readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["usage"];
+  readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["limitations"];
   readonly members: readonly {
     readonly slotId: string;
     readonly evalId: string;
@@ -110,9 +110,9 @@ export interface RunView {
     readonly outcome: AttemptOutcome | null;
     readonly verdict: Verdict | null;
     readonly score: ScoredValue | null;
-    readonly coverage: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["members"][number]["coverage"];
-    readonly usage: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["members"][number]["usage"];
-    readonly limitations: InspectionSuccessDocumentFor<"run.overview">["runOverview"]["members"][number]["limitations"];
+    readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["coverage"];
+    readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["usage"];
+    readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["limitations"];
   }[];
 }
 export interface AttemptView {
@@ -266,24 +266,25 @@ export function projectExperiment(document: InspectionSuccessDocumentFor<"experi
 }
 // @concord-code ne-surface-project-run-view
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
-export function projectRun(document: InspectionSuccessDocumentFor<"run.overview">): RunView {
-  const value = document.runOverview;
+export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): RunView {
+  const detail = document.run;
+  const value = detail.value;
   return {
-    runId: value.identity.runId,
-    experimentId: value.identity.experimentId,
-    adapter: value.identity.adapter,
+    runId: value.runId,
+    experimentId: value.experimentId,
+    adapter: value.context?.execution.adapter ?? null,
     state: value.state,
     startedAt: value.startedAt,
     ...(value.completedAt === undefined ? {} : { completedAt: value.completedAt }),
-    expected: value.denominator.expected,
-    observed: value.denominator.observed,
-    coverage: value.coverage,
-    usage: value.usage,
-    limitations: value.limitations,
-    members: value.members.map((member) => ({
-      slotId: member.slot.slotId,
-      evalId: member.slot.evalId,
-      attemptOrdinal: member.slot.attemptOrdinal,
+    expected: detail.denominator.expected,
+    observed: detail.denominator.published,
+    coverage: detail.coverage,
+    usage: detail.usage,
+    limitations: detail.limitations,
+    members: detail.slots.map((member) => ({
+      slotId: member.slotId,
+      evalId: member.evalId,
+      attemptOrdinal: member.attemptOrdinal,
       locator: member.locator,
       state: member.state,
       relation: member.relation,

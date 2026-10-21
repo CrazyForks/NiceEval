@@ -67,6 +67,8 @@ export interface LoadedInspectionRun {
 export interface LoadedInspectionRunResource {
   readonly source: InspectionFactSource;
   readonly resource: ReadableRunResource;
+  readonly members: readonly MemberDocument[];
+  readonly supporting: readonly LoadedInspectionRun[];
   readonly published?: LoadedInspectionRun;
 }
 
@@ -200,12 +202,52 @@ export function loadInspectionRunResource(
   const resource = source.readRunResource(runId);
   if (resource === undefined) return undefined;
   const published = readInspectionRun(source, runId);
-  requireCutoff(source.cutoff(), cutoff);
-  if (resource.published > 0 && published === undefined) {
-    throw factsError(`Run ${runId} has published bindings without a readable Core`);
-  }
   if (published !== undefined) validateRunResourceCore(resource, published);
-  return Object.freeze({ source, resource, ...(published === undefined ? {} : { published }) });
+  const originIds = resource.slots.flatMap(({ publication }) =>
+    publication.state === "published" ? [publication.originRunId] : []);
+  const supporting = loadSelectedInspectionRuns(source, [
+    ...(published === undefined ? [] : [runId]), ...originIds,
+  ]);
+  const index = memberIndex(supporting);
+  const publications = new Map<string, SealedRunCore["attempts"][number]>(supporting.flatMap((origin) =>
+    origin.physical.attempts.map((attempt) => [
+      `${origin.run.runId}\u0000${attempt.attemptId}`, attempt,
+    ] as const)));
+  const members = resource.slots.flatMap(({ slotId, publication }): readonly MemberDocument[] => {
+    if (publication.state === "pending") return [];
+    if (publication.state === "absent") {
+      return [decodedRight(decodeMemberDocument({
+        slotId,
+        action: publication.reason === "interrupted-before-publication" || publication.reason === "dispatch-failed"
+          ? "interrupted" : "not-dispatched",
+        attempt: null,
+        absenceReason: publication.reason,
+      }), "Run resource absence is invalid")];
+    }
+    const origin = index.origins.get(publication.originRunId);
+    const attempt = origin?.attempts.get(publication.attemptId);
+    const stored = publications.get(`${publication.originRunId}\u0000${publication.attemptId}`);
+    if (attempt === undefined || stored === undefined ||
+        attempt.slotId !== publication.originSlotId ||
+        stored.attemptLocator !== publication.attemptLocator ||
+        stored.publicationIdentity?.originRunId !== publication.publicationIdentity.originRunId ||
+        stored.publicationIdentity?.attemptId !== publication.publicationIdentity.attemptId ||
+        stored.publicationIdentity?.revision !== publication.publicationIdentity.revision ||
+        publication.publicationIdentity.originRunId !== publication.originRunId ||
+        publication.publicationIdentity.attemptId !== publication.attemptId ||
+        publication.action === "executed" && publication.originRunId !== runId) {
+      throw factsError(`Run ${runId} Slot ${slotId} does not bind a matching published origin Attempt`);
+    }
+    return [decodedRight(decodeMemberDocument({
+      slotId, action: publication.action,
+      attempt: { originRunId: publication.originRunId, attemptId: publication.attemptId },
+    }), "Run resource binding is invalid")];
+  }).sort((left, right) => compareText(left.slotId, right.slotId));
+  requireCutoff(source.cutoff(), cutoff);
+  return Object.freeze({
+    source, resource, members: Object.freeze(members), supporting,
+    ...(published === undefined ? {} : { published }),
+  });
 }
 
 function validateRunResourceCore(
@@ -450,6 +492,20 @@ export function resolveInspectionMemberAttempt(
   const targets = index.targets.get(attempt.originRunId)?.get(attempt.attemptId) ?? [];
   const targetMember = index.origins.get(target.run.runId)?.members.get(member.slotId);
   if (targetMember?.attempt?.originRunId !== attempt.originRunId || targetMember.attempt.attemptId !== attempt.attemptId) return undefined;
+  return Object.freeze({ attempt, origin: origin.run, locator: encodeAttemptLocator(attempt.attemptId), targets });
+}
+
+/** A target binding does not require the target to have published its own Run Core. */
+export function resolveInspectionResourceMemberAttempt(
+  target: LoadedInspectionRunResource,
+  member: MemberDocument,
+): ResolvedInspectionAttempt | undefined {
+  if (member.attempt === null) return undefined;
+  const index = memberIndex(target.supporting);
+  const origin = index.origins.get(member.attempt.originRunId);
+  const attempt = origin?.attempts.get(member.attempt.attemptId);
+  if (origin === undefined || attempt === undefined) return undefined;
+  const targets = index.targets.get(attempt.originRunId)?.get(attempt.attemptId) ?? [];
   return Object.freeze({ attempt, origin: origin.run, locator: encodeAttemptLocator(attempt.attemptId), targets });
 }
 

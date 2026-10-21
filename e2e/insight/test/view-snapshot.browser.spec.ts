@@ -60,11 +60,11 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
       const scoreRequestPath = join(projectRoot, "verdict-scores.request.json");
       await writeFile(scoreRequestPath, JSON.stringify({
         protocol: "niceeval.query/v1",
-        operation: { kind: "run.summary", runId: scoreRunId },
+        operation: { kind: "run.get", runId: scoreRunId },
       }));
       const scoreSummary = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
       expect(scoreSummary.exitCode, scoreSummary.diagnostic()).toBe(0);
-      const scoreMembers = scoreSummary.querySuccess("run.summary").summary.members;
+      const scoreMembers = scoreSummary.querySuccess("run.get").run.slots;
       // These same public facts must survive the Overview aggregation and View.
       for (const [evalId, earned, possible] of [
         ["verdict-scores/failed", 61, 100],

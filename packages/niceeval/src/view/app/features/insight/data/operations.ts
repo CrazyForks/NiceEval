@@ -33,16 +33,10 @@ export function projectOperation(experimentIds?: readonly string[]): InspectionO
   return operation;
 }
 
-export function runOperations(runId: string): readonly [
-  InspectionOperationFor<"run.get">,
-  InspectionOperationFor<"run.summary">,
-] {
-  const run = decoded({ kind: "run.get", runId });
-  const summary = decoded({ kind: "run.summary", runId });
-  if (run.kind !== "run.get" || summary.kind !== "run.summary") {
-    throw new RouteInputError("Invalid run route.");
-  }
-  return [run, summary];
+export function runOperation(runId: string): InspectionOperationFor<"run.get"> {
+  const operation = decoded({ kind: "run.get", runId });
+  if (operation.kind !== "run.get") throw new RouteInputError("Invalid run route.");
+  return operation;
 }
 
 export function attemptOperations(locator: string): readonly [

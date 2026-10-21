@@ -61,6 +61,8 @@ import {
   RunPendingPublicationSchema,
   RunPublishedPublicationSchema,
   RunStateSchema,
+  RunSlotPublicationSchema,
+  RunSummarySchema,
 } from "../run/index.ts";
 import {
   AdapterIdentitySchema,
@@ -259,25 +261,7 @@ export const InspectionRunValueSchema = Schema.Struct({
 });
 export type InspectionRunValue = Schema.Schema.Type<typeof InspectionRunValueSchema>;
 
-export const InspectionRunResultSchema = Schema.Struct({
-  value: InspectionRunValueSchema,
-  members: Schema.Array(MemberDocumentSchema),
-  attempts: Schema.Array(AttemptDocumentSchema),
-});
-export type InspectionRunResult = Schema.Schema.Type<typeof InspectionRunResultSchema>;
-
-export const InspectionRunListResultSchema = Schema.Array(Schema.Struct({
-  runId: RunIdSchema,
-  state: Schema.Literal("completed"),
-  experimentId: ExperimentIdSchema,
-  invocationId: Schema.Null,
-  startedAt: UtcMillisSchema,
-  completedAt: UtcMillisSchema,
-  coverage: Schema.Struct({
-    published: Schema.Number,
-    expected: Schema.Number,
-  }),
-}));
+export const InspectionRunListResultSchema = Schema.Array(RunSummarySchema);
 export type InspectionRunListResult = Schema.Schema.Type<typeof InspectionRunListResultSchema>;
 
 export const InspectionScoredValueSchema = Schema.Union([
@@ -292,26 +276,6 @@ export const InspectionScoredValueSchema = Schema.Union([
 ]);
 export type InspectionScoredValue = Schema.Schema.Type<typeof InspectionScoredValueSchema>;
 const VerdictSchema = Schema.NullOr(Schema.Literals(["passed", "failed", "errored", "skipped"]));
-export const InspectionRunSummaryResultSchema = Schema.Struct({
-  runs: Schema.Array(RunDocumentSchema),
-  denominator: Schema.Struct({ expected: Schema.Number, observed: Schema.Number }),
-  members: Schema.Array(Schema.Struct({
-    runId: Schema.String,
-    slotId: Schema.String,
-    evalId: Schema.String,
-    attemptOrdinal: Schema.Number,
-    executionIdentityDigest: Schema.String,
-    state: Schema.Literals([
-      "executed", "carried", "accepted", "not-dispatched", "interrupted", "missing",
-    ]),
-    locator: Schema.NullOr(Schema.String),
-    outcome: Schema.NullOr(Schema.Literals(["completed", "errored", "cancelled", "interrupted"])),
-    verdict: VerdictSchema,
-    score: Schema.optional(InspectionScoredValueSchema),
-  })),
-});
-export type InspectionRunSummaryResult = Schema.Schema.Type<typeof InspectionRunSummaryResultSchema>;
-
 const AttemptCoverageFactSchema = Schema.Struct({
   channel: Schema.Literals(["events", "actions", "messages", "usage", "status", "data"]),
   status: Schema.Literals(["complete", "partial", "unavailable"]),
@@ -1071,7 +1035,8 @@ const RunOverviewMemberLimitationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("usage"), detail: UsageLimitationSchema }),
 ]);
 const RunOverviewMemberSchema = Schema.Struct({
-  slot: RecordSlotIdentitySchema,
+  ...RecordSlotIdentitySchema.fields,
+  publication: RunSlotPublicationSchema,
   state: Schema.Literals([
     "executed", "carried", "accepted", "not-dispatched", "interrupted", "pending",
   ]),
@@ -1089,17 +1054,12 @@ const RunOverviewLocatedLimitationSchema = Schema.Struct({
   locator: Schema.NullOr(Schema.String),
   limitation: RunOverviewMemberLimitationSchema,
 });
-export const InspectionRunOverviewResultSchema = Schema.Struct({
-  identity: Schema.Struct({
-    runId: RunIdSchema,
-    experimentId: ExperimentIdSchema,
-    adapter: Schema.NullOr(AdapterIdentitySchema),
-  }),
-  state: RunStateSchema,
-  startedAt: UtcMillisSchema,
-  completedAt: Schema.optional(UtcMillisSchema),
-  denominator: Schema.Struct({ expected: Schema.Number, observed: Schema.Number }),
-  members: Schema.Array(RunOverviewMemberSchema),
+export const InspectionRunResultSchema = Schema.Struct({
+  value: InspectionRunValueSchema,
+  members: Schema.Array(MemberDocumentSchema),
+  attempts: Schema.Array(AttemptDocumentSchema),
+  denominator: Schema.Struct({ expected: Schema.Number, published: Schema.Number, missing: Schema.Number }),
+  slots: Schema.Array(RunOverviewMemberSchema),
   coverage: Schema.Struct({
     state: RunOverviewStateSchema,
     expectedMemberCount: Schema.Number,
@@ -1118,7 +1078,7 @@ export const InspectionRunOverviewResultSchema = Schema.Struct({
   }),
   limitations: Schema.Array(RunOverviewLocatedLimitationSchema),
 });
-export type InspectionRunOverviewResult = Schema.Schema.Type<typeof InspectionRunOverviewResultSchema>;
+export type InspectionRunResult = Schema.Schema.Type<typeof InspectionRunResultSchema>;
 
 export const InspectionAttemptTimingResultSchema = Schema.Struct({
   state: ProjectionStateSchema,
@@ -1198,10 +1158,8 @@ export interface InspectionResultMetadata<Kind extends InspectionOperationId> {
 
 export type InspectionOverviewDocument = InspectionSuccessDocumentFor<"overview.get">;
 export type InspectionExperimentDocument = InspectionSuccessDocumentFor<"experiment.get">;
-export type InspectionRunListDocument = InspectionSuccessDocumentFor<"runs.list">;
+export type InspectionRunListDocument = InspectionSuccessDocumentFor<"run.list">;
 export type InspectionRunDocument = InspectionSuccessDocumentFor<"run.get">;
-export type InspectionRunSummaryDocument = InspectionSuccessDocumentFor<"run.summary">;
-export type InspectionRunOverviewDocument = InspectionSuccessDocumentFor<"run.overview">;
 export type InspectionAttemptDocument = InspectionSuccessDocumentFor<"attempt.get">;
 export type InspectionAttemptSourcesDocument = InspectionSuccessDocumentFor<"attempt.sources">;
 export type InspectionAttemptTraceDocument = InspectionSuccessDocumentFor<"attempt.trace">;

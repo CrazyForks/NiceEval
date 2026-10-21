@@ -103,16 +103,15 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
 
         const summary = await inspectRunSummary(niceeval, projectRoot, runId);
         expect(summary.receipt.exitCode, summary.receipt.diagnostic()).toBe(0);
-        expect(summary.document.summary.members).toHaveLength(2);
-        for (const member of summary.document.summary.members) {
+        expect(summary.document.run.slots).toHaveLength(2);
+        for (const member of summary.document.run.slots) {
           expect(member).toMatchObject({
-            runId,
             state: "executed",
             outcome: "completed",
           });
           const locator = member.locator;
           expect(locator, inspectedRun.diagnostic()).toEqual(expect.any(String));
-          if (locator === undefined) throw new Error("custom Attempt did not expose its public locator");
+          if (locator === null) throw new Error("custom Attempt did not expose its public locator");
 
           const attempt = await inspectAttempt(niceeval, projectRoot, locator, "attempt.get");
           expect(attempt.receipt.exitCode, attempt.receipt.diagnostic()).toBe(0);
