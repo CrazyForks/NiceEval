@@ -3,6 +3,7 @@ import { Effect, Option, Scope } from "effect";
 import type { JsonValue } from "../../shared/types.ts";
 import { digestOf } from "../identity.ts";
 import {
+  decodeSandboxSetupPrefixCacheKeyScope,
   providerBoundaryEffect,
   type SandboxSetupPrefixCacheOperation,
   type SandboxProviderBackend,
@@ -445,7 +446,7 @@ export function incusProviderModule(
         dependency: "parent-backed" as const,
         coverage: sandboxState.all,
         baseImageId: plan.imageFingerprint,
-        keyScope: Object.freeze({
+        keyScope: decodeSandboxSetupPrefixCacheKeyScope({
           protocol: "niceeval.incus-setup-prefix/v1",
           storageSchemaRevision: INCUS_ARTIFACT_STORAGE_REVISION,
           artifactFormatRevision: INCUS_ARTIFACT_FORMAT_REVISION,

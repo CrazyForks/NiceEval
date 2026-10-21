@@ -32,7 +32,7 @@ import { e2bRunIdentityMetadata, type RunIdentity } from "./run-identity.ts";
 import { commandLimit, SandboxCommandTimeoutError } from "./deadline.ts";
 import { successfulCommandResult } from "./operations.ts";
 import { ManagedProcessOutput } from "./managed-process.ts";
-import { supportedBackendCapability, unsupportedBackendCapability, unsupportedBackendCapabilityBecause, type SandboxProviderBackend } from "./backend.ts";
+import { decodeSandboxSetupPrefixCacheKeyScope, supportedBackendCapability, unsupportedBackendCapability, unsupportedBackendCapabilityBecause, type SandboxProviderBackend } from "./backend.ts";
 import {
   makeE2BSetupPrefixCacheCapability,
   type E2BSetupPrefixRootOwnership,
@@ -425,12 +425,12 @@ export class E2BSandbox implements SandboxProviderBackend, SandboxReuseCapabilit
         // E2B does not expose a digest for a template ref. The declared ref is
         // still part of the complete Case identity, and snapshots never float.
         baseImageId: `e2b-template:${this.baseTemplate ?? "base"}`,
-        keyScope: {
+        keyScope: decodeSandboxSetupPrefixCacheKeyScope({
           protocol: "niceeval-e2b-snapshot-setup-prefix/v1",
           storageSchemaRevision: "niceeval.e2b-setup-prefix-storage/v1",
           artifactFormatRevision: "niceeval.e2b-snapshot/v1",
           semanticIdentity: { capture: "e2b-snapshot", baseTemplate: this.baseTemplate ?? "base" },
-        },
+        }),
       }),
       captureSnapshot: async () => {
         const snapshot = await this.sbx.createSnapshot({ apiKey: process.env.E2B_API_KEY });

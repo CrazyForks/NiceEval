@@ -10,10 +10,8 @@ import { digestOf } from "../sandbox/identity.ts";
 import type { ScheduledSandboxBefore } from "../sandbox/link.ts";
 import type { LinkedRunPlan } from "../sandbox/plan.ts";
 
-export const SETUP_PREFIX_STORAGE_REVISION = "niceeval.setup-prefix-storage/v2";
 export const SETUP_PREFIX_INTERPRETER_REVISION = "niceeval.sandbox-step-interpreter/v1";
 export const SETUP_PREFIX_QUIESCE_REVISION = "niceeval.setup-prefix-quiesce/v1";
-export const SETUP_PREFIX_CAPTURE_REVISION = "niceeval.setup-prefix-capture/v1";
 
 export interface PlannedSetupPrefixAction {
   readonly entry: Extract<ScheduledSandboxBefore, { readonly kind: "action" }>;
@@ -32,18 +30,13 @@ export function plannedSetupPrefixActions(
   eligibility: Extract<SandboxSetupPrefixCacheEligibility, { readonly _tag: "Eligible" }>,
 ): readonly PlannedSetupPrefixAction[] {
   const baseImageId = eligibility.baseImageId;
-  const keyScope = eligibility.keyScope ?? Object.freeze({
-    protocol: "niceeval-docker-rootfs-setup-prefix/v1",
-    storageSchemaRevision: SETUP_PREFIX_STORAGE_REVISION,
-    artifactFormatRevision: SETUP_PREFIX_CAPTURE_REVISION,
-    semanticIdentity: Object.freeze({ capture: "outer-writable-rootfs" }),
-  });
-  const keyScopeIdentity = keyScope as unknown as JsonValue;
+  const keyScope = eligibility.keyScope;
+  const keyScopeIdentity: JsonValue = { ...keyScope };
   const provider = plan.providerPlan;
-  const targetIdentity = {
+  const targetIdentity: JsonValue = {
     source: provider.target.source,
     platform: { ...provider.target.platform },
-  } as unknown as JsonValue;
+  };
   const revisions = Object.freeze({
     storage: keyScope.storageSchemaRevision,
     interpreter: SETUP_PREFIX_INTERPRETER_REVISION,
@@ -91,11 +84,23 @@ export function plannedSetupPrefixActions(
         declaredState: entry.data.plan.state,
         cumulativeState,
         input: entry.data.plan.input,
-        fingerprint: entry.data.plan.fingerprint,
-        steps: entry.data.plan.steps,
+        fingerprint: { ...entry.data.plan.fingerprint },
+        steps: entry.data.plan.steps.map((step) => {
+          if (step.kind === "exec") {
+            const { args, envKeys, ...fields } = step;
+            return { ...fields, args: [...args], ...(envKeys === undefined ? {} : { envKeys: [...envKeys] }) };
+          }
+          if (step.kind === "checkoutGit") {
+            const { sparse, ...fields } = step;
+            return { ...fields, ...(sparse === undefined ? {} : {
+              sparse: { include: [...sparse.include], exclude: [...sparse.exclude] },
+            }) };
+          }
+          return { ...step };
+        }),
       },
-    }) as unknown as JsonValue);
-    const declarationMetadata = Object.freeze({
+    }));
+    const declarationMetadata: JsonValue = Object.freeze({
       protocol: "niceeval.setup-prefix-manifest/v2",
       parentKey,
       baseImageId,
@@ -121,7 +126,7 @@ export function plannedSetupPrefixActions(
       target: targetIdentity,
       revisions,
       preparationIdentity: keyScopeIdentity,
-    }) as unknown as JsonValue;
+    });
     const key = `prefix:${digestOf(declarationMetadata)}`;
     const manifest: SandboxSetupPrefixCacheManifest = Object.freeze({
       baseImageId,

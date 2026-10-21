@@ -1,6 +1,7 @@
 // Provider Promise SDK 与公共 Sandbox facade 之间的唯一边界。
 
-import { Data, Effect } from "effect";
+import { Data, Effect, Schema } from "effect";
+import { isJsonValue } from "../shared/json-value.ts";
 import type { SandboxActionState } from "./action.ts";
 import type {
   CommandOptions,
@@ -29,6 +30,19 @@ export type SandboxSetupPrefixCacheUnsupportedCode =
   | "sensitive-state"
   | "profile-backed-dind";
 
+const SandboxSetupPrefixCacheKeyScopeSchema = Schema.Struct({
+  protocol: Schema.String,
+  storageSchemaRevision: Schema.String,
+  artifactFormatRevision: Schema.String,
+  semanticIdentity: Schema.Json.pipe(Schema.refine(isJsonValue)),
+});
+
+/** Provider boundary: a completed cache plan never relies on core defaults. */
+export const decodeSandboxSetupPrefixCacheKeyScope = Schema.decodeUnknownSync(
+  SandboxSetupPrefixCacheKeyScopeSchema,
+  { onExcessProperty: "error" },
+);
+
 export type SandboxSetupPrefixCacheEligibility =
   | {
       readonly _tag: "Eligible";
@@ -38,13 +52,8 @@ export type SandboxSetupPrefixCacheEligibility =
       readonly coverage: SandboxActionState;
       /** Exact immutable Base resolved and verified during provider initialization. */
       readonly baseImageId: string;
-      /** Provider-owned key scope; omission preserves the ordinary Docker rootfs identity exactly. */
-      readonly keyScope?: {
-        readonly protocol: string;
-        readonly storageSchemaRevision: string;
-        readonly artifactFormatRevision: string;
-        readonly semanticIdentity: import("../shared/types.ts").JsonValue;
-      };
+      /** Complete provider-owned identity, decoded before entering core planning. */
+      readonly keyScope: Schema.Schema.Type<typeof SandboxSetupPrefixCacheKeyScopeSchema>;
     }
   | {
       readonly _tag: "Unsupported";

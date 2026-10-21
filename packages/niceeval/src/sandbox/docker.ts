@@ -34,6 +34,7 @@ import { reportActivity } from "../runner/feedback/sink.ts";
 import { classifyProvisionErrorFallback, type SandboxProvisionErrorKind } from "./errors.ts";
 import { dockerRunIdentityLabels, type RunIdentity } from "./run-identity.ts";
 import {
+  decodeSandboxSetupPrefixCacheKeyScope,
   supportedBackendCapability,
   type SandboxBackendCapabilities,
   type SandboxProviderBackend,
@@ -686,7 +687,7 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
         dependency: "parent-backed",
         coverage: sandboxState.dockerData,
         baseImageId: this.baseImageId,
-        keyScope: Object.freeze({
+        keyScope: decodeSandboxSetupPrefixCacheKeyScope({
           protocol: capability.protocol,
           storageSchemaRevision: capability.publicationRevision,
           artifactFormatRevision: capability.copyRevision,
@@ -788,6 +789,12 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
       dependency: "parent-backed",
       coverage: sandboxState.all,
       baseImageId: this.baseImageId,
+      keyScope: decodeSandboxSetupPrefixCacheKeyScope({
+        protocol: "niceeval-docker-rootfs-setup-prefix/v1",
+        storageSchemaRevision: "niceeval.setup-prefix-storage/v2",
+        artifactFormatRevision: "niceeval.setup-prefix-capture/v1",
+        semanticIdentity: { capture: "outer-writable-rootfs" },
+      }),
     };
   }
 
