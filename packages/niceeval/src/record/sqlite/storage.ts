@@ -1118,14 +1118,18 @@ export function stageCollectionItems(connection: RecordDatabase, input: StageCol
     assertRunFence(connection, input.runId, input.writerGeneration, "stage-collection-items");
     assertAttachmentFence(connection, input.runId, input.attachmentId, "stage-collection-items");
     let changed = false;
+    // The immediate transaction owns this prefix until commit. Counting for
+    // every appended item rescans a growing collection quadratically.
+    const count = recordStatement(connection, "SELECT count(*) AS count FROM ne19_collection_items WHERE attachment_id=?").get(input.attachmentId) as unknown as Row;
+    let nextOrdinal = integer(count, "count");
     for (const item of input.items) {
       const stored = recordStatement(connection, `SELECT logical_identity,canonical_payload,canonical_digest FROM ne19_collection_items
         WHERE attachment_id=? AND ordinal=?`).get(input.attachmentId, item.ordinal) as unknown as Row | undefined;
       if (stored === undefined) {
-        const count = recordStatement(connection, "SELECT count(*) AS count FROM ne19_collection_items WHERE attachment_id=?").get(input.attachmentId) as unknown as Row;
-        if (item.ordinal !== integer(count, "count")) throw sqliteError("record-command-conflict", "stage-collection-items", "collection batch does not extend the committed prefix");
+        if (item.ordinal !== nextOrdinal) throw sqliteError("record-command-conflict", "stage-collection-items", "collection batch does not extend the committed prefix");
         recordStatement(connection, `INSERT INTO ne19_collection_items(attachment_id,ordinal,logical_identity,canonical_payload,canonical_digest)
           VALUES (?,?,?,?,?)`).run(input.attachmentId, item.ordinal, item.logicalIdentity, item.canonicalBytes, item.canonicalDigest);
+        nextOrdinal += 1;
         changed = true;
       } else if (text(stored, "logical_identity") !== item.logicalIdentity || text(stored, "canonical_digest") !== item.canonicalDigest ||
         !bytesEqual(bytes(stored, "canonical_payload"), item.canonicalBytes)

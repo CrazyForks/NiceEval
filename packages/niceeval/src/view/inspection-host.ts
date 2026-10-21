@@ -7,6 +7,7 @@ import { decodeInspectionRequest, QUERY_PROTOCOL } from "../inspection/codec.ts"
 import { openHostOwnedInspectionSource } from "../inspection/source.ts";
 import { selectInspectionOperation } from "../inspection/select.ts";
 import { bindProjectInput } from "../inspection/project-input.ts";
+import { loadSelectedInspectionRuns } from "../inspection/facts.ts";
 import type { InspectionDocument } from "../inspection/protocol.ts";
 import type { ViewGeneration } from "./revision.ts";
 
@@ -30,7 +31,13 @@ export function inspectViewGeneration(generation: ViewGeneration, input: unknown
             generation.target.input.target.identity !== generation.target.identity) {
           return yield* Effect.fail(new Error("Pinned current target did not match its descriptor"));
         }
-        bindProjectInput(facts, generation.target.input);
+        // Prepared Runs contain lazy attachment readers owned by preparation's
+        // closed Scope. Rebind their exact identities to this request's reader
+        // at the already verified generation cutoff; keep the frozen target.
+        bindProjectInput(facts, {
+          ...generation.target.input,
+          runs: loadSelectedInspectionRuns(facts, generation.target.input.runs.map((run) => run.run.runId)),
+        });
       }
       return selectInspectionOperation(facts, decoded.success.operation);
     })).pipe(Effect.catch(() => Effect.succeed(Object.freeze({

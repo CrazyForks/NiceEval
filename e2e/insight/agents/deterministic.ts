@@ -5,7 +5,10 @@ import { createInspectionProcessSandbox } from "./process-sandbox.ts";
 
 export const deterministicSandbox = defineSandbox({
   name: "inspection-process-e2e",
-  targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
+  // This fixture executes real processes on the host, without a Linux VM.
+  targetPlatform: process.platform === "darwin"
+    ? { _tag: "Darwin", os: "darwin", arch: process.arch }
+    : { _tag: "Linux", os: "linux", arch: process.arch, libc: "gnu" },
   exclusive: true,
   create: () => Effect.tryPromise({
     try: () => createInspectionProcessSandbox(),
