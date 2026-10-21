@@ -23,6 +23,13 @@ export default adapter.defineEval({ async test(t) { t.check(await t.read(), equa
     expect(produced.exitCode, produced.diagnostic()).toBe(0);
     const runId = only(produced.expReceipt().createdRunIds, () => true, produced.diagnostic());
     const locator = only(produced.expEvalEvents(), (event) => event.evalId === "read-target", produced.diagnostic()).locator;
+    const requestPath = join(projectRoot, "read-target.request.json");
+    await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.get", runId } }));
+    const queried = await niceeval.run(["query", "run", "--request", requestPath]);
+    expect(queried.exitCode, queried.diagnostic()).toBe(0);
+    const document = queried.querySuccess("run.get");
+    expect(document.publicationCutoff).toEqual({ storeGeneration: expect.any(String), revision: expect.any(Number) });
+    expect(document.source).toEqual({ kind: "project-record", publicationCutoffIdentity: expect.any(String) });
     const commands = [["show", locator], ["show", "--run", runId], ["show", "--experiment", "read-target"]];
     const before: number[] = [];
     for (const argv of commands) {

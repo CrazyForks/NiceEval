@@ -148,7 +148,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         operation: "overview.get",
         source: {
           kind: "project-record",
-          sealedCutoffIdentity: expect.any(String),
+          publicationCutoffIdentity: expect.any(String),
         },
       });
       const mainCell = only(
@@ -441,9 +441,9 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         operation: "run.get",
         source: {
           kind: "project-record",
-          sealedCutoffIdentity: expect.any(String),
+          publicationCutoffIdentity: expect.any(String),
         },
-        sealedCutoff: expect.anything(),
+        publicationCutoff: expect.anything(),
         selection: expect.anything(),
         factKinds: expect.any(Array),
       });
@@ -462,9 +462,9 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         operation: "run.get",
         source: {
           kind: "project-record",
-          sealedCutoffIdentity: explanation.source.sealedCutoffIdentity,
+          publicationCutoffIdentity: explanation.source.publicationCutoffIdentity,
         },
-        sealedCutoff: expect.anything(),
+        publicationCutoff: expect.anything(),
         selection: expect.anything(),
         issues: expect.any(Array),
         evidence: expect.anything(),
@@ -497,7 +497,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         operation: "attempt.usage",
         source: {
           kind: "project-record",
-          sealedCutoffIdentity: explanation.source.sealedCutoffIdentity,
+          publicationCutoffIdentity: explanation.source.publicationCutoffIdentity,
         },
         issues: [],
         usage: expect.anything(),

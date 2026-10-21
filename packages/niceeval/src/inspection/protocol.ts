@@ -37,11 +37,10 @@ const operation = <Kind extends string, Fields extends Schema.Struct.Fields>(kin
   Schema.Struct({ kind: Schema.Literal(kind), ...fields });
 
 const SourceSchema = Schema.Struct({
-  kind: Schema.Literals(["project-record", "external-record"]), sealedCutoffIdentity: Schema.String,
+  kind: Schema.Literals(["project-record", "external-record"]), publicationCutoffIdentity: Schema.String,
 });
-const SealedCutoffSchema = Schema.Struct({
-  kind: Schema.Literal("inspection-sealed-cutoff"), identity: Schema.String, runCount: Schema.Number,
-  runs: Schema.Array(Schema.Struct({ runId: Schema.String, logicalSealIdentity: Schema.String })),
+const PublicationCutoffSchema = Schema.Struct({
+  storeGeneration: Schema.String, revision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
 });
 const SelectionSchema = Schema.Struct({
   requestedRunIds: Schema.Array(Schema.String), selectedRunIds: Schema.Array(Schema.String), missingRunIds: Schema.Array(Schema.String),
@@ -49,17 +48,17 @@ const SelectionSchema = Schema.Struct({
 const SuccessMetadataSchema = Schema.Struct({
   protocol: Schema.Literal(QUERY_PROTOCOL), outcome: Schema.Literal("success"),
   behaviorVersion: Schema.Literal(INSPECTION_BEHAVIOR_VERSION),
-  source: SourceSchema, sealedCutoff: SealedCutoffSchema, selection: SelectionSchema,
+  source: SourceSchema, publicationCutoff: PublicationCutoffSchema, selection: SelectionSchema,
   issues: Schema.Tuple([]), evidence: Schema.Struct({ refs: Schema.Array(Schema.String) }),
 });
 const RunsListSuccessMetadataSchema = Schema.Struct({
   protocol: Schema.Literal(QUERY_PROTOCOL), outcome: Schema.Literal("success"),
   behaviorVersion: Schema.Literal(INSPECTION_BEHAVIOR_VERSION),
   source: SourceSchema,
-  sealedCutoff: Schema.Struct({ kind: Schema.Literal("inspection-sealed-cutoff"), identity: Schema.String, runCount: Schema.Number }),
+  publicationCutoff: PublicationCutoffSchema,
   selection: Schema.Struct({
     requestedRunIds: Schema.Array(Schema.String), selectedRunIds: Schema.Array(Schema.String), missingRunIds: Schema.Array(Schema.String),
-    returnedRunCount: Schema.Number, totalRunCount: Schema.Number, truncated: Schema.Boolean,
+    returnedRunCount: Schema.Number, truncated: Schema.Boolean,
   }),
   issues: Schema.Tuple([]), evidence: Schema.Struct({ refs: Schema.Array(Schema.String) }),
 });

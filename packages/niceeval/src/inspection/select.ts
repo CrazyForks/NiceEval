@@ -25,7 +25,6 @@ import {
   NiceEvalRecordAttachments,
 } from "../record/family/current.ts";
 import type {
-  SealedRunCutoff,
   SealedRunSummary,
   SealedRunSummaryPage,
 } from "../record/sqlite/index.ts";
@@ -580,7 +579,7 @@ function runsListExplanation(
 ): unknown {
   const page = runSummaryPage(source, operation.continuation);
   return Object.freeze({
-    ...runsListBase(source, page.cutoff, page.items, page.truncated),
+    ...runsListBase(source, source.cutoff(), page.items, page.truncated),
     outcome: "explanation" as const,
     factKinds: inspectionProtocolRegistry[operation.kind].factKinds,
     ...(page.continuation === undefined ? {} : { continuation: page.continuation }),
@@ -593,7 +592,7 @@ function runsListDocument(
 ): unknown {
   const page = runSummaryPage(source, operation.continuation);
   return Object.freeze({
-    ...runsListBase(source, page.cutoff, page.items, page.truncated),
+    ...runsListBase(source, source.cutoff(), page.items, page.truncated),
     runs: closeJson(page.items),
     ...(page.continuation === undefined ? {} : { continuation: page.continuation }),
   });
@@ -627,7 +626,7 @@ function runSummaryPage(source: InspectionFactSource, continuation: string | und
 
 function runsListBase(
   source: InspectionFactSource,
-  cutoff: SealedRunCutoff,
+  cutoff: ReturnType<InspectionFactSource["cutoff"]>,
   selected: readonly SealedRunSummary[],
   truncated: boolean,
 ) {
@@ -637,17 +636,15 @@ function runsListBase(
     outcome: "success" as const,
     operation: "runs.list" as const,
     source: sourceProvenance(source, cutoff),
-    sealedCutoff: Object.freeze({
-      kind: "inspection-sealed-cutoff",
-      identity: cutoff.identity,
-      runCount: cutoff.runCount,
+    publicationCutoff: Object.freeze({
+      storeGeneration: cutoff.storeGeneration,
+      revision: cutoff.revision,
     }),
     selection: Object.freeze({
       requestedRunIds: Object.freeze([]),
       selectedRunIds: Object.freeze(selected.map(({ runId }) => runId)),
       missingRunIds: Object.freeze([]),
       returnedRunCount: selected.length,
-      totalRunCount: cutoff.runCount,
       truncated,
     }),
     issues: Object.freeze([]),
@@ -1639,7 +1636,6 @@ function baseDocument(
   issues: readonly InspectionJson[] = [],
 ) {
   const selected = uniqueRuns(selectedInput);
-  const seals = selected.map(({ run, physical }) => Object.freeze({ runId: run.runId, logicalSealIdentity: physical.logicalSealIdentity }));
   const cutoff = source.cutoff();
   return Object.freeze({
     protocol: QUERY_PROTOCOL,
@@ -1647,11 +1643,9 @@ function baseDocument(
     outcome: "success" as const,
     operation,
     source: sourceProvenance(source, cutoff),
-    sealedCutoff: Object.freeze({
-      kind: "inspection-sealed-cutoff",
-      identity: cutoff.identity,
-      runCount: cutoff.runCount,
-      runs: Object.freeze(seals),
+    publicationCutoff: Object.freeze({
+      storeGeneration: cutoff.storeGeneration,
+      revision: cutoff.revision,
     }),
     selection: Object.freeze({
       requestedRunIds: Object.freeze([...requestedRunIds]),
@@ -1679,14 +1673,9 @@ function resultMetadata<Kind extends InspectionOperationId>(
     outcome: "success" as const,
     operation,
     source: sourceProvenance(source, cutoff),
-    sealedCutoff: Object.freeze({
-      kind: "inspection-sealed-cutoff" as const,
-      identity: cutoff.identity,
-      runCount: cutoff.runCount,
-      runs: Object.freeze(selected.map(({ run, physical }) => Object.freeze({
-        runId: run.runId,
-        logicalSealIdentity: physical.logicalSealIdentity,
-      }))),
+    publicationCutoff: Object.freeze({
+      storeGeneration: cutoff.storeGeneration,
+      revision: cutoff.revision,
     }),
     selection: Object.freeze({
       requestedRunIds: Object.freeze([...requestedRunIds]),
@@ -1760,11 +1749,11 @@ function arraysEqual(left: readonly string[], right: readonly string[]): boolean
 
 function sourceProvenance(
   source: InspectionFactSource,
-  cutoff: SealedRunCutoff,
+  cutoff: ReturnType<InspectionFactSource["cutoff"]>,
 ): InspectionSourceProvenance {
   return Object.freeze({
     kind: source.kind,
-    sealedCutoffIdentity: cutoff.identity,
+    publicationCutoffIdentity: cutoff.identity,
   });
 }
 

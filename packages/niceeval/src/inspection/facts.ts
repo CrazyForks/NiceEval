@@ -37,7 +37,6 @@ import type {
   PersistedContentMetadata,
   SealedAttachmentMetadata,
   SealedRunCore,
-  SealedRunCutoff,
   SealedRunSummary,
 } from "../record/sqlite/types.ts";
 import {
@@ -128,6 +127,7 @@ export function loadInspectionRuns(
   const cutoff = source.cutoff();
   const summaries: SealedRunSummary[] = [];
   const seen = new Set<string>();
+  let expectedRunCount: number | undefined;
   let afterRunId = "";
 
   for (;;) {
@@ -136,7 +136,11 @@ export function loadInspectionRuns(
       RUN_PAGE_SIZE,
       cutoff.identity,
     );
-    requireCutoff(page.cutoff, cutoff);
+    if (page.cutoff.identity !== cutoff.identity ||
+        expectedRunCount !== undefined && page.cutoff.runCount !== expectedRunCount) {
+      throw factsError("Run inventory changed its pinned cutoff or count");
+    }
+    expectedRunCount ??= page.cutoff.runCount;
     if (page.afterRunId !== afterRunId) {
       throw factsError("Run pagination returned a different cursor");
     }
@@ -160,7 +164,7 @@ export function loadInspectionRuns(
     afterRunId = page.nextAfterRunId;
   }
 
-  if (summaries.length !== cutoff.runCount) {
+  if (summaries.length !== expectedRunCount) {
     throw factsError("Run pagination did not close the pinned sealed cutoff");
   }
   return Object.freeze(summaries.map((summary) => {
@@ -670,12 +674,12 @@ function targetMembers(
 }
 
 function requireCutoff(
-  actual: SealedRunCutoff,
-  expected: SealedRunCutoff,
+  actual: ReturnType<InspectionFactSource["cutoff"]>,
+  expected: ReturnType<InspectionFactSource["cutoff"]>,
 ): void {
   if (
-    actual.identity !== expected.identity ||
-    actual.runCount !== expected.runCount
+    actual.storeGeneration !== expected.storeGeneration ||
+    actual.revision !== expected.revision
   ) {
     throw factsError("Inspection source changed its pinned sealed cutoff");
   }

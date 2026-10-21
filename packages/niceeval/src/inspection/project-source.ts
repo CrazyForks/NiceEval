@@ -1,3 +1,4 @@
+import { publicationCutoffIdentity } from "../run/storage/cutoff.ts";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Effect, Result } from "effect";
@@ -30,7 +31,8 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
         Effect.try(() => openHostOwnedRecordReadSession(input.recordPath!)),
         (opened) => Effect.sync(() => opened.close()),
       );
-    const cutoff = session.sealedCutoff();
+    const publication = session.publicationCutoff();
+    const cutoff = Object.freeze({ ...publication, identity: publicationCutoffIdentity(publication) });
     source = Object.freeze({
       kind: "project-record" as const,
       cutoff: () => cutoff,

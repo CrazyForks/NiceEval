@@ -92,7 +92,7 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
       const terminalReceipt = await niceeval.run(["query", "run", "--request", request]);
       expect(terminalReceipt.exitCode, terminalReceipt.diagnostic()).toBe(0);
       const terminal = terminalReceipt.querySuccess("run.get");
-      expect(terminal.source.sealedCutoffIdentity).not.toBe(queried.source.sealedCutoffIdentity);
+      expect(terminal.source.publicationCutoffIdentity).not.toBe(queried.source.publicationCutoffIdentity);
       expect(terminal.run.value).toMatchObject({
         runId: active.runId,
         state: "interrupted",
@@ -314,7 +314,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       const terminalRunReceipt = await niceeval.run(["query", "run", "--request", activeRunRequest]);
       expect(terminalRunReceipt.exitCode, terminalRunReceipt.diagnostic()).toBe(0);
       const terminalRun = terminalRunReceipt.querySuccess("run.get");
-      expect(terminalRun.source.sealedCutoffIdentity).not.toBe(activeRun.source.sealedCutoffIdentity);
+      expect(terminalRun.source.publicationCutoffIdentity).not.toBe(activeRun.source.publicationCutoffIdentity);
       expect(terminalRun.run.value).toMatchObject({
         runId: active.runId,
         experimentId: "run-journey",

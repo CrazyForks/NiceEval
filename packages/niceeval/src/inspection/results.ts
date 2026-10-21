@@ -1172,11 +1172,9 @@ export const InspectionAttemptDiffResultSchema = Schema.Union([
 ]);
 export type InspectionAttemptDiffResult = Schema.Schema.Type<typeof InspectionAttemptDiffResultSchema>;
 
-export interface InspectionSealedCutoff {
-  readonly kind: "inspection-sealed-cutoff";
-  readonly identity: string;
-  readonly runCount: number;
-  readonly runs: readonly { readonly runId: string; readonly logicalSealIdentity: string }[];
+export interface InspectionPublicationCutoff {
+  readonly storeGeneration: string;
+  readonly revision: number;
 }
 export interface InspectionSelectionAudit {
   readonly requestedRunIds: readonly string[];
@@ -1190,9 +1188,9 @@ export interface InspectionResultMetadata<Kind extends InspectionOperationId> {
   readonly operation: Kind;
   readonly source: {
     readonly kind: "project-record" | "external-record";
-    readonly sealedCutoffIdentity: string;
+    readonly publicationCutoffIdentity: string;
   };
-  readonly sealedCutoff: InspectionSealedCutoff;
+  readonly publicationCutoff: InspectionPublicationCutoff;
   readonly selection: InspectionSelectionAudit;
   readonly issues: readonly [];
   readonly evidence: { readonly refs: readonly string[] };

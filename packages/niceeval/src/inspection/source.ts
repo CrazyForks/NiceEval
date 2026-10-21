@@ -19,11 +19,11 @@ import {
   type ContentChunkPage,
   type PinnedRecordReadSession,
   type SealedRunCore,
-  type SealedRunCutoff,
   type SealedRunSummaryPage,
 } from "../record/sqlite/index.ts";
 import { startExternalRecordImport } from "../record/sqlite/external-record-import.ts";
-import type { ReadableRunResource } from "../run/storage/types.ts";
+import { publicationCutoffIdentity } from "../run/storage/cutoff.ts";
+import type { PublicationCutoff, ReadableRunResource } from "../run/storage/types.ts";
 
 export type InspectionSource =
   | {
@@ -50,7 +50,7 @@ export class InspectionIntegrityError extends Data.TaggedError("InspectionIntegr
 /** Browser-neutral fixed reader capability backed by one pinned Record generation. */
 export interface InspectionFactSource {
   readonly kind: InspectionSource["kind"];
-  readonly cutoff: () => SealedRunCutoff;
+  readonly cutoff: () => PublicationCutoff & { readonly identity: string };
   readonly findExperimentRunIds: (experimentId: string) => readonly string[];
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
   readonly readSealedRunSummaryPage: (
@@ -148,7 +148,8 @@ export function openHostOwnedInspectionSource(
 
 const EMPTY_OPERATIONAL_CUTOFF = Object.freeze({
   identity: EMPTY_PUBLICATION_CUTOFF_IDENTITY,
-  runCount: 0,
+  storeGeneration: EMPTY_PUBLICATION_CUTOFF_IDENTITY,
+  revision: 0,
 });
 
 function emptyOperationalFacts(): InspectionFactSource {
@@ -165,7 +166,7 @@ function emptyOperationalFacts(): InspectionFactSource {
         });
       }
       return Object.freeze({
-        cutoff: EMPTY_OPERATIONAL_CUTOFF,
+        cutoff: Object.freeze({ identity: EMPTY_OPERATIONAL_CUTOFF.identity, runCount: 0 }),
         afterRunId,
         summaries: Object.freeze([]),
         nextAfterRunId: null,
@@ -196,29 +197,18 @@ function sessionFacts(
   session: PinnedRecordReadSession,
   kind: InspectionSource["kind"],
 ): InspectionFactSource {
-  let observedCutoff: SealedRunCutoff | undefined;
-  const remember = (page: SealedRunSummaryPage): SealedRunSummaryPage => {
-    if (observedCutoff !== undefined && observedCutoff.identity !== page.cutoff.identity) {
-      throw new InspectionSourceError({
-        code: "inspection-source-invalid",
-        reason: "Pinned Record session changed its sealed cutoff.",
-      });
-    }
-    observedCutoff = page.cutoff;
-    return page;
-  };
+  const publication = session.publicationCutoff();
+  const cutoff = Object.freeze({ ...publication, identity: publicationCutoffIdentity(publication) });
   const readPage = (
     afterRunId = "",
     pageSize = 100,
     expectedCutoffIdentity?: string,
-  ): SealedRunSummaryPage => remember(session.readSealedRunSummaryPage(
-    afterRunId,
-    pageSize,
-    expectedCutoffIdentity ?? observedCutoff?.identity,
-  ));
+  ): SealedRunSummaryPage => session.readSealedRunSummaryPage(
+    afterRunId, pageSize, expectedCutoffIdentity ?? cutoff.identity,
+  );
   return Object.freeze({
     kind,
-    cutoff: () => observedCutoff ??= session.sealedCutoff(),
+    cutoff: () => cutoff,
     findExperimentRunIds: session.findExperimentRunIds,
     readRunResource: (runId: string) => session.readRunResource(runId),
     readSealedRunSummaryPage: readPage,
