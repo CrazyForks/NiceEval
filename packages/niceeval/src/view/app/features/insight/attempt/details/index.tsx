@@ -55,6 +55,21 @@ function AttemptUsage({ data }: { readonly data: UsageTableData | null }): React
   return <Grid className="niceeval-usage-table">{rows.map(([label, value], index) => <Kpi key={`${label}:${index}`} label={label} value={value} />)}</Grid>;
 }
 
+function CacheReadUsage({ report }: { readonly report: InspectionSuccessDocumentFor<"attempt.usage">["usage"]["cacheRead"] }): ReactElement {
+  const { t } = useTranslation();
+  const rows = [{ label: t("usage.cacheTotal"), summary: report.total },
+    ...report.modelSlots.map((summary) => ({ label: `${t("usage.slot")}: ${summary.modelSlot ?? t("usage.notRecorded")}`, summary }))];
+  const table = (values: typeof rows) => <div className="niceeval-table-wrap" style={{ overflowX: "auto" }}><table aria-label={t("usage.cacheReadRate")}><thead><tr>
+    {(["usage.cacheScope", "usage.cacheReadRate", "usage.cacheCoverage", "usage.cacheCollection", "usage.cacheReasons"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
+  </tr></thead><tbody>{values.map(({ label, summary }, index) => <tr key={index}><th scope="row">{label}</th>
+    <td>{summary.rate.state === "exact" ? `${(summary.rate.value * 100).toFixed(2)}%` : t("cell.metricUnavailable")}</td>
+    <td>{summary.coveredCalls}/{summary.recordedCalls}</td><td>{t(summary.collectionComplete ? "usage.cacheComplete" : "usage.cacheIncomplete")}</td>
+    <td>{summary.reasons.join(", ") || "—"}</td></tr>)}</tbody></table></div>;
+  return <section aria-label={t("usage.cacheReadRate")}><h4>{t("usage.cacheReadRate")}</h4>{table(rows)}
+    <details><summary>{t("usage.actualModels")}</summary>{table(report.models.map((summary) => ({ label: `${summary.modelSlot ?? t("usage.notRecorded")} / ${summary.provider ?? t("usage.notRecorded")} / ${summary.model ?? t("usage.notRecorded")}`, summary })))}</details>
+  </section>;
+}
+
 function ExternalUsage({ usage }: { readonly usage: InspectionSuccessDocumentFor<"attempt.usage">["usage"] }): ReactElement {
   const { t } = useTranslation();
   const configured = usage.configuredModels;
@@ -73,6 +88,7 @@ function ExternalUsage({ usage }: { readonly usage: InspectionSuccessDocumentFor
     {usage.totalCosts.values.length === 0 ? <p>{t(usage.totalCosts.state === "complete" ? "usage.noRecordedCharges" : "cell.metricUnavailable")}</p> : usage.totalCosts.values.map((cost) => <p key={cost.currency}>{cost.value} {cost.currency} · {costSource(cost.source)}</p>)}
     <details><summary>{t("usage.external")}</summary>
     <p>{usage.state}{usage.coverage === undefined ? "" : ` · ${usage.coverage}`}</p>
+    <CacheReadUsage report={usage.cacheRead} />
     <h4>{t("usage.configuredModels")}</h4>
     {configured.state !== "available" ? <p>{t("usage.notRecorded")}</p> : defaultBinding !== null ? <Grid>
       <Kpi label={`${t("usage.configuredModel")} (default)`} value={defaultBinding.model ?? "—"} />

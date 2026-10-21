@@ -273,6 +273,12 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         await expect(externalUsage.getByText("0.000001 USD · reported + estimated", { exact: true })).toBeVisible();
         await externalUsage.getByText("External call usage", { exact: true }).click();
         await expect(externalUsage).toContainText("1/2 calls fully costed");
+        const cache = externalUsage.getByRole("region", { name: "Cache read rate", exact: true });
+        const cacheTable = cache.getByRole("table", { name: "Cache read rate", exact: true });
+        await expect(cacheTable.getByRole("row")).toHaveCount(5);
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: primary", exact: true }) }).getByRole("cell")).toHaveText(["0.00%", "1/1", "Collection complete", "—"]);
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: secondary", exact: true }) })).toContainText("cache-read-missing, input-total-missing");
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: unused", exact: true }) })).toContainText("no-calls");
         const configuredModels = externalUsage.getByRole("table", { name: "Configured model slots", exact: true });
         await expect(configuredModels.getByRole("row")).toHaveCount(4);
         for (const [slot, model, calls] of [
