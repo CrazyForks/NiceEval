@@ -14,7 +14,8 @@ import {
   openRecordWriter,
   reopenProjectDatabase,
 } from "./database.ts";
-import { beginRun } from "./storage.ts";
+import { beginRun, findSourceBarrierCandidate } from "./storage.ts";
+import { createRunResourceOnConnection, currentPublicationCutoffOnConnection, readRunResourceOnConnection } from "../../run/storage/sqlite.ts";
 import { currentProcessOwnerIdentity } from "../../coordination/platform/node-process-identity.ts";
 
 const roots: string[] = [];
@@ -72,6 +73,70 @@ describe("ProjectDatabase bootstrap baseline", () => {
 
     expect(() => openRecordReader(path)).toThrow();
     expect(readFileSync(path)).toEqual(before);
+  });
+});
+
+describe("ProjectDatabase source barriers", () => {
+  it("orders resource-less history by canonical Run bytes without hiding malformed expected membership", async () => {
+    const writer = openRecordWriter(await databasePath());
+    try {
+      const seedLegacy = (runId: string, expected: Uint8Array) => {
+        writer.db.prepare(`INSERT INTO ne19_runs(run_id,experiment_id,status,writer_generation,started_at,core_payload,core_digest,
+          mutation_sequence,candidate_seal_identity,candidate_seal_entry_count,candidate_seal_staged_count,logical_seal_identity)
+          VALUES (?,'legacy','open','legacy-writer','2026-01-01T00:00:00.000Z',NULL,NULL,0,NULL,NULL,0,NULL)`)
+          .run(runId);
+        writer.db.prepare("INSERT INTO ne19_slots(run_id,slot_id,ordinal,core_payload,core_digest) VALUES (?,'slot',0,?,?)")
+          .run(runId, expected, "c".repeat(64));
+        writer.db.prepare(`UPDATE ne19_runs SET status='sealed',core_payload=?,core_digest=?,candidate_seal_identity=?,
+          candidate_seal_entry_count=0,logical_seal_identity=? WHERE run_id=?`)
+          .run(Buffer.from("{}"), "a".repeat(64), "b".repeat(64), "b".repeat(64), runId);
+      };
+      const expected = Buffer.from(JSON.stringify({ slotId: "slot", evalId: "eval", attemptOrdinal: 0, executionIdentityDigest: "a".repeat(64) }));
+      seedLegacy("legacy-a", expected);
+      seedLegacy("legacy-z", expected);
+      expect(findSourceBarrierCandidate(writer, { experimentId: "legacy", evalId: "eval", attemptOrdinal: 0 }, 0))
+        .toEqual({ runId: "legacy-z", createdRevision: 0 });
+      seedLegacy("legacy-zz", Buffer.from("{"));
+      expect(findSourceBarrierCandidate(writer, { experimentId: "legacy", evalId: "eval", attemptOrdinal: 0 }, 0)?.runId).toBe("legacy-zz");
+      expect(findSourceBarrierCandidate(writer, { experimentId: "legacy", evalId: "other", attemptOrdinal: 1 }, 0)?.runId).toBe("legacy-zz");
+    } finally {
+      closeRecordDatabase(writer);
+    }
+  });
+
+  it("keeps empty active barriers at their publication cutoff and selects ordinals independently", async () => {
+    const path = await databasePath();
+    const writer = openRecordWriter(path);
+    try {
+      createRunResourceOnConnection(writer, {
+        runId: "run-z", experimentId: "experiment", invocationId: "invocation-old", writerGeneration: "writer-z",
+        startedAt: "2030-01-01T00:00:00.000Z",
+        expectedSlots: [0, 1].map((attemptOrdinal) => ({ slotId: `old-${attemptOrdinal}`, evalId: "eval", attemptOrdinal, executionIdentityDigest: "a".repeat(64) })),
+        deadlineEpochMs: Date.now() + 5_000,
+      });
+      const before = currentPublicationCutoffOnConnection(writer);
+      createRunResourceOnConnection(writer, {
+        runId: "run-a", experimentId: "experiment", invocationId: "invocation-new", writerGeneration: "writer-a",
+        startedAt: "2020-01-01T00:00:00.000Z",
+        expectedSlots: [{ slotId: "new-0", evalId: "eval", attemptOrdinal: 0, executionIdentityDigest: "a".repeat(64) }],
+        deadlineEpochMs: Date.now() + 5_000,
+      });
+      createRunResourceOnConnection(writer, {
+        runId: "run-unrelated", experimentId: "unrelated", invocationId: "invocation-other", writerGeneration: "writer-other",
+        startedAt: "2040-01-01T00:00:00.000Z",
+        expectedSlots: [{ slotId: "other-0", evalId: "eval", attemptOrdinal: 0, executionIdentityDigest: "a".repeat(64) }],
+        deadlineEpochMs: Date.now() + 5_000,
+      });
+      const now = currentPublicationCutoffOnConnection(writer);
+      expect(readRunResourceOnConnection(writer, "run-a", now)).toMatchObject({ state: "active", published: 0 });
+      expect(findSourceBarrierCandidate(writer, { experimentId: "experiment", evalId: "eval", attemptOrdinal: 0 }, before.revision)?.runId).toBe("run-z");
+      expect(findSourceBarrierCandidate(writer, { experimentId: "experiment", evalId: "eval", attemptOrdinal: 0 }, now.revision)?.runId).toBe("run-a");
+      expect(findSourceBarrierCandidate(writer, { experimentId: "experiment", evalId: "eval", attemptOrdinal: 1 }, now.revision)?.runId).toBe("run-z");
+      expect(findSourceBarrierCandidate(writer, { experimentId: "experiment", evalId: "eval", attemptOrdinal: 0, excludeRunId: "run-a" }, now.revision)?.runId).toBe("run-z");
+      expect(findSourceBarrierCandidate(writer, { experimentId: "experiment", evalId: "missing", attemptOrdinal: 0 }, now.revision)).toBeUndefined();
+    } finally {
+      closeRecordDatabase(writer);
+    }
   });
 });
 

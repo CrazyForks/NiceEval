@@ -13,6 +13,7 @@ import { sqliteError } from "./errors.ts";
 import {
   findAttemptLocatorCandidates as findAttemptLocatorCandidatesOnConnection,
   findExperimentRunIds as findExperimentRunIdsOnConnection,
+  findSourceBarrierCandidate as findSourceBarrierCandidateOnConnection,
   readSealedRunCutoff as readSealedRunCutoffOnConnection,
   readSealedRunSummaryPage as readSealedRunSummaryPageOnConnection,
   readCollectionItemPage as readCollectionItemPageOnConnection,
@@ -25,6 +26,8 @@ import {
 import {
   RECORD_SQLITE_VALIDATION_DEADLINE_MS,
   type AttemptLocatorCandidates,
+  type SourceBarrierRequest,
+  type SourceBarrierCandidate,
   type CollectionItemPage,
   type ContentChunkPage,
   type SealedRunDocument,
@@ -116,11 +119,12 @@ export interface PinnedRecordReadSession {
   readonly publicationCutoff: () => PublicationCutoff;
   readonly sealedCutoff: () => SealedRunCutoff;
   readonly findExperimentRunIds: (experimentId: string) => readonly string[];
+  readonly findSourceBarrierCandidate: (request: SourceBarrierRequest) => SourceBarrierCandidate | undefined;
   readonly readRunResource: (runId: string) => ReadableRunResource | undefined;
   readonly listRunResources: (input?: Parameters<typeof listRunResourcesOnConnection>[1]) => ReturnType<typeof listRunResourcesOnConnection>;
   readonly readSealedRunSummary: (runId: string) => SealedRunSummary | undefined;
   readonly readSealedRunSummaryPage: (afterRunId?: string, pageSize?: number, expectedCutoffIdentity?: string) => SealedRunSummaryPage;
-  readonly findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) => AttemptLocatorCandidates;
+  readonly findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number, includeTargets?: boolean) => AttemptLocatorCandidates;
   readonly readSealedRunDocument: (runId: string) => SealedRunDocument | undefined;
   readonly readSealedRunCore: (runId: string, lazyAttachments?: boolean) => SealedRunCore | undefined;
   readonly readContentChunkPage: (contentId: string, afterOrdinal: number, pageSize: number) => ContentChunkPage;
@@ -197,8 +201,10 @@ function openPinnedRecordReadSession(
           cutoff: Object.freeze({ ...page.cutoff, identity: cutoffIdentity }),
         });
       }),
-      findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number) => readBounded("find-attempt-locator", () =>
-        findAttemptLocatorCandidatesOnConnection(connection, locator, maximumCandidateRuns)),
+      findSourceBarrierCandidate: (request: SourceBarrierRequest) => readBounded("find-source-barrier", () =>
+        findSourceBarrierCandidateOnConnection(connection, request, publicationCutoff.revision)),
+      findAttemptLocatorCandidates: (locator: string, maximumCandidateRuns: number, includeTargets = true) => readBounded("find-attempt-locator", () =>
+        findAttemptLocatorCandidatesOnConnection(connection, locator, maximumCandidateRuns, includeTargets)),
       readSealedRunDocument: (runId: string) => readBounded("read-sealed-run-document", () => readSealedRunDocumentOnConnection(connection, runId)),
       readSealedRunCore: (runId: string, lazyAttachments = false) => readBounded("read-sealed-run-core", () =>
         readSealedRunCoreOnConnection(connection, runId, lazyAttachments

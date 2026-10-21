@@ -5,6 +5,8 @@
 
 import { Effect, Result, Schema } from "effect";
 import { RecordIntegrityFailure } from "../record/reader/errors.ts";
+import { SqliteRecordError } from "../record/sqlite/errors.ts";
+import { detachPlanningReference, selectPlanningSources, type PlanningExactReference } from "../record/host/sqlite-host.ts";
 import { RunIdSchema, ExperimentIdSchema, UtcMillisSchema } from "../record/codec/identifiers.ts";
 import { RecordSlotIdentitySchema } from "../record/codec/core.ts";
 import type { ReadableRunResource } from "../run/storage/types.ts";
@@ -12,6 +14,7 @@ import { foldRecordedAttemptScore } from "../eval/record/score.ts";
 import { executionDigestForExperiment, hasProvenNoExperimentHooks } from "./rename-identity.ts";
 
 import type { RecordIssue } from "../record/errors/record-errors.ts";
+import { nonEmptyRecordIssues, recordIssue } from "../record/errors/record-errors.ts";
 import type {
   AssertionsAttachment,
 } from "../record/family/assertions/definition.ts";
@@ -240,8 +243,9 @@ export function mergeCurrentAssessmentRuns<Ref>(
 
 export type AssertionsVerdict = VerdictState;
 
-/** The exact selection-issued references remain live only while its reader Scope is live. */
+/** Read references are consumed during planning; binding uses the detached proof. */
 export interface ExecutionReusePlanSource {
+  readonly reference: PlanningExactReference;
   readonly attemptId: SelectedAttemptRef["attemptId"];
   readonly attempt: SelectedAttemptRef & {
     readonly publicationIdentity: NonNullable<SelectedAttemptRef["publicationIdentity"]>;
@@ -414,7 +418,10 @@ export function planProjectTargetReuse(
     if (invalid !== undefined) return Effect.fail(invalid);
 
     return Effect.gen(function* () {
-      const selection = yield* input.reader.selectRuns({ includePublishedActive: true });
+      const selected = yield* selectPlanningSources(input.reader, flattenTargetSlots(input.target).map((slot) => ({
+        experimentId: slot.experimentId, evalId: slot.evalId, attemptOrdinal: slot.attempt, excludeRunId: slot.runId,
+      })));
+      const { selection } = selected;
       const readable = yield* Effect.forEach(
         selection.runRefs,
         (ref) => input.reader.readRun(ref),
@@ -426,26 +433,24 @@ export function planProjectTargetReuse(
         if (read.state === "available") publishedRuns.push(read.value);
         else if (read.state === "core-invalid") coreIssues.push(...read.issues);
       }
-      const resources: ReadableRunResource[] = [];
-      let afterRunId = "";
-      for (;;) {
-        const page = yield* input.reader.listRunResources({ afterRunId, pageSize: 100 });
-        resources.push(...page.runs);
-        if (page.nextAfterRunId === null) break;
-        afterRunId = page.nextAfterRunId;
-      }
-      const runs = yield* mergeCurrentAssessmentRuns(publishedRuns, resources);
+      const merged = yield* mergeCurrentAssessmentRuns(publishedRuns, selected.resources);
+      const runs = merged.map((run) => selected.members.has(run.document.runId)
+        ? Object.freeze({ ...run, members: selected.members.get(run.document.runId)! }) : run);
       const byRunId = new Map(publishedRuns.map((run) => [run.document.runId, run] as const));
       const slots: ExecutionReusePlanSlot[] = [];
       for (const target of flattenTargetSlots(input.target)) {
+        const sourceProblems = selection.problems.filter((problem) => selected.experimentByRun.get(problem.runId) === target.experimentId);
+        const scopedIssues = [...(selected.issuesByExperiment.get(target.experimentId) ?? []),
+          ...sourceProblems.map((problem) => recordIssue("record-schema-invalid", ["run", problem.runId, problem.code]))];
         slots.push(yield* planTargetSlot({
           reader: input.reader,
           target,
           policy: input.policy,
           runs,
           byRunId,
-          selectionHasProblem: selection.problems.length > 0 || coreIssues.length > 0,
-          coreIssues,
+          selectionHasProblem: scopedIssues.length > 0 || coreIssues.length > 0,
+          selectionProblemScope: coreIssues.length > 0 ? "target" : "experiment",
+          coreIssues: [...coreIssues, ...scopedIssues],
         }));
       }
       const reuse = slots.filter((slot): slot is ReusePlanSlot => slot.state === "reuse");
@@ -498,21 +503,36 @@ function planTargetSlot(input: {
   readonly runs: readonly CurrentAssessmentRun<SelectedAttemptRef>[];
   readonly byRunId: ReadonlyMap<RunId, ReadableRun>;
   readonly selectionHasProblem: boolean;
+  readonly selectionProblemScope?: ExecutionGapScope;
   readonly coreIssues: readonly RecordIssue[];
 }): Effect.Effect<ExecutionReusePlanSlot, RecordReaderReadError> {
   return assessCurrentTargetSlot({
     ...input,
-    readAttempt: (ref) => input.reader.readAttempt(ref).pipe(Effect.map((read) => read.state !== "available" ? read : {
+    readAttempt: (ref) => input.reader.readAttempt(ref).pipe(Effect.catch((error) =>
+      error instanceof RecordIntegrityFailure || error instanceof SqliteRecordError &&
+        ["record-database-invalid", "record-content-invalid", "record-seal-incomplete"].includes(error.code)
+        ? Effect.succeed({ state: "core-invalid" as const,
+          issues: nonEmptyRecordIssues([recordIssue("record-schema-invalid", ["attempt", String(ref.attemptId), error.code,
+            ...(error instanceof RecordIntegrityFailure ? [error.reason] : [])])])! })
+        : Effect.fail(error)), Effect.map((read) => read.state !== "available" ? read : {
       state: "available" as const,
       value: { ...read.value, publicationAvailable: read.value.ref.publicationIdentity !== undefined },
     })),
-    readAssertions: (attempt) => input.reader.read(attempt.owner, NiceEvalRecordAttachments.assertions),
-    readActivities: (attempt) => input.reader.read(attempt.owner, NiceEvalRecordAttachments.runnerActivities.attempt),
+    readAssertions: (attempt) => planningAttachment(input.reader.read(attempt.owner, NiceEvalRecordAttachments.assertions), "assertions"),
+    readActivities: (attempt) => planningAttachment(input.reader.read(attempt.owner, NiceEvalRecordAttachments.runnerActivities.attempt), "runner-activities"),
     sourceFor: (attempt, sourceBarrier) => {
       if (!hasPublicationIdentity(attempt)) throw new Error("Expected a published Attempt");
-      return candidateFor({ target: input.target, sourceBarrier, attempt, byRunId: input.byRunId })!.source;
+      return candidateFor({ reader: input.reader, target: input.target, sourceBarrier, attempt, byRunId: input.byRunId })!.source;
     },
   });
+}
+
+function planningAttachment<Value>(read: Effect.Effect<RecordAttachmentRead<Value>, RecordReaderReadError>, family: string): Effect.Effect<RecordAttachmentRead<Value>, RecordReaderReadError> {
+  return read.pipe(Effect.catch((error) => error instanceof SqliteRecordError &&
+    ["record-database-invalid", "record-content-invalid", "record-seal-incomplete"].includes(error.code)
+    ? Effect.succeed({ state: "invalid" as const,
+      issues: nonEmptyRecordIssues([recordIssue("record-schema-invalid", [family, error.code])])! })
+    : Effect.fail(error)));
 }
 
 /** Both read-only current results and execution planning use this assessment. */
@@ -522,6 +542,7 @@ export interface CurrentAssessmentInput<Ref, Attempt extends CurrentAssessmentAt
   readonly runs: readonly CurrentAssessmentRun<Ref>[];
   readonly byRunId: ReadonlyMap<RunId, CurrentAssessmentRun<Ref>>;
   readonly selectionHasProblem: boolean;
+  readonly selectionProblemScope?: ExecutionGapScope;
   readonly coreIssues: readonly RecordIssue[];
   readonly readAttempt: (ref: Ref) => Effect.Effect<RecordCoreRead<Attempt>, Error>;
   readonly readAssertions: (attempt: Attempt) => Effect.Effect<RecordAttachmentRead<AssertionsAttachment>, Error>;
@@ -542,7 +563,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
     if (input.selectionHasProblem) {
       return gapSlot(input.target, {
         reason: "source-core-invalid",
-        scope: "target",
+        scope: input.selectionProblemScope ?? "target",
         issues: input.coreIssues,
         comparisons: [],
       });
@@ -821,6 +842,7 @@ function hasPublicationIdentity(
 }
 
 function candidateFor(input: {
+  readonly reader: RecordReadSession;
   readonly target: TargetSlot;
   readonly sourceBarrier: ExecutionSourceBarrier;
   readonly attempt: ReadableAttempt & { readonly ref: ExecutionReusePlanSource["attempt"] };
@@ -839,8 +861,11 @@ function candidateFor(input: {
   ) {
     return undefined;
   }
+  const reference = detachPlanningReference(input.reader, input.attempt.ref);
+  if (reference === undefined) return undefined;
   return Object.freeze({
     source: Object.freeze({
+      reference,
       attemptId: input.attempt.ref.attemptId,
       attempt: input.attempt.ref,
       origin: Object.freeze({ runId: document.originRunId, slotId: document.slotId }),

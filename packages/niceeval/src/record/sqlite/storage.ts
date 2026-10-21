@@ -72,6 +72,8 @@ import {
   type StageSealEntriesInput,
   type StageSealEntriesResult,
   type StageRunCoreInput,
+  type SourceBarrierRequest,
+  type SourceBarrierCandidate,
 } from "./types.ts";
 
 export function discardAttempt(connection: RecordDatabase, input: DiscardAttemptInput): void {
@@ -1635,6 +1637,46 @@ export function readSealedRunCutoff(connection: RecordDatabase, identity: string
 }
 
 /** Filter lightweight Run metadata before loading any selected Core or payload. */
+export function findSourceBarrierCandidate(
+  connection: RecordDatabase,
+  request: SourceBarrierRequest,
+  cutoffRevision: number,
+): SourceBarrierCandidate | undefined {
+  requireIdentity(request.experimentId, "experimentId");
+  requireIdentity(request.evalId, "evalId");
+  if (!Number.isSafeInteger(request.attemptOrdinal) || request.attemptOrdinal < 0) {
+    throw sqliteError("record-content-invalid", "find-source-barrier", "Attempt ordinal must be non-negative");
+  }
+  // Resource identity and expected membership, including empty active Runs,
+  // select the barrier before any Core or policy evidence is loaded.
+  const current = rows(connection, `SELECT r.run_id,r.created_revision
+    FROM ne19_run_resources r
+    WHERE r.experiment_id=? AND r.created_revision<=? AND r.run_id<>?
+      AND NOT EXISTS (SELECT 1 FROM ne19_run_deletion_tombstones d WHERE d.run_id=r.run_id)
+      AND EXISTS (SELECT 1 FROM ne19_run_expected_slots s
+        WHERE s.eval_id=? AND s.attempt_ordinal=? AND s.run_id=r.run_id)
+    ORDER BY r.created_revision DESC,r.run_id COLLATE BINARY DESC LIMIT 1`,
+  request.experimentId, cutoffRevision, request.excludeRunId ?? "", request.evalId, request.attemptOrdinal)[0];
+  if (current !== undefined) return Object.freeze({ runId: text(current, "run_id"), createdRevision: integer(current, "created_revision") });
+  // Legacy Runs deliberately have no fabricated resource/revision. Inspect
+  // only their indexed Experiment's expected rows, never unrelated Core.
+  // Malformed expected rows remain candidates so validation cannot fall back.
+  const legacy = rows(connection, `SELECT r.run_id FROM ne19_runs r
+    WHERE r.experiment_id=? AND r.status='sealed' AND r.run_id<>?
+      AND NOT EXISTS (SELECT 1 FROM ne19_run_resources rr WHERE rr.run_id=r.run_id)
+      AND NOT EXISTS (SELECT 1 FROM ne19_run_deletion_tombstones d WHERE d.run_id=r.run_id)
+      AND EXISTS (SELECT 1 FROM ne19_slots s WHERE s.run_id=r.run_id AND
+        CASE WHEN json_valid(CAST(s.core_payload AS TEXT)) THEN
+          CASE WHEN json_type(CAST(s.core_payload AS TEXT),'$.evalId') IS NOT 'text' OR
+            json_type(CAST(s.core_payload AS TEXT),'$.attemptOrdinal') IS NOT 'integer' THEN 1
+          ELSE (json_extract(CAST(s.core_payload AS TEXT),'$.evalId')=? AND
+           json_extract(CAST(s.core_payload AS TEXT),'$.attemptOrdinal')=?) END
+        ELSE 1 END)
+    ORDER BY r.run_id COLLATE BINARY DESC LIMIT 1`,
+  request.experimentId, request.excludeRunId ?? "", request.evalId, request.attemptOrdinal)[0];
+  return legacy === undefined ? undefined : Object.freeze({ runId: text(legacy, "run_id"), createdRevision: 0 });
+}
+
 export function findExperimentRunIds(connection: RecordDatabase, experimentId: string): readonly string[] {
   requireIdentity(experimentId, "experimentId");
   const selected = rows(connection, `SELECT r.run_id FROM ne19_runs r
@@ -1737,6 +1779,7 @@ export function findAttemptLocatorCandidates(
   connection: RecordDatabase,
   locator: string,
   maximumCandidateRuns: number,
+  includeTargets = true,
 ): AttemptLocatorCandidates {
   if (!parseAttemptLocator(locator).valid) {
     throw sqliteError("record-content-invalid", "find-attempt-locator", "Attempt locator is malformed");
@@ -1764,6 +1807,7 @@ export function findAttemptLocatorCandidates(
     if (published === undefined) continue;
     identities.add(hashCanonicalTuple("niceeval.record.attempt-candidate/v1", [originRunId, attemptId]));
     add({ locator, originRunId, attemptId, relation: "origin", runId: originRunId });
+    if (!includeTargets) continue;
     const targets = rows(connection, `SELECT DISTINCT m.target_run_id FROM ne19_members m
       JOIN ne19_runs target ON target.run_id=m.target_run_id AND target.status='sealed'
       WHERE m.origin_run_id=? AND m.attempt_id=? ORDER BY m.target_run_id LIMIT ?`,

@@ -29,8 +29,10 @@ import { encodeRecordJsonUtf8, RECORD_JSON_MAXIMUM_BYTES } from "../writer/limit
 import type { RecordWriteError } from "../writer/types.ts";
 import type { AttemptRecordsWriter, AttemptWriteSession, CreateRunRequest, OwnerRecordsWriter, ReadableAttempt, ReadableRun, RecordAttachmentContentReader, RecordAttachmentRead, RecordCleanOperationPlan, RecordCleanOperationReceipt, RecordCompleteView, RecordHostSDK, RecordMaintenanceOperationFailure, RecordMaintenanceSession, RecordMigrateOperationPlan, RecordMigrateOperationReceipt, RecordMigrationPlan, RecordReadSession, RecordSealReceipt, RecordSelection, RecordSelectionProblem, RecordSelectionRequest, ReferenceRunWriteSession, RunCompletion, RunWriteSession, SelectedAttemptRef, SelectedOwnerRef, SelectedRunFacts, SelectedRunRef } from "./types.ts";
 import { attemptWriteSessionBrand, runWriteSessionBrand, selectedAttemptRefBrand, selectedOwnerRefBrand, selectedRunRefBrand } from "./types.ts";
-import { openOperationalRecordReadSession, type SealedRunSummary } from "../sqlite/index.ts";
+import { openOperationalRecordReadSession, type PinnedRecordReadSession, type SealedRunSummary } from "../sqlite/index.ts";
+import type { SourceBarrierRequest } from "../sqlite/types.ts";
 import type { RunResourcePage } from "../../run/storage/types.ts";
+import { RunStorageError } from "../../run/storage/errors.ts";
 
 type AnyDefinition<Owner extends RecordAttachmentOwner = RecordAttachmentOwner> = RecordAttachmentDefinition<Owner, string, Schema.Top>;
 type AnyPersistence = RecordAttachmentPersistence<AnyDefinition, number>;
@@ -111,57 +113,164 @@ type OwnerRuntime =
   | { readonly kind: "attempt"; readonly runId: RunId; readonly attemptId: AttemptId };
 interface ReaderRuntime {
   readonly root: RecordRoot; readonly client: StorageWorkerClient; readonly catalog: RecordAttachmentCatalog; readonly lifecycle: ReaderLifecycle;
-  readonly snapshot: ReaderSnapshot;
+  readonly session: PinnedRecordReadSession;
   readonly runs: WeakMap<SelectedRunRef, RunId>; readonly attempts: WeakMap<SelectedAttemptRef, { readonly runId: RunId; readonly attemptId: AttemptId }>;
   readonly owners: WeakMap<SelectedOwnerRef, OwnerRuntime>; readonly selections: WeakSet<RecordSelection>; readonly coreCache: Map<RunId, SealedRunCore>;
   readonly runRefs: Map<RunId, SelectedRunRef>; readonly attemptRefs: Map<string, SelectedAttemptRef>;
   readonly content: WeakMap<RecordContentHandle, { readonly contentId: string; readonly logicalHandle: string; readonly byteLength: number; readonly digest: string; readonly chunkCount: number }>;
 }
-interface ReaderSnapshot {
-  readonly summaries: readonly SealedRunSummary[];
-  readonly resources: RunResourcePage["runs"];
-  readonly cutoff: RunResourcePage["cutoff"];
-  readonly cores: ReadonlyMap<RunId, SealedRunCore>;
-}
-
-/** Capture planning facts together, then release SQLite before any dispatch. */
-function captureReaderSnapshot(root: string): Effect.Effect<ReaderSnapshot, SqliteRecordError> {
+function pinnedRead<A>(read: () => A): Effect.Effect<A, SqliteRecordError> {
   return Effect.try({
-    try: () => {
-      const session = openOperationalRecordReadSession(root);
-      try {
-        const summaries: SealedRunSummary[] = [];
-        const resources: RunResourcePage["runs"][number][] = [];
-        const cores = new Map<RunId, SealedRunCore>();
-        let afterRunId = "";
-        for (;;) {
-          const page = session.readSealedRunSummaryPage(afterRunId, 100);
-          summaries.push(...page.summaries);
-          if (page.nextAfterRunId === null) break;
-          afterRunId = page.nextAfterRunId;
-        }
-        for (const summary of summaries) {
-          const core = session.readSealedRunCore(summary.runId);
-          if (core !== undefined) cores.set(summary.runId as RunId, core);
-        }
-        afterRunId = "";
-        for (;;) {
-          const page = session.listRunResources({ afterRunId, pageSize: 100 });
-          resources.push(...page.runs);
-          if (page.nextAfterRunId === null) break;
-          afterRunId = page.nextAfterRunId;
-        }
-        return Object.freeze({ summaries: Object.freeze(summaries), resources: Object.freeze(resources), cutoff: session.publicationCutoff(), cores });
-      } finally {
-        session.close();
-      }
-    },
-    catch: (cause) => cause instanceof SqliteRecordError ? cause : new SqliteRecordError("record-sqlite-error", "record-reader-snapshot", "Could not capture reader facts", { cause }),
+    try: read,
+    catch: (cause) => cause instanceof SqliteRecordError ? cause : new SqliteRecordError(
+      cause instanceof RunStorageError && cause.code === "run-storage-invalid" ? "record-database-invalid" : "record-sqlite-error",
+      "record-reader", "Could not read selected facts", { cause }),
   });
 }
+const readers = new WeakMap<RecordReadSession, ReaderRuntime>();
 const runSessions = new WeakMap<object, RunRuntime>();
 const attemptSessions = new WeakMap<object, AttemptRuntime>();
 const selectedAttemptCapabilities = new WeakMap<SelectedAttemptRef, { readonly root: RecordRoot; readonly lifecycle: ReaderLifecycle }>();
+
+const exactReferenceBrand: unique symbol = Symbol("record/planning-reference");
+/** Host-private proof of an exact publication, independent of a reader. */
+export interface PlanningExactReference {
+  readonly record: RecordRoot;
+  readonly originRunId: RunId;
+  readonly attemptId: AttemptId;
+  readonly publicationIdentity: NonNullable<SelectedAttemptRef["publicationIdentity"]>;
+  readonly [exactReferenceBrand]: true;
+}
+const exactReferences = new WeakSet<PlanningExactReference>();
+
+function planningCorruption(error: RecordReaderReadError): boolean {
+  return error instanceof RecordIntegrityFailure || error instanceof SqliteRecordError &&
+    ["record-database-invalid", "record-content-invalid", "record-seal-incomplete"].includes(error.code);
+}
+
+export function detachPlanningReference(reader: RecordReadSession, attempt: SelectedAttemptRef): PlanningExactReference | undefined {
+  const runtime = readers.get(reader), capability = selectedAttemptCapabilities.get(attempt);
+  const publication = attempt.publicationIdentity;
+  if (runtime === undefined || runtime.lifecycle.closed || capability?.lifecycle !== runtime.lifecycle ||
+    publication === undefined || publication.originRunId !== attempt.originRunId || publication.attemptId !== attempt.attemptId) return undefined;
+  const reference: PlanningExactReference = Object.freeze({ record: runtime.root, originRunId: attempt.originRunId,
+    attemptId: attempt.attemptId, publicationIdentity: Object.freeze({ ...publication }), [exactReferenceBrand]: true as const });
+  exactReferences.add(reference);
+  return reference;
+}
+
+/** Stages Core membership; the following binding transaction rechecks the publication CAS. */
+export function stagePlanningReference(session: RunWriteSession | ReferenceRunWriteSession, input: {
+  readonly slotId: SlotId;
+  readonly action: "carried" | "accepted";
+  readonly reference: PlanningExactReference;
+}): Effect.Effect<void, RecordWriteError> {
+  const run = runSessions.get(session);
+  if (run === undefined || !exactReferences.has(input.reference) || !sameRoot(run.root, input.reference.record)) {
+    return Effect.fail(new RecordReferenceInvalid({ code: "record-reference-invalid" }));
+  }
+  return run.lock.withPermits(1)(Effect.gen(function* () {
+    yield* assertRunOpen(run);
+    if (!run.expectedBySlot.has(input.slotId) || run.reservations.has(input.slotId)) return yield* Effect.fail(coreInvalid());
+    run.members.set(input.slotId, Object.freeze({ slotId: input.slotId, action: input.action,
+      attempt: Object.freeze({ originRunId: input.reference.originRunId, attemptId: input.reference.attemptId }) }));
+    run.reservations.add(input.slotId);
+  }));
+}
+
+export function selectPlanningLocator(reader: RecordReadSession, locator: string): Effect.Effect<RecordSelection, RecordReaderReadError> {
+  return Effect.gen(function* () {
+    const runtime = readers.get(reader);
+    if (runtime === undefined || runtime.lifecycle.closed) return yield* Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
+    const candidates = yield* pinnedRead(() => runtime.session.findAttemptLocatorCandidates(locator, 256, false));
+    const runIds = yield* Schema.decodeUnknownEffect(Schema.Array(RunIdSchema))([...new Set(candidates.candidates.map((candidate) => candidate.runId))]).pipe(
+      Effect.mapError(() => new RecordHandleInvalid({ code: "record-handle-invalid" })),
+    );
+    return yield* reader.selectRuns({ runIds, includePublishedActive: true });
+  });
+}
+
+/** Select barriers before loading Core; fetch only those barriers and necessary origins. */
+export function selectPlanningSources(reader: RecordReadSession, positions: readonly SourceBarrierRequest[]) {
+  return Effect.gen(function* () {
+    const runtime = readers.get(reader);
+    if (runtime === undefined || runtime.lifecycle.closed) return yield* Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
+    const candidates = yield* pinnedRead(() => positions.flatMap((position) => {
+      const candidate = runtime.session.findSourceBarrierCandidate(position);
+      return candidate === undefined ? [] : [{ ...candidate, position }];
+    }));
+    const sourceIds = [...new Set(candidates.map((candidate) => candidate.runId))];
+    const experimentByRun = new Map(candidates.map((candidate) => [candidate.runId, candidate.position.experimentId]));
+    const issuesByExperiment = new Map<string, NonEmptyRecordIssues>();
+    const sourceProblem = (id: string, error: RecordReaderReadError) => {
+      const experiment = experimentByRun.get(id);
+      if (experiment !== undefined) issuesByExperiment.set(experiment, invalidIssues(["run", id, error.code,
+        ...(error instanceof RecordIntegrityFailure ? [error.reason] : [])]));
+    };
+    const resources: RunResourcePage["runs"][number][] = [];
+    for (const id of sourceIds) {
+      const result = yield* Effect.result(pinnedRead(() => runtime.session.readRunResource(id)));
+      if (Result.isFailure(result)) {
+        if (!planningCorruption(result.failure)) return yield* Effect.fail(result.failure);
+        sourceProblem(id, result.failure);
+      } else if (result.success !== undefined) resources.push(result.success);
+    }
+    const members = new Map<RunId, ReadableRun["members"]>();
+    const ids = new Set(sourceIds);
+    for (const resource of resources) {
+      const runId = yield* Schema.decodeUnknownEffect(RunIdSchema)(resource.runId).pipe(Effect.mapError(() => new RecordHandleInvalid({ code: "record-handle-invalid" })));
+      const bindings: ReadableRun["members"][number][] = [];
+      for (const slot of resource.slots) {
+        if (!candidates.some((candidate) => candidate.runId === resource.runId &&
+          candidate.position.evalId === slot.evalId && candidate.position.attemptOrdinal === slot.attemptOrdinal)) continue;
+        const publication = slot.publication;
+        if (publication.state !== "published") continue;
+        const decoded = decodeMemberDocument({ slotId: slot.slotId, action: publication.action,
+          attempt: { originRunId: publication.originRunId, attemptId: publication.attemptId } });
+        if (Result.isFailure(decoded) || decoded.success.attempt === null) return yield* Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId, reason: "core-invalid" }));
+        ids.add(publication.originRunId);
+        bindings.push(Object.freeze({ document: decoded.success, bindingRevision: publication.bindingRevision,
+          attempt: attemptRef(runtime, decoded.success.attempt.originRunId, decoded.success.attempt.attemptId, publication.publicationIdentity) }));
+      }
+      members.set(runId, Object.freeze(bindings));
+    }
+    // A legacy barrier's members can reference origins outside this Experiment.
+    const selections: RecordSelection[] = [];
+    for (const id of ids) {
+      const runId = yield* Schema.decodeUnknownEffect(RunIdSchema)(id).pipe(Effect.mapError(() => new RecordHandleInvalid({ code: "record-handle-invalid" })));
+      const result = yield* Effect.result(reader.selectRuns({ runIds: [runId], includePublishedActive: true }));
+      if (Result.isFailure(result)) {
+        if (!planningCorruption(result.failure)) return yield* Effect.fail(result.failure);
+        sourceProblem(id, result.failure);
+        continue;
+      }
+      selections.push(result.success);
+      if (sourceIds.includes(id)) for (const ref of result.success.runRefs) {
+        const run = yield* reader.readRun(ref);
+        if (run.state !== "available") continue;
+        const resource = resources.find((resource) => resource.runId === id);
+        if (run.value.document.experimentId !== experimentByRun.get(id) || resource !== undefined &&
+          (resource.slots.length !== run.value.document.expectedSlots.length || resource.slots.some((slot) =>
+            !run.value.document.expectedSlots.some((expected) => expected.slotId === slot.slotId && expected.evalId === slot.evalId &&
+              expected.attemptOrdinal === slot.attemptOrdinal && expected.executionIdentityDigest === slot.executionIdentityDigest)))) {
+          sourceProblem(id, new RecordIntegrityFailure({ code: "record-integrity-failure", runId, reason: "core-invalid" }));
+        }
+        for (const member of run.value.members) {
+          const slot = run.value.document.expectedSlots.find((slot) => slot.slotId === member.document.slotId);
+          if (slot !== undefined && member.attempt !== null && candidates.some((candidate) => candidate.runId === id &&
+            candidate.position.evalId === slot.evalId && candidate.position.attemptOrdinal === slot.attemptOrdinal)) ids.add(member.attempt.originRunId);
+        }
+      }
+    }
+    // Resource-only and missing origins are assessed per slot, never discarded
+    // in favour of an older source barrier.
+    const selection: RecordSelection = Object.freeze({ runRefs: Object.freeze(selections.flatMap((selection) => selection.runRefs)),
+      runFacts: Object.freeze(selections.flatMap((selection) => selection.runFacts)),
+      expectedSlots: Object.freeze(selections.flatMap((selection) => selection.expectedSlots)), warnings: Object.freeze([]),
+      problems: Object.freeze(selections.flatMap((selection) => selection.problems).filter((problem) => sourceIds.includes(problem.runId) && !members.has(problem.runId))) });
+    return Object.freeze({ selection, resources: Object.freeze(resources), members, issuesByExperiment, experimentByRun });
+  });
+}
 
 export function writerGenerationForRunSession(session: RunWriteSession | ReferenceRunWriteSession): string | undefined {
   return runSessions.get(session)?.writerGeneration;
@@ -507,7 +616,13 @@ function decodeCore(core: SealedRunCore): { readonly record: RecordDocument; rea
 }
 function readCore(runtime: ReaderRuntime, runId: RunId): Effect.Effect<SealedRunCore | undefined, RecordReaderReadError> {
   if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
-  return Effect.succeed(runtime.coreCache.get(runId));
+  return pinnedRead(() => {
+    const cached = runtime.coreCache.get(runId);
+    if (cached !== undefined) return cached;
+    const core = runtime.session.readSealedRunCore(runId, true);
+    if (core !== undefined) runtime.coreCache.set(runId, core);
+    return core;
+  });
 }
 function runRef(runtime: ReaderRuntime, runId: RunId): SelectedRunRef {
   const old = runtime.runRefs.get(runId); if (old !== undefined) return old; const ref: SelectedRunRef = Object.freeze({ runId, [selectedRunRefBrand]: () => undefined }); runtime.runRefs.set(runId, ref); runtime.runs.set(ref, runId); return ref;
@@ -536,6 +651,10 @@ function readAttempt(runtime: ReaderRuntime, ref: SelectedAttemptRef): Effect.Ef
     if (decoded === undefined) return Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId: location.runId, reason: "core-invalid" }));
     const document = decoded.attempts.find(({ attemptId }) => attemptId === location.attemptId);
     if (document === undefined) return Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId: location.runId, reason: "publication-closure-invalid" }));
+    const actual = core.attempts.find((attempt) => attempt.attemptId === document.attemptId)?.publicationIdentity;
+    if (ref.publicationIdentity !== undefined && (actual === undefined ||
+      actual.originRunId !== ref.publicationIdentity.originRunId || actual.attemptId !== ref.publicationIdentity.attemptId ||
+      actual.revision !== ref.publicationIdentity.revision)) return Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId: location.runId, reason: "publication-closure-invalid" }));
     return Effect.succeed(Object.freeze({ state: "available", value: Object.freeze({ ref, owner: ownerRef(runtime, { kind: "attempt", runId: location.runId, attemptId: location.attemptId }), document, origin: Object.freeze({ owner: ownerRef(runtime, { kind: "run", runId: location.runId }), runId: location.runId, experimentId: decoded.run.experimentId, startedAt: decoded.run.startedAt, context: decoded.run.context }) }) }));
   });
 }
@@ -549,7 +668,7 @@ function contentStream(runtime: ReaderRuntime, handle: RecordContentHandle): Str
     type ContentReadState = { readonly after: number; readonly ordinal: number; readonly byteLength: number };
     return Effect.succeed(Stream.paginate<ContentReadState, Uint8Array, RecordReaderReadError>({ after: -1, ordinal: 0, byteLength: 0 }, (state): Effect.Effect<readonly [readonly Uint8Array[], Option.Option<ContentReadState>], RecordReaderReadError> => {
       if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
-      return sqliteEffect(() => runtime.client.readContentChunkPage(metadata.contentId, state.after, CONTENT_READ_PAGE_ROWS)).pipe(Effect.flatMap((page): Effect.Effect<readonly [readonly Uint8Array[], Option.Option<ContentReadState>], RecordReaderReadError> => {
+      return pinnedRead(() => runtime.session.readContentChunkPage(metadata.contentId, state.after, CONTENT_READ_PAGE_ROWS)).pipe(Effect.flatMap((page): Effect.Effect<readonly [readonly Uint8Array[], Option.Option<ContentReadState>], RecordReaderReadError> => {
         if (page.chunks.length === 0) {
           return state.ordinal === metadata.chunkCount && state.byteLength === metadata.byteLength && hash.digest("hex") === metadata.digest
             ? Effect.succeed([[], Option.none()] as const)
@@ -598,7 +717,7 @@ function hydrateAttachment(runtime: ReaderRuntime, attachment: SealedAttachmentM
 function readFamily(runtime: ReaderRuntime, ownerValue: SelectedOwnerRef, definition: unknown): Effect.Effect<RecordAttachmentRead<unknown>, RecordReaderReadError> {
   if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
   const owner = runtime.owners.get(ownerValue); if (owner === undefined) return Effect.fail(new RecordHandleInvalid({ code: "record-handle-invalid" })); const resolved = recordDefinitionAttachment(definition) ?? resolveRecordAttachmentDefinition(definition); if (resolved === undefined || resolved.owner !== owner.kind) return Effect.fail(new RecordHandleInvalid({ code: "record-handle-invalid" })); const persistence = runtime.catalog.persistence(resolved); if (persistence === undefined) return Effect.fail(new FamilyDefinitionRequired({ code: "family-definition-required", owner: owner.kind, family: resolved.family, revision: 1 }));
-  return Effect.map(readCore(runtime, owner.runId), (core) => { if (core === undefined) return Object.freeze({ state: "not-recorded" as const }); const attachment = findAttachment(core, owner, resolved.family); return attachment === undefined ? Object.freeze({ state: "not-recorded" as const }) : hydrateAttachment(runtime, attachment, persistence as AnyPersistence); });
+  return Effect.flatMap(readCore(runtime, owner.runId), (core) => pinnedRead(() => { if (core === undefined) return Object.freeze({ state: "not-recorded" as const }); const attachment = findAttachment(core, owner, resolved.family); return attachment === undefined ? Object.freeze({ state: "not-recorded" as const }) : hydrateAttachment(runtime, attachment, persistence as AnyPersistence); }));
 }
 function collectionStream(runtime: ReaderRuntime, attachment: SealedAttachmentMetadata, authoring: AttemptRecordCollectionRuntime, expectedDigest: string): Stream.Stream<unknown, RecordReaderReadError> {
   if (runtime.lifecycle.closed) return Stream.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
@@ -608,7 +727,7 @@ function collectionStream(runtime: ReaderRuntime, attachment: SealedAttachmentMe
     type CollectionReadState = { readonly after: number; readonly ordinal: number; readonly byteLength: number };
     return Effect.succeed(Stream.paginate<CollectionReadState, unknown, RecordReaderReadError>({ after: -1, ordinal: 0, byteLength: 0 }, (state): Effect.Effect<readonly [readonly unknown[], Option.Option<CollectionReadState>], RecordReaderReadError> => {
       if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
-      return sqliteEffect(() => runtime.client.readCollectionItemPage(attachment.attachmentId, state.after, RECORD_SQLITE_MAX_PAGE_ROWS)).pipe(Effect.flatMap((page): Effect.Effect<readonly [readonly unknown[], Option.Option<CollectionReadState>], RecordReaderReadError> => {
+      return pinnedRead(() => runtime.session.readCollectionItemPage(attachment.attachmentId, state.after, RECORD_SQLITE_MAX_PAGE_ROWS)).pipe(Effect.flatMap((page): Effect.Effect<readonly [readonly unknown[], Option.Option<CollectionReadState>], RecordReaderReadError> => {
         if (page.items.length === 0) {
           return state.ordinal === attachment.collectionItemCount && state.byteLength === attachment.collectionItemByteLength && hash.digest("hex") === expectedDigest
             ? Effect.succeed([[], Option.none()] as const)
@@ -652,7 +771,7 @@ function publicOpenCollectionResult(opened: OpenCollectionResult): PublicOpenCol
 function openCollection(runtime: ReaderRuntime, ownerValue: SelectedOwnerRef<"attempt">, definition: unknown): Effect.Effect<OpenCollectionResult, RecordReaderReadError> {
   if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
   const owner = runtime.owners.get(ownerValue), authoring = attemptRecordCollectionRuntime(definition); if (owner === undefined || owner.kind !== "attempt" || authoring === undefined) return Effect.fail(new RecordHandleInvalid({ code: "record-handle-invalid" }));
-  return Effect.map(readCore(runtime, owner.runId), (core) => {
+  return Effect.flatMap(readCore(runtime, owner.runId), (core) => pinnedRead((): OpenCollectionResult => {
     if (core === undefined) return Object.freeze({ state: "not-recorded" }); const attachment = findAttachment(core, owner, authoring.attachment.family); if (attachment === undefined) return Object.freeze({ state: "not-recorded" });
     if (attachment.familyRevision !== authoring.persistence.revision) return Object.freeze({ state: "unsupported", family: attachment.family, revision: attachment.familyRevision });
     if (digest(attachment.canonicalBytes) !== attachment.canonicalDigest || digest(attachment.logicalInventoryBytes) !== attachment.inventoryDigest) return Object.freeze({ state: "invalid", issues: invalidIssues(["collection", "digest"]) });
@@ -661,7 +780,7 @@ function openCollection(runtime: ReaderRuntime, ownerValue: SelectedOwnerRef<"at
     const collection = inventory?.collection;
     if (payload?.collection === undefined || collection === undefined || collection.count !== attachment.collectionItemCount || collection.byteLength !== attachment.collectionItemByteLength || typeof collection.digest !== "string") return Object.freeze({ state: "invalid", issues: invalidIssues(["collection"]) });
     return Object.freeze({ state: "available", collection: payload.collection, logicalIdentity: attachment.logicalIdentity, logicalSealIdentity: core.logicalSealIdentity, count: attachment.collectionItemCount, digest: collection.digest, canonicalBytes: attachment.collectionItemByteLength, items: collectionStream(runtime, attachment, authoring, collection.digest) });
-  });
+  }));
 }
 function readCollectionWhole(runtime: ReaderRuntime, owner: SelectedOwnerRef<"attempt">, definition: unknown): Effect.Effect<RecordAttachmentRead<unknown>, RecordReaderReadError> {
   return Effect.flatMap(openCollection(runtime, owner, definition), (opened): Effect.Effect<RecordAttachmentRead<unknown>, RecordReaderReadError> => {
@@ -676,15 +795,18 @@ function makeReadSession(runtime: ReaderRuntime): RecordReadSession {
     if (runtime.lifecycle.closed) return Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
     const pageSize = input.pageSize ?? 100;
     if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 256) return Effect.fail(new RecordHandleInvalid({ code: "record-handle-invalid" }));
-    const candidates = runtime.snapshot.resources.filter((run) => run.runId > (input.afterRunId ?? "") && (input.invocationId === undefined || run.invocationId === input.invocationId));
-    const runs = Object.freeze(candidates.slice(0, pageSize));
-    return Effect.succeed(Object.freeze({ cutoff: runtime.snapshot.cutoff, runs, nextAfterRunId: candidates.length > pageSize ? runs.at(-1)!.runId : null }));
+    return pinnedRead(() => runtime.session.listRunResources(input));
   });
   const selectRuns: RecordReadSession["selectRuns"] = (request?: RecordSelectionRequest) => Effect.gen(function* () {
     if (runtime.lifecycle.closed) return yield* Effect.fail(new RecordReaderClosed({ code: "record-reader-closed" }));
     const requested = request?.runIds === undefined ? undefined : new Set(request.runIds); const cores: { readonly core: SealedRunCore; readonly decoded: NonNullable<ReturnType<typeof decodeCore>> }[] = []; let after = "";
+    const exact = requested === undefined ? undefined : yield* pinnedRead(() => [...requested].flatMap((id) => {
+      const summary = runtime.session.readSealedRunSummary(id);
+      return summary === undefined ? [] : [summary];
+    }));
     while (true) {
-      const page = runtime.snapshot.summaries.filter((summary) => summary.runId > after).slice(0, 100); if (page.length === 0) break;
+      const page: readonly SealedRunSummary[] = exact ?? (yield* pinnedRead(() => runtime.session.readSealedRunSummaryPage(after, 100))).summaries;
+      if (page.length === 0) break;
       for (const summary of page) {
         after = summary.runId;
         if (requested !== undefined && !requested.has(summary.runId as RunId)) continue;
@@ -697,7 +819,7 @@ function makeReadSession(runtime: ReaderRuntime): RecordReadSession {
         if (decoded === undefined) return yield* Effect.fail(new RecordIntegrityFailure({ code: "record-integrity-failure", runId, reason: "core-invalid" }));
         cores.push({ core, decoded });
       }
-      if (page.length < 100) break;
+      if (exact !== undefined || page.length < 100) break;
     }
     const problems: RecordSelectionProblem[] = []; if (requested !== undefined) for (const id of requested) if (!cores.some(({ core }) => core.runId === id)) problems.push(Object.freeze({ code: "selection-run-missing", runId: id }));
     const runRefs = cores.map(({ core }) => runRef(runtime, core.runId as RunId)); const runFacts: SelectedRunFacts[] = cores.map(({ core, decoded }) => Object.freeze({ run: runRef(runtime, core.runId as RunId), experimentId: decoded.run.experimentId, startedAt: decoded.run.startedAt, completedAt: decoded.run.completedAt, expectedSlots: decoded.run.expectedSlots }));
@@ -750,9 +872,14 @@ function openRead(root: RecordRoot, catalog: RecordAttachmentCatalog): Effect.Ef
     const rootPath = storageRoot(root); if (rootPath === undefined) return yield* Effect.fail(new RecordBootstrapInvalid({ code: "record-bootstrap-invalid", reason: "record-document-invalid" }));
     const projectState = yield* ProjectStateDatabase;
     const client = (yield* projectState.bind(rootPath)).record; const lifecycle: ReaderLifecycle = { closed: false };
-    const snapshot = yield* captureReaderSnapshot(rootPath);
-    const runtime: ReaderRuntime = { root, client, catalog, lifecycle, snapshot, runs: new WeakMap(), attempts: new WeakMap(), owners: new WeakMap(), selections: new WeakSet(), coreCache: new Map(snapshot.cores), runRefs: new Map(), attemptRefs: new Map(), content: new WeakMap() };
-    yield* Effect.addFinalizer(() => Effect.sync(() => { lifecycle.closed = true; })); return makeReadSession(runtime);
+    const session = yield* Effect.acquireRelease(
+      pinnedRead(() => openOperationalRecordReadSession(rootPath)),
+      (session) => Effect.sync(() => { lifecycle.closed = true; session.close(); }),
+    );
+    const runtime: ReaderRuntime = { root, client, catalog, lifecycle, session, runs: new WeakMap(), attempts: new WeakMap(), owners: new WeakMap(), selections: new WeakSet(), coreCache: new Map(), runRefs: new Map(), attemptRefs: new Map(), content: new WeakMap() };
+    const reader = makeReadSession(runtime);
+    readers.set(reader, runtime);
+    return reader;
   });
 }
 function closeMaintenanceFailure(error: { readonly code?: string }): RecordMaintenanceOperationFailure { return Object.freeze({ _tag: "RecordMaintenanceOperationFailed", code: error.code ?? "record-maintenance-failed" }); }

@@ -280,12 +280,10 @@ export function renameExperiment(input: ExperimentRenameOptions) {
     const root = yield* adoptionRecordRoot({ cwd: input.cwd });
     const startedAt = yield* adoptionStartedAt(input.now);
     const project = yield* loadAdoptionProject(projectInput(input));
-    return yield* withAdoptionReader({ root, use: (reader) => Effect.gen(function* () {
-      const preflight = yield* prepare(input, reader, project, startedAt);
-      const invocationId = yield* createExplicitAdoptionInvocationId();
-      const receipt = yield* commitExplicitAdoptionRunPlans(reader, root, invocationId, [preflight.plan]);
-      return yield* renamedReceipt({ invocationId, sourceRunId: input.sourceRunId,
-        oldId: preflight.source.sourceRun.experimentId, newId: input.newId, preflight, receipt });
-    }) });
+    const preflight = yield* withAdoptionReader({ root, use: (reader) => prepare(input, reader, project, startedAt) });
+    const invocationId = yield* createExplicitAdoptionInvocationId();
+    const receipt = yield* commitExplicitAdoptionRunPlans(root, invocationId, [preflight.plan]);
+    return yield* renamedReceipt({ invocationId, sourceRunId: input.sourceRunId,
+      oldId: preflight.source.sourceRun.experimentId, newId: input.newId, preflight, receipt });
   });
 }

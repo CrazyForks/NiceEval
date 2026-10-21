@@ -9,7 +9,7 @@ import type { SealedAttemptAssertions } from "../assertions/api.ts";
 import type { AssertionsProducerError } from "../assertions/record/producer.ts";
 import { NiceEvalRecordAttachments } from "../record/family/catalog.ts";
 import { recordHost } from "../record/host/runtime.ts";
-import { discardAttemptWriteSession, writerGenerationForRunSession } from "../record/host/sqlite-host.ts";
+import { discardAttemptWriteSession, stagePlanningReference, writerGenerationForRunSession } from "../record/host/sqlite-host.ts";
 import type {
   AttemptWriteSession,
   RecordSealReceipt,
@@ -310,11 +310,17 @@ export function withRunnerCurrentReusePreview<A, E, R>(input: {
         readReadbacks: () => Effect.succeed(Object.freeze([])),
       });
     }
-    const reader = yield* recordHost.openRead({ root: input.recordRoot });
-    const reusePlan = yield* planProjectTargetReuse({ reader, target, policy: input.reuse.policy });
+    const { reusePlan, readbacks } = yield* Effect.scoped(Effect.gen(function* () {
+      const reader = yield* recordHost.openRead({ root: input.recordRoot });
+      const reusePlan = yield* planProjectTargetReuse({ reader, target, policy: input.reuse.policy });
+      const readbacks = yield* readCurrentExecutionReusePlanReadbacks({ reader, plan: reusePlan }).pipe(
+        Effect.mapError((cause): RunnerSessionOpenFailed => ({ code: "runner-session-open-failed", cause })),
+      );
+      return { reusePlan, readbacks };
+    }));
     return yield* input.use({
       reusePlan,
-      readReadbacks: () => readCurrentExecutionReusePlanReadbacks({ reader, plan: reusePlan }),
+      readReadbacks: () => Effect.succeed(readbacks),
     });
   }));
 }
@@ -428,8 +434,6 @@ export function openRunnerRecordCoordinator(input: {
         })),
       }).pipe(Effect.mapError((cause): RunnerSessionOpenFailed => ({ code: "runner-session-open-failed", cause })));
     }
-    const reader = yield* recordHost.openRead({ root: input.recordRoot });
-
     const byRun = new Map<AgentRun, RunnerRecordRun>();
     const byRecordRunId = new Map<RunId, RunnerRecordRun>();
     const runIdsByExperiment = new Map<string, string>();
@@ -458,24 +462,31 @@ export function openRunnerRecordCoordinator(input: {
       invocationId,
       runs: Object.freeze(targetRuns),
     });
-    const reusePlan = yield* planProjectTargetReuse({ reader, target, policy: input.reuse.policy });
+    const { reusePlan, carriedResults } = yield* Effect.scoped(Effect.gen(function* () {
+      const reader = yield* recordHost.openRead({ root: input.recordRoot });
+      const reusePlan = yield* planProjectTargetReuse({ reader, target, policy: input.reuse.policy });
+      const carriedResults = yield* readCurrentExecutionReusePlanResults({ reader, plan: reusePlan }).pipe(
+        Effect.mapError((cause): RunnerSessionOpenFailed => ({ code: "runner-session-open-failed", cause })),
+      );
+      return { reusePlan, carriedResults };
+    }));
     const carriedAttemptsByKey = new Map<string, Set<number>>();
     for (const slot of reusePlan.slots) {
       const recordRun = byRecordRunId.get(slot.runId);
       if (recordRun === undefined) return yield* Effect.fail(membershipStateInvalid(slot.slotId));
       recordRun.planSlots.set(slot.slotId, slot);
       if (slot.state === "reuse") {
-        yield* recordRun.session.referenceAttempt({
+        yield* stagePlanningReference(recordRun.session, {
           slotId: slot.slotId,
           action: "carried",
-          attempt: slot.source.attempt,
+          reference: slot.source.reference,
         });
         yield* bindAttemptReference(rootPath, {
             runId: String(recordRun.session.runId),
             writerGeneration: recordRun.writerGeneration,
             slotId: String(slot.slotId),
             action: "carried",
-            publicationIdentity: slot.source.attempt.publicationIdentity,
+            publicationIdentity: slot.source.reference.publicationIdentity,
             deadlineEpochMs: Date.now() + 30_000,
           }).pipe(Effect.mapError((cause): RunnerSessionOpenFailed => ({ code: "runner-session-open-failed", cause })));
         const entry = recordRun.slots.get(runnerRecordSlotKey(slot.evalId, slot.attempt));
@@ -527,26 +538,24 @@ export function openRunnerRecordCoordinator(input: {
         || current.plan.state !== "gap"
         || current.recordRun.gapActions.get(current.slotId) !== "pending"
       ) return false;
-      const freshReader = yield* recordHost.openRead({ root: input.recordRoot });
-      const refreshed = yield* planProjectTargetReuse({
-        reader: freshReader,
-        target,
-        policy: input.reuse.policy,
-      });
+      const refreshed = yield* Effect.scoped(Effect.gen(function* () {
+        const freshReader = yield* recordHost.openRead({ root: input.recordRoot });
+        return yield* planProjectTargetReuse({ reader: freshReader, target, policy: input.reuse.policy });
+      }));
       const replacement = refreshed.slots.find((slot) =>
         slot.runId === current.recordRun.target.runId && slot.slotId === current.slotId);
       if (replacement?.state !== "reuse") return false;
-        yield* current.recordRun.session.referenceAttempt({
+      yield* stagePlanningReference(current.recordRun.session, {
         slotId: current.slotId,
         action: "carried",
-          attempt: replacement.source.attempt,
-        });
+        reference: replacement.source.reference,
+      });
       yield* bindAttemptReference(rootPath, {
           runId: String(current.recordRun.session.runId),
           writerGeneration: current.recordRun.writerGeneration,
           slotId: String(current.slotId),
           action: "carried",
-          publicationIdentity: replacement.source.attempt.publicationIdentity,
+          publicationIdentity: replacement.source.reference.publicationIdentity,
           deadlineEpochMs: Date.now() + 30_000,
         }).pipe(Effect.mapError(() => publishStateInvalid(current.recordRun.session.runId)));
       current.recordRun.planSlots.set(current.slotId, replacement);
@@ -814,7 +823,7 @@ export function openRunnerRecordCoordinator(input: {
 
     return Object.freeze({
       reusePlan,
-      readCarriedResults: () => readCurrentExecutionReusePlanResults({ reader, plan: reusePlan }),
+      readCarriedResults: () => Effect.succeed(carriedResults),
       runIdsByExperiment: new Map(runIdsByExperiment),
       publicationCutoff: () => currentPublicationCutoff(rootPath),
       carriedAttemptsByKey: new Map([...carriedAttemptsByKey].map(([key, attempts]) =>

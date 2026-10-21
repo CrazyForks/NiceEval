@@ -173,6 +173,19 @@ export interface AttemptLocatorCandidates {
   readonly candidates: readonly AttemptLocatorCandidateRun[];
 }
 
+/** One logical position; the current execution Run is not its own source. */
+export interface SourceBarrierRequest {
+  readonly experimentId: string;
+  readonly evalId: string;
+  readonly attemptOrdinal: number;
+  readonly excludeRunId?: string;
+}
+
+export interface SourceBarrierCandidate {
+  readonly runId: string;
+  readonly createdRevision: number;
+}
+
 export interface ContentChunkPage {
   readonly contentId: string;
   readonly afterOrdinal: number;

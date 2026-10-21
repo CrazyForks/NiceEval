@@ -28,7 +28,6 @@ import {
   prepareExplicitAdoptionMember,
   resolveExplicitAttemptLocator,
   resolveExactAdoptionSourceRun,
-  withAdoptionCommitScope,
   withAdoptionReader,
 } from "./adoption.ts";
 import type {
@@ -422,19 +421,12 @@ export function acceptRun(input: AcceptRunOptions) {
     const root = yield* adoptionRecordRoot(input);
     const startedAt = yield* adoptionStartedAt(input.now);
     const resolvedProjectInput = acceptRunProjectInput(input);
-    const previewProject = yield* loadAdoptionProject(resolvedProjectInput);
-    yield* withAdoptionReader({ root, use: (reader) => prepareAcceptRunPreflight({ reader, project: previewProject, runId: input.runId, startedAt, ...(input.operatorReason === undefined ? {} : { operatorReason: input.operatorReason }) }) });
+    const project = yield* loadAdoptionProject(resolvedProjectInput);
+    const preflight = yield* withAdoptionReader({ root, use: (reader) => prepareAcceptRunPreflight({ reader, project, runId: input.runId, startedAt, ...(input.operatorReason === undefined ? {} : { operatorReason: input.operatorReason }) }) });
     const invocationId = yield* createExplicitAdoptionInvocationId();
-    return yield* withAdoptionCommitScope({
-      root,
-      use: (reader) => Effect.gen(function* () {
-        const project = yield* loadAdoptionProject(resolvedProjectInput);
-        const preflight = yield* prepareAcceptRunPreflight({ reader, project, runId: input.runId, startedAt, ...(input.operatorReason === undefined ? {} : { operatorReason: input.operatorReason }) });
-        const receipts = yield* commitExplicitAdoptionRunPlans(reader, root, invocationId, preflight.groups.map((group) => group.plan));
-        const locators = projectAcceptPreview(preflight).map((member) => member.locator);
-        return yield* receiptsForAccept({ invocationId, locators, preflight, receipts });
-      }),
-    });
+    const receipts = yield* commitExplicitAdoptionRunPlans(root, invocationId, preflight.groups.map((group) => group.plan));
+    const locators = projectAcceptPreview(preflight).map((member) => member.locator);
+    return yield* receiptsForAccept({ invocationId, locators, preflight, receipts });
   });
 }
 
@@ -466,9 +458,8 @@ export function planAcceptLocators(
 }
 
 /**
- * Effect-native formal acceptance. A reader preflight happens first; then one
- * scoped Host read session repeats the entire preflight and publishes
- * reference-only target Runs through createReferenceRun.
+ * Freeze the complete preflight in one read transaction, then publish detached
+ * references after the reader closes.
  */
 export function acceptLocators(
   input: AcceptLocatorsOptions,
@@ -477,12 +468,12 @@ export function acceptLocators(
     const root = yield* adoptionRecordRoot(input);
     const startedAt = yield* adoptionStartedAt(input.now);
     const resolvedProjectInput = projectInput(input);
-    const previewProject = yield* loadAdoptionProject(resolvedProjectInput);
-    yield* withAdoptionReader({
+    const project = yield* loadAdoptionProject(resolvedProjectInput);
+    const preflight = yield* withAdoptionReader({
       root,
       use: (reader) => prepareAcceptPreflight({
         reader,
-        project: previewProject,
+        project,
         locators: input.locators,
         startedAt,
         ...(input.operatorReason === undefined
@@ -492,35 +483,8 @@ export function acceptLocators(
     });
 
     const invocationId = yield* createExplicitAdoptionInvocationId();
-    return yield* withAdoptionCommitScope({
-      root,
-      use: (reader) => Effect.gen(function* () {
-        // Discovery and target planning are deliberately refreshed while the
-        // Host reader keeps SelectedAttemptRefs live for the reference write.
-        const project = yield* loadAdoptionProject(resolvedProjectInput);
-        const preflight = yield* prepareAcceptPreflight({
-          reader,
-          project,
-          locators: input.locators,
-          startedAt,
-          ...(input.operatorReason === undefined
-            ? {}
-            : { operatorReason: input.operatorReason }),
-        });
-        const receipts = yield* commitExplicitAdoptionRunPlans(
-          reader,
-          root,
-          invocationId,
-          preflight.groups.map((group) => group.plan),
-        );
-        return yield* receiptsForAccept({
-          invocationId,
-          locators: input.locators,
-          preflight,
-          receipts,
-        });
-      }),
-    });
+    const receipts = yield* commitExplicitAdoptionRunPlans(root, invocationId, preflight.groups.map((group) => group.plan));
+    return yield* receiptsForAccept({ invocationId, locators: input.locators, preflight, receipts });
   });
 }
 

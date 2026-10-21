@@ -27,7 +27,7 @@ import {
 } from "../eval/record/membership-provenance.ts";
 import { foldRecordedAttemptVerdict, type VerdictState } from "../eval/record/verdict.ts";
 import { recordHost } from "../record/host/runtime.ts";
-import { writerGenerationForRunSession } from "../record/host/sqlite-host.ts";
+import { detachPlanningReference, selectPlanningLocator, stagePlanningReference, writerGenerationForRunSession, type PlanningExactReference } from "../record/host/sqlite-host.ts";
 import { NiceEvalRecordAttachments } from "../record/family/catalog.ts";
 import type {
   RecordReadSession,
@@ -68,9 +68,7 @@ import {
   closeRunResource,
   createRunResource,
   createRunWriterGeneration,
-  readPublishedAttempt,
   RunStorageError,
-  type AttemptPublicationIdentity,
 } from "../run/storage/index.ts";
 import type { SandboxPlanningServices } from "../sandbox/plan.ts";
 import {
@@ -181,6 +179,7 @@ interface ParsedExplicitAttemptLocator {
 }
 
 export interface ResolvedAdoptionAttempt {
+  readonly reference: PlanningExactReference;
   readonly originContext: RunContext;
   readonly locator: ExplicitAttemptLocator;
   readonly attempt: SelectedAttemptRef;
@@ -691,7 +690,7 @@ export function resolveExplicitAttemptLocator(
 ): Effect.Effect<ResolvedAdoptionAttempt, ExplicitAdoptionReadError> {
   return Effect.gen(function* () {
     const parsed = yield* parseExplicitAttemptLocator(text);
-    const selected = yield* reader.selectRuns({ includePublishedActive: true });
+    const selected = yield* selectPlanningLocator(reader, parsed.locator);
     const resolved = yield* resolveAttemptLocator({
       reader,
       selection: selected,
@@ -763,7 +762,10 @@ export function resolveAdoptionAttempt(
           : `Source origin Run for "${sourceLocator.text}" has duplicate origin Members.`,
       ));
     }
+    const reference = detachPlanningReference(reader, attempt);
+    if (reference === undefined) return yield* Effect.fail(sourceCoreInvalid(`Source locator "${sourceLocator.text}" has no exact publication identity.`));
     return Object.freeze({
+      reference,
       locator: sourceLocator,
       attempt,
       origin: Object.freeze({
@@ -1096,9 +1098,8 @@ export function buildExplicitAdoptionRunPlan(input: {
   });
 }
 
-/** Writes only plans already built from this exact session's Host reader. */
+/** Writes detached plans; publication identity is rechecked by the binding transaction. */
 export function commitExplicitAdoptionRunPlans(
-  _reader: RecordReadSession,
   root: RecordRoot,
   invocationId: string,
   plans: readonly ExplicitAdoptionRunPlan[],
@@ -1116,18 +1117,6 @@ export function commitExplicitAdoptionRunPlans(
         "adoption-target-invalid",
         "Adoption target Experiment",
       );
-      const publications = new Map<string, AttemptPublicationIdentity>();
-      for (const member of plan.members) {
-        const published = yield* readPublishedAttempt(storageRoot, String(member.source.attempt.attemptId)).pipe(
-          Effect.mapError(asRunStorageError),
-        );
-        if (published === undefined) {
-          return yield* Effect.fail(asRunStorageError(new Error(
-            `Adoption source Attempt ${String(member.source.attempt.attemptId)} has no Run publication identity.`,
-          )));
-        }
-        publications.set(String(member.target.slotId), published.publicationIdentity);
-      }
       const accepted = new Set(plan.members.map((member) => String(member.target.slotId)));
       const writer = yield* recordHost.createReferenceRun({
         root,
@@ -1156,16 +1145,17 @@ export function commitExplicitAdoptionRunPlans(
           deadlineEpochMs: Date.now() + 30_000,
         }).pipe(Effect.mapError(asRunStorageError));
       for (const member of plan.members) {
-        yield* writer.recordAcceptedMembership({
+        yield* stagePlanningReference(writer, {
           slotId: member.target.slotId,
-          attempt: member.source.attempt,
+          action: "accepted",
+          reference: member.source.reference,
         });
         yield* bindAttemptReference(storageRoot, {
             runId: String(writer.runId),
             writerGeneration,
             slotId: String(member.target.slotId),
             action: "accepted",
-            publicationIdentity: publications.get(String(member.target.slotId))!,
+            publicationIdentity: member.source.reference.publicationIdentity,
             deadlineEpochMs: Date.now() + 30_000,
           }).pipe(Effect.mapError(asRunStorageError));
       }
@@ -1194,7 +1184,7 @@ export function commitExplicitAdoptionRunPlans(
       return receiptForPlan(plan, sealed.runId);
     }),
     { concurrency: 1 },
-  ).pipe(Effect.mapError((cause) => cause instanceof RunStorageError
+  ).pipe(Effect.scoped, Effect.mapError((cause) => cause instanceof RunStorageError
     ? cause
     : new RunStorageError("run-storage-invalid", safeMessage(cause))));
 }
@@ -1244,18 +1234,6 @@ export function withAdoptionReader<A, E, R>(input: {
       return yield* input.use(reader);
     }),
   );
-}
-
-/**
- * One Scope keeps the Host reader live while reference Runs are created, so
- * SelectedAttemptRefs remain valid through seal. Discovery still happens
- * before this Scope opens, so the first preflight writes nothing.
- */
-export function withAdoptionCommitScope<A, E, R>(input: {
-  readonly root: RecordRoot;
-  readonly use: (reader: RecordReadSession) => Effect.Effect<A, E, R>;
-}) {
-  return withAdoptionReader(input);
 }
 
 export interface RenameSourceRun {
