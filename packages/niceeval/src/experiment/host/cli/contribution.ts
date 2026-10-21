@@ -75,7 +75,7 @@ export const EXP_NORMAL_CLI_OPTIONS = Object.freeze({
   "max-concurrency": option("string", "Limit concurrent Attempt execution."),
   "max-build-concurrency": option("string", "Limit concurrent Sandbox build preparation."),
   "max-setup-prefix-concurrency": option("string", "Limit concurrent Sandbox setup-prefix preparation."),
-  "sandbox-setup-cache": option("string", "使用或绕过 Sandbox 准备缓存。"),
+  "sandbox-setup-cache": option("string", "Use or bypass the Sandbox setup cache."),
   timeout: option("string", "Set the per-Attempt timeout in milliseconds."),
   budget: option("string", "Set the Invocation budget in USD."),
   tag: option("string", "Select only Evals with this tag."),
