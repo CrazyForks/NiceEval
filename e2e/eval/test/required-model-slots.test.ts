@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { evalE2E } from "./context.ts";
 
 // @feature docs/feature/adapters/README.md
+// @regression memory/shared-model-purpose-requirements.md
 test.concurrent("共享用途要求在计划前拒绝缺失且同一 Eval 可复用不同模型", async () => {
   await evalE2E.case("required-model-slots", async ({ paths, commands: { niceeval } }) => {
     await writeFile(join(paths.projectRoot, "fixtures/required-purposes.ts"), `

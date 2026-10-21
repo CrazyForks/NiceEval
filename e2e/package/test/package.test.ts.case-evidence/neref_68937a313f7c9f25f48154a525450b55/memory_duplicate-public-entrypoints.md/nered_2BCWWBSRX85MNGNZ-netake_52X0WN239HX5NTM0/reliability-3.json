@@ -1,0 +1,145 @@
+{
+  "format": "concord.native-case-receipt/v1",
+  "mode": "formal",
+  "observation": "reliability",
+  "selector": "e2e/package/test/package.test.ts#neref_68937a313f7c9f25f48154a525450b55",
+  "caseId": "neref_68937a313f7c9f25f48154a525450b55",
+  "inventoryDigest": "sha256:3b9c048285ce9aea5665c81a21cb830d0d40bbcf475630089320f7bc57947f18",
+  "problem": {
+    "path": "memory/duplicate-public-entrypoints.md",
+    "epoch": 0
+  },
+  "candidate": {
+    "gitSha": "7465ed438263771164ea5dcb5d3f6e50f410d950",
+    "sha256": "5c69114b738ffdee986699c6cb33d590a2982f2c9b926dc981ae9b5225f95a6e",
+    "sri": "sha256-XGkRS3OP/e6YZpnGyzPVkKKYLyybkm3Jga6bUiX5Wm4="
+  },
+  "source": {
+    "format": "concord.repository-source-identity/v4",
+    "projection": {
+      "algorithm": "concord.repository-source-projection/v3",
+      "digest": "sha256:89287b833b1b68d7556e54c8d2f1196e1ba0f39c13bea833d051502daf285eee",
+      "files": [
+        {
+          "path": "e2e/package/fixtures/commonjs-init-list/agents/smoke.ts",
+          "bytes": 362,
+          "rawSha256": "8d5f394998d3d5fba6930ff76d7c2f7dc6e7d7a462265c661a79428b981f4ab9",
+          "codeSha256": "8d5f394998d3d5fba6930ff76d7c2f7dc6e7d7a462265c661a79428b981f4ab9"
+        },
+        {
+          "path": "e2e/package/fixtures/commonjs-init-list/evals/cjs-default.eval.ts",
+          "bytes": 257,
+          "rawSha256": "b7ee4675ef31ac275117b59860aff655afd7cd61a35dbaf2a3e96f398ca2364e",
+          "codeSha256": "b7ee4675ef31ac275117b59860aff655afd7cd61a35dbaf2a3e96f398ca2364e"
+        },
+        {
+          "path": "e2e/package/fixtures/commonjs-init-list/evals/tsx-default.eval.tsx",
+          "bytes": 302,
+          "rawSha256": "25edde5eaa7270e237197c01753b0f65ae820af3a87072fcabef6111256cc8c4",
+          "codeSha256": "25edde5eaa7270e237197c01753b0f65ae820af3a87072fcabef6111256cc8c4"
+        },
+        {
+          "path": "e2e/package/fixtures/commonjs-init-list/experiments/smoke.ts",
+          "bytes": 246,
+          "rawSha256": "cfed1989188ad67d305a682cdbfbd786dd3731c4ca6341f5357c4fb3f7371d99",
+          "codeSha256": "cfed1989188ad67d305a682cdbfbd786dd3731c4ca6341f5357c4fb3f7371d99"
+        },
+        {
+          "path": "e2e/package/test/inspection-public-entry.test.ts",
+          "bytes": 5494,
+          "rawSha256": "625b958ff039219db4a4b71f338634186a5564a9047417e6a1a160d919515fe3",
+          "codeSha256": "d4548dea203d21bcb3556abccf8161a38dd3b5ff484375439134c3b8e99a10a9"
+        },
+        {
+          "path": "e2e/package/test/package.test.ts",
+          "bytes": 8466,
+          "rawSha256": "6e94aa598ab61c21be6d0804b373755507b85ad17fa92911ee71cb95fce988ec",
+          "codeSha256": "825ed2a7a62695828beda45e659ca8acf3772b7b07f2110060aa1174f3f94a35"
+        },
+        {
+          "path": "e2e/package/vitest.config.ts",
+          "bytes": 157,
+          "rawSha256": "63bcf537a9126d8a508f5fc6a62729e4d85ccc4013b7108a3b76ad159e1f249f",
+          "codeSha256": "63bcf537a9126d8a508f5fc6a62729e4d85ccc4013b7108a3b76ad159e1f249f"
+        }
+      ]
+    },
+    "caseId": "neref_68937a313f7c9f25f48154a525450b55",
+    "nativeTestFile": "e2e/package/test/package.test.ts",
+    "declarationFile": "e2e/package/test/package.test.ts",
+    "binding": {
+      "kind": "direct-contract",
+      "suiteId": "package",
+      "contractRef": "docs/feature/eval/README.md",
+      "contractSha256": "d214f1a61c7cf64a47613e0ca7ae47af0e8f3e74dba54797e73a1f3cd7cbe612",
+      "policy": "concord.native-reliability/v1",
+      "configurationDigest": "sha256:a67f159656eea9125073a719d9bedaee6becee86113cd0d9b0ca7bc0deedc41f",
+      "adapterSourceDigest": "sha256:da50a9517f42205d23e23be6ef82c6f56bcd560cb5a062dbe3bdb9648b468c3a"
+    }
+  },
+  "runner": {
+    "executor": "vitest",
+    "version": "4.1.11",
+    "implementationDigest": "sha256:64bc280c9d5483baa5c579ad5d50cd397b2b421f87466d93fc8632187d615e65",
+    "argv": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run",
+      "--reporter=json",
+      "test/package.test.ts",
+      "--testNamePattern",
+      "^pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 CLI Journey$"
+    ]
+  },
+  "result": {
+    "disposition": "pass",
+    "stage": "test",
+    "exitCode": 0,
+    "signal": null,
+    "timedOut": false,
+    "startupFailed": false
+  },
+  "native": {
+    "copyId": "isolated-copy-3",
+    "copyPath": "/private/var/folders/bw/l_k8_g5n1ln0kl6z9gwldtrm0000gn/T/niceeval-e2e-takeover-scratch-UcZ0Zj/runs/takeover/isolated-copy-3/package",
+    "sequence": 1,
+    "mode": "isolated",
+    "caseCount": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "parallelism": 1
+  },
+  "cleanup": {
+    "ok": true,
+    "resources": [
+      {
+        "kind": "workdir",
+        "path": "/private/var/folders/bw/l_k8_g5n1ln0kl6z9gwldtrm0000gn/T/niceeval-e2e-takeover-scratch-UcZ0Zj/runs/takeover/isolated-copy-3/package",
+        "ok": true
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 77697 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "install",
+        "gone": true,
+        "detail": "owned process group 77711 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "test",
+        "gone": true,
+        "detail": "owned process group 77739 has no running members after leader close"
+      }
+    ]
+  },
+  "invocationId": "6eef1b98-d1d7-4578-89d1-fd032199dad8",
+  "receiptSha256": "f27ffb10b76a490c04e9227aa89568153c39b97c3970a9881127437576248c05"
+}

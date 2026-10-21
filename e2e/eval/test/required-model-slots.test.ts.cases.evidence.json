@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_702941f37380c45808027cc0012310af": {
+      "memory/shared-model-purpose-requirements.md": {
+        "red": {
+          "path": "e2e/eval/test/required-model-slots.test.ts.case-evidence/neref_702941f37380c45808027cc0012310af/memory_shared-model-purpose-requirements.md/nered_5RVJBG4G4PKMWZT9-netake_ZZF7N6HX85QX8ESX/red.json",
+          "digest": "sha256:792efa05bb6e72fc8666e5c502e4f1ef51cc08e91bafc46df8b5d5d4686aac79"
+        },
+        "green": {
+          "path": "e2e/eval/test/required-model-slots.test.ts.case-evidence/neref_702941f37380c45808027cc0012310af/memory_shared-model-purpose-requirements.md/nered_5RVJBG4G4PKMWZT9-netake_ZZF7N6HX85QX8ESX/green.json",
+          "digest": "sha256:b0b335cf00b5e83c55b2f786273421a0d1fafc5ba29cd07e9c56c70051337fef"
+        },
+        "certificate": {
+          "path": "e2e/eval/test/required-model-slots.test.ts.case-evidence/neref_702941f37380c45808027cc0012310af/memory_shared-model-purpose-requirements.md/nered_5RVJBG4G4PKMWZT9-netake_ZZF7N6HX85QX8ESX/certificate.json",
+          "digest": "sha256:e3894df9d5e02f6d696015c5ba257e555045c6c0a023f13f763f5b03239f3181"
+        },
+        "inventory": {
+          "path": "e2e/eval/test/required-model-slots.test.ts.case-evidence/neref_702941f37380c45808027cc0012310af/memory_shared-model-purpose-requirements.md/nered_5RVJBG4G4PKMWZT9-netake_ZZF7N6HX85QX8ESX/inventory.json",
+          "digest": "sha256:ccb3606ce8025484abc27a36f9ef03b4a904b8e75a15feee2b95df1952e0e804"
+        }
+      }
+    }
+  }
+}

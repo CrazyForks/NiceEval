@@ -61,6 +61,7 @@ const e2e = createE2EContext({
   },
 });
 // @feature docs/feature/eval/README.md
+// @regression memory/duplicate-public-entrypoints.md
 // @regression memory/published-package-runtime-dependencies-missing.md
 
 test("pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 CLI Journey", async () => {

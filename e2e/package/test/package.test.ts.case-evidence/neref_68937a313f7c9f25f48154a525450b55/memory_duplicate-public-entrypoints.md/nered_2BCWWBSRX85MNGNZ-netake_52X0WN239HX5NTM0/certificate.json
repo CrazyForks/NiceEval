@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/package/test/package.test.ts#neref_68937a313f7c9f25f48154a525450b55",
+  "caseId": "neref_68937a313f7c9f25f48154a525450b55",
+  "candidateSha256": "5c69114b738ffdee986699c6cb33d590a2982f2c9b926dc981ae9b5225f95a6e",
+  "sourceDigest": "sha256:89287b833b1b68d7556e54c8d2f1196e1ba0f39c13bea833d051502daf285eee",
+  "greenReceipt": "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-1.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-2.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-4.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-6.json",
+    "singleCase": "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/green.json",
+    "cleanup": [
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/green.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-1.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-2.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-3.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-4.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-5.json",
+      "e2e/package/test/package.test.ts.case-evidence/neref_68937a313f7c9f25f48154a525450b55/memory_duplicate-public-entrypoints.md/nered_2BCWWBSRX85MNGNZ-netake_52X0WN239HX5NTM0/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "c2332ce11ea9a8ee1fb2375530352070549e0f113a30a2f07f10f009aaef459d"
+}

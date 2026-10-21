@@ -1,0 +1,45 @@
+{
+  "executor": {
+    "name": "vitest",
+    "version": "4.1.11"
+  },
+  "repo": "package",
+  "argv": [
+    "/Users/ctrdh/.local/share/fnm/node-versions/v24.15.0/installation/bin/node",
+    "/private/var/folders/bw/l_k8_g5n1ln0kl6z9gwldtrm0000gn/T/niceeval-case-inventory-tiip7D/repos/package/node_modules/.pnpm/vitest@4.1.11_@opentelemetry+api@1.9.1_@types+node@24.13.3_vite@8.2.0_@types+node@24.13_c89e15362fb2d4489c1b2b38e9a4a5a0/node_modules/vitest/vitest.mjs",
+    "list",
+    "--json"
+  ],
+  "checkout": "7465ed438263771164ea5dcb5d3f6e50f410d950",
+  "files": [
+    "e2e/package/test/inspection-public-entry.test.ts",
+    "e2e/package/test/package.test.ts"
+  ],
+  "cases": [
+    {
+      "executor": "vitest",
+      "repo": "package",
+      "path": "e2e/package/test/inspection-public-entry.test.ts",
+      "titlePath": [
+        "安装后的 Inspection 入口在 ESM、CommonJS 与浏览器模块图中只交付纯协议"
+      ],
+      "caseId": "neref_59b523da75db8c3c90559d55e7bcc006"
+    },
+    {
+      "executor": "vitest",
+      "repo": "package",
+      "path": "e2e/package/test/package.test.ts",
+      "titlePath": [
+        "pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 CLI Journey"
+      ],
+      "caseId": "neref_68937a313f7c9f25f48154a525450b55"
+    }
+  ],
+  "unassignedCases": [],
+  "bodyExecutions": 0,
+  "forbiddenSetupExecutions": 0,
+  "findings": [],
+  "digest": "sha256:3b9c048285ce9aea5665c81a21cb830d0d40bbcf475630089320f7bc57947f18",
+  "exit": 0,
+  "signal": null
+}

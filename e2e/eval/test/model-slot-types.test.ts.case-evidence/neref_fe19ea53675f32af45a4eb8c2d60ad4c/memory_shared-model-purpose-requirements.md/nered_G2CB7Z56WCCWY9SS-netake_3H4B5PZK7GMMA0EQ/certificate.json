@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/eval/test/model-slot-types.test.ts#neref_fe19ea53675f32af45a4eb8c2d60ad4c",
+  "caseId": "neref_fe19ea53675f32af45a4eb8c2d60ad4c",
+  "candidateSha256": "5c69114b738ffdee986699c6cb33d590a2982f2c9b926dc981ae9b5225f95a6e",
+  "sourceDigest": "sha256:24da06a9f161f1c13d0058b600b8ba4ac33d6db1f11405d5e64a2e343205d2b1",
+  "greenReceipt": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-1.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-2.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-4.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-6.json",
+    "singleCase": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/green.json",
+    "cleanup": [
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/green.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-1.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-2.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-3.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-4.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-5.json",
+      "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "7ef342f25a5d9d3151443b75039abcc20488d87f8544f698bd0bf52c6f01101f"
+}

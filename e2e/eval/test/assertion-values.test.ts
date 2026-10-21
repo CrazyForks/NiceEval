@@ -66,6 +66,7 @@ function assertionOutcomeMap(entries: readonly { display: unknown; decision: unk
   }));
 }
 // @feature docs/feature/assertions/README.md
+// @regression memory/project-numeric-material-shims.md
 
 test.concurrent("值与连续 Match 登记可审阅的检查结果", async () => {
   const startedAt = performance.now();

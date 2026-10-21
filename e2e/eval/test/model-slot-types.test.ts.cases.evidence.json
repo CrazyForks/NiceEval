@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_fe19ea53675f32af45a4eb8c2d60ad4c": {
+      "memory/shared-model-purpose-requirements.md": {
+        "red": {
+          "path": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/red.json",
+          "digest": "sha256:7f3993ad6019ba8c541d8bbebb7d5453896dd666f6cb21056a8695bfafca6c85"
+        },
+        "green": {
+          "path": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/green.json",
+          "digest": "sha256:55afd42aaea3faa4b6f9cb04fbce67a1334b28c9f3fcc278e2381c10f6d890c6"
+        },
+        "certificate": {
+          "path": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/certificate.json",
+          "digest": "sha256:e7533b40ac824cb01d9535b41d0619dc80f35781e5d7f199c842f82250ca2607"
+        },
+        "inventory": {
+          "path": "e2e/eval/test/model-slot-types.test.ts.case-evidence/neref_fe19ea53675f32af45a4eb8c2d60ad4c/memory_shared-model-purpose-requirements.md/nered_G2CB7Z56WCCWY9SS-netake_3H4B5PZK7GMMA0EQ/inventory.json",
+          "digest": "sha256:ccb3606ce8025484abc27a36f9ef03b4a904b8e75a15feee2b95df1952e0e804"
+        }
+      }
+    }
+  }
+}
