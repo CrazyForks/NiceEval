@@ -9,30 +9,33 @@ createdAtSource:
   commit: 7871a6b3939fef8c750ce18e733603a40afa22c7
 kind: engineering
 ---
+
 # Repository Tools
 
-维护 CLI 由 NiceEval 与中立 `concord-sdlc` engine 组合。Concord 拥有 docs/test/trace/memory 等中立治理 contribution。
+中立治理命令直接由全局 `concord` 提供。NiceEval 的 Feature、Test、Trace、Memory 与 Feedback 使用 `concord repo` repository profile，保留现有参数、关系与 formal evidence 语义。
 
-`@niceeval/repo-tools` 拥有 Preview、Examples、下游链接、Repository setup、PR，以及文档 generators/site/reference/diff-code/work 等 NiceEval 产品流程。最终 CLI 也由 NiceEval 组合。
+`@niceeval/repo-tools` 拥有 Preview、Examples、下游链接、Repository setup、PR，以及文档 generators/site/reference/diff-code/work 等 NiceEval 产品流程。NiceEval CLI 只组合这些自有流程，不转发 Concord 自身的领域命令。
 
 当前测试关系使用源码注释，新正式证据使用 `concord.native-reliability/v1`，历史证据原样保留。
 
-`concord.repository.json` 指向 NiceEval 自己的 E2E host。真实 candidate、Testkit、inventory 与 formal evidence 仍由 `packages/e2e-runner` 执行；Concord 原生模式的命令收据不能替代 formal evidence。安装版本不一致时 CLI 拒绝执行，请使用仓库内的 pnpm 入口。
+`concord.repository.json` 指向 NiceEval 自己的 E2E host。真实 candidate、Testkit、inventory 与 formal evidence 仍由 `packages/e2e-runner` 执行；Concord 原生模式的命令收据不能替代 formal evidence。CLI 与库都固定为 0.12.0；repository host 还会验证实现身份。
 
-NiceEval 文档流程从字面入口 `pnpm run repo docs` 进入；pnpm 的内建命令会截获相近的缩写，因此所有文档、Skill、workflow 与 help 检查都使用这一完整形式。
+NiceEval 自有文档生成与站点流程从字面入口 `pnpm run repo docs` 进入。Concord 命令直接写作 `concord ...`，不保留 pnpm 别名、启动包装或额外版本检查包装。
 
 ## 安装与按需指引
 
-仓库锁定 vendored 发行包 `vendor/concord/concord-sdlc-0.10.0.tgz`，根包、repo-tools 与 e2e-runner 使用各自
-相对路径的 `file:` dependency，lockfile 保存 integrity。`pnpm install --frozen-lockfile` 安装同一包；
-离线安装仍要求其它依赖已在 pnpm cache 中。Git checkout 或全局 link 不替代仓库锁定的 engine。
+全局 CLI 安装固定的 [Concord 0.12.0 Release](https://github.com/CorrectRoadH/Concord/releases/tag/v0.12.0)。根包、repo-tools 与 e2e-runner 的库依赖直接使用该 Release 的 `concord-sdlc-0.12.0.tgz` URL；仓库不存放发行 tarball，pnpm lockfile 记录其 integrity。
+
+发行 SHA-256 为 `9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556`。CI 下载后校验摘要，将包解到仓库外，用包内 lockfile 安装生产依赖，再将全局 `concord` 加入 PATH。macOS 可使用 Concord 官方 Homebrew tap，但须用 `concord --version` 确认所需版本；后续 tap 升级不能自动改变本仓库依赖。
+
+`pnpm install --frozen-lockfile` 安装库依赖。生产代码只保留解析、关系校验、host 与证据所需的库函数；CLI 调用直接使用 `concord`。pnpm 组合脚本内也直接写 `concord docs check`。
 
 ```sh
-pnpm exec concord --skill
-pnpm exec concord --skill repository
-pnpm run repo docs test --help
-pnpm run repo docs test regression refresh --help
-pnpm run repo docs test audit --json
+concord --skill
+concord --skill repository
+concord repo docs test --help
+concord repo docs test regression refresh --help
+concord repo docs test audit --json
 ```
 
 `--skill` 只输出短入口，按 topic 读取具体命令，`--skill all` 才展开全文。它不加载 host 或执行 runner。
@@ -42,11 +45,12 @@ pnpm run repo docs test audit --json
 
 升级步骤只在本节维护：
 
-1. 从 Concord GitHub Release 取得新版本 tarball，核对发行 SHA-256，放入 `vendor/concord/` 并删除旧版本文件；
-2. 更新根包、`packages/repo-tools` 与 `packages/e2e-runner` 三处 `file:` dependency，重新生成 lockfile；
-3. 用 `pnpm exec concord --version` 确认版本，再验证公开 CLI、host identity、原生 audit 与 `pnpm lint`。
+1. 从 Concord GitHub Release 取得新版本 tarball，核对发行 SHA-256，并同步安装该版本的全局 CLI；
+2. 更新根包、`packages/repo-tools` 与 `packages/e2e-runner` 三处 Release URL dependency，重新生成 lockfile，并确认 integrity 对应同一发行文件；
+3. 同步 CI 的固定版本 URL 与 SHA-256，按受管命令迁移 writing policy，评估新字段对实际消费者的影响；
+4. 用 `concord --version`、`concord check`、repository profile 的公开命令、host identity、`pnpm lint`、`pnpm typecheck` 与 `pnpm test` 验证。`concord repo docs test audit --json` 会打包候选并执行 inventory，只在获准运行正式 E2E 的环境执行。
 
-包内实现及 skill 可独立读取，不依赖 Concord checkout、全局安装或未发布远端版本。
+0.12.0 的 writing policy 使用 `concord.writing/v3`；本次只迁移格式，不开启 controlled 检查。原生模式新增 stepGroups、analysis 与 `concord.native-evidence/v2`，现有 NiceEval formal host 仍消费 `concord.native-case-receipt/v1` 和 `concord.native-reliability/v1`。原生 observation 的 `observed`、存在关联或 analysis 结果都不代表 formal pass；采用步骤级证据时必须同时判断 current、complete 与 gaps。
 
 ## 组合边界
 
@@ -64,19 +68,19 @@ Docs contribution 只把显式领域挂到 `pnpm run repo docs` 下，也不解�
 
 没有 generic CRUD、中央 command registry、统一 receipt 或 `DocsTransaction`。需要同一份关系事实的领域复用有名字的 Trace ref/checker；需要文件、时钟、Git 或终端的领域各自在自己的 Effect 边界取得 `Context.Service`。共享机械代码进入 `internal/`，不能反过来夺走领域 owner。
 
-## 当前 Docs contribution
+## 当前命令入口
 
 所有可运行命令与精确参数以相应的 `--help` 为准：
 
 | 领域 | 入口 | 当前职责 |
 |---|---|---|
-| Feature | `pnpm run repo docs feature --help` | 发现、显示，并通过 `create`、`page add`、`page set` 维护 Feature 结构 |
-| Test | `pnpm run repo docs test --help` | 发现与显示 E2E owner 的 Trace 投影，并通过 `case`、`regression`、`issue` 子命令维护受管关系；不是 Unit test runner |
-| Use Case | `pnpm run repo docs use-case --help` | 在既有 Feature 下创建叶子 Use Case 并维护父用例索引 |
-| Trace | `pnpm run repo docs trace recover --help` | 显式恢复中断的 relation publication |
-| Design | `pnpm run repo docs design --help` | `create`、`check`、`decide` 的候选到裁决闭环 |
-| Research | `pnpm run repo docs research --help` | `page`、`package`、`add-page` 与对精确 ref 的 `check` |
-| Concepts / Writing | `pnpm exec concord concepts --help`、`pnpm exec concord writing --help` | 维护目录术语与写作政策；`pnpm exec concord docs check --json` 检查正文 |
+| Feature | `concord repo docs feature --help` | 发现、显示，并通过 `create`、`page add`、`page set` 维护 Feature 结构 |
+| Test | `concord repo docs test --help` | 发现与显示 E2E owner 的 Trace 投影，并通过 `case`、`regression`、`issue` 子命令维护受管关系；不是 Unit test runner |
+| Use Case | `concord repo docs use-case --help` | 在既有 Feature 下创建叶子 Use Case 并维护父用例索引 |
+| Trace | `concord repo docs trace recover --help` | 显式恢复中断的 relation publication |
+| Design | `concord repo docs design --help` | `create`、`check`、`decide` 的候选到裁决闭环 |
+| Research | `concord repo docs research --help` | `page`、`package`、`add-page` 与对精确 ref 的 `check` |
+| Concepts / Writing | `concord concepts --help`、`concord writing --help` | 维护目录术语与写作政策；`concord docs check --json` 检查正文 |
 | Work | `pnpm run repo docs work --help` | 准备、核对和收尾互斥的文档工作项 |
 | Reference | `pnpm run repo docs reference --help` | 核对或重生成公开 API reference 区块 |
 | Diff code | `pnpm run repo docs diff-code --help` | 核对或重生成接入示例前后对照页 |
@@ -89,7 +93,7 @@ Site 的四个操作共用 Node 24 选择逻辑。当前进程为 Node 24 时直
 候选必须通过实际版本检查，选中目录只加入 Mint 子进程的 `PATH`，不修改用户 shell 或安装全局工具。
 找不到 Node 24 时命令失败，并提示安装或设置显式目录。
 
-Test inventory 的单 Repo 入口是 `pnpm run repo docs test inventory --repo <id>`。它与全仓 `audit` 共用 E2E registry、隔离复制、candidate/Testkit 注入、安装和原生 collection，只返回当前 CLI 可消费的 Git-private `neinv_...` ID。formal evidence 与 regression 关系只接收该 ID，不接收任意 receipt 路径。
+Test inventory 的单 Repo 入口是 `concord repo docs test inventory --repo <id>`。它与全仓 `audit` 共用 E2E registry、隔离复制、candidate/Testkit 注入、安装和原生 collection，只返回当前 CLI 可消费的 Git-private `neinv_...` ID。formal evidence 与 regression 关系只接收该 ID，不接收任意 receipt 路径。
 
 inventory 文件没有公开 format 或兼容期，也不是可编辑输入；CLI 实现变化、完整性检查失败或 ID 丢失时重新 collection。底层 runner adapter 不作为独立 CLI 暴露 `--cwd` collection。
 
@@ -98,11 +102,11 @@ Formal case evidence 使用同一边界：root runner 的 red 和 takeover 命�
 
 Git-private bundle 持有 candidate bytes、native receipts 和 reliability certificate。`regression add` 和 `regression refresh` 只消费这些 ID 与 `neinv_...`。不接受任意 evidence 文件路径。实现变化或 bundle 完整性失败时重新运行 root runner，不修补 JSON 或 digest。
 
-Feedback、Memory、PR、Examples、下游开发链接、Preview 与 Repository setup 保持各自的非 Docs 入口。准确入口是 `pnpm feedback`、`pnpm memory`、`pnpm pr:body`、`pnpm examples:sync`、`pnpm dev:link`、`pnpm preview:build`、`pnpm preview:accept` 与 `pnpm repo:setup`。`pnpm link` 是 pnpm 自带的反向链接命令，不能作为仓库脚本；构建并链接当前 candidate 使用 `pnpm dev:link <directory>`。
+Feedback、Memory、PR、Examples、下游开发链接、Preview 与 Repository setup 保持各自的非 Docs 入口。准确入口是 `concord repo feedback`、`concord repo memory`、`pnpm pr:body`、`pnpm examples:sync`、`pnpm dev:link`、`pnpm preview:build`、`pnpm preview:accept` 与 `pnpm repo:setup`。`pnpm link` 是 pnpm 自带的反向链接命令，不能作为仓库脚本；构建并链接当前 candidate 使用 `pnpm dev:link <directory>`。
 
 PR 正文入口 `pnpm pr:body` 拥有受模板约束的 Git-private 编辑状态；子命令、字段语义与发布边界见 [Pull Request skill](../../../.agents/skills/pull-request/SKILL.md) 与 `pnpm pr:body --help`。
 
-`pnpm run repo docs use-case create` 在显式指定的既有 Feature 下创建一个叶子 Use Case。
+`concord repo docs use-case create` 在显式指定的既有 Feature 下创建一个叶子 Use Case。
 调用者提供单段名称、标题与完整 Markdown 正文；工具拒绝路径穿越、已有目标、正文 metadata 和生成区。
 工具拥有 `use-case` frontmatter，并在同一次 Trace publication 中写入叶子和父用例索引。
 缺少父 Feature 或既有用例索引时零写入失败，不隐式创建 package 或分组目录。
@@ -114,8 +118,8 @@ Markdown 只解释关系与案例；API 示例规则由 `lint/docs/public-api-ex
 
 Roadmap 与 Engineering 的结构写入也使用 Concord 基础 CLI 的受管入口：
 
-- `pnpm exec concord roadmap create/list/show/page/adopt`，参数见 `pnpm exec concord roadmap --help`；
-- `pnpm exec concord engineering create/list/show/page`，参数见 `pnpm exec concord engineering --help`。
+- `concord roadmap create/list/show/page/adopt`，参数见 `concord roadmap --help`；
+- `concord engineering create/list/show/page`，参数见 `concord engineering --help`。
 
 通用 Trace `check` / `move` 仍是未来目标。Feature 的结构写入只包括 `create`、`page add` 与 `page set`；Use Case 由独立领域创建。这些入口都不提供 retire、物理删除或 move，也不能以手抄模板、手动 relation 改写或假 receipt 代替。
 
@@ -129,7 +133,7 @@ Roadmap 与 Engineering 的结构写入也使用 Concord 基础 CLI 的受管入
 任务意图
   → 最近的 AGENTS.md 路由
   → 对应 Skill 的触发条件与工作流
-  → pnpm run repo docs <domain> --help
+  → concord <domain> --help 或 pnpm run repo docs <NiceEval domain> --help
   → pnpm lint 验证文档与接线
 ```
 
@@ -139,7 +143,7 @@ AGENTS 只说明从哪里开始，不复制参数。Skill 保存判断顺序、�
 
 统一 lint 从当前事实检查接线，而不维护另一份 command registry：
 
-1. 从根 package script 读取并确认 `pnpm run repo docs` 入口；
+1. 从根 package script 确认 NiceEval 自有入口；Concord 领域直接调用 `concord`；
 2. 从 `.agents/skills/*/SKILL.md` 的 `command` 与 `design` frontmatter 读取多步工作流 owner；
 3. 验证每个 Skill command 可运行 `--help`，且离线、只读并成功退出。只读在隔离副本中证明：lint 把当前 HEAD 的
    受跟踪文件导出到临时目录，链接现有依赖，在副本里运行全部 `--help`，再比较副本运行前后的完整内容摘要；
@@ -160,7 +164,7 @@ AGENTS 只说明从哪里开始，不复制参数。Skill 保存判断顺序、�
 
 ## 脚本与平台边界
 
-根 `scripts/` 是迁移输入，不是长期 owner。NiceEval Docs 命令从 `pnpm run repo docs` 进入，中立文档治理使用 `pnpm exec concord`；不保留旧别名。`e2e/scripts/` 仍是 host-side E2E runner，入口为 `pnpm e2e`；产品 runtime 留在 `packages/niceeval`；lint adapter 留在 `lint/**`。
+根 `scripts/` 是迁移输入，不是长期 owner。NiceEval Docs 命令从 `pnpm run repo docs` 进入，中立文档治理使用 `concord`；不保留旧别名。`e2e/scripts/` 仍是 host-side E2E runner，入口为 `pnpm e2e`；产品 runtime 留在 `packages/niceeval`；lint adapter 留在 `lint/**`。
 
 YAML、Netlify 配置和 hooks 只决定平台何时调用正式命令、传入哪些可信参数，以及如何保存 artifact。选择、校验、生成、重试、领域 receipt 与错误呈现都属于 domain contribution。平台文件不得复制文件列表、状态机或成功判定。
 

@@ -42,7 +42,7 @@ p5.js 源码和资源放在主题自己的 assets 目录，从正文链接。固
 
 ## 验收与交接
 
-迁移后运行 `pnpm exec concord check --json` 与 `pnpm memory check --json`。测试关系变更还需新鲜的 native collection 与 `pnpm run repo docs test audit --json`，分别核对缺少测试关联的用例、未关联 case、缺失关系及孤立关系。
+迁移后运行 `concord check --json` 与 `concord repo memory check --json`。测试关系变更还需新鲜的 native collection 与 `concord repo docs test audit --json`，分别核对缺少测试关联的用例、未关联 case、缺失关系及孤立关系。
 
 运行 `pnpm typecheck` 和 `pnpm lint`。涉及运行时行为的合并，用安装后的候选公开入口执行最小 E2E 切片；collection 和关系校验不证明运行结果。
 

@@ -32,13 +32,13 @@ Inspection selector。相应边界内部才取得 Scope、Layer、lease、reader
 |---|---|
 | Repository root 的 argv、`effect/unstable/cli` command tree、Layer、进程交付与唯一 `@effect/platform-node` `NodeRuntime.runMain` | `packages/repo-tools/src/cli.ts` |
 | `docs` contribution 的装配与显式 domain contribution protocol | `packages/repo-tools/src/docs/{command,contribution}.ts` |
-| Feature/Test Trace Schema、compiler、固定投影与各自 domain renderer | `packages/repo-tools/src/docs/{feature-command,test-command}.ts` 与 `packages/repo-tools/src/docs/trace/` |
-| canonical RepoRef、target validation 与 Trace relation mutation 的共享锁/generation | `packages/repo-tools/src/docs/trace/{ref,relation-mutation}.ts` |
-| 当前 Issue owner、adoption、Memory relation 与远端 source | `packages/repo-tools/src/feedback/` |
-| 当前 Memory、promotion、supersession 与 E2E regression check | `packages/repo-tools/src/memory/` |
+| Feature/Test Trace Schema、compiler、固定投影与各自 domain renderer | Concord 的 `concord repo docs feature/test` 与 Trace 库入口 |
+| canonical RepoRef、target validation 与 Trace relation mutation 的共享锁/generation | Concord 的 repository Trace 库入口 |
+| 当前 Issue owner、adoption、Memory relation 与远端 source | Concord 的 `concord repo feedback` |
+| 当前 Memory、promotion、supersession 与 E2E regression check | Concord 的 `concord repo memory` |
 
-这些命令属于仓库自身，不进入发布的 `niceeval` 产品 CLI。文档查询与维护入口从 `pnpm run repo docs` 进入：Feature/Test 发现分别是 `pnpm run repo docs feature` 与 `pnpm run repo docs test`；
-Feedback 与 Memory 仍各自使用 `pnpm feedback` 与 `pnpm memory`。领域 handler 返回结构化 receipt，只有根 `cli.ts` 读取 argv、写 stdout/stderr 和设置退出码。
+这些命令属于仓库自身，不进入发布的 `niceeval` 产品 CLI。中立治理直接从全局 `concord` 进入，NiceEval 自有文档生成从 `pnpm run repo docs` 进入：Feature/Test 发现分别是 `concord repo docs feature` 与 `concord repo docs test`；
+Feedback 与 Memory 仍各自使用 `concord repo feedback` 与 `concord repo memory`。领域 handler 返回结构化 receipt，只有根 `cli.ts` 读取 argv、写 stdout/stderr 和设置退出码。
 
 ## 运行与持久事实
 
@@ -53,6 +53,7 @@ Feedback 与 Memory 仍各自使用 `pnpm feedback` 与 `pnpm memory`。领域 h
 | Runner source-receipt capture authority 与 normalization | `packages/niceeval/src/runner/source-receipts/` 与 `packages/niceeval/src/runner/source-producer.ts` |
 | Observability source family | Adapter terminal Turn 进入 `niceeval.agent-turns`；SessionManager context 进入 `niceeval.turn-contexts`；Sandbox wrapper 进入 `niceeval.sandbox-commands`；Runner clock / diagnostic sink 分别进入 `niceeval.runner-activities` 与 `niceeval.runner-diagnostics`。通用领域事件进入 `niceeval.execution-traces` collection。实现落点以 `packages/niceeval/src/{agents,sandbox,runner,record}/` 的 capture boundary 与 family declaration 为准。 |
 | Adapter 通用轨迹接纳与原始证据闭合 | `packages/niceeval/src/adapter-execution-trace.ts` 拥有公开输入与 receipt；`runner/adapter-execution-trace.ts` 接纳快照；`record/family/execution-traces/` 拥有原生 collection。Inspection 固定 operation 统一提供摘要与精确 Evidence 读取，不执行领域作者展示代码。 |
+| 模型用途 role 的声明与冻结选择 | `packages/niceeval/src/model-roles.ts`；`runner/adapter-usage.ts` 将公开 `modelRole` 映射至历史持久字段；`o11y/adapter-usage-projection.ts` 映射回公开输出。 |
 | Adapter 调用用量与单一 effective cost | `packages/niceeval/src/adapter-usage.ts` 拥有公开输入；`runner/adapter-usage.ts` 接纳快照并封存 configured price proof；`record/family/adapter-usage/` 拥有 revision、校验与 V1 只读投影；`inspection/{trace,overview}.ts` 拥有 call-level selector 与父级聚合。 |
 | Observability reader-side fixed projection 与 source navigation | `packages/niceeval/src/inspection/{protocol,facts,select,sources}.ts` 与内部 source relation adapter：facts reader 与 pure selector 形成 closed source result；不形成用户可注册的统计层 |
 | Assertions current semantic entry 与有界 collection receipt | `packages/niceeval/src/assertions/{api,runtime,match}.ts`、`packages/niceeval/src/assertions/record/` 与 `packages/niceeval/src/record/family/assertions/{definition,persistence,schema,validate}.ts`；持久格式升级随全库版本进入 `packages/niceeval/src/record/sqlite/migration.ts`，不保留 family 级迁移链 |

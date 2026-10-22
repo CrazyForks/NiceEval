@@ -18,7 +18,7 @@
 
 ## 当前闭环
 
-从 `pnpm run repo docs design --help` 进入当前命令。`create` 创建外层与候选 Plan，`check` 只检查指定 Design 的结构和关系，`decide` 把一个直接 Plan 写为 `selectedPlan` 并写入裁决。参数与准确 selector 只以 `--help` 为准；不手工复制 [Design Decision](../_template/design-decision/README.md) 或 [Feature Design Package](../_template/feature-design/README.md) 模板。
+从 `concord repo docs design --help` 进入当前命令。`create` 创建外层与候选 Plan，`check` 只检查指定 Design 的结构和关系，`decide` 把一个直接 Plan 写为 `selectedPlan` 并写入裁决。参数与准确 selector 只以 `--help` 为准；不手工复制 [Design Decision](../_template/design-decision/README.md) 或 [Feature Design Package](../_template/feature-design/README.md) 模板。
 
 刚创建的 Design 可以没有 `selectedPlan`：这表示候选尚未裁决，而不是缺损。`decide` 成功后该字段必须指向一个直接 `PLAN-N/README.md`，此时才表示已经裁决。被选 Plan 的标题、`DECISION.md` 中的普通链接和正文描述帮助人阅读，不能取代这个 typed ref。
 

@@ -12,7 +12,7 @@
 
 ## 当前闭环
 
-独立研究页使用 `concord.document/v1` Research metadata，原路径就是身份。纯导航和收据仍为 supporting 页面，不重复计为研究 owner。`pnpm exec concord research list` 与页面从同一 metadata 发现条目；profile 入口见 `pnpm run repo docs research --help`。
+独立研究页使用 `concord.document/v1` Research metadata，原路径就是身份。纯导航和收据仍为 supporting 页面，不重复计为研究 owner。`concord research list` 与页面从同一 metadata 发现条目；profile 入口见 `concord repo docs research --help`。
 
 `observedAt` 只保存原文明确观察日期，未声明时可省略。Git 首次登记时间由 `createdAtSource` 明示，不能充当研究日期。check 验证结构与归属，不联网、不证明引文或研究判断为真，也不代表研究已成为当前目标契约。
 

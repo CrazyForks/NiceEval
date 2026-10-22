@@ -9,13 +9,14 @@ createdAtSource:
   commit: 7871a6b3939fef8c750ce18e733603a40afa22c7
 kind: engineering
 ---
+
 # Feedback 与 Memory
 
 Research、Memory 和本地 Issue 统一使用 Concord 最新文档模型。类型与严格 Schema 由锁定包的 `concord-sdlc/model` 导出。普通命令只读写 `concord.document/v1`，不读取旧格式或维护历史兼容列表。
 
 ## Feedback
 
-本地观察的唯一 owner 是 `docs/issues/<id>.md`，`pnpm feedback` 与 Concord 页面读取同一批文件。旧 `feedback/<id>/README.md` 已通过一次性移动迁出，不保留第二份 owner。`origin` 保留 dev／dogfood provenance，`source` 仅保存实际 GitHub／Linear 远端 provenance 快照，二者不互相冒充。
+本地观察的唯一 owner 是 `docs/issues/<id>.md`，`concord repo feedback` 与 Concord 页面读取同一批文件。旧 `feedback/<id>/README.md` 已通过一次性移动迁出，不保留第二份 owner。`origin` 保留 dev／dogfood provenance，`source` 仅保存实际 GitHub／Linear 远端 provenance 快照，二者不互相冒充。
 
 `memoryRelations` 的每个条目保存 investigation、root-cause、decision 或 delivery 角色，以及 canonical Memory 路径。`adoptions.current/history` 保存精确契约引用及退役历史。反向关系统一派生，不另建注册表。
 
@@ -23,17 +24,17 @@ Research、Memory 和本地 Issue 统一使用 Concord 最新文档模型。类�
 
 `closure` 保存 fixed、delivered、duplicate、declined、invalid、external-fixed 或普通 closed 原因。fixed 关联 resolution 已为 fixed 的 Problem；delivered 关联交付 Memory 与已采用目标；declined 关联当前 Decision；duplicate 指向唯一 canonical Issue。duplicate／declined／invalid 前须明确退役 current adoptions。历史关闭声明不会生成新的执行证据。后续问题重开不静默改写 Issue 历史。
 
-`pnpm feedback close --help` 给出各 kind 的具名参数。新公开工作项由 Issue 流程处理；本地创建、关闭或同步都不授权远端写入。
+`concord repo feedback close --help` 给出各 kind 的具名参数。新公开工作项由 Issue 流程处理；本地创建、关闭或同步都不授权远端写入。
 
 ### 远端接入
 
 在消费仓库配置 GitHub 读取范围：
 
 ```sh
-pnpm exec concord feedback connection add --id niceeval-github --provider github --owner NiceEval --repo NiceEval --credential-env GITHUB_TOKEN
+concord feedback connection add --id niceeval-github --provider github --owner NiceEval --repo NiceEval --credential-env GITHUB_TOKEN
 ```
 
-凭据只引用进程变量名。`pnpm exec concord feedback sync --connection niceeval-github` 显式读取远端。同步不是发布 GitHub Issue，历史 dev／dogfood 也不会被伪造为远端 Issue。
+凭据只引用进程变量名。`concord feedback sync --connection niceeval-github` 显式读取远端。同步不是发布 GitHub Issue，历史 dev／dogfood 也不会被伪造为远端 Issue。
 
 ## Memory
 
@@ -53,9 +54,9 @@ Repository epoch 表示核验与绑定时的生命周期，不声称 runner 在�
 
 ## 命令与一致性
 
-`pnpm memory`、`pnpm feedback` 和 `pnpm exec concord` 共用当前 schema。读、写、检查、迁移及恢复共享同一 publication lock；发现未完成 journal 时先按具名错误恢复。dry-run 不写用户文件或证据缓存，可以建立 Git-private 协调锁文件。
+`concord repo memory`、`concord repo feedback` 和 `concord` 共用当前 schema。读、写、检查、迁移及恢复共享同一 publication lock；发现未完成 journal 时先按具名错误恢复。dry-run 不写用户文件或证据缓存，可以建立 Git-private 协调锁文件。
 
-使用 `--help` 获取当前具名参数；运行 `pnpm memory check`、`pnpm feedback check` 与 `pnpm exec concord check` 检查结构和关系。检查成功不等于原生 E2E 测试涉及范围或历史修复在当前工作区仍有效。
+使用 `--help` 获取当前具名参数；运行 `concord repo memory check`、`concord repo feedback check` 与 `concord check` 检查结构和关系。检查成功不等于原生 E2E 测试涉及范围或历史修复在当前工作区仍有效。
 
 ## 迁移审计
 

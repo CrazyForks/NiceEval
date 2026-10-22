@@ -14,9 +14,9 @@
 全项目术语、定义文件和作用范围由 Concord 只读汇总：
 
 ```sh
-pnpm exec concord concepts index --json
-pnpm exec concord concepts show --path docs/concepts.json --json
-pnpm exec concord writing index --json
+concord concepts index --json
+concord concepts show --path docs/concepts.json --json
+concord writing index --json
 ```
 
 目录中的稳定 ID 表示概念身份。中文与英文的 preferred 是正文首选写法；aliases 是允许的名称，deprecated 才派生禁词。
@@ -54,7 +54,7 @@ Member 将两者关联；历史结果沿用时，新的 Run 引用既有 Attempt
 ## 禁用写法
 
 不需路径豁免的弃用名由 Concord 派生禁词。需要保护历史原话的 0.19 弃用规则在写作政策中声明，并引用对应 concept；不同时保留无豁免的目录裁决。
-维护步骤见 [Documentation terminology skill](../.agents/skills/docs-terminology/SKILL.md)，检查入口为 `pnpm exec concord docs check --json`。
+维护步骤见 [Documentation terminology skill](../.agents/skills/docs-terminology/SKILL.md)，检查入口为 `concord docs check --json`。
 需要讨论旧词本身时使用行内代码；不要把历史拼写重新当作当前正文用语。
 
 ## 相关阅读

@@ -1,7 +1,7 @@
 # <决策主题名> —— Design Decision
 
 这是 `docs/design/<name>/` 的决策外层模板。
-使用 `pnpm run repo docs design create --help` 确认参数，再由 `pnpm run repo docs design create` 创建外层与 `plans/plan-N/` 候选。
+使用 `concord repo docs design create --help` 确认参数，再由 `concord repo docs design create` 创建外层与 `plans/plan-N/` 候选。
 每个 PLAN 都是完整 Feature Design Package,不得依赖另一 PLAN 才能成立。
 写完删掉本说明段。
 

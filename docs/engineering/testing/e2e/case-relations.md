@@ -56,14 +56,14 @@ Issue 保存验证得到的 repository、number、url、nodeId、titleDigest、c
 
 ## 按需命令指引
 
-`pnpm exec concord --skill repository` 输出此 profile 的操作入口。`concord --skill` 是简短路由，
+`concord --skill repository` 输出此 profile 的操作入口。`concord --skill` 是简短路由，
 `concord --skill <topic>` 按任务读取，`concord --skill all` 才展开全部指引。
 帮助和 skill 阅读不加载产品 host、不执行测试，也不修改仓库。
 
 ## CLI 与具名生命周期
 
 ```text
-pnpm run repo docs test
+concord repo docs test
 ├── list [pattern] [--json] [--history]
 ├── show <path#caseId> [--json] [--history]
 ├── inventory --repo <id> [--json]  # returns neinv_...
@@ -162,7 +162,7 @@ identity、manifest 与 Issue CAS 写 journal 并 fsync。所有 files 同文件
 只有全部 planned bytes 可复算且 generation durable replace 成功才 committed；history 共享 transactionId/commit。
 
 阶段为 `prepared → publishing → generation-committed → cleanup`。读命令见 journal 返回 RecoveryRequired。
-显式 `pnpm run repo docs trace recover` 在 exclusive lease 下执行恢复。
+显式 `concord repo docs trace recover` 在 exclusive lease 下执行恢复。
 
 generation 未提交时，只有 bytes/preimages/HEAD/index/mode/manifest 全匹配才能恢复完整旧状态。
 generation 已提交时，只有全部 planned digest 匹配才能完成新状态。额外 path、symlink、外部编辑、缺失 preimage 或

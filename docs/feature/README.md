@@ -12,7 +12,7 @@ query 或 View 交付；它不是作者可扩展的中间层。
 Feature 身份不声明同一时刻的源码状态；它表示后续实现与评审只能以这里的唯一目标为准。
 文档先行产生的 gap 只允许暂时存在，后续代码必须与 Feature 一致。
 
-查询入口是 `pnpm run repo docs feature list` 与 `pnpm run repo docs feature show`。结构写入从 `pnpm run repo docs feature create --help` 与 `pnpm run repo docs feature page --help` 进入。
+查询入口是 `concord repo docs feature list` 与 `concord repo docs feature show`。结构写入从 `concord repo docs feature create --help` 与 `concord repo docs feature page --help` 进入。
 
 ## Feature 首期结构写入
 
@@ -21,7 +21,7 @@ Feature 身份不声明同一时刻的源码状态；它表示后续实现与评
 首期不含 Feature retire、物理 delete、move 或 Roadmap adopt；这些名称不能被当作 CRUD 快捷方式，因为历史 package、relations 与 publication evidence 必须保留。
 
 `page set <feature> overview` 更新既有 Feature 首页正文，保留节点 metadata；`page add` 不重复创建首页。
-叶子 Use Case 从 `pnpm run repo docs use-case create --help` 进入。
+叶子 Use Case 从 `concord repo docs use-case create --help` 进入。
 它在已有 Feature 和用例索引下发布正文、节点 metadata 与可发现链接，不由 Feature 页面命令或手工建目录替代。
 Roadmap 与 Design 候选也使用这套正文文件；Feature 与 Roadmap 的正文都是已裁决的目标契约。
 

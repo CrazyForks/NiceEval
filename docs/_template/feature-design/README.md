@@ -7,7 +7,7 @@
 - `docs/roadmap/<name>/`：已经定稿、尚未采用为当前契约的方向。
 - `docs/design/<decision>/plans/plan-N/`:参与同一决策比较的自包含候选。
 
-Feature 从 `pnpm run repo docs feature create --help` 进入，Design 从 `pnpm run repo docs design create --help` 进入。Roadmap 的受管结构写入尚未提供；命令出现前不手工复制本模板。
+Feature 从 `concord repo docs feature create --help` 进入，Design 从 `concord repo docs design create --help` 进入。Roadmap 的受管结构写入尚未提供；命令出现前不手工复制本模板。
 
 只有 `README.md` 必备。
 `architecture.md`、`lifecycle.md`、`cli.md`、`library.md` 与 `use-case/` 按功能形态选用,不为凑结构留空文档。

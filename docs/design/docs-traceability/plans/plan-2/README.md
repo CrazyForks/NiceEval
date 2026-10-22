@@ -2,7 +2,7 @@
 
 ## 解决的问题
 
-本方案在现有 owner 处补最少的类型信息。`pnpm run repo docs feature`、`pnpm run repo docs test` 与结构维护命令每次从 Git 工作树形成同一份只读 Trace Snapshot，再输出固定投影。
+本方案在现有 owner 处补最少的类型信息。`concord repo docs feature`、`concord repo docs test` 与结构维护命令每次从 Git 工作树形成同一份只读 Trace Snapshot，再输出固定投影。
 
 ## 核心心智
 
@@ -69,10 +69,10 @@ owner anchor 不是 docs-node kind，只是固定投影的 relation endpoint。�
 ## 查询面
 
 ```sh
-pnpm run repo docs feature list [pattern] [--json]
-pnpm run repo docs feature show <feature-id|repo-path> [--json]
-pnpm run repo docs test list [pattern] [--json]
-pnpm run repo docs test show <test-path> [--json]
+concord repo docs feature list [pattern] [--json]
+concord repo docs feature show <feature-id|repo-path> [--json]
+concord repo docs test list [pattern] [--json]
+concord repo docs test show <test-path> [--json]
 ```
 
 `list` 只做浅发现，并输出可原样传给同类 `show` 的 Feature ID 或 test/spec path。
@@ -91,15 +91,15 @@ JSON show receipt 使用 v2、canonical path、稳定排序与显式空数组；
 
 ## 当前 Design 与未来结构创建目标
 
-`pnpm run repo docs design create`、`pnpm run repo docs design check` 与 `pnpm run repo docs design decide` 是当前 Design 生命周期。`create` 可以产生没有 `selectedPlan` 的未裁决比较，`check` 验证现有结构和已有 selected Plan，`decide` 选择一个直接 Plan 并使该 Design 成为已裁决状态。
+`concord repo docs design create`、`concord repo docs design check` 与 `concord repo docs design decide` 是当前 Design 生命周期。`create` 可以产生没有 `selectedPlan` 的未裁决比较，`check` 验证现有结构和已有 selected Plan，`decide` 选择一个直接 Plan 并使该 Design 成为已裁决状态。
 
 以下是其它结构写入面的未来目标，不属于当前可运行查询：
 
 ```sh
-pnpm run repo docs feature create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
+concord repo docs feature create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
 pnpm run repo docs roadmap create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
 pnpm run repo docs engineering create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
-pnpm run repo docs use-case create <slug> --title <title> --parent <ref> [--dry-run] [--json]
+concord repo docs use-case create <slug> --title <title> --parent <ref> [--dry-run] [--json]
 ```
 
 模板 manifest 声明 format、适用 kind、必备/可选文件与自身 digest。template version 只进入 manifest 与 create receipt，不写入节点生命周期状态。
@@ -115,12 +115,12 @@ Design domain 按其当前 `--help` 创建外层和候选 Plan。未来 create �
 以下 move/adopt 仍是未来目标：
 
 ```sh
-pnpm run repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
+concord repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
 pnpm run repo docs roadmap adopt prepare <roadmap-ref> --to <feature-ref> [--json]
 pnpm run repo docs roadmap adopt apply --manifest <git-private-path> [--dry-run] [--json]
 ```
 
-当前恢复入口是 `pnpm run repo docs trace recover`。
+当前恢复入口是 `concord repo docs trace recover`。
 
 自动改写只处理 typed refs、生成区，以及随整个 package 移动且 referent 不变的内部相对链接。
 外部普通 Markdown links 只进入 `linkUpdateCandidates`，不自动修改；legacy Memory bytes 永远不变。
@@ -151,10 +151,10 @@ Feedback 使用 v2 多目标 current/history；Memory 每个 kind 使用一个�
 
 ## 实现 owner
 
-`packages/repo-tools/src/docs/trace/**` 拥有纯 compiler、Schema、findings、Snapshot 投影与 presentation。
+Concord 的 repository Trace 库拥有纯 compiler、Schema、findings、Snapshot 投影与 presentation。
 `packages/repo-tools/src/cli.ts` 只组装这些命令和唯一 Node runtime；Effect 层拥有文件系统、lock、journal、recovery 和 receipt。
 
-`lint/docs/**` 是直接调用 pure checker 的薄 adapter，不启动 CLI 子进程，也不复制 parser。`pnpm memory check` 复用 Snapshot 的 regression/promotion 关系，再追加 Memory 自己的状态门。
+`lint/docs/**` 是直接调用 pure checker 的薄 adapter，不启动 CLI 子进程，也不复制 parser。`concord repo memory check` 复用 Snapshot 的 regression/promotion 关系，再追加 Memory 自己的状态门。
 
 ## Cases
 

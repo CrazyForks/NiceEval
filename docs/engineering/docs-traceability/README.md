@@ -6,23 +6,24 @@ createdAt: 2026-08-23T23:19:02+08:00
 kind: engineering
 ---
 
+
 # 仓库文档追溯
 
-`pnpm run repo docs feature` 与 `pnpm run repo docs test` 是 Feature、Use Case、E2E owner、Feedback、Memory 与 Issue provenance 的日常查询入口。
+`concord repo docs feature` 与 `concord repo docs test` 是 Feature、Use Case、E2E owner、Feedback、Memory 与 Issue provenance 的日常查询入口。
 可运行能力包括 `feature list/show` 与 `test list/show`；Feedback adoption 与 Memory promotion 由各自领域命令写入。
 
 Roadmap 与 Engineering 的结构写入走 Concord 基础 CLI，参数以各自 `--help` 为准：
 
-- `pnpm exec concord roadmap create/list/show/page/adopt`
-- `pnpm exec concord engineering create/list/show/page`
+- `concord roadmap create/list/show/page/adopt`
+- `concord engineering create/list/show/page`
 
-它们使用 Concord 基础发布 journal，中断后用 `pnpm exec concord recover` 恢复。
+它们使用 Concord 基础发布 journal，中断后用 `concord recover` 恢复。
 通用 Trace `check` / `move` 仍是未来结构写入面的目标契约。
 
 Feature 结构写入包括 `feature create`、`feature page add` 与 `feature page set`，不隐式创建 package。
-叶子 Use Case 由 `pnpm run repo docs use-case create` 独立发布。
-这些入口不包含 retire、物理 delete 或 move；Roadmap adopt 只走 `pnpm exec concord roadmap adopt`。
-Trace 的 `pnpm run repo docs trace recover` 从各 owner 正向关系恢复 publication，不保存中央 Registry，也不改变 Nx affected graph。
+叶子 Use Case 由 `concord repo docs use-case create` 独立发布。
+这些入口不包含 retire、物理 delete 或 move；Roadmap adopt 只走 `concord roadmap adopt`。
+Trace 的 `concord repo docs trace recover` 从各 owner 正向关系恢复 publication，不保存中央 Registry，也不改变 Nx affected graph。
 
 设计取舍见[仓库文档追溯决策](../../design/docs-traceability/DECISION.md)。原生测试正文的边界继续服从[可读测试裁决](../../design/user-readable-testing/DECISION.md)。
 
@@ -64,7 +65,7 @@ type ConcordDocumentV1 =
 数组非空且去重；未知字段直接失败。`id` 必须是小写 ASCII slug；绝对路径、反斜杠、`.` / `..` traversal、重复 canonical ref、缺失 path/anchor 与非法 target kind 都是 finding。Design Plan 与普通页面是 supporting Markdown，不是 Concord owner。
 
 Feature ID 是其 package path 去掉 `docs/feature/` 与结尾 `/README.md` 后的值，例如 `reports` 或
-`reports/cost-projections`。它由 `pnpm run repo docs feature list` 输出，并可直接传给 `pnpm run repo docs feature show`。
+`reports/cost-projections`。它由 `concord repo docs feature list` 输出，并可直接传给 `concord repo docs feature show`。
 节点的 `id` 是同 kind 下的稳定全局标识，owner path 仍是精确引用与 placement 的 canonical identity；创建时间取自文件首次进入 Git 的时间。
 
 ### Placement
@@ -147,25 +148,25 @@ testing 文档中的结果说明可以保留为阅读材料，不再承担 curre
 人读 `show` 默认把 current 关系放在对应 Use Case 下，把 history 与失效关闭凭据放进独立历史/发现区。普通 mentions 默认隐藏。
 
 Regression 必须指向当前 schema 的 Problem Memory。captured、superseded 或 attested 声明不能代替新的 fixed 执行证据。
-superseded Decision/Insight 不得保留 current promotion。`pnpm memory check` 复用同一 Snapshot 读取 regression/promotion，再应用 Memory 自己的状态门。
+superseded Decision/Insight 不得保留 current promotion。`concord repo memory check` 复用同一 Snapshot 读取 regression/promotion，再应用 Memory 自己的状态门。
 
 ## 查询命令
 
 ```sh
-pnpm run repo docs feature list [pattern] [--json]
-pnpm run repo docs feature show <feature-id|repo-path> [--json]
-pnpm run repo docs test list [pattern] [--json]
-pnpm run repo docs test show <test-path#caseId> [--json]
-pnpm feedback adopt <feedback-id> --to <repo-ref> [--dry-run] [--json]
-pnpm feedback retire <feedback-id> --from <repo-ref> [--dry-run] [--json]
-pnpm memory promote <memory-id> --to <repo-ref> [--dry-run] [--json]
-pnpm memory retire <memory-id> --from <repo-ref> [--dry-run] [--json]
+concord repo docs feature list [pattern] [--json]
+concord repo docs feature show <feature-id|repo-path> [--json]
+concord repo docs test list [pattern] [--json]
+concord repo docs test show <test-path#caseId> [--json]
+concord repo feedback adopt <feedback-id> --to <repo-ref> [--dry-run] [--json]
+concord repo feedback retire <feedback-id> --from <repo-ref> [--dry-run] [--json]
+concord repo memory promote <memory-id> --to <repo-ref> [--dry-run] [--json]
+concord repo memory retire <memory-id> --from <repo-ref> [--dry-run] [--json]
 ```
 
 ### list
 
-两个 `list` 都只做浅发现。`pnpm run repo docs feature list` 输出 Feature ID、标题与 canonical path。
-`pnpm run repo docs test list` 的测试叶子输出完整 `<test/spec path>#<caseId>` 与 Repo。第二行输出 owner-owned `Description`，其余子树展开 Feature/Use Case、Regression Memory 与 direct Issue provenance；没有关系时显式显示 `None`。
+两个 `list` 都只做浅发现。`concord repo docs feature list` 输出 Feature ID、标题与 canonical path。
+`concord repo docs test list` 的测试叶子输出完整 `<test/spec path>#<caseId>` 与 Repo。第二行输出 owner-owned `Description`，其余子树展开 Feature/Use Case、Regression Memory 与 direct Issue provenance；没有关系时显式显示 `None`。
 
 Feature pattern 匹配 ID、path 或标题；test pattern 还会匹配 contract、Feature、Regression Memory 与 Issue。它们只用于缩小列表，不隐式扩大 Trace 闭包。
 列表中的 ID 或 path 必须能原样传给同类 `show`。
@@ -202,8 +203,8 @@ Journey contract 为跨 Feature Use Case 时，Features 从 `composes` 推导。
 
 ### selector 与 receipt
 
-`pnpm run repo docs feature show` 只接受 `pnpm run repo docs feature list` 输出的精确 ID 或 canonical repo path；不做前缀猜测。
-`pnpm run repo docs test show` 只接受 list 输出的精确 `<repo-relative-path>#<caseId>`。ID 是身份，path 是旧路径防护；
+`concord repo docs feature show` 只接受 `concord repo docs feature list` 输出的精确 ID 或 canonical repo path；不做前缀猜测。
+`concord repo docs test show` 只接受 list 输出的精确 `<repo-relative-path>#<caseId>`。ID 是身份，path 是旧路径防护；
 path 变化返回 current selector 而不自动跟随。缺失 selector非零退出，不用 title 猜测。
 
 所有 JSON 结果包含 `format`、`operation`、`snapshotDigest`、`generation` 与 canonical paths。
@@ -249,10 +250,10 @@ Feedback adoption、Feedback→Memory relation 与 Memory promotion 是现有 ow
 目标 kind 从 Trace Snapshot 验证，不让用户提交整个 current/history bucket：
 
 ```sh
-pnpm feedback adopt <feedback-id> --to docs/feature/eval/use-case/first-single-turn.md
-pnpm feedback retire <feedback-id> --from docs/feature/eval/use-case/first-single-turn.md
-pnpm memory promote <memory-id> --to docs/feature/eval/use-case/first-single-turn.md
-pnpm memory retire <memory-id> --from docs/feature/eval/use-case/first-single-turn.md
+concord repo feedback adopt <feedback-id> --to docs/feature/eval/use-case/first-single-turn.md
+concord repo feedback retire <feedback-id> --from docs/feature/eval/use-case/first-single-turn.md
+concord repo memory promote <memory-id> --to docs/feature/eval/use-case/first-single-turn.md
+concord repo memory retire <memory-id> --from docs/feature/eval/use-case/first-single-turn.md
 ```
 
 `adopt/promote` 要求 current 中尚无 exact ref；`retire` 要求 exact 命中，并把 ref 与当前 Git commit 追加到 immutable history。
@@ -264,7 +265,7 @@ pnpm memory retire <memory-id> --from docs/feature/eval/use-case/first-single-tu
 
 ## 当前 Design 生命周期
 
-Design 已有完整闭环。`pnpm run repo docs design create` 建立候选决策，作者在各 Plan 写完自包含方案后用 `pnpm run repo docs design check` 检查这个 Design。最后用 `pnpm run repo docs design decide` 选择直接包含的 Plan 并写入 `selectedPlan`；精确参数由各 command 的 `--help` 定义。
+Design 已有完整闭环。`concord repo docs design create` 建立候选决策，作者在各 Plan 写完自包含方案后用 `concord repo docs design check` 检查这个 Design。最后用 `concord repo docs design decide` 选择直接包含的 Plan 并写入 `selectedPlan`；精确参数由各 command 的 `--help` 定义。
 
 `selectedPlan` 缺失时，Design 仍是合法的未裁决比较；`check` 只验证已有候选的结构和已有 `selectedPlan` 的合法性。`decide` 是从未裁决到已裁决的唯一公开动作；它要求恰好一个直接 Plan，不允许通过手改 frontmatter、标题或 `DECISION.md` 模拟裁决。
 
@@ -275,20 +276,20 @@ Design 已有完整闭环。`pnpm run repo docs design create` 建立候选决�
 Feature 只开放下列结构 publication；精确 flags 一律以 `--help` 为准：
 
 ```sh
-pnpm run repo docs feature create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
-pnpm run repo docs feature page add <feature-ref> <page> [--dry-run] [--json]
-pnpm run repo docs feature page set <feature-ref> <page> [--stdin|--file <path>] [--dry-run] [--json]
+concord repo docs feature create <slug> --title <title> [--pages <list>] [--dry-run] [--json]
+concord repo docs feature page add <feature-ref> <page> [--dry-run] [--json]
+concord repo docs feature page set <feature-ref> <page> [--stdin|--file <path>] [--dry-run] [--json]
 ```
 
 `create` 只能显式建立新 Feature；`page add` 与 `page set` 都要求目标 Feature 已存在，不能隐式创建。它们不提供 retire、物理 delete、move 或 adopt；这些动作的历史语义仍须由具名 lifecycle owner 保留。
 
-`pnpm run repo docs use-case create` 接收完整正文、标题与既有 Feature parent。
+`concord repo docs use-case create` 接收完整正文、标题与既有 Feature parent。
 它在已有 `use-case/README.md` 下创建一个单段名称的叶子，使用相同的 Trace lease、journal 与 generation 发布叶子及索引链接。
 已有目标、非法路径、缺失 parent 或索引、正文混入 frontmatter 或生成区都在写入前拒绝。
 正文为候选输入，节点 metadata 和索引结构由命令生成；dry-run 不发布任何文件。
 
 Roadmap 与 Engineering 的结构写入由 Concord 基础 CLI 拥有，repo-tools 不提供同名包装。
-入口与参数分别见 `pnpm exec concord roadmap --help` 和 `pnpm exec concord engineering --help`。
+入口与参数分别见 `concord roadmap --help` 和 `concord engineering --help`。
 
 Feature、Roadmap 与未来 Design Plan 使用 Feature Design Package；当前 Design 外层和 Plan 由 Design domain 创建。Engineering 使用工程主题模板。
 模板目录各有 `concord.templates/v1` manifest，声明适用 kind、必备文件和可选文件。receipt 保存 manifest digest；节点不保存 template version。
@@ -310,7 +311,7 @@ compiler 永不读取该区块。未来 Trace check 会从节点重算 exact byt
 下列命令只是后续目标，不能把它们写成当前入口或放入 Skill metadata：
 
 ```sh
-pnpm run repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
+concord repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
 ```
 
 `move` 只允许 kind 不变，不创建稳定 alias。
@@ -318,13 +319,13 @@ pnpm run repo docs trace move <ref> --to <repo-path> [--dry-run] [--json]
 自动改写限于 typed refs、生成区，以及随整个 package 移动且 referent 明确不变的内部相对链接。
 外部普通 Markdown links 只进入 `linkUpdateCandidates` receipt，不自动修改。Memory 使用最新 metadata；迁移保留作者正文与历史 provenance。
 
-Roadmap 采用走 `pnpm exec concord roadmap adopt`，把 Roadmap 身份替换为 Feature 身份，不留下 Roadmap/Feature 双真源；采用语义与恢复由 Concord 拥有。
+Roadmap 采用走 `concord roadmap adopt`，把 Roadmap 身份替换为 Feature 身份，不留下 Roadmap/Feature 双真源；采用语义与恢复由 Concord 拥有。
 
 ## 可恢复事务与一致读取
 
 结构 mutation 与关系 mutation 共用一个持久 lock inode、advisory lease、journal 和 generation。支持边界是同一内核、同一本地 flock-compatible 文件系统；NFS、跨主机或 `flock` 命令执行器不可用时 fail closed。
 
-读命令从取得 shared lease到编译结束不修改任何 Trace owner、journal 或 generation；首次读取可以在 Git-private coordination directory 初始化持久 lock inode。发现 journal 时返回 `TraceRecoveryRequired` 并提示 `pnpm run repo docs trace recover`。显式 recover 与非 dry-run 写命令取得 exclusive lease，先保守恢复旧 journal，再开始新 publication；compiler 在既有 lease 下运行，不重新 open 或升级锁。
+读命令从取得 shared lease到编译结束不修改任何 Trace owner、journal 或 generation；首次读取可以在 Git-private coordination directory 初始化持久 lock inode。发现 journal 时返回 `TraceRecoveryRequired` 并提示 `concord repo docs trace recover`。显式 recover 与非 dry-run 写命令取得 exclusive lease，先保守恢复旧 journal，再开始新 publication；compiler 在既有 lease 下运行，不重新 open 或升级锁。
 
 file publication 的 journal 以 mode `0600` 保存不超过 32 MiB 的 preimage、planned digest 与 mode。
 
@@ -396,8 +397,8 @@ Effect 层拥有文件系统、lock、journal、recovery 与 receipt。
 验收至少包括：
 
 - 修改可读标题、scenario 或正文不改变关系；删除/复制 case token、改变 collection 或 case path 会被 inventory/path guard 检出；
-- `pnpm run repo docs feature list` 输出的每个 ID 都能原样交给 `pnpm run repo docs feature show`；
-- `pnpm run repo docs test list` 输出的每个 path#caseId 都能原样交给 `pnpm run repo docs test show`；
+- `concord repo docs feature list` 输出的每个 ID 都能原样交给 `concord repo docs feature show`；
+- `concord repo docs test list` 输出的每个 path#caseId 都能原样交给 `concord repo docs test show`；
 - 两个 list 的人读输出是树，`--json` 仍是稳定扁平 list-v1；
 - overview/library/cli/architecture/lifecycle/reference 页面边界由 placement 正确派生，且不要求页面 metadata；
 - Feedback issue source 与 E2E case 源码关系 `issues` 两条 provenance 边都进入 discriminated union，且不猜测远端状态；

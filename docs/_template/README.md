@@ -3,10 +3,10 @@
 Feature、Roadmap 与 Design 候选共用同一套 Feature Design Package。
 三者改变的是契约成熟度,不改变 README、Library、CLI、Architecture、Lifecycle 与 Use Case 的体裁分工。
 
-- [`feature-design/`](feature-design/README.md)：由 `pnpm run repo docs feature create` 和 `pnpm run repo docs design create` 使用。
-- [`design-decision/`](design-decision/README.md)：由 `pnpm run repo docs design create` 创建多个候选的决策外层。
+- [`feature-design/`](feature-design/README.md)：由 `concord repo docs feature create` 和 `concord repo docs design create` 使用。
+- [`design-decision/`](design-decision/README.md)：由 `concord repo docs design create` 创建多个候选的决策外层。
 
-Roadmap 由 `pnpm exec concord roadmap create` 创建（参数见 `pnpm exec concord roadmap --help`），叶子 Use Case 由 `pnpm run repo docs use-case create` 创建。不手工复制模板、生成索引或伪造收据。
+Roadmap 由 `concord roadmap create` 创建（参数见 `concord roadmap --help`），叶子 Use Case 由 `concord repo docs use-case create` 创建。不手工复制模板、生成索引或伪造收据。
 
 模板中的 `README.md` 必备。
 `library.md`、`cli.md`、`architecture.md`、`lifecycle.md` 与 `use-case/` 按功能形态用 `--pages` 选择。

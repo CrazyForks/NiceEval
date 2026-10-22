@@ -15,11 +15,12 @@ decision:
     - docs/engineering/docs-traceability/README.md
 ---
 
+
 # 仓库文档追溯 —— Design Decision
 
 **相关文档**：[GOALS](GOALS.md) · [LIMITS](LIMITS.md) · [CASES](CASES.md) · [DECISION](DECISION.md) · [工程契约](../../engineering/docs-traceability/README.md)
 
-本决策设计同源的 `pnpm run repo docs feature`、`pnpm run repo docs test` 与关系/文档结构命令。它让维护者从 Feature 或测试文件出发，找到 Use Case、页面、Roadmap、Design、Engineering、E2E owner、Feedback、Memory 与 Issue provenance。
+本决策设计同源的 `concord repo docs feature`、`concord repo docs test` 与关系/文档结构命令。它让维护者从 Feature 或测试文件出发，找到 Use Case、页面、Roadmap、Design、Engineering、E2E owner、Feedback、Memory 与 Issue provenance。
 
 争议不在于能否搜索 Markdown，而在于关系由谁拥有。方案还必须让创建、移动和 Roadmap 采用保持同一套模板与引用规则。
 
