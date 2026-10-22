@@ -420,9 +420,10 @@ Sandbox 的 profile 查找函数只保留 `resolveDockerProfile` 这个名称，
 
 ## 模型用途统一称为 role
 
-一个 Experiment 可以为应用声明多个模型用途，例如 `mind` 与 `speech`。这些键表达“这个模型在应用里担任什么角色”，
-不是可插拔的空位，也不与 Record 的 expected slot、Run slot binding 或 Adapter session slot 同义。
-仓库里 slot 已经指称 Run 分母成员与会话存储，再让它表示模型用途会让同一词根在相邻 API 里指向三种对象。
+一个 Experiment 可以为应用声明多个模型用途，例如 `mind` 与 `speech`。
+这些键表达“这个模型在应用里担任什么角色”，不是可插拔的空位。
+它们也不与 Record 的 expected slot、Slot binding 或 Adapter session slot 同义。
+仓库里 slot 已经指称 Run 分母成员与会话存储；再让它表示模型用途，同一词根会在相邻 API 里指向三种对象。
 因此作者可见的模型用途统一使用 role：
 
 | 旧名 | 新名 |
@@ -440,24 +441,26 @@ Sandbox 的 profile 查找函数只保留 `resolveDockerProfile` 这个名称，
 内部类型与函数随之改名，例如 `ResolvedModelRoles`、`normalizeModelRoles`、`assertRequiredModelRoles`，源码模块改为 `model-roles.ts`。
 不保留 `defineModelSlots` 或 `modelSlot` 的 deprecated 转发；beta 期直接迁移，升级说明给出逐项替换。
 
-持久编码不改：adapter-usage Record 的 `modelSlot` 列与 revision、config identity 中 `models: { version: 1, slots }` 的
-编码保持原样，只在 decode/projection 边界映射到 role。这样已落盘的 Record 无需迁移，下游已有结果的 eligibility identity
-不因改名变成 stale。新增 Record revision 或改 identity 编码不属于本次改名。
+持久编码不改：adapter-usage Record 的 `modelSlot` 列与 revision 保持原样。
+config identity 中 `models: { version: 1, slots }` 的编码也保持原样，只在 decode/projection 边界映射到 role。
+这样已落盘的 Record 无需迁移，下游已有结果不会因改名变成 `previous-result`。
+新增 Record revision 或改 identity 编码不属于本次改名。
 
 验收：安装后候选的 `.mts` 与 `.cts` 类型检查中，`rate("mimd")`、未声明的 `modelRole` 编译失败，旧名导入编译失败；
 0.18 写入的 Record 被候选读取后以 role 字段呈现；同一份 Experiment 在 0.18 与候选下的 config identity 相同。
 
 ## 扩展与配置面的保留裁决
 
-0.18 交给维护方裁决的表面按真实使用证据定案。证据覆盖本仓库 E2E 与示例，以及工作区内 terminal-bench、MemoryBench、
-NiceEval-Eval 和 ljkx-game、rpg-game 五个已知使用方的作者源码。
+0.18 交给维护方裁决的表面按真实使用证据定案。
+证据范围是本仓库 E2E 与示例，以及 terminal-bench、MemoryBench、NiceEval-Eval、ljkx-game、rpg-game 五个已知使用方的作者源码。
 
 删除：
 
-- NiceEval Plugin 生命周期：`niceeval/plugin` 子路径、`definePlugin` 与相关类型，Experiment、EvalGroup、Eval 的 `plugins` 字段，
-  以及 runner 里只为 Plugin host/sandbox fragment 存在的组合、identity 与 setup/teardown 接线。五个使用方均未使用；
-  MemoryBench 的 `plugins: [...]` 是 Codex / Claude Code 原生插件配置，属于 Adapter，不受影响。
-  实验级准备与清理由 Experiment `setup` / `teardown` 承担，环境改动由 SandboxLayer 承担。`docs/feature/plugins` 随之撤销。
+- NiceEval Plugin 生命周期：`niceeval/plugin` 子路径、`definePlugin` 与相关类型，以及 Experiment、EvalGroup、Eval 的 `plugins` 字段。
+  runner 里只为 Plugin host/sandbox fragment 存在的组合、identity 与 setup/teardown 接线一并删除。
+  五个使用方均未使用；MemoryBench 的 `plugins: [...]` 是 Codex / Claude Code 原生插件配置，属于 Adapter，不受影响。
+- Plugin 的替代：实验级准备与收尾由 Experiment `setup` / `teardown` 承担，Sandbox 实例的改动由 SandboxLayer 承担。
+  `docs/feature/plugins` 随之撤销。
 - `Config.workspace`：没有任何读取者，是无效字段。
 - `Eval.reporters`：逐 Eval 的报告器没有使用方；报告输出属于项目级。
 - `Experiment.classifyFailure`：没有使用方，失败分类保留内建语义与 `ExperimentFatalError` / `EvalFatalError`。
@@ -470,38 +473,47 @@ NiceEval-Eval 和 ljkx-game、rpg-game 五个已知使用方的作者源码。
 - `Eval.diff` 与 `Eval.metadata`：terminal-bench 全部题目、MemoryBench 大部分题目在用；0.18 盘点漏扫了这两个使用方。
 - `maxBuildConcurrency`、`maxSetupPrefixConcurrency`：各自约束独立资源，删除后没有替代旋钮。
 - 旧 Record、RunContext 与 trace 的读取迁移链：下游已落盘的付费结果依赖它们保持可读。
-- Agent / Adapter 与 `model` / `reasoningEffort` 简写：能力边界不同，另行设计。
+- `model` / `reasoningEffort` 简写：见下节。
 
 被删字段若出现在作者配置中，加载时以说明替代方式的错误拒绝，而不是静默忽略。
 未使用被删字段的 Experiment，其 config identity 与 0.18 完全相同，已有结果继续 carry。
 
 ## Experiment 只用 adapter 选择被测对象
 
-Experiment 的 `agent` 字段删除，统一写 `adapter`。`defineAgent` 与 `defineSandboxAgent` 的返回值本身就是 Adapter，
-可直接放进 `adapter`；两个工厂不变。定义时出现 `agent` 以说明替代写法的错误拒绝。
+Experiment 的 `agent` 字段删除，统一写 `adapter`。
+`defineAgent` 与 `defineSandboxAgent` 的返回值本身就是 Adapter，可直接放进 `adapter`；两个工厂不变。
+定义时出现 `agent` 以说明替代写法的错误拒绝。
 被测对象的 config identity 与 0.18 写 `agent` 时完全相同，已有结果继续 carry。
 
-`model` / `reasoningEffort` 简写保留，`models` 也保留，二者不是重复入口：前者服务只有一个模型的 Agent，
-在定义边界归一为唯一的 `default` role；后者服务声明多个 role 的 Adapter。两者仍互斥，已有归一与 identity 不变。
+`model` / `reasoningEffort` 简写保留，`models` 也保留，二者不是重复入口。
+前者服务只有一个模型的 Agent，在定义边界归一为唯一的 `default` role；后者服务声明多个 role 的 Adapter。
+两者仍互斥，已有归一与 identity 不变。
 
-## 只展示的记录：`t.note`
+## 只展示的 Note：`t.note`
 
 ```ts
 t.note("出手频率", result.activity);
 t.note("首个决策延迟", ms(result.firstDecisionMs));
 ```
 
-`t.note(label, value)` 记录一条不参与判定的展示项：没有 matcher、gate、score，不进入 Verdict、score、coverage，
-也不计入 Assertion 数量。value 是 JSON 值或带单位的数值（见下节）；null 表示该项未取得，呈现为 unavailable。
-它不是 Assertion：Record 新增 `attempt-note` family（revision 1），每项保存 label、按调用顺序的序号、value 与可选 unit。
-同一 Attempt 内 label 唯一，重复 label、超过 64 项或单项 JSON 超过 64 KiB 时 `t.note` 抛出 TypeError。
-`show @<locator>` 在 Assertion 之后列出 Notes，`--json` 与 `query` 的 Attempt 结果带 `notes`；
-`show --exp` 对同一 label、同一单位的数值 note 跨 Attempt 给出 count、min、median、p90、max；`view` 的 Attempt 详情展示同一内容。
+`t.note(label, value)` 写入一条不参与判定的展示项。
+
+- 它没有 matcher、gate、score，不进入 Verdict、score 与 coverage，也不计入 Assertion 数量。
+- value 是 JSON 值或 `Quantity`（见下节）；null 表示该项未取得，呈现为 unavailable。
+- 同一 Attempt 内 label 唯一。重复 label、超过 64 项或单项 JSON 超过 64 KiB 时，`t.note` 抛出 TypeError。
+
+Note 不是 Assertion。Record 新增 `attempt-note` family（revision 1），每项保存 label、按调用顺序的序号、value 与可选 unit。
 旧 Record 没有该 family，读取为空列表。
+
+呈现：
+
+- `show @<locator>` 在 Assertion 之后列出 Notes；`--json` 与 `query` 的 Attempt 结果带 `notes`。
+- `show --exp` 对同一 label、同一单位的数值 Note，跨 Attempt 给出 count、min、median、p90、max。
+- `view` 的 Attempt 详情展示同一内容。
 
 ## 数值单位
 
-单位同时是编译期品牌和运行时元数据，从 `/expect` 导出：
+单位从 `/expect` 的构造函数取得：
 
 | 构造 | 单位 |
 | --- | --- |
@@ -513,17 +525,30 @@ t.note("首个决策延迟", ms(result.firstDecisionMs));
 | `count(n)` | 计数 |
 | `bytes(n)` | 字节 |
 
-构造返回 `Quantity<U>`，它是带品牌的 number，可直接参与普通算术，结果退化为无单位 number；NiceEval 不提供单位换算或单位算术。
-`measured(value, opts)`、`quantile(samples, p, opts)` 与 `t.note` 接受 `Quantity<U>`，产出的 `NumericMaterial<U>` 携带 unit，
-`quantile` 要求样本单位一致并保留它。`t.usage.cacheRead.rate(role?)` 返回 `NumericMaterial<"ratio">`。
-数值 matcher（`atLeast`、`atMost`、`greaterThan`、`lessThan`、`between` 等）对有单位的材料要求同单位阈值：
-`t.check(latency, atMost(ms(500)))` 通过编译，`atMost(seconds(1))` 或裸 `500` 编译失败；无单位材料继续接受裸 number。
-运行时同样校验单位，品牌被绕过时以 unavailable 并给出原因，不按数值比较。
-NumericMaterial 的 Record 编码新增可选 `unit`；旧 Record 缺省为无单位。`show`、`view` 按单位格式化（如 `512 ms`、`61.2%`、`$0.031`）。
+构造返回冻结对象 `Quantity<U> = { readonly value: number; readonly unit: U }`，带编译期品牌。
+单位必须在运行时可见，JS 的原始 number 无法携带它，因此 `Quantity` 不是 number，也不参与算术。
+作者先用 number 计算，再在交给 NiceEval 的边界包装；取数值读 `.value`。NiceEval 不提供单位换算或单位算术。
+`n` 必须是有限数，否则抛出 RangeError。
 
-## Bub 与 OpenCode 只解析钉住版本的协议
+消费方式：
 
-Bub Adapter 只支持当前钉住的 Bub 版本：删除 0.3.9 legacy live 版本线、对应 E2E Experiment，以及只为旧 top-level `type` 事件存在的 parser 分支。
-OpenCode parser 只保留钉住 CLI 实际产出的 JSONL 事件与 `export` 形状，删除其它字段 fallback。
-钉住版本产出的真实样本作为 parser 的 fixture；解析不到的事件按现有未知事件路径保留原文，不静默丢弃。
-已落盘 Record 中的事件是解析后的形状，不受影响。产品站的 `/en/*` 与 www 308 重定向属于公开链接，保留。
+- `measured(value, opts)` 与 `t.note` 接受 `Quantity<U>`；`measured` 产出的 `NumericMaterial<U>` 携带 unit。
+- `quantile(samples, p, opts)` 接受 `readonly number[]` 或单位一致的 `readonly Quantity<U>[]`，后者保留 unit；混合单位在运行时抛出 TypeError。
+- `t.usage.cacheRead.rate(role?)` 返回 `NumericMaterial<"ratio">`。
+
+数值 matcher（`atLeast`、`atMost`、`greaterThan`、`lessThan`、`between` 等）对有单位的材料要求同单位阈值。
+`t.check(latency, atMost(ms(500)))` 通过编译；`atMost(seconds(1))` 与未包装的 `500` 编译失败。
+无单位材料继续接受普通 number 阈值，不接受 `Quantity`。
+运行时同样比对单位；类型被绕过时，结果为 unavailable 并给出原因，不按数值比较。
+
+NumericMaterial 的 Record 编码新增可选 `unit`；旧 Record 未提供时视为无单位。
+`show`、`view` 按单位格式化，例如 `512 ms`、`61.2%`、`$0.031`。
+
+## Bub 与 OpenCode 只读取固定版本的协议
+
+Bub Adapter 只支持 Adapter 当前固定的 Bub 版本。
+删除 0.3.9 legacy live 版本线、对应 E2E Experiment，以及只为旧 top-level `type` 事件存在的 parser 分支。
+OpenCode parser 只保留固定版本 CLI 实际产出的 JSONL 事件与 `export` 形状，删除其它字段 fallback。
+
+固定版本产出的真实样本作为 parser 的 fixture。parser 不认识的事件按现有未知事件路径保留原文，不静默丢弃。
+已落盘 Record 中的事件是 parse 后的形状，不受影响。产品站的 `/en/*` 与 www 308 重定向属于公开链接，保留。
