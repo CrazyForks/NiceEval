@@ -1,4 +1,4 @@
-// @concord-file ne-eval-inspection-assertion-projection
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/assertions/README.md
 import { Result, Schema } from "effect";

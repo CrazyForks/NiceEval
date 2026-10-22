@@ -1,7 +1,7 @@
-import { formatNumericUnit } from "../assertions/quantity.ts";
-// @concord-file ne-surface-show-render
+// @concord-file
 // @concord-implements docs/feature/inspection/cli.md
 // @concord-implements docs/feature/run-inspection/README.md
+import { formatNumericUnit } from "../assertions/quantity.ts";
 import {
   renderTerminal,
   type TerminalBlock,
@@ -434,7 +434,7 @@ function executionValue(value: ExecutionValue): string {
   return value.state === "available" ? value.value : value.state;
 }
 
-// @concord-code ne-surface-render-run
+// @concord-code
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 export function renderRun(value: RunView): string {
   const blocks: TerminalBlock[] = [
@@ -626,7 +626,7 @@ function formatAttemptLimitation(value: AttemptLimitation): string {
   return `assertion-material; ${value.state}; ${value.reason}; ${value.limitations.length} material limitations`;
 }
 
-// @concord-code ne-surface-render-attempt
+// @concord-code
 // @concord-implements docs/feature/inspection/cli.md
 // @concord-implements docs/feature/error-classification/use-case/reading-errored.md
 export function renderAttempt(value: AttemptView): string {

@@ -123,7 +123,7 @@ export interface ClaudeCodeConfig {
   after?: readonly SandboxCommand[];
 }
 
-// @concord-code ne-adapter-claude-code-agent
+// @concord-code
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/claude-code/README.md
 export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {

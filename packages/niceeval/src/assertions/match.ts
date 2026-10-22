@@ -1,8 +1,8 @@
-import { isQuantity, type Quantity, type Unit, formatNumericUnit } from "./quantity.ts";
-// @concord-file ne-eval-assertions-match
+// @concord-file
 // @concord-implements docs/feature/assertions/library/value-assertions.md
 // @concord-implements docs/feature/assertions/library/scoped-assertions.md
 // @concord-implements docs/feature/judge/library.md
+import { isQuantity, type Quantity, type Unit, formatNumericUnit } from "./quantity.ts";
 // Match 内核：纯候选比较、三态结果与领域 matcher。
 //
 // 这里不登记 Assertion，也不决定 Verdict / Score。调用方先冻结 subject，再把同一
@@ -997,7 +997,7 @@ function textCandidate(value: unknown, options: TextMatchOptions): string | unde
   return options.stripComments === true ? stripComments(value) : value;
 }
 
-// @concord-code ne-eval-assertions-includes-match
+// @concord-code
 // @concord-implements docs/feature/assertions/library/value-assertions.md
 // @concord-implements docs/feature/eval/use-case/first-single-turn.md
 
@@ -1306,7 +1306,7 @@ export function defineValueMatch<T>(spec: {
   readonly name: string;
   readonly evaluate: (value: T) => boolean | { readonly state: "unavailable"; readonly reason: string } | Promise<boolean | { readonly state: "unavailable"; readonly reason: string }>;
 }): BooleanMatch<T, T>;
-// @concord-code ne-eval-assertions-define-value-match
+// @concord-code
 // @concord-implements docs/feature/assertions/library/value-assertions.md
 
 export function defineValueMatch<T, R extends T = T>(spec: {

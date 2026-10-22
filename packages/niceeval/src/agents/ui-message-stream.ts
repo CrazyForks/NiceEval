@@ -635,7 +635,7 @@ function uiMessageStreamSendEffect(
  * });
  * ```
  */
-// @concord-code ne-adapter-ui-message-stream-agent
+// @concord-code
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/ai-sdk/README.md
 export function uiMessageStreamAgent(options: UiMessageStreamAgentOptions): Agent {

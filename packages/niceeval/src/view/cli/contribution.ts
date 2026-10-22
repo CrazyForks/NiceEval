@@ -1,4 +1,4 @@
-// @concord-file ne-surface-view-cli
+// @concord-file
 // @concord-implements docs/feature/insight/README.md
 // @concord-implements docs/feature/run-inspection/README.md
 import { resolve } from "node:path";

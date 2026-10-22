@@ -1,4 +1,4 @@
-// @concord-file ne-surface-view-inspection-host
+// @concord-file
 // @concord-implements docs/feature/inspection/architecture.md
 // @concord-implements docs/feature/run-inspection/README.md
 import { Effect, Result } from "effect";
@@ -11,7 +11,7 @@ import { loadSelectedInspectionRuns } from "../inspection/facts.ts";
 import type { InspectionDocument } from "../inspection/protocol.ts";
 import type { ViewGeneration } from "./revision.ts";
 
-// @concord-code ne-surface-inspect-view-generation
+// @concord-code
 // @concord-implements docs/feature/inspection/architecture.md
 export function inspectViewGeneration(generation: ViewGeneration, input: unknown) {
   return Effect.suspend(() => {

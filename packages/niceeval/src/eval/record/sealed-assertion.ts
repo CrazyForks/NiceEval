@@ -1,4 +1,4 @@
-// @concord-file ne-eval-sealed-assertion-facts
+// @concord-file
 // @concord-implements docs/feature/assertions/README.md
 // @concord-implements docs/feature/verdict/README.md
 import { Schema } from "effect";

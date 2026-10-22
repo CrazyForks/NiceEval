@@ -1,4 +1,4 @@
-// @concord-file ne-runner-adoption
+// @concord-file
 // @concord-implements docs/feature/experiments/cache.md
 // @concord-implements docs/feature/experiments/library.md
 
@@ -492,7 +492,7 @@ interface CurrentTargetPair {
  * a produced Run has the complete current denominator rather than only the
  * manually adopted Members.
  */
-// @concord-code ne-runner-prepare-adoption-target
+// @concord-code
 // @concord-implements docs/feature/experiments/cache.md
 export function prepareCurrentAdoptionTarget(input: {
   readonly project: AdoptionProject;
@@ -938,7 +938,7 @@ function durationComparison(input: {
  * is compared exactly, but an explicit operator decision may accept a mismatch.
  * The folded Verdict and complete Runner Activity timing remain hard gates.
  */
-// @concord-code ne-runner-prepare-adoption-member
+// @concord-code
 // @concord-implements docs/feature/experiments/cache.md
 export function prepareExplicitAdoptionMember(input: {
   readonly reader: RecordReadSession;

@@ -1,4 +1,4 @@
-// @concord-file ne-eval-record-evaluation
+// @concord-file
 // @concord-implements docs/feature/eval/README.md
 // @concord-implements docs/feature/inspection/README.md
 import { Result, Schema } from "effect";

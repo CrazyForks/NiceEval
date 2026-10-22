@@ -1,4 +1,4 @@
-// @concord-file ne-surface-plugin-link
+// @concord-file
 // @concord-implements docs/feature/plugins/lifecycle.md
 // @concord-implements docs/feature/plugins/use-case/terminal-bench-harness.md
 import { Data } from "effect";
@@ -177,7 +177,7 @@ async function runTeardowns(
   }
 }
 
-// @concord-code ne-surface-prepare-plugin-run
+// @concord-code
 // @concord-implements docs/feature/plugins/lifecycle.md
 export function preparePluginRun(run: AgentRun): PreparedPluginRun {
   let lifecycles: readonly LinkedPluginLifecycle[];
@@ -226,7 +226,7 @@ export function preparePluginRun(run: AgentRun): PreparedPluginRun {
   return Object.freeze({ sourceRun: run, run: effective, experimentOccurrences: linkedOccurrences, experimentLifecycles: lifecycles });
 }
 
-// @concord-code ne-surface-link-plugin-pair
+// @concord-code
 // @concord-implements docs/feature/plugins/lifecycle.md
 export function linkPluginPair(evalDef: DiscoveredEval, preparedRun: PreparedPluginRun): PluginPairLink {
   try {

@@ -1,4 +1,4 @@
-// @concord-file ne-runner-reuse-plan
+// @concord-file
 // @concord-implements docs/feature/experiments/cache.md
 // @concord-implements docs/feature/experiments/use-case/cache-explicit-rerun.md
 // @concord-implements docs/feature/experiments/use-case/rerun-all.md
@@ -401,7 +401,7 @@ export function validateProjectTargetReusePlanInput(input: {
  * Plans only from Record Host selection references. It neither reconstructs
  * attempt handles from strings nor reads private Record paths.
  */
-// @concord-code ne-runner-plan-reuse
+// @concord-code
 // @concord-implements docs/feature/experiments/cache.md
 export function planProjectTargetReuse(
   input: ProjectTargetReusePlanInput,

@@ -1,4 +1,4 @@
-// @concord-file ne-surface-plugin-contracts
+// @concord-file
 // @concord-implements docs/feature/plugins/README.md
 // @concord-implements docs/feature/compile-time-contracts/README.md
 import { resolve } from "node:path";
@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { registerSandboxContent } from "../sandbox/content.ts";
 import type { ExperimentHookContext } from "../runner/types.ts";
 import type { JsonValue, ScopedFeedback } from "../shared/types.ts";
-import { sandboxLayerStateOf, sandboxLayer, type SandboxLayer } from "../sandbox/layer.ts";
+import { isSandboxLayer, sandboxLayerStateOf, sandboxLayer, type SandboxLayer } from "../sandbox/layer.ts";
 import type { SandboxAction, SandboxAfterAction } from "../sandbox/action.ts";
 import type { SandboxCommand, SandboxCommandContext, SandboxCommandTarget, SandboxCleanupCommand } from "../sandbox/commands.ts";
 import type { CodexConfig } from "../agents/codex.ts";
@@ -196,6 +196,7 @@ function createPlugin(spec: unknown): PluginInstance {
   let sandbox: SandboxLayer<"command-only"> | undefined;
   let sandboxShape: JsonValue | undefined;
   if (spec.sandbox !== undefined) {
+    if (isSandboxLayer(spec.sandbox)) throw new TypeError(`Plugin ${name}.sandbox must declare before or after hooks, not a SandboxLayer.`);
     const declaration = fragment(spec.sandbox, `Plugin ${name}.sandbox`);
     const before = elements(declaration.before);
     const after = elements(declaration.after);
@@ -258,7 +259,7 @@ function createPlugin(spec: unknown): PluginInstance {
 export function definePlugin<const Definition extends GroupRequiredPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
 export function definePlugin<const Definition extends OptionalGroupPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
 export function definePlugin<Options, const Required extends boolean = false, const Definition extends PluginIdentity = PluginIdentity>(factory: (options: Options) => Definition & { readonly requires?: { readonly evalGroup: Required } } & NonEmptyFields<Required>): (options: Options) => PluginInstance<OwnersOf<Definition>>;
-// @concord-code ne-surface-define-plugin
+// @concord-code
 // @concord-implements docs/feature/plugins/library.md
 export function definePlugin(spec: unknown): PluginInstance | ((options: unknown) => PluginInstance) {
   if (typeof spec !== "function") return createPlugin(spec);

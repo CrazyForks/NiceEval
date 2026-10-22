@@ -1,4 +1,4 @@
-// @concord-file ne-surface-show-model
+// @concord-file
 // @concord-implements docs/feature/inspection/cli.md
 // @concord-implements docs/feature/run-inspection/README.md
 import type {
@@ -269,7 +269,7 @@ export function projectExperiment(document: InspectionSuccessDocumentFor<"experi
     modelUsage: document.experiment.modelUsage,
   };
 }
-// @concord-code ne-surface-project-run-view
+// @concord-code
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): RunView {
   const detail = document.run;
@@ -302,7 +302,7 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): R
     })),
   };
 }
-// @concord-code ne-surface-project-attempt-view
+// @concord-code
 // @concord-implements docs/feature/inspection/cli.md
 export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.get">, usage?: InspectionSuccessDocumentFor<"attempt.usage">): AttemptView {
   const value = document.attempt;

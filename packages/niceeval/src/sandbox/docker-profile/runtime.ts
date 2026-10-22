@@ -414,7 +414,7 @@ export async function loadDockerProfileRegistry(): Promise<ReturnType<typeof ind
   return loadDockerProfileRegistryAt(DOCKER_PROFILE_REGISTRY_DIR);
 }
 
-// @concord-code ne-sandbox-docker-profile-control
+// @concord-code
 // @concord-implements docs/feature/sandbox-docker-profiles/architecture.md
 // @concord-implements docs/feature/sandbox-docker-profiles/lifecycle.md
 export function dockerProfileControlRequest<T>(

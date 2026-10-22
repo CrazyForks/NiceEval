@@ -1,4 +1,4 @@
-// @concord-file ne-eval-inspection-sources
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/architecture.md
 import { Result } from "effect";
@@ -70,7 +70,7 @@ interface SourcePosition {
   readonly column: number;
 }
 
-// @concord-code ne-eval-inspection-project-sources
+// @concord-code
 // @concord-implements docs/feature/inspection/architecture.md
 export function projectAttemptSources(
   source: InspectionFactSource,

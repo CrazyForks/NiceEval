@@ -52,6 +52,9 @@ jobs:
       - name: Lint docs
         run: pnpm run lint:docs
 
+      - name: Check Concord relations
+        run: concord check
+
       - name: Example tier sync check
         run: pnpm examples:sync check
 

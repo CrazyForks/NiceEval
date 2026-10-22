@@ -1,4 +1,4 @@
-// @concord-file ne-eval-inspection-facts-reader
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/architecture.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
@@ -120,7 +120,7 @@ function readInspectionRun(source: InspectionFactSource, runId: string): LoadedI
  * Pins the source cutoff, exhausts the fixed Run-summary pagination, then
  * reads and strictly decodes every Run Core in that exact sealed generation.
  */
-// @concord-code ne-eval-inspection-load-runs
+// @concord-code
 // @concord-implements docs/feature/inspection/architecture.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 export function loadInspectionRuns(
@@ -384,7 +384,7 @@ export function decodeInspectionRun(
 }
 
 /** Resolves a public locator through the source's bounded exact index. */
-// @concord-code ne-eval-inspection-resolve-attempt
+// @concord-code
 // @concord-implements docs/feature/inspection/architecture.md
 export function resolveInspectionAttempt(
   source: InspectionFactSource,
@@ -528,7 +528,7 @@ export function runAttachment(
 }
 
 /** Reads only the current logical Assertions family, preserving failure state. */
-// @concord-code ne-eval-inspection-read-assertions
+// @concord-code
 // @concord-implements docs/feature/assertions/README.md
 // @concord-implements docs/feature/inspection/README.md
 export function readInspectionAssertions(

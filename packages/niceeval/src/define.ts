@@ -1,4 +1,4 @@
-// @concord-file ne-surface-definition-entry
+// @concord-file
 // @concord-implements docs/feature/plugins/library.md
 import type { Adapter } from "./adapter.ts";
 import { assertRequiredModelRoles, normalizeModelRoles } from "./model-roles.ts";
@@ -252,7 +252,7 @@ type EvalFactoryInput<Sandbox extends SandboxLayer | undefined> =
   };
 
 /** @internal Shared normalization and provenance path for root and Adapter-bound Eval factories. */
-// @concord-code ne-surface-define-eval-context
+// @concord-code
 // @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineEvalForContext<
   Kind extends "pass" | "score",
@@ -291,7 +291,7 @@ export function defineEvalForContext<
 
 /** 实验:可签入的运行配置(怎么跑这批 eval)。 */
 export function defineExperiment<const A extends Adapter>(def: ExperimentInput<A>): ExperimentDefinition<A>;
-// @concord-code ne-surface-define-experiment
+// @concord-code
 // @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonly flags?: unknown }): ExperimentDefinition {
   rejectRemovedField(def, "judgeRuntime", "Use judge.");
@@ -436,7 +436,7 @@ function normalizeEvalFields<
   };
 }
 
-// @concord-code ne-surface-normalize-plugins
+// @concord-code
 // @concord-implements docs/feature/plugins/library.md
 function normalizePlugins<Owner extends PluginOwner>(
   value: readonly PluginInstance<Owner>[],

@@ -1,4 +1,4 @@
-// @concord-file ne-surface-sources-projector
+// @concord-file
 // @concord-implements docs/feature/inspection/architecture.md
 // @concord-implements docs/feature/run-inspection/README.md
 import { createHash } from "node:crypto";

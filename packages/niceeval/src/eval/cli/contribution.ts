@@ -1,4 +1,4 @@
-// @concord-file ne-eval-cli-catalog
+// @concord-file
 // @concord-implements docs/feature/eval/README.md
 import { Effect } from "effect";
 import {

@@ -1,4 +1,4 @@
-// @concord-file ne-run-storage-sqlite
+// @concord-file
 // @concord-implements docs/feature/run/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 // @concord-implements docs/feature/run-inspection/README.md
@@ -221,7 +221,7 @@ export function currentPublicationCutoffOnConnection(connection: RecordDatabase)
   return requireCutoff(connection);
 }
 
-// @concord-code ne-run-create-resource
+// @concord-code
 // @concord-implements docs/feature/run/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 export function createRunResourceOnConnection(
@@ -268,7 +268,7 @@ export function createRunResourceOnConnection(
   });
 }
 
-// @concord-code ne-run-publish-origin-attempt
+// @concord-code
 // @concord-implements docs/feature/run/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 export function publishOriginAttemptOnConnection(
@@ -354,7 +354,7 @@ export function publishOriginAttemptOnConnection(
   });
 }
 
-// @concord-code ne-run-bind-attempt-reference
+// @concord-code
 // @concord-implements docs/feature/run/architecture.md
 export function bindAttemptReferenceOnConnection(
   connection: RecordDatabase,
@@ -444,7 +444,7 @@ function insertAbsences(
   for (const absence of absences) insert.run(runId, absence.slotId, absence.reason, revision);
 }
 
-// @concord-code ne-run-close-resource
+// @concord-code
 // @concord-implements docs/feature/run/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 export function closeRunResourceOnConnection(
@@ -481,7 +481,7 @@ export function closeRunResourceOnConnection(
   });
 }
 
-// @concord-code ne-run-recover-resource
+// @concord-code
 // @concord-implements docs/feature/run/lifecycle.md
 export function recoverRunResourceOnConnection(
   connection: RecordDatabase,
@@ -565,7 +565,7 @@ function incomingReferences(connection: RecordDatabase, originRunId: string): re
   })));
 }
 
-// @concord-code ne-run-delete-resource
+// @concord-code
 // @concord-implements docs/feature/run/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 export function deleteRunResourceOnConnection(

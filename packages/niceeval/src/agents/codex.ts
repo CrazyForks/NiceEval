@@ -273,7 +273,7 @@ function codexPlatformPackage(
 // 的 Docker/E2B 制品。
 const CODEX_PLUGIN_HOOK_SAFE_CLI_VERSION = "0.146.0";
 
-// @concord-code ne-adapter-codex-agent
+// @concord-code
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/codex-cli/README.md
 export function codexAgent(config?: CodexConfig): Agent {

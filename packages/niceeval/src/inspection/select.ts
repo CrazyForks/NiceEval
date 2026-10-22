@@ -1,10 +1,10 @@
-import { projectPlannedAttempt, projectAttemptCore, projectRunCore, projectMember } from "./planned-attempt.ts";
-import { readAttemptNotes, aggregateAttemptNotes } from "./notes.ts";
-// @concord-file ne-eval-inspection-selector
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
 // @concord-implements docs/feature/insight/README.md
+import { projectPlannedAttempt, projectAttemptCore, projectRunCore, projectMember } from "./planned-attempt.ts";
+import { readAttemptNotes, aggregateAttemptNotes } from "./notes.ts";
 import { Data, Result, Schema } from "effect";
 import { projectAttemptArtifact } from "./artifacts.ts";
 import { projectInput, type FrozenProjectInput } from "./project-input.ts";
@@ -143,7 +143,7 @@ export function selectInspectionOperation<
   facts: InspectionFactSource,
   operation: InspectionOperationFor<Kind>,
 ): InspectionSuccessDocumentFor<Kind>;
-// @concord-code ne-eval-inspection-select-operation
+// @concord-code
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
@@ -158,7 +158,7 @@ export function selectInspectionOperation(
 }
 
 /** Internal CLI explanation over the same selected facts and cutoff. */
-// @concord-code ne-eval-inspection-explain-operation
+// @concord-code
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
 export function explainInspectionOperation(

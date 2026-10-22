@@ -1,7 +1,7 @@
-import { projectLifecyclePhase } from "./lifecycle.ts";
-// @concord-file ne-eval-inspection-trace
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
+import { projectLifecyclePhase } from "./lifecycle.ts";
 import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial, projectAdapterModelUsage } from "../o11y/adapter-usage-projection.ts";
 import { projectJudgeUsage, projectTotalUsageCosts } from "../o11y/judge-usage-projection.ts";
 import type { ResolvedModelRoles } from "../model-roles.ts";
@@ -130,7 +130,7 @@ interface ProjectionState {
   )[];
 }
 
-// @concord-code ne-eval-inspection-project-trace
+// @concord-code
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
 export function projectAttemptTrace(

@@ -1,4 +1,4 @@
-// @concord-file ne-eval-inspection-source
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/architecture.md
 // @concord-implements docs/feature/insight/README.md

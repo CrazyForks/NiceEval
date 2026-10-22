@@ -872,7 +872,7 @@ function makeAfterAction(data: SandboxActionData): SandboxAfterAction {
   return Object.freeze(action);
 }
 
-// @concord-code ne-sandbox-define-action
+// @concord-code
 // @concord-implements docs/feature/sandbox/prepare-commands.md
 // @concord-implements docs/feature/sandbox/architecture.md
 export function defineSandboxAction<A, I extends JsonValue>(

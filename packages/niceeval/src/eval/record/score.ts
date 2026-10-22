@@ -1,4 +1,4 @@
-// @concord-file ne-eval-record-score
+// @concord-file
 // @concord-implements docs/feature/assertions/library/score-points.md
 // @concord-implements docs/feature/verdict/README.md
 // @concord-implements docs/feature/eval/use-case/rubric-points.md
@@ -169,7 +169,7 @@ export function buildScorePayload(
 }
 
 /** Folds Score from the same immutable Record/Core facts as Verdict. */
-// @concord-code ne-eval-fold-score
+// @concord-code
 // @concord-implements docs/feature/assertions/library/score-points.md
 // @concord-implements docs/feature/eval/use-case/rubric-points.md
 export function foldRecordedAttemptScore(input: {

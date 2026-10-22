@@ -1,4 +1,4 @@
-// @concord-file ne-eval-assertions-judge
+// @concord-file
 // @concord-implements docs/feature/judge/README.md
 // @concord-implements docs/feature/judge/library.md
 // @concord-implements docs/feature/judge/use-case/verify-judge.md

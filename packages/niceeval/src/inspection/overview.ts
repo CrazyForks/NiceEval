@@ -1,8 +1,8 @@
-import { PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
-// @concord-file ne-eval-inspection-overview
+// @concord-file
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
 // @concord-implements docs/feature/insight/README.md
+import { PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
 import { foldRecordedAttemptVerdict } from "../eval/record/verdict.ts";
 import type { VerdictState } from "../eval/record/verdict.ts";
 import { Predicate, Result, Schema } from "effect";
@@ -198,7 +198,7 @@ interface OperationalMetric {
  * Selects the latest sealed occurrence of every Experiment/Eval/ordinal Slot
  * and closes the shared machine/Insight Overview without platform APIs.
  */
-// @concord-code ne-eval-inspection-select-overview
+// @concord-code
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
 // @concord-implements docs/feature/insight/README.md
 export function selectInspectionOverview(

@@ -1,4 +1,4 @@
-// @concord-file ne-runner-dispatch
+// @concord-file
 // @concord-implements docs/feature/experiments/architecture.md
 // @concord-implements docs/feature/run/lifecycle.md
 
