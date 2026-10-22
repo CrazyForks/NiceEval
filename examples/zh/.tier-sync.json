@@ -34,19 +34,23 @@
       "from": "examples/zh/tier1/ai-sdk-v7",
       "to": "examples/zh/tier2/ai-sdk-v7",
       "contract": "overlay",
-      "baseTree": "06eb224585e13aee1121106e1199183637291c8f"
+      "baseTree": "1d05b52b54553719f997727272944d4e3eaf1052"
     },
     {
       "from": "examples/zh/tier1/codex-sdk",
       "to": "examples/zh/tier2/codex-sdk",
       "contract": "overlay",
-      "baseTree": "abd1c96af6013c1814b379b69b9bb776553d3a0b"
+      "baseTree": "c4eb51032f3c740230f0548d7a50681132b16581"
     },
     {
       "from": "examples/zh/tier1/langgraph",
       "to": "examples/zh/tier2/langgraph",
       "contract": "overlay",
-      "baseTree": "d49774862454040c7b34a8abe72755714b62393c"
+      "baseTree": "d49774862454040c7b34a8abe72755714b62393c",
+      "pending": {
+        "upstreamTree": "ab22313bbb16294c91d7b31cbbd977d22a15894c",
+        "needsInstall": false
+      }
     },
     {
       "from": "examples/zh/tier2/ai-sdk-v7",
