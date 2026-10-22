@@ -26,7 +26,7 @@ import {
   runPreTeardownHooks,
 } from "./post-setup.ts";
 import { createNpmCliInstaller } from "./npm-staged.ts";
-import type { Agent, AgentSetupManifest, McpServer, Sandbox, SkillSpec } from "../types.ts";
+import type { Agent, AgentInstallationManifest, McpServer, Sandbox, SkillSpec } from "../types.ts";
 import type { SandboxCommand } from "../sandbox/commands.ts";
 import type { AgentArtifactPlatform } from "./types.ts";
 import {
@@ -320,7 +320,7 @@ export function codexAgent(config?: CodexConfig): Agent {
     ensure,
     installers: [installer],
 
-    setup: (sb, ctx) => Effect.gen(function* () {
+    before: (sb, ctx) => Effect.gen(function* () {
       yield* Effect.try({ try: () => requireManagedProcessCapability(sb, "codex"), catch: (cause) => cause });
       // 用户的原生配置文件:本地读原始字节 → 验 TOML 语法与保留键。字节 SHA-256 进
       // manifest 与安装 checkpoint key(见 native-config.ts 的 nativeConfigCheckpointItem)。
@@ -444,7 +444,7 @@ export function codexAgent(config?: CodexConfig): Agent {
             );
           }
 
-          const manifest: AgentSetupManifest = { skills: [] };
+          const manifest: AgentInstallationManifest = { skills: [] };
           if (config?.skills?.length) {
             manifest.skills = await installSkills(sb, config.skills, { dir: SKILL_DIR });
             // 发现指引不是可选装饰:没有它,codex 连一次读 skill 文件的 shell 调用都不会发生。
@@ -470,7 +470,7 @@ export function codexAgent(config?: CodexConfig): Agent {
             manifest.mcpServers?.length ||
             manifest.nativeConfigFile
           ) {
-            ctx.reportSetup(manifest);
+            ctx.reportInstallation(manifest);
           }
 
           // 安装后钩子(before):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
@@ -481,7 +481,7 @@ export function codexAgent(config?: CodexConfig): Agent {
       });
     }),
 
-    teardown: (sb, ctx) => Effect.tryPromise({
+    after: (sb, ctx) => Effect.tryPromise({
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // codex 目前没有其它收尾步骤,这段就是整个 teardown。
@@ -540,7 +540,7 @@ export function codexAgent(config?: CodexConfig): Agent {
 export async function installPlugins(
   sb: Sandbox,
   plugins: readonly CodexPluginSpec[],
-): Promise<NonNullable<AgentSetupManifest["nativePlugins"]>> {
+): Promise<NonNullable<AgentInstallationManifest["nativePlugins"]>> {
   await resetPluginState(sb, plugins);
   return installPluginsFromResetState(sb, plugins);
 }
@@ -572,9 +572,9 @@ async function resetPluginState(
 async function installPluginsFromResetState(
   sb: Sandbox,
   plugins: readonly CodexPluginSpec[],
-): Promise<NonNullable<AgentSetupManifest["nativePlugins"]>> {
+): Promise<NonNullable<AgentInstallationManifest["nativePlugins"]>> {
   const connected = new Set<string>();
-  const out: NonNullable<AgentSetupManifest["nativePlugins"]> = [];
+  const out: NonNullable<AgentInstallationManifest["nativePlugins"]> = [];
 
   for (const plugin of plugins) {
     const { marketplace } = plugin;

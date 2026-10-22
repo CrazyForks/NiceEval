@@ -17,7 +17,7 @@ import {
   runPostSetupHooks,
   runPreTeardownHooks,
 } from "./post-setup.ts";
-import type { Agent, AgentSetupManifest, SkillSpec, TurnEvidenceCoverage } from "../types.ts";
+import type { Agent, AgentInstallationManifest, SkillSpec, TurnEvidenceCoverage } from "../types.ts";
 import type { SandboxCommand } from "../sandbox/commands.ts";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -216,7 +216,7 @@ ${last}`);
       }),
     },
 
-    setup: (sb, ctx) => Effect.tryPromise({
+    before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         // home 必须来自运行时探测:各 sandbox provider 不同(/home/node、/home/vercel-sandbox…),
         // 兜一个 provider 专属常量会静默走错路径(tape 读不到 → 空事件流 → 负断言假通过)。
@@ -244,7 +244,7 @@ ${last}`);
           );
         }
 
-        const manifest: AgentSetupManifest = { skills: [] };
+        const manifest: AgentInstallationManifest = { skills: [] };
         if (config?.skills?.length) {
           manifest.skills = await installSkills(sb, config.skills, { dir: SKILL_DIR });
           // bub 没有原生 Skill 加载机制:装进目录不等于会被读到,发现指引跟着一起写。
@@ -255,7 +255,7 @@ ${last}`);
         }
         if (packages.length) manifest.pythonPlugins = packages.map((pkg) => ({ package: pkg }));
         if (manifest.skills.length || manifest.pythonPlugins?.length) {
-          ctx.reportSetup(manifest);
+          ctx.reportInstallation(manifest);
         }
 
         // 安装后钩子(before):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
@@ -265,7 +265,7 @@ ${last}`);
       catch: (cause) => cause,
     }),
 
-    teardown: (sb, ctx) => Effect.tryPromise({
+    after: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // bub 目前没有其它收尾步骤,这段就是整个 teardown。

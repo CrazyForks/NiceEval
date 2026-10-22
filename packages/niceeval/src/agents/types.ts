@@ -85,20 +85,20 @@ export type SkillSpec =
     };
 
 /** Manifest 里的一条 Skill 安装记录:本地(带内容哈希)或 repo(带来源与 ref)。 */
-export type AgentSetupSkill =
+export type AgentInstallationSkill =
   | { kind: "local"; name: string; path: string; sha256: string }
   | { kind: "repo"; source: string; ref?: string; skills: string[] };
 
 /**
  * 一次 Agent setup 实际装了什么 —— 沙箱型 Coding Agent Adapter 在 setup 收尾经
- * `ctx.reportSetup()` 交回的安装清单。它是宿主侧内存对象,运行器把它作为 attempt artifact 存成
+ * `ctx.reportInstallation()` 交回的安装清单。它是宿主侧内存对象,运行器把它作为 attempt artifact 存成
  * `agent-setup.json`(见 docs/feature/record/architecture.md);沙箱磁盘上不落它。不参与评分,
  * 只回答「这次实际装了什么」;**环境变量值与 secret 不写进来**(所以 mcpServers 只记
  * name/command/args)。
  */
-export interface AgentSetupManifest {
+export interface AgentInstallationManifest {
   /** 装进去的 Skill(按配置顺序;同名来自多个来源时逐条保留,不静默合并)。 */
-  skills: AgentSetupSkill[];
+  skills: AgentInstallationSkill[];
   /** Agent 原生 Plugin(Claude Code / Codex 各自的 Marketplace 协议)。 */
   nativePlugins?: Array<{
     agent: "claude-code" | "codex";
@@ -369,26 +369,24 @@ export interface SandboxAgentContext extends AgentContext {
 }
 
 /** Per-send context; setup and teardown deliberately never receive a turn identity. */
-export interface AgentSendContext extends AgentContext {
+export interface AgentSendContext extends SandboxAgentContext {
   readonly turnId: import("../record/family/source-receipt/model.ts").TurnId;
 }
 
-export interface SandboxAgentSendContext extends SandboxAgentContext {
-  readonly turnId: import("../record/family/source-receipt/model.ts").TurnId;
-}
+export interface SandboxAgentSendContext extends AgentSendContext {}
 
 /**
  * Agent `setup` 的上下文:沙箱上下文再加一条宿主侧安装清单回执通道。只有 `setup` 收得到它——
  * 安装事实在这一步产生,`send` / `teardown` 不再补写。
  */
-export interface SandboxAgentSetupContext extends SandboxAgentContext {
+export interface AgentBeforeContext extends SandboxAgentContext {
   /**
    * 交回这次实际安装了什么(Skill / 原生 Plugin / MCP / 原生配置文件)。清单是宿主侧内存对象,
    * 运行器直接存成 attempt artifact `agent-setup.json`;沙箱里不落任何框架文件
    * (见 docs/observability.md「宿主侧行为断言:t.o11y」)。什么都没装就别调——空清单不生成
    * artifact。同一次 `setup` 内多次调用后写覆盖先写。
    */
-  reportSetup(manifest: AgentSetupManifest): void;
+  reportInstallation(manifest: AgentInstallationManifest): void;
 }
 
 /**
@@ -400,10 +398,12 @@ export interface SandboxAgentSetupContext extends SandboxAgentContext {
  * 的现场同样要扫尾),在 finally 里跑。要把 `setup` 里创建的句柄传给 `teardown`,以
  * `sandbox` 实例为键存取(同一个 Agent 实例服务并发 attempt,不要用实例字段或模块变量)。
  */
-export type AgentSetup = (sandbox: Sandbox, ctx: SandboxAgentSetupContext) => MaybePromise<void>;
-export type AgentTeardown = (sandbox: Sandbox, ctx: SandboxAgentContext) => MaybePromise<void>;
-export type DirectAgentSetup = (ctx: AgentContext) => MaybePromise<void>;
-export type DirectAgentTeardown = (ctx: AgentContext) => MaybePromise<void>;
+export interface SandboxAgentBeforeContext extends AgentBeforeContext {}
+
+export type AgentBefore = (sandbox: Sandbox, ctx: AgentBeforeContext) => MaybePromise<void>;
+export type AgentAfter = (sandbox: Sandbox, ctx: SandboxAgentContext) => MaybePromise<void>;
+export type DirectAgentBefore = (ctx: AgentContext) => MaybePromise<void>;
+export type DirectAgentAfter = (ctx: AgentContext) => MaybePromise<void>;
 
 /**
  * 本 agent 的原生 OTLP span → canonical GenAI semconv 的薄 mapper。
@@ -566,19 +566,19 @@ export interface SandboxAgent extends AgentBase {
   readonly ensure: readonly AgentEnsure[];
   /** 官方或第三方随 adapter 提供的安装层；仅 identity 精确匹配时可接手。 */
   readonly installers: readonly AgentInstaller[];
-  setup?: AgentSetup;
+  before?: AgentBefore;
   tracing?: AgentTracing;
   send(input: TurnInput, ctx: SandboxAgentSendContext): Promise<Turn>;
-  teardown?: AgentTeardown;
+  after?: AgentAfter;
 }
 
 /** 由 runner 直接调用函数、SDK 或服务端点的 Agent；目标进程可以在本地或远端。 */
 export interface DirectAgent extends AgentBase {
   readonly kind: "direct";
-  setup?: DirectAgentSetup;
+  before?: DirectAgentBefore;
   tracing?: Omit<AgentTracing, "configure">;
   send(input: TurnInput, ctx: AgentSendContext): Promise<Turn>;
-  teardown?: DirectAgentTeardown;
+  after?: DirectAgentAfter;
 }
 
 /** 注册表里的 Agent；判别值描述驱动拓扑，不描述目标所在位置。 */
@@ -604,7 +604,7 @@ export interface SandboxAgentDef {
    * 本 Attempt 内不变的运行配置)。CLI 的 probe、安装与复检属于 `agent.ensure`。运行器在 Sandbox
    * 备好(layer prepare/ensure/baseline 之后)、第一次 send 前调用一次,不返回值。
    */
-  setup?: AgentSetup;
+  before?: AgentBefore;
   /** OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 setup 拆出。 */
   tracing?: AgentTracing;
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。只影响瀑布图。 */
@@ -615,7 +615,7 @@ export interface SandboxAgentDef {
   classifySendFailure?: SendFailureClassifier;
   /** Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
    * 在 finally 里跑一次。 */
-  teardown?: AgentTeardown;
+  after?: AgentAfter;
 }
 
 /** `defineAgent()` 的入参形状(见 src/define.ts)——`kind: "direct"` 由 define 固定填入,不由用户声明。 */
@@ -627,7 +627,7 @@ export interface DirectAgentDef {
   /**
    * 每个 attempt 一次。Direct Agent 不接收 Sandbox；常用于建立连接、鉴权等一次性准备。
    */
-  setup?: DirectAgentSetup;
+  before?: DirectAgentBefore;
   /** OTLP 导出配置:被测对象怎么把 trace 发到 endpoint(env-based 注入)。 */
   tracing?: Omit<AgentTracing, "configure">;
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。只影响瀑布图。 */
@@ -638,5 +638,5 @@ export interface DirectAgentDef {
   classifySendFailure?: SendFailureClassifier;
   /** 运行结束前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
    * 在 finally 里跑一次。 */
-  teardown?: DirectAgentTeardown;
+  after?: DirectAgentAfter;
 }

@@ -287,7 +287,7 @@ export function createAttemptArtifactsAttachment(
     captures.push(Object.freeze({ mediaType: "application/json", label, bytes }));
   };
 
-  if (result.agentSetup !== undefined) appendJson("agent-setup.json", result.agentSetup);
+  if (result.agentInstallation !== undefined) appendJson("agent-setup.json", result.agentInstallation);
   if (captures.length === 0 && omittedAtLeast === 0 && snapshot?.failure === undefined) return undefined;
   return artifactsAttachment({
     artifacts: Object.freeze(captures),

@@ -7,7 +7,7 @@ import type { Effect } from "effect";
 import type { ExperimentFlags, FlagValue, JsonValue, LocalizedText, ScopedFeedback, SourceArtifact, Verdict } from "../shared/types.ts";
 import type { AttemptFailureClassifier } from "../shared/failure-class.ts";
 import type { O11ySummary, StreamEvent, TraceSpan, Truncation, Usage } from "../o11y/types.ts";
-import type { Agent, AgentSetupManifest } from "../agents/types.ts";
+import type { Agent, AgentInstallationManifest } from "../agents/types.ts";
 import type { Adapter, AdapterRuntimeEvalDefinition } from "../adapter.ts";
 import type { SandboxLayer } from "../sandbox/layer.ts";
 import type { LinkedRunPlan } from "../sandbox/plan.ts";
@@ -448,7 +448,7 @@ export interface EvalResult {
   /** agent 经 OpenTelemetry 导出的运行追踪(有 tracing 能力且收到 span 时)。 */
   trace?: TraceSpan[];
   /** 本 attempt 的 agent setup 实际装了什么(Skill / native plugin / MCP / Python plugin);不参与评分。 */
-  agentSetup?: AgentSetupManifest;
+  agentInstallation?: AgentInstallationManifest;
   /**
    * attempt 级聚合的证据覆盖(各 turn 的最差值,unavailable < partial < complete)；必填。
    */

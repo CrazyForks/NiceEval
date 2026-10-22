@@ -21,7 +21,7 @@ import {
   runPreTeardownHooks,
 } from "./post-setup.ts";
 import { createNpmCliInstaller, resolveAgentBinEffect } from "./npm-staged.ts";
-import type { Agent, AgentSetupManifest, McpServer, Sandbox, SkillSpec } from "../types.ts";
+import type { Agent, AgentInstallationManifest, McpServer, Sandbox, SkillSpec } from "../types.ts";
 import type { SandboxCommand } from "../sandbox/commands.ts";
 import { requireManagedProcessCapability } from "../sandbox/backend.ts";
 import { attemptResources } from "../context/attempt-resources.ts";
@@ -164,7 +164,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       }),
     },
 
-    setup: (sb, ctx) => Effect.gen(function* () {
+    before: (sb, ctx) => Effect.gen(function* () {
       yield* Effect.try({ try: () => requireManagedProcessCapability(sb, "claude-code"), catch: (cause) => cause });
       // 原生配置文件最先落(安装顺序契约的第 1 步):本地读原始字节 → 验 JSON 语法与保留键
       // → 原样替换沙箱里原本为空的用户级 settings.json。字节 SHA-256 进 manifest 与安装
@@ -222,7 +222,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
             );
           }
 
-          const manifest: AgentSetupManifest = { skills: [] };
+          const manifest: AgentInstallationManifest = { skills: [] };
           if (config?.skills?.length) {
             manifest.skills = await installSkills(sb, config.skills, { dir: SKILL_DIR });
           }
@@ -244,7 +244,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
             manifest.mcpServers?.length ||
             manifest.nativeConfigFile
           ) {
-            ctx.reportSetup(manifest);
+            ctx.reportInstallation(manifest);
           }
 
           // 安装后钩子(before):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
@@ -255,7 +255,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       });
     }),
 
-    teardown: (sb, ctx) => Effect.tryPromise({
+    after: (sb, ctx) => Effect.tryPromise({
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // claude-code 目前没有其它收尾步骤,这段就是整个 teardown。
@@ -305,9 +305,9 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
 export async function installPlugins(
   sb: Sandbox,
   plugins: readonly ClaudeCodePluginSpec[],
-): Promise<NonNullable<AgentSetupManifest["nativePlugins"]>> {
+): Promise<NonNullable<AgentInstallationManifest["nativePlugins"]>> {
   const connected = new Set<string>();
-  const out: NonNullable<AgentSetupManifest["nativePlugins"]> = [];
+  const out: NonNullable<AgentInstallationManifest["nativePlugins"]> = [];
 
   // 摘除顺序固定「先卸完全部同名插件、后摘 marketplace」:插件按 `<plugin>@<marketplace>` 定位,
   // 注册先没了就定位不到残留的那份安装。整体先于安装循环执行,多个插件共用一个 marketplace

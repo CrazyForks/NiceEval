@@ -102,7 +102,7 @@ export type SandboxCleanupCommand = (
 ) => MaybePromise<void>;
 
 export interface SandboxCommandContext {
-  readonly phase: "before" | "agent.post-setup" | "agent.pre-teardown";
+  readonly phase: "before" | "agent.before" | "agent.after";
   /** 当前 Attempt 的 Eval Group；未分组 Eval 省略。 */
   readonly evalGroup?: {
     readonly id: string;

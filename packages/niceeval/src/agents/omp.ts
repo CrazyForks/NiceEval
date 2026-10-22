@@ -120,7 +120,7 @@ export function ompAgent(config?: OmpConfig): Agent {
     ensure: [bunInstall.ensure, ompInstall.ensure],
     installers: [bunInstall.installer, ompInstall.installer],
 
-    setup: (sb, ctx) => Effect.tryPromise({
+    before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         const homeResult = await sb.runShell('test -n "$HOME" && printf "%s" "$HOME"');
         const home = homeResult.stdout.trim();

@@ -10,8 +10,8 @@ import {
   parseClaudeCodeTranscript,
   parseBubTranscript,
 } from "../o11y/parsers/index.ts";
-import type { AgentSetupManifest, AgentSetupSkill, CommandOptions, Sandbox, SkillSpec, StreamEvent } from "../types.ts";
-import type { SandboxAgentSetupContext } from "./types.ts";
+import type { AgentInstallationManifest, AgentInstallationSkill, CommandOptions, Sandbox, SkillSpec, StreamEvent } from "../types.ts";
+import type { SandboxAgentBeforeContext } from "./types.ts";
 import { firstLine } from "../util.ts";
 import { shellQuote } from "../sandbox/shell.ts";
 import {
@@ -215,7 +215,7 @@ export const shared = {
    * 把 SkillSpec 装进沙箱的 `opts.dir`(本地目录/文件按原字节上传;repo 按 ref clone、按
    * 选择集拷贝),返回 manifest 用的 Skill 记录。装进 workspace 的东西自动排除出 diff。
    */
-  installSkills(sandbox: Sandbox, specs: readonly SkillSpec[], opts: InstallSkillsOptions): Promise<AgentSetupSkill[]> {
+  installSkills(sandbox: Sandbox, specs: readonly SkillSpec[], opts: InstallSkillsOptions): Promise<AgentInstallationSkill[]> {
     return installSkills(sandbox, specs, opts);
   },
   /** manifest 里的 Skill 记录 → 沙箱里实际的目录名。 */
@@ -231,8 +231,8 @@ export const shared = {
    * `agent-setup.json`;沙箱磁盘上不落它,也不落任何其它框架文件。什么都没装就别调
    * (空 artifact 不落文件)。secret 不进 manifest。
    */
-  writeAgentSetup(ctx: SandboxAgentSetupContext, manifest: AgentSetupManifest): void {
-    ctx.reportSetup(manifest);
+  writeAgentInstallation(ctx: SandboxAgentBeforeContext, manifest: AgentInstallationManifest): void {
+    ctx.reportInstallation(manifest);
   },
   /** 原始 codex JSONL → 标准事件流 + 用量 + 压缩计数。 */
   parseCodex(raw: string | undefined): ParsedTranscript {

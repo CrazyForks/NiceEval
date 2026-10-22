@@ -757,7 +757,7 @@ function agentSetupSteps(pair: PreparedRunPair, owner: CommandPlanOwner): readon
       { owner },
     )];
   }
-  if (agent.setup === undefined) {
+  if (agent.before === undefined) {
     return [knownNoCommand("agent.setup", "hook-omitted", "Agent has no setup callback", { owner })];
   }
   if (agent.kind !== "sandbox") {
@@ -803,7 +803,7 @@ function agentTeardownSteps(pair: PreparedRunPair, owner: CommandPlanOwner): rea
       { owner },
     )];
   }
-  if (agent.teardown === undefined) {
+  if (agent.after === undefined) {
     return [knownNoCommand("agent.teardown", "hook-omitted", "Agent has no teardown callback", { owner })];
   }
   if (agent.kind !== "sandbox") {

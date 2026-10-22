@@ -2,7 +2,7 @@
 // 契约见 docs/feature/adapters/architecture/coding-agent-extensions.md「类型边界」:
 // stdio(command)与 Streamable HTTP(url)按形状判别;双字段是配置错误,setup 点名报错。
 
-import type { AgentSetupManifest, McpHttpServer, McpServer } from "./types.ts";
+import type { AgentInstallationManifest, McpHttpServer, McpServer } from "./types.ts";
 
 /** 形态判别:有 url 的是 HTTP。调用前先过 {@link assertMcpServers}(双字段在那里报错)。 */
 export function isHttpMcp(server: McpServer): server is McpHttpServer {
@@ -21,7 +21,7 @@ export function assertMcpServers(servers: readonly McpServer[]): void {
 /** manifest 条目:只记非 secret 字段(stdio 不含 env,HTTP 不含 headers)。 */
 export function mcpManifestEntries(
   servers: readonly McpServer[],
-): NonNullable<AgentSetupManifest["mcpServers"]> {
+): NonNullable<AgentInstallationManifest["mcpServers"]> {
   return servers.map((s) =>
     isHttpMcp(s)
       ? { name: s.name, url: s.url }

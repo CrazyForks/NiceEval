@@ -14,7 +14,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, posix, relative, resolve, sep } from "node:path";
 import { shellQuote as q } from "../sandbox/shell.ts";
 import type { SandboxOperations } from "../sandbox/types.ts";
-import type { AgentSetupSkill, Sandbox, SkillSpec } from "../types.ts";
+import type { AgentInstallationSkill, Sandbox, SkillSpec } from "../types.ts";
 
 /** 沙箱里放临时 clone 的地方(装完即删;不在 workdir 下,不进 diff)。 */
 const CLONE_ROOT = "/tmp/niceeval-git";
@@ -36,8 +36,8 @@ export async function installSkills(
   sandbox: Sandbox,
   specs: readonly SkillSpec[],
   opts: InstallSkillsOptions,
-): Promise<AgentSetupSkill[]> {
-  const out: AgentSetupSkill[] = [];
+): Promise<AgentInstallationSkill[]> {
+  const out: AgentInstallationSkill[] = [];
   for (const spec of specs) {
     out.push(
       spec.kind === "local"
@@ -55,7 +55,7 @@ async function installLocalSkill(
   sandbox: Sandbox,
   spec: Extract<SkillSpec, { kind: "local" }>,
   opts: InstallSkillsOptions,
-): Promise<AgentSetupSkill> {
+): Promise<AgentInstallationSkill> {
   const root = opts.projectRoot ?? process.cwd();
   const abs = resolve(root, spec.path);
   const info = await stat(abs).catch(() => undefined);
@@ -120,7 +120,7 @@ async function installRepoSkill(
   sandbox: Sandbox,
   spec: Extract<SkillSpec, { kind: "repo" }>,
   opts: InstallSkillsOptions,
-): Promise<AgentSetupSkill> {
+): Promise<AgentInstallationSkill> {
   const cloneDir = await cloneRepo(sandbox, spec.source, spec.ref);
   try {
     const available = await discoverSkills(sandbox, cloneDir, spec.source);
@@ -241,7 +241,7 @@ function tail(output: string, n = 12): string {
 // ───────────────────────── 发现指引 ─────────────────────────
 
 /** manifest 里的 Skill 记录 → 沙箱里实际的目录名(发现指引要逐条点名)。 */
-export function installedSkillNames(skills: readonly AgentSetupSkill[]): string[] {
+export function installedSkillNames(skills: readonly AgentInstallationSkill[]): string[] {
   const names: string[] = [];
   for (const skill of skills) {
     if (skill.kind === "local") names.push(skill.name);

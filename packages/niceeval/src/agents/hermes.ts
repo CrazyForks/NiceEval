@@ -14,7 +14,7 @@ import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { parseHermesTranscript, sessionIdFromHermesOutput } from "../o11y/parsers/hermes.ts";
 import { DEFAULT_HERMES_CLI_VERSION } from "./coding-cli-versions.ts";
 import { shellQuote } from "../sandbox/shell.ts";
-import type { Agent, AgentSetupManifest, Sandbox, SkillSpec, StreamEvent, TurnEvidenceCoverage } from "../types.ts";
+import type { Agent, AgentInstallationManifest, Sandbox, SkillSpec, StreamEvent, TurnEvidenceCoverage } from "../types.ts";
 import { makeSendFailure, sendAcceptanceFromEvents } from "../context/send-failures.ts";
 import { defineSandboxCommand } from "../sandbox/commands.ts";
 
@@ -155,7 +155,7 @@ export function hermesAgent(config?: HermesConfig): Agent {
     evidenceCoverage: completeEvidenceCoverage,
     spanMapper: mapGenericSpans,
 
-    setup: (sb, ctx) => Effect.tryPromise({
+    before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         const baseUrl = resolveBaseUrl(config);
         if (baseUrl) {
@@ -181,7 +181,7 @@ export function hermesAgent(config?: HermesConfig): Agent {
           await shared.writeFile(sb, "~/.hermes/.env", hermesEnv, { sensitiveValues: [apiKey] });
         }
 
-        const manifest: AgentSetupManifest = { skills: [] };
+        const manifest: AgentInstallationManifest = { skills: [] };
         if (config?.skills?.length) {
           const skillDir = await hermesSkillDir(sb);
           manifest.skills = await installSkills(sb, config.skills, { dir: skillDir });
@@ -191,7 +191,7 @@ export function hermesAgent(config?: HermesConfig): Agent {
           );
         }
         if (manifest.skills.length) {
-          ctx.reportSetup(manifest);
+          ctx.reportInstallation(manifest);
         }
       },
       catch: (cause) => cause,

@@ -48,10 +48,11 @@ import { Result, Schema } from "effect";
 import { assertEvidenceCoverage } from "./assertions/coverage.ts";
 import {
   effectAgentCallback,
-  registerAgentEffectRuntime,
+  attachAgentEffects,
+  authorCallbackEffect,
   type InternalDirectAgentDefinition,
   type InternalSandboxAgentDefinition,
-} from "./agents/effect-runtime.ts";
+} from "./agents/agent-effects.ts";
 import { isPluginInstance, pluginInstanceDataOf, type PluginInstance, type PluginOwner } from "./plugin/contracts.ts";
 
 /** Recognize only the retired flat configuration, without evaluating getters. */
@@ -108,8 +109,15 @@ export function isDefinedScoreEval(value: object): boolean {
   return definedScoreEvals.has(value);
 }
 
+function assertAuthorLifecycleNames(def: object, owner: string): void {
+  for (const [previous, current] of [["setup", "before"], ["teardown", "after"]] as const) {
+    if (Object.hasOwn(def, previous)) throw new TypeError(`${owner}.${previous} is no longer supported; use ${current}.`);
+  }
+}
+
 /** 沙箱型 agent:在沙箱里 spawn 一个 coding agent 的 CLI,跑完读回 transcript。 */
 export function defineSandboxAgent(def: SandboxAgentDef): SandboxAgent {
+  assertAuthorLifecycleNames(def, "Agent");
   if (!def.name) throw new Error(`defineSandboxAgent requires name.`);
   assertEvidenceCoverage(def.evidenceCoverage, "defineSandboxAgent");
   if (def.ensure === undefined) throw new Error(`defineSandboxAgent requires an ensure declaration.`);
@@ -127,7 +135,7 @@ export function defineSandboxAgent(def: SandboxAgentDef): SandboxAgent {
       );
     }
   }
-  return {
+  const agent: SandboxAgent = {
     name: def.name,
     kind: "sandbox",
     defineEval,
@@ -136,75 +144,86 @@ export function defineSandboxAgent(def: SandboxAgentDef): SandboxAgent {
     ...(def.sandbox === undefined ? {} : { sandbox: def.sandbox }),
     ensure,
     installers: def.installers ?? [],
-    setup: def.setup,
+    before: def.before,
     tracing: def.tracing,
     spanMapper: def.spanMapper,
     send: def.send,
     classifySendFailure: def.classifySendFailure,
-    teardown: def.teardown,
+    after: def.after,
   };
+  return attachAgentEffects(agent, {
+    send: (input, context) => authorCallbackEffect(() => def.send(input, context)),
+    before: def.before === undefined ? undefined : (sandbox, context) => authorCallbackEffect(() => def.before!(sandbox, context)),
+    after: def.after === undefined ? undefined : (sandbox, context) => authorCallbackEffect(() => def.after!(sandbox, { ...context, sandbox })),
+  });
 }
 
 /** @internal Creates a Promise facade while retaining a built-in Effect runtime. */
 export function makeSandboxAgent(
-  def: Omit<SandboxAgentDef, "send" | "setup" | "teardown"> & InternalSandboxAgentDefinition,
+  def: Omit<SandboxAgentDef, "send" | "before" | "after"> & InternalSandboxAgentDefinition,
 ): SandboxAgent {
-  const { send, setup, teardown, ...publicDefinition } = def;
+  const { send, before, after, ...publicDefinition } = def;
   const agent = defineSandboxAgent({
     ...publicDefinition,
     send: effectAgentCallback(send, (_input, context) => context.signal),
-    ...(setup === undefined ? {} : {
-      setup: effectAgentCallback(setup, (_sandbox, context) => context.signal),
+    ...(before === undefined ? {} : {
+      before: effectAgentCallback(before, (_sandbox, context) => context.signal),
     }),
-    ...(teardown === undefined ? {} : {
-      teardown: effectAgentCallback(teardown, (_sandbox, context) => context.signal),
+    ...(after === undefined ? {} : {
+      after: effectAgentCallback(after, (_sandbox, context) => context.signal),
     }),
   });
-  return registerAgentEffectRuntime(agent, {
-    send: send as InternalDirectAgentDefinition["send"],
-    sandboxSetup: setup,
-    sandboxTeardown: teardown,
+  return attachAgentEffects(agent, {
+    send,
+    before,
+    after,
   });
 }
 
 /** Direct Agent:在 send 里直接驱动函数、SDK 或服务端点。 */
 export function defineAgent(def: DirectAgentDef): DirectAgent {
+  assertAuthorLifecycleNames(def, "Agent");
   if (!def.name) throw new Error(`defineAgent requires name.`);
   assertEvidenceCoverage(def.evidenceCoverage, "defineAgent");
-  return {
+  const agent: DirectAgent = {
     name: def.name,
     kind: "direct",
     defineEval,
     defineScoreEval,
     evidenceCoverage: def.evidenceCoverage,
-    setup: def.setup,
+    before: def.before,
     tracing: def.tracing,
     spanMapper: def.spanMapper,
     send: def.send,
     classifySendFailure: def.classifySendFailure,
-    teardown: def.teardown,
+    after: def.after,
   };
+  return attachAgentEffects(agent, {
+    send: (input, context) => authorCallbackEffect(() => def.send(input, context)),
+    before: def.before === undefined ? undefined : (_sandbox, context) => authorCallbackEffect(() => def.before!(context)),
+    after: def.after === undefined ? undefined : (_sandbox, context) => authorCallbackEffect(() => def.after!(context)),
+  });
 }
 
 /** @internal Creates a Promise facade while retaining a built-in Effect runtime. */
 export function makeDirectAgent(
-  def: Omit<DirectAgentDef, "send" | "setup" | "teardown"> & InternalDirectAgentDefinition,
+  def: Omit<DirectAgentDef, "send" | "before" | "after"> & InternalDirectAgentDefinition,
 ): DirectAgent {
-  const { send, setup, teardown, ...publicDefinition } = def;
+  const { send, before, after, ...publicDefinition } = def;
   const agent = defineAgent({
     ...publicDefinition,
     send: effectAgentCallback(send, (_input, context) => context.signal),
-    ...(setup === undefined ? {} : {
-      setup: effectAgentCallback(setup, (context) => context.signal),
+    ...(before === undefined ? {} : {
+      before: effectAgentCallback(before, (context) => context.signal),
     }),
-    ...(teardown === undefined ? {} : {
-      teardown: effectAgentCallback(teardown, (context) => context.signal),
+    ...(after === undefined ? {} : {
+      after: effectAgentCallback(after, (context) => context.signal),
     }),
   });
-  return registerAgentEffectRuntime(agent, {
+  return attachAgentEffects(agent, {
     send,
-    directSetup: setup,
-    directTeardown: teardown,
+    before: before === undefined ? undefined : (_sandbox, context) => before(context),
+    after: after === undefined ? undefined : (_sandbox, context) => after(context),
   });
 }
 

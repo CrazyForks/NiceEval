@@ -63,7 +63,7 @@ function teardownError(value: unknown): Error {
 function commandContext(
   ctx: AgentContext,
   agentName: string,
-  phase: "agent.post-setup" | "agent.pre-teardown",
+  phase: "agent.before" | "agent.after",
   onCleanup: SandboxCommandContext["onCleanup"],
 ): SandboxCommandContext {
   return {
@@ -97,7 +97,7 @@ export async function runPostSetupHooks(
   if (!hooks?.length) return;
   const cleanups = registeredCleanups.get(sb) ?? [];
   registeredCleanups.set(sb, cleanups);
-  const hookCtx = commandContext(ctx, agentName, "agent.post-setup", (cleanup) => cleanups.push(cleanup));
+  const hookCtx = commandContext(ctx, agentName, "agent.before", (cleanup) => cleanups.push(cleanup));
   const target = createSandboxCommandTarget(sb);
   for (const hook of hooks) await hook(target, hookCtx);
 }
@@ -116,9 +116,9 @@ export async function runPreTeardownHooks(
   if (!postSetupPointReached.has(sb)) return;
   const target = createSandboxCommandTarget(sb);
   const nestedCleanups: SandboxCleanupCommand[] = [];
-  const hookCtx = commandContext(ctx, agentName, "agent.pre-teardown", (cleanup) => nestedCleanups.push(cleanup));
+  const hookCtx = commandContext(ctx, agentName, "agent.after", (cleanup) => nestedCleanups.push(cleanup));
   const cleanupContext: Omit<SandboxCommandContext, "onCleanup"> = {
-    phase: "agent.pre-teardown",
+    phase: "agent.after",
     ...(hookCtx.evalGroup === undefined ? {} : { evalGroup: hookCtx.evalGroup }),
     owner: { kind: "agent", id: agentName },
     attempt: hookCtx.attempt,

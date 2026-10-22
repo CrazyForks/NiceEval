@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 
 import { Cause, Effect, Exit, Option, Semaphore } from "effect";
 
-import type { Agent, AgentContext, AgentSendContext, AgentSession, InputFile, InputRequest, InputResponse, JsonValue, Sandbox, SandboxAgentSendContext, SessionSlot, StreamEvent, Telemetry, TraceSpan, Turn, TurnInput, Usage } from "../types.ts";
+import type { Agent, AgentContext, AgentSendContext, AgentSession, InputFile, InputRequest, InputResponse, JsonValue, Sandbox, SessionSlot, StreamEvent, Telemetry, TraceSpan, Turn, TurnInput, Usage } from "../types.ts";
 import { entityIdFromEntropy, type TurnId } from "../record/family/source-receipt/model.ts";
 import {
   ObservedEventIngestionCorrelator,
@@ -38,7 +38,7 @@ import type { RetryAttemptRecord, TimingActivity } from "../runner/types.ts";
 import { formatTurnLabel } from "../shared/turn-label.ts";
 import { bindAttemptResources } from "./attempt-resources.ts";
 import { withAgentCallbackContext } from "../agents/callback-context.ts";
-import { agentSendEffect, authorCallbackEffect } from "../agents/effect-runtime.ts";
+import { agentSendEffect, authorCallbackEffect } from "../agents/agent-effects.ts";
 
 interface PhysicalSendResult {
   readonly turn: Turn;
@@ -498,6 +498,7 @@ export class SessionManager {
         ...(sourceOrder === undefined ? {} : { sourceOrder }),
       });
       const ctx: AgentSendContext = bindAttemptResources({
+        sandbox: this.deps.sandbox,
         turnId,
         signal: this.deps.signal,
         evalId: this.deps.evalId,
@@ -734,9 +735,7 @@ export class SessionManager {
     ctx: AgentSendContext,
     observeUsage: ObserveSendUsage,
   ): Effect.Effect<Turn, ReturnType<typeof normalizeSendFailure>> {
-    const nativeContext: AgentSendContext = this.deps.agent.kind === "sandbox"
-      ? bindAttemptResources({ ...ctx, sandbox: this.deps.sandbox }, this.deps.resources)
-      : ctx;
+    const nativeContext = ctx;
     const native = agentSendEffect(this.deps.agent, input, nativeContext);
     if (native !== undefined) {
       return withAgentCallbackContext(nativeContext, (callbackContext) => observeUsage(
@@ -877,15 +876,7 @@ export class SessionManager {
   }
 
   private sendAgent(input: TurnInput, ctx: AgentSendContext): Promise<Turn> {
-    const agent = this.deps.agent;
-    if (agent.kind === "sandbox") {
-      const sandboxCtx: SandboxAgentSendContext = bindAttemptResources(
-        { ...ctx, sandbox: this.deps.sandbox },
-        this.deps.resources,
-      );
-      return agent.send(input, sandboxCtx);
-    }
-    return agent.send(input, ctx);
+    return this.deps.agent.send(input, ctx);
   }
 }
 

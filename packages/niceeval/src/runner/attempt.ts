@@ -55,7 +55,7 @@ import {
 import { ProjectStateDatabase } from "../record/sqlite/project-state-database.ts";
 import { runAgentEnsure, verifySandboxTargetPlatform } from "../agents/provisioner.ts";
 import { withAgentCallbackContext } from "../agents/callback-context.ts";
-import { agentSetupEffect, agentTeardownEffect, authorCallbackEffect } from "../agents/effect-runtime.ts";
+import { agentBeforeEffect, agentAfterEffect, authorCallbackEffect } from "../agents/agent-effects.ts";
 import { createTraceReceiver, interruptOnAbort, type TraceReceiver } from "../o11y/otlp/receiver.ts";
 import { createInSandboxTraceReceiver } from "../o11y/otlp/sandbox-receiver.ts";
 import { AgentOtelChannel } from "../o11y/otlp/turn-otel.ts";
@@ -176,7 +176,7 @@ import type { CapturedEvalSource } from "./eval-source.ts";
 import type {
   AgentContext,
   SandboxAgentContext,
-  AgentSetupManifest,
+  AgentInstallationManifest,
   Config,
   DiagnosticInput,
   DiffArtifact,
@@ -2578,7 +2578,7 @@ async function runAttemptBody(
   const managedProcess = managedProcessSupport?._tag === "Supported"
     ? managedProcessSupport.value
     : undefined;
-  /** agent.setup 时点已走到(未声明 setup 也置位)——agent.teardown 的触发条件(成对触发规则)。 */
+  /** agent.before 时点已走到(未声明 setup 也置位)——agent.after 的触发条件(成对触发规则)。 */
   let agentSetupReached = false;
   const evalPluginLifecycles = linkPluginLifecycles(evalDef.plugins, "eval");
   let activatedEvalPlugins = 0;
@@ -2594,10 +2594,10 @@ async function runAttemptBody(
   // Only the Assert-first runtime is registered with the outer Scope. The
   // body requests its single seal after gathering non-authoring evidence.
   let assertionState: AssertFirstContextState | undefined;
-  /** adapter 在 agent.setup 里经 `ctx.reportSetup()` 交回的安装清单(宿主侧内存对象,不经沙箱磁盘;
+  /** adapter 在 agent.before 里经 `ctx.reportInstallation()` 交回的安装清单(宿主侧内存对象,不经沙箱磁盘;
    *  装了 Skill / plugin / MCP 的沙箱型 adapter 才有)。运行器只把它抬成 attempt artifact,
    *  不解释内容、不按 agent 名字分支;什么都没装的 adapter 不调用 → undefined,不生成空 artifact。 */
-  let agentSetup: AgentSetupManifest | undefined;
+  let agentInstallation: AgentInstallationManifest | undefined;
   // 变更分类账(仅沙箱型;workspace.baseline 阶段建立)。
   let ledger: ChangeLedger | undefined;
   const linked = usesSandbox && a.plan._tag === "Sandbox" ? a.plan.pair : undefined;
@@ -3191,35 +3191,19 @@ async function runAttemptBody(
     }
 
     // agent 自己的 lifecycle:装 CLI、写 config(每个沙箱一次,不在每轮 send 里)。
-    // 时点在此走到(未声明 setup 也算)——agent.teardown 据此触发。
+    // 时点在此走到(未声明 setup 也算)——agent.after 据此触发。
     agentSetupReached = true;
-    if (agent.setup) {
+    if (agent.before) {
       enterPhase("agent.setup");
       log(`agent setup (install CLI / write config)...`);
-      const setupContext = agent.kind === "sandbox"
-        ? { ...sandboxAttemptCtx, reportSetup: (manifest: AgentSetupManifest) => (agentSetup = manifest) }
-        : attemptCtx;
-      let returned: unknown;
-      if (agent.kind === "sandbox") {
-        const setup = agent.setup;
-        const context = setupContext as typeof sandboxAttemptCtx & {
-          reportSetup(manifest: AgentSetupManifest): void;
-        };
-        const native = agentSetupEffect(agent, sandbox, context);
-        returned = await assertFirst.requestEffect(native === undefined
-          ? withAgentCallbackContext(context, (callbackContext) =>
-              authorCallbackEffect(() => setup!(sandbox, callbackContext)))
-          : withAgentCallbackContext(context, (callbackContext) =>
-              agentSetupEffect(agent, sandbox, callbackContext)!));
-      } else {
-        const setup = agent.setup;
-        const native = agentSetupEffect(agent, sandbox, attemptCtx);
-        returned = await assertFirst.requestEffect(native === undefined
-          ? withAgentCallbackContext(attemptCtx, (callbackContext) =>
-              authorCallbackEffect(() => setup!(callbackContext)))
-          : withAgentCallbackContext(attemptCtx, (callbackContext) =>
-              agentSetupEffect(agent, sandbox, callbackContext)!));
-      }
+      const context = {
+        ...sandboxAttemptCtx,
+        reportInstallation: (manifest: AgentInstallationManifest) => { agentInstallation = manifest; },
+      };
+      const returned: unknown = await assertFirst.requestEffect(
+        withAgentCallbackContext(context, (callbackContext) =>
+          agentBeforeEffect(agent, sandbox, callbackContext) ?? Effect.void),
+      );
       if (typeof returned === "function") {
         throw new Error(
           `${`Agent.setup (${agent.name})`} returned a function. setup does not carry cleanup and the returned value will not be executed — put the cleanup in the paired teardown of the same layer (${"Agent.teardown"}); see the experiments tutorial on docs-site or docs/runner.md.
@@ -3655,7 +3639,7 @@ async function runAttemptBody(
       sources,
       o11y,
       trace,
-      agentSetup,
+      agentInstallation,
       ...(diffArtifactAvailable ? { diff: diffWindows } : {}),
       evidenceCoverage: state.manager.evidenceCoverage,
       // sandbox 归属不在这里拼:它是租借时刻就定死的调度事实,由 runAttemptEffect 统一挂到
@@ -3667,7 +3651,7 @@ async function runAttemptBody(
     // 降成 AttemptError 或 warning。外层 Effect 会负责中止并运行 release/finalizer。
     if (isBodyInterrupted(signal, parentSignal, isDeadlineTimedOut())) throw e;
     recorder.failCurrent();
-    // SandboxLayer command / agent.setup / 评分链路抛出的终局失败:同样先读空间轴回执,
+    // SandboxLayer command / agent.before / 评分链路抛出的终局失败:同样先读空间轴回执,
     // 再折成纯数据 AttemptError(顺序不可换,见 declareFailure)。
     declareFailure(getPhase() ?? "eval.run", e);
     const error = errorFromThrown(e, getPhase(), res.attemptTimeout);
@@ -3699,63 +3683,30 @@ async function runAttemptBody(
       ...(sealed === undefined
         ? (evalDef.evaluationKind === "score" ? { scoreResult: scoreFactOutcomeForAttemptError(error) } : {})
         : legacyResultProjectionFromSealedAssertions(sealed, error)),
-      ...(agentSetup !== undefined ? { agentSetup } : {}),
+      ...(agentInstallation !== undefined ? { agentInstallation } : {}),
     };
     return value;
   } finally {
     // 收尾段一律在 finally 跑(主链成败都执行),不改判定,各自兜错(diagnostic)、各自计时
     // (不计入 durationMs 口径,见 docs/feature/record/architecture.md)。执行序与 LifecyclePhase
-    // 闭集声明一致:agent.teardown → sandbox.cleanup;各段可独立标 failed。
+    // 闭集声明一致:agent.after → sandbox.cleanup;各段可独立标 failed。
     // 沙箱 stop / 接收器 close 不在这里 —— 由 runAttemptEffect 的 Sample 在本函数返回后回收,
     // 并经 finalizer 计成 sandbox.stop。没有对应 teardown/cleanup 的段直接跳过，不产生空阶段。
     if (assertFirst.beginCleanup()) {
       try {
-        if (agentSetupReached && agent.teardown) {
+        if (agentSetupReached && agent.after) {
           enterPhase("agent.teardown");
           await recorder
             .measureClosing("agent.teardown", async () => {
               try {
-                // 先按 kind 收窄 Agent 联合,再取 teardown —— 否则可选属性访问会把
-                // AgentTeardown | DirectAgentTeardown 混成无法调用的签名。
-                if (agent.kind === "sandbox") {
-                  const teardown = agent.teardown;
-                  if (teardown) {
-                    const context = { ...sandboxAttemptCtx, signal };
-                    const native = agentTeardownEffect(agent, sandbox, context);
-                    await assertFirst.requestCleanup(withCleanupTimeout(
-                      native === undefined
-                        ? withAgentCallbackContext(
-                            context,
-                            (callbackContext) => authorCallbackEffect(() => teardown(sandbox, callbackContext)),
-                            { inheritAttemptSignal: false },
-                          )
-                        : withAgentCallbackContext(
-                            context,
-                            (callbackContext) => agentTeardownEffect(agent, sandbox, callbackContext)!,
-                            { inheritAttemptSignal: false },
-                          ),
-                    ));
-                  }
-                } else {
-                  const teardown = agent.teardown;
-                  if (teardown) {
-                    const context = { ...attemptCtx, signal };
-                    const native = agentTeardownEffect(agent, sandbox, context);
-                    await assertFirst.requestCleanup(withCleanupTimeout(
-                      native === undefined
-                        ? withAgentCallbackContext(
-                            context,
-                            (callbackContext) => authorCallbackEffect(() => teardown(callbackContext)),
-                            { inheritAttemptSignal: false },
-                          )
-                        : withAgentCallbackContext(
-                            context,
-                            (callbackContext) => agentTeardownEffect(agent, sandbox, callbackContext)!,
-                            { inheritAttemptSignal: false },
-                          ),
-                    ));
-                  }
-                }
+                const context = { ...sandboxAttemptCtx, signal };
+                await assertFirst.requestCleanup(withCleanupTimeout(
+                  withAgentCallbackContext(
+                    context,
+                    (callbackContext) => agentAfterEffect(agent, sandbox, callbackContext) ?? Effect.void,
+                    { inheritAttemptSignal: false },
+                  ),
+                ));
               } catch (e) {
                 declareFailure("agent.teardown", e);
                 diagnostics.push(teardownDiagnostic("agent.teardown", e));
@@ -3912,7 +3863,7 @@ const EVAL_RESULT_REDACTED_EVIDENCE_KEYS = [
   "events",
   "o11y",
   "trace",
-  "agentSetup",
+  "agentInstallation",
   "evidenceCoverage",
   "diff",
   "commands",

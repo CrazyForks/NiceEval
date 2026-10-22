@@ -63,7 +63,7 @@ export interface SourceArtifact {
 
 /**
  * 内部收尾闭包类型:供运行器内部的清理注册表使用(如 `postSetup` 钩子内部累积待收尾动作),
- * 不出现在任何公开的生命周期钩子签名里——`SandboxHook`/`AgentSetup`/`AgentTeardown` 等公开
+ * 不出现在任何公开的生命周期钩子签名里——`SandboxHook`/`AgentBefore`/`AgentAfter` 等公开
  * 钩子一律 `void | Promise<void>`,setup 不返回值,收尾靠成对的 teardown(见
  * docs/runner.md「环境预置不进运行器,但按顺序调它」)。
  */

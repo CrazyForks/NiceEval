@@ -15,7 +15,7 @@ import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { DEFAULT_OPENCLAW_CLI_VERSION, AGENT_BASELINE_RECIPE_REVISION } from "./coding-cli-versions.ts";
 import { createNpmCliInstaller, resolveAgentBinEffect } from "./npm-staged.ts";
 import { randomUUID } from "node:crypto";
-import type { Agent, AgentSetupManifest, SkillSpec, StreamEvent, TurnEvidenceCoverage } from "../types.ts";
+import type { Agent, AgentInstallationManifest, SkillSpec, StreamEvent, TurnEvidenceCoverage } from "../types.ts";
 import { makeSendFailure, sendAcceptanceFromEvents } from "../context/send-failures.ts";
 import { shell } from "../sandbox/commands.ts";
 import { shellQuote } from "../sandbox/shell.ts";
@@ -162,7 +162,7 @@ export function openClawAgent(config?: OpenClawConfig): Agent {
       }),
     },
 
-    setup: (sb, ctx) => Effect.tryPromise({
+    before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         const baseUrl = resolveBaseUrl(config);
         if (baseUrl) {
@@ -226,7 +226,7 @@ export function openClawAgent(config?: OpenClawConfig): Agent {
           );
         }
 
-        const manifest: AgentSetupManifest = { skills: [] };
+        const manifest: AgentInstallationManifest = { skills: [] };
         if (config?.skills?.length) {
           manifest.skills = await installSkills(sb, config.skills, { dir: SKILL_DIR });
           // 发现指引跟着一起写:不提示 = 白装。
@@ -236,7 +236,7 @@ export function openClawAgent(config?: OpenClawConfig): Agent {
           );
         }
         if (manifest.skills.length) {
-          ctx.reportSetup(manifest);
+          ctx.reportInstallation(manifest);
         }
       },
       catch: (cause) => cause,

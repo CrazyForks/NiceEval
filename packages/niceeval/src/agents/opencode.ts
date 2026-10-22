@@ -21,7 +21,7 @@ import { DEFAULT_OPENCODE_CLI_VERSION, AGENT_BASELINE_RECIPE_REVISION } from "./
 import { createNpmCliInstaller, resolveAgentBinEffect } from "./npm-staged.ts";
 import type {
   Agent,
-  AgentSetupManifest,
+  AgentInstallationManifest,
   Sandbox,
   SkillSpec,
   StreamEvent,
@@ -131,7 +131,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
       }),
     },
 
-    setup: (sb, ctx) => Effect.tryPromise({
+    before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
         const baseUrl = resolveBaseUrl(config);
         const provider: globalThis.Record<string, unknown> = {};
@@ -168,7 +168,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
         };
         await shared.writeFile(sb, "opencode.json", JSON.stringify(opencodeConfig, null, 2));
 
-        const manifest: AgentSetupManifest = { skills: [] };
+        const manifest: AgentInstallationManifest = { skills: [] };
         if (config?.skills?.length) {
           manifest.skills = await installSkills(sb, config.skills, { dir: SKILL_DIR });
           await addOpenCodeSkillFrontmatter(sb, installedSkillNames(manifest.skills));
@@ -178,7 +178,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
           );
         }
         if (manifest.skills.length) {
-          ctx.reportSetup(manifest);
+          ctx.reportInstallation(manifest);
         }
       },
       catch: (cause) => cause,
