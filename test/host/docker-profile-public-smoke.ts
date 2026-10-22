@@ -10,8 +10,8 @@ import type { SandboxSetupPrefixCacheOperation } from "../../packages/niceeval/s
 import { DockerSandbox } from "../../packages/niceeval/src/sandbox/docker.ts";
 import { digestOf } from "../../packages/niceeval/src/sandbox/identity.ts";
 import {
-  decodeDockerExecutionProfileV1,
-  makeDockerExecutionProfileV1,
+  decodeDockerExecutionProfile,
+  defineDockerExecutionProfile,
 } from "../../packages/niceeval/src/sandbox/docker-profile/schema.ts";
 import { makeDockerProfileSetupPrefixCacheCapability } from "../../packages/niceeval/src/sandbox/docker-profile/setup-prefix.ts";
 import {
@@ -440,7 +440,7 @@ async function exactSetupPrefixReceipts(): Promise<void> {
 }
 
 function descriptorRevisionMatrix(): void {
-  const current = makeDockerExecutionProfileV1({
+  const current = defineDockerExecutionProfile({
     schemaVersion: 1,
     profileId: "profile",
     securityLevel: "raw-dind-storage/v1",
@@ -496,7 +496,7 @@ function descriptorRevisionMatrix(): void {
       dockerData: "private-project-quota-allocation/v1",
     },
   });
-  decodeDockerExecutionProfileV1(current);
+  decodeDockerExecutionProfile(current);
   for (const [field, legacy] of Object.entries(legacyProtocolRevisions)) {
     const candidate = structuredClone(current) as unknown as Record<string, unknown>;
     const backend = candidate.backend as Record<string, unknown>;
@@ -504,7 +504,7 @@ function descriptorRevisionMatrix(): void {
     const capability = filesystem.setupPrefix as Record<string, unknown>;
     capability[field] = legacy;
     assert.throws(
-      () => decodeDockerExecutionProfileV1(candidate),
+      () => decodeDockerExecutionProfile(candidate),
       undefined,
       `descriptor accepted legacy ${field}`,
     );

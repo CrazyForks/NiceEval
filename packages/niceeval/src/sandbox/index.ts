@@ -32,38 +32,13 @@ export { checkout, installTool } from "./prepare-commands.ts";
 export { SandboxCommandExitError } from "./operations.ts";
 export { registerSandboxContent, sandboxContent } from "./content.ts";
 export {
-  COMPOSE_MATERIALIZER_REVISION,
   dockerComposeBuildProvider,
-  collectComposeBuilds,
-  leakGateHintsFromComposeFile,
   inspectComposeYaml,
-  assertComposeBlacklist,
-  findComposeBlacklistViolations,
-  buildComposeOverlay,
-  materializeDockerComposeProviderCase,
 } from "./compose.ts";
 export {
-  computeBuildKey,
-  computeCaseKey,
   resolveFloatingImageTag,
-  credentialIdentityContribution,
-  assertPureDataIdentity,
-  looksLikeDigestRef,
 } from "./identity.ts";
-export {
-  SANDBOX_BUILD_ACTIVITY,
-  prepareSandboxBuilds,
-  startSandboxBuilds,
-  buildFailureOrigin,
-} from "./build-coordinator.ts";
 export { createCheckpoint, restoreCheckpoint } from "./checkpoint.ts";
-export {
-  normalizeSandboxCapture,
-} from "./record/attachment.ts";
-export type {
-  SandboxCaptureInput,
-  SandboxCaptureInputError,
-} from "./record/attachment.ts";
 export {
   NICEEVAL_BUB_DOCKER_IMAGE,
   NICEEVAL_CLAUDE_CODE_DOCKER_IMAGE,
@@ -227,7 +202,6 @@ export type {
   PrepareSandboxBuildsOptions,
 } from "./build-coordinator.ts";
 
-export { materializationScopeId, sandboxBuildRef } from "./build-coordinator.ts";
 
 export {
   DockerProfileError,
@@ -239,22 +213,16 @@ export type {
 } from "./docker-profile/errors.ts";
 export {
   DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION,
-  DOCKER_PROFILE_SCHEMA_VERSION,
-  DOCKER_PROFILE_NETWORK_POLICY_VERSION,
-  DOCKER_PROFILE_NETWORK_DENY_CIDRS,
   DockerExecutionProfileV1Schema,
   DockerExecutionProfileSchema,
-  createDockerExecutionProfileV1,
-  decodeDockerExecutionProfileV1,
+  defineDockerExecutionProfile,
+  decodeDockerExecutionProfile,
   dockerExecutionProfileSemanticPolicyRevisionOf,
   dockerProfileSemanticPolicyRevisionOf,
   dockerExecutionProfileV1Digest,
   dockerProfileDigestOf,
   dockerProfilePublicSummaryOf,
   isDockerExecutionProfileV1,
-  makeDockerExecutionProfileV1,
-  parseDockerExecutionProfile,
-  parseDockerExecutionProfileV1,
 } from "./docker-profile/schema.ts";
 export type {
   DockerExecutionProfileSecurityLevel,
@@ -265,10 +233,7 @@ export type {
   DockerProfileUnixEndpoint,
 } from "./docker-profile/schema.ts";
 export {
-  createDockerProfileRegistry,
   indexDockerProfiles,
-  parseDockerProfileRegistry,
-  resolveDockerExecutionProfile,
   resolveDockerProfile,
   resolveDockerProfileSelector,
 } from "./docker-profile/registry.ts";

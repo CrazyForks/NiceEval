@@ -4,7 +4,7 @@ import {
 } from "./errors.ts";
 import {
   dockerExecutionProfileV1Digest,
-  parseDockerExecutionProfileV1,
+  decodeDockerExecutionProfile,
   type DockerExecutionProfileV1,
 } from "./schema.ts";
 
@@ -302,7 +302,7 @@ function resolveEntry(
   const alias = requiredAlias(entry.alias, `registry.entries[${index}].alias`);
   checkSourceFacts(entry.fileFacts, `registry.entries[${index}]`, options.expectedOwnerUid ?? 0);
   try {
-    const profile = parseDockerExecutionProfileV1(entry.profile);
+    const profile = decodeDockerExecutionProfile(entry.profile);
     return Object.freeze({
       alias,
       profile,
@@ -355,8 +355,6 @@ export function indexDockerProfiles(
   return Object.freeze({ entries: Object.freeze(entries) });
 }
 
-export const createDockerProfileRegistry = indexDockerProfiles;
-export const parseDockerProfileRegistry = indexDockerProfiles;
 
 function isRegistryIndex(value: unknown): value is DockerProfileRegistryIndex {
   return isRecord(value) && Array.isArray(value.entries) && value.entries.every((entry) =>
@@ -373,7 +371,7 @@ function indexOf(input: DockerProfileRegistryIndex | DockerProfileRegistryInput 
     const entries = input.entries.map((entry, index) => {
       const alias = requiredAlias(entry.alias, `registry.entries[${index}].alias`);
       try {
-        const profile = parseDockerExecutionProfileV1(entry.profile);
+        const profile = decodeDockerExecutionProfile(entry.profile);
         const descriptorDigest = dockerExecutionProfileV1Digest(profile);
         if (entry.profileId !== profile.profileId || entry.descriptorDigest !== descriptorDigest) {
           throw dockerProfileError({
@@ -451,5 +449,3 @@ export function resolveDockerProfileSelector(
   }
   return first;
 }
-
-export const resolveDockerExecutionProfile = resolveDockerProfile;

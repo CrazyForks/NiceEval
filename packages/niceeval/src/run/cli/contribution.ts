@@ -13,12 +13,12 @@ import {
   type CliCommandContribution,
 } from "../../cli/contribution.ts";
 import {
-  canonicalJsonValue,
   decodeInspectionOperation,
   openInspectionSource,
   operationalInspectionSource,
   selectInspectionOperation,
 } from "../../inspection/index.ts";
+import { canonicalJsonValue } from "../../inspection/canonical.ts";
 import { projectRun } from "../../show/model.ts";
 import { renderRun } from "../../show/render.ts";
 import { rawRunHost } from "../host/runtime.ts";

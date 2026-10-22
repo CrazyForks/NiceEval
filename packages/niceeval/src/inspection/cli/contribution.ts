@@ -5,8 +5,6 @@ import { Effect, Result } from "effect";
 import { CliArguments, CliInvocationFacts, CliOutput, type CliOptionDefinition } from "../../cli/application.ts";
 import { CliFeatureError, type CliCommandContribution } from "../../cli/contribution.ts";
 import {
-  canonicalInspectionJson,
-  canonicalJsonValue,
   decodeInspectionRequest,
   INSPECTION_OPERATION_IDS,
   InspectionIntegrityError,
@@ -22,6 +20,7 @@ import {
   type InspectionOperationId,
   type InspectionRequest,
 } from "../index.ts";
+import { canonicalInspectionJson, canonicalJsonValue } from "../canonical.ts";
 import { explainInspectionOperation } from "../select.ts";
 import { SqliteRecordError } from "../../record/sqlite/errors.ts";
 import { ProjectConfiguration } from "../../cli/project-configuration.ts";

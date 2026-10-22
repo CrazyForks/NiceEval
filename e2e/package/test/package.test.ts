@@ -99,6 +99,27 @@ test("pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 C
   expect(inspectionEntry.readScoreMatchAudit({})).toEqual({ state: "invalid" });
   expect(typeof sandboxEntry.resolveDockerProfile).toBe("function");
   expect(Object.hasOwn(sandboxEntry, "resolveDockerProfileAlias")).toBe(false);
+  for (const name of ["computeBuildKey", "computeCaseKey", "credentialIdentityContribution",
+    "assertPureDataIdentity", "looksLikeDigestRef", "COMPOSE_MATERIALIZER_REVISION",
+    "collectComposeBuilds", "leakGateHintsFromComposeFile", "assertComposeBlacklist",
+    "findComposeBlacklistViolations", "buildComposeOverlay", "materializeDockerComposeProviderCase",
+    "SANDBOX_BUILD_ACTIVITY", "prepareSandboxBuilds", "startSandboxBuilds", "buildFailureOrigin",
+    "materializationScopeId", "sandboxBuildRef", "normalizeSandboxCapture",
+    "parseDockerExecutionProfile", "parseDockerExecutionProfileV1", "decodeDockerExecutionProfileV1",
+    "makeDockerExecutionProfileV1", "createDockerExecutionProfileV1", "createDockerProfileRegistry",
+    "parseDockerProfileRegistry", "resolveDockerExecutionProfile", "DOCKER_PROFILE_SCHEMA_VERSION",
+    "DOCKER_PROFILE_NETWORK_POLICY_VERSION", "DOCKER_PROFILE_NETWORK_DENY_CIDRS"]) {
+    expect(Object.hasOwn(sandboxEntry, name), `internal sandbox export: ${name}`).toBe(false);
+    expect(Object.hasOwn(publicRequire("niceeval/sandbox"), name), `CommonJS sandbox export: ${name}`).toBe(false);
+  }
+  for (const name of ["decodeDockerExecutionProfile", "defineDockerExecutionProfile", "indexDockerProfiles", "resolveDockerProfile"]) {
+    expect(Reflect.get(sandboxEntry, name), name).toBeTypeOf("function");
+  }
+  for (const name of ["canonicalInspectionJson", "canonicalJsonValue", "closeInspectionJson"]) {
+    expect(Object.hasOwn(inspectionEntry, name), name).toBe(false);
+  }
+  const loadersEntry = await import("niceeval/loaders");
+  expect(Object.hasOwn(loadersEntry, "captureLoadedFiles")).toBe(false);
 
   const labels = ["niceeval/eval/host", "niceeval/project/host"] as const;
   const esm = await Promise.allSettled(labels.map((specifier) => import(specifier)));

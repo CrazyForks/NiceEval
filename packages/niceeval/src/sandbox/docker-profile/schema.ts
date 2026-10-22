@@ -6,7 +6,6 @@ import type { JsonValue } from "../../shared/types.ts";
 import { dockerProfileError, type DockerProfileError } from "./errors.ts";
 
 export const DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION: 1 = 1;
-export const DOCKER_PROFILE_SCHEMA_VERSION = DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION;
 export const DOCKER_PROFILE_NETWORK_POLICY_VERSION: 1 = 1;
 export const DOCKER_PROFILE_SETUP_PREFIX_CAPABILITY =
   "niceeval-docker-profile-state/docker-data-snapshot/v1" as const;
@@ -552,7 +551,7 @@ function schemaError(value: unknown, error: SchemaIssue.Issue): DockerProfileErr
 // @concord-code ne-sandbox-docker-profile-parse
 // @concord-implements docs/feature/sandbox-docker-profiles/library.md
 // @concord-implements docs/feature/sandbox-docker-profiles/architecture.md
-export function parseDockerExecutionProfileV1(value: unknown): DockerExecutionProfileV1 {
+export function decodeDockerExecutionProfile(value: unknown): DockerExecutionProfileV1 {
   const decoded = Schema.decodeUnknownResult(DockerExecutionProfileV1Schema, ParseOptions)(value);
   if (Result.isFailure(decoded)) throw schemaError(value, decoded.failure.issue);
   const profile = freezeProfile(decoded.success);
@@ -611,25 +610,22 @@ export function parseDockerExecutionProfileV1(value: unknown): DockerExecutionPr
   return profile;
 }
 
-export const parseDockerExecutionProfile = parseDockerExecutionProfileV1;
-export const decodeDockerExecutionProfileV1 = parseDockerExecutionProfileV1;
 
 // @concord-code ne-sandbox-docker-profile-make
 // @concord-implements docs/feature/sandbox-docker-profiles/library.md
-export function makeDockerExecutionProfileV1(
+export function defineDockerExecutionProfile(
   input: DockerExecutionProfileV1Draft,
 ): DockerExecutionProfileV1 {
-  return parseDockerExecutionProfileV1({
+  return decodeDockerExecutionProfile({
     ...input,
     semanticPolicyRevision: dockerExecutionProfileSemanticPolicyRevisionOf(input),
   });
 }
 
-export const createDockerExecutionProfileV1 = makeDockerExecutionProfileV1;
 
 export function isDockerExecutionProfileV1(value: unknown): value is DockerExecutionProfileV1 {
   try {
-    parseDockerExecutionProfileV1(value);
+    decodeDockerExecutionProfile(value);
     return true;
   } catch {
     return false;
@@ -718,7 +714,7 @@ function canonicalJson(profile: DockerExecutionProfileV1): JsonValue {
 // @concord-code ne-sandbox-docker-profile-digest
 // @concord-implements docs/feature/sandbox-docker-profiles/architecture.md
 export function dockerExecutionProfileV1Digest(profile: DockerExecutionProfileV1): string {
-  return `sha256:${digestOf(canonicalJson(parseDockerExecutionProfileV1(profile)))}`;
+  return `sha256:${digestOf(canonicalJson(decodeDockerExecutionProfile(profile)))}`;
 }
 
 export const dockerProfileDigestOf = dockerExecutionProfileV1Digest;
@@ -726,7 +722,7 @@ export const dockerProfileDigestOf = dockerExecutionProfileV1Digest;
 export function dockerProfilePublicSummaryOf(
   profile: DockerExecutionProfileV1,
 ): DockerProfilePublicSummary {
-  const normalized = parseDockerExecutionProfileV1(profile);
+  const normalized = decodeDockerExecutionProfile(profile);
   return Object.freeze({
     schemaVersion: 1,
     profileId: normalized.profileId,

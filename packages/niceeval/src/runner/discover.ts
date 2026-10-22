@@ -25,7 +25,7 @@ import {
   captureLoadedFiles,
   type LoaderCaptureOrigin,
   type LoaderCapturePaths,
-} from "../loaders/index.ts";
+} from "../loaders/runtime.ts";
 import { acquireFreshImportGeneration, importProjectModule, type FreshImportGeneration } from "../fresh-import.ts";
 import { sandboxLayerStateOf, type SandboxLayer } from "../sandbox/layer.ts";
 import { sandboxLayerDefinitionIdentity } from "../sandbox/link.ts";

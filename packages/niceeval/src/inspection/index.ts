@@ -1,7 +1,6 @@
 export {
   INSPECTION_OPERATION_IDS,
   QUERY_PROTOCOL,
-  closeInspectionJson,
   decodeInspectionRequest,
   type InspectionCodecError,
   type InspectionFailureCode,
@@ -11,7 +10,6 @@ export {
   type InspectionRequest,
   type InspectionSourceProvenance,
 } from "./codec.ts";
-export { canonicalInspectionJson, canonicalJsonValue } from "./canonical.ts";
 export {
   readScoreMatchAudit,
   type ScoreMatchAudit,
