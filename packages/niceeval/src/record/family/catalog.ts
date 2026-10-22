@@ -1,3 +1,4 @@
+import { attemptNotesRecordAttachmentPersistence } from "./attempt-note/persistence.ts";
 import { judgeUsageRecordAttachmentPersistence } from "./judge-usage/persistence.ts";
 import { Result, Schema } from "effect";
 
@@ -32,6 +33,7 @@ export { NiceEvalCurrentRecordAttachments, NiceEvalRecordAttachments } from "./c
 
 /** Explicit durable Host composition; importing a family never registers it. */
 export const NiceEvalRecordAttachmentPersistences = Object.freeze([
+  attemptNotesRecordAttachmentPersistence,
   adapterUsageRecordAttachmentPersistence,
   judgeUsageRecordAttachmentPersistence,
   assertionsRecordAttachmentPersistence,
@@ -65,6 +67,7 @@ export const NiceEvalRecordAttachmentCatalog = requireCatalog(
 
 /** Family identities and source subsets derive from the logical definitions. */
 export const NICE_EVAL_FAMILIES = Object.freeze([
+  NiceEvalRecordAttachments.attemptNotes.family,
   NiceEvalRecordAttachments.adapterUsage.family,
   NiceEvalRecordAttachments.judgeUsage.family,
   NiceEvalRecordAttachments.assertions.family,
