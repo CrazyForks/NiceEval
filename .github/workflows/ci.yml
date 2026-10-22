@@ -61,6 +61,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Install Concord CLI for repository tool tests
+        uses: ./.github/actions/setup-concord
+
       - name: Test
         run: pnpm test
 
