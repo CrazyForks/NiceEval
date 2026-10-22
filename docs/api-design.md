@@ -485,25 +485,28 @@ Experiment 的 `agent` 字段删除，统一写 `adapter`。
 前者服务只有一个模型的 Agent，在定义边界归一为唯一的 `default` role；后者服务声明多个 role 的 Adapter。
 两者仍互斥，已有归一与 identity 不变。
 
-## 生命周期统一用 setup / teardown
+## 生命周期统一用 before / after
 
-作者挂生命周期 Hook的位置只用一对词：`setup` 与 `teardown`。Hook在哪里、多久执行一次，由它所在的字段或对象说明，不由动词说明。
+作者声明生命周期 Hook 只用一对词：`before` 与 `after`。
+Hook 包裹哪段工作、在宿主还是 Sandbox 内执行、多久执行一次，由它所在的字段或对象说明，不由动词说明。
+`before` 可以链式或以数组追加多步，`after` 按完全逆序执行。
 
-| 旧写法 | 新写法 | 执行位置 |
+| 旧写法 | 新写法 | 包裹的工作 |
 | --- | --- | --- |
-| Experiment `setup` / `teardown` | 不变 | 宿主，每次 Run 一次 |
-| SandboxLayer `.before()` / `.after()` | `.setup()` / `.teardown()` | Sandbox 内 |
-| Agent factory `postSetup` / `preTeardown` | `setup` / `teardown` | Sandbox 内，Agent 安装之后、收尾之前 |
-| Plugin 各字段 | `setup` / `teardown`，见下节 | 由字段决定 |
+| Experiment `setup` / `teardown` | `before` / `after` | 宿主侧，一次 Run 的全部 Attempt |
+| SandboxLayer `.before()` / `.after()` | 不变 | Sandbox 内，该实例上的 Agent 运行 |
+| Agent factory `postSetup` / `preTeardown` | `before` / `after` | Sandbox 内，Agent 安装之后、收尾之前 |
+| Plugin 各字段 | `before` / `after`，见下节 | 由字段决定 |
 
-`before` / `after` 与 `postSetup` / `preTeardown` 不保留别名；出现旧名时，定义期以指向新名的错误拒绝。
-改名不改变执行顺序、缓存或 identity：SandboxLayer 的 action identity 与 setup prefix 缓存键不含方法名。
-同一份声明改用新名后，config identity 与 0.18 相同，已有结果继续 carry。
+`setup` / `teardown` 与 `postSetup` / `preTeardown` 不保留别名；出现旧名时，定义期以指向新名的错误拒绝。
+2026-07-18 的裁决确定的是“成对字段、不用 setup 返回 cleanup”，这一结构保留，本次只替换词。
+两对词并存时，读者无法从名字判断它们是否是同一机制，因此只留一对。
+改名不改变执行顺序、触发规则与 identity；同一份声明改用新名后，config identity 与 0.18 相同，已有结果继续 carry。
 
 ## Plugin 是一个可复用的实验条件
 
 一个实验条件（例如 mempal 记忆、mem0 记忆、terminal-bench harness）通常同时需要 Agent 扩展、Sandbox 步骤、
-宿主侧准备与收尾和一份条件身份。Plugin 把这些装进一个值，Experiment 只写一次 `plugins: [mempal(...)]`。
+宿主侧的前后步骤和一份条件身份。Plugin 把这些装进一个值，Experiment 只写一次 `plugins: [mempal(...)]`。
 旧 Plugin 只承载生命周期，条件仍要拆到 agent、flags、sandbox 三处。本节替换它的语法与挂载语义。
 
 ### 定义
@@ -514,12 +517,12 @@ import { definePlugin } from "niceeval/plugin";
 export const mempal = definePlugin((options: { tool: "codex" | "claude"; cohort: string }) => ({
   name: "mempal",
   key: options.tool,
-  identity: { version: "0.9.0", setup: "r6", cohort: options.cohort },
+  identity: { version: "0.9.0", install: "r6", cohort: options.cohort },
   requires: { evalGroup: true },
   agent: { skills: [mempalSkill] },
   sandbox: {
-    setup: [installMempal(options.tool), loadCheckpoint],
-    teardown: [saveCheckpoint],
+    before: [installMempal(options.tool), loadCheckpoint],
+    after: [saveCheckpoint],
   },
 }));
 
@@ -541,12 +544,12 @@ spec 的字段：
 | `identity` | 必填的 JSON 对象，可以为 `{}`；条件的唯一版本 |
 | `requires` | 可选；`{ evalGroup: true }` 要求作用范围内的 Eval 都属于 Eval Group |
 | `agent` | Agent 扩展，见下文 |
-| `experiment` | `{ setup?, teardown? }`，宿主侧，每次 Run 一次 |
-| `group` | `{ setup?, teardown? }`，宿主侧，每条 Eval Group lane 一次 |
-| `sandbox` | `{ setup?, teardown? }`，在每个物理 Sandbox 实例上执行 |
-| `attempt` | `{ setup?, teardown? }`，宿主侧，每条 fresh Attempt 一次 |
+| `experiment` | `{ before?, after? }`，宿主侧，每次 Run 一次 |
+| `group` | `{ before?, after? }`，宿主侧，每条 Eval Group lane 一次 |
+| `sandbox` | `{ before?, after? }`，在每个物理 Sandbox 实例上执行 |
+| `attempt` | `{ before?, after? }`，宿主侧，每条 fresh Attempt 一次 |
 
-除 `name`、`key`、`identity`、`requires` 外至少声明一个字段。每个 `setup` / `teardown` 接受一个 Hook或Hook 数组。
+除 `name`、`key`、`identity`、`requires` 外至少声明一个字段。每个 `before` / `after` 接受一个元素或数组。
 `behaviorRevision`、`instanceKey`、`pluginStack()`、旧的 `eval` 字段与按 owner 交集收窄的重载全部删除。
 `plugins` 只接受 readonly 数组。
 
@@ -567,7 +570,7 @@ spec 的字段：
 声明后，`sandbox` 与 `attempt` Hook上下文中的 `evalGroup` 类型上必有，作者不再写运行时判空。
 未声明时 `evalGroup` 是可选字段。
 
-`sandbox.setup` / `teardown` 的元素与 SandboxLayer `.setup()` / `.teardown()` 的参数相同：
+`sandbox.before` / `after` 的元素与 SandboxLayer `.before()` / `.after()` 的参数相同：
 受管 Action（如 `writeText`、`uploadDirectory`）或 `(sandbox, ctx) => …` 回调。受管 Action 照常进入 setup prefix 缓存。
 `sandbox` Hook在 replacement Sandbox 上重新执行；`group` Hook每条 lane 只执行一次，replacement 不重新执行。
 挂在 Eval 上的 `sandbox` 字段隔离普通 reuse pool；同一 Group 的成员若 Sandbox 字段身份不同，在创建前报 `eval-group-incompatible`。
@@ -578,16 +581,16 @@ spec 的字段：
 agent: {
   skills?: readonly SkillSpec[];
   mcpServers?: readonly McpServer[];
-  codex?: { plugins?, configFile?, setup?, teardown? };
-  claudeCode?: { plugins?, settingsFile?, setup?, teardown? };
-  bub?: { pythonPlugins?, setup?, teardown? };
+  codex?: { plugins?, configFile?, before?, after? };
+  claudeCode?: { plugins?, settingsFile?, before?, after? };
+  bub?: { pythonPlugins?, before?, after? };
 }
 ```
 
 `agent` 只允许挂在 Experiment 上。按 agent 区分的子字段与对应 factory 的同名配置形状相同。
 合并规则：
 
-- factory 自身配置在前，各 Plugin 按数组顺序追加；`setup` 按同一顺序执行，`teardown` 逆序执行。
+- factory 自身配置在前，各 Plugin 按数组顺序追加；`before` 按同一顺序执行，`after` 逆序执行。
 - skill 名、MCP server 名、原生插件名重复时，加载期报错并给出两处声明位置。
 - `configFile` / `settingsFile` 只能由 factory 或一个 Plugin 声明。
 - 所选 Adapter 不支持某个通用字段（例如 Bub 没有 `mcpServers`）时报错，不静默丢弃。
@@ -599,9 +602,9 @@ agent: {
 ### 顺序
 
 同一时机内，作者自己的Hook在前，Plugin 在后。
-Plugin 之间先按挂载层级（Experiment、EvalGroup、Eval），再按数组顺序执行 setup；teardown 完全逆序。
-setup 调用前先计入已激活前缀，因此 setup 自身失败也会得到对应 teardown。
-任一 setup 失败跳过其后的业务阶段；teardown 失败只追加 warning diagnostic，不跳过剩余 teardown 或底层 finalizer。
+Plugin 之间先按挂载层级（Experiment、EvalGroup、Eval），再按数组顺序执行 before；after 完全逆序。
+before 调用前先计入已激活前缀，因此 before 自身失败也会得到对应 after。
+任一 before 失败跳过其后的业务阶段；after 失败只追加 warning diagnostic，不跳过剩余 after 或底层 finalizer。
 `niceeval debug <experiment> <eval>` 展示展开后的完整生命周期，每一步标出声明它的 Plugin 的 `name` 与 `key`。
 
 ### 身份
@@ -617,12 +620,12 @@ setup 调用前先计入已激活前缀，因此 setup 自身失败也会得到�
 ### 验收
 
 - 安装后候选的公开入口：mempal 形态的 Plugin 挂在 Experiment 上，跑两个 Group、各两个 Eval。
-- `sandbox` Hook在每个物理 Sandbox 上执行，replacement 后重新执行；`group.setup` 每条 lane 只执行一次。
+- `sandbox` Hook在每个物理 Sandbox 上执行，replacement 后重新执行；`group.before` 每条 lane 只执行一次。
 - Group 外的 Eval 触发 `plugin-requires-eval-group`，且在任何 Sandbox 创建前失败。
 - Agent 扩展在 Codex 与 Claude Code 上都实际安装；重名、多个 configFile、Adapter 不支持的字段各自报错。
 - 挂载点不允许的字段在 `.mts` 与 `.cts` 类型检查中编译失败，运行时同样拒绝。
 - 修改 `identity` 使已有结果不再 carry；只改回调函数体时仍 carry。
-- 没有 Plugin 的 Experiment 在 0.18 与候选下 config identity 相同；`.before()` 改写为 `.setup()` 后 identity 不变。
+- 没有 Plugin 的 Experiment 在 0.18 与候选下 config identity 相同；Experiment `setup` 改写为 `before` 后 identity 不变。
 
 ## 只展示的 Note：`t.note`
 
