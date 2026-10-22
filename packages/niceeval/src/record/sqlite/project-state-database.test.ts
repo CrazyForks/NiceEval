@@ -184,9 +184,18 @@ describe("ProjectStateDatabase scoped composition", () => {
       const database = yield* ProjectStateDatabase;
       const facets = yield* database.bind(portableRoot);
       const old = yield* Effect.promise(() => facets.admission.execute<{ state: "queued"; sequence: number }>({
-        operation: "enqueue", ...remote, ticketId: "remote", deadline: Date.now() + 50, enqueuedAt: Date.now(),
+        operation: "enqueue", ...remote, ticketId: "remote", deadline: Date.now() + 5_000, enqueuedAt: Date.now(),
       }));
-      yield* Effect.sleep("60 millis");
+      // Expire the acknowledged ticket deterministically. A 50 ms enqueue
+      // budget races worker scheduling before the remote-owner check can run.
+      const fixture = openRecordWriter(recordSqlitePath(portableRoot));
+      try {
+        const expired = fixture.db.prepare("UPDATE ne19_coordination_tickets SET deadline=1 WHERE ticket_id=? AND sequence=?")
+          .run("remote", old.sequence);
+        expect(Number(expired.changes)).toBe(1);
+      } finally {
+        closeRecordDatabase(fixture);
+      }
       const currentDeadline = Date.now() + 5_000;
       const current = yield* Effect.promise(() => facets.admission.execute<{ state: "queued"; sequence: number }>({
         operation: "enqueue", ...local, ticketId: "local", deadline: currentDeadline, enqueuedAt: Date.now(),
