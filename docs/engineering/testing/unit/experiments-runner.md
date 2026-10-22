@@ -253,7 +253,7 @@ it.effect("全局同时在飞的 attempt 不超过 maxConcurrency", () =>
   **共享状态租约**：
 
   - 同 key 的两条 runEvals 只有一条能进入 Experiment/Sandbox lifecycle。
-  - 租约在 Experiment setup、Sandbox create 和 lifecycle setup 前取得，在 Sandbox teardown、Provider finalizer 与 Experiment teardown 后释放。
+  - 租约在 Experiment before、Sandbox create 和 lifecycle setup 前取得，在 Sandbox teardown、Provider finalizer 与 Experiment after 后释放。
   - 等待方不占全局位、不创建 Sandbox、不提前持有 Eval 锁。释放后先重做整个 Experiment 的携带规划。
   - 证明全携带不取新租约，以及仍有工作时取得租约两面。同 Invocation 的两个 Experiment id 共用 key 也串行；不同 key 可并行。
   - sharedState heartbeat 只提供诊断，永不触发接管。强杀或 cleanup 失败保留 owner evidence，等待方只能保持阻塞或走公开的显式恢复；`--rerun all` 不跳过租约。

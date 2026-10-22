@@ -1,3 +1,4 @@
+import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { Effect } from "effect";
 import { makeSandboxAgent } from "../define.ts";
@@ -97,7 +98,7 @@ export interface CodexConfig {
   /**
    * 注入每次 Codex CLI 进程的额外环境变量。首轮 `codex exec` 与续轮 `codex exec resume`
    * 使用同一份声明；Codex 启动的 lifecycle Hook、MCP 动态 header 与命令子进程都会继承。
-   * 值只经 Sandbox command options 传入，不拼进 shell 文本或写入 setup manifest，并全部按
+   * 值只经 Sandbox command options 传入，不拼进 shell 文本或写入 before manifest，并全部按
    * 潜在敏感值从 timing / execution / error 证据中脱敏。`CODEX_API_KEY` 仍由 `apiKey` 或
    * 宿主同名环境变量提供，Adapter 的鉴权值会覆盖这里的同名键。
    * env value 不进入 carry 身份。会改变被测行为的非敏感值必须同时声明在 Experiment flags
@@ -107,7 +108,7 @@ export interface CodexConfig {
    */
   env?: Readonly<globalThis.Record<string, string>>;
   /**
-   * 额外 MCP server(每个 Sandbox setup 时追加进 ~/.codex/config.toml)。
+   * 额外 MCP server(每个 Sandbox before 时追加进 ~/.codex/config.toml)。
    * stdio 形态(command/args/env)写 [mcp_servers.<name>] 的 command 行;
    * Streamable HTTP 形态(url/headers)写 url 行,headers 进 [mcp_servers.<name>.http_headers] 子表。
    */
@@ -124,23 +125,23 @@ export interface CodexConfig {
    * 一份完整的 Codex `config.toml`(官方 TOML 格式)在本地项目里的路径 —— 相对运行
    * niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
    * 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-   * 都在 setup 阶段报错。原始字节原样并入 Sandbox 里原本为空的用户级 `~/.codex/config.toml`
+   * 都在 before 阶段报错。原始字节原样并入 Sandbox 里原本为空的用户级 `~/.codex/config.toml`
    * (不继承宿主机配置、不解析后重写);保留键 `model`、`model_provider`、`model_providers`、
-   * `model_reasoning_effort`、`mcp_servers`、`otel` 出现在文件里 setup 报错。manifest 只记
+   * `model_reasoning_effort`、`mcp_servers`、`otel` 出现在文件里 before 报错。manifest 只记
    * 项目相对路径与字节 SHA-256,不落正文。
    */
   configFile?: string;
   /**
    * 安装后按数组顺序运行的用户 Hook(复用 SandboxCommand 的窄上下文):在写主配置、挂 MCP、
-   * 装 Skills / Plugin、写 manifest 全部完成后执行,适合跑插件自带的 setup 脚本这类
+   * 装 Skills / Plugin、写 manifest 全部完成后执行,适合跑插件自带的 before 脚本这类
    * 「安装产物就位后才能跑」的过程动作。抛错按基础设施错误计(attempt errored)。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
   before?: readonly SandboxCommand[];
   /**
-   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 after 步骤
    * 之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
-   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 after 段
    * 按 teardown-failed 诊断收束。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
@@ -311,7 +312,7 @@ export function codexAgent(config?: CodexConfig): Agent {
     },
   });
 
-  return registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "codex",
     // 官方 adapter:transcript 经生命周期 fixture 验证,全通道 complete。
     evidenceCoverage: completeEvidenceCoverage,
@@ -485,8 +486,11 @@ export function codexAgent(config?: CodexConfig): Agent {
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // codex 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, { ...ctx, signal }, "codex", config?.after);
-        await attemptResources(ctx)?.shutdownAll(signal);
+        try {
+          await runPreTeardownHooks(sb, { ...ctx, signal }, "codex", config?.after);
+        } finally {
+          await attemptResources(ctx)?.shutdownAll(signal);
+        }
       },
       catch: (cause) => cause,
     }),
@@ -524,7 +528,7 @@ export function codexAgent(config?: CodexConfig): Agent {
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after);
+  }), config?.before, config?.after), "codex", config, codexAgent);
 }
 
 /**
@@ -547,7 +551,7 @@ export async function installPlugins(
 
 /**
  * 在 config.toml 仍保留上一条 Attempt 的 Plugin 声明时清理声明态与安装体。
- * setup 必须先调用它再覆盖 config；直接调用 installPlugins() 时也走同一收敛入口。
+ * before 必须先调用它再覆盖 config；直接调用 installPlugins() 时也走同一收敛入口。
  */
 async function resetPluginState(
   sb: Sandbox,

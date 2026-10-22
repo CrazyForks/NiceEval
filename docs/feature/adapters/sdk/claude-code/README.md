@@ -20,10 +20,10 @@ const agent = claudeCodeAgent({
 });
 ```
 
-`skills`、`mcpServers` 和 Claude Code 原生 `plugins` 均在 setup 阶段安装。
+`skills`、`mcpServers` 和 Claude Code 原生 `plugins` 均在 before 阶段安装。
 Marketplace 连接不代表启用其中所有插件，每项必须显式给出 Plugin 名。
 MCP 的 stdio 形态写进用户级 `~/.claude.json` 的 `mcpServers` 条目；HTTP 形态写成 `{ "type": "http", "url": …, "headers": … }`。
-安装全部完成后要跑的用户脚本走 `postSetup` Hook，见 [Adapter · 安装后运行脚本](../../library/coding-agent-extensions.md#安装后运行脚本postsetup)。
+安装全部完成后要跑的用户脚本走 `before` Hook，见 [Adapter · 安装后运行脚本](../../library/coding-agent-extensions.md#安装后运行脚本postsetup)。
 
 接入与成本三个字段：`apiKey` 是 Anthropic API key，省略时读 `ANTHROPIC_API_KEY` env var。
 `baseUrl` 是自定义 API 端点（代理 / 内网网关），省略时读 `ANTHROPIC_BASE_URL`，两者都没有则用 Anthropic 官方端点。
@@ -40,13 +40,13 @@ const agent = claudeCodeAgent({
 
 项目根是执行 niceeval 时包含 `niceeval.config.ts` 的当前工作目录，不是当前 Eval 或 Experiment 文件的目录。
 字段只接受项目根内的相对路径。
-`configs/claude-code/no-web.json` 与 `./configs/claude-code/no-web.json` 合法；包含 `..` 的路径、绝对路径、`~` 路径和解开符号链接后逃出项目根的路径都在 setup 阶段报错。
+`configs/claude-code/no-web.json` 与 `./configs/claude-code/no-web.json` 合法；包含 `..` 的路径、绝对路径、`~` 路径和解开符号链接后逃出项目根的路径都在 before 阶段报错。
 
 文件内容使用 Claude Code 官方 settings 词汇；例如 `{ "permissions": { "deny": ["WebSearch", "WebFetch"] } }` 关闭 WebSearch / WebFetch。
 Adapter 从本地读取文件后上传到隔离的 Claude 配置目录，原样替换其中原本为空的用户级 `~/.claude/settings.json`；它不继承宿主机配置，也不与它合并。
 项目自己的 `.claude/settings.json` / `.claude/settings.local.json` 仍按 Claude Code 官方优先级加载。
 
-保留键是 `model` 与 `env`——模型选择归 experiment，鉴权与 OTel 导出归 Adapter——出现在文件里 setup 报错并点名冲突键。
+保留键是 `model` 与 `env`——模型选择归 experiment，鉴权与 OTel 导出归 Adapter——出现在文件里 before 报错并点名冲突键。
 文件原始字节的 SHA-256 进入安装 checkpoint key；manifest 只记项目相对路径和 SHA-256，不保存正文。
 secret 走 env var，不写进配置文件。
 
@@ -76,7 +76,7 @@ Claude Code 的原生 OTel 内容默认可能脱敏；行为断言仍以 transcr
 ## Prebuilt environment
 
 Adapter 的必填 ensure 用 PATH 上 `claude` 的精确版本作 探测；预装命中即快速返回，未命中时由 identity 匹配的 Installer 安装锁定版本并复检。
-`setup` 只写本 Attempt 的鉴权、原生配置与扩展。预装只是快速路径，不是正确性前提。
+`before` 只写本 Attempt 的鉴权、原生配置与扩展。预装只是快速路径，不是正确性前提。
 E2B 官方 `claude` template 与 NiceEval 公共模板 `correctroads-default-team/niceeval-claude-code`（CI 钉 release tag）都是可用起点。
 构建项目自己的镜像/模板见 [Sandbox · Prebuilt environment](../../../sandbox/library/prebuilt-environments.md)。
 

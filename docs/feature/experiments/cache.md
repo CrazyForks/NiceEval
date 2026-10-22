@@ -22,7 +22,7 @@ Run 保存已发布 Attempt 与 Planned attempt binding。当前目标先逐位�
 `exp --dry` 在同一判断上应用运行选项；例如一个已有可用结果的位置可以因 `--rerun all` 而执行，但其当前结果可用性仍然存在。
 执行选择不得反向把一个可用结果标成当前缺口。
 
-适用性求值不分配 Invocation、Run 或 Planned attempt ID，不写 Record、不获取执行占用，不启动 Agent、Sandbox、setup 或 teardown。
+适用性求值不分配 Invocation、Run 或 Planned attempt ID，不写 Record、不获取执行占用，不启动 Agent、Sandbox、before 或 after。
 Host 只求值项目声明；需要下载候选、准备资源或构建 image才能完成时，返回 `current-target-unavailable` 并提供固定历史读取入口。
 项目模块的顶层代码属于用户代码，Host 不声称它是受隔离的纯函数；生命周期工作应留在正式运行阶段。
 

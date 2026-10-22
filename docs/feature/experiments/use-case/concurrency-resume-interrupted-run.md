@@ -29,7 +29,7 @@ Experiment `maxConcurrency` 不跨 Invocation 协调，也不会形成并发名�
 
 ## sharedState 显式恢复
 
-当强杀或 cleanup 失败留下 `sharedState.key` 时，等待者保持阻塞；它不会 setup、创建 Sandbox 或派发 Attempt。
+当强杀或 cleanup 失败留下 `sharedState.key` 时，等待者保持阻塞；它不会 before、创建 Sandbox 或派发 Attempt。
 先用公开命令检查 owner evidence，再带 exact token 和双确认执行恢复：
 
 ```bash
@@ -47,23 +47,23 @@ CLI 先把输入 key 用作 immutable owner-evidence 的查询键。即使作者
 删除该声明，旧 key 的 inspection 与恢复入口仍存在。
 
 没有 token 或确认时，inspection 仍只读 owner evidence。带 token 和双确认时，selector 必须最终只匹配一个 Experiment，且其
-id 必须匹配 evidence；target 的 `teardown` 必须是函数。
+id 必须匹配 evidence；target 的 `after` 必须是函数。
 
 否则命令非零退出，原 active generation 保持不变，不进入 recovering 或 free。显式 recovery 是人读流程，不支持 `--json`，也
 不提供 NDJSON 或 receipt。
 
 若同机 exact owner identity 仍活，或者身份无法可靠读取，命令拒绝。远端恢复仍要求明确 remote-quiesced 确认。
 
-成功 recovery 先以短事务从 `active` 进入带 immutable recovery actor 的 `recovering`，再执行该 Experiment 的 teardown；
+成功 recovery 先以短事务从 `active` 进入带 immutable recovery actor 的 `recovering`，再执行该 Experiment 的 after；
 actor 与 generation 仍精确匹配时才以第二笔短事务收口为 `interrupted` 或 free。
 
-teardown 成功后，它先核对并原子删除 immutable owner `{ experimentId, host, PID, process identity }` 对应的唯一旧 teardown
+after 成功后，它先核对并原子删除 immutable owner `{ experimentId, host, PID, process identity }` 对应的唯一旧 after
 登记，才发布 free generation。它不按当前声明或同一 Experiment 的其它登记做宽泛删除。
 
 local recovery 对 PID 缺失、复用及 Linux `Z`/`X`/`x` 终态采用同一 exact identity 判定。obligation 或 identity 的读取、格式检查失败
 一律保持 recovering、非零退出，等待者不能先进入；新的精确 recovery actor 可以重试，旧 actor 永远不能改写它。
 
-若重复命令发现 exact token 已是 free，它不重跑 teardown，但会仅幂等清除能证明属于该 immutable owner 的遗留登记。不能安全
+若重复命令发现 exact token 已是 free，它不重跑 after，但会仅幂等清除能证明属于该 immutable owner 的遗留登记。不能安全
 清除仍非零退出。
 
 两名操作员并发恢复时，只有一名能发布同一 next generation；失败者必须重读 immutable generation 后重新检查。旧 token
@@ -74,7 +74,7 @@ local recovery 对 PID 缺失、复用及 Linux `Z`/`X`/`x` 终态采用同一 e
 `state-lease-recovery-required`。
 
 recovery 不会改变 carry 资格、Attempt 身份或退出码。sharedState explicit recovery 同样不会回滚强杀前已写入
-一半的 checkpoint；它只在作者确认外部状态已可安全补偿后，运行一次公开 teardown。
+一半的 checkpoint；它只在作者确认外部状态已可安全补偿后，运行一次公开 after。
 
 ## 与 Sandbox orphan 的边界
 

@@ -293,7 +293,7 @@ export interface TimeoutAttribution {
 /**
  * 不一定改变 verdict、但运行后仍需回顾的有界诊断(见 docs/feature/record/architecture.md 的
  * `DiagnosticRecord`)。`level` 表达写入方观察到的运行影响,不是 verdict 的别名 ——
- * passed / failed / errored 任一 verdict 都可以带 cleanup / teardown 诊断。
+ * passed / failed / errored 任一 verdict 都可以带 cleanup / after 诊断。
  * 与运行级的 `DiagnosticNotice` 不同,这条挂在单个 attempt 结果或 RunMeta 上落盘。
  */
 export interface DiagnosticRecord {
@@ -301,7 +301,7 @@ export interface DiagnosticRecord {
   level: "warning" | "error";
   /**
    * 诊断归属。attempt 诊断由 runner 绑定当时打开的锚点;Run 诊断可引用 Run timing node,
-   * 也可只带 `experiment.teardown` 这类归因锚点;没有 timing 记录的第三方 producer 可省略。
+   * 也可只带 `experiment.after` 这类归因锚点;没有 timing 记录的第三方 producer 可省略。
    */
   origin?: TimingOrigin;
   /** 写入时观察到的原始有界描述;不包含修复动作或呈现文案。 */
@@ -435,7 +435,7 @@ export interface EvalResult {
   estimatedCostUSD?: number;
   /** 使 attempt 进入 `errored` 的唯一致命执行错误(结构化);默认报告显示 `error.message` 一层原因。 */
   error?: AttemptError;
-  /** 本 attempt 的诊断(与 verdict 独立);teardown / cleanup 失败等挂在这里,不改判定。 */
+  /** 本 attempt 的诊断(与 verdict 独立);after / cleanup 失败等挂在这里,不改判定。 */
   diagnostics?: readonly DiagnosticRecord[];
   /** Runner 阶段计时,按执行顺序;只记录实际发生的阶段(见 docs/feature/record/architecture.md)。 */
   phases?: PhaseTiming[];
@@ -446,7 +446,7 @@ export interface EvalResult {
   o11y?: ObservabilitySummary;
   /** agent 经 OpenTelemetry 导出的运行追踪(有 tracing 能力且收到 span 时)。 */
   trace?: TraceSpan[];
-  /** 本 attempt 的 agent setup 实际装了什么(Skill / native plugin / MCP / Python plugin);不参与评分。 */
+  /** 本 attempt 的 agent before 实际装了什么(Skill / native plugin / MCP / Python plugin);不参与评分。 */
   agentInstallation?: AgentInstallationManifest;
   /**
    * attempt 级聚合的证据覆盖(各 turn 的最差值,unavailable < partial < complete)；必填。
@@ -629,7 +629,7 @@ export type ReporterEvent =
   | { type: "invocation:saved"; summary: InvocationSummary }
   | { type: "invocation:summary"; summary: InvocationSummary }
   | {
-      /** 该 Experiment 的 teardown(若声明)完成之后、invocation:summary 之前触发。 */
+      /** 该 Experiment 的 after(若声明)完成之后、invocation:summary 之前触发。 */
       type: "experiment:complete";
       experimentId: string;
       /** 该 Experiment 封口时刻,即它的 Run completedAt。 */
@@ -877,9 +877,9 @@ export function discoverEval(definition: AnyEvalDefinition, facts: DiscoveredEva
 }
 
 /**
- * `ExperimentDefinition.setup` / `teardown` 拿到的窄上下文。`progress` 更新本实验运行级
+ * `ExperimentDefinition.before` / `after` 拿到的窄上下文。`progress` 更新本实验运行级
  * active 行的次要文本(短命状态,JSON 机器流不逐条输出),`diagnostic` 进运行级永久
- * 事件流(实验级钩子不属于任何单个 attempt,诊断不落 attempt 的 `result.json`;setup 抛错
+ * 事件流(实验级钩子不属于任何单个 attempt,诊断不落 attempt 的 `result.json`;before 抛错
  * 以每条 attempt 的结构化 `error` 落盘,失败仍可回顾)。钩子的起止本身由 runner 直接发布为
  * 运行级反馈,不依赖这里的 `progress`(见 docs/feature/experiments/cli.md「实验级 Hook 的显示」)。
  */
@@ -887,7 +887,7 @@ export interface ExperimentHookContext extends ScopedFeedback {
   readonly experimentId: string;
   /** 本实验解析后实际选中的 eval id 全集(evals 过滤器的求值结果)。 */
   readonly selectedEvalIds: readonly string[];
-  /** 用户中断(Ctrl+C / kill)时 abort;长启动的 setup 应观察它提前退出。 */
+  /** 用户中断(Ctrl+C / kill)时 abort;长启动的 before 应观察它提前退出。 */
   readonly signal: AbortSignal;
 }
 
@@ -980,8 +980,8 @@ export interface ExperimentAuthorFields {
   sandboxReuse?: boolean;
   /**
    * 声明本 Experiment 需要独占的共享外部状态。相同 key 的 Invocation 在同一项目
-   * Coordination 域内从 Experiment/Sandbox setup 前一直互斥到 Sandbox teardown、
-   * provider finalizer 与 Experiment teardown 全部完成；等待者不会先创建 Sandbox，
+   * Coordination 域内从 Experiment/Sandbox before 前一直互斥到 Sandbox after、
+   * provider finalizer 与 Experiment after 全部完成；等待者不会先创建 Sandbox，
    * 取得租约后继续自己的 plan。它不是状态存储、事务或跨机器锁。
    */
   sharedState?: SharedStateConfig;
@@ -997,26 +997,26 @@ export interface ExperimentAuthorFields {
    * 仍按全局并发(CLI / env / config / 沙箱默认)跑。用于串行化有共享状态的实验
    * (如跨 eval 累积记忆:`maxConcurrency: 1` 保证 attempt 按 eval 顺序一个个跑),
    * 或给撞 provider 限额的实验单独降速。名额与 attempt 同生命周期:从沙箱创建前一直握到
-   * teardown 与沙箱销毁完成才归还,中途任何等待(含 turn 重试退避)都不松手——
+   * after 与沙箱销毁完成才归还,中途任何等待(含 turn 重试退避)都不松手——
    * `maxConcurrency: 1` 因此是严格的临界区,不会被同实验的下一个 attempt 提前闯入。
    * 它不跨 Invocation；跨 Invocation 的共享外部状态请声明 `sharedState`。
    */
   maxConcurrency?: number;
   /**
-   * 实验级生命周期钩子对的 setup 侧:整场至多一次、宿主机侧,管「每实验一份、所有 attempt
+   * 实验级生命周期钩子对的 before 侧:整场至多一次、宿主机侧,管「每实验一份、所有 attempt
    * 共享」的宿主机资源(隧道、mock server、license 租约)。本实验第一个通过派发许可的
    * attempt 触发(memoized,并发 attempt 等同一个结果;全部结果被 carry 携入时不执行)。
-   * setup 不返回值;产物写模块级变量,`teardown` 与同文件 agent / sandbox 钩子从闭包读,
-   * runner 不做值的中介。setup 抛错 → 本实验所有 Attempt 形成 `errored` Verdict
-   * (code `"experiment-setup-failed"`、phase `"experiment.setup"`),同批其它实验不受影响。
+   * before 不返回值;产物写模块级变量,`after` 与同文件 agent / sandbox 钩子从闭包读,
+   * runner 不做值的中介。before 抛错 → 本实验所有 Attempt 形成 `errored` Verdict
+   * (code `"experiment-setup-failed"`、phase `"experiment.before"`),同批其它实验不受影响。
    * 函数体不进 fingerprint,改了钩子逻辑用 `--rerun all` 明确全部重跑。
    * 见 docs/feature/experiments/architecture.md「实验级生命周期」。
    */
   before?: ExperimentHook;
   /**
-   * 实验级生命周期钩子对的 teardown 侧:本实验全部 attempt 收尾后执行(运行被中断也执行),
-   * 当且仅当 setup 时点走到过——setup 抛错不豁免(半初始化现场同样要扫尾,teardown 对可能
-   * 未赋值的闭包变量做防御),未声明 setup 不影响触发;一个 attempt 都不派发则跳过。
+   * 实验级生命周期钩子对的 after 侧:本实验全部 attempt 收尾后执行(运行被中断也执行),
+   * 当且仅当 before 时点走到过——before 抛错不豁免(半初始化现场同样要扫尾,after 对可能
+   * 未赋值的闭包变量做防御),未声明 before 不影响触发;一个 attempt 都不派发则跳过。
    * 抛错或超 30s 清理上限只记运行级 diagnostic(`experiment-teardown-failed`),不改判定。
    */
   after?: ExperimentHook;
@@ -1270,8 +1270,8 @@ export interface AdapterRun {
   /** 本配置自己的并发上限(来自 ExperimentDef.maxConcurrency):调度器为它单建信号量,
    *  attempt 先过这道闸再占全局并发位;省略则只受全局并发约束。 */
   readonly maxConcurrency?: number;
-  /** 实验级生命周期钩子对(来自 ExperimentDef.setup / .teardown):setup 整场至多一次,
-   *  调度器 memoize 执行;teardown 在全部 attempt 收尾后执行,当且仅当 setup 时点走到过
+  /** 实验级生命周期钩子对(来自 ExperimentDef.before / .after):before 整场至多一次,
+   *  调度器 memoize 执行;after 在全部 attempt 收尾后执行,当且仅当 before 时点走到过
    *  (语义见 ExperimentDef 对应字段)。 */
   readonly setup?: ExperimentHook;
   readonly teardown?: ExperimentHook;
@@ -1295,7 +1295,7 @@ export interface RunOptions<RecordError = never, RecordRequirements = never> {
   /** `--accept` 本次授权跨过的差异 selector(`config:<字段路径>` 等)。 */
   accept?: readonly string[];
   /**
-   * 本地旧 registry 根（默认 `cwd/.niceeval`）。仅供尚未迁移的 teardown / Sandbox
+   * 本地旧 registry 根（默认 `cwd/.niceeval`）。仅供尚未迁移的 after / Sandbox
    * 生命周期消费者；Session 与 execution lock 固定使用 `recordRoot` 的 ProjectDatabase。
    */
   coordinationRoot?: string;
@@ -1453,14 +1453,14 @@ export interface QueuedAttempt {
   queuedAt: number;
 }
 
-/** 实验级钩子只有 setup 与它返回的 teardown 两员,同一实验内两者永不并发
- *  (teardown 在全部 attempt 收尾后才触发),所以运行级行按 experimentId 建 key 就够。 */
+/** 实验级钩子只有 before 与它返回的 after 两员,同一实验内两者永不并发
+ *  (after 在全部 attempt 收尾后才触发),所以运行级行按 experimentId 建 key 就够。 */
 export type ExperimentHookName = "setup" | "teardown";
 
 /**
  * dashboard 当前可见的一个实验级钩子运行级行(见 docs/feature/experiments/cli.md
  * 「实验级 Hook 的显示」)。与 `ActiveAttempt` 分开建模:钩子不属于任何单个 attempt、不占并发位,
- * 也不参与 `RunFeedbackState` 的计数不变量——等待 setup 的
+ * 也不参与 `RunFeedbackState` 的计数不变量——等待 before 的
  * attempt 保持 `queued`,这行就是「为什么它们还在排队」的解释。`detail` 来自实验级
  * `ctx.progress`,后一条覆盖前一条。
  */
@@ -1480,7 +1480,7 @@ export interface ActiveExperimentHook {
   /** 钩子开始的墙钟时间(epoch ms),用于渲染运行级行的耗时。 */
   startedAt: number;
   detail?: string;
-  /** 强杀后启动自愈补执行的 teardown(见 `DurableFeedbackEvent` 的 "experiment-hook" 变体)。 */
+  /** 强杀后启动自愈补执行的 after(见 `DurableFeedbackEvent` 的 "experiment-hook" 变体)。 */
   recovery?: boolean;
 }
 
@@ -1616,7 +1616,7 @@ export interface RunFeedbackState {
   running: number;
   /** 正被并行 Invocation 持锁运行、本次在等待中的用例的 attempt 数(用例锁,见 `lock-wait`
    *  变体与 docs/feature/experiments/cli.md「等待并发 run 的显示」);与 `queued` 互斥——
-   *  `queued` 是「等本进程并发位/setup」,`elsewhere` 是「等别的进程」。
+   *  `queued` 是「等本进程并发位/before」,`elsewhere` 是「等别的进程」。
    *  恒等式(见接口注释)在处理完每一个事件之后都成立。 */
   elsewhere: number;
   queued: number;
@@ -1800,9 +1800,9 @@ export type DurableFeedbackEvent =
       enter?: string;
     }
   /**
-   * 实验级钩子(`ExperimentDef.setup` / 它返回的 teardown)的起止,由 runner 在钩子真正
+   * 实验级钩子(`ExperimentDef.before` / 它返回的 after)的起止,由 runner 在钩子真正
    * 开始/结束时各发一次(见 docs/feature/experiments/cli.md「实验级 Hook 的显示」)。`failed`
-   * 只标记钩子自身的结局——setup 失败的每条 attempt 仍以 "failure" 事件逐条给出。human TTY
+   * 只标记钩子自身的结局——before 失败的每条 attempt 仍以 "failure" 事件逐条给出。human TTY
    * 用它维护运行级 active 行(不写 scrollback),append-only profile 起止各追加一行。
    */
   | {
@@ -1814,7 +1814,7 @@ export type DurableFeedbackEvent =
       /** 只在 done / failed 上出现:钩子从开始到结束的耗时。 */
       durationMs?: number;
       /**
-       * 只在 `hook: "teardown"` 的 `status: "started"` 上可能出现:标注这是强杀后的启动自愈
+       * 只在 `hook: "after"` 的 `status: "started"` 上可能出现:标注这是强杀后的启动自愈
        * 补执行(见 docs/feature/experiments/architecture.md「强杀后的收尾兜底」),不是本次 run
        * 正常触发的收尾。省略 = 正常路径。
        */

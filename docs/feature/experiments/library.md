@@ -121,7 +121,7 @@ JavaScript 与动态输入同样经过这次同步校验，不以 TypeScript 类
 所有 Agent 与普通 Adapter 使用同一结构约束：拒绝嵌套对象、数组、`null`、显式 `undefined` 和非普通对象。
 输入先经过结构检查与复制冻结，再交给 parser；parser 不能将非法结构转换为合法结果来绕过检查。
 规范化结果再次按相同规则校验、复制并冻结，成为执行与缓存身份共同使用的实验值。
-失败发生在任何 Experiment setup 或 Adapter create 之前。
+失败发生在任何 Experiment before 或 Adapter create 之前。
 
 实验模块必须导出 `defineExperiment()` 返回的原始定义值，不能通过继承或复制内部标记替换参数。
 已有 Record 中的复杂 JSON flags 仍按历史事实读取，不转换、不重写，也不更改身份算法或 generation。
@@ -196,9 +196,9 @@ export default defineEval({
 
 逐 Eval 的起点进入 input identity 和可读 manifest，不由路径或读取时的宿主条件推断。
 
-## setup 与 teardown
+## before 与 after
 
-`setup` 和 `teardown` 管理每个 Run 一份的宿主资源，例如临时数据库、mock 服务或隧道。
+`before` 和 `after` 管理每个 Run 一份的宿主资源，例如临时数据库、mock 服务或隧道。
 
 ```ts
 let tunnel: { url: string; stop(): Promise<void> } | undefined;
@@ -206,17 +206,17 @@ let tunnel: { url: string; stop(): Promise<void> } | undefined;
 export default defineExperiment({
   adapter: nowledgeAgent(() => ({ url: tunnel!.url })),
   evals: ["memory/"],
-  async setup(ctx) {
+  async before(ctx) {
     tunnel = await nowledgeTunnel({ signal: ctx.signal });
     ctx.progress({ message: "tunnel ready" });
   },
-  async teardown() {
+  async after() {
     await tunnel?.stop();
   },
 });
 ```
 
-`setup` 在第一个真正需要执行的 Attempt 前运行；全部成员都由历史 Attempt carry 时不启动服务。一旦调用过 `setup`，即使它失败也必须尝试 `teardown`。
+`before` 在第一个真正需要执行的 Attempt 前运行；全部成员都由历史 Attempt carry 时不启动服务。一旦调用过 `before`，即使它失败也必须尝试 `after`。
 
 需要跨进程恢复的资源由外部编排或 Hook 自己的持久坐标管理，不能把模块闭包当成 Record 事实。共享外部可变状态使用 Coordination 的 `sharedState.key` 协调；它不把同一 Record root 的多个 Invocation 变成一条队列。
 

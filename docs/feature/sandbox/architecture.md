@@ -32,7 +32,7 @@ Record 事实的提交则必须等 Scope release 完成；两者不是同一个�
 
 ### 中断与留存矩阵
 
-| 路径 | Attempt 收尾 | keep 决策 | Scope release | Record 提交 | Experiment teardown |
+| 路径 | Attempt 收尾 | keep 决策 | Scope release | Record 提交 | Experiment after |
 |---|---|---|---|---|---|
 | 正常完成 | Agent teardown → cleanup 逆序 | 按 `--keep-sandbox` 提交 | stop 或 suspend | release 后提交 | 全部 Attempt 收尾后执行 |
 | Attempt timeout | 同上，逐段有界 | `errored` Verdict 可命中 keep 档位 | stop 或 suspend | release 后提交 Observability diagnostic、Verdict 与 receipt | 全部 Attempt 收尾后执行 |

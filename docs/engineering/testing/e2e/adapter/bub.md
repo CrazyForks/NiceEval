@@ -11,7 +11,7 @@ Repo ID 是 `adapter/bub`；manifest 声明 `areas: ["adapter", "sandbox"]`、li
 | --- | --- |
 | coding 任务工具轨 | 真实任务下 Bub tape JSONL 归一出工具事件并完成配对；缺少显式 call ID 的事件只能按位配对，因此 Eval 保持串行工具场景，不断言并发配对 |
 | Skills | 挂载的 Skill 在事件流中留下使用证据（引用只存在于 SKILL.md 里的魔法词 + 工具入参含 skill 路径） |
-| pythonPlugins 与 postSetup | 安装的 Python 插件行为可观察；`postSetup` 生命周期 Hook 按序执行并在输出中留下证据 |
+| pythonPlugins 与 before | 安装的 Python 插件行为可观察；`before` 生命周期 Hook 按序执行并在输出中留下证据 |
 | 会话 | session 由 Adapter 管理，第二轮能引用首轮事实 |
 | 当前版 usage | `ci` 严格断言可配置 OpenAI-compatible 网关返回的 token / request usage；token 值须有限、非负且合计大于零，不以固定 token 上限判定协议兼容性；provider observed `Usage.costUSD` 只在上游实际提供时存在，不做估算 |
 
@@ -41,7 +41,7 @@ Repo ID 是 `adapter/bub`；manifest 声明 `areas: ["adapter", "sandbox"]`、li
 - 工具名是 tape JSONL 归一后的 `file_write` / `file_edit` / `shell`。
 - coding 的顺序断言定位 `cat notes.txt` 读回调用；Skill 发现的前置 shell 不参与写入与读回的顺序判断。
 - coding Eval 的提示词复用本仓库 `evals/shared.ts` 的 `SKIP_BUILD_NOTE` / `REPLY_DIRECTIVE` 免责声明。bub 的系统提示自带 Next.js build 指引与 channel 应答策略，不声明这两条会污染协议断言。
-- `ci` Experiment 选中本仓库的 coding、Skill、plugin / postSetup、会话和 usage Eval；原生验收脚本列全协议 Eval ID，防止少发现/少运行后假绿。
+- `ci` Experiment 选中本仓库的 coding、Skill、plugin / before、会话和 usage Eval；原生验收脚本列全协议 Eval ID，防止少发现/少运行后假绿。
 - **Eval 结果**：原生验收分别核对当前版与 legacy 版的通过数、未通过数；工具、Skill 与 plugin 细节由 Eval 判分。
 - **Inspection readback**：独立 `query run --request <request>` test 只读回 coding Eval 的代表性工具证据。
 - **Timing / OTel 边界**：通用 Runner timing 由 [`runner-generic-timing`](../runner.md#runner-generic-timing) 唯一读回。当前公开读面不能归因 Bub 的 mapper-specific OTel，本 Repo 不用通用 timing 或日志冒充该证据。

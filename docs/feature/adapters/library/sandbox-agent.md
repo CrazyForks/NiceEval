@@ -15,7 +15,7 @@ export default defineSandboxAgent({
     probe: shell('test "$(my-agent --version)" = "1.4.2"'),
   },
 
-  async setup(sandbox, ctx) {
+  async before(sandbox, ctx) {
     ctx.progress({ message: "configuring my-agent" });
     // 写鉴权、CLI 主配置、skills / plugins；每个 attempt 只执行一次。
     // 安装与版本探测不写在这里：归 ensure 声明与配对的 Agent 安装层（见下文生命周期）。
@@ -48,15 +48,15 @@ export default defineSandboxAgent({
 ## 生命周期
 
 [Agent Ensure](../architecture/agent-ensure.md)（探测 精确身份、缺失时由配对安装层安装、复检）由 Runner 在 `agent.ensure` 相位按 Adapter 的 ensure 声明执行，排在四类 owner 的 before 之后。
-`setup` 只做 Agent runtime 准备：写鉴权、Agent 配置和扩展；不安装 CLI。失败会被 Runner 规范化为结构化执行错误通道事件，而不是写入 Attempt state。
+`before` 只做 Agent runtime 准备：写鉴权、Agent 配置和扩展；不安装 CLI。失败会被 Runner 规范化为结构化执行错误通道事件，而不是写入 Attempt state。
 `send` 只执行一轮任务，多轮时会重复调用。只有协议给出完整可信终态才返回 Turn。
 
 CLI 非零、signal、transport 中断或无法辨认终态时 reject `SendFailure`。`Turn.status: "failed"` 只保留给协议明确报告的可评分任务失败，不能由 `exitCode !== 0` 直接推导。
-可选 cleanup 和 `teardown` 始终在 finally 阶段执行。
+可选 cleanup 和 `after` 始终在 finally 阶段执行。
 
-`setup` 抛错由 Runner 规范化为结构化执行错误通道事件，并形成该 Attempt 的 `errored` Verdict；Attempt lifecycle 仍只收束为 `completed` 或 `abandoned`。
+`before` 抛错由 Runner 规范化为结构化执行错误通道事件，并形成该 Attempt 的 `errored` Verdict；Attempt lifecycle 仍只收束为 `completed` 或 `abandoned`。
 
-每个回调的 `ctx.progress(...)` 只更新当前 `agent.setup` / `agent.run` / `agent.teardown` 的短期 activity。
+每个回调的 `ctx.progress(...)` 只更新当前 `agent.before` / `agent.run` / `agent.after` 的短期 activity。
 需要永久保留的协议降级、transcript 缺失或 cleanup 问题用 `ctx.diagnostic(...)` 写 diagnostic channel event。
 不要从 CLI stdout 的每个 frame 转发 progress,也不要直接写宿主进程的 stdout/stderr。
 完整语义见 [Adapter Library · 向运行反馈进度与诊断](../library.md#向运行反馈进度与诊断)。
@@ -96,5 +96,5 @@ CLI 原生 resume ID 写入 `ctx.session.capture()`，下一轮用 `ctx.session.
 
 ## Skills 与 Plugins
 
-Coding-agent 扩展在构造期配置并由 setup 安装。
+Coding-agent 扩展在构造期配置并由 before 安装。
 实际调用见 [配置 Coding Agent 扩展](coding-agent-extensions.md)，内部边界见 [Architecture · Coding Agent 扩展](../architecture/coding-agent-extensions.md)。

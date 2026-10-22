@@ -50,7 +50,7 @@ interface SendFailure {
 
 ## 生命周期边界
 
-Experiment setup 的确定性失败写入 Run diagnostic channel，并阻止该 Run 的 Attempt 派发。Experiment teardown 失败只写入 Run 范围诊断，因为此时已经没有可停止的后续派发。
+Experiment before 的确定性失败写入 Run diagnostic channel，并阻止该 Run 的 Attempt 派发。Experiment after 失败只写入 Run 范围诊断，因为此时已经没有可停止的后续派发。
 
 Attempt teardown 的失败保留为该 Attempt 的诊断；若分类带有可证明的范围，Runner 仍可停止兄弟 Planned attempt 的派发。
 

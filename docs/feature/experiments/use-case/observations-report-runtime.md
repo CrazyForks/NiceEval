@@ -9,7 +9,7 @@ feature: docs/feature/experiments/README.md
 
 # 上报运行时观测
 
-记忆服务由 setup 启动，隧道 URL 每次运行都可能变化。
+记忆服务由 before 启动，隧道 URL 每次运行都可能变化。
 这个值在启动完成后才知道，因此不写进 `flags` 或 `labels`。Hook 通过闭包把它交给后续 command 或 Agent factory 即可：
 
 ```ts

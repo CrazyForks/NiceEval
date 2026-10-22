@@ -13,7 +13,7 @@ import type {
   SandboxCommandContext,
 } from "../sandbox/commands.ts";
 import type { Sandbox } from "../sandbox/types.ts";
-import type { AgentContext, SandboxAgent } from "./types.ts";
+import type { Agent, AgentContext, SandboxAgent } from "./types.ts";
 
 export interface AgentLifecycleHookCommands {
   readonly postSetup: readonly SandboxCommand[];
@@ -22,7 +22,7 @@ export interface AgentLifecycleHookCommands {
 
 // Adapter factory 构造时就能知道的用户 hook 声明。用 WeakMap 挂在实际 Agent
 // 实例上，不把这份纯预览元数据扩成第二个公开 Agent 执行协议。
-const lifecycleHookCommands = new WeakMap<SandboxAgent, AgentLifecycleHookCommands>();
+const lifecycleHookCommands = new WeakMap<Agent, AgentLifecycleHookCommands>();
 
 /** Reject removed author vocabulary even when an old field is explicitly undefined. */
 export function assertAgentLifecycleNames(config: object | undefined, factory: string): void {
@@ -48,7 +48,7 @@ export function registerAgentLifecycleHookCommands<T extends SandboxAgent>(
 }
 
 /** @internal `niceeval debug` 只读取已登记的声明，不执行 hook。 */
-export function agentLifecycleHookCommandsOf(agent: SandboxAgent): AgentLifecycleHookCommands | undefined {
+export function agentLifecycleHookCommandsOf(agent: Agent): AgentLifecycleHookCommands | undefined {
   return lifecycleHookCommands.get(agent);
 }
 

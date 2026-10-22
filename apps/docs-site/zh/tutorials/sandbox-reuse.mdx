@@ -79,7 +79,7 @@ export default defineExperiment({
 });
 ```
 
-NiceEval 在 Experiment `setup` 和创建 Sandbox 之前取得这个 key 的租约，等 Sandbox 清理、Provider 收尾和 Experiment `teardown` 全部完成后才释放。另一个终端里用同一个 key 的运行会排队等待，不会提前创建 Sandbox。拿到租约后，它照自己的计划继续跑，不读取或沿用对方的结果。
+NiceEval 在 Experiment `before` 和创建 Sandbox 之前取得这个 key 的租约，等 Sandbox 清理、Provider 收尾和 Experiment `after` 全部完成后才释放。另一个终端里用同一个 key 的运行会排队等待，不会提前创建 Sandbox。拿到租约后，它照自己的计划继续跑，不读取或沿用对方的结果。
 
 key 也是结果配置的一部分。换一个 key 就是换一份状态，旧结果不会混进来。租约只保护外部 checkpoint，和结果文件无关；不用 `sharedState` 的运行照样可以并发写入结果。不同机器或不同 working copy 之间仍需要外部分布式锁。
 
@@ -89,12 +89,12 @@ key 也是结果配置的一部分。换一个 key 就是换一份状态，旧�
 |---|---|
 | Sandbox 创建 / 停止 | 每个 Sandbox 一次 |
 | Sandbox `.before()` / `.after()` 准备步骤与已登记的清理 | 每个真正要跑的 Attempt 一次 |
-| Agent 级 `setup` / `teardown` | 每个 Attempt 一次 |
-| 评估用例的 `setup` / `teardown`、`test(t)` | 每个 Attempt 一次 |
+| Agent 级 `before` / `after` | 每个 Attempt 一次 |
+| 评估用例的 `before` / `after`、`test(t)` | 每个 Attempt 一次 |
 
 <SandboxLanes />
 
-每个 Attempt 结束后，NiceEval 对 `workdir` 执行 `git reset --hard` 和 `git clean`，恢复到起始状态，再开始下一个。这一步只管 `workdir`，`/opt`、`$HOME`、`/tmp`、全局安装、包缓存和后台进程都不会消失。它们要么由评估用例的 `teardown` 自己清理，要么是你有意留给下一道题用的状态。
+每个 Attempt 结束后，NiceEval 对 `workdir` 执行 `git reset --hard` 和 `git clean`，恢复到起始状态，再开始下一个。这一步只管 `workdir`，`/opt`、`$HOME`、`/tmp`、全局安装、包缓存和后台进程都不会消失。它们要么由评估用例的 `after` 自己清理，要么是你有意留给下一道题用的状态。
 
 大型的持久构建产物或缓存不能放任增长。给它定一个容量上限和提前告警的阈值：正常的大小和命中情况用 `facts` 记录，接近风险阈值时用 `diagnostic` 告警，同时准备好清理、轮换或换掉这台 Sandbox 的办法。
 
@@ -102,8 +102,8 @@ key 也是结果配置的一部分。换一个 key 就是换一份状态，旧�
 
 - **所有实验都要的重依赖**（Agent CLI、语言运行时）：烘进 Provider 的 image / template / snapshot，或写成最低频的 `.before()` 准备步骤。
 - **整批评估共用的准备**（装工具链、clone 公共仓库、预热构建缓存）：写成低频的 `.before()` 准备步骤。在 Docker 上，没变的准备步骤下次运行可以直接沿用。这些步骤仍然每个 Attempt 都要经过一次，你不能要求它在整台 Sandbox 上只跑一次。
-- **只有这道题要的素材**（它自己的仓库、数据、依赖）：放进评估用例自己的 `setup` 或 `test(t)`。每道题重置后都会再跑一遍，所以必须是重复执行也正确的代码。
-- **起了后台进程、占了端口**：由评估用例的 `teardown` 自己清理，重置 `workdir` 不会杀进程。
+- **只有这道题要的素材**（它自己的仓库、数据、依赖）：放进评估用例自己的 `before` 或 `test(t)`。每道题重置后都会再跑一遍，所以必须是重复执行也正确的代码。
+- **起了后台进程、占了端口**：由评估用例的 `after` 自己清理，重置 `workdir` 不会杀进程。
 
 每道题各自 clone 仓库时，整个 Experiment 用同一个固定名字的临时目录，例如 `.niceeval-task-clone`，并把它加进 `diff.ignore`。clone 前只运行 `rm -rf .niceeval-task-clone`，清掉上一道题的残留。绝不要删除 `workdir` 根目录的 `.git`：题间重置依赖它，而且它会一直留着。
 
@@ -131,7 +131,7 @@ npm install          # 按 package.json/lockfile 装齐，本身就可以重复�
 
 两件事仍归你：
 
-- **`postSetup` 脚本必须可以重复执行**。它每个 Attempt 都会在留下来的 `$HOME` 上再跑一遍。往全局配置登记 hook 的脚本，跑多少遍都要得到同一份配置。开复用前，先拿两三道题在一条 Sandbox 泳道上跑一轮，从第二道题开始才能看出问题。
+- **`before` 脚本必须可以重复执行**。它每个 Attempt 都会在留下来的 `$HOME` 上再跑一遍。往全局配置登记 hook 的脚本，跑多少遍都要得到同一份配置。开复用前，先拿两三道题在一条 Sandbox 泳道上跑一轮，从第二道题开始才能看出问题。
 - **插件数据放在哪**。插件安装目录每个 Attempt 都会被重装覆盖。要留到下一道题的数据，只能写在安装目录之外。留下的数据会不会影响下一道题，是你的实验设计要回答的问题。
 
 重新安装不省钱：插件安装每个 Attempt 都要付一次。复用省下的是 Sandbox 创建；没变的 `.before()` 准备步骤在 Docker 上还能沿用。marketplace 拉取太慢时，用 `sparse` 只拉插件路径，或者把插件烘进 template，并从 `plugins` 里去掉声明。代价是安装清单里不再记录插件和它解析到的版本。

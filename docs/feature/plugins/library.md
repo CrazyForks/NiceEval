@@ -1,122 +1,85 @@
 # Plugins —— Library
 
-所有 Plugin API 从 `niceeval/plugin` 导入。
+所有 Plugin API 从 `niceeval/plugin` 导入。Plugin 是一个可复用的实验条件，用同一个值声明条件身份、Agent 扩展与前后步骤。
+
+## 定义
 
 ```ts
-type PluginOwner = "experiment" | "group" | "eval";
-type PluginScope = PluginOwner | "sandbox";
-
-interface PluginAttachment<EligibleOwners extends PluginOwner = PluginOwner> {
-  // 私有品牌携带 family identity 与可挂载 owner；作者不构造这个对象。
-}
-
-interface PluginStack<EligibleOwners extends PluginOwner = PluginOwner>
-  extends Iterable<PluginAttachment> {
-  use<const AttachmentOwners extends PluginOwner>(
-    attachment: CompatibleAttachment<EligibleOwners, AttachmentOwners>,
-  ): PluginStack<Extract<EligibleOwners, AttachmentOwners>>;
-
-  concat<const OtherOwners extends PluginOwner>(
-    stack: CompatibleStack<EligibleOwners, OtherOwners>,
-  ): PluginStack<Extract<EligibleOwners, OtherOwners>>;
-}
-
-declare function pluginStack(): PluginStack<PluginOwner>;
-
-type PluginInput<Owner extends PluginOwner> =
-  | PluginStack<Owner>
-  | readonly PluginAttachment<Owner>[];
-```
-
-`CompatibleAttachment` 与 `CompatibleStack` 在 owner 集合没有交集时求值为 `never`，不会让 `PluginStack<never>` 悄悄流入 Definition。公开品牌保持 owner 逆变关系，使同时支持多个 owner 的 attachment 或 Stack 可以用于其中任一合法挂载点。
-
-## 定义与多个 occurrence
-
-```ts
-const lifecycle = definePlugin<{ marker: string }>({
-  name: "example.lifecycle",
-  behaviorRevision: "2",
-  instanceKey: ({ marker }) => marker,
-  experiment: ({ marker }) => ({
-    identity: { marker },
-    setup: (ctx) => ctx.progress({ message: `setup ${marker}` }),
-    teardown: (ctx) => ctx.progress({ message: `teardown ${marker}` }),
-  }),
-  sandbox: ({ marker }) => sandboxLayer().before(writeText({
-    id: "example.lifecycle.marker",
-    path: "/opt/example/marker",
-    text: marker,
-    changeFrequency: changeFrequency.normal,
-  })),
-});
-
-export default defineExperiment({
-  plugins: pluginStack()
-    .use(lifecycle({ marker: "memory" }))
-    .use(lifecycle({ marker: "telemetry" })),
-  // ...
-});
-```
-
-有参数 family 必须声明稳定的 `instanceKey(options)`。无参数 family 可省略它，固定实例键为 `"default"`，但仍通过 `family()` 产生 attachment specification。它可以被多个 Definition 或共享栈复用；owner 消费时才为每个挂载产生 occurrence。
-
-`experiment`、`group` 与 `eval` fragment 只能包含可选 `identity`，以及至少一个 `setup` / `teardown`。公开 callback 返回 `void | Promise<void>`；Plugin 不暴露 Effect、资源 handle、cleanup 返回值或依赖注入协议。`sandbox` fragment 返回 command-only `SandboxLayer`，使用统一的 `before()` / `after()` API；它不能提供 template。
-
-Plugin 的写法没有另起一套 action API。固定内容直接返回 `sandboxLayer().before(writeText(...) / uploadDirectory(...))`，也可以实例化第三方 package 导出的 `SandboxActionFamily`。family 不注册到 Plugin registry；Plugin 只转交 branded Action instance。
-
-需要运行中实例的步骤可写 `.before(async (sandbox, context) => …)`，但它是每次真实执行的 opaque callback。Plugin 仍只在 owner 的 `plugins` 字段挂一次，runner 自动投影其中的 SandboxLayer。
-
-## 挂载
-
-```ts
-const common = pluginStack().use(a());
-
-defineExperiment({ plugins: common.use(b()), /* ... */ });
-defineEvalGroup({ plugins: common.use(groupOnly()), /* ... */ });
-defineEval({ plugins: common.use(evalOnly()), test(t) {} });
-```
-
-`pluginStack()` 是空栈和组合单位元；静态没有 Plugin 时推荐省略 `plugins`，两者产生相同 identity 与 debug。`.use(one)` 追加一个 attachment，`.concat(stack)` 合并两个共享栈；两者都返回新的冻结值，原栈可以安全分叉。最终 owner 消费后才按扁平顺序分配 `attachmentOrdinal`，栈的对象身份、分叉历史和 concat 分段不进入 identity。
-
-```ts
-const observability = pluginStack().use(metrics());
-const memory = pluginStack().use(remem());
+const memory = definePlugin((options: { cohort: string }) => ({
+  name: "memory",
+  key: options.cohort,
+  identity: { version: "1", cohort: options.cohort },
+  requires: { evalGroup: true },
+  agent: { skills: [{ kind: "local", path: "./skills/memory" }] },
+  sandbox: {
+    before: async (sandbox, ctx) => {
+      await sandbox.writeText("/tmp/group", ctx.evalGroup.id);
+    },
+  },
+  group: { before: (ctx) => ctx.progress({ message: "prepare memory" }) },
+}));
 
 defineExperiment({
-  plugins: enableMemory
-    ? observability.concat(memory)
-    : observability,
-  // ...
+  adapter: codexAgent(),
+  plugins: [memory({ cohort: "experiment-a" })],
 });
 ```
 
-`plugins: [a(), b()] as const` 仍是合法的简单输入；它与相同最终顺序的 `PluginStack` 产生相同 occurrence、fingerprint 和 debug。Stack 不自动去重；同一 owner 中重复的 `(name, instanceKey)` 仍在 link 阶段报错。
+`definePlugin(spec)` 直接返回冻结的 Plugin 实例；`definePlugin((options) => spec)` 返回只接收一个参数的工厂。
+`name` 必须是非空字符串。`key` 省略时为 `"default"`。`identity` 必须是 JSON 对象，可为 `{}`，用于声明条件版本。
+至少声明 `agent`、`experiment`、`group`、`sandbox`、`attempt` 中的一项。生命周期字段使用 `before` 与 `after`，各自接受一个元素或 readonly 数组。
 
-## 编译期边界
+`behaviorRevision`、`instanceKey`、旧 `eval` 字段和 `setup` / `teardown` 在定义期拒绝。组合使用 readonly 数组，不提供 `pluginStack()`。
 
-Plugin 类型契约必须验证以下矩阵：
+## 挂载与上下文
 
-- 多 owner attachment 经 `.use()` 后正确收窄 eligible owner；
-- 一个公共 Stack 可以分叉为 Experiment Stack 与 Eval Stack；
-- owner 集合有交集的 `.concat()` 合法；
-- owner 集合无交集的 `.use()` / `.concat()` 在调用处报错；
-- 空栈可用于 Experiment、Eval Group 与 Eval；
-- 只声明 sandbox fragment 的 Plugin 默认支持 Experiment、Eval Group 与 Eval；同时声明 host fragment 时由 host owner 集合收窄；
-- 同一 attachment specification 可跨 Definition 复用，但同一 owner 中的重复 family/key 仍由 link 拒绝。
+| 挂载点 | 允许的字段 | 作用范围 |
+| --- | --- | --- |
+| `Experiment.plugins` | 全部 | 本次 Experiment 选择的全部 Eval |
+| `EvalGroup.plugins` | `group`、`sandbox`、`attempt` | 本 Group 的成员 |
+| `Eval.plugins` | `sandbox`、`attempt` | 本 Eval |
 
-不存在 `SandboxLayer.plugins()`。如果上面的 `a()` 同时声明 `sandbox` fragment，runner 自动将其 layer 投影到由该 owner 参与链接的物理 Sandbox。声明 `sandbox` 不要求用户再挂一次，也不会取得 Sandbox template 或 Provider 的所有权。
+类型与加载期均拒绝不允许的字段。同一 Attempt 的生效集合中，跨挂载点重复的 `(name, key)` 也会拒绝。
+挂在 Experiment 上的 `group` 对每条 Group lane 激活一次；`attempt` 对每条 fresh Attempt 激活一次。未分组 Eval 不激活 `group`。
 
-## Context
+- `experiment` 上下文提供 `experimentId`、`selectedEvalIds`、`signal`、`progress` 与 `diagnostic`。
+- `group` 上下文提供 `experimentId`、`evalGroupId`、`signal` 与反馈函数。
+- `attempt` 上下文提供 `experimentId`、`evalId`、`attempt`、可选 `evalGroup`、`signal` 与反馈函数。
+- `sandbox` 回调使用 `SandboxCommandContext`，绑定当前 Attempt、signal、owner 与可选 `evalGroup`。
 
-- `experiment`：`experimentId`、`selectedEvalIds`、`signal`、`progress`、`diagnostic`、`fact`。
-- `group`：`experimentId`、`evalGroupId`、`signal`、反馈与 `fact`。
-- `eval`：`experimentId`、`evalId`、`attempt`、可选 `evalGroupId`、`signal`、反馈与 `fact`。
-- `sandbox`：定义期只接收 Plugin options 并返回 command-only `SandboxLayer`；其中只有 opaque `.before()` callback 在执行期取得实际 `Sandbox` 与 `SandboxHookContext`。
+声明 `requires: { evalGroup: true }` 后，`sandbox` 与 `attempt` 回调的 `ctx.evalGroup` 类型必有。未声明时为可选。
+完整 selection 形成后，在任何 build、prepare、Sandbox 创建或宿主 Hook 前验证此要求，含将被 carry 的 Eval。未分组项以 `plugin-requires-eval-group` 列出。
 
-## Experiment lifecycle
+## Sandbox 步骤
 
-Experiment Plugin setup 排在作者 setup 后；teardown 逆序运行，并排在作者 teardown 前。
+`sandbox: { before, after }` 的元素与 SandboxLayer `.before()` / `.after()` 相同：受管 Action 或 `(sandbox, ctx) => …` 回调。
+它投影到挂载点对应的 owner layer；每条 Attempt 在 reset 后形成 occurrence，不增加物理生命周期。
+受管 Action 进入既有 DAG 与 before 缓存，回调每条 fresh Attempt 执行。需要 lane 只做一次的工作应使用 `group`。
 
-## Eval lifecycle
+DAG 先按依赖，再按 changeFrequency，最后按 owner 与声明序号排序。Plugin 元素排在同一 owner 的作者元素之后；数组顺序不代替 `dependsOn`。
+Eval 挂载的 Sandbox 字段隔离普通 reuse pool；同一 Group 成员的该字段身份不一致时，在创建前报 `eval-group-incompatible`。
 
-Eval Plugin 对每条 fresh Attempt 激活一次。多个 occurrence 按最终 attachment 正序 setup、逆序 teardown。
+## Agent 扩展
+
+`agent` 只允许挂在 Experiment 上。通用字段为 `skills` 与 `mcpServers`；专用字段与对应工厂的同名配置一致：
+
+| 字段 | 配置 |
+| --- | --- |
+| `codex` | `plugins`、`configFile`、`before`、`after` |
+| `claudeCode` | `plugins`、`settingsFile`、`before`、`after` |
+| `bub` | `pythonPlugins`、`before`、`after` |
+
+factory 自身配置在前，各 Plugin 按数组顺序追加。合并后的 before 正序执行，after 逆序执行。
+Skill、MCP server 和原生插件重名时报出两处声明位置。`configFile` / `settingsFile` 只能由 factory 或一个 Plugin 声明。
+Bub 不接受 `mcpServers`。声明了专用子字段却缺少所选 Agent 的子项时拒绝；自定义 Adapter 不接受 `agent` 扩展。
+连接参数与凭据仍由工厂或 Hook 执行时求值。
+
+## 条件身份
+
+Attempt fingerprint 包含挂载层级、数组位置、`name`、`key`、`identity`、`requires`、各字段形状和 before / after 数量。
+Sandbox Action 使用既有 canonical identity；Agent 投影包含 Skill 规格及本地内容摘要、MCP name / command / args / url、原生插件规格与配置文件内容摘要。
+MCP headers 与 env 不进入身份。
+
+Plugin 回调函数体不进入投影。只改 Experiment 模块中的回调可继续 carry；修改 `identity` 或使用 `--rerun all` 请求重跑。
+Eval 模块及其静态 import 仍受 sourceClosure 规则约束。没有 Plugin 的 Experiment 保持既有 config identity。
+`show`、`query` 与 `view` 展示生效条件的 `name`、`key`、`identity`；这些值不会自动进入 flags。

@@ -284,10 +284,10 @@ evidenceCoverage: EvidenceCoverage;
 
 This Adapter's normal evidence coverage declaration; use `completeEvidenceCoverage` for complete collection.
 
-#### `setup`
+#### `before`
 
 ```ts
-setup?: DirectAgentSetup;
+before?: DirectAgentBefore;
 ```
 
 Once per attempt. A Direct Agent does not receive a Sandbox; commonly used for one-time preparation such as opening connections and authentication.
@@ -324,13 +324,13 @@ classifySendFailure?: SendFailureClassifier;
 
 Optional send execution failure classifier: see `Agent.classifySendFailure`.
 
-#### `teardown`
+#### `after`
 
 ```ts
-teardown?: DirectAgentTeardown;
+after?: DirectAgentAfter;
 ```
 
-Cleanup before the run ends, executed if and only if this attempt reached the `setup` point (a `setup` throw does not exempt it),
+Cleanup before the run ends, executed if and only if this attempt reached the `before` point (a `before` throw does not exempt it),
 run once in finally.
 
 ### `SandboxAgentDef`
@@ -376,10 +376,10 @@ installers?: readonly AgentInstaller[];
 Paired installation layers; omitted means this adapter provides only the probe protocol, and on a miss the Runner
 names the exact missing identity at `agent.ensure`. The factory normalizes an omission into an empty array.
 
-#### `setup`
+#### `before`
 
 ```ts
-setup?: AgentSetup;
+before?: AgentBefore;
 ```
 
 Once per Attempt (not once per send): writes config.toml / authentication configuration (model/base/auth and other
@@ -392,7 +392,7 @@ is ready (after layer prepare/ensure/baseline) and before the first send; it ret
 tracing?: AgentTracing;
 ```
 
-OTLP export configuration: how to make the CLI in the Sandbox send traces to the endpoint (env / config file), split out of setup.
+OTLP export configuration: how to make the CLI in the Sandbox send traces to the endpoint (env / config file), split out of before.
 
 #### `spanMapper`
 
@@ -418,13 +418,13 @@ classifySendFailure?: SendFailureClassifier;
 
 Optional send execution failure classifier: see `Agent.classifySendFailure`.
 
-#### `teardown`
+#### `after`
 
 ```ts
-teardown?: AgentTeardown;
+after?: AgentAfter;
 ```
 
-Cleanup before the Sandbox is destroyed, executed if and only if this attempt reached the `setup` point (a `setup` throw does not exempt it),
+Cleanup before the Sandbox is destroyed, executed if and only if this attempt reached the `before` point (a `before` throw does not exempt it),
 run once in finally.
 
 ### `AgentContext`
@@ -438,7 +438,7 @@ readonly signal: AbortSignal;
 Soft cancellation signal: combines the attempt timeout, run-level interruption (user Ctrl+C), and the Eval's own interruption request
 (see src/runner/attempt.ts). An adapter can optionally check it (or pass it straight to `fetch`) to exit
 gracefully early, but it is not the only hard boundary: even if the adapter ignores it entirely, the runner uses
-`Effect.timeoutTo` as a backstop to force teardown (stopping the Sandbox container).
+`Effect.timeoutTo` as a backstop to force after (stopping the Sandbox container).
 
 #### `model`
 
@@ -446,7 +446,7 @@ gracefully early, but it is not the only hard boundary: even if the adapter igno
 readonly model?: string;
 ```
 
-The model name used by this attempt, passed through from the Experiment's `model` field. Sandbox agents usually write it into configuration in setup; direct agents usually use it in send to select the model.
+The model name used by this attempt, passed through from the Experiment's `model` field. Sandbox agents usually write it into configuration in before; direct agents usually use it in send to select the model.
 
 #### `reasoningEffort`
 
@@ -535,7 +535,7 @@ progress(update: ProgressUpdate): void;
 
 Scoped feedback: reports what is happening right now (turn / tool / install progress). Short-lived state: the Human profile
 updates the active line, `agent`/`ci` do not print each one, and it does not enter the final result; do not call it for every token/delta.
-The runner attributes it by the lifecycle phase the callback is currently in (agent.setup / agent.run / agent.teardown);
+The runner attributes it by the lifecycle phase the callback is currently in (agent.before / agent.run / agent.after);
 the caller cannot impersonate another phase (see docs/feature/experiments/library.md).
 
 #### `diagnostic`

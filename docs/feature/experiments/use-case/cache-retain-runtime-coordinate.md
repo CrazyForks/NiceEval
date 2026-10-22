@@ -9,7 +9,7 @@ feature: docs/feature/experiments/README.md
 
 # 留存每轮变化的运行时坐标
 
-隧道 URL、临时实例地址等值在 setup 后才知道，而且地址轮换本身不代表评估条件改变。
+隧道 URL、临时实例地址等值在 before 后才知道，而且地址轮换本身不代表评估条件改变。
 不要把它们写进 `flags`，否则每次启动都会作废全部结果。
 
 通过闭包把地址交给 Agent 工厂或 sandbox prepare command。需要留档时，只能使用 NiceEval 已发布且语义匹配的 typed collector 或 Adapter 能力；没有这类 collector 的第三方地址不自动持久化或查询。

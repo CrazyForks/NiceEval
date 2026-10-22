@@ -180,8 +180,8 @@ sharedState?: SharedStateConfig;
 ```
 
 Declares shared external state this Experiment needs exclusively. Invocations with the same key in the same project
-Coordination domain are mutually exclusive from before Experiment/Sandbox setup until Sandbox teardown,
-provider finalizers, and Experiment teardown have all finished; waiters do not create a Sandbox first,
+Coordination domain are mutually exclusive from before Experiment/Sandbox before until Sandbox after,
+provider finalizers, and Experiment after have all finished; waiters do not create a Sandbox first,
 and continue their own plan after acquiring the lease. It is not a state store, a transaction, or a cross-machine lock.
 
 #### `budget`
@@ -205,34 +205,34 @@ This Experiment's own concurrency limit within this Invocation: the scheduler th
 and still run under the global concurrency (CLI / env / config / Sandbox default). Use it to serialize Experiments with shared state
 (such as memory accumulated across evals: `maxConcurrency: 1` guarantees attempts run one by one in eval order),
 or to slow down an Experiment that hits provider limits. A concurrency permit shares the attempt's lifetime: it is held from before Sandbox creation until
-teardown and Sandbox destruction finish, and any wait along the way (including turn retry backoff) keeps holding it.
+after and Sandbox destruction finish, and any wait along the way (including turn retry backoff) keeps holding it.
 `maxConcurrency: 1` is therefore a strict critical section that the next attempt of the same Experiment cannot enter early.
 It does not span Invocations; for shared external state across Invocations, declare `sharedState`.
 
-#### `setup`
+#### `before`
 
 ```ts
-setup?: ExperimentHook;
+before?: ExperimentHook;
 ```
 
-The setup side of the Experiment-level lifecycle hook pair: at most once per run, on the host side, for host resources that are "one per Experiment, shared by all attempts"
+The before side of the Experiment-level lifecycle hook pair: at most once per run, on the host side, for host resources that are "one per Experiment, shared by all attempts"
 (tunnels, mock servers, license leases). Triggered by the first attempt of this Experiment that passes dispatch admission
 (memoized: concurrent attempts wait for the same result; not run when all results are carried in).
-setup returns no value; write products to module-level variables, and `teardown` and agent / sandbox hooks in the same file read them from the closure;
-the runner does not mediate values. If setup throws, every Attempt of this Experiment gets an `errored` Verdict
-(code `"experiment-setup-failed"`, phase `"experiment.setup"`); other Experiments in the batch are unaffected.
+before returns no value; write products to module-level variables, and `after` and agent / sandbox hooks in the same file read them from the closure;
+the runner does not mediate values. If before throws, every Attempt of this Experiment gets an `errored` Verdict
+(code `"experiment-setup-failed"`, phase `"experiment.before"`); other Experiments in the batch are unaffected.
 The function body does not enter the fingerprint; after changing hook logic, use `--rerun all` to explicitly rerun everything.
 See docs/feature/experiments/architecture.md "Experiment-level lifecycle".
 
-#### `teardown`
+#### `after`
 
 ```ts
-teardown?: ExperimentHook;
+after?: ExperimentHook;
 ```
 
-The teardown side of the Experiment-level lifecycle hook pair: runs after all of this Experiment's attempts finish (also when the run is interrupted),
-if and only if execution reached the setup point. A setup throw does not exempt it (a half-initialized scene also needs cleanup; teardown should guard closure variables
-that may be unassigned); having no setup declared does not prevent it from firing; it is skipped when no attempt is dispatched.
+The after side of the Experiment-level lifecycle hook pair: runs after all of this Experiment's attempts finish (also when the run is interrupted),
+if and only if execution reached the before point. A before throw does not exempt it (a half-initialized scene also needs cleanup; after should guard closure variables
+that may be unassigned); having no before declared does not prevent it from firing; it is skipped when no attempt is dispatched.
 A throw or exceeding the 30s cleanup limit records only a run-level diagnostic (`experiment-teardown-failed`) and does not change the Verdict.
 
 {/* GENERATED:END experiment-fields */}

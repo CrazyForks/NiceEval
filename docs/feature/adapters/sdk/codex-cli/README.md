@@ -30,8 +30,8 @@ const agent = codexAgent({
     marketplace: { name: "acme-plugins", source: "acme/codex-plugins", ref: "v2", sparse: [".agents", "plugins/repo-map"] },
     name: "repo-map",
   }],
-  // 安装全部完成后按序跑的用户脚本(如插件自带的 setup 脚本),见 Adapter · 安装后运行脚本
-  postSetup: [async (sandbox) => { await sandbox.runShell("python ~/.codex/plugins/repo-map/scripts/setup.py"); }],
+  // 安装全部完成后按序跑的用户脚本(如插件自带的 before 脚本),见 Adapter · 安装后运行脚本
+  before: [async (sandbox) => { await sandbox.runShell("python ~/.codex/plugins/repo-map/scripts/before.py"); }],
 });
 ```
 
@@ -60,7 +60,7 @@ env value 不进入 carry 身份。`NMEM_SPACE` 这类会改变被测行为的�
 `defineExperiment({ flags: { memorySpace }, ... })`，或写进所属 Plugin identity。token 与 API key
 只放在私有 env 通道；单独轮换凭据不会让旧结果失效。
 
-唯一的例外是 `PATH`：它是 Sandbox 受管变量，`env` 里出现 `PATH` 键在 `codexAgent()` 调用时同步报错，不留到 setup 才发现值被静默丢弃。需要扩展 PATH 时改用 Sandbox factory 的 `pathPrepend`（见 [Sandbox · PATH：受管变量与 pathPrepend](../../../sandbox/library.md#path受管变量与-pathprepend)）。
+唯一的例外是 `PATH`：它是 Sandbox 受管变量，`env` 里出现 `PATH` 键在 `codexAgent()` 调用时同步报错，不留到 before 才发现值被静默丢弃。需要扩展 PATH 时改用 Sandbox factory 的 `pathPrepend`（见 [Sandbox · PATH：受管变量与 pathPrepend](../../../sandbox/library.md#path受管变量与-pathprepend)）。
 
 `configFile` 是运行 niceeval 的机器上的本地路径，不是 Sandbox 内路径；它相对本地项目根定位，指向一份完整的 Codex `config.toml`：
 
@@ -72,13 +72,13 @@ const agent = codexAgent({
 
 项目根是执行 niceeval 时包含 `niceeval.config.ts` 的当前工作目录，不是当前 Eval 或 Experiment 文件的目录。
 字段只接受项目根内的相对路径。
-`configs/codex/no-web.toml` 与 `./configs/codex/no-web.toml` 合法；包含 `..` 的路径、绝对路径、`~` 路径和解开符号链接后逃出项目根的路径都在 setup 阶段报错。
+`configs/codex/no-web.toml` 与 `./configs/codex/no-web.toml` 合法；包含 `..` 的路径、绝对路径、`~` 路径和解开符号链接后逃出项目根的路径都在 before 阶段报错。
 
 文件内容直接使用 Codex 官方 TOML；例如 `web_search = "disabled"` 关闭内置联网检索。
 Adapter 从本地读取文件后上传到隔离的 Codex 配置目录，原样替换其中原本为空的用户级 `~/.codex/config.toml`；它不继承宿主机配置，也不重新序列化。
 Adapter 的模型、provider 路由、MCP 表和 OTel 导出通过独立生成层或 CLI 参数叠加；项目自己的 `.codex/config.toml` 仍按 Codex 官方优先级加载。
 
-保留键是 `model`、`model_provider`、`model_providers`、`model_reasoning_effort`、`mcp_servers` 与 `otel`——出现在文件里 setup 报错并点名冲突键。
+保留键是 `model`、`model_provider`、`model_providers`、`model_reasoning_effort`、`mcp_servers` 与 `otel`——出现在文件里 before 报错并点名冲突键。
 MCP（含远程 HTTP server）走 factory 的 `mcpServers` 字段，不写进 `configFile`。
 文件原始字节的 SHA-256 进入安装 checkpoint key；manifest 只记项目相对路径和 SHA-256，不保存正文。
 secret 走 env var，不写进配置文件。
@@ -101,7 +101,7 @@ reasoning 与 assistant message 只显示 `thinking` / `assistant response`，�
 NiceEval 先全量校验同一 native batch 的 request ID、缺失项、重复项与 option，再用原生 RPC ID 一次提交 `answers`。
 校验或 transport 写入失败不会清掉 pending batch，可以修正后重试。Adapter 不从完成后的 transcript 反造 HITL。
 
-进程属于 Attempt，而不是单次 send。Agent teardown 先发送 app-server `shutdown` 并关闭 stdin，随后 Attempt finalizer 等待进程自然退出；仅在有界等待失败时精确终止命令树。
+进程属于 Attempt，而不是单次 send。Agent after 先发送 app-server `shutdown` 并关闭 stdin，随后 Attempt finalizer 等待进程自然退出；仅在有界等待失败时精确终止命令树。
 `t.newSession()` 新建另一条独立 app-server/thread，旧 SessionHandle 仍可继续使用。
 实际模型可能被网关改写，需要时从 Codex session 侧写读取，不能只信请求参数。
 
@@ -114,14 +114,14 @@ hook 信任 bypass 与审批 bypass 属同一信任层级。沙箱运行是 head
 
 不 bypass 时，这些 hook 被静默跳过且零报错，插件依赖的注入和捕获行为会整体失效。
 
-沙箱里的每个 hook 出处都由实验配置显式声明（`plugins`、`postSetup`、`configFile`），声明即审计，因此不设开关。
+沙箱里的每个 hook 出处都由实验配置显式声明（`plugins`、`before`、`configFile`），声明即审计，因此不设开关。
 app-server 没有 `exec --dangerously-bypass-hook-trust` 这一顶层 flag；Adapter 在
-`thread/start.config` 中传入 runtime-only `bypass_hook_trust = true`。Plugin hook 的声明与配置仍只来自本 Attempt setup。
+`thread/start.config` 中传入 runtime-only `bypass_hook_trust = true`。Plugin hook 的声明与配置仍只来自本 Attempt before。
 
 ## Prebuilt environment
 
 `codexAgent` 在 PATH 上检查 `codex` 的精确版本。预装命中会直接进入运行；未命中时，内置安装层自动准备锁定版本的官方发行包并确认安装结果。
-`setup` 只写本 Attempt 的鉴权、原生配置与扩展。预装只是快速路径，不是正确性前提。
+`before` 只写本 Attempt 的鉴权、原生配置与扩展。预装只是快速路径，不是正确性前提。
 E2B 官方 `codex` template 与 NiceEval 公共模板 `correctroads-default-team/niceeval-codex`（CI 钉 release tag）都是可用起点；构建项目自己的镜像/模板见 [Sandbox · Prebuilt environment](../../../sandbox/library/prebuilt-environments.md)。
 
 Codex 原生 Plugin 使用 Codex 专属 factory 字段。

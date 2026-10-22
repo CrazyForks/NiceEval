@@ -1,7 +1,7 @@
 # Coding Agent 扩展边界
 
 可持久且具有精确 repository provenance 的原生 Plugins 在 Agent-owned before action 中收敛；Skills、MCP servers、凭据与
-本 Attempt 的模型/runtime 配置仍由私有 setup 写入。Claude Code / Codex marketplace ref 先经 identity lookup 得到完整 commit。
+本 Attempt 的模型/runtime 配置仍由私有 before 写入。Claude Code / Codex marketplace ref 先经 identity lookup 得到完整 commit。
 Adapter 只有在探测命令能验证相同 provenance 时才恢复或跳过安装；不能验证时标记 `unsupported` 并保守重装。
 
 Record 只通过 Attempt-owned 具名通道保存安装 manifest，不理解每个 Agent 的配置目录、Marketplace 或包管理器；安装结果不进入 Attempt 核心。
@@ -16,14 +16,14 @@ Claude Code 与 Codex 都能原生表达两种 transport；Bub 没有该构造�
 
 落位由 Adapter 决定。
 Claude Code 写用户级 `~/.claude.json`，HTTP 形态带 `type: "http"` 与 `headers`；Codex 写 `[mcp_servers.<name>]` 表，HTTP 形态写 `url`，headers 进 `[mcp_servers.<name>.http_headers]` 子表。
-同一个 server 同时给出 `command` 与 `url` 时，setup 报错点名该 server，不做静默取舍。
+同一个 server 同时给出 `command` 与 `url` 时，before 报错点名该 server，不做静默取舍。
 
-`postSetup` 是 factory 上的动态过程 Hook 数组：Adapter 全部安装步骤（含写 manifest）完成后，在沙箱里按数组顺序运行用户代码。
+`before` 是 factory 上的动态过程 Hook 数组：Adapter 全部安装步骤（含写 manifest）完成后，在沙箱里按数组顺序运行用户代码。
 它复用 prepare command 的 `SandboxCommand` 形状与窄上下文（`SandboxCommandContext`，见 [Sandbox Layer](../../sandbox/layers.md#command-形状与-identity)）。
 agent 安装后脚本和沙箱准备命令是同一类「在沙箱里跑一段用户代码」，区别只有相对 agent 安装的时机，不值得第二套类型。
 
-成对的 `preTeardown` 数组承载收尾:按逆序、先于 agent teardown 执行(LIFO 镜像)。
-它不是配置声明：factory 已有字段能表达的 MCP、Skills 与 Plugin 不进 Hook。固定且只依赖 Plugin 文件的安装后命令写在 Plugin 的 `install.after`，成为依赖该 Plugin 安装 capability 的声明式 action；`postSetup` 只承载 secret、cohort、远端会话或其它每 Attempt 动态动作。
+成对的 `after` 数组承载收尾:按逆序、先于 agent after 执行(LIFO 镜像)。
+它不是配置声明：factory 已有字段能表达的 MCP、Skills 与 Plugin 不进 Hook。固定且只依赖 Plugin 文件的安装后命令写在 Plugin 的 `install.after`，成为依赖该 Plugin 安装 capability 的声明式 action；`before` 只承载 secret、cohort、远端会话或其它每 Attempt 动态动作。
 
 Native Plugin 不统一：Claude Code 和 Codex 使用各自的 PluginSpec，Bub 使用 PythonPluginSpec；DSH 与
 OpenClaw 接受各自原生命令可安装的精确 npm `package@version` 字符串。
@@ -43,14 +43,14 @@ Adapter 只读文件验证官方语法和保留键，验证后仍写入原始字
 仓库内的项目级配置仍由被测 CLI 按自己的官方优先级读取。
 
 Adapter 拥有的模型、鉴权、OTel 导出与 MCP 配置通过独立生成层、独立原生文件或 CLI 参数叠加，不改写用户文件。
-保留键规则对所有 Adapter 是同一套：由 experiment 与 Adapter 拥有的键出现在用户配置文件里时，setup 立刻报错并点名冲突键，不做静默改写。
+保留键规则对所有 Adapter 是同一套：由 experiment 与 Adapter 拥有的键出现在用户配置文件里时，before 立刻报错并点名冲突键，不做静默改写。
 逐 Agent 的保留键清单在各自的 SDK 页。
 
 TypeScript 是结构类型系统；两个供应商 Spec 恰好同形时，类型系统无法根据 marketplace source 的值判断是否传错。
-归属由字段所在的 factory 确定，实际出处是否合法由 Adapter setup 校验。
+归属由字段所在的 factory 确定，实际出处是否合法由 Adapter before 校验。
 
 `marketplace.name` 不是调用方任意起的连接别名：真实 CLI 在 `marketplace add` 时按目标仓库自己 manifest 里的 `name` 注册，名字对不上时 add 静默成功、直到下一步 `plugin install <plugin>@<name>` 才失败。
-因此契约是 **`marketplace.name` 必须等于目标仓库 manifest 声明的 `name`**；Adapter setup 在 add 之后回读已注册的 marketplace 列表校验这个名字，对不上立刻抛出带两个名字的错误，不把失败拖延到 install 一步。
+因此契约是 **`marketplace.name` 必须等于目标仓库 manifest 声明的 `name`**；Adapter before 在 add 之后回读已注册的 marketplace 列表校验这个名字，对不上立刻抛出带两个名字的错误，不把失败拖延到 install 一步。
 
 ## 安装顺序
 
@@ -59,12 +59,12 @@ TypeScript 是结构类型系统；两个供应商 Spec 恰好同形时，类型
 3. 安装 Skills。
 4. 查找 Plugin ref 对应的完整 commit，满足可恢复的 checkout、安装与声明式安装后 action；无法验证 provenance 时真实收敛。
 5. 写公开 Agent 配置与安装 manifest。
-6. 注入 secret、cohort 与本 Attempt 配置，按序运行动态 `postSetup` Hook。
+6. 注入 secret、cohort 与本 Attempt 配置，按序运行动态 `before` Hook。
 7. 通过 `agent.ensure` 屏障后启动 Agent。
 
 每个 attempt 只执行一次。
 多轮 `send` 不重复安装。
-`postSetup` 排在 manifest 之后：manifest 审计的是 Adapter 自身的安装 channel event，Hook 失败也不该丢掉这份证据；Hook 做了什么由命令 channel event 与 timing decoder 留存。
+`before` 排在 manifest 之后：manifest 审计的是 Adapter 自身的安装 channel event，Hook 失败也不该丢掉这份证据；Hook 做了什么由命令 channel event 与 timing decoder 留存。
 
 ## 安装收敛：不假设沙箱空白
 
@@ -85,9 +85,9 @@ marketplace 的摘除不以「注册在回读列表里可见」为前提。
 因此摘除按声明名字无条件执行：「本就没有可摘的」按已收敛处理，摘除的其它失败也不单独报错，紧随其后的 add 是权威失败面。
 
 Adapter 用 unchecked `runCommand()` / `runShell()` 执行这类摘除，让原始非零退出以 `checked: false` 事实保留，消费层显示为 `observed`。
-不能使用 `runCommandOrThrow()` / `runShellOrThrow()`，也不能把退出码改写成零。Runner 与 Inspection 必须保留 unchecked / checked 的区别，不能把 Adapter 已接管解释权的非零结果冒充成 setup 失败。
+不能使用 `runCommandOrThrow()` / `runShellOrThrow()`，也不能把退出码改写成零。Runner 与 Inspection 必须保留 unchecked / checked 的区别，不能把 Adapter 已接管解释权的非零结果冒充成 before 失败。
 
-不比对出处、相同就跳过：注册表里的出处字符串可能是同一出处的另一种写法——插件自带的 setup 脚本把注册改写成托管源是正常生态行为。
+不比对出处、相同就跳过：注册表里的出处字符串可能是同一出处的另一种写法——插件自带的 before 脚本把注册改写成托管源是正常生态行为。
 判断两个出处等价，要理解每个 CLI 各自的出处规范化规则；按名字摘除重加只依赖名字这一个事实。
 同理，同名不同源也不当配置错误报出：它在复用沙箱上是常态，报错会让带这类脚本的插件永远无法与复用组合。
 
@@ -112,7 +112,7 @@ Plugin 安装目录每条 attempt 都被重装覆写：Plugin 运行期要跨 at
 ## 失败语义
 
 下列失败都在 `agent.ensure` 相位形成结构化执行错误通道事件 与该 Attempt 的 `errored` Verdict：路径不存在、包含 `..`、不是相对路径、使用 `~` 或经符号链接逃出项目根,以及原生配置语法错误或含保留键。Attempt lifecycle 不使用 verdict token。
-仓库无法拉取、Skill 选择歧义、Plugin 不存在、MCP 配置无法写入、MCP server 同时给出 `command` 与 `url`、安装命令失败或 `postSetup` Hook 抛错,同样归这一相位。
+仓库无法拉取、Skill 选择歧义、Plugin 不存在、MCP 配置无法写入、MCP server 同时给出 `command` 与 `url`、安装命令失败或 `before` Hook 抛错,同样归这一相位。
 只有 Agent 已开始执行任务后的行为失败才进入 Turn status。
 
 ## Manifest
@@ -123,7 +123,7 @@ Adapter 通过共享 manifest writer 写入安装事实，Runner 将其提交为
   任意官方配置都可能携带敏感字符串，不能靠字段白名单证明适合原样落盘。
 - MCP 条目同理只记非 secret 字段：stdio 形态记 `name` / `command` / `args`，不记 `env`。
   HTTP 形态记 `name` / `url`，不记 `headers`。
-- `postSetup` Hook 是用户代码，不进 manifest。
+- `before` Hook 是用户代码，不进 manifest。
 
 Manifest 是审计结果，不参与能力分发，也不能替代实际行为事件。
 例如，Skill 是否被模型使用仍需 `skill.loaded` 或任务结果证据。

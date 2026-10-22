@@ -33,7 +33,7 @@ dispatch claim（派发占用）决定。它们使用唯一 `.niceeval/record.sq
 
 有效 case-lock owner 仍在运行时，等待方把占位显示为运行状态；只有精确 process identity 已终止并完成 generation-fenced recovery，
 case lock 才能由新 owner 取得。`sharedState.key` 同样不使用 heartbeat expiry、TTL 或 PID 自动接管：它的等待方保持阻塞，直到 owner 正常完成完整生命周期，或
-操作员按[恢复中断运行](concurrency-resume-interrupted-run.md#sharedstate-显式恢复)显式确认 terminated/quiesced 后运行一次补偿 teardown。
+操作员按[恢复中断运行](concurrency-resume-interrupted-run.md#sharedstate-显式恢复)显式确认 terminated/quiesced 后运行一次补偿 after。
 
 ## 外部共享状态
 
@@ -41,7 +41,7 @@ case lock 才能由新 owner 取得。`sharedState.key` 同样不使用 heartbea
 那份外部状态的生命周期；它不合并选择集，也不把未发布 Attempt 作为 carry 候选。
 
 最后 Attempt settle 后，Runner 冻结 reusable pool registry。它等待 Sandbox lifecycle/finalizer scope（其中也等待
-provider finalizer）和 Experiment teardown 完成后才释放。任一 cleanup 失败会留下可公开检查、显式恢复的 owner evidence。
+provider finalizer）和 Experiment after 完成后才释放。任一 cleanup 失败会留下可公开检查、显式恢复的 owner evidence。
 
 ## 边界
 

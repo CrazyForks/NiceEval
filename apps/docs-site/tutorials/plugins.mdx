@@ -1,176 +1,79 @@
 ---
-title: "Reuse a Complete Set of Run Conditions with Plugins"
+title: "Reuse Run Conditions with Plugins"
 sidebarTitle: "Plugin"
-description: "When the same set of conditions, \"start services on the host, then prepare the environment in the Sandbox\", is used in several Experiments, eval groups, or evals, write it once with definePlugin and attach it anywhere."
+description: "Bundle Agent extensions, Sandbox steps, and host lifecycle hooks into a reusable experiment condition."
 ---
 
-Several of your comparison experiments connect to the same memory service: open a tunnel on the host, then write connection configuration and install command-line tools in the Sandbox. If you copy this code into every Experiment, one change means editing several places.
+When several Experiments share Skills, MCP servers, or preparation steps, define one Plugin and attach it through the `plugins` array.
+The Sandbox template remains in the Eval, Eval Group, or Experiment `sandbox` field.
 
-A Plugin puts such a complete set of conditions in one place: what it is called, what to start and stop on the host, and which preparation commands to run in the Sandbox. Once written, attach it to an Experiment, eval group, or eval to reuse it.
+## Define an instance or factory
 
-A Plugin is only responsible for the conditions themselves, not for choosing the environment: which Docker image, E2B template, or Vercel snapshot to use is still decided by the `sandbox` field.
-
-The Agent's own Skills, MCP servers, and native Plugins do not belong here either. They are still passed to the Agent factory, for example `codexAgent({ plugins: [...] })`.
-
-## Step 1: Write a Plugin
-
-Write the conditions as a Plugin and put it where several Experiments can import it. All Plugin APIs are imported from `niceeval/plugin`.
-
-The example below starts and stops a memory service on the host, and uploads plugin files and writes connection configuration in the Sandbox:
+An object definition returns an instance. A function definition returns a single-argument factory. `name` and `identity` are required; `key` defaults to `"default"`.
 
 ```ts
-// experiments/shared/memory.ts
 import { definePlugin } from "niceeval/plugin";
-import {
-  changeFrequency,
-  sandboxLayer,
-  uploadDirectory,
-  writeText,
-} from "niceeval/sandbox";
+import { writeText } from "niceeval/sandbox";
 
-type MemoryOptions = {
-  readonly model: string;
-};
-
-export const memory = definePlugin<MemoryOptions>({
-  name: "acme.memory",
-  behaviorRevision: "2",
-  instanceKey: ({ model }) => model,
-
-  experiment: ({ model }) => ({
-    identity: { model },
-    setup: (context) => {
-      context.progress({ message: `Starting ${model} memory service` });
-    },
-    teardown: (context) => {
-      context.progress({ message: `Stopping ${model} memory service` });
-    },
-  }),
-
-  sandbox: ({ model }) => sandboxLayer()
-    .before(uploadDirectory({
-      id: "memory-plugin-files",
-      source: new URL("fixtures/memory-plugin/", import.meta.url),
-      to: ".agents/plugins/memory",
-      changeFrequency: changeFrequency.rare,
-    }))
-    .before(writeText({
-      id: "memory-plugin-config",
-      path: ".memory/config.json",
-      text: JSON.stringify({ model }),
-      changeFrequency: changeFrequency.frequent,
-    })),
-});
-```
-
-Each field controls one thing:
-
-- `name` and `instanceKey` together distinguish different instances of the same Plugin; here they are distinguished by `model`.
-- `setup` / `teardown` in `experiment` run on the host and suit starting and stopping services or opening tunnels.
-- `sandbox` returns a `sandboxLayer()`, which prepares the Sandbox with the same `.before()` / `.after()` as ordinary code.
-
-Preparation steps in the Sandbox are written with built-in functions such as `uploadDirectory()`, `writeText()`, `gitCheckout()`, and `shell()`. They are ordered together with the preparation steps in the Experiment and evals, and unchanged steps can reuse the last preparation result directly on Docker. A Plugin does not need to handle uploads or clones itself.
-
-For branches that can only be decided at run time, write `.before(async (sandbox, context) => ...)` in the returned layer. Such a callback really executes every time, and the preparation steps after it no longer reuse the cache. After successfully acquiring a resource, register its release right away with `context.onCleanup()`.
-
-<Warning>
-  `sandbox` must return `sandboxLayer()`. Returning a layer that chooses an image or template, such as `dockerSandbox()` or `e2bSandbox()`, reports an error when the definition loads. A Plugin cannot replace the Provider the caller chose.
-</Warning>
-
-### Get Plugin source from a Git repository
-
-When the Plugin source is in a repository you can clone, use `gitCheckout()` with a full commit ID in `ref`. Branches and tags move, so NiceEval cannot tell from them whether content changed, and they are not accepted:
-
-```ts
-import {
-  gitCheckout,
-  sandboxLayer,
-} from "niceeval/sandbox";
-
-const pluginSource = sandboxLayer().before(gitCheckout({
-  id: "memory-plugin-source",
-  repository: "https://github.com/acme/memory-plugin.git",
-  ref: "0123456789abcdef0123456789abcdef01234567",
-  to: ".agents/plugins/memory",
+export const memory = definePlugin(({ version }: { version: string }) => ({
+  name: "example.memory",
+  identity: { version },
+  agent: { skills: [{ kind: "local", path: "./skills/memory" }] },
+  sandbox: { before: writeText({ id: "memory-mode", path: "/tmp/memory-mode", text: version }) },
+  experiment: {
+    before: (ctx) => ctx.progress({ message: "Prepare memory service" }),
+    after: (ctx) => ctx.progress({ message: "Release memory service" }),
+  },
 }));
 ```
 
-When the source is in a local directory, use `uploadDirectory()`, with `source` written as `new URL("...", import.meta.url)` relative to the current file. Changes to file contents, permissions, and symlinks in the directory are detected automatically: change one file, and only the step that uploads this directory and the steps after it run again.
-
-## Step 2: Attach it to an Experiment, eval group, or eval
-
-When you use only one or two Plugins, pass an array directly:
-
 ```ts
 export default defineExperiment({
-  agent: codexAgent(),
-  plugins: [memory({ model: "gpt-5.6-luna" })],
-  sandbox: dockerSandbox({
-    source: { type: "image", image: "niceeval/codex:0.144.1-r1" },
-  }),
+  adapter: codexAgent(),
+  plugins: [memory({ version: "1" })],
 });
 ```
 
-When several Experiments share a set of Plugins and each adds a few more, combine them with `pluginStack()`. `.use()` appends one Plugin, and `.concat()` merges two sets. Each call returns a new value and leaves the original set unchanged, so you can safely branch from the same base:
+`before` and `after` accept one element or an array. Compose shared conditions with array spread: `plugins: [...basePlugins, condition]`.
+Each effective `(name, key)` pair must be unique for an Attempt, including attachments across Experiment, Eval Group, and Eval.
 
-```ts
-import { pluginStack } from "niceeval/plugin";
+## Choose a scope
 
-const observability = pluginStack().use(telemetry());
-const withMemory = observability.use(memory({ model: "gpt-5.6-luna" }));
+| Field | Timing | Allowed attachment |
+| --- | --- | --- |
+| `agent` | Merged into a built-in Agent factory | Experiment |
+| `experiment` | Once per Run with fresh Attempts | Experiment |
+| `group` | Once per Group lane with fresh Attempts | Experiment, Eval Group |
+| `sandbox` | Every fresh Attempt, after reset | Experiment, Eval Group, Eval |
+| `attempt` | Every fresh Attempt | Experiment, Eval Group, Eval |
 
-export default defineExperiment({
-  agent: codexAgent(),
-  plugins: withMemory,
-  sandbox: dockerSandbox({
-    source: { type: "image", image: "niceeval/codex:0.144.1-r1" },
-  }),
-});
-```
+When all results carry, no hooks run and no Sandbox is created. Before hooks run in author and Plugin declaration order. After hooks run in reverse activation order.
+Host after failures produce warnings and do not skip remaining cleanup. Agent after failures fail the Attempt while remaining after hooks and finalizers still run.
 
-Type checking blocks Plugins attached in the wrong place: a Plugin that only supports evals cannot go into an Experiment's stack, and two sets with no common attach point cannot be merged. An empty `pluginStack()` has the same effect as omitting `plugins`.
+Declare `requires: { evalGroup: true }` to access `ctx.evalGroup.id` directly. Selecting an Eval outside a Group fails before resources are created, including when all results would carry.
 
-Stacks are not deduplicated automatically. When two Plugins with the same `name` and `instanceKey` appear at the same place, the run reports an error before creating the Sandbox. Remove the duplicate, or give it a different `instanceKey`.
+## Merge Agent extensions
 
-## How many times host-side preparation runs
+Use `agent.skills` and `agent.mcpServers` for common extensions. Use `agent.codex`, `agent.claudeCode`, and `agent.bub` for factory-specific settings.
+Factory configuration comes first, followed by Plugins in array order. Duplicate Skills, MCP names, native plugins, or config files fail validation.
+Bub does not accept MCP servers. Custom Adapters do not accept agent extensions. A Plugin with Agent-specific fields must include the selected Agent.
 
-A Plugin can declare host-side `setup` / `teardown` at three levels:
+## Rerun when conditions change
 
-| Written in | How many times it runs |
-| --- | --- |
-| `experiment(options)` | Once per Experiment that really runs this time |
-| `group(options)` | Once per combination of Experiment and eval group |
-| `eval(options)` | Once per Attempt that really runs |
-
-Each level must have at least one of `setup` or `teardown`, and can carry `identity`. Several Plugins' `setup` run in attach order, and `teardown` runs in reverse order. When a whole eval reuses last results and does not need to rerun, these callbacks do not run.
-
-`sandbox(options)` is not a fourth level. It defines Sandbox preparation steps only once, and NiceEval places them into the Sandbox preparation of wherever the Plugin is attached. You do not need to pass the Plugin again in `.before()`.
-
-## Invalidate old results after changing a Plugin
-
-When a Plugin's behavior changes, reusing last results is no longer trustworthy. NiceEval can see some changes, and you need to tell it about others:
-
-- When you change the behavior of host-side `setup` / `teardown`, increase `behaviorRevision` by one. NiceEval cannot see changes in function bodies.
-- When you change built-in preparation steps in the Sandbox (commands, files, commits), you do not need to do anything; these changes are detected automatically.
-- Add a `cache.fingerprint` to a custom preparation step only for protocol changes NiceEval cannot observe.
-
-After changing it, first confirm with `pnpm exec niceeval exp <experiment> --dry` that the affected evals will rerun.
-
-## Check which steps a Plugin adds before running
-
-After attaching a Plugin, see where its preparation steps land before spending money on a run:
+`identity` declares the condition version. Managed Action content, Skill content, and configuration file content also affect identity; MCP headers and env do not.
+Changing only a callback body in an Experiment module does not change Plugin identity. Update `identity` or use `--rerun all` when its behavior changes.
+Eval modules retain their source-closure rules. Plugin identity does not populate `ctx.flags`; declare runtime parameters explicitly in flags.
 
 ```bash
 pnpm exec niceeval debug compare/codex memory/smoke
-pnpm exec niceeval debug compare/codex memory/smoke --json
+pnpm exec niceeval show --exp compare/codex
+pnpm exec niceeval show --exp compare/codex --json
 ```
 
-`debug` puts the steps the Plugin adds into the same plan as the steps of the Experiment, eval group, eval, and Agent. In the terminal, each step shows where it came from, its execution number, `changeFrequency`, dependencies, and whether it can reuse the cache; `--json` gives the same structure.
+`debug` shows expanded steps, actual Action order, and Plugin sources. Experiment information in `show` and `view` lists Plugin name, key, and identity.
 
-When the Plugin's steps do not appear in the plan, first check that `plugins` is attached to the Experiment or eval you selected.
+## Next steps
 
-## Read next
-
-- [Sandbox · Prepare the Sandbox in order](/tutorials/sandbox-providers#prepare-the-sandbox-in-order): preparation steps, frequency, cache, and cleanup.
-- [Eval Groups](/tutorials/eval-groups): how an eval group's preparation steps enter the same order.
-- [Check the Sandbox Plan Before Running](/tutorials/debug-lifecycle-plan): view the complete plan after a Plugin is added.
+- [Prepare a Sandbox](/tutorials/sandbox-providers)
+- [Eval groups](/tutorials/eval-groups)
+- [Inspect lifecycle plans](/tutorials/debug-lifecycle-plan)

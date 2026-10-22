@@ -1,176 +1,82 @@
 ---
-title: "用 Plugin 复用一整套运行条件"
+title: "用 Plugin 复用运行条件"
 sidebarTitle: "Plugin"
-description: "同一套“先在宿主机起服务、再在 Sandbox 里准备环境”的条件要在多个 Experiment、评估组或评估用例里用时，用 definePlugin 写一次，到处挂载。"
+description: "把 Agent 扩展、Sandbox 步骤与宿主生命周期装进一个可复用的实验条件。"
 ---
 
-你的几个对比实验都要接同一个记忆服务：在宿主机上开一条隧道，再在 Sandbox 里写入连接配置、装好命令行工具。把这些代码复制到每个 Experiment 里，改一处就要改好几处。
+多个 Experiment 使用相同 Skill、MCP 服务或环境准备时，把条件写成一个 Plugin，再通过 `plugins` 数组挂载。
+Plugin 声明条件；Sandbox template 仍由 Eval、Eval Group 或 Experiment 的 `sandbox` 字段提供。
 
-Plugin 把这样一整套条件写在一起：它叫什么、宿主机上要起停什么、Sandbox 里要执行哪些准备命令。写好后挂到 Experiment、评估组或评估用例上就能复用。
+## 定义实例或工厂
 
-Plugin 只负责条件本身，不负责选环境：用哪个 Docker 镜像、E2B template 或 Vercel snapshot，仍由 `sandbox` 字段决定。
-
-Agent 自己的 Skill、MCP server 和原生 Plugin 也不归这里管，它们仍传给 Agent factory，例如 `codexAgent({ plugins: [...] })`。
-
-## 第 1 步：写一个 Plugin
-
-把这套条件写成一个 Plugin，放在几个 Experiment 都能导入的位置。所有 Plugin API 从 `niceeval/plugin` 导入。
-
-下面这个例子在宿主机上起停记忆服务，并在 Sandbox 里上传插件文件、写入连接配置：
+对象定义直接得到实例，函数定义得到单参数工厂。`name` 与 `identity` 必填；`key` 默认 `"default"`。
 
 ```ts
-// experiments/shared/memory.ts
 import { definePlugin } from "niceeval/plugin";
-import {
-  changeFrequency,
-  sandboxLayer,
-  uploadDirectory,
-  writeText,
-} from "niceeval/sandbox";
+import { writeText } from "niceeval/sandbox";
 
-type MemoryOptions = {
-  readonly model: string;
-};
-
-export const memory = definePlugin<MemoryOptions>({
-  name: "acme.memory",
-  behaviorRevision: "2",
-  instanceKey: ({ model }) => model,
-
-  experiment: ({ model }) => ({
-    identity: { model },
-    setup: (context) => {
-      context.progress({ message: `启动 ${model} memory service` });
-    },
-    teardown: (context) => {
-      context.progress({ message: `停止 ${model} memory service` });
-    },
-  }),
-
-  sandbox: ({ model }) => sandboxLayer()
-    .before(uploadDirectory({
-      id: "memory-plugin-files",
-      source: new URL("fixtures/memory-plugin/", import.meta.url),
-      to: ".agents/plugins/memory",
-      changeFrequency: changeFrequency.rare,
-    }))
-    .before(writeText({
-      id: "memory-plugin-config",
-      path: ".memory/config.json",
-      text: JSON.stringify({ model }),
-      changeFrequency: changeFrequency.frequent,
-    })),
-});
-```
-
-几个字段各管一件事：
-
-- `name` 和 `instanceKey` 一起区分同一个 Plugin 的不同实例，这里按 `model` 区分。
-- `experiment` 里的 `setup` / `teardown` 在宿主机上运行，适合起停服务、开隧道。
-- `sandbox` 返回一个 `sandboxLayer()`，里面用和普通代码相同的 `.before()` / `.after()` 准备 Sandbox。
-
-Sandbox 里的准备步骤用内置的 `uploadDirectory()`、`writeText()`、`gitCheckout()`、`shell()` 等函数写。它们和 Experiment、评估用例里的准备步骤一起排序，没变的步骤在 Docker 上可以直接沿用上次的准备结果。Plugin 不需要自己处理上传或 clone。
-
-需要运行时才能决定的分支，可以在返回的 layer 里写 `.before(async (sandbox, context) => ...)`。这种回调每次都真实执行，它后面的准备步骤也不再沿用缓存。成功取得资源后，立即用 `context.onCleanup()` 登记释放。
-
-<Warning>
-  `sandbox` 必须返回 `sandboxLayer()`。返回 `dockerSandbox()`、`e2bSandbox()` 这类选择了镜像或 template 的 layer，会在加载定义时报错。Plugin 不能替换调用方选择的 Provider。
-</Warning>
-
-### 从 Git 仓库取 Plugin 源码
-
-Plugin 源码在一个能 clone 的仓库里时，用 `gitCheckout()`，`ref` 填完整的 commit ID。branch 或 tag 会移动，NiceEval 无法据此判断内容变没变，所以不接受：
-
-```ts
-import {
-  gitCheckout,
-  sandboxLayer,
-} from "niceeval/sandbox";
-
-const pluginSource = sandboxLayer().before(gitCheckout({
-  id: "memory-plugin-source",
-  repository: "https://github.com/acme/memory-plugin.git",
-  ref: "0123456789abcdef0123456789abcdef01234567",
-  to: ".agents/plugins/memory",
+export const memory = definePlugin(({ version }: { version: string }) => ({
+  name: "example.memory",
+  identity: { version },
+  agent: { skills: [{ kind: "local", path: "./skills/memory" }] },
+  sandbox: {
+    before: writeText({ id: "memory-mode", path: "/tmp/memory-mode", text: version }),
+  },
+  experiment: {
+    before: (ctx) => ctx.progress({ message: "Prepare memory service" }),
+    after: (ctx) => ctx.progress({ message: "Release memory service" }),
+  },
 }));
 ```
 
-源码在本地目录时用 `uploadDirectory()`，`source` 写成相对当前文件的 `new URL("...", import.meta.url)`。目录里的文件内容、权限和 symlink 变化都会被自动发现：改一个文件，只有上传这个目录的步骤和它后面的步骤会重新执行。
-
-## 第 2 步：挂到 Experiment、评估组或评估用例
-
-只用一两个 Plugin 时，直接传数组：
-
 ```ts
 export default defineExperiment({
-  agent: codexAgent(),
-  plugins: [memory({ model: "gpt-5.6-luna" })],
-  sandbox: dockerSandbox({
-    source: { type: "image", image: "niceeval/codex:0.144.1-r1" },
-  }),
+  adapter: codexAgent(),
+  plugins: [memory({ version: "1" })],
 });
 ```
 
-几个 Experiment 共用一组 Plugin、又各自再加几个时，用 `pluginStack()` 组合。`.use()` 追加一个 Plugin，`.concat()` 合并两组。每次调用都返回新值，原来那组不变，可以放心从同一个基础上分叉：
+`before` 与 `after` 接受一个元素或数组。共享一组条件时使用普通数组展开：`plugins: [...basePlugins, condition]`。
+同一 Attempt 的生效集合中，`name` 和 `key` 的组合必须唯一，包括跨 Experiment、Eval Group 与 Eval 的重复挂载。
 
-```ts
-import { pluginStack } from "niceeval/plugin";
+## 选择执行范围
 
-const observability = pluginStack().use(telemetry());
-const withMemory = observability.use(memory({ model: "gpt-5.6-luna" }));
+| 字段 | 执行时机 | 允许挂载位置 |
+| --- | --- | --- |
+| `agent` | 合并进内建 Agent factory | Experiment |
+| `experiment` | 每个有 fresh Attempt 的 Run 一次 | Experiment |
+| `group` | 每条有 fresh Attempt 的 Group lane 一次 | Experiment、Eval Group |
+| `sandbox` | 每条 fresh Attempt，reset 之后 | Experiment、Eval Group、Eval |
+| `attempt` | 每条 fresh Attempt 一次 | Experiment、Eval Group、Eval |
 
-export default defineExperiment({
-  agent: codexAgent(),
-  plugins: withMemory,
-  sandbox: dockerSandbox({
-    source: { type: "image", image: "niceeval/codex:0.144.1-r1" },
-  }),
-});
-```
+全部沿用历史结果时，这些 Hook 与 Sandbox 创建都不执行。before 按作者、Plugin 声明顺序运行；after 按已激活顺序逆序运行。
+宿主 after 失败记录 warning，并继续其余收尾；Agent after 失败会使 Attempt 失败，但仍继续剩余 after 与 finalizer。
 
-类型检查会拦住挂错位置的 Plugin：只支持评估用例的 Plugin 不能放进 Experiment 的组合里，没有共同可挂位置的两组也不能合并。空的 `pluginStack()` 和不写 `plugins` 效果相同。
+回调需要 Group 时，声明 `requires: { evalGroup: true }`，即可直接读取 `ctx.evalGroup.id`。
+选中 Group 外的 Eval 会在创建资源前失败，包括全部沿用结果的情况。
 
-组合不会自动去重。同一个位置出现两个 `name` 和 `instanceKey` 都相同的 Plugin 时，运行会在创建 Sandbox 前报错。删掉重复的那个，或者给它不同的 `instanceKey`。
+## 合并 Agent 扩展
 
-## 宿主机上的准备每次跑几回
+`agent.skills` 与 `agent.mcpServers` 提供通用扩展；`agent.codex`、`agent.claudeCode` 与 `agent.bub` 提供对应工厂的原生配置。
+factory 配置在前，Plugin 按数组顺序追加。Skill 或 MCP 重名、原生插件冲突、多个 configFile 都会报错。
+Bub 不接受 MCP；自定义 Adapter 不接受 agent 扩展。声明专用子项时，必须包含当前选择的 Agent。
 
-Plugin 可以在三个层级声明宿主机上的 `setup` / `teardown`：
+## 让条件变化触发重跑
 
-| 写在 | 运行次数 |
-| --- | --- |
-| `experiment(options)` | 每个这次确实要跑的 Experiment 一次 |
-| `group(options)` | 每个 Experiment 和评估组的组合一次 |
-| `eval(options)` | 每个确实要跑的 Attempt 一次 |
-
-每一层至少写 `setup` 或 `teardown` 之一，可以带 `identity`。多个 Plugin 的 `setup` 按挂载顺序运行，`teardown` 按相反顺序运行。整道题都沿用上次结果、不需要重跑时，这些回调不会运行。
-
-`sandbox(options)` 不是第四个层级。它只定义一次 Sandbox 准备步骤，NiceEval 把这些步骤放进 Plugin 所挂位置的 Sandbox 准备里。你不需要在 `.before()` 里再传一次 Plugin。
-
-## 修改 Plugin 后让旧结果失效
-
-Plugin 的行为变了，沿用上次的结果就不再可信。NiceEval 能看到一部分变化，另一部分要你告诉它：
-
-- 改了宿主机 `setup` / `teardown` 的行为时，把 `behaviorRevision` 加一。NiceEval 看不到函数体的变化。
-- 改了 Sandbox 里的内置准备步骤（命令、文件、commit）时，不用做任何事，这些变化会被自动发现。
-- 自定义的准备步骤只在 NiceEval 观察不到的协议变化时，才补一个 `cache.fingerprint`。
-
-改完后先用 `pnpm exec niceeval exp <experiment> --dry` 确认受影响的题会重跑。
-
-## 运行前检查 Plugin 加进了哪些步骤
-
-挂上 Plugin 后，先看它的准备步骤排在哪里，再花钱运行：
+`identity` 是条件版本。受管 Action 内容、Skill 内容与配置文件内容也参与身份；MCP headers 与 env 不参与。
+只改 Experiment 模块里的回调函数体不会改变 Plugin 身份；需要重跑时修改 `identity` 或使用 `--rerun all`。
+Eval 模块仍遵循源文件闭包规则。条件身份不会自动进入 `ctx.flags`，运行参数仍显式写在 flags 中。
 
 ```bash
 pnpm exec niceeval debug compare/codex memory/smoke
-pnpm exec niceeval debug compare/codex memory/smoke --json
+pnpm exec niceeval show --exp compare/codex
+pnpm exec niceeval show --exp compare/codex --json
 ```
 
-`debug` 把 Plugin 加入的步骤和 Experiment、评估组、评估用例、Agent 的步骤放进同一份计划。终端里每一步显示它来自哪里、执行序号、`changeFrequency`、依赖和能否沿用缓存；`--json` 给出相同的结构。
-
-Plugin 的步骤没出现在计划里时，先检查 `plugins` 是否挂在了你选中的 Experiment 或评估用例上。
+`debug` 展示展开步骤、实际 Action 顺序与 Plugin 来源。`show` 和 `view` 的 Experiment 信息列出 Plugin 的 name、key 与 identity。
 
 ## 接着看
 
-- [Sandbox · 按顺序准备 Sandbox](/zh/tutorials/sandbox-providers#按顺序准备-sandbox)——准备步骤、频率、缓存与收尾。
-- [评估组](/zh/tutorials/eval-groups)——评估组的准备步骤怎样进入同一顺序。
-- [运行前检查 Sandbox 计划](/zh/tutorials/debug-lifecycle-plan)——查看 Plugin 加入后的完整计划。
+- [Sandbox 准备](/zh/tutorials/sandbox-providers)
+- [评估组](/zh/tutorials/eval-groups)
+- [检查生命周期计划](/zh/tutorials/debug-lifecycle-plan)

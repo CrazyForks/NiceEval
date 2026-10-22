@@ -35,7 +35,7 @@ feature: docs/feature/experiments/README.md
    │ 45 total · 6 using previous results · 19 running · 1 waiting on another run · 11 queued · 6 passed · 2 failed · 0 errored · 0 skipped   │
    ```
 
-   `running` 稳定顶在上限、`queued` 逐步消化,说明并发名额是瓶颈;`running` 长期不满则瓶颈在别处(实验级限制——`PLAN` 行已点名它,provider 独占串行或等待实验级 setup)。
+   `running` 稳定顶在上限、`queued` 逐步消化,说明并发名额是瓶颈;`running` 长期不满则瓶颈在别处(实验级限制——`PLAN` 行已点名它,provider 独占串行或等待实验级 before)。
 
    `running` 计的是进行中的 attempt,不是持位数。
    turn 退避睡眠中的 attempt(ACTIVE 行形如 `turn retry 2/4 (rate_limit) — waiting 3s`)让出了并发名额但仍计 `running`,让出的位派给新 attempt。
@@ -49,7 +49,7 @@ feature: docs/feature/experiments/README.md
 - agent 服务端按用户计「同时在跑的 run 数」的并发型限额,贴线配置(上限 = 限额值)压不稳:退避让出的位立刻被新 attempt 顶上,agent 侧并发恒在上限,睡醒的重试面对的仍是打满的限额,重试预算在持续饱和下白烧。
   把值设到限额以下留余量,或改用实验级 `maxConcurrency`——它退避不释放、被限流时真正不加压(见[限制单个实验](concurrency-max-per-experiment.md))。
 - 收并发不改变结果排序(仍按发现顺序输出)与派发优先级(瓶颈优先,见 [Runner · 派发顺序](../../../runner.md#派发顺序瓶颈优先追求最小总墙钟时间))。
-- 等待实验级 `setup` 的 attempt 不持有、不预留并发名额,计数里保持 `queued`——慢启动的隧道不会让「0 running · N queued 长时间不动」变成并发配置问题(见 [CLI · 实验级 Hook 的显示](../cli.md#实验级-hook-的显示))。
+- 等待实验级 `before` 的 attempt 不持有、不预留并发名额,计数里保持 `queued`——慢启动的隧道不会让「0 running · N queued 长时间不动」变成并发配置问题(见 [CLI · 实验级 Hook 的显示](../cli.md#实验级-hook-的显示))。
 - 并发上限管的是资源占用,不是花费上限;封顶花钱用 [`--budget`](budget-limit.md)。
 - Experiment 声明 [`sandboxReuse: true`](../../sandbox/reuse.md) 时，每个 Sandbox 内部串行，Sandbox 之间可以并行。
   全局 `--max-concurrency` 仍可收紧本次 Invocation 的同时执行数，但不能临时打开或关闭 Sandbox 复用。

@@ -78,7 +78,7 @@ TTY 人读输出不把整棵树放入一个总框。总览、Experiment、lane�
 
 非 TTY、`NO_COLOR` 或过窄终端按同一 Panel 契约逐框降级为无框的标题与正文；节点、字段和顺序不变。`--json` 不携带框线，继续输出同一棵计划树的机器形状。
 
-Human 的 lane 顺序固定为 Group before actions → physical enter → Planned attempts → physical exit → Group after actions。Physical teardown 与 Provider finalizer 因而始终列在使用该实例的 Planned attempt 工作之后。
+Human 的 lane 顺序固定为 Group before actions → physical enter → Planned attempts → physical exit → Group after actions。Physical after 与 Provider finalizer 因而始终列在使用该实例的 Planned attempt 工作之后。
 
 可声明的 `shell()` / `command()` 展开为具体命令；不能安全检查的 callback 标为 `opaque`。每个 action 使用独立圆角框，显示 owner、phase、occurrenceKind 与推导依据。
 
@@ -187,7 +187,7 @@ Runner 只投影实际生命周期阶段，Adapter、Sandbox provider 与用户 
 | `sandbox.create` | creating sandbox |
 | `sandbox.prepare.*` | preparing sandbox |
 | `agent.ensure` | preparing agent |
-| `agent.setup` | agent setup |
+| `agent.before` | agent before |
 | `eval.run` / `agent.run` | running eval |
 | `workspace.diff` | capturing diff |
 | `assertions.evaluate` | evaluating assertions |
@@ -215,7 +215,7 @@ miss 后依次显示当前 action 的 `i/n`、action ID，以及正在创建 pre
 
 这些短期标签不进入 Attempt closure 或 `--json` 事件词表；失败仍由 Run diagnostic 与最终错误结果负责。
 
-Experiment `setup` 与 `teardown` 显示为 Run 范围活动。其它 Invocation 可以继续创建并发布自己的 Run。执行去重、同一 Experiment 的 dispatch claim 与并发名额由 Coordination 处理；只读命令在固定 cutoff 下读取 Run 与已发布 Attempt。
+Experiment `before` 与 `after` 显示为 Run 范围活动。其它 Invocation 可以继续创建并发布自己的 Run。执行去重、同一 Experiment 的 dispatch claim 与并发名额由 Coordination 处理；只读命令在固定 cutoff 下读取 Run 与已发布 Attempt。
 
 ### 协调等待与恢复
 
@@ -233,7 +233,7 @@ cleanup-required 的 warning 同样只包含 key 与原因。
 
 heartbeat 是随 owner 活动写入同一 ProjectDatabase 的非权威观察值。暂停 owner 时它可以停止前进，但绝不因超时失权。
 
-显式 sharedState recovery 只能附在一个唯一 Experiment 的 teardown 命令上：
+显式 sharedState recovery 只能附在一个唯一 Experiment 的 after 命令上：
 
 ```bash
 niceeval exp <selector> --teardown \
@@ -244,8 +244,8 @@ niceeval exp <selector> --teardown \
 ```
 
 CLI 先要求 selector 最终只匹配一个 Experiment。它保留不带 token 或确认的只读 owner-evidence inspection。只有 token 与
-双确认齐全、即将开始 recovery generation 时，CLI 才检查这个唯一 Experiment 是否声明 `teardown`。selector 不唯一或
-target 缺少 `teardown` 都以非零状态结束，当前 active generation 保持不变，不会进入 recovering 或 free。
+双确认齐全、即将开始 recovery generation 时，CLI 才检查这个唯一 Experiment 是否声明 `after`。selector 不唯一或
+target 缺少 `after` 都以非零状态结束，当前 active generation 保持不变，不会进入 recovering 或 free。
 
 不带 token 或确认时，该公开入口只显示 key、Experiment、owner token、host、PID、process identity 与当前 exact
 token/generation 匹配时的 heartbeat 诊断。这是 owner token 的唯一普通可见面。

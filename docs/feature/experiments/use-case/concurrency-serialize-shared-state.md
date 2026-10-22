@@ -27,7 +27,7 @@ export default defineExperiment({
 
 ## 多个 Invocation 共享 checkpoint
 
-实际 Sandbox 的 `$HOME`、服务或快照由 layer `setup()` 恢复、`teardown()` 回存。多个 Invocation 指向
+实际 Sandbox 的 `$HOME`、服务或快照由 layer `before()` 恢复、`after()` 回存。多个 Invocation 指向
 同一份持久状态时，再声明共享状态身份：
 
 ```ts
@@ -38,7 +38,7 @@ export default defineExperiment({
 });
 ```
 
-这条租约从 Experiment 与 Sandbox setup 之前持有到 checkpoint save、Sandbox finalizer 与 Experiment teardown 之后。
+这条租约从 Experiment 与 Sandbox before 之前持有到 checkpoint save、Sandbox finalizer 与 Experiment after 之后。
 所以等待方不会提前创建第二个 Sandbox，也不会把两次 restore/save 交错。它取得 owner 后继续自己的计划，不读取或合并另一个 Record。
 
 `sharedState` 不提供 checkpoint 存储和事务回滚。强杀可能留下半次外部写入；作者必须把 Attempt 终态设计成原子提交边界，否则需要换干净 cohort 和新 key 重建轨迹。

@@ -188,7 +188,7 @@ Sandbox callback、test 与 Provider callback 保留其真实位置并标为 opa
 
 `shell()` / `command()` 显示 exact 命令与脱敏后的 env key，普通 callback 只显示 opaque。`sandbox.create` 额外显示 template owner、provider、kind 与安全的 configured locator。
 
-这个 locator 来自 template 声明的私有 command-plan binding，不进入 Record、provider identity 或复用 fingerprint。Direct Agent 显示一个明确的 `known-no-command` create 节点。`preTeardown` 按执行契约逆序展开，并标明只有 setup 到达 postSetup 时点后才运行。
+这个 locator 来自 template 声明的私有 command-plan binding，不进入 Record、provider identity 或复用 fingerprint。Direct Agent 显示一个明确的 `known-no-command` create 节点。`preTeardown` 按执行契约逆序展开，并标明只有 setup 到达 before 时点后才运行。
 
 Eval Group 的 `beforeSlots` / `afterSlots` 在 human 与 JSON 中都显式呈现 Eval Group Plugin before / after。Sandbox Plugin fragment 的 action 与 Experiment、Eval Group、Eval、Agent action 进入同一个 DAG；Eval Plugin lifecycle 留在各 dispatch Planned attempt 内。它们都按 attachment owner 保留身份，不能因 Plugin 恰好来自同一个 definition 就跨 owner 合并。
 

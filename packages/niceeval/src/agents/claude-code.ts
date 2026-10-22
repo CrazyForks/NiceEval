@@ -1,3 +1,4 @@
+import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { Effect } from "effect";
 import { makeSandboxAgent } from "../define.ts";
@@ -84,7 +85,7 @@ export interface ClaudeCodeConfig {
    */
   maxTurns?: number;
   /**
-   * 额外 MCP server(每个 Sandbox setup 时写进用户级 ~/.claude.json)。
+   * 额外 MCP server(每个 Sandbox before 时写进用户级 ~/.claude.json)。
    * stdio 形态写 command(可带 args / env);Streamable HTTP 形态写 url(可带 headers,
    * 逐字进请求头),落成 { "type": "http", "url": …, "headers": … } 条目。
    */
@@ -100,22 +101,22 @@ export interface ClaudeCodeConfig {
    * 一份完整的 Claude Code `settings.json`(官方格式)在本地项目里的路径 —— 相对运行
    * niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox 内路径;只接受
    * 项目根内的相对路径,包含 `..` 的路径、绝对路径、`~` 路径和解析后逃出项目根的符号链接
-   * 都在 setup 阶段报错。原始字节原样上传为 Sandbox 里原本为空的用户级 `~/.claude/settings.json`
+   * 都在 before 阶段报错。原始字节原样上传为 Sandbox 里原本为空的用户级 `~/.claude/settings.json`
    * (不继承宿主机配置、不拼接、不重新序列化);保留键 `model` 与 `env` 出现在文件里
-   * setup 报错。manifest 只记项目相对路径与字节 SHA-256,不落正文。
+   * before 报错。manifest 只记项目相对路径与字节 SHA-256,不落正文。
    */
   settingsFile?: string;
   /**
    * 安装后按数组顺序运行的用户 Hook(复用 SandboxCommand 的窄上下文):在写 settings、挂 MCP、
-   * 装 Skills / Plugin、写 manifest 全部完成后执行,适合跑插件自带的 setup 脚本这类
+   * 装 Skills / Plugin、写 manifest 全部完成后执行,适合跑插件自带的 before 脚本这类
    * 「安装产物就位后才能跑」的过程动作。抛错按基础设施错误计(attempt errored)。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
   before?: readonly SandboxCommand[];
   /**
-   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 after 步骤
    * 之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
-   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 after 段
    * 按 teardown-failed 诊断收束。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
@@ -141,7 +142,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
     bin: "claude",
   });
 
-  return registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "claude-code",
     // 官方 adapter:transcript 经生命周期 fixture 验证,全通道 complete。
     evidenceCoverage: completeEvidenceCoverage,
@@ -259,8 +260,11 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // claude-code 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.after);
-        await attemptResources(ctx)?.shutdownAll(signal);
+        try {
+          await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.after);
+        } finally {
+          await attemptResources(ctx)?.shutdownAll(signal);
+        }
       },
       catch: (cause) => cause,
     }),
@@ -286,7 +290,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after);
+  }), config?.before, config?.after), "claudeCode", config, claudeCodeAgent);
 }
 
 

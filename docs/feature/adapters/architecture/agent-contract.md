@@ -15,25 +15,25 @@ interface SandboxAgent {
   readonly evidenceCoverage: EvidenceCoverage;
   /** Agent CLI 与所需运行时是否达到声明 identity；每条 probe 只读、可重复调用。 */
   readonly ensure: AgentEnsure | readonly AgentEnsure[];
-  setup?(sandbox: Sandbox, ctx: SandboxAgentContext): Promise<void> | void;
+  before?(sandbox: Sandbox, ctx: SandboxAgentContext): Promise<void> | void;
   tracing?: AgentTracing;
   spanMapper?: SpanMapper;
   send(input: TurnInput, ctx: SandboxAgentContext): Promise<Turn>;
   /** 可选 send 执行失败分类器；只补 FailureClass，受理证据门另行决定能否重试。 */
   classifySendFailure?: SendFailureClassifier;
-  teardown?(sandbox: Sandbox, ctx: SandboxAgentContext): Promise<void> | void;
+  after?(sandbox: Sandbox, ctx: SandboxAgentContext): Promise<void> | void;
 }
 
 interface DirectAgent {
   readonly name: string;
   readonly kind: "direct";
   readonly evidenceCoverage: EvidenceCoverage;
-  setup?(ctx: AgentContext): Promise<void> | void;
+  before?(ctx: AgentContext): Promise<void> | void;
   tracing?: Omit<AgentTracing, "configure">;
   spanMapper?: SpanMapper;
   send(input: TurnInput, ctx: AgentContext): Promise<Turn>;
   classifySendFailure?: SendFailureClassifier;
-  teardown?(ctx: AgentContext): Promise<void> | void;
+  after?(ctx: AgentContext): Promise<void> | void;
 }
 
 interface TurnInput {
@@ -101,7 +101,7 @@ interface SandboxAgentContext extends AgentContext {
 `ctx` 是驱动 Agent 的低层上下文,eval 的 `t` 是运行器构造的断言视图。
 二者共享 experiment 输入、signal 与作用域反馈能力,但只有 `ctx` 暴露 Agent 会话状态,只有 `t` 暴露断言和 judge。
 
-- runner 为 `setup`、每次 `send` 与 `teardown` 分别构造上下文,同名 `progress/diagnostic` 会自动绑定到当前 `agent.setup`、`agent.run` 或 `agent.teardown` operation。
+- runner 为 `before`、每次 `send` 与 `after` 分别构造上下文,同名 `progress/diagnostic` 会自动绑定到当前 `agent.before`、`agent.run` 或 `agent.after` operation。
 - Adapter 不能传 phase/scope,也不能把上下文保存到另一个回调复用。
 - `progress` 是 Human active 行可覆写的短期状态;`diagnostic` 是结构化 warning/error,但不改变 Turn status 或 attempt verdict。
 - `log(msg)` 是显式 timeout breadcrumb。它也更新 Human active 行，但最近若干条会并入 timeout error。
@@ -132,11 +132,11 @@ Agent 没有声明式 capabilities：会话能力来自 `ctx.session` 的使用�
 ## 生命周期不变量
 
 Sandbox Agent 的 CLI 与所需运行时只由 `ensure` 和 identity 匹配的 Installer 安装。
-`setup` 只连接 runtime、注入鉴权、写运行配置与扩展，并且每 Attempt 只执行一次。
+`before` 只连接 runtime、注入鉴权、写运行配置与扩展，并且每 Attempt 只执行一次。
 准备逻辑属于 Eval / Experiment layer 的 `before()`，任务 Fixture 属于 `test(t)`。
-setup 基础设施失败产生 `errored`，Agent 运行结果通过 Turn 表达。
+before 基础设施失败产生 `errored`，Agent 运行结果通过 Turn 表达。
 
-`setup` / `teardown` 遵循成对语义：`teardown` 当且仅当本 Attempt 走到过 agent setup 时点才执行，`setup` 抛错不豁免。
+`before` / `after` 遵循成对语义：`after` 当且仅当本 Attempt 走到过 agent before 时点才执行，`before` 抛错不豁免。
 Sandbox Agent 的两个 Hook 接收 `(sandbox, ctx)`；Direct Agent 的两个 Hook 只接收 `ctx`，不创建也不伪造 Sandbox。
 并发状态以 `ctx.session` 或 Adapter 自有的 Attempt 键管理。
 完整顺序见[三方准备时序](../../sandbox/lifecycle.md)。
@@ -147,15 +147,15 @@ HITL `waiting` 可以保留等待输入的 Agent 状态，但它必须静止。�
 
 正常命令执行成功后，关闭 transport / PTY / 会话本身不得顺带杀死作者启动的任务服务。反过来，命令 timeout、取消、Attempt interruption 或 Agent runtime cancellation 时，Provider 必须在 Promise settle 前确认**该受管命令树**已终止；若 Provider 无法精确终止命令树，就退休并停止整个 Sandbox。只关闭输出流后宣称取消成功是非法实现。
 
-setup、send 与 teardown 的 Promise callback 由所属 Attempt fiber 在边界适配。
+before、send 与 after 的 Promise callback 由所属 Attempt fiber 在边界适配。
 内置 Adapter 可以登记私有 Effect 实现，Runner 直接执行它；这个实现不进入公开类型或 package export。
 
 Promise rejection 在 Session 的 send choke point 规范化；内部 Effect failure 同样在该点处理。
 defect 保留为 Cause，不能伪装成可重试 `SendFailure`。
 
-setup 与 send 的 `ctx.signal` 合并当前 callback fiber interruption 与 Attempt signal。
+before 与 send 的 `ctx.signal` 合并当前 callback fiber interruption 与 Attempt signal。
 
-teardown 使用 Runner 的独立 cleanup deadline，不继承已取消的 Attempt signal。
-cleanup failure 只形成 teardown diagnostic，不会取代原始失败。
+after 使用 Runner 的独立 cleanup deadline，不继承已取消的 Attempt signal。
+cleanup failure 只形成 after diagnostic，不会取代原始失败。
 
-正常 keep 或 Sandbox 复用不要求清掉任务自己有意保留的服务；Agent teardown 则必须保证 Agent driver 不会继续发模型请求。异常路径优先保证不再执行：无法证明 driver 与命令树已静止时，不能把 Sandbox 作为可安全复用或可交互的成功现场留下（见 [Sandbox 生命周期](../../sandbox/architecture.md)）。
+正常 keep 或 Sandbox 复用不要求清掉任务自己有意保留的服务；Agent after 则必须保证 Agent driver 不会继续发模型请求。异常路径优先保证不再执行：无法证明 driver 与命令树已静止时，不能把 Sandbox 作为可安全复用或可交互的成功现场留下（见 [Sandbox 生命周期](../../sandbox/architecture.md)）。

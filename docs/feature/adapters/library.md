@@ -58,7 +58,7 @@ model、reasoning effort 与实验 flags 来自 `ctx`，由 experiment 决定。
 
 ## 向运行反馈进度与诊断
 
-`setup`、`send`、`teardown` 中的 `ctx` 都提供 `progress` 与 `diagnostic`,runner 会把它们绑定到当前 `agent.setup`、`agent.run` 或 `agent.teardown`:
+`before`、`send`、`after` 中的 `ctx` 都提供 `progress` 与 `diagnostic`,runner 会把它们绑定到当前 `agent.before`、`agent.run` 或 `agent.after`:
 
 ```ts
 export default defineAgent({
@@ -100,7 +100,7 @@ user message 与 tool input 等短命内容只能走 `progress`。
 
 被测对象是在隔离 Sandbox 中运行的 coding-agent CLI 时，使用 `defineSandboxAgent`。
 CLI 身份写在必填 `ensure` 中，由 Runner 负责 探测、配对 Installer、安装与复检。
-`setup` 只写鉴权、运行时配置和扩展；每轮执行与 transcript 采集放在 `send`：
+`before` 只写鉴权、运行时配置和扩展；每轮执行与 transcript 采集放在 `send`：
 
 ```ts
 import { completeEvidenceCoverage, defineSandboxAgent, makeSendFailure } from "niceeval/adapter";
@@ -113,7 +113,7 @@ export default defineSandboxAgent({
     identity: { agent: "my-coding-agent", version: "1.4.2" },
     probe: shell('test "$(my-agent --version)" = "1.4.2"'),
   },
-  async setup(sandbox, ctx) {
+  async before(sandbox, ctx) {
     await sandbox.writeText(".my-agent/config.json", credentialsFrom(ctx));
   },
   async send(input, ctx) {
@@ -133,7 +133,7 @@ export default defineSandboxAgent({
 });
 ```
 
-第三方 Adapter 若不随包提供匹配 identity 的 Installer，探测 未命中会明确 `errored`；它不能把安装偷回 `setup`。
+第三方 Adapter 若不随包提供匹配 identity 的 Installer，探测 未命中会明确 `errored`；它不能把安装偷回 `before`。
 
 内置 coding agents 见 [SDK 与 Agent 索引](sdk/README.md)，扩展配置见 [配置 Coding Agent 扩展](library/coding-agent-extensions.md)。
 
@@ -721,7 +721,7 @@ requires 的未知字段、null、数组、缺少 models、非法键或超额声
 新增泛型追加在现有参数后并保留默认值。省略 requires 保留宽入口；已被作者标注成 Record<string, ModelRoleSelection> 的声明无法恢复字面量键，这时只提供运行时配置检查。
 带 parseFlags 与 assertions 的工厂同样保留 app、flags、sugar 和 score handle 的精确类型；这些组合都进入安装后正反编译验收。
 
-加载校验适用于 CLI 与 SDK 的 plan/check/run，以及 adoption 的当前定义准入。teardown 豁免用途前置要求，保持历史资源 teardown 可达；它仍遵守自身 adapter、安全与所有权检查。
+加载校验适用于 CLI 与 SDK 的 plan/check/run，以及 adoption 的当前定义准入。after 豁免用途前置要求，保持历史资源 after 可达；它仍遵守自身 adapter、安全与所有权检查。
 缺失用途的 dry 与 SDK plan 验收还需确认结果根没有新增数据库，或已有数据库未变化。不能仅以 create 未执行作为无写入证据。
 
 ## 模型用途与历史编码

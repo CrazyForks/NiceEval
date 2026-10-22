@@ -37,7 +37,7 @@
   </defs>
   <rect x="0.5" y="0.5" width="1239" height="559" class="canvas" />
   <text x="32" y="48" class="title">Sandbox 复用：多沙箱并行，单沙箱串行</text>
-  <text x="32" y="80" class="note">Experiment setup 一次　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　Experiment teardown 一次</text>
+  <text x="32" y="80" class="note">Experiment before 一次　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　Experiment after 一次</text>
   <path d="M176 88 H1192" class="rule-strong" />
   <text x="32" y="144" class="label mono">Sandbox A</text>
   <rect x="176.5" y="104.5" width="1015" height="144" class="box" />

@@ -79,7 +79,7 @@ export default defineExperiment({
 });
 ```
 
-NiceEval acquires the lease for this key before Experiment `setup` and Sandbox creation, and releases it only after Sandbox cleanup, Provider finalization, and Experiment `teardown` all finish. A run with the same key in another terminal queues and does not create a Sandbox early. After it gets the lease, it continues with its own plan and does not read or reuse the other side's results.
+NiceEval acquires the lease for this key before Experiment `before` and Sandbox creation, and releases it only after Sandbox cleanup, Provider finalization, and Experiment `after` all finish. A run with the same key in another terminal queues and does not create a Sandbox early. After it gets the lease, it continues with its own plan and does not read or reuse the other side's results.
 
 The key is also part of the result configuration. A different key means a different copy of the state, so old results do not mix in. The lease only protects the external checkpoint and has nothing to do with the result file; runs that do not use `sharedState` can still write results concurrently. Coordination across machines or different working copies still needs an external distributed lock.
 
@@ -89,12 +89,12 @@ The key is also part of the result configuration. A different key means a differ
 |---|---|
 | Sandbox create / stop | Once per Sandbox |
 | Sandbox `.before()` / `.after()` preparation steps and registered cleanups | Once per Attempt that really runs |
-| Agent-level `setup` / `teardown` | Once per Attempt |
-| The eval's `setup` / `teardown` and `test(t)` | Once per Attempt |
+| Agent-level `before` / `after` | Once per Attempt |
+| The eval's `before` / `after` and `test(t)` | Once per Attempt |
 
 <SandboxLanes locale="en" />
 
-After each Attempt, NiceEval runs `git reset --hard` and `git clean` on `workdir` to restore its starting state, then starts the next. This step only handles `workdir`; `/opt`, `$HOME`, `/tmp`, global installs, package caches, and background processes do not disappear. Either the eval's `teardown` cleans them up itself, or they are state you deliberately leave for the next eval.
+After each Attempt, NiceEval runs `git reset --hard` and `git clean` on `workdir` to restore its starting state, then starts the next. This step only handles `workdir`; `/opt`, `$HOME`, `/tmp`, global installs, package caches, and background processes do not disappear. Either the eval's `after` cleans them up itself, or they are state you deliberately leave for the next eval.
 
 Large persistent build outputs or caches must not grow unchecked. Give them a capacity limit and an early-warning threshold: record normal size and hit rates with `facts`, warn with `diagnostic` when nearing the risk threshold, and have a way ready to clean up, rotate, or replace this Sandbox.
 
@@ -102,8 +102,8 @@ Large persistent build outputs or caches must not grow unchecked. Give them a ca
 
 - **Heavy dependencies every experiment needs** (Agent CLIs, language runtimes): bake them into the Provider's image / template / snapshot, or write them as the lowest-frequency `.before()` preparation steps.
 - **Preparation shared by the whole batch** (installing toolchains, cloning shared repositories, warming build caches): write them as low-frequency `.before()` preparation steps. On Docker, unchanged preparation steps can be reused directly on the next run. These steps are still passed through once per Attempt; you cannot ask for them to run only once per Sandbox.
-- **Materials only this eval needs** (its own repository, data, dependencies): put them in the eval's own `setup` or `test(t)`. They run again after each reset, so they must be code that is correct when repeated.
-- **Background processes started or ports taken**: the eval's `teardown` cleans them up itself; resetting `workdir` does not kill processes.
+- **Materials only this eval needs** (its own repository, data, dependencies): put them in the eval's own `before` or `test(t)`. They run again after each reset, so they must be code that is correct when repeated.
+- **Background processes started or ports taken**: the eval's `after` cleans them up itself; resetting `workdir` does not kill processes.
 
 When each eval clones its own repository, use one fixed-name temporary directory for the whole Experiment, such as `.niceeval-task-clone`, and add it to `diff.ignore`. Before cloning, only run `rm -rf .niceeval-task-clone` to clear the previous eval's leftovers. Never delete the `.git` at the root of `workdir`: the reset between evals depends on it, and it stays for the whole run.
 
@@ -131,7 +131,7 @@ This refers to native Plugins in the Agent factory. The top-level `plugins` fiel
 
 Two things are still yours:
 
-- **`postSetup` scripts must be safe to repeat.** They run again on the carried-over `$HOME` every Attempt. A script that registers a hook in global configuration must produce the same configuration no matter how many times it runs. Before turning on reuse, run two or three evals through one Sandbox lane first; problems only show up from the second eval onward.
+- **`before` scripts must be safe to repeat.** They run again on the carried-over `$HOME` every Attempt. A script that registers a hook in global configuration must produce the same configuration no matter how many times it runs. Before turning on reuse, run two or three evals through one Sandbox lane first; problems only show up from the second eval onward.
 - **Where plugin data lives.** The plugin installation directory is reinstalled and overwritten every Attempt. Data that should carry over to the next eval can only be written outside the installation directory. Whether carried-over data affects the next eval is a question your experiment design has to answer.
 
 Reinstalling does not save money: plugin installation is paid once per Attempt. What reuse saves is Sandbox creation; unchanged `.before()` preparation steps can also be reused on Docker. When marketplace fetching is too slow, use `sparse` to fetch only the plugin path, or bake the plugin into the template and remove its declaration from `plugins`. The cost is that the installation manifest no longer records the plugin and its resolved version.

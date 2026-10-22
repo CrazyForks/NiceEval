@@ -330,7 +330,7 @@ classifySendFailure?: SendFailureClassifier;
 after?: DirectAgentAfter;
 ```
 
-运行结束前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
+运行结束前的清理,当且仅当本 attempt 走到过 `before` 时点才执行(`before` 抛错不豁免),
 在 finally 里跑一次。
 
 ### `SandboxAgentDef`
@@ -392,7 +392,7 @@ before?: AgentBefore;
 tracing?: AgentTracing;
 ```
 
-OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 setup 拆出。
+OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 before 拆出。
 
 #### `spanMapper`
 
@@ -424,7 +424,7 @@ classifySendFailure?: SendFailureClassifier;
 after?: AgentAfter;
 ```
 
-Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
+Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `before` 时点才执行(`before` 抛错不豁免),
 在 finally 里跑一次。
 
 ### `AgentContext`
@@ -446,7 +446,7 @@ readonly signal: AbortSignal;
 readonly model?: string;
 ```
 
-本次 attempt 用的模型名,透传自 experiment 的 `model` 字段。sandbox 型 agent 通常在 setup 里用它写配置,direct 型通常在 send 里用它选模型。
+本次 attempt 用的模型名,透传自 experiment 的 `model` 字段。sandbox 型 agent 通常在 before 里用它写配置,direct 型通常在 send 里用它选模型。
 
 #### `reasoningEffort`
 
@@ -535,7 +535,7 @@ progress(update: ProgressUpdate): void;
 
 作用域反馈:报告此刻正在做什么(turn / tool / 安装进度)。短命状态——Human profile
 更新 active 行,`agent`/`ci` 不逐条打印,也不进最终结果;不要每个 token/delta 都调用。
-runner 按当前回调所处的生命周期阶段(agent.setup / agent.run / agent.teardown)归因,
+runner 按当前回调所处的生命周期阶段(agent.before / agent.run / agent.after)归因,
 调用方不能冒充其它阶段(见 docs/feature/experiments/library.md)。
 
 #### `diagnostic`

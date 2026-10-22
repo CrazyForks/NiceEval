@@ -732,12 +732,12 @@ function afterSteps(pair: PreparedRunPair): readonly CommandPlanStep[] {
 function declaredAgentHookStep(
   command: SandboxCommand,
   index: number,
-  phase: "agent.post-setup" | "agent.pre-teardown",
+  phase: "agent.before" | "agent.after",
   owner: CommandPlanOwner,
   condition?: SandboxCommandPlanCondition,
 ): CommandPlanStep {
   const declaration = sandboxCommandPlanOf(command);
-  const label = `${phase === "agent.post-setup" ? "postSetup" : "preTeardown"} #${index}`;
+  const label = `${phase === "agent.before" ? "before" : "after"} #${index}`;
   return declaration === undefined
     ? opaque(
         phase,
@@ -759,22 +759,14 @@ function agentSetupSteps(pair: PreparedRunPair, owner: CommandPlanOwner): readon
     )];
   }
   if (agent.before === undefined) {
-    return [knownNoCommand("agent.setup", "hook-omitted", "Agent has no setup callback", { owner })];
-  }
-  if (agent.kind !== "sandbox") {
-    return [opaque(
-      "agent.setup",
-      "agent-setup-callback",
-      "Agent setup callback may execute commands; its body is not inspected",
-      { owner },
-    )];
+    return [knownNoCommand("agent.setup", "hook-omitted", "Agent has no before callback", { owner })];
   }
   const hooks = agentLifecycleHookCommandsOf(agent);
   if (hooks === undefined) {
     return [opaque(
       "agent.setup",
       "agent-setup-callback",
-      "Agent setup callback may execute commands; its body is not inspected",
+      "Agent before callback may execute commands; its body is not inspected",
       { owner },
     )];
   }
@@ -782,13 +774,13 @@ function agentSetupSteps(pair: PreparedRunPair, owner: CommandPlanOwner): readon
     opaque(
       "agent.setup",
       "adapter-setup-internals",
-      "Adapter setup before declared postSetup hooks may execute commands",
+      "Adapter setup before declared before hooks may execute commands",
       { owner, label: "adapter setup" },
     ),
     ...hooks.postSetup.map((hook, index) => declaredAgentHookStep(
       hook,
       index,
-      "agent.post-setup",
+      "agent.before",
       owner,
     )),
   ];
@@ -805,22 +797,14 @@ function agentTeardownSteps(pair: PreparedRunPair, owner: CommandPlanOwner): rea
     )];
   }
   if (agent.after === undefined) {
-    return [knownNoCommand("agent.teardown", "hook-omitted", "Agent has no teardown callback", { owner })];
-  }
-  if (agent.kind !== "sandbox") {
-    return [opaque(
-      "agent.teardown",
-      "agent-teardown-callback",
-      "Agent teardown callback may execute commands; its body is not inspected",
-      { owner },
-    )];
+    return [knownNoCommand("agent.teardown", "hook-omitted", "Agent has no after callback", { owner })];
   }
   const hooks = agentLifecycleHookCommandsOf(agent);
   if (hooks === undefined) {
     return [opaque(
       "agent.teardown",
       "agent-teardown-callback",
-      "Agent teardown callback may execute commands; its body is not inspected",
+      "Agent after callback may execute commands; its body is not inspected",
       { owner },
     )];
   }
@@ -831,7 +815,7 @@ function agentTeardownSteps(pair: PreparedRunPair, owner: CommandPlanOwner): rea
     .map(({ hook, index }) => declaredAgentHookStep(
       hook,
       index,
-      "agent.pre-teardown",
+      "agent.after",
       owner,
       AGENT_POST_SETUP_REACHED,
     ));
@@ -841,7 +825,7 @@ function agentTeardownSteps(pair: PreparedRunPair, owner: CommandPlanOwner): rea
     ...preTeardown,
     ...(mayRegisterCleanup
       ? [opaque(
-          "agent.pre-teardown.cleanup",
+          "agent.after.cleanup",
           "registered-agent-cleanup-callbacks",
           "callback-backed Agent hooks may register LIFO cleanup commands",
           { owner, condition: AGENT_POST_SETUP_REACHED },
@@ -850,7 +834,7 @@ function agentTeardownSteps(pair: PreparedRunPair, owner: CommandPlanOwner): rea
     opaque(
       "agent.teardown",
       "adapter-teardown-remainder",
-      "Adapter teardown after declared preTeardown hooks may execute commands",
+      "Adapter teardown after declared after hooks may execute commands",
       { owner, label: "adapter teardown" },
     ),
   ];

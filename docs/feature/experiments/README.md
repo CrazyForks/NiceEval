@@ -6,9 +6,6 @@ createdAt: 2026-07-12T19:13:58+08:00
 kind: feature
 ---
 
-
-
-
 # Experiments —— 怎么跑这批 eval
 
 一个 eval 描述**测什么**(这轮对话该发生什么、怎么算对)。
@@ -117,8 +114,8 @@ export default defineExperiment({
   sharedState?: { readonly key: string };    // 共享 checkpoint / 数据库的跨 Invocation 独占身份
   budget?: number;                           // 整个实验估算成本上限($),超了停止派发
   maxConcurrency?: number;                   // 只限制本 Invocation 内该实验的 attempt
-  setup?: (ctx: ExperimentHookContext) => void | Promise<void>;     // 实验级生命周期:整场一次、宿主机侧(见下)
-  teardown?: (ctx: ExperimentHookContext) => void | Promise<void>;  // 全部 attempt 收尾后执行;setup 时点走到过才触发
+  before?: (ctx: ExperimentHookContext) => void | Promise<void>;     // 实验级生命周期:整场一次、宿主机侧(见下)
+  after?: (ctx: ExperimentHookContext) => void | Promise<void>;  // 全部 attempt 收尾后执行;before 时点走到过才触发
 });
 ```
 
@@ -138,7 +135,7 @@ Agent 与 Eval 看不见它，改它不让已有 Attempt 失去采用资格。
 再次运行会以当前 labels 建立新 Run，并通过 reference Member 连接已有 Attempt；Core relation、action 与精确 origin 共同说明该成员怎样进入目标 Run。
 
 两者都是实验作者写下的**声明**。
-运行后才存在的值，例如 `setup` 起出的隧道 URL 或服务端报回的版本，两个袋子都不进。只有 NiceEval 已发布的 typed collector 或 Adapter 能力，才能把语义匹配的运行时观测写入 Record catalog 中与 owner 匹配的 fixed family。
+运行后才存在的值，例如 `before` 起出的隧道 URL 或服务端报回的版本，两个袋子都不进。只有 NiceEval 已发布的 typed collector 或 Adapter 能力，才能把语义匹配的运行时观测写入 Record catalog 中与 owner 匹配的 fixed family。
 没有已发布 collector 的第三方值不自动持久化，也不能查询。
 
 三个家的判据按场景查[用例手册 · 实验值归属](use-case/实验值归属/)。声明与消费见 [Library · labels 与运行时观测](library.md#labels-与运行时观测)。
@@ -151,17 +148,17 @@ Agent 与 Eval 看不见它，改它不让已有 Attempt 失去采用资格。
 Runner 通过同一 ProjectDatabase 内的 `key` case-lock row 独占整个状态区间。同一 Record root 的多个
 Invocation 也使用这条规则；它以精确 process identity 与 generation fencing 保证旧 owner 不能影响新 generation。
 
-区间从 Experiment `setup` 与任何 Sandbox lifecycle `setup()` 之前开始。最后一个 Attempt settle 后，Runner
-先冻结该 Experiment 的 reusable Sandbox pool registry。随后它只停止一次全部 pool，包括 Sandbox teardown 与
-Provider finalizer，最后执行 Experiment `teardown`。
+区间从 Experiment `before` 与任何 Sandbox lifecycle `before()` 之前开始。最后一个 Attempt settle 后，Runner
+先冻结该 Experiment 的 reusable Sandbox pool registry。随后它只停止一次全部 pool，包括 Sandbox after 与
+Provider finalizer，最后执行 Experiment `after`。
 
-只有整条 cleanup 链全部成功才释放租约。setup 失败仍要等待停稳并继续 cleanup；它本身不会把成功的 cleanup
-变成遗留 lease。任何实际 cleanup、finalizer 或 teardown 的失败、超时或中断都会保留 lease，CLI exit sweep 不会删除它。
+只有整条 cleanup 链全部成功才释放租约。before 失败仍要等待停稳并继续 cleanup；它本身不会把成功的 cleanup
+变成遗留 lease。任何实际 cleanup、finalizer 或 after 的失败、超时或中断都会保留 lease，CLI exit sweep 不会删除它。
 
 sharedState 没有 heartbeat 过期接管或 PID 自动接管。owner token、exact process identity 与 generation 都不可变。
 heartbeat 是同一 ProjectDatabase 中 exact token/generation 专属的观察值，只作诊断。它不能改变 authority，也不会让旧 owner 影响新 generation。
 确认原 owner 已终止且远端状态已静默后，操作员才可用公开的 `niceeval exp <selector> --teardown` recovery flow 运行
-一次补偿 teardown；详见 [CLI · 协调等待与恢复](cli.md#协调等待与恢复)。这个字段只提供互斥，不代替 checkpoint
+一次补偿 after；详见 [CLI · 协调等待与恢复](cli.md#协调等待与恢复)。这个字段只提供互斥，不代替 checkpoint
 存储、原子提交或强杀恢复。
 
 #### Linux zombie owner recovery
@@ -175,15 +172,15 @@ key 是会进入 Run 条目的稳定非密字符串，必须匹配 `[a-z0-9][a-z
 
 失败分类保留内建语义。明确影响范围的调用点使用 `ExperimentFatalError` 或 `EvalFatalError`；Experiment 不接受分类回调。
 
-`setup` / `teardown` 是**实验级生命周期 Hook 对**:整场至多一次、跑在宿主机上。
-`setup` 在本实验第一个真正要派发的 attempt 之前执行;`teardown` 在本实验全部 attempt 收尾后执行(失败、中断也执行),当且仅当 `setup` 的时点走到过——`setup` 抛错不豁免,半路失败的现场同样要扫尾;一个 attempt 都不派发时两者都不跑。
+`before` / `after` 是**实验级生命周期 Hook 对**:整场至多一次、跑在宿主机上。
+`before` 在本实验第一个真正要派发的 attempt 之前执行;`after` 在本实验全部 attempt 收尾后执行(失败、中断也执行),当且仅当 `before` 的时点走到过——`before` 抛错不豁免,半路失败的现场同样要扫尾;一个 attempt 都不派发时两者都不跑。
 它们管「每个实验一份、所有 attempt 共享」的宿主机侧资源:起一条到内网服务的隧道、拉起本实验专用的 mock server、租一个 license。
 
-`setup` 的定义值写模块级变量,`teardown` 与同文件的 agent 工厂 / prepare command 从闭包读——runner 不做值的中介。
-成对 `setup` / `teardown` 只属于 Experiment 与 Agent 两层;Sandbox 与 Eval 的准备走 layer 的 `before()`,闭包传状态对两类入口同样适用(统一语义见 [Runner · 预置顺序](../../runner.md))。
+`before` 的定义值写模块级变量,`after` 与同文件的 agent 工厂 / prepare command 从闭包读——runner 不做值的中介。
+成对 `before` / `after` 只属于 Experiment 与 Agent 两层;Sandbox 与 Eval 的准备走 layer 的 `before()`,闭包传状态对两类入口同样适用(统一语义见 [Runner · 预置顺序](../../runner.md))。
 用法与失败语义见 [Library · 实验级共享服务](library.md#实验级共享服务setup-与-teardown)、执行语义见 [Architecture · 实验级生命周期](architecture.md#实验级生命周期setup-与-teardown)。
 
-生命周期各层各归各位,`setup` 不替代其它层:
+生命周期各层各归各位,`before` 不替代其它层:
 
 - 按实验变化的**沙箱内**准备(装二进制、预热、写实验配置)写 Experiment `sandbox` layer 的 `before()` 命令,每条 Attempt 在变更分类账标记前执行。
 - 这条 eval 自己的题目准备写 Eval layer 的 `before()` 或 `test(t)` 普通代码。
@@ -210,7 +207,7 @@ key 是会进入 Run 条目的稳定非密字符串，必须匹配 `[a-z0-9][a-z
 需要严格串行时声明 `maxConcurrency: 1`。
 完整顺序、Provider 能力与 Attempt 采用边界见 [Sandbox 复用](../sandbox/reuse.md)。
 
-新的 run 需要从 checkpoint 起步时，同样在实际 Sandbox 创建后的 `setup()` 恢复，并在该实例退休前的 `teardown()` 回存。
+新的 run 需要从 checkpoint 起步时，同样在实际 Sandbox 创建后的 `before()` 恢复，并在该实例退休前的 `after()` 回存。
 需要同一条连续实例时声明 `sandboxReuse: true`；本 Invocation 需要固定顺序时另行声明 `maxConcurrency: 1`；多个 Invocation 指向同一 checkpoint 时再声明 `sharedState`。
 完整的物理 Sandbox 生命周期与复用次数见 [Sandbox 生命周期](../sandbox/lifecycle.md) 与 [Sandbox 复用](../sandbox/reuse.md)。
 

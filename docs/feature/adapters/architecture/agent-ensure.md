@@ -4,7 +4,7 @@
 前者是 Adapter 的 ensure 声明(`AgentEnsure`:目标 identity 加只读 探测);后者是按 identity 配对的官方 Agent 安装层(`AgentInstaller`)。
 
 Runner 在每条 Attempt 的 `agent.ensure` 相位执行 **ensure 循环**:探测 命中就直接使用,未命中时由配对安装层执行锁定版本的安装,随后复检同一个 探测。
-`agent.ensure` 排在 Experiment、Group、Eval、Agent 的 before 之后、workspace baseline 之前;Agent runtime setup 仍记 `agent.setup`。
+`agent.ensure` 排在 Experiment、Group、Eval、Agent 的 before 之后、workspace baseline 之前;Agent runtime before 仍记 `agent.before`。
 官方 template、自建 template、任务镜像与空白 Sandbox 都走这条循环,差别只是第一次 探测 是否命中——预装 Agent 是 探测 命中的优化,不是任意任务 Sandbox 可运行的前提。
 
 ```text
@@ -14,7 +14,7 @@ sandbox case 构建所需产物并启动实例 → 主 Sandbox
  → agent.ensure:逐条 ensure 声明执行循环
     ├─ probe 命中   → 记录命中的安装事实
     └─ probe 未命中 → 按 identity 配对安装层 → install → 复检 probe
- → workspace baseline → Agent runtime setup(agent.setup)
+ → workspace baseline → Agent runtime before(agent.before)
  → test(t) → assertions.evaluate
 ```
 
@@ -41,7 +41,7 @@ interface AgentEnsure {
 interface SandboxAgentDef {
   /** 必填;数组按声明顺序执行。 */
   readonly ensure: AgentEnsure | readonly AgentEnsure[];
-  // send、runtime setup / teardown 与事件协议见 Sandbox Agent 与 Agent 数据契约
+  // send、runtime before / after 与事件协议见 Sandbox Agent 与 Agent 数据契约
 }
 ```
 
@@ -51,7 +51,7 @@ interface SandboxAgentDef {
   Agent 名、精确版本与 revision 连同精确匹配的 installer identity/revision/installMode 按声明顺序进入
   config identity；它同时是配对安装层的选择键。installer 分发内容变化必须显式更换 identity domain。
 - **Adapter 在 Sandbox 内的准备义务只有这份声明。**
-  安装步骤、staged payload 与平台探测都在安装层;凭据与鉴权归 runtime `setup`(记 `agent.setup`)。
+  安装步骤、staged payload 与平台探测都在安装层;凭据与鉴权归 runtime `before`(记 `agent.before`)。
 
 内置 Agent 的 ensure 声明由 adapter 工厂内部给出,用户不写安装配置。
 第三方 adapter 可以只写协议加 ensure 声明(纯适配),也可以随包导出自己的安装层;两条路径的差别只在 探测 未命中时有没有配对安装层接手:
@@ -123,7 +123,7 @@ interface StagedAgentInstallContext extends AgentInstallContext {
 ```
 
 安装层拥有 staged payload、安装模式与 payload 校验;目标平台由 pair 的 `ProviderPlan` 在创建前确定。
-凭据与鉴权始终归 Adapter 的 runtime `setup`,不进安装层。
+凭据与鉴权始终归 Adapter 的 runtime `before`,不进安装层。
 `install` 全部经主 Sandbox 的命令与文件 API 执行;安装只修改主 Sandbox,外层 DinD VM 与 sidecar 不安装 Agent、不向 Agent 暴露文件 API。
 
 官方内置 adapter 出厂自带配对安装层:同一个包发布,identity 里的版本常量同源,与 Prebuilt environment「命中预装与回退安装装同一版」是同一条规则。
@@ -158,7 +158,7 @@ Agent layer 仍是 command-only、永远排在两方作者 layer 之后、不能
   探测 与 install 各自锁定版本时,防漂移的结构是同源版本常量加精确配对:安装层按 ensure 声明的 identity 被选中,改版本只改一处常量,两半同时变。
   identity 对不上时循环拿不到安装层,失败带着两边 identity 的对比大声报出,不会静默装出另一版。
 - **`prepareArtifact` 的节奏与 adapter 其余方法不同。**
-  `SandboxAgentDef` 的 setup / send / teardown 全是 attempt 级、沙箱内。
+  `SandboxAgentDef` 的 before / send / after 全是 attempt 级、沙箱内。
   staged payload 准备是 Run 级、宿主侧、以 identity 为 key 的 single-flight(与 `sandbox.build` 对称)。
   安装层给协调器一个稳定的 single-flight 单位。
 - **Direct Agent 不背安装。**
@@ -260,7 +260,7 @@ ensure 循环每条 Attempt 都执行且必须可收敛:复用 Sandbox 第一次
 ## 相关阅读
 
 - [Agent 数据契约](agent-contract.md) —— `send`、AgentContext 与配置归属不变量。
-- [Sandbox Agent](../library/sandbox-agent.md) —— `setup` / `send` / `teardown` 的编写指南。
+- [Sandbox Agent](../library/sandbox-agent.md) —— `before` / `send` / `after` 的编写指南。
 - [内置 prepare 命令](../../sandbox/prepare-commands.md) —— 探测 / install / ensure 词族与 `installTool`。
 - [Sandbox 实例](../../sandbox/case.md) —— 主 Sandbox 从哪里来、BuildKey / CaseKey 是什么。
 - [Record · 两层时间模型](../../run/architecture.md) —— `agent.artifact.prepare` 与错误归属的落盘形状。

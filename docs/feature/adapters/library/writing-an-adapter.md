@@ -95,7 +95,7 @@ Experiment 的完整输入规则见 [Experiment 参数校验与规范化](../../
 共享契约用 `defineAdapterContract<Context>({ name }).withParseFlags(parser)` 绑定同一 parser。
 它的 `implement()`、`defineEval()` 和 `defineScoreEval()` 保留同一 flags 类型，也可以继续组合 `withAssertions()`。
 
-NiceEval 在 `defineExperiment()` 内先检查输入结构，复制冻结后调用 parser 一次，早于 Experiment setup 与 Adapter create。
+NiceEval 在 `defineExperiment()` 内先检查输入结构，复制冻结后调用 parser 一次，早于 Experiment before 与 Adapter create。
 parser 负责拒绝未知键、应用默认值和规范化；校验失败应抛错，不得静默忽略未知键。
 它必须纯粹、确定且同步，不启动资源或后台任务。
 返回 Promise 或 thenable 会立即报错；NiceEval 同时接收其拒绝，避免未处理的 Promise rejection。
