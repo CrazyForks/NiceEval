@@ -35,10 +35,10 @@ interface IncusJournalRecord {
   };
 }
 
-type SetupPrefixSummary = ReturnType<ProcessReceipt["expTerminal"]>["summary"]["setupPrefixes"];
+type SetupPrefixSummary = ReturnType<ProcessReceipt["expTerminal"]>["summary"]["beforeCaches"];
 
 function setupPrefixSummary(receipt: ProcessReceipt): SetupPrefixSummary {
-  const setup = receipt.expTerminal().summary.setupPrefixes;
+  const setup = receipt.expTerminal().summary.beforeCaches;
   expect(setup.total, receipt.diagnostic()).toBe(setup.hit + setup.prepared + setup.failed);
   return setup;
 }
@@ -249,7 +249,7 @@ async function invokeDetailed(
 ): Promise<{
   readonly evidence: SetupPrefixEvidence;
   readonly diagnostic: string;
-  readonly setupPrefixes: SetupPrefixSummary;
+  readonly beforeCaches: SetupPrefixSummary;
 }> {
   const invocationEnv = invocationEnvironment(root, publicEnv, options);
   const run = await niceeval.run(["exp", "setup-prefix-cache", "--rerun", "all", "--json"], {
@@ -328,14 +328,14 @@ async function inspectCompletedInvocation(
 ): Promise<{
   readonly evidence: SetupPrefixEvidence;
   readonly diagnostic: string;
-  readonly setupPrefixes: SetupPrefixSummary;
+  readonly beforeCaches: SetupPrefixSummary;
 }> {
   const mode = options.mode ?? "default";
   expect(run.exitCode, run.diagnostic()).toBe(0);
   expect(run.expReceipt(), run.diagnostic()).toMatchObject({ completion: "completed" });
   expect(run.expReceipt(), "InvocationReceipt must remain a lightweight hand-off")
-    .not.toHaveProperty("setupPrefixes");
-  const setupPrefixes = setupPrefixSummary(run);
+    .not.toHaveProperty("beforeCaches");
+  const beforeCaches = setupPrefixSummary(run);
   const evaluation = only(
     run.expEvalEvents(),
     (event) => event.evalId === "setup-prefix-cache",
@@ -368,7 +368,7 @@ async function inspectCompletedInvocation(
     middleVersion: options.middleVersion ?? "alpha",
   });
   await waitForSandboxGone(evidence.sandboxId, root);
-  return { evidence, diagnostic: run.diagnostic(), setupPrefixes };
+  return { evidence, diagnostic: run.diagnostic(), beforeCaches };
 }
 
 async function interruptAfterPublishedLayer(
@@ -467,9 +467,9 @@ test.concurrent("独立 Invocation 只重新执行变化的 Sandbox setup 后缀
 
       const changedDemandRun = await invokeDetailed(root, "v2", "PUBLIC_MODE=alpha\n", { niceevalHome });
       const changedDemand = changedDemandRun.evidence;
-      expect(changedDemandRun.setupPrefixes.hit).toBe(changedDemandRun.setupPrefixes.total);
-      expect(changedDemandRun.setupPrefixes.prepared).toBe(0);
-      expect(changedDemandRun.setupPrefixes.failed).toBe(0);
+      expect(changedDemandRun.beforeCaches.hit).toBe(changedDemandRun.beforeCaches.total);
+      expect(changedDemandRun.beforeCaches.prepared).toBe(0);
+      expect(changedDemandRun.beforeCaches.failed).toBe(0);
       const demandDiagnostic = `${coldRun.diagnostic}\n${changedDemandRun.diagnostic}`;
       expect(changedDemand.buildToken, demandDiagnostic).toBe(cold.buildToken);
       expect(changedDemand.fixtureToken, demandDiagnostic).toBe(cold.fixtureToken);
@@ -480,9 +480,9 @@ test.concurrent("独立 Invocation 只重新执行变化的 Sandbox setup 后缀
         middleVersion: "beta",
         niceevalHome,
       });
-      expect(changedMiddle.setupPrefixes.hit).toBe(0);
-      expect(changedMiddle.setupPrefixes.prepared).toBe(changedMiddle.setupPrefixes.total);
-      expect(changedMiddle.setupPrefixes.failed).toBe(0);
+      expect(changedMiddle.beforeCaches.hit).toBe(0);
+      expect(changedMiddle.beforeCaches.prepared).toBe(changedMiddle.beforeCaches.total);
+      expect(changedMiddle.beforeCaches.failed).toBe(0);
       expect(changedMiddle.evidence.buildToken).toBe(cold.buildToken);
       expect(changedMiddle.evidence.fixtureToken).toBe(cold.fixtureToken);
       expect(changedMiddle.evidence.middleToken).not.toBe(changedDemand.middleToken);
@@ -506,7 +506,7 @@ test.concurrent("独立 Invocation 只重新执行变化的 Sandbox setup 后缀
         timeoutMs: 360_000,
       });
       expect(human.exitCode, human.diagnostic()).toBe(0);
-      expect(human.stdout).toContain(humanSetupPrefixLine(changedDemandRun.setupPrefixes));
+      expect(human.stdout).toContain(humanSetupPrefixLine(changedDemandRun.beforeCaches));
 
       expect(new Set([
         cold.sandboxId,

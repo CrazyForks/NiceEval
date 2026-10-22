@@ -189,7 +189,7 @@ export interface CommandPlan {
   readonly experiments: readonly CommandPlanExperiment[];
 }
 
-export interface SetupPrefixPlanNode {
+export interface BeforeCachePlanNode {
   readonly prefixIdentity: string;
   readonly lookup: "not-probed";
   readonly capability: CommandPlanCacheCapability;
@@ -197,13 +197,13 @@ export interface SetupPrefixPlanNode {
   readonly consumers: readonly { readonly experimentId: string; readonly evalId: string }[];
 }
 
-export interface SetupPrefixPlan {
+export interface BeforeCachePlan {
   readonly lookup: "not-probed";
-  readonly nodes: readonly SetupPrefixPlanNode[];
+  readonly nodes: readonly BeforeCachePlanNode[];
 }
 
 /** Deduplicate the selected command plan by the setup-prefix declaration identity. */
-export function setupPrefixPlanOf(commandPlan: CommandPlan): SetupPrefixPlan {
+export function beforeCachePlanOf(commandPlan: CommandPlan): BeforeCachePlan {
   const nodes = new Map<string, {
     cache: NonNullable<CommandPlanStep["cache"]>;
     consumers: Map<string, { readonly experimentId: string; readonly evalId: string }>;

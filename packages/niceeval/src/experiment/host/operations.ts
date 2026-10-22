@@ -38,12 +38,12 @@ import {
   renameExperiment,
 } from "../../runner/rename-experiment.ts";
 import {
-  resolveSandboxSetupCache,
+  resolveSandboxBeforeCache,
   type AgentRun,
   type DiscoveredEval,
   type DiscoveredExperiment,
   type InvocationSummary,
-  type SandboxSetupCache,
+  type SandboxBeforeCache,
 } from "../../runner/types.ts";
 import { evalPrefixPredicate, matchExperimentSelector } from "../../shared/aggregate.ts";
 import { ExperimentHostError } from "./types.ts";
@@ -352,7 +352,7 @@ function agentRunFromExperiment(
   selectedEvalIds: readonly string[],
   config: ExperimentHostInvocationPlanRequest["config"],
   overrides: ExperimentHostRunOverrides,
-  sandboxSetupCacheOverride: SandboxSetupCache | undefined,
+  sandboxBeforeCacheOverride: SandboxBeforeCache | undefined,
 ): AgentRun {
   return Object.freeze({
     adapter: experiment.adapter,
@@ -364,8 +364,8 @@ function agentRunFromExperiment(
     plugins: experiment.plugins,
     attempts: overrides.attempts ?? experiment.attempts ?? 1,
     earlyExit: overrides.earlyExit ?? experiment.earlyExit ?? false,
-    sandboxSetupCache: resolveSandboxSetupCache(
-      sandboxSetupCacheOverride,
+    sandboxBeforeCache: resolveSandboxBeforeCache(
+      sandboxBeforeCacheOverride,
       experiment.sandboxCache,
       config.sandboxCache,
     ),
@@ -388,12 +388,12 @@ function agentRunFromExperiment(
   });
 }
 
-function sandboxSetupCacheOverrideOf(
+function sandboxBeforeCacheOverrideOf(
   overrides: ExperimentHostRunOverrides,
-): SandboxSetupCache | undefined {
-  const value: unknown = Reflect.get(overrides, "sandboxSetupCache");
+): SandboxBeforeCache | undefined {
+  const value: unknown = Reflect.get(overrides, "sandboxBeforeCache");
   if (value === undefined || value === "use" || value === "bypass") return value;
-  throw new TypeError("sandboxSetupCache override must be \"use\" or \"bypass\".");
+  throw new TypeError("sandboxBeforeCache override must be \"use\" or \"bypass\".");
 }
 
 export function prepareRuns(input: ExperimentHostSelectionInput & {
@@ -435,7 +435,7 @@ export function prepareRuns(input: ExperimentHostSelectionInput & {
       }));
     }
     const overrides = input.overrides ?? {};
-    const sandboxSetupCacheOverride = sandboxSetupCacheOverrideOf(overrides);
+    const sandboxBeforeCacheOverride = sandboxBeforeCacheOverrideOf(overrides);
     return Effect.succeed({
       status: "ready",
       selected,
@@ -445,7 +445,7 @@ export function prepareRuns(input: ExperimentHostSelectionInput & {
           selectedEvalIds,
           input.config,
           overrides,
-          sandboxSetupCacheOverride,
+          sandboxBeforeCacheOverride,
         ))),
     } as const);
   }));
@@ -594,8 +594,8 @@ export function planInvocation(
     const maxBuildConcurrency = overrides.maxBuildConcurrency
       ?? config.maxBuildConcurrency
       ?? 2;
-    const maxSetupPrefixConcurrency = overrides.maxSetupPrefixConcurrency
-      ?? config.maxSetupPrefixConcurrency
+    const maxBeforeCacheConcurrency = overrides.maxBeforeCacheConcurrency
+      ?? config.maxBeforeCacheConcurrency
       ?? 2;
     if (!Number.isInteger(maxConcurrency) || maxConcurrency <= 0) {
       return yield* Effect.fail(new Error(`maxConcurrency must be a positive integer, got ${maxConcurrency}.`));
@@ -603,8 +603,8 @@ export function planInvocation(
     if (!Number.isInteger(maxBuildConcurrency) || maxBuildConcurrency <= 0) {
       return yield* Effect.fail(new Error(`maxBuildConcurrency must be a positive integer, got ${maxBuildConcurrency}.`));
     }
-    if (!Number.isInteger(maxSetupPrefixConcurrency) || maxSetupPrefixConcurrency <= 0) {
-      return yield* Effect.fail(new Error(`maxSetupPrefixConcurrency must be a positive integer, got ${maxSetupPrefixConcurrency}.`));
+    if (!Number.isInteger(maxBeforeCacheConcurrency) || maxBeforeCacheConcurrency <= 0) {
+      return yield* Effect.fail(new Error(`maxBeforeCacheConcurrency must be a positive integer, got ${maxBeforeCacheConcurrency}.`));
     }
     const uniqueEvalIds = new Set(prepared.runs.flatMap((run) => run.selectedEvalIds));
     const totalAttempts = prepared.runs.reduce(
@@ -623,7 +623,7 @@ export function planInvocation(
       attempts: Math.max(1, ...prepared.runs.map((run) => run.attempts)),
       maxConcurrency,
       maxBuildConcurrency,
-      maxSetupPrefixConcurrency,
+      maxBeforeCacheConcurrency,
       experimentConcurrency,
     });
     const reuse = yield* prepareRunnerRecordReuse({
@@ -755,7 +755,7 @@ function summaryOf(summary: InvocationSummary): ExperimentHostInvocationSummary 
     ...(summary.usage?.inputTokens === undefined ? {} : { inputTokens: summary.usage.inputTokens }),
     ...(summary.usage?.outputTokens === undefined ? {} : { outputTokens: summary.usage.outputTokens }),
     ...(summary.estimatedCostUSD === undefined ? {} : { estimatedCostUSD: summary.estimatedCostUSD }),
-    setupPrefixes: summary.setupPrefixes,
+    beforeCaches: summary.beforeCaches,
   });
 }
 
@@ -825,7 +825,7 @@ export function runInvocation(
         reporters,
         maxConcurrency: state.shape.maxConcurrency,
         maxBuildConcurrency: state.shape.maxBuildConcurrency,
-        maxSetupPrefixConcurrency: state.shape.maxSetupPrefixConcurrency,
+        maxBeforeCacheConcurrency: state.shape.maxBeforeCacheConcurrency,
         coordinationRoot: state.coordinationRoot,
         recordRoot: state.recordRoot,
         ...(state.overrides.keepSandbox === undefined ? {} : { keepSandbox: state.overrides.keepSandbox }),

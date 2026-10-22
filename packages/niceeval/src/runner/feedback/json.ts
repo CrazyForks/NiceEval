@@ -240,7 +240,7 @@ function terminalSummary(summary: InvocationSummary): ExpTerminalSummary {
     ...(summary.usage?.inputTokens === undefined ? {} : { inputTokens: summary.usage.inputTokens }),
     ...(summary.usage?.outputTokens === undefined ? {} : { outputTokens: summary.usage.outputTokens }),
     ...(summary.estimatedCostUSD === undefined ? {} : { estimatedCostUSD: summary.estimatedCostUSD }),
-    setupPrefixes: summary.setupPrefixes,
+    beforeCaches: summary.beforeCaches,
   });
 }
 

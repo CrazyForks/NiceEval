@@ -2764,7 +2764,7 @@ async function runAttemptBody(
       }
     }
 
-    if (run.sandboxSetupCache === "bypass") {
+    if (run.sandboxBeforeCache === "bypass") {
       await replayAllBefore(linked.before, "replay(bypass)");
       return;
     }

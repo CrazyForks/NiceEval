@@ -1,7 +1,7 @@
 // cases: docs/engineering/testing/unit/experiments-runner.md
 
 import { describe, expect, it } from "vitest";
-import { setupPrefixPlanOf, type CommandPlan, type CommandPlanStep } from "./command-plan.ts";
+import { beforeCachePlanOf, type CommandPlan, type CommandPlanStep } from "./command-plan.ts";
 
 const cachedStep = (prefixIdentity: string): CommandPlanStep => ({
   phase: "sandbox.before",
@@ -21,7 +21,7 @@ const cachedStep = (prefixIdentity: string): CommandPlanStep => ({
   },
 });
 
-describe("setupPrefixPlanOf", () => {
+describe("beforeCachePlanOf", () => {
   it("deduplicates selected consumers without probing cache inventory", () => {
     const commandPlan: CommandPlan = {
       completeness: "complete",
@@ -44,7 +44,7 @@ describe("setupPrefixPlanOf", () => {
       }],
     };
 
-    expect(setupPrefixPlanOf(commandPlan)).toEqual({
+    expect(beforeCachePlanOf(commandPlan)).toEqual({
       lookup: "not-probed",
       nodes: [{
         prefixIdentity: "prefix:a",

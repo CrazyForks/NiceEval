@@ -82,7 +82,7 @@ import {
 } from "./fingerprint.ts";
 import { prepareRunSandboxes, type PreparedRunPair } from "./sandbox-selection.ts";
 import { resolveAttemptTimeout, resolveRunTimeout } from "./timeout.ts";
-import { resolveSandboxSetupCache } from "./types.ts";
+import { resolveSandboxBeforeCache } from "./types.ts";
 import type {
   AgentRun,
   Config,
@@ -377,7 +377,7 @@ function runForExperiment(
     plugins: experiment.plugins,
     attempts: experiment.attempts,
     earlyExit: experiment.earlyExit,
-    sandboxSetupCache: resolveSandboxSetupCache(
+    sandboxBeforeCache: resolveSandboxBeforeCache(
       undefined,
       experiment.sandboxCache,
       config.sandboxCache,

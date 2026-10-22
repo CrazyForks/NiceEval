@@ -555,7 +555,7 @@ export interface InvocationSummary {
   reusedAttempts: readonly CurrentReusedAttemptReadback[];
   results: EvalResult[];
   /** Unique provider-native setup-prefix nodes settled before Attempt dispatch. */
-  setupPrefixes: SetupPrefixPreparationSummary;
+  beforeCaches: SetupPrefixPreparationSummary;
 }
 
 /**
@@ -907,22 +907,22 @@ export interface SharedStateConfig {
 }
 
 /** Host-only SetupPrefix cache policy. It is resolved per AgentRun and never participates in identity. */
-export type SandboxSetupCache = "use" | "bypass";
+export type SandboxBeforeCache = "use" | "bypass";
 
 export interface SandboxCacheConfig {
-  readonly setup?: SandboxSetupCache;
+  readonly before?: SandboxBeforeCache;
 }
 
 /**
  * Resolve the one completed runtime policy without projecting it into any identity shape.
  * The argument order mirrors the public precedence: CLI → Experiment → Config → default.
  */
-export function resolveSandboxSetupCache(
-  cli: SandboxSetupCache | undefined,
+export function resolveSandboxBeforeCache(
+  cli: SandboxBeforeCache | undefined,
   experiment: SandboxCacheConfig | undefined,
   config: SandboxCacheConfig | undefined,
-): SandboxSetupCache {
-  return cli ?? experiment?.setup ?? config?.setup ?? "use";
+): SandboxBeforeCache {
+  return cli ?? experiment?.before ?? config?.before ?? "use";
 }
 
 /** Experiment 作者自行选择的字段；不包含路径 id 与 factory 品牌。 */
@@ -1165,7 +1165,7 @@ export interface Config {
   /** Run 级 Sandbox 镜像准备并发；与 attempt 并发独立，省略时安全默认 2。 */
   maxBuildConcurrency?: number;
   /** Run 级 PreparedArtifact 前缀 DAG 准备并发；与 build / attempt 并发独立。 */
-  maxSetupPrefixConcurrency?: number;
+  maxBeforeCacheConcurrency?: number;
   /** 项目级 SetupPrefix cache 默认；Experiment 与显式 CLI flag 可覆盖。 */
   sandboxCache?: SandboxCacheConfig;
   /** 项目级默认单次 attempt 超时(毫秒);CLI flag / experiment / EvalDef 的同名设置优先级更高。 */
@@ -1251,7 +1251,7 @@ export interface AdapterRun {
   readonly attempts: number;
   readonly earlyExit: boolean;
   /** 本次 Invocation 已按 CLI → Experiment → Config → default 归一的 Host cache 策略。 */
-  readonly sandboxSetupCache: SandboxSetupCache;
+  readonly sandboxBeforeCache: SandboxBeforeCache;
   /** Experiment 的作者 layer；省略在 link 输入归一为 command-only。 */
   readonly sandbox?: SandboxLayer;
   /** Experiment Plugin occurrences carried into zero-resource pair link. */
@@ -1355,7 +1355,7 @@ export interface RunOptions<RecordError = never, RecordRequirements = never> {
   /** Run 级 Sandbox 镜像 lookup/build 并发；省略时安全默认 2。 */
   maxBuildConcurrency?: number;
   /** Run 级 PreparedArtifact 前缀 DAG 并发；省略时安全默认 2。 */
-  maxSetupPrefixConcurrency?: number;
+  maxBeforeCacheConcurrency?: number;
   signal?: AbortSignal;
   /**
    * 非沙箱 tracing agent 的 run 级共享 OTLP 接收池(runEvals 创建并回收;

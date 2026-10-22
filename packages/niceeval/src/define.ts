@@ -385,17 +385,18 @@ function normalizeSandboxCache(
 ): SandboxCacheConfig | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`${factory} sandboxCache must be an object with optional setup "use" or "bypass".`);
+    throw new TypeError(`${factory} sandboxCache must be an object with optional before "use" or "bypass".`);
   }
+  if (Object.hasOwn(value, "setup")) throw new TypeError(`${factory} sandboxCache.setup is no longer supported. Use sandboxCache.before.`);
   const keys = Object.keys(value);
-  const setup = Reflect.get(value, "setup");
+  const before = Reflect.get(value, "before");
   if (
-    keys.some((key) => key !== "setup") ||
-    (setup !== undefined && setup !== "use" && setup !== "bypass")
+    keys.some((key) => key !== "before") ||
+    (before !== undefined && before !== "use" && before !== "bypass")
   ) {
-    throw new TypeError(`${factory} sandboxCache must be an object with optional setup "use" or "bypass".`);
+    throw new TypeError(`${factory} sandboxCache must be an object with optional before "use" or "bypass".`);
   }
-  return Object.freeze(setup === undefined ? {} : { setup });
+  return Object.freeze(before === undefined ? {} : { before });
 }
 
 const SharedStateKeyPattern = /^[a-z0-9][a-z0-9._/-]{0,127}$/u;
@@ -509,6 +510,7 @@ function assertSandboxLayer(value: unknown, factory: string): void {
 /** 项目级配置。 */
 export function defineConfig(config: Config): Config {
   rejectRemovedField(config, "judgeRuntime", "Use judgeProvider.");
+  rejectRemovedField(config, "maxSetupPrefixConcurrency", "Use maxBeforeCacheConcurrency.");
   const sandboxCache = normalizeSandboxCache(config.sandboxCache, "defineConfig");
   const judgeProvider = config.judgeProvider === undefined
     ? undefined

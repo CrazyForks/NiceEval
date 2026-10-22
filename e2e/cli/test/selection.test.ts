@@ -17,7 +17,7 @@ test("Eval 前缀只选择命中的 Eval", async () => {
 // @use-case docs/feature/experiments/use-case/selection-dry-preview.md
 
 test("Setup cache 策略按默认与显式 flag 保持正向选择", async () => {
-  await cliE2E.case("sandbox-setup-cache-selection", async ({ commands: { niceeval } }) => {
+  await cliE2E.case("sandbox-before-cache-selection", async ({ commands: { niceeval } }) => {
     for (const flag of [undefined, "use", "bypass"] as const) {
       const receipt = await niceeval.run([
         "exp",
@@ -25,7 +25,7 @@ test("Setup cache 策略按默认与显式 flag 保持正向选择", async () =>
         "greet",
         "--dry",
         "--json",
-        ...(flag === undefined ? [] : [`--sandbox-setup-cache=${flag}`]),
+        ...(flag === undefined ? [] : [`--sandbox-before-cache=${flag}`]),
       ]);
 
       expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
@@ -40,9 +40,9 @@ test("Setup cache 策略按默认与显式 flag 保持正向选择", async () =>
       "normal",
       "greet",
       "--dry",
-      "--sandbox-setup-cache=stale",
+      "--sandbox-before-cache=stale",
     ]);
     expect(invalid.exitCode, invalid.diagnostic()).not.toBe(0);
-    expect(invalid.stderr).toContain("--sandbox-setup-cache accepts use or bypass");
+    expect(invalid.stderr).toContain("--sandbox-before-cache accepts use or bypass");
   });
 });

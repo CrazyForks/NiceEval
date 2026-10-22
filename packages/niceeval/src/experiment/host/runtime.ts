@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { assembleCommandPlan, setupPrefixPlanOf, type CommandPlan, type SetupPrefixPlan } from "../../runner/command-plan.ts";
+import { assembleCommandPlan, beforeCachePlanOf, type CommandPlan, type BeforeCachePlan } from "../../runner/command-plan.ts";
 import { discoverEvals, discoverExperiments } from "../../runner/discover.ts";
 import { planProjectTarget } from "../../runner/fingerprint.ts";
 import { resolveExperimentEvals } from "../../runner/eval-selection.ts";
@@ -10,7 +10,7 @@ import type {
   DiscoveredEval,
   DiscoveredExperiment,
 } from "../../runner/types.ts";
-import { resolveSandboxSetupCache } from "../../runner/types.ts";
+import { resolveSandboxBeforeCache } from "../../runner/types.ts";
 import { matchExperimentSelector } from "../../shared/aggregate.ts";
 import {
   accept,
@@ -104,7 +104,7 @@ export interface ExperimentHostDebugPlan {
   readonly evalId?: string;
   readonly evalIds: readonly string[];
   readonly commandPlan: CommandPlan;
-  readonly setupPrefixPlan: SetupPrefixPlan;
+  readonly beforeCachePlan: BeforeCachePlan;
 }
 
 /**
@@ -162,7 +162,7 @@ function debugAgentRun(
     plugins: experiment.plugins,
     attempts: experiment.attempts ?? 1,
     earlyExit: experiment.earlyExit ?? false,
-    sandboxSetupCache: resolveSandboxSetupCache(
+    sandboxBeforeCache: resolveSandboxBeforeCache(
       undefined,
       experiment.sandboxCache,
       config.sandboxCache,
@@ -267,7 +267,7 @@ function debug(
       ...(selectedEvals.length === 1 ? { evalId: selectedEvals[0]!.id } : {}),
       evalIds: Object.freeze(selectedEvals.map((evalDef) => evalDef.id)),
       commandPlan,
-      setupPrefixPlan: setupPrefixPlanOf(commandPlan),
+      beforeCachePlan: beforeCachePlanOf(commandPlan),
     });
   }).pipe(Effect.mapError((cause) => new ExperimentHostError({
     operation: "debug",

@@ -74,8 +74,8 @@ export const EXP_NORMAL_CLI_OPTIONS = Object.freeze({
   attempts: option("string", "Run each selected Eval this many times."),
   "max-concurrency": option("string", "Limit concurrent Attempt execution."),
   "max-build-concurrency": option("string", "Limit concurrent Sandbox build preparation."),
-  "max-setup-prefix-concurrency": option("string", "Limit concurrent Sandbox setup-prefix preparation."),
-  "sandbox-setup-cache": option("string", "Use or bypass the Sandbox setup cache."),
+  "max-before-cache-concurrency": option("string", "Limit concurrent Sandbox before-cache preparation."),
+  "sandbox-before-cache": option("string", "Use or bypass the Sandbox before cache."),
   timeout: option("string", "Set the per-Attempt timeout in milliseconds."),
   budget: option("string", "Set the Invocation budget in USD."),
   tag: option("string", "Select only Evals with this tag."),
@@ -123,7 +123,7 @@ export const ACCEPT_CLI_OPTIONS = Object.freeze({
   help: HELP_OPTION,
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
-export const SESSION_CLI_OPTIONS = Object.freeze({
+export const INVOCATION_CLI_OPTIONS = Object.freeze({
   all: option("boolean", "Include completed invocation status entries."),
   json: option("boolean", "Write the status machine document."),
   help: HELP_OPTION,
@@ -160,10 +160,10 @@ Run options:
   --attempts <n>                 run each selected Eval this many times
   --max-concurrency <n>          limit concurrent Attempt execution
   --max-build-concurrency <n>    limit concurrent Sandbox build preparation
-  --max-setup-prefix-concurrency <n>
-                                  limit concurrent Sandbox setup-prefix preparation
-  --sandbox-setup-cache <use|bypass>
-                                  select the Sandbox setup cache path
+  --max-before-cache-concurrency <n>
+                                  limit concurrent Sandbox before-cache preparation
+  --sandbox-before-cache <use|bypass>
+                                  select the Sandbox before cache path
   --timeout <ms>                 set the per-Attempt timeout
   --budget <usd>                 set the Invocation budget
   --tag <tag>                    select only Evals with this tag
@@ -201,9 +201,9 @@ Options:
   -h, --help       show this help
 `;
 
-const SESSION_HELP = `Inspect project-local ephemeral Invocation status:
-  niceeval session list [--all] [<experiment-prefix>]
-  niceeval session show <invocation-id>
+const INVOCATION_HELP = `Inspect project-local ephemeral Invocation status:
+  niceeval invocation list [--all] [<experiment-prefix>]
+  niceeval invocation show <invocation-id>
 
 Options:
   --all        include completed Invocation status entries
@@ -384,8 +384,8 @@ function teardownFailure(operation: string, cause: unknown, recoveryKey?: string
   return failure(operation, cause, 1, display);
 }
 
-function invocationText(result: { readonly receipt: { readonly invocationId: string; readonly createdRunIds: readonly string[]; readonly completion: string }; readonly summary: { readonly passed: number; readonly failed: number; readonly skipped: number; readonly errored: number; readonly setupPrefixes: { readonly total: number; readonly hit: number; readonly prepared: number; readonly failed: number } } }): string {
-  return `Invocation ${result.receipt.invocationId} · ${result.receipt.completion}\nRuns: ${result.receipt.createdRunIds.join(", ") || "none"}\nResults: ${result.summary.passed} passed · ${result.summary.failed} failed · ${result.summary.errored} errored · ${result.summary.skipped} skipped\nSetup prefixes: ${result.summary.setupPrefixes.hit} hit · ${result.summary.setupPrefixes.prepared} prepared · ${result.summary.setupPrefixes.failed} failed (${result.summary.setupPrefixes.total} total)\n`;
+function invocationText(result: { readonly receipt: { readonly invocationId: string; readonly createdRunIds: readonly string[]; readonly completion: string }; readonly summary: { readonly passed: number; readonly failed: number; readonly skipped: number; readonly errored: number; readonly beforeCaches: { readonly total: number; readonly hit: number; readonly prepared: number; readonly failed: number } } }): string {
+  return `Invocation ${result.receipt.invocationId} · ${result.receipt.completion}\nRuns: ${result.receipt.createdRunIds.join(", ") || "none"}\nResults: ${result.summary.passed} passed · ${result.summary.failed} failed · ${result.summary.errored} errored · ${result.summary.skipped} skipped\nBefore caches: ${result.summary.beforeCaches.hit} hit · ${result.summary.beforeCaches.prepared} prepared · ${result.summary.beforeCaches.failed} failed (${result.summary.beforeCaches.total} total)\n`;
 }
 
 function dryRows(plan: { readonly slots: readonly { readonly state: "reuse" | "gap"; readonly target: { readonly runId: string; readonly slotId: string; readonly experimentId: string; readonly evalId: string; readonly evalGroupId?: string; readonly evalGroupIndex?: number; readonly attempt: number }; readonly comparisons: readonly unknown[]; readonly reason?: string; readonly scope?: string }[]; readonly readbacks: readonly CurrentReuseReadbackSnapshot[]; readonly lockedPairs: readonly string[] }) {
@@ -494,7 +494,14 @@ function renameJson(result: ExperimentHostRenamePlan | ExperimentHostRenameResul
 
 function parsed(argv: readonly string[], options: Readonly<Record<string, CliOptionDefinition>>) {
   return Effect.flatMap(CliArguments, (argumentsService) => Effect.try({
-    try: () => argumentsService.parse(argv, options),
+    try: () => {
+      for (const [oldName, newName] of [["--max-setup-prefix-concurrency", "--max-before-cache-concurrency"], ["--sandbox-setup-cache", "--sandbox-before-cache"]]) {
+        if (argv.some((token) => token === oldName || token.startsWith(`${oldName}=`))) {
+          throw new TypeError(`${oldName} is no longer supported. Use ${newName}.`);
+        }
+      }
+      return argumentsService.parse(argv, options);
+    },
     catch: (cause) => failure("parse command", cause),
   }));
 }
@@ -529,12 +536,12 @@ function overrides(values: Record<string, string | boolean | string[] | undefine
   const budget = numberFlag(values.budget, "--budget");
   const maxConcurrency = numberFlag(values["max-concurrency"], "--max-concurrency", true);
   const maxBuildConcurrency = numberFlag(values["max-build-concurrency"], "--max-build-concurrency", true);
-  const maxSetupPrefixConcurrency = numberFlag(values["max-setup-prefix-concurrency"], "--max-setup-prefix-concurrency", true);
+  const maxBeforeCacheConcurrency = numberFlag(values["max-before-cache-concurrency"], "--max-before-cache-concurrency", true);
   const rerun = enumFlag(values.rerun, "--rerun", ["failed", "all"]);
   const keepSandbox = enumFlag(values["keep-sandbox"], "--keep-sandbox", ["failed", "all"]);
-  const sandboxSetupCache = enumFlag(
-    values["sandbox-setup-cache"],
-    "--sandbox-setup-cache",
+  const sandboxBeforeCache = enumFlag(
+    values["sandbox-before-cache"],
+    "--sandbox-before-cache",
     ["use", "bypass"],
   );
   return Object.freeze({
@@ -543,12 +550,12 @@ function overrides(values: Record<string, string | boolean | string[] | undefine
     ...(budget === undefined ? {} : { budget }),
     ...(maxConcurrency === undefined ? {} : { maxConcurrency }),
     ...(maxBuildConcurrency === undefined ? {} : { maxBuildConcurrency }),
-    ...(maxSetupPrefixConcurrency === undefined ? {} : { maxSetupPrefixConcurrency }),
+    ...(maxBeforeCacheConcurrency === undefined ? {} : { maxBeforeCacheConcurrency }),
     ...(rerun === undefined ? {} : { rerun: rerun as "failed" | "all" }),
     ...(keepSandbox === undefined ? {} : { keepSandbox: keepSandbox as "failed" | "all" }),
-    ...(sandboxSetupCache === undefined
+    ...(sandboxBeforeCache === undefined
       ? {}
-      : { sandboxSetupCache: sandboxSetupCache as "use" | "bypass" }),
+      : { sandboxBeforeCache: sandboxBeforeCache as "use" | "bypass" }),
     ...(values["no-early-exit"] === true ? { earlyExit: false } : values["early-exit"] === true ? { earlyExit: true } : {}),
   });
 }
@@ -858,10 +865,10 @@ const debugCommand: CliCommandContribution<ExperimentCliRequirements, Experiment
               experimentId: result.experimentId,
               ...(result.evalId === undefined ? {} : { evalId: result.evalId }),
               evalIds: result.evalIds,
-              setupPrefixPlan: result.setupPrefixPlan,
+              beforeCachePlan: result.beforeCachePlan,
               commandPlan: result.commandPlan,
             })
-          : `Setup-prefix plan: ${result.setupPrefixPlan.nodes.length} unique nodes · cache lookup not-probed\n${renderHumanCommandPlan(result.commandPlan, {
+          : `Before-cache plan: ${result.beforeCachePlan.nodes.length} unique nodes · cache lookup not-probed\n${renderHumanCommandPlan(result.commandPlan, {
               isTTY: invocation.stdout.isTTY,
               noColor: invocation.noColor,
               width: invocation.stdout.columns,
@@ -910,13 +917,13 @@ const acceptCommand: CliCommandContribution<ExperimentCliRequirements, Experimen
   }),
 });
 
-const sessionCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCliError> = Object.freeze({
-  name: "session",
+const invocationCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCliError> = Object.freeze({
+  name: "invocation",
   summary: "inspect project-local ephemeral Invocation status",
-  options: SESSION_CLI_OPTIONS,
+  options: INVOCATION_CLI_OPTIONS,
   run: (argv: readonly string[]) => Effect.gen(function* () {
-    const input = yield* parsed(argv, SESSION_CLI_OPTIONS);
-    if (input.values.help === true) return yield* write("stdout", SESSION_HELP).pipe(Effect.as(0));
+    const input = yield* parsed(argv, INVOCATION_CLI_OPTIONS);
+    if (input.values.help === true) return yield* write("stdout", INVOCATION_HELP).pipe(Effect.as(0));
     const [verb = "list", value] = input.positionals;
     const facts = yield* CliInvocationFacts;
     const invocation = yield* facts.facts.pipe(Effect.mapError((cause) => failure("read invocation facts", cause)));
@@ -934,7 +941,7 @@ const sessionCommand: CliCommandContribution<ExperimentCliRequirements, Experime
       yield* write("stdout", input.values.json === true ? jsonDocument(result) : renderSessionShowText(result));
       return 0;
     }
-    return yield* write("stderr", "usage: niceeval session [list [<experiment-prefix>] | show <invocation-id>]\n").pipe(Effect.as(1));
+    return yield* write("stderr", "usage: niceeval invocation [list [<experiment-prefix>] | show <invocation-id>]\n").pipe(Effect.as(1));
   }),
 });
 
@@ -944,5 +951,5 @@ export const experimentCliContributions = Object.freeze([
   expCommand,
   debugCommand,
   acceptCommand,
-  sessionCommand,
+  invocationCommand,
 ] as const);

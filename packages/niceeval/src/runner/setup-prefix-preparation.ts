@@ -292,7 +292,7 @@ export function prepareSetupPrefixes(
     for (const attempt of attempts) {
       const pairKey = cacheKey(attempt.run, attempt.evalDef.id);
       if (
-        attempt.run.sandboxSetupCache === "bypass" ||
+        attempt.run.sandboxBeforeCache === "bypass" ||
         attempt.plan._tag !== "Sandbox" ||
         attempt.plan.providerPlan.capabilities.setupPrefix._tag !== "PreparedArtifact" ||
         attempt.plan.providerPlan.build.buildKeys.length > 0

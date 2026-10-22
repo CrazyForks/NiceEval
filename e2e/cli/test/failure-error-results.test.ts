@@ -92,7 +92,7 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
         locator: failedHumanLocator, verdict: "failed",
       })]);
 
-      const sessions = await niceeval.run(["session", "list", "--all"]);
+      const sessions = await niceeval.run(["invocation", "list", "--all"]);
       expect(sessions.exitCode, sessions.diagnostic()).toBe(0);
       expect(sessions.stdout).toContain(`deliberate-fail  niceeval show --run ${failedHumanRunId}`);
 
