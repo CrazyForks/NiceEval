@@ -1,0 +1,61 @@
+---
+title: "Upgrade to 0.19"
+description: "Rename model purposes and replace removed configuration fields."
+---
+
+Model purposes now use **role**. Replace these names together:
+
+| Before | 0.19 |
+| --- | --- |
+| `defineModelSlots` | `defineModelRoles` |
+| `ModelSlotSelection` | `ModelRoleSelection` |
+| `recordUsage({ modelSlot })` | `recordUsage({ modelRole })` |
+| `cacheRead.modelSlots` | `cacheRead.roles` |
+| group `modelSlot` | group `modelRole` |
+| `slot-has-no-calls` | `role-has-no-calls` |
+
+`models`, `requires.models`, `ctx.models`, and `t.usage.cacheRead.rate(role?)` keep their behavior. Apply the same field replacements to consumers of `show --json`, Query and View data. Old API names have no forwarding aliases.
+
+## Replace removed fields
+
+| Removed | Replacement |
+| --- | --- |
+| `Config.workspace` | Run from the project directory |
+| `Eval.reporters` | `Config.reporters` |
+| `Experiment.classifyFailure` | Built-in classification, `ExperimentFatalError`, or `EvalFatalError` |
+| `run show <run-id>` | `show --run <run-id>` |
+
+Removed fields fail at definition loading, including fields explicitly set to `undefined`. Codex and Claude Code native plugins remain Adapter configuration. Config reporters, Eval `diff` and `metadata`, both build/preparation concurrency controls, and Agent/Adapter implementations remain supported.
+
+Existing results stay readable. Stored usage and config identity encodings are unchanged, so experiments that do not use removed fields can continue carrying their existing results.
+
+## t.note
+
+Use `t.note(label, value)` to save data for review without adding an Assertion or affecting Verdict, score, or coverage.
+Values can be JSON or a Quantity with a unit; `null` is displayed as unavailable.
+
+```ts
+import { ms } from "niceeval/expect";
+
+t.note("Activity", result.activity);
+t.note("First decision latency", ms(result.firstDecisionMs));
+```
+
+Labels must be unique within an Attempt. The limits are 64 notes and 64 KiB of JSON per note; violations throw `TypeError`.
+`show @<locator>` and View display Notes after Assertions. JSON and Query Attempt results include `notes`.
+`show --exp <experiment-id>` groups numeric notes by label and unit, displaying count, min, median, p90, and max.
+Historical results without notes return an empty list.
+
+## 数值单位
+
+Wrap numbers with `ms`, `seconds`, `tokens`, `usd`, `ratio`, `count`, or `bytes` from `niceeval/expect` when passing them into NiceEval. Each constructor returns a frozen `Quantity` with `.value` and `.unit`; perform arithmetic before wrapping. Non-finite inputs throw `RangeError`, and `ratio` also rejects values outside `[0, 1]`.
+
+```ts
+import { atLeast, atMost, measured, ms, ratio } from "niceeval/expect";
+
+const latency = measured(ms(512), { unavailable: "No latency observation" });
+t.check(latency, atMost(ms(600)));
+t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6)));
+```
+
+`measured` and `quantile` preserve units. Supply matching units to `atLeast`, `atMost`, `greaterThan`, `lessThan`, and inclusive `between`; mixed units or unwrapped thresholds are type errors. If types are bypassed, incompatible comparisons are unavailable. `cacheRead.rate()` now requires a `ratio(...)` threshold. Unitless materials still use plain number thresholds; old Records without a unit remain unitless. Show and View format units as `512 ms`, `61.2%`, and `$0.031`.
