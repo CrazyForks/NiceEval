@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("confirm the profile-bound Attempt started");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("profile-cold-build-ok"));
+    t.check(turn.reply, includes("profile-cold-build-ok"));
   },
 });

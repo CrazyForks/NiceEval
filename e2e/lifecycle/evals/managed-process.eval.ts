@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("exercise managed process transport");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("managed-process-contract-ok"));
+    t.check(turn.reply, includes("managed-process-contract-ok"));
   },
 });

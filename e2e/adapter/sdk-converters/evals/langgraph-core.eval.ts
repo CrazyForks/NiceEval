@@ -7,7 +7,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("langgraph core fixture");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("langgraph-runtime-methods:lifecycle"));
+    t.check(turn.reply, includes("langgraph-runtime-methods:lifecycle"));
     turn.check(turn.toolCalls, toolMatch("graph_lookup", {
         input: jsonMatch({ query: "fixture" }),
         status: "completed",

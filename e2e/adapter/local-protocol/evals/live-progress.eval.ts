@@ -9,6 +9,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send(`${USER_SENTINEL}: send the deterministic live progress request`);
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("local-live-progress-complete"));
+    t.check(turn.reply, includes("local-live-progress-complete"));
   },
 });

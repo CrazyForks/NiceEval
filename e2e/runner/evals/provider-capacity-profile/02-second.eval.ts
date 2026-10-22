@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("run the second profile-capacity Attempt");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("provider-capacity-fixture-ok"));
+    t.check(turn.reply, includes("provider-capacity-fixture-ok"));
   },
 });

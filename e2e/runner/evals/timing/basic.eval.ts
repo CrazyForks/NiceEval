@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("timing");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("runner-timing-ok"));
+    t.check(turn.reply, includes("runner-timing-ok"));
   },
 });

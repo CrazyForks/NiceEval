@@ -6,7 +6,7 @@ import type { AdapterFlagsParser, AdapterFlagsOutput, AdapterFlagsValue } from "
 import type { Effect } from "effect";
 import type { ExperimentFlags, FlagValue, JsonValue, LocalizedText, ScopedFeedback, SourceArtifact, Verdict } from "../shared/types.ts";
 import type { AttemptFailureClassifier } from "../shared/failure-class.ts";
-import type { O11ySummary, StreamEvent, TraceSpan, Truncation, Usage } from "../o11y/types.ts";
+import type { ObservabilitySummary, StreamEvent, TraceSpan, Truncation, Usage } from "../o11y/types.ts";
 import type { Agent, AgentInstallationManifest } from "../agents/types.ts";
 import type { Adapter, AdapterRuntimeEvalDefinition } from "../adapter.ts";
 import type { SandboxLayer } from "../sandbox/layer.ts";
@@ -444,7 +444,7 @@ export interface EvalResult {
   events?: StreamEvent[];
   /** test 引用到的 eval 源码(按 loc 收集),供 view 渲染 github-diff 式代码视图。 */
   sources?: SourceArtifact[];
-  o11y?: O11ySummary;
+  o11y?: ObservabilitySummary;
   /** agent 经 OpenTelemetry 导出的运行追踪(有 tracing 能力且收到 span 时)。 */
   trace?: TraceSpan[];
   /** 本 attempt 的 agent setup 实际装了什么(Skill / native plugin / MCP / Python plugin);不参与评分。 */
@@ -516,7 +516,7 @@ export const RECORD_FORMAT = "niceeval.results";
  * `diff.json` 落逐窗口 delta 序列(DiffWindow[]);events/trace 的字符串值统一 256 KiB 截断
  * (结构化 `truncated` 标记);run.json 新增发布拷贝的 `publish` 标记。
  * `9` = `hasEvents`/`hasTrace`/`hasSources` 三个布尔删除,统一为 `artifacts`(writer 实际写出的
- * 按需 artifact 词干列表,单源在证据 registry);`O11ySummary` 删除 `usage`/`estimatedCostUSD`/
+ * 按需 artifact 词干列表,单源在证据 registry);`ObservabilitySummary` 删除 `usage`/`estimatedCostUSD`/
  * `durationMs`,正名为纯行为计数缓存；EvalResult 是 Runner outcome，SQLite Record 拥有持久成本事实
  * `durationMs`(见 memory 的 results-evidence-registry-ruling 条目)。
  * `12` = `diff.json` 的 `WindowChange.binary` 并入 `elided`。
@@ -944,7 +944,7 @@ export interface ExperimentAuthorFields {
    * rubric 由 Match 拥有，材料与消费阈值由 Assertion 提供。各字段按
    * Experiment → Eval → Config → 内置默认值解析。
    */
-  judgeRuntime?: JudgeSelection;
+  judge?: JudgeSelection;
   /** 实验条件(A/B 里的 feature flag),由实验文件声明;必须是扁平标量对象
    *  (仅字符串、有限数字或布尔值，defineExperiment 解析时校验),经 ctx.flags 透传给 adapter、
    *  t.flags 暴露给 eval,并原样进入结果快照的 ExperimentRunInfo.flags。 */
@@ -1069,7 +1069,7 @@ export interface ExperimentDefinition<A extends Adapter = Adapter> {
   readonly agent?: Agent;
   readonly model?: string;
   readonly reasoningEffort?: string;
-  readonly judgeRuntime?: JudgeSelection;
+  readonly judge?: JudgeSelection;
   readonly flags: AdapterFlagsOutput<ExperimentFlagsParser<A>> & ExperimentFlags;
   readonly labels: Readonly<globalThis.Record<string, string | number>>;
   readonly attempts: number;
@@ -1157,7 +1157,7 @@ export interface Config {
   /** 上传进 Sandbox 的工作区根目录,省略则用项目根;评估用例的 sandbox 视图从这里起步。 */
   workspace?: string;
   /** 项目级默认 Judge Provider；Eval 与 Experiment 可替换模型或整个 Provider。 */
-  judgeRuntime?: JudgeProvider;
+  judgeProvider?: JudgeProvider;
   /** 项目级默认 reporter 列表(如落盘 / 上传结果);EvalDef.reporters 会与它合并。 */
   reporters?: Reporter[];
   /** 项目级默认并发上限;CLI flag / experiment 的同名设置优先级更高(没有环境变量层)。 */
@@ -1262,7 +1262,7 @@ export interface AdapterRun {
   /** 跨 Invocation 共享外部状态的互斥声明；值进入 configHash。 */
   readonly sharedState?: SharedStateConfig;
   /** Experiment 声明的 judge 覆盖；与 Eval/Config 的逐字段解析在 pair 规划期完成。 */
-  readonly judgeRuntime?: JudgeSelection;
+  readonly judge?: JudgeSelection;
   /**
    * 运行侧已求值的单 attempt 超时上限:只含 `--timeout` 与 experiment 字段两层
    * (`resolveRunTimeout`)。**不许把 config 的值提前物化进来**——eval 与 config 两层由

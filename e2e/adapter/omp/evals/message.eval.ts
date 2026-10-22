@@ -8,6 +8,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send(`只回答这一段文本：${OMP_MARKER}`);
     await turn.succeeded().orStop();
-    t.check(turn.message, includes(OMP_MARKER));
+    t.check(turn.reply, includes(OMP_MARKER));
   },
 });

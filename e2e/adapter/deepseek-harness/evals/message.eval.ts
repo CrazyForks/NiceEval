@@ -21,6 +21,6 @@ export default defineEval({
     });
     const turn = await t.send(`只回答这一段文本：${DEEPSEEK_HARNESS_MARKER}`);
     await turn.succeeded().orStop();
-    t.check(turn.message, includes(DEEPSEEK_HARNESS_MARKER));
+    t.check(turn.reply, includes(DEEPSEEK_HARNESS_MARKER));
   },
 });

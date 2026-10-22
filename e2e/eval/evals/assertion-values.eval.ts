@@ -54,22 +54,22 @@ export default defineEval({
       turn.usedNoTools();
       t.check(turn.data, equals({ fixture: "assertion-values", ok: true }));
       t.check(turn.data, matches(valueDataSchema));
-      t.check(turn.message, includes("assertion-values-marker"));
-      t.check(turn.message, excludes("forbidden-marker"));
-      t.check(turn.message, pattern(/assertion-values-marker/u));
+      t.check(turn.reply, includes("assertion-values-marker"));
+      t.check(turn.reply, excludes("forbidden-marker"));
+      t.check(turn.reply, pattern(/assertion-values-marker/u));
       t.check(
-        turn.message,
+        turn.reply,
         and(
           includes("assertion-values-marker"),
           not(includes("forbidden-marker")),
         ),
       );
       t.check(
-        turn.message,
+        turn.reply,
         or(includes("missing-alternative"), includes("assertion-values-marker")),
       );
-      t.check(turn.message, includesUrl(2));
-      t.check(turn.message, hasSections(2));
+      t.check(turn.reply, includesUrl(2));
+      t.check(turn.reply, hasSections(2));
       t.check(
         turn.data!,
         jsonMatch({ fixture: "assertion-values", ok: true }),

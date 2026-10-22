@@ -289,7 +289,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     opts.agentRuns,
     opts.config.timeoutMs,
     {
-      configJudge: opts.config.judgeRuntime,
+      configJudge: opts.config.judgeProvider,
       ...(opts.keepSandbox === undefined ? {} : { keepSandbox: opts.keepSandbox }),
     },
   );

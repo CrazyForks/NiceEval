@@ -372,7 +372,7 @@ function agentRunFromExperiment(
     sandbox: experiment.sandbox,
     sandboxReuse: experiment.sandboxReuse,
     ...(experiment.sharedState === undefined ? {} : { sharedState: experiment.sharedState }),
-    judgeRuntime: experiment.judgeRuntime,
+    judge: experiment.judge,
     ...resolveRunTimeout(overrides.timeoutMs, experiment.timeoutMs),
     budget: overrides.budget ?? experiment.budget,
     selectedEvalIds: freezeArray(selectedEvalIds),
@@ -584,7 +584,7 @@ export function planInvocation(
       prepared.runs,
       config.timeoutMs,
       {
-        configJudge: config.judgeRuntime,
+        configJudge: config.judgeProvider,
         ...(overrides.keepSandbox === undefined ? {} : { keepSandbox: overrides.keepSandbox }),
       },
     );

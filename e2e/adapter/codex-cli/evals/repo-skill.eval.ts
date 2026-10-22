@@ -59,7 +59,7 @@ export default defineEval({
         events.every((event) => event.type !== "skill.loaded"),
       ),
     );
-    t.check(turn.message, includes(EXPECTED_COMMAND));
+    t.check(turn.reply, includes(EXPECTED_COMMAND));
     t.check(
       t.events,
       satisfies<typeof t.events>(

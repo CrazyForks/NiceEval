@@ -7,7 +7,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("feed the locked Claude SDK protocol fixture");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("claude-sdk-assistant-marker"));
+    t.check(turn.reply, includes("claude-sdk-assistant-marker"));
     turn.check(turn.toolCalls, toolMatch("shell", {
         input: jsonMatch({ command: "printf claude-sdk-bash-marker" }),
         status: "completed",

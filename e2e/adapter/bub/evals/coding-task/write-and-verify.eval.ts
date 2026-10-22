@@ -57,7 +57,7 @@ export default defineEval({
       );
     });
 
-    t.check(turn.message, pattern(/bub e2e ok/));
+    t.check(turn.reply, pattern(/bub e2e ok/));
     t.check(turn.usage.totalTokens, greaterThan(0));
     if (requireObservedCost) {
       t.check(

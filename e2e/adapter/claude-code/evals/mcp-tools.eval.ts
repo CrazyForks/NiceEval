@@ -34,7 +34,7 @@ export default defineEval({
       },
     );
 
-    t.check(turn.message, includes("123"));
-    t.check(turn.message, includes("42"));
+    t.check(turn.reply, includes("123"));
+    t.check(turn.reply, includes("42"));
   },
 });

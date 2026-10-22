@@ -351,7 +351,7 @@ export interface AssertFirstTurnHandle<Kind extends RuntimeKind> extends AgentJu
   readonly toolCalls: ManagedToolCalls<"turn">;
   readonly eventOccurrences: ManagedEventOccurrences<"turn">;
   readonly status: "completed" | "failed" | "waiting";
-  readonly message: string;
+  readonly reply: string;
   readonly data?: JsonValue;
   readonly usage: EvalUsage;
   check: import("../assertions/api.ts").AssertionCheck<Kind, AgentMatchContext<"turn">>;
@@ -438,7 +438,7 @@ export type AssertFirstTestContext<Kind extends RuntimeKind> = AgentJudgePresetM
   judge: JudgeFunction<Kind>;
   readonly toolCalls: ManagedToolCalls<"attempt">;
   readonly sandbox: AssertFirstSandbox<Kind>;
-  readonly o11y: import("../o11y/types.ts").O11ySummary;
+  readonly observability: import("../o11y/types.ts").ObservabilitySummary;
   readonly usage: EvalUsage;
   succeeded(): BooleanAssertionHandle<Kind, void>;
   calledTool(match: ToolMatch | ToolOccurrenceMatch): BooleanAssertionHandle<Kind, void>;
@@ -2104,7 +2104,7 @@ export function createAssertFirstEvalContext(
       toolCalls: snapshot.toolCalls,
       eventOccurrences,
       status: snapshot.status,
-      message: snapshot.output,
+      reply: snapshot.output,
       ...(turn.data === undefined ? {} : { data: turn.data }),
       get usage() { return readTurnUsage(); },
       get elapsedMs() { return core.context.elapsedMs; },
@@ -2418,7 +2418,7 @@ export function createAssertFirstEvalContext(
       runtime,
       late: state.late,
     }),
-    get o11y() {
+    get observability() {
       return buildO11ySummary(manager.allEvents);
     },
     get usage() {

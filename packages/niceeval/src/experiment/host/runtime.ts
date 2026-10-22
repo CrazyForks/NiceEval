@@ -170,7 +170,7 @@ function debugAgentRun(
     sandbox: experiment.sandbox,
     sandboxReuse: experiment.sandboxReuse,
     ...(experiment.sharedState === undefined ? {} : { sharedState: experiment.sharedState }),
-    judgeRuntime: experiment.judgeRuntime,
+    judge: experiment.judge,
     ...resolveRunTimeout(undefined, experiment.timeoutMs),
     budget: experiment.budget,
     selectedEvalIds: [evalId],
@@ -246,7 +246,7 @@ function debug(
       listed.evals,
       runs,
       input.config.timeoutMs,
-      { configJudge: input.config.judgeRuntime },
+      { configJudge: input.config.judgeProvider },
     );
     const commandPlan = assembleCommandPlan({
       rows: selectedEvals.map((evalDef) => {

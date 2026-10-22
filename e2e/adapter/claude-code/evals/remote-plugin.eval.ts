@@ -38,7 +38,7 @@ export default defineEval({
           ),
       ),
     );
-    t.check(turn.message, includes(LIVE_MARKER));
+    t.check(turn.reply, includes(LIVE_MARKER));
     t.check(
       t.events,
       satisfies<typeof t.events>(

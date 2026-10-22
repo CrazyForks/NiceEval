@@ -9,7 +9,7 @@ export default defineEval({
     await turn.succeeded().orStop();
     turn.calledTool(toolMatch("weather_lookup", { status: "pending" }));
     turn.calledTool(toolMatch("grammar_query", { status: "pending" }));
-    t.check(turn.message, includes("openai-chat-completion-message-marker"));
+    t.check(turn.reply, includes("openai-chat-completion-message-marker"));
     t.check(
       turn.events,
       satisfies<typeof turn.events>(

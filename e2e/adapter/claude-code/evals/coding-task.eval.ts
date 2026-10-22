@@ -38,6 +38,6 @@ export default defineEval({
     const notes = await t.sandbox.readText("notes.txt");
     t.check(notes, includes(MARKER_A));
     t.check(notes, includes(MARKER_B));
-    t.check(turn.message, includes(MARKER_A));
+    t.check(turn.reply, includes(MARKER_A));
   },
 });

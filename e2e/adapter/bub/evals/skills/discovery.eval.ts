@@ -16,7 +16,7 @@ export default defineEval({
         `告诉我。`,
     );
     await turn.succeeded().orStop();
-    t.check(turn.message, includes(MAGIC_WORD));
+    t.check(turn.reply, includes(MAGIC_WORD));
     t.check(
       t.events,
       satisfies<typeof t.events>(

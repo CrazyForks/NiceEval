@@ -68,6 +68,6 @@ export default defineEval({
         ),
       );
     });
-    t.check(turn.message, includes(TOOL_PAYLOAD));
+    t.check(turn.reply, includes(TOOL_PAYLOAD));
   },
 });

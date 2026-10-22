@@ -294,6 +294,7 @@ export function defineExperiment<const A extends Adapter>(def: ExperimentInput<A
 // @concord-code ne-surface-define-experiment
 // @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonly flags?: unknown }): ExperimentDefinition {
+  rejectRemovedField(def, "judgeRuntime", "Use judge.");
   if (Object.hasOwn(def, "id")) {
     throw new Error(`defineExperiment does not accept id; ids are derived from file paths.`);
   }
@@ -306,9 +307,9 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
   }
   const models = adapter.kind === "custom" ? normalizeModelSlots(def) : undefined;
   if (adapter.kind === "custom") assertRequiredModelSlots(adapter.requiredModelSlots, models, `Adapter "${adapter.name}"`);
-  const judgeRuntime = def.judgeRuntime === undefined
+  const judge = def.judge === undefined
     ? undefined
-    : normalizeDefinitionJudge(def.judgeRuntime, "defineExperiment() judgeRuntime");
+    : normalizeDefinitionJudge(def.judge, "defineExperiment() judge");
   assertSandboxLayer(def.sandbox, "defineExperiment");
   if (adapter.kind === "custom") {
     if (def.sandbox !== undefined || def.sandboxReuse === true || def.sandboxCache !== undefined) {
@@ -371,7 +372,7 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
     earlyExit: def.earlyExit ?? false,
     evals: Array.isArray(def.evals) ? Object.freeze([...def.evals]) : (def.evals ?? "*"),
     sandboxReuse: def.sandboxReuse === true,
-    ...(judgeRuntime === undefined ? {} : { judgeRuntime }),
+    ...(judge === undefined ? {} : { judge }),
     ...(sharedState === undefined ? {} : { sharedState }),
     ...(sandboxCache === undefined ? {} : { sandboxCache }),
     plugins: normalizePlugins(def.plugins ?? [], "defineExperiment plugins", "experiment"),
@@ -507,17 +508,18 @@ function assertSandboxLayer(value: unknown, factory: string): void {
 
 /** 项目级配置。 */
 export function defineConfig(config: Config): Config {
+  rejectRemovedField(config, "judgeRuntime", "Use judgeProvider.");
   const sandboxCache = normalizeSandboxCache(config.sandboxCache, "defineConfig");
-  const judgeRuntime = config.judgeRuntime === undefined
+  const judgeProvider = config.judgeProvider === undefined
     ? undefined
-    : normalizeDefinitionJudge(config.judgeRuntime, "defineConfig() judgeRuntime");
-  if (judgeRuntime !== undefined && !isJudgeProvider(judgeRuntime)) {
-    throw new TypeError("defineConfig() judgeRuntime must be a Judge Provider created by niceeval/judge");
+    : normalizeDefinitionJudge(config.judgeProvider, "defineConfig() judgeProvider");
+  if (judgeProvider !== undefined && !isJudgeProvider(judgeProvider)) {
+    throw new TypeError("defineConfig() judgeProvider must be a Judge Provider created by niceeval/judge");
   }
   return Object.freeze({
     ...config,
     ...(sandboxCache === undefined ? {} : { sandboxCache }),
-    ...(judgeRuntime === undefined ? {} : { judgeRuntime }),
+    ...(judgeProvider === undefined ? {} : { judgeProvider }),
   });
 }
 

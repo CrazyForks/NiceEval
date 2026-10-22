@@ -27,7 +27,7 @@ export default defineConfig({
     },
   },
   ...(judgeBaseUrl === undefined ? {} : {
-    judgeRuntime: OpenAIProvider({
+    judgeProvider: OpenAIProvider({
       model: "judge-e2e",
       baseUrl: judgeBaseUrl,
       apiKeyEnv: "NICEEVAL_E2E_JUDGE_KEY",

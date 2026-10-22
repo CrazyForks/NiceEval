@@ -28,6 +28,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("Confirm that the declared Sandbox preparation completed.");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("sandbox steps completed"));
+    t.check(turn.reply, includes("sandbox steps completed"));
   },
 });

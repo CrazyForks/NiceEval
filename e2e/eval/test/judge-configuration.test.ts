@@ -70,7 +70,7 @@ import { OpenRouterProvider } from "niceeval/judge";
 import { configurationApplication } from "../evals/judge-configuration.eval.ts";
 export default defineExperiment({
   adapter: configurationApplication,
-  judgeRuntime: OpenRouterProvider({ model: "router-model", baseUrl: process.env.NICEEVAL_E2E_JUDGE_BASE_URL }),
+  judge: OpenRouterProvider({ model: "router-model", baseUrl: process.env.NICEEVAL_E2E_JUDGE_BASE_URL }),
   evals: ["judge-configuration/inherited", "judge-configuration/overridden"],
 });
 `);

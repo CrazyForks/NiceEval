@@ -93,7 +93,7 @@ export type {
   CommandResult,
   InputRequest,
   InputRequestFilter,
-  O11ySummary,
+  ObservabilitySummary,
   TraceSpan,
   SpanKind,
   DerivedFacts,

@@ -15,7 +15,7 @@ export default defineEval({
 
     // No Judge model is configured in niceeval.config.ts. This Assertion must
     // take the documented zero-network unavailable path.
-    turn.judge({ input: turn.input, reply: turn.message }, judging)
+    turn.judge({ input: turn.input, reply: turn.reply }, judging)
       .gate(1)
       .label("Judge marker");
   },

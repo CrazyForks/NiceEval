@@ -57,7 +57,7 @@ export interface BubConfig {
   /** OpenAI 兼容代理的 API key。省略时读 BUB_API_KEY env。 */
   apiKey?: string;
   /** OpenAI 兼容代理的 base URL。省略时读 BUB_API_BASE env。 */
-  apiBase?: string;
+  baseUrl?: string;
   /**
    * 装进 Sandbox 的 Skill(本地目录/文件,或 repo + 可钉 ref + 可选启用集)。
    * 落在 `.agents/skills/<name>/`,并写一段发现指引进 AGENTS.md(bub 没有原生 Skill 加载机制)。
@@ -151,9 +151,12 @@ function tapePath(workspace: string, sessionId: string, bubHome: string): string
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/bub/README.md
 export function bubAgent(config?: BubConfig): Agent {
+  if (config !== undefined && Object.hasOwn(config, "apiBase")) {
+    throw new TypeError("bubAgent() apiBase is no longer supported. Use baseUrl.");
+  }
   assertAgentLifecycleNames(config, "bubAgent");
   const getApiKey = () => config?.apiKey ?? requireEnv("BUB_API_KEY");
-  const getApiBase = () => config?.apiBase ?? requireEnv("BUB_API_BASE");
+  const getApiBase = () => config?.baseUrl ?? requireEnv("BUB_API_BASE");
   const packages = normalizePackages(config?.pythonPlugins);
   const pin = resolvePin(config);
   const identity = {

@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("run Group A second member");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("group-a:second-complete"));
+    t.check(turn.reply, includes("group-a:second-complete"));
   },
 });

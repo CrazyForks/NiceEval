@@ -11,7 +11,7 @@ export const SKIP_BUILD_NOTE =
 // bub 的系统提示自带一段 "channel" 应答策略(见其 <response_instruct>):声称这里的纯文本
 // 回复会被忽略,只有经某个 channel skill 发送才算真的回答了用户。真实运行中观察到:模型会
 // 据此有时候在跑完工具调用后直接不产出任何 assistant 消息就结束这一轮("(no assistant
-// messages)"),导致对 turn.message 的 includes/pattern 断言 failed——这是模型对"这个
+// messages)"),导致对 turn.reply 的 includes/pattern 断言 failed——这是模型对"这个
 // channel 要不要显式应答"的真实判断分歧,不是配置错误。显式声明这里就是要一个纯文本回复,
 // 压低这种分歧的概率。
 export const REPLY_DIRECTIVE =

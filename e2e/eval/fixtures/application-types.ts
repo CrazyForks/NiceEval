@@ -6,14 +6,14 @@ import { satisfies, defineScoreMatch, defineMaterialMatch, defineContextMatch, t
 import { OpenAIProvider, OpenRouterProvider, TypesafeProvider, VercelProvider, type JudgeProvider } from "niceeval/judge";
 
 const provider: JudgeProvider = OpenAIProvider({ model: "judge-model" });
-defineConfig({ judgeRuntime: provider });
-defineConfig({ judgeRuntime: VercelProvider({ model: "gateway-model" }) });
-defineConfig({ judgeRuntime: OpenRouterProvider({ model: "router-model", apiKeyEnv: "CUSTOM_KEY" }) });
-defineConfig({ judgeRuntime: TypesafeProvider({ model: "jev-model", apiKey: "type-fixture-key" }) });
+defineConfig({ judgeProvider: provider });
+defineConfig({ judgeProvider: VercelProvider({ model: "gateway-model" }) });
+defineConfig({ judgeProvider: OpenRouterProvider({ model: "router-model", apiKeyEnv: "CUSTOM_KEY" }) });
+defineConfig({ judgeProvider: TypesafeProvider({ model: "jev-model", apiKey: "type-fixture-key" }) });
 // @ts-expect-error A project must choose a Provider, not just a model.
-defineConfig({ judgeRuntime: "model" });
+defineConfig({ judgeProvider: "model" });
 // @ts-expect-error Legacy structural Judge configuration is not a Provider.
-defineConfig({ judgeRuntime: { model: "model" } });
+defineConfig({ judgeProvider: { model: "model" } });
 // @ts-expect-error A Provider has a required model.
 OpenAIProvider({});
 // @ts-expect-error A credential selects exactly one source.
@@ -200,13 +200,13 @@ social.defineScoreEval({  async test(t) {
 } });
 defineEval({  async test(t) {
   const turn = await t.send("hello");
-  turn.check({ task: turn.input, reply: turn.message }, quality).gate(0.8);
-  turn.judge({ task: turn.input, reply: turn.message }, quality).gate(0.7);
-  t.judge(turn.message, quality).gate(0.7).orStop();
+  turn.check({ task: turn.input, reply: turn.reply }, quality).gate(0.8);
+  turn.judge({ task: turn.input, reply: turn.reply }, quality).gate(0.7);
+  t.judge(turn.reply, quality).gate(0.7).orStop();
   // @ts-expect-error Measurement gates require an explicit minimum.
-  t.check(turn.message, quality).gate();
+  t.check(turn.reply, quality).gate();
   // @ts-expect-error A bare measurement has no stop condition.
-  t.judge(turn.message, quality).orStop();
+  t.judge(turn.reply, quality).orStop();
   // @ts-expect-error Judge sugar cannot evaluate an ordinary Match.
   t.judge({ id: "p", text: "hi" }, hasText);
   // @ts-expect-error Judge requires explicit material as well as its definition.
@@ -214,11 +214,11 @@ defineEval({  async test(t) {
   // @ts-expect-error Thresholds belong to a check, not the reusable Judge.
   quality.atLeast(0.7);
   // @ts-expect-error A gate already declares the single measurement condition.
-  t.judge(turn.message, quality).gate(0.7).orStop(0.8);
+  t.judge(turn.reply, quality).gate(0.7).orStop(0.8);
   // @ts-expect-error A gate may only be configured once.
-  t.judge(turn.message, quality).gate(0.7).gate(0.8);
+  t.judge(turn.reply, quality).gate(0.7).gate(0.8);
 } });
-// @ts-expect-error Provider configuration belongs to judgeRuntime, not defineJudge.
+// @ts-expect-error Provider configuration belongs to judgeProvider, not defineJudge.
 defineJudge({ name: "bad-provider", rubric: "quality", model: "provider-model" });
 // @ts-expect-error A plain object cannot forge the managed Judge brand.
 const forgedJudge: JudgeDefinition = { kind: "judge-match", name: "forged", rubric: "quality", anchors: [], maxMaterialBytes: 1 };
@@ -250,11 +250,11 @@ defineEval({ async test(t) {
   turn.usedNoTools(toolMatch("read"));
   // @ts-expect-error A value predicate has no implicit Agent source.
   turn.closeQA(equals("yes"), "Is this clear?");
-  turn.factuality({ input: "Capital?", output: turn.message, expected: "Paris" }).gate(1);
+  turn.factuality({ input: "Capital?", output: turn.reply, expected: "Paris" }).gate(1);
   t.newSession().closeQA(defineMaterialMatch<AgentMatchContext<"session">>({ name: "messages", read: (ctx) => ctx.eventOccurrences, match: eventMatch("message", { role: "assistant" }) }), "Is the capital named?").gate(1);
-  t.faithfulness({ input: "Capital?", output: turn.message, context: ["France: Paris"] }).gate(1);
+  t.faithfulness({ input: "Capital?", output: turn.reply, context: ["France: Paris"] }).gate(1);
   // @ts-expect-error Pass Eval measurement cannot contribute points.
-  t.factuality({ input: "Capital?", output: turn.message, expected: "Paris" }).score(1);
+  t.factuality({ input: "Capital?", output: turn.reply, expected: "Paris" }).score(1);
 } });
 
 // Compile real collection sugar against the installed public package, without casts or type arguments at callsites.

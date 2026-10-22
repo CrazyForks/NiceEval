@@ -8,6 +8,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("ping local-protocol transport");
     await turn.succeeded().orStop();
-    t.check(turn.message, pattern(/local-protocol-ok/));
+    t.check(turn.reply, pattern(/local-protocol-ok/));
   },
 });

@@ -11,6 +11,6 @@ export default defineEval({
       "Reply with exactly this sentence and nothing else: Hello, niceeval!",
     );
     await turn.succeeded().orStop();
-    t.check(turn.message, pattern(/Hello/i));
+    t.check(turn.reply, pattern(/Hello/i));
   },
 });

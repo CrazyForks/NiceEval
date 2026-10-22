@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("hold gamma");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("max-concurrency-fixture-ok"));
+    t.check(turn.reply, includes("max-concurrency-fixture-ok"));
   },
 });

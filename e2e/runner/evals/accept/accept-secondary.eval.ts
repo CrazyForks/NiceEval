@@ -6,6 +6,6 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("accept secondary");
     await turn.succeeded().orStop();
-    t.check(turn.message, includes("runner-fixture-ok"));
+    t.check(turn.reply, includes("runner-fixture-ok"));
   },
 });

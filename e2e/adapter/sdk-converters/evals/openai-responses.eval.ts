@@ -8,7 +8,7 @@ export default defineEval({
     const turn = await t.send("openai responses fixture");
     await turn.succeeded().orStop();
     turn.calledTool(toolMatch("calendar_lookup", { status: "pending" }));
-    t.check(turn.message, includes("openai-responses-message-marker"));
+    t.check(turn.reply, includes("openai-responses-message-marker"));
     t.check(
       turn.events,
       satisfies<typeof turn.events>(

@@ -45,7 +45,7 @@ export default defineEval({
         }),
       );
     });
-    t.check(turn.message, includes("123"));
+    t.check(turn.reply, includes("123"));
 
     await t.group("远程 HTTP MCP 工具调用且入参正确", () => {
       t.calledTool(

@@ -743,7 +743,7 @@ import { defineEval } from "niceeval";
 import { equals } from "niceeval/expect";
 export default defineEval({ async test(t) {
   const turn = await t.send("position");
-  t.check(turn.message, equals("accepted"));
+  t.check(turn.reply, equals("accepted"));
 } });
 `, "utf8");
       const requestPath = join(projectRoot, "project.request.json");
@@ -853,7 +853,7 @@ export default defineExperiment({ agent, evals: ["case"], attempts: 1, timeoutMs
       writeFileSync(join(projectRoot, "evals", "case.eval.ts"), `
 import { defineEval } from "niceeval";
 import { equals } from "niceeval/expect";
-export default defineEval({ async test(t) { const turn = await t.send("current result"); t.check(turn.message, equals("accepted")); } });
+export default defineEval({ async test(t) { const turn = await t.send("current result"); t.check(turn.reply, equals("accepted")); } });
 `, "utf8");
       const requestPath = join(projectRoot, "project-request.json");
       writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "project.get" } }), "utf8");

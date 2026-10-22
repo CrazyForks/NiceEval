@@ -76,7 +76,7 @@ export default defineEval({
       );
     });
 
-    t.check(turn.message, includes(cmdMarker));
+    t.check(turn.reply, includes(cmdMarker));
 
     // 磁盘核实:沙箱里文件内容也要对得上(不是只信事件流自称)——目标行换了,其余行原样。
     await t.group("目标行换了,其余行原样", async () => {

@@ -27,7 +27,7 @@ export default defineEval({
         greaterThan(0),
       );
     });
-    t.check(turn.message, includes("63"));
+    t.check(turn.reply, includes("63"));
 
     await t.group(
       "实际模型从 Codex session 侧写核对,不只信请求参数",

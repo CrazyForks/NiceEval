@@ -45,6 +45,6 @@ export default defineEval({
         ),
       );
     });
-    t.check(turn.message, includes(WRITE_MARKER));
+    t.check(turn.reply, includes(WRITE_MARKER));
   },
 });

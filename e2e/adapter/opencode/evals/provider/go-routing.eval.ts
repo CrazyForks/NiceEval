@@ -16,7 +16,7 @@ export default defineEval({
       `Reply with exactly ${LIVE_MARKER}. Do not call tools, read files, or run commands.`,
     );
     await turn.succeeded().orStop();
-    t.check(turn.message, includes(LIVE_MARKER));
+    t.check(turn.reply, includes(LIVE_MARKER));
     t.check(
       t.events,
       satisfies<typeof t.events>(

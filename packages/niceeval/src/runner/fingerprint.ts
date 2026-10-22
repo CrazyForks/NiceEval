@@ -449,7 +449,7 @@ export function planPreparedProjectTarget(
       preparedPairs,
       (pair) => Effect.gen(function* () {
         const resolvedJudge = yield* Effect.try({
-          try: () => resolveJudge(pair.run.judgeRuntime, pair.evalDef.judge, options.configJudge),
+          try: () => resolveJudge(pair.run.judge, pair.evalDef.judge, options.configJudge),
           catch: (cause) => fingerprintPlanningError("configuration", cause),
         });
         resolvedJudgesByKey.set(pair.key, resolvedJudge);

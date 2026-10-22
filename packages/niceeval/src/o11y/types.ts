@@ -376,7 +376,7 @@ export interface TraceSpan {
  * 估算成本与耗时在 `estimatedCostUSD` 与 `durationMs`/`phases`
  * (见 docs/feature/record/architecture.md「o11y.json」)。
  */
-export interface O11ySummary {
+export interface ObservabilitySummary {
   totalTurns: number;
   /** 只有跑之前调用过的 canonical 工具名才有 key,不是全量出现;省略的 ToolName 视为 0。 */
   toolCalls: Partial<globalThis.Record<ToolName, number>>;

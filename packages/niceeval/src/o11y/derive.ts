@@ -11,7 +11,7 @@ import type {
   ToolCall,
   SubagentCall,
   InputRequest,
-  O11ySummary,
+  ObservabilitySummary,
   TraceSpan,
   Usage,
   ToolName,
@@ -731,7 +731,7 @@ function numAttr(attrs: globalThis.Record<string, JsonValue>, ...keys: string[])
 
 // ───────────────────────── buildO11ySummary ─────────────────────────
 
-export function buildO11ySummary(events: readonly StreamEvent[]): O11ySummary {
+export function buildO11ySummary(events: readonly StreamEvent[]): ObservabilitySummary {
   const toolCalls: Partial<globalThis.Record<ToolName, number>> = {};
   let totalToolCalls = 0;
   const filesRead = new Set<string>();

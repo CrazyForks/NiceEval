@@ -34,6 +34,6 @@ export default defineEval({
     );
     t.check(turn.usage.inputTotalTokens, greaterThan(0));
     t.check(turn.usage.outputTokens, greaterThan(0));
-    t.check(turn.message, includes(OMP_TOOL_MARKER));
+    t.check(turn.reply, includes(OMP_TOOL_MARKER));
   },
 });

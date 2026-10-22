@@ -12,7 +12,7 @@ const scored = defineScoreEval({
       .label("turn completed");
 
     await t.group("计分断言", () => {
-      const marker = t.check(turn.message, includes("assertion-score-marker"));
+      const marker = t.check(turn.reply, includes("assertion-score-marker"));
       const result = t.check(
         turn.data,
         equals({ fixture: "assertion-score", ok: true }),
@@ -20,7 +20,7 @@ const scored = defineScoreEval({
 
       marker.score(2).label("reply marker");
       result.score(3).label("fixture data");
-      t.check(turn.message, includes("deliberately-absent"))
+      t.check(turn.reply, includes("deliberately-absent"))
         .score(5)
         .label("mismatch contributes zero without failing");
       t.score(4).label("deterministic manual points");

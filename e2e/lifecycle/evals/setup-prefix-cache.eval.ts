@@ -29,7 +29,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send(`setup-prefix-demand:${DEMAND}`);
     await turn.succeeded().orStop();
-    t.check(turn.message, includes(`setup-prefix-demand:${DEMAND}`));
-    t.check(turn.message, includes("setup-prefix-evidence:"));
+    t.check(turn.reply, includes(`setup-prefix-demand:${DEMAND}`));
+    t.check(turn.reply, includes("setup-prefix-evidence:"));
   },
 });

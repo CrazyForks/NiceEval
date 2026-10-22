@@ -6,7 +6,7 @@ export default defineExperiment({
   description: "Judge 调用失败的 Attempt JSON 归因",
   agent: deterministicAgent("cli-judge-precheck-error"),
   attempts: 2,
-  judgeRuntime: OpenAIProvider({
+  judge: OpenAIProvider({
     model: "judge-fixture",
     baseUrl: "http://127.0.0.1:1/v1",
     apiKeyEnv: "CLI_JUDGE_TEST_KEY",
