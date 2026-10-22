@@ -1,9 +1,10 @@
+import { projectLifecyclePhase } from "./lifecycle.ts";
 // @concord-file ne-eval-inspection-trace
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
 import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial, projectAdapterModelUsage } from "../o11y/adapter-usage-projection.ts";
 import { projectJudgeUsage, projectTotalUsageCosts } from "../o11y/judge-usage-projection.ts";
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 import { createHash } from "node:crypto";
 
 import { Result, Schema } from "effect";
@@ -82,7 +83,7 @@ export interface TraceAttachmentInput {
 
 export interface AttemptTraceAttachments {
   /** Only the sealed origin Run's configuration may validate or describe these calls. */
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   readonly adapterUsage?: TraceAttachmentInput;
   readonly judgeUsage?: TraceAttachmentInput;
   readonly agentTurns?: TraceAttachmentInput;
@@ -200,7 +201,7 @@ export function projectAttemptTrace(
   const commandItems = sandboxCommands.state === "available"
     ? sandboxCommands.value.segments.slice(0, MAX_COMMANDS).map((command) => Object.freeze({
         commandId: command.commandId,
-        phase: command.phase,
+        phase: projectLifecyclePhase(command.phase),
         outcome: command.outcome,
       }))
     : [];
@@ -765,7 +766,7 @@ function projectTraceCommandDetail(
     workingDirectory: command.workingDirectory,
     outcome: command.outcome,
     turnId: command.turnId,
-    phase: command.phase,
+    phase: projectLifecyclePhase(command.phase),
     sequence: command.sequence,
     stdout: stream(command.stdout),
     stderr: stream(command.stderr),
@@ -949,7 +950,7 @@ function invalidRead<Value>(issue: string): AttachmentRead<Value> {
 /** Historical revisions are decoded independently, then projected without rewriting sealed bytes. */
 function readAdapterUsageAttachment(
   attachment: TraceAttachmentInput | undefined,
-  models: ResolvedModelSlots | undefined,
+  models: ResolvedModelRoles | undefined,
 ): AttachmentRead<ReadableAdapterUsageAttachment> {
   if (attachment?.physical.familyRevision !== 1 && attachment?.physical.familyRevision !== 2 &&
     attachment?.physical.familyRevision !== 3) {
@@ -1351,7 +1352,7 @@ function projectConversationItem(
 
 export function projectAttemptUsage(
   attachments: AttemptTraceAttachments,
-  models: ResolvedModelSlots | undefined = attachments.models,
+  models: ResolvedModelRoles | undefined = attachments.models,
 ): InspectionAttemptUsageResult {
   const usage = projectApplicationUsage(attachments, models);
   const read = readCurrentAttachment(NiceEvalCurrentRecordAttachments.judgeUsage, attachments.judgeUsage);
@@ -1367,7 +1368,7 @@ export function projectAttemptUsage(
 
 function projectApplicationUsage(
   attachments: AttemptTraceAttachments,
-  models: ResolvedModelSlots | undefined,
+  models: ResolvedModelRoles | undefined,
 ): Omit<InspectionAttemptUsageResult, "judgeUsage" | "totalCosts"> {
   if (attachments.adapterUsage !== undefined) {
     const read = readAdapterUsageAttachment(attachments.adapterUsage, models);
@@ -1446,7 +1447,7 @@ function projectApplicationUsage(
 
 export function projectAdapterUsageTokens(
   attachment: TraceAttachmentInput,
-  models?: ResolvedModelSlots,
+  models?: ResolvedModelRoles,
 ): { readonly value: number | null; readonly state: "available" | "partial" | "unavailable" | "failed" } {
   const read = readAdapterUsageAttachment(attachment, models);
   if (read.state !== "available") {
@@ -1736,7 +1737,7 @@ function projectCommands(
         commandId: command.commandId,
         sequence: command.sequence,
         turnId: command.turnId,
-        phase: command.phase,
+        phase: projectLifecyclePhase(command.phase),
         invocation: projectInvocation(command.invocation),
         workingDirectory: command.workingDirectory,
         outcome: command.outcome,
@@ -1859,8 +1860,8 @@ function projectTiming(
       sequence: activity.sequence,
       parentActivityId: activity.parentActivityId,
       turnId: activity.turnId,
-      phase: activity.phase,
-      label: activity.label,
+      phase: projectLifecyclePhase(activity.phase),
+      label: projectLifecyclePhase(activity.label),
       startOffsetMs: activity.startOffsetMs,
       durationMs: activity.durationMs,
       outcome: activity.outcome,
@@ -1911,7 +1912,7 @@ function projectDiagnostics(
       diagnosticId: diagnostic.diagnosticId,
       sequence: diagnostic.sequence,
       turnId: diagnostic.turnId,
-      phase: diagnostic.phase,
+      phase: projectLifecyclePhase(diagnostic.phase),
       kind: diagnostic.kind,
       code: diagnostic.code,
       summary: summary.value,

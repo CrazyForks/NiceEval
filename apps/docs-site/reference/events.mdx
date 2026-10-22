@@ -199,7 +199,7 @@ Neither overrides or backs up the other; an observed value never replaces or tri
 
 | Event | What it says | Assertion / API that reads it |
 |---|---|---|
-| `message` | The agent (or user) said something | `turn.message`, `turn.event(eventMatch("message", ...))`, Judge material |
+| `message` | The agent (or user) said something | `turn.reply`, `turn.event(eventMatch("message", ...))`, Judge material |
 | `operation.started` (`kind: "tool"`) | Starts a tool call | `turn.calledTool(...)`, `turn.toolOrder(...)`, `turn.event(...)` |
 | `operation.finished` (`kind: "tool"`) | The result of that tool call | `ToolMatch` with a status condition |
 | `operation.started` (`kind: "subagent"`) | Delegates to a subagent | Kept in raw events and reports; there is no subagent-specific assertion |

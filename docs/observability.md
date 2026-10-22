@@ -197,7 +197,7 @@ Inspection operation 逐 source 消费 `complete` 或 `partial` payload，并在
 五个 source family 各自拥有稳定 family identity 与 numeric persistence `revision`。current reader 只接受当前
 source-first format；旧 aggregate 不会交给 Inspection 或相邻 Attachment migration。
 
-## 宿主侧行为断言：t.o11y
+## 宿主侧行为断言：t.observability
 
 行为断言只消费自己声明的 evidence。缺少或 partial 的观测由该断言的完整度规则处理，不能解释为
 “没有发生”。它不拥有原始 Attachment，也不改变 Inspection selection 的 denominator。

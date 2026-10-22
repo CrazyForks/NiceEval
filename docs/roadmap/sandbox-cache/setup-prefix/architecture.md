@@ -5,9 +5,9 @@
 Base 之后每个 eligible before action 产生一个链式身份：
 
 ```text
-SetupPrefixKey[i] = hash(
+BeforeCacheKey[i] = hash(
   provider and exact Base image identity,
-  SetupPrefixKey[i - 1],
+  BeforeCacheKey[i - 1],
   occurrence kind = attempt,
   owner kind + stable id + declaration order,
   linked topological order and changeFrequency,
@@ -24,7 +24,7 @@ SetupPrefixKey[i] = hash(
 
 parent key 使相同 action 不能从不同 verified baseline 错误复用。action 类型、命令或目标、规范化参数、已求值 typed inputs、声明 state 和 steps 引用的完整内容身份形成自动指纹。`cache.fingerprint` 只补充 NiceEval 无法观察的协议或实现世代，不能关闭或替换自动指纹。
 
-occurrence 固定是 attempt，不因 owner、内容稳定性或 Sandbox reuse 提升为 physical-instance。Eval test 源码变化只产生新结果需求，不进入未改 before action 的 SetupPrefixKey。
+occurrence 固定是 attempt，不因 owner、内容稳定性或 Sandbox reuse 提升为 physical-instance。Eval test 源码变化只产生新结果需求，不进入未改 before action 的 BeforeCacheKey。
 
 `changeFrequency` 通过 linked topological order 与祖先链进入身份。cache 冷热、本地 image/container locator、credential value、Attempt UUID、bypass 选择和调度额度不进入 key。
 
@@ -57,7 +57,7 @@ Provider binding 对 core 暴露 lookup、创建 staging、capture、verify、in
 
 ## Docker rootfs 边界
 
-本地 Docker 只支持单容器且全部可变状态都在 outer writable rootfs 的 case。capture 前停止容器并等待进程退出，sync 后从停止的容器 commit 带 SetupPrefixKey 和 manifest labels 的 immutable image。restore 必须从 exact image ID 创建新容器，验证 labels/manifest，并为每个消费者提供独立 writable upperdir。
+本地 Docker 只支持单容器且全部可变状态都在 outer writable rootfs 的 case。capture 前停止容器并等待进程退出，sync 后从停止的容器 commit 带 BeforeCacheKey 和 manifest labels 的 immutable image。restore 必须从 exact image ID 创建新容器，验证 labels/manifest，并为每个消费者提供独立 writable upperdir。
 
 bind mount、tmpfs、Compose sidecar、host socket、profile-backed `/var/lib/docker` 和其它未进入 outer writable rootfs 的 mount 都不满足该契约。raw DinD 只在 `/var/lib/docker` 本身位于 outer writable layer 时可以捕获。
 
@@ -75,7 +75,7 @@ socket、PID、lease、`/run`、supervisor、日志、hostname、outer rootfs、
 
 Host 用 `docker-data-snapshot/v1` capability 明确声明 coverage。request 与 receipt 双向核对下列身份：
 
-- required state、SetupPrefixKey 与 manifest digest；
+- required state、BeforeCacheKey 与 manifest digest；
 - exact Base/Provider identity 与 execution domain；
 - filesystem identity、format/features 与 fixed size；
 - Host 复制器、copy、quiesce revision 与 daemon/slot generation。

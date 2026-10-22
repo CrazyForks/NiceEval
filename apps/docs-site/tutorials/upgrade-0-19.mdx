@@ -91,3 +91,16 @@ Preparation caches are now called before caches, with `BeforeCacheKey` identifyi
 
 Docker profiles retain only `decodeDockerExecutionProfile`, `defineDockerExecutionProfile`, `indexDockerProfiles`, `resolveDockerProfile`, and `DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION`. Replace their parser, constructor, and registry aliases.
 Internal identity helpers, Compose compilation, build scheduling, capture normalization, and profile policy constants are no longer exported from `/sandbox`. `/loaders` no longer exports `captureLoadedFiles`; `/inspection` no longer exports canonical JSON helpers. These internal functions have no replacement author API.
+
+## Plugin
+
+`definePlugin({ name, identity, ... })` returns an instance; `definePlugin((options) => ({ name, identity, ... }))` returns a single-argument factory.
+Compose conditions with `plugins: [condition]` and array spread. Use `key` to distinguish named instances and declare the behavior version in `identity`.
+Lifecycle fields are `experiment`, `group`, `attempt`, and `sandbox`, each accepting `{ before, after }`; `agent` supplies built-in Agent extensions.
+See [Plugin](/tutorials/plugins).
+
+## 生命周期 before / after
+
+Experiments, `defineAgent`, and `defineSandboxAgent` use `before` / `after`. Built-in Agent factories use the same fields.
+For manual cleanup, use `exp <selector> --after`; the host API uses `experimentHost.after()`, `hasBefore`, `hasAfter`, and `after-required`.
+Installation reporting uses `AgentInstallationManifest`, `reportInstallation`, and `agentInstallation`; the attachment filename is unchanged.

@@ -42,6 +42,6 @@ BuildKey hit
 
 暖运行从 immutable seed 恢复到新的 writable slot。后续 Agent/test 可以修改 inner image 或 volume，下一次命中仍必须看到未污染的 seed。outer workspace/home 每次重新复制，所以不会从上一台 Sandbox 遗留。
 
-只改 Eval/test 时，BuildKey 与 runtime SetupPrefixKey 不变。只改公开 `.env` 时，runtime 前缀仍命中，barrier 与后缀按新输入重新执行。canary tag 先查找精确版本与 package digest；tag 仍指向同一版本时命中，更新时自然产生新 identity，不需要 `noCache`。
+只改 Eval/test 时，BuildKey 与 runtime BeforeCacheKey 不变。只改公开 `.env` 时，runtime 前缀仍命中，barrier 与后缀按新输入重新执行。canary tag 先查找精确版本与 package digest；tag 仍指向同一版本时命中，更新时自然产生新 identity，不需要 `noCache`。
 
 含 secret 的 `.env`、token、credential binding、运行中 inner container 与 BuildKit session 不进入 Docker-data prefix。Adapter 用高频 callback 注入真实 token，成功后通过 `context.onCleanup()` 登记清除。

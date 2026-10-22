@@ -50,7 +50,7 @@ import { ArtifactPrepareCoordinator } from "../agents/provisioner.ts";
 import { collectBuildPreparation, toBuildPreparation } from "./build-preparation.ts";
 import type { BuildKey } from "../sandbox/identity.ts";
 import { firstLine } from "../util.ts";
-import { runReporter, emitReporterEvent, scopeReporter, summarize } from "./report.ts";
+import { runReporter, emitReporterEvent, summarize } from "./report.ts";
 import {
   reportAttemptLifecycle,
   reportBudgetExhausted,
@@ -73,7 +73,8 @@ import { cleanupCallback } from "./cleanup-timeout.ts";
 import { resolveAttemptTimeout } from "./timeout.ts";
 import { hostname } from "node:os";
 import { recordRootPaths } from "../record/platform/root.ts";
-import { linkPluginLifecycles, type GroupPluginContext } from "../plugin/contracts.ts";
+import type { GroupPluginContext } from "../plugin/contracts.ts";
+import { groupPluginLifecycles } from "../plugin/link.ts";
 import {
   isOrphanedTeardownRegistration,
   readTeardownRegistrationsEffect,
@@ -536,7 +537,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     attempts,
     {
       signal: opts.signal,
-      maxConcurrency: opts.maxSetupPrefixConcurrency ?? 2,
+      maxConcurrency: opts.maxBeforeCacheConcurrency ?? 2,
       onActivity: (event) => {
         reportRunActivity({
           id: event.id,
@@ -703,40 +704,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     maxConcurrency: opts.maxConcurrency,
     runIds,
   };
-  // eval 级 reporters:实例只观测引用它的 eval(经 scopeReporter 过滤转发)。
-  // 已经挂在全局 reporters 里的同一实例不重复挂;同一实例被多个 eval 引用时合并观测集
-  // (共享一个目的地,如同一个 Braintrust 实验)。本次没有任何被观测 eval 要跑时整个跳过。
-  const scopedSets = new Map<Reporter, Set<string>>();
-  for (const e of opts.evals) {
-    for (const r of e.reporters ?? []) {
-      if (opts.reporters.some((reg) => reg.reporter === r)) continue;
-      let ids = scopedSets.get(r);
-      if (!ids) scopedSets.set(r, (ids = new Set()));
-      ids.add(e.id);
-    }
-  }
-  const reporters: ReporterRegistration[] = [...opts.reporters];
-  // EvalDef.reporters 是用户在单个 eval 上挂的补充观测(如「这个 eval 单独也发一份到某个
-  // dashboard」),不是 CLI 显式注册的默认/机器出口——与 Config.reporters 同样默认
-  // best-effort(见 ReporterRegistration 的字段注释:required 只留给 --junit)。name 用「scope 内第几个」编号,足以在诊断里区分「哪一个 eval 级 reporter」,
-  // 不需要用户自己起名字。
-  let evalReporterIndex = 0;
-  for (const [r, ids] of scopedSets) {
-    const scopedRuns = attempts.filter((a) => ids.has(a.evalDef.id)).length;
-    if (scopedRuns === 0) continue;
-    reporters.push({
-      reporter: scopeReporter(r, ids, {
-        evals: [...ids].filter((id) => runningIds.has(id)).length,
-        configs: effectiveAgentRuns.length,
-        totalAttempts: scopedRuns,
-        maxConcurrency: opts.maxConcurrency,
-        runIds,
-      }),
-      name: `eval-reporter-${evalReporterIndex++}`,
-      required: false,
-    });
-  }
-
+  const reporters = opts.reporters;
   for (const reg of reporters) {
     // reporter 只是结果消费方:单个 reporter 抛错记 diagnostic,不能让整次调度崩,也不阻断
     // 其它 reporter 的必要收尾(required/best-effort 的判定权重在 runReporter 内部处理)。
@@ -891,7 +859,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
         progress: setupContext.progress,
         diagnostic: setupContext.diagnostic,
       }, setupContext, liveSandboxRuntimeServices, agent, runTiming, materializationOwnerId, () => nextReuseSandboxNumber(a.run),
-      a.evalDef.evalGroup === undefined ? Object.freeze([]) : linkPluginLifecycles(a.evalDef.evalGroup.plugins ?? [], "group"),
+      groupPluginLifecycles(a.evalDef, a.run),
       groupPluginContext);
       bySpec.set(key, pool);
       return pool.managed().pipe(Effect.map((managed) => ({ _tag: "Reuse", pool: managed }) as const));
@@ -1193,7 +1161,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
   /**
    * Owner tokens are an explicit inspection capability, not ordinary Runner
    * feedback. Keep both the live feedback event and the durable Run diagnostic
-   * limited to the key and recovery obligation; `exp --teardown` is the only
+   * limited to the key and recovery obligation; `exp --after` is the only
    * public surface that renders immutable owner evidence.
    */
   const reportSharedStateRecoveryRequired = (input: {
@@ -1203,7 +1171,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     readonly phase: LifecyclePhase;
   }): void => {
     const key = input.run.sharedState?.key ?? "";
-    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --teardown --recover-shared-state <key>\`.
+    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --after --recover-shared-state <key>\`.
 `.trimEnd();
     reportDiagnostic({
       key: `state-lease-recovery-required:${key || input.experimentId}`,
@@ -1675,7 +1643,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
               host: currentHost,
               startedAt: new Date().toISOString(),
             }).pipe(Effect.catch((error) => Effect.sync(() => {
-              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --teardown\` or the startup self-heal — check the canonical ProjectDatabase write failure.
+              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --after\` or the startup self-heal — check the canonical ProjectDatabase write failure.
 `.trimEnd();
               reportDiagnostic({
                 key: `teardown-registration-write-failed:${experimentId}`,
@@ -2772,7 +2740,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
               leased._tag === "Failed" ? errorFromThrown(leased.error, "sandbox.create") : undefined;
             if (leased._tag === "Failed") {
               cancelReuseAttempt(a, true);
-              const declaration = attemptFailureDeclaration(a.run.classifyFailure, "sandbox.create", leased.error);
+              const declaration = attemptFailureDeclaration("sandbox.create", leased.error);
               if (declaration) closeHaltGate(a, declaration);
               // This Attempt did start its physical acquisition and is therefore recorded below
               // as an errored result. The Group policy only decides what a later slot may do.

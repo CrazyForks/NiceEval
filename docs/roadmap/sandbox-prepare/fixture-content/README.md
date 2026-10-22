@@ -24,4 +24,4 @@ export default defineEval({
 
 - [Library](library.md) —— 签名、示例与内容 handle。
 - [Architecture](architecture.md) —— planning、identity、恢复与隐藏材料边界。
-- [准备前缀缓存](../../sandbox-cache/setup-prefix/README.md) —— action 排序与 Provider 能力。
+- [before 缓存缓存](../../sandbox-cache/setup-prefix/README.md) —— action 排序与 Provider 能力。

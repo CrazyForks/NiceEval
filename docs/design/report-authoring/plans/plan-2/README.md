@@ -1,8 +1,8 @@
 # 方案 2：通用原语 + 类型化数据源
 
 > 后续收敛：最终协议以 [DECISION](../../DECISION.md) 为准。取数只有 `Source<Input extends SourceInput,
-> Content>` 一个协议，表格默认列进入 `TableContent`；Component 没有 `resolve`，运行期编排归
-> `defineComposition`；页级呈现是 `dimensions(data)` 加 `ctx.dimension(handle)`。Source Content 的
+> Content>` 一个协议，表格默认列进入 `TableContent`。Component 没有 `resolve`，运行期编排归
+> `defineComposition`。页级呈现是 `dimensions(data)` 加 `ctx.dimension(handle)`。Source Content 的
 > 字段描述只带身份与数值语义。本篇其余内容保留候选方案形成时的推导过程。
 
 **相关文档**：[README](../../README.md) · [GOALS](../../GOALS.md) ·[LIMITS](../../LIMITS.md) · [PLAN-1](../plan-1/README.md) ·[PLAN-3](../plan-3/README.md) · [PLAN-4](../plan-4/README.md) · [DECISION](../../DECISION.md)

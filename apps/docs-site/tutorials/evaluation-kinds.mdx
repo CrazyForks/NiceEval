@@ -25,7 +25,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("Fix the tests and explain the cause.");
 
-    t.check(turn.message, includes("cause")).label("Explains the failure cause");
+    t.check(turn.reply, includes("cause")).label("Explains the failure cause");
 
     const tests = await t.sandbox.runCommand("pnpm", ["test"]);
     await t.check(tests, commandSucceeded()).label("Tests pass").orStop();
@@ -40,7 +40,7 @@ A Boolean `matched` goes into the Verdict; `mismatched` makes the final Verdict 
 Matches such as `similarity(...)` produce a measurement in `[0, 1]`. It computes character-level Levenshtein edit similarity and does not judge meaning. A pass/fail eval sets a quality gate on the handle with `.gate(minimum)`:
 
 ```ts
-t.check(turn.message, similarity(expected))
+t.check(turn.reply, similarity(expected))
   .gate(0.8)
   .label("Answer is close to the expected content");
 ```
@@ -66,7 +66,7 @@ export default defineScoreEval({
     t.check(health, commandSucceeded()).score(1).label("Health check reachable");
     t.check(health.stdout, includes("ok")).score(1).label("Health check content correct");
 
-    t.check(turn.message, includes("verify")).score(2).label("Reply explains how it was verified");
+    t.check(turn.reply, includes("verify")).score(2).label("Reply explains how it was verified");
 
     t.score(1).label("Concise code");
   },
@@ -89,7 +89,7 @@ A complete score in a scored eval can be 0. `passed + complete 0` means the eval
 ## The Judge is a measurement too
 
 `defineJudge` declares a managed Judge Match. The author assembles the values needed for the judgment into material with semantic fields.
-The Judge can be passed straight to `t.judge` without registering it on the eval. The model defaults to the project's `judgeRuntime`; to switch only the model for one eval, set `judge: "judge-model"`.
+The Judge can be passed straight to `t.judge` without registering it on the eval. The model defaults to the project's `judgeProvider`; to switch only the model for one eval, set `judge: "judge-model"`.
 
 ```ts
 const explainsMotive = defineJudge({
@@ -105,7 +105,7 @@ export default defineEval({
   async test(t) {
     const change = "Add the model version to the cache key";
     const turn = await t.send(`Explain the motive and risks of this change: ${change}`);
-    const material = { change, explanation: turn.message };
+    const material = { change, explanation: turn.reply };
     t.judge(material, explainsMotive).gate(0.8).label("Motive for the change");
     t.judge(material, explainsRisk).gate(0.8).label("Specific risks");
   },

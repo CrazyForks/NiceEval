@@ -59,7 +59,7 @@ export default defineEval({
 });
 ```
 
-`sandboxContent.directory()` 只登记字节与 digest，不产生 Sandbox action，也不改变可见文件系统。`t.sandbox.upload()` 是 Eval test 中的真实 effect，进入当前 Attempt 的 source manifest 和判据 fingerprint，但不会产生可在 Agent 前恢复的 SetupPrefixKey。
+`sandboxContent.directory()` 只登记字节与 digest，不产生 Sandbox action，也不改变可见文件系统。`t.sandbox.upload()` 是 Eval test 中的真实 effect，进入当前 Attempt 的 source manifest 和判据 fingerprint，但不会产生可在 Agent 前恢复的 BeforeCacheKey。
 
 Provider 支持不可变 overlay 时，可以把相同 handle attach 到当前私有 Sandbox；不支持时执行真实传输。两条路径必须产生相同的目标内容与可见时点。NiceEval 不能为了省一次上传而恢复包含隐藏材料的旧快照。
 

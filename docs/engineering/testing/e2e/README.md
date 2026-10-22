@@ -261,7 +261,7 @@ Docker Sandbox，`$HOME` 中的 Group 状态得以保留而工作目录会重置
 
 ### Sandbox setup-prefix cache {#sandbox-setup-prefix-cache}
 
-`e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts` 是单容器 Docker 准备前缀真实运行与复用的 Journey owner。
+`e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts` 是单容器 Docker before 缓存真实运行与复用的 Journey owner。
 它在同一个隔离消费项目中连续启动四个独立 `niceeval exp` Invocation。
 冷运行先完成 Dockerfile build、固定 fixture 与公开 `.env`。
 第二次只修改 Eval test 的结果需求，要求 BuildKey 与全部未改前缀继续命中，而 Agent/test 真实运行。
@@ -280,9 +280,9 @@ private clone 的 Agent/test 污染文件不可见，运行结束后用真实 Do
 
 另一条 capture 中断场景保留相反边界：`SIGINT` 到达时尚未完成 publication 的 staging 不得 publish、adopt 或成为重试的 rebase 起点。
 
-nested Docker 不在这个普通 `dockerSandbox({ source })` owner 的测试涉及范围内。Incus VM 的 SetupPrefix、私有 Docker data disk 与取消/回收结果等待后续 Incus E2E 接管；本 owner 不以已退役的实现路径冒充这些结果的验证。
+nested Docker 不在这个普通 `dockerSandbox({ source })` owner 的测试涉及范围内。Incus VM 的 Before cache、私有 Docker data disk 与取消/回收结果等待后续 Incus E2E 接管；本 owner 不以已退役的实现路径冒充这些结果的验证。
 
-共享准备前缀 DAG case 仍通过安装后 CLI 与 fake Incus provider boundary 执行真实 Incus lifecycle，但不与 Lifecycle 的其它长测
+共享 before 缓存 DAG case 仍通过安装后 CLI 与 fake Incus provider boundary 执行真实 Incus lifecycle，但不与 Lifecycle 的其它长测
 同时运行。Lifecycle Repo 使用独占 CI batch；默认原生命令先完成其余并行 suite，再单独运行该 case。case 的两条 child prepare
 以 provider journal 和文件系统 rendezvous 建立偏序，等待只与 CLI 进程终态竞速，不把固定 wall-clock deadline 当作并发 oracle。
 

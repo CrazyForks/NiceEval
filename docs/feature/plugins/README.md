@@ -6,60 +6,52 @@ createdAt: 2026-08-11T12:02:10+08:00
 kind: feature
 ---
 
+
 # Plugins
 
-Plugin 是带稳定身份的生命周期组合语法。它不提供新的资源系统、Agent 配置协议或 Sandbox 命令 DSL；这些能力继续由 Experiment、Agent、SandboxLayer 和 Provider 自己拥有。Plugin 的 Sandbox fragment 返回普通 `SandboxLayer`，因此固定上传、checkout 与 shell action 自动进入同一份准备缓存，不另声明 Plugin cache。
+Plugin 是一个可复用的实验条件，把条件身份、Agent 扩展、Sandbox 步骤和宿主前后步骤装进同一个值。
+Experiment 通过 `plugins: [condition]` 挂载一次；固定内容、Action DAG、缓存和物理资源继续由各自的 SandboxLayer 与 Provider 管理。
 
 ```ts
-import { definePlugin, pluginStack } from "niceeval/plugin";
+import { definePlugin } from "niceeval/plugin";
 
-const remem = definePlugin({
-  name: "example.remem",
-  behaviorRevision: "1",
-  experiment: () => ({
-    setup: (ctx) => ctx.progress({ message: "prepare remem" }),
-    teardown: (ctx) => ctx.diagnostic({
-      code: "remem-released",
-      level: "warning",
-      message: "remem teardown finished",
-    }),
-  }),
+const memory = definePlugin({
+  name: "example.memory",
+  identity: { version: "1" },
+  agent: { skills: [{ kind: "local", path: "./skills/memory" }] },
+  experiment: {
+    before: (ctx) => ctx.progress({ message: "prepare memory" }),
+    after: (ctx) => ctx.progress({ message: "release memory" }),
+  },
 });
 
 export default defineExperiment({
-  plugins: pluginStack()
-    .use(remem())
-    .use(metrics()),
-  // ...
+  adapter: codexAgent(),
+  plugins: [memory],
 });
 ```
 
-`definePlugin()` 调用返回可复用、冻结的 attachment specification；`pluginStack()` 用不可变 `.use()` 把它们组成有序栈。每次 Experiment、Eval Group 或 Eval 消费这个栈时才产生 lifecycle occurrence。Plugin 可以声明 `experiment`、`group`、`eval` 和 `sandbox` fragment；调用方只在实际 owner 的 `plugins` 字段挂一次。若 attachment 同时声明 `sandbox`，runner 会把该 layer 自动注入这次配对的实际物理 Sandbox，不在 SandboxLayer 上另写 `.plugins()`。
+对象定义直接返回实例；函数定义返回单参数工厂。`name` 与 JSON 对象 `identity` 必填，`key` 默认 `"default"`。
+条件版本只声明在 identity 中；回调函数体不参与 Plugin 投影。条件不会隐式进入 flags，也不替换 Adapter 或 Sandbox template。
 
-`PluginStack` 不是 `SandboxLayer`，不提供 template、缓存、资源或 action DAG。简单调用仍可给 `plugins` 传 readonly attachment 数组；链式栈用于分叉、条件追加和共享组合，两种输入在 definition 冻结前规范化成同一条有序 attachment 序列。
+## 范围与时机
 
-每个 Plugin 至少声明一个 fragment。`sandbox` 只能随实际 owner 自动投影，不成为第四种挂载点；只声明 sandbox fragment 的 Plugin 默认可挂到 Experiment、Eval Group 或 Eval，适合只负责 clone、上传或安装固定内容的工具链。只要同时声明 host fragment，可挂 owner 就由实际声明的 `experiment` / `group` / `eval` 集合收窄。
+| 字段 | 执行范围 |
+| --- | --- |
+| `experiment` | 每个至少有一条 fresh Attempt 的 Run 一次 |
+| `group` | 每条有 fresh Attempt 的 Eval Group lane 一次，跨 replacement |
+| `sandbox` | 每条 Attempt 的 Layer occurrence，reset 之后 |
+| `attempt` | 每条 fresh Attempt 一次 |
+| `agent` | 合并进内建 Agent factory 的扩展配置 |
 
-Plugin 不按目录、Config 或注册表隐式继承，也不拥有 Sandbox template、Provider、Agent 替换、flags、labels、Assertion、Verdict 或 Inspection delivery。
-
-## 生命周期范围
-
-| fragment | 基数 |
-|---|---|
-| `experiment` | 每个有 fresh work 的 Experiment Run 一次 |
-| `group` | 每个 Experiment × Eval Group lane 一次，跨 replacement |
-| `sandbox` | 每个实际物理 Sandbox 一次；replacement 重新执行 |
-| `eval` | 每个 fresh Attempt 一次 |
-
-完整 carry 不执行 lifecycle。Setup 按最终 attachment 顺序，teardown 按已激活 occurrence 的逆序；teardown 失败只记 diagnostic，并继续执行剩余 callback 与 Provider finalizer。
-
-## V1 owner matrix
-
-Experiment、Eval Group 和 Eval 都通过自己的 `plugins` 字段消费 attachment；Sandbox fragment 由这些挂载点自动投影。
+Experiment 可挂载全部字段；Eval Group 仅允许 group、sandbox、attempt；Eval 仅允许 sandbox、attempt。
+全部 carry 时零 Hook、零 Sandbox。`requires.evalGroup` 仍在完整 selection 上验证，包括将被 carry 的 Eval。
+before 正序执行，after 按已激活顺序逆序执行。宿主 after 失败只写入 warning，Agent after 失败使 Attempt 失败；两者都继续剩余 after 与 Provider finalizer。
 
 ## 入口
 
-- [Library](library.md) —— `definePlugin`、多 occurrence 与挂载语法。
-- [Architecture](architecture.md) —— 身份、自动 sandbox 投影与边界。
-- [Lifecycle](lifecycle.md) —— 四个 scope 的运行顺序和失败语义。
-- [Run](../run/README.md) 与 [Inspection](../inspection/README.md) —— Plugin callback 不取得 Run lifecycle、Inspection 或 Delivery authority。
+- [Library](library.md)：实例、工厂、挂载矩阵、上下文与扩展合并。
+- [Architecture](architecture.md)：条件身份、Layer 投影与职责边界。
+- [Lifecycle](lifecycle.md)：顺序、carry、取消与失败收尾。
+- [Use Case](use-case/README.md)：可复用条件的实际场景。
+- [Run](../run/README.md) 与 [Inspection](../inspection/README.md)：执行事实与公开观察。

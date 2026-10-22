@@ -12,7 +12,7 @@
 
 ## 可见时点
 
-Agent 前 fixture 是 before action，可以进入准备前缀。隐藏 tests、runner、solution 与参考答案只登记 `SandboxContent`，并在 Agent 返回后的 Eval test 中上传。Provider 可以用不可变 overlay 优化该次传输，但不能恢复一份曾在 Agent 前包含隐藏材料的状态。
+Agent 前 fixture 是 before action，可以进入 before 缓存。隐藏 tests、runner、solution 与参考答案只登记 `SandboxContent`，并在 Agent 返回后的 Eval test 中上传。Provider 可以用不可变 overlay 优化该次传输，但不能恢复一份曾在 Agent 前包含隐藏材料的状态。
 
 ## 安全边界
 

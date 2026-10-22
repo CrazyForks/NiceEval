@@ -25,7 +25,7 @@ error: This Judge configuration requires migration.
 Code: migration-required
 Guide: judge-provider
 Source: niceeval.config.ts:6:17
-Subject: defineConfig.judgeRuntime
+Subject: defineConfig.judgeProvider
 
 # Use an explicit Judge provider
 

@@ -1,3 +1,4 @@
+import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { Effect } from "effect";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { makeSandboxAgent } from "../define.ts";
@@ -77,7 +78,7 @@ export interface BubConfig {
    */
   otelPlugin?: string;
   /**
-   * 额外装进 bub tool 环境的 Python Package,每个 Sandbox setup 时进 `uv tool install … --with <pkg>`。
+   * 额外装进 bub tool 环境的 Python Package,每个 Sandbox before 时进 `uv tool install … --with <pkg>`。
    * 规范化后的 package 列表进安装 checkpoint key:plugin 集合不同的两个 agent 变体不会复用同一个
    * 安装 checkpoint(否则第二个变体会静默拿到第一个变体的环境)。
    */
@@ -89,9 +90,9 @@ export interface BubConfig {
    */
   before?: SandboxCommand[];
   /**
-   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 after 步骤
    * 之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
-   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 after 段
    * 按 teardown-failed 诊断收束。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
@@ -176,7 +177,7 @@ export function bubAgent(config?: BubConfig): Agent {
   // sandboxId → { home, workspace }; persists values detected in setup() so send() can use them.
   const sessionInfo = new Map<string, { home: string; workspace: string }>();
 
-  return registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "bub",
     ensure: { identity, probe },
     installers: [{
@@ -341,7 +342,7 @@ ${last}`);
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after);
+  }), config?.before, config?.after), "bub", config, bubAgent);
 }
 
 export default bubAgent();

@@ -218,7 +218,6 @@ export interface AssertFirstContextDeps {
   readonly timingNow?: import("./session.ts").SessionDeps["timingNow"];
   readonly onTurn?: import("./session.ts").SessionDeps["onTurn"];
   readonly concurrencySlot?: ConcurrencySlot;
-  readonly experimentClassifier?: import("./session.ts").SessionDeps["experimentClassifier"];
   /** Attempt-owned source snapshot registry; never inferred from an Effect fiber. */
   readonly sourceRegistry?: SourceRegistry;
   readonly resources: import("../types.ts").AttemptResourceRegistry;
@@ -410,6 +409,7 @@ type JudgeFunction<Kind extends RuntimeKind> = <Value>(
 ) => MeasurementAssertionHandle<Kind>;
 
 export type AssertFirstTestContext<Kind extends RuntimeKind> = AgentJudgePresetMethods<Kind, AgentMatchContext<"attempt">> & {
+  /** 保存 JSON 值或 Quantity 供结果展示，不登记 Assertion，也不影响 Verdict、score 或 coverage。 */
   note: AssertFirstCoreTestContext<Kind>["note"];
   readonly evaluationKind: Kind;
   send(input: string | { readonly text: string; readonly files?: readonly InputFile[] }): Promise<AssertFirstTurnHandle<Kind>>;
@@ -1655,7 +1655,6 @@ export function createAssertFirstEvalContext(
     onTurn: deps.onTurn,
     ledgerHooks: deps.ledgerHooks,
     concurrencySlot: deps.concurrencySlot,
-    experimentClassifier: deps.experimentClassifier,
     nextSourceOrder: deps.nextSourceOrder,
     sourceRegistry: deps.sourceRegistry,
     resources: deps.resources,

@@ -50,7 +50,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({ model: "gpt-5.4-mini" }),
+  judgeProvider: OpenAIProvider({ model: "gpt-5.4-mini" }),
   maxConcurrency: 4,
   timeoutMs: 300_000,
 });
@@ -61,7 +61,7 @@ export default defineConfig({
 | 字段 | 放什么 |
 | --- | --- |
 | `name` | 项目名，显示在 `niceeval view` 顶部。可按语言给多份 |
-| `judgeRuntime` | 默认裁判 Provider，由 `niceeval/judge` 的具名工厂构造 |
+| `judgeProvider` | 默认裁判 Provider，由 `niceeval/judge` 的具名工厂构造 |
 | `workspace` | 上传进 Sandbox 的工作区根目录 |
 | `reporters` | 默认 reporter 列表（落盘、上报实验平台） |
 | `maxConcurrency` | 默认并发上限 |
@@ -80,7 +80,7 @@ export default defineConfig({
 | `ANTHROPIC_API_KEY` | `claudeCodeAgent()` | 工厂参数 `apiKey` 可覆盖 |
 | `ANTHROPIC_BASE_URL` | `claudeCodeAgent()` | 网关地址，工厂参数 `baseUrl` 可覆盖 |
 | `CODEX_API_KEY` / `CODEX_BASE_URL` | `codexAgent()` | key 必需，代理地址可选；工厂参数 `apiKey` / `baseUrl` 可覆盖 |
-| `BUB_API_KEY` / `BUB_API_BASE` | `bubAgent()` | 两者必需；工厂参数 `apiKey` / `apiBase` 可覆盖 |
+| `BUB_API_KEY` / `BUB_API_BASE` | `bubAgent()` | 两者必需；工厂参数 `apiKey` / `baseUrl` 可覆盖 |
 | `OPENCLAW_API_KEY` / `OPENCLAW_BASE_URL` | `openClawAgent()` | key 省略时回落 `ANTHROPIC_API_KEY` |
 | `OPENCODE_API_KEY` / `OPENCODE_BASE_URL` | `openCodeAgent()` | key 省略时回落 `ANTHROPIC_API_KEY` |
 | `HERMES_API_KEY` / `HERMES_API_BASE` | `hermesAgent()` | key 省略时依次回落 `OPENROUTER_API_KEY`、`ANTHROPIC_API_KEY` |
@@ -100,7 +100,7 @@ export default defineConfig({
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({
+  judgeProvider: OpenAIProvider({
     model: "gpt-5.4-mini",
     baseUrl: "https://gateway.example.com/v1",   // 网关地址是配置，写在这里
     apiKeyEnv: "MY_GATEWAY_KEY",                  // key 是密钥，读这个环境变量
@@ -112,7 +112,7 @@ export default defineConfig({
 
 ```ts
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({
+  judgeProvider: OpenAIProvider({
     model: "gpt-5.4-mini",
     baseUrl: process.env.MY_GATEWAY_URL,   // 变量名自己起，自己读
     apiKeyEnv: "MY_GATEWAY_KEY",

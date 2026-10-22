@@ -82,7 +82,7 @@ import {
 } from "./fingerprint.ts";
 import { prepareRunSandboxes, type PreparedRunPair } from "./sandbox-selection.ts";
 import { resolveAttemptTimeout, resolveRunTimeout } from "./timeout.ts";
-import { resolveSandboxSetupCache } from "./types.ts";
+import { resolveSandboxBeforeCache } from "./types.ts";
 import type {
   AgentRun,
   Config,
@@ -367,7 +367,7 @@ function runForExperiment(
 ): AgentRun {
   return Object.freeze({
     adapter: experiment.adapter,
-    ...(experiment.agent === undefined ? {} : { agent: experiment.agent }),
+    ...(experiment.adapter.kind === "custom" ? {} : { agent: experiment.adapter }),
     ...(experiment.models === undefined ? {} : { models: experiment.models }),
     ...(experiment.model === undefined ? {} : { model: experiment.model }),
     ...(experiment.reasoningEffort === undefined
@@ -377,7 +377,7 @@ function runForExperiment(
     plugins: experiment.plugins,
     attempts: experiment.attempts,
     earlyExit: experiment.earlyExit,
-    sandboxSetupCache: resolveSandboxSetupCache(
+    sandboxBeforeCache: resolveSandboxBeforeCache(
       undefined,
       experiment.sandboxCache,
       config.sandboxCache,
@@ -401,11 +401,8 @@ function runForExperiment(
     ...(experiment.maxConcurrency === undefined
       ? {}
       : { maxConcurrency: experiment.maxConcurrency }),
-    ...(experiment.setup === undefined ? {} : { setup: experiment.setup }),
-    ...(experiment.teardown === undefined ? {} : { teardown: experiment.teardown }),
-    ...(experiment.classifyFailure === undefined
-      ? {}
-      : { classifyFailure: experiment.classifyFailure }),
+    ...(experiment.before === undefined ? {} : { setup: experiment.before }),
+    ...(experiment.after === undefined ? {} : { teardown: experiment.after }),
   });
 }
 

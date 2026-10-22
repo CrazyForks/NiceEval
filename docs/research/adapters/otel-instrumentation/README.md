@@ -17,6 +17,7 @@ sources:
   - https://opentelemetry.io/docs/specs/otlp/
   - https://langfuse.com/integrations/native/opentelemetry
 ---
+
 # 应用侧 OTel 埋点生态 —— span 里到底有没有 eval 要的数据(调研笔记)
 
 **出处:** 各生态官方文档 / spec / 源码(2026-07 抓取,URL 见各节)。
@@ -47,7 +48,7 @@ sources:
 - `ai.toolCall` span:`ai.toolCall.name` / `.id` / `.args` / `.result`(执行成功且可序列化时)。
   **工具名、入参、出参默认全在**。
 - 文本:根 span `ai.prompt` / `ai.response.text` / `ai.response.toolCalls`;doGenerate span `ai.prompt.messages`(发给 provider 的完整消息)。
-- 命名空间:主体 `ai.*` 私有,但 doGenerate span 同时带标准 `gen_ai.system` / `gen_ai.request.*` / `gen_ai.response.*` / `gen_ai.usage.input_tokens` / `output_tokens`——**token 有标准名,内容只有私有名**。
+- 命名空间:主体 `ai.*` 私有。doGenerate span 同时带标准 `gen_ai.system` / `gen_ai.request.*` / `gen_ai.response.*` / `gen_ai.usage.input_tokens` / `output_tokens`。**token 有标准名,内容只有私有名**。
 - 出处:https://ai-sdk.dev/docs/ai-sdk-core/telemetry
 
 ### OpenLLMetry(Traceloop)

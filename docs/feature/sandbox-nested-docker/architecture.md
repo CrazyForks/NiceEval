@@ -19,7 +19,7 @@ Eval DockerExecutionRequirement
 
 | Owner | 拥有 | 不拥有 |
 |---|---|---|
-| NiceEval planning | requirement、capability check、CaseKey、BuildKey、SetupPrefixKey、Run 级 prepare 协调 | Provider locator 与 mount |
+| NiceEval planning | requirement、capability check、CaseKey、BuildKey、BeforeCacheKey、Run 级 prepare 协调 | Provider locator 与 mount |
 | NiceEval control plane | SandboxAllocation ledger、ArtifactIntent、lease、generation、fencing、期望终态 | VM、host filesystem 与 Docker database |
 | Provider | instance、host storage pool、virtual disk、snapshot、clone、network、artifact project inventory | Attempt 结果与 Agent replay 决策 |
 | guest init / agent | guest mount、dockerd、Unix socket、quiesce receipt | host mount、allocation admission 与 artifact promotion |
@@ -84,10 +84,10 @@ development directory 只用于明确 opt-in 的 Unattested 功能 dogfood，不
 
 `incusSandbox({ image })` 指名一份 digest-pinned、已经受信任的 Provider origin。
 可变 alias 不是合法示例，也不能代替 digest。
-NiceEval 不 build、不 import、不 pull 该 base image。它可从该 base 和完整 eligible SetupPrefix 创建
+NiceEval 不 build、不 import、不 pull 该 base image。它可从该 base 和完整 eligible Before cache 创建
 Provider-native 派生 artifact；这不改变 base trust，也不把 artifact 伪装为 Incus image。
 
-Provider artifact 可以捕获 exact SetupPrefix，但只有受信任 prepare worker 能发布。
+Provider artifact 可以捕获 exact Before cache，但只有受信任 prepare worker 能发布。
 prepare worker 没有模型 credential，不运行 Agent，不接收 Eval hidden input。
 
 普通 Attempt 永不把自己的 Docker data、workspace 或 secret promotion 成共享 artifact。
@@ -103,7 +103,7 @@ Provider-native immutable artifact。
 
 完整 Incus prepared artifact 是 artifact project 中 content-addressed、stopped、immutable 的
 virtual-machine type instance，加上它依赖的 custom storage volume。它不是 Incus image。
-instance 与 custom storage volume 的 metadata 相互指向同一 artifact digest、SetupPrefixKey
+instance 与 custom storage volume 的 metadata 相互指向同一 artifact digest、BeforeCacheKey
 与 ArtifactIntent。任一方向缺失或不一致都不能消费。
 
 consumer 从 artifact project 跨 project copy template root；Docker data 必须生成新的 consumer source volume，
@@ -116,7 +116,7 @@ consumer 从 artifact project 跨 project copy template root；Docker data 必�
 
 Incus repository 在用户级 UserDatabase 中独立持久化 replacement head、consumer lease
 与 absence receipt。这些是 NiceEval repository 术语，不是 Incus API 状态。replacement scope
-来自 provider-neutral SetupPrefix manifest；head 只
+来自 provider-neutral Before cache manifest；head 只
 指向已 committed generation。
 
 consumer handoff 在 clone 前重新核对 generation 并取得 lease，clone settlement 释放 lease。

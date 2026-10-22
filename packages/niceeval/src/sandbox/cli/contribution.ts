@@ -27,7 +27,7 @@ export const SANDBOX_CLI_OPTIONS = Object.freeze({
   window: Object.freeze({ type: "string", help: Object.freeze({ summary: "Select one recorded change window.", visibility: "public" }) }),
   path: Object.freeze({ type: "string", help: Object.freeze({ summary: "Select one path in a sandbox diff.", visibility: "public" }) }),
   "leave-running": Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Keep a sandbox alive after leaving its shell.", visibility: "public" }) }),
-  record: Object.freeze({ type: "string", help: Object.freeze({ summary: "Use a specific NiceEval record root.", visibility: "public" }) }),
+  "record-root": Object.freeze({ type: "string", help: Object.freeze({ summary: "Use a specific NiceEval record root.", visibility: "public" }) }),
   orphans: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Inspect unregistered sandbox instances left by terminated runs.", visibility: "public" }) }),
   force: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Prune unverified orphan candidates too.", visibility: "public" }) }),
   development: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Diagnose the isolated Incus development domain instead of reference.", visibility: "public" }) }),
@@ -37,12 +37,12 @@ export const SANDBOX_CLI_OPTIONS = Object.freeze({
 const SANDBOX_HELP = `niceeval sandbox — inspect and manage kept sandboxes
 
 Usage:
-  niceeval sandbox list [--orphans] [--record <record-root>]
-  niceeval sandbox enter <id> [--leave-running] [--record <record-root>]
-  niceeval sandbox history <id> [--record <record-root>]
-  niceeval sandbox diff <id> [--window <window>] [--path <file>] [--record <record-root>]
-  niceeval sandbox stop <id...> [--all] [--record <record-root>]
-  niceeval sandbox prune [--force] [--record <record-root>]
+  niceeval sandbox list [--orphans] [--record-root <record-root>]
+  niceeval sandbox enter <id> [--leave-running] [--record-root <record-root>]
+  niceeval sandbox history <id> [--record-root <record-root>]
+  niceeval sandbox diff <id> [--window <window>] [--path <file>] [--record-root <record-root>]
+  niceeval sandbox stop <id...> [--all] [--record-root <record-root>]
+  niceeval sandbox prune [--force] [--record-root <record-root>]
   niceeval sandbox provider doctor incus [--development]
 
 Commands:
@@ -90,6 +90,9 @@ function parseSandboxArgs(
   argv: readonly string[],
   parse: (argv: readonly string[], options: Readonly<Record<string, CliOptionDefinition>>) => CliParsedTokens,
 ): ParsedSandboxArgs {
+  if (argv.some((token) => token === "--record" || token.startsWith("--record="))) {
+    throw new TypeError("sandbox --record is no longer supported. Use --record-root.");
+  }
   const parsed = parse(argv, SANDBOX_CLI_OPTIONS);
   return Object.freeze({
     positionals: Object.freeze([...parsed.positionals]),
@@ -103,7 +106,7 @@ function parseSandboxArgs(
       ...(typeof parsed.values.window === "string" ? { window: parsed.values.window } : {}),
       ...(typeof parsed.values.path === "string" ? { path: parsed.values.path } : {}),
       leaveRunning: parsed.values["leave-running"] === true,
-      ...(typeof parsed.values.record === "string" ? { record: parsed.values.record } : {}),
+      ...(typeof parsed.values["record-root"] === "string" ? { record: parsed.values["record-root"] } : {}),
       orphans: parsed.values.orphans === true,
       force: parsed.values.force === true,
     }),
@@ -111,12 +114,12 @@ function parseSandboxArgs(
 }
 
 const SANDBOX_SUBCOMMAND_OPTIONS: Readonly<Record<SandboxSubcommand, readonly string[]>> = Object.freeze({
-  list: Object.freeze(["orphans", "record", "help"]),
-  enter: Object.freeze(["leave-running", "record", "help"]),
-  history: Object.freeze(["record", "help"]),
-  diff: Object.freeze(["window", "path", "record", "help"]),
-  stop: Object.freeze(["all", "record", "help"]),
-  prune: Object.freeze(["force", "record", "help"]),
+  list: Object.freeze(["orphans", "record-root", "help"]),
+  enter: Object.freeze(["leave-running", "record-root", "help"]),
+  history: Object.freeze(["record-root", "help"]),
+  diff: Object.freeze(["window", "path", "record-root", "help"]),
+  stop: Object.freeze(["all", "record-root", "help"]),
+  prune: Object.freeze(["force", "record-root", "help"]),
   provider: Object.freeze(["development", "help"]),
 });
 

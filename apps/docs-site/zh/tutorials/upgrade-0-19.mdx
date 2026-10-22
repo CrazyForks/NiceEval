@@ -97,3 +97,16 @@ Docker profile 解码和定义只保留 `decodeDockerExecutionProfile`、`define
 `/loaders` 不再导出 `captureLoadedFiles`。
 `/inspection` 不再导出 `canonicalInspectionJson`、`canonicalJsonValue`、`closeInspectionJson`。
 这些内部能力没有替代作者 API。
+
+## Plugin
+
+`definePlugin({ name, identity, ... })` 直接返回实例；`definePlugin((options) => ({ name, identity, ... }))` 返回单参数工厂。
+用 `plugins: [condition]` 和数组展开组合。用 `key` 区分同名实例，把行为版本写进 `identity`。
+生命周期字段改成 `experiment`、`group`、`attempt`、`sandbox`，各自接受 `{ before, after }`；`agent` 提供内建 Agent 扩展。
+详见 [Plugin](/zh/tutorials/plugins)。
+
+## 生命周期 before / after
+
+Experiment、`defineAgent` 与 `defineSandboxAgent` 使用 `before` / `after`。内建 Agent factory 也使用这两个字段。
+CLI 的手动收尾改用 `exp <selector> --after`；`experimentHost.after()`、`hasBefore`、`hasAfter` 与 `after-required` 使用同一命名。
+安装报告使用 `AgentInstallationManifest`、`reportInstallation` 与 `agentInstallation`；附件文件名保持不变。

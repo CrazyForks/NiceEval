@@ -11,10 +11,10 @@ NiceEval 按 Assertion 评估，一条 Assertion 就是一项检查。调用 `t.
 ```ts
 import { includes } from "niceeval/expect";
 
-t.check(turn.message, includes("完成")).label("回复说明完成");
+t.check(turn.reply, includes("完成")).label("回复说明完成");
 turn.succeeded().label("Turn 完成");
 turn.calledTool("get_weather").label("查询天气");
-t.judge({ question, answer: turn.message }, answerQuality)
+t.judge({ question, answer: turn.reply }, answerQuality)
   .gate(0.8).label("回答质量");
 ```
 
@@ -29,10 +29,10 @@ t.judge({ question, answer: turn.message }, answerQuality)
 ```ts
 import { equals, includes, matches, satisfies, toolMatch } from "niceeval/expect";
 
-t.check(turn.message, includes("订单已确认"));
+t.check(turn.reply, includes("订单已确认"));
 t.check(turn.data, equals({ status: "refund", amount: 42 }));
 t.check(turn.data, matches(OrderSchema));
-t.check(turn.message.length, satisfies("回复不是空文本", (length) => length > 0));
+t.check(turn.reply.length, satisfies("回复不是空文本", (length) => length > 0));
 ```
 
 结果是 `matched` 还是 `mismatched`，只说明这个值是否满足这条规则，不说明规则本身写得对不对。任务允许多种正确结果时，规则要覆盖所有这些结果。
@@ -63,7 +63,7 @@ turn.calledTool(toolMatch("read_file").exactly(2)).label("读取两次");
 连续值检查和 Judge 给出 0 到 1 之间的测量值。测量值默认不影响判定，在 handle 上调用 `.gate(minimum)` 后，低于最低分才判 `failed`。
 
 ```ts
-t.judge({ task, answer: turn.message }, actionableQuality)
+t.judge({ task, answer: turn.reply }, actionableQuality)
   .gate(0.8).label("步骤可执行");
 ```
 
@@ -74,7 +74,7 @@ Assertion 默认只记录结果，不计分；加上 `.score(n)` 才贡献分数
 ```ts
 turn.calledTool("search");                       // 只保存 evaluation
 turn.calledTool("search").score(2);              // matched 时 +2
-t.check({ task, answer: turn.message }, completeness).score(5); // Measurement 0.8 时 +4
+t.check({ task, answer: turn.reply }, completeness).score(5); // Measurement 0.8 时 +4
 t.score(5);                                      // 直接 +5
 ```
 
@@ -93,7 +93,7 @@ t.score(5);                                      // 直接 +5
 ```ts
 const turn = await t.send("搜索资料并说明结论。");
 await turn.succeeded().orStop();
-const search = await t.check(turn.message, includes("结论")).orStop();
+const search = await t.check(turn.reply, includes("结论")).orStop();
 ```
 
 停止只影响 `await` 之后还没执行的代码，这部分代码不会产生结果。已经发生的普通 JavaScript 副作用不会撤销，之前启动的并发任务也不会被取消。

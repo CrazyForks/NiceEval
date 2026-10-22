@@ -47,7 +47,7 @@ template 的唯一性是配对局部约束,一个 Run 可以同时存在多个 t
 
 声明式 before action 可以形成缓存前缀。callback before、hook、plugin、secret / credential、租约、外部会话、
 `onCleanup()`、Agent layer 与 hidden input 始终真实执行，并截断后续共享捕获。after 始终真实执行。完整资格、
-`verified` 边界与 Provider 降级见 [Architecture](architecture.md#准备前缀的身份与验证边界)。
+`verified` 边界与 Provider 降级见 [Architecture](architecture.md#before-缓存的身份与验证边界)。
 
 当前 occurrence 固定为 `attempt`。作者 API 不暴露 scope，也不能靠 owner kind 或低频数值要求提升。把已证明稳定的前缀提升到 physical-instance 是后续性能工作，不属于当前 capability。
 完整时序与 fresh / reuse 次数表见 [三方准备时序](lifecycle.md)。
@@ -304,7 +304,7 @@ Experiment 没有额外命令时省略 `sandbox`:
 
 ```typescript
 export default defineExperiment({
-  agent: codexAgent(),
+  adapter: codexAgent(),
   evals: ["terminal-bench/"],
 });
 ```
@@ -418,7 +418,7 @@ export default defineEval({
 });
 
 // 同一个对照实验不带 template，仍可选择两类 Eval
-export default defineExperiment({ agent: codexAgent(), evals: ["generic/", "compose/"] });
+export default defineExperiment({ adapter: codexAgent(), evals: ["generic/", "compose/"] });
 ```
 
 ## 顺序与依赖方向
@@ -573,7 +573,7 @@ action 自动指纹包含 family `id`、canonical input、规范化后的 steps�
 
 definition 的可选 `cache.fingerprint` 接受 JSON 值，或接收已验证 input 并返回 JSON 值；instance options 也可 inline 传一个 JSON fingerprint。两者只补充自动观察不到的身份并共同规范化，不能替换自动指纹。最终 action 指纹固定为 `hash(auto, supplemental)`。省略补充值时使用规范化 absent sentinel；需要强制失效时可直接写 `cache: { fingerprint: "2" }`。state 属于自动身份，不能用 supplemental fingerprint 模拟或改写。
 
-`SetupPrefixKey` 是跨 Provider 的单一 generic key。它纳入 exact trusted base、target、parent key、完整有序
+`BeforeCacheKey` 是跨 Provider 的单一 generic key。它纳入 exact trusted base、target、parent key、完整有序
 action manifest、coverage、revisions 与 Provider canonical preparation identity。
 
 Provider canonical preparation identity 至少包括：
@@ -585,9 +585,9 @@ Provider canonical preparation identity 至少包括：
 action manifest 保留每个 action 的 owner、ordinal、action id、频率、依赖、capability 与完整 action fingerprint，
 并按实际 schedule 排序。
 
-`SetupPrefixKey` 不纳入 `CaseKey`、`BuildKey` 或 occurrence cohort 隔离代理；它们仍保有各自原本的职责，不能被
+`BeforeCacheKey` 不纳入 `CaseKey`、`BuildKey` 或 occurrence cohort 隔离代理；它们仍保有各自原本的职责，不能被
 拿来分裂同一业务 prefix。旧 key 只能 miss，不能被 adopt。Eval `test` 函数、Assertion 与只发生在 Agent/test
-阶段的输入不进入未改变的 SetupPrefixKey；它们仍按各自契约改变 Attempt 与结果 identity。
+阶段的输入不进入未改变的 BeforeCacheKey；它们仍按各自契约改变 Attempt 与结果 identity。
 
 只有自动观察不到的协议版本才写补充指纹：
 
@@ -658,7 +658,7 @@ callback 开始时当前主物理 Sandbox 的 Provider-native ID。portable call
 只有已经由 factory 或作者配置确定 Provider 的可信 callback 才能交给对应宿主 SDK 查找实例。
 跨 Provider 关联必须使用 `provider + sandboxId`，不能拆解字符串格式或假定全局唯一。
 
-准备前缀可以在第一个 opaque callback 之前 rebase 主实例；callback 开始后，本 Attempt 不再 capture 或 rebase，因此该 callback 登记的 cleanup 与 standalone after 看到同一 ID。复用池继续租借同一物理实例时 ID 保持不变，实例退休或替换后允许变化。callback 取得的宿主辅助资源不属于 NiceEval 管理的 Case 拓扑，不进入 fingerprint、共享 capture 或 Record，并必须由作者登记 cleanup。
+before 缓存可以在第一个 opaque callback 之前 rebase 主实例；callback 开始后，本 Attempt 不再 capture 或 rebase，因此该 callback 登记的 cleanup 与 standalone after 看到同一 ID。复用池继续租借同一物理实例时 ID 保持不变，实例退休或替换后允许变化。callback 取得的宿主辅助资源不属于 NiceEval 管理的 Case 拓扑，不进入 fingerprint、共享 capture 或 Record，并必须由作者登记 cleanup。
 
 同名方法与 `t.sandbox`、完整 `Sandbox` 的语义完全相同。`runCommand()` / `runShell()` 返回任意 exit code；checked 调用显式使用 `runCommandOrThrow()` / `runShellOrThrow()`。
 
@@ -777,13 +777,13 @@ sandboxLayer()
 
 `run` 的函数体、函数名与闭包不进入 identity。只改实现而保持 `id`、`revision`、`inputs` 不变时,Runner 不会发现语义已经变化,旧结果仍可能沿用。实现语义变化必须提高 `revision`;外部输入变化必须反映到 `inputs`。若作者漏改 identity 后已经产生或沿用了结果,先修正 `revision` 或 `inputs`,再按[全量重验](../experiments/use-case/rerun-all.md)对受影响选择执行 `--rerun all`。`--rerun all` 只修复这一次结果集,不能替代永久 identity 修正。
 
-`defineSandboxCommand()` 的稳定 identity 只提供失效与排序依据。它的 `run` 始终 opaque，在每个 occurrence 真实执行并截断后续共享 capture，绝不因 identity 稳定而命中准备前缀。只有 `shell()`、`writeText()`、`writeBytes()`、`upload*()`、`gitCheckout()` 等完全声明式 action 具备前缀缓存资格。
+`defineSandboxCommand()` 的稳定 identity 只提供失效与排序依据。它的 `run` 始终 opaque，在每个 occurrence 真实执行并截断后续共享 capture，绝不因 identity 稳定而命中 before 缓存。只有 `shell()`、`writeText()`、`writeBytes()`、`upload*()`、`gitCheckout()` 等完全声明式 action 具备 before 缓存资格。
 
 `putContent()` 对大文件自动拆成有界的 provider 写入,全部到达后才在 Sandbox 内原子替换目标；SDK 单次请求超时不会留下半个目标文件。
 未登记 identity 的 callback 是 opaque barrier。它真实执行并截断后续共享 capture；不能因为函数名或闭包外形稳定就把它当作可缓存 action。
 Provider 的声明 identity、BuildKey 或 opaque marker 直接进入 fingerprint，不再额外保存或判定 provider carry eligibility。
 
-源码检出使用 `gitCheckout()`；慢工具安装使用 `shell()` 或第三方 `defineSandboxAction()` family。它们的 identity 与执行边界见[内置 before 单元](prepare-commands.md)。Agent 前内容使用 action，隐藏判据只在 Agent 返回后的 Eval test 中上传，不能进入 SetupPrefixKey。
+源码检出使用 `gitCheckout()`；慢工具安装使用 `shell()` 或第三方 `defineSandboxAction()` family。它们的 identity 与执行边界见[内置 before 单元](prepare-commands.md)。Agent 前内容使用 action，隐藏判据只在 Agent 返回后的 Eval test 中上传，不能进入 BeforeCacheKey。
 
 ### Cleanup
 
@@ -804,7 +804,7 @@ Runner 对已成功登记的 cleanup 只按实际登记栈 LIFO 执行；未执�
 | callback 部分取得后失败 | 每个已取得 handle 的补偿都执行，未取得部分没有虚假 cleanup |
 | 多 owner 的 DAG 改变实际执行顺序 | cleanup 按实际登记顺序 LIFO，不按 owner 或频率另排 |
 | 多条 Attempt 并发 | registry 和闭包 handle 彼此隔离 |
-| `defineSandboxCommand()` 有稳定 identity | run 仍真实执行，不命中准备前缀 |
+| `defineSandboxCommand()` 有稳定 identity | run 仍真实执行，不命中 before 缓存 |
 | 同时存在动态 cleanup 与 standalone after | 动态 cleanup 先执行，standalone after 随后逆序执行 |
 
 ## Agent layer

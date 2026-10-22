@@ -183,7 +183,7 @@ dockerSandbox({
   }));
 ```
 
-`before(action)` 表达有序准备。声明式 action 可命中准备前缀；callback 与 `defineSandboxCommand()` 的 run 始终真实执行，并截断后续共享 capture。运行期资源成功取得后，由当前 callback 同步调用 `context.onCleanup()` 登记条件释放。
+`before(action)` 表达有序准备。声明式 action 可命中 before 缓存；callback 与 `defineSandboxCommand()` 的 run 始终真实执行，并截断后续共享 capture。运行期资源成功取得后，由当前 callback 同步调用 `context.onCleanup()` 登记条件释放。
 
 `after(action)` 是无条件、幂等的 occurrence finally。拥有可用 Sandbox 的 occurrence 进入后就登记全部 standalone after，即使后续 before 未执行或失败也会执行。它不隐式绑定最近的 before，也不能释放依赖成功 acquire 或 handle 的资源。
 

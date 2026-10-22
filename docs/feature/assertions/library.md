@@ -9,9 +9,9 @@ const config = t.check(rawConfig, matches(ConfigSchema))
   .key("config-valid")
   .label("配置有效");
 
-t.check(turn.message, includes("完成"))
+t.check(turn.reply, includes("完成"))
   .label("说明完成");
-t.judge({ request, summary: turn.message }, summaryQuality)
+t.judge({ request, summary: turn.reply }, summaryQuality)
   .gate(0.8)
   .label("摘要质量");
 ```
@@ -30,7 +30,7 @@ const turn = await t.send("总结需求。");
 turn.succeeded().label("Turn 完成");
 turn.calledTool(toolMatch("search").atLeast(2)).label("至少搜索两次");
 turn.maxToolCalls(2).label("工具次数上限");
-t.judge({ request: "总结需求", summary: turn.message }, summaryQuality)
+t.judge({ request: "总结需求", summary: turn.reply }, summaryQuality)
   .gate(0.8)
   .label("摘要质量");
 ```
@@ -66,7 +66,7 @@ Boolean `.orStop()` 使用自身 condition。stop requirement 不能被 optional
 `defineEval` 创建 Pass Eval。Boolean condition 默认 required 且参与 Verdict，既有 `.optional()` 例外保持。未配置 gate 的 measurement 只保存 evaluation measurement；`.gate(minimum)` 才形成显式质量门。Pass context 不提供 `t.score` 或 handle `.score`。
 
 ```ts
-t.judge({ question, answer: turn.message }, answerQuality)
+t.judge({ question, answer: turn.reply }, answerQuality)
   .gate(0.8)
   .label("可执行性");
 ```
@@ -75,7 +75,7 @@ t.judge({ question, answer: turn.message }, answerQuality)
 
 ```ts
 turn.calledTool("search").gate().score(2).label("必须检索");
-t.judge({ task, answer: turn.message }, answerQuality)
+t.judge({ task, answer: turn.reply }, answerQuality)
   .score(5)
   .gate(0.8)
   .label("答案质量");
@@ -90,8 +90,8 @@ Score 没有 generic `.optional()`。post-run Sandbox Assertion 在 Score Eval �
 
 ```ts
 await t.group("输出", () => {
-  t.check(turn.message, includes("下一步")).label("给出下一步");
-  t.judge({ question, answer: turn.message }, answerQuality)
+  t.check(turn.reply, includes("下一步")).label("给出下一步");
+  t.judge({ question, answer: turn.reply }, answerQuality)
     .gate(0.8)
     .label("可执行性");
 });
@@ -124,3 +124,15 @@ t.score(measured(ratio, { unavailable: "no-samples" }), { weight: 20 });
 `defineScoreEval` 中的 t.score(ratio, { weight }) 接受 [0,1] 比例或 NumericMaterial，不需要自定义 fraction matcher。
 越界比例是作者错误，不隐式 clamp；领域确需饱和计分时，作者显式限定范围。unavailable 保留权重并标为不可判定，不按零分伪造观测。
 纯报告不登记恒真 Assertion。Adapter 可用既有 ctx.attach 保存 Markdown 或 JSON 统计附件；单行展示的独立 note 模型不在此数值构造契约内。
+
+## 数值单位
+
+`/expect` 导出 `ms`、`seconds`、`tokens`、`usd`、`ratio`、`count` 与 `bytes`，返回冻结的 `Quantity<U>` 对象，字段为 `value` 与 `unit`。构造只接受有限数；非法值及越界比例抛出 RangeError。Quantity 不参与算术，也不自动换算单位。
+
+`measured(Quantity, options)` 返回携带单位的 `NumericMaterial<U>`。`quantile` 接受普通数值数组或单位一致的 Quantity 数组；混合单位抛出 TypeError。数值 Match 的阈值必须与材料单位一致：`t.check(measured(ms(512), { unavailable: "missing" }), atMost(ms(600)))`。普通数值材料只接受普通数值阈值。编译期拒绝跨单位调用；绕过类型时返回 unavailable，不比较未包装的数值。
+
+NumericMaterial 的持久数据保存可选 `unit`，旧数据省略该字段时为无单位。Show 与 View 使用单位呈现数值，例如 `512 ms`、`61.2%` 与 `$0.031`。
+
+`between(minimum, maximum)` 使用同单位、含端点的区间；反序或非有限上界抛出 RangeError，混合单位抛出 TypeError。lower-bound 材料只有超过区间上界时才能判定不匹配，其他情况为 unavailable。
+
+`t.usage.cacheRead.rate(role?)` 返回 `NumericMaterial<"ratio">`，阈值使用 `ratio(n)`。缺失观测保留原 unavailable 原因。

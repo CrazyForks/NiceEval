@@ -7,13 +7,18 @@ kind: research
 observedAt: 2026-08-14
 sources: []
 ---
+
 # Langfuse：Observation、Score、Experiment 与 Dashboard
 
 > 观察日期：2026-08-14
 >
 > 观察对象：Langfuse Cloud 与自托管 OSS v4；官方 Python SDK v4.14.4
 >
-> 核对源码：[`langfuse/langfuse`](https://github.com/langfuse/langfuse) `7cc6d2c0b925c282021fdea11176066927ca4ab3`（2026-08-14）；[`langfuse/langfuse-python`](https://github.com/langfuse/langfuse-python) `73b5c028d2757d8960b3a468bd80c9ef99b52e74`（2026-08-11）；[`langfuse/langfuse-docs`](https://github.com/langfuse/langfuse-docs) `d0a5f34ef4aa92928ba08e067452d1be83a87cd6`（2026-08-13）
+> 核对源码：[`langfuse/langfuse`](https://github.com/langfuse/langfuse) `7cc6d2c0b925c282021fdea11176066927ca4ab3`（2026-08-14）。
+>
+> [`langfuse/langfuse-python`](https://github.com/langfuse/langfuse-python) `73b5c028d2757d8960b3a468bd80c9ef99b52e74`（2026-08-11）。
+>
+> [`langfuse/langfuse-docs`](https://github.com/langfuse/langfuse-docs) `d0a5f34ef4aa92928ba08e067452d1be83a87cd6`（2026-08-13）
 >
 > 文档性质：外部产品研究与产品建议，不是 NiceEval 目标契约
 

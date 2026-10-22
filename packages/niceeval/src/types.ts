@@ -46,13 +46,12 @@ export type {
   ReservedAdapterContextKey,
 } from "./adapter.ts";
 
-// 失败分类词表:两轴 FailureClass / FailureScope 与实验分类器的输入输出形状。糖衣类与守卫
+// 失败分类词表:两轴 FailureClass / FailureScope 与内建分类的输入形状。糖衣类与守卫
 // 是运行时值,从包根(src/index.ts)直接导出,不进这个纯类型 facade。
 export type {
   FailureClass,
   FailureScope,
   AttemptFailureInfo,
-  AttemptFailureClassifier,
 } from "./shared/failure-class.ts";
 export type {
   ExternalCause,

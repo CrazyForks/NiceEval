@@ -4,7 +4,7 @@ import { deterministicAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "Judge 调用失败的 Attempt JSON 归因",
-  agent: deterministicAgent("cli-judge-precheck-error"),
+  adapter: deterministicAgent("cli-judge-precheck-error"),
   attempts: 2,
   judge: OpenAIProvider({
     model: "judge-fixture",

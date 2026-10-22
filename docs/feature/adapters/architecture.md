@@ -123,11 +123,11 @@ Runner 在唯一 ACTIVE 出口先对完整文本做已知 secret redaction，再
 
 ## 缓存读取率投影边界
 
-[缓存读取率](library.md#缓存读取率)由 o11y 的纯投影拥有，输入是已验证 Adapter usage 与冻结的 ResolvedModelSlots。
+[缓存读取率](library.md#缓存读取率)由 Observability 的纯投影拥有，输入是已验证 Adapter usage 与冻结的 ResolvedModelSlots。
 Runner 在读取 t.usage 时调用它，Inspection 在读取已发布 usage 后调用同一实现；Show 与 View 只格式化闭合报告。
 公开类型随 EvalUsage 从根包与 expect 类型入口导出，Inspection codec 严格验证同一报告形状。
 
-EvalUsage 在纯报告外提供冻结的 EvalCacheRead，rate(modelSlot) 从该快照选择数值材料并统一处理缺失槽位。
+EvalUsage 在纯报告外提供冻结的 EvalCacheRead，rate(modelRole) 从该快照选择数值材料并统一处理缺失槽位。
 选择函数不依赖 this 或可写 collector，Inspection、Show 与 View 继续消费纯报告，不接收函数。
 报告仅派生，不写入新的 Attachment、数据表或 migration，也不改变旧 usage 字节。
 
@@ -156,7 +156,7 @@ Experiment 归一化校验 Adapter 要求；统一 Eval selection 边界校验�
 requires 是用途集合，不是运行时模型注入或 adapter contract identity 的替代物。已有 Adapter contract token 仍验证应用操作相容性。
 
 类型扩展通过带默认值的泛型与上下文替换保留旧调用。无 requires 的语义不变；带 requires 时只替换 usage.cacheRead.rate 与 Adapter models/recordUsage 的键类型。
-不改变 Usage 持久化、Record schema、cacheRead 报告数组或调用计数语义。实际执行仍按 Experiment 已配置集合验证 modelSlot；声明是最小前置要求，JavaScript 可使用额外已配置键。
+不改变 Usage 持久化、Record schema、cacheRead 报告数组或调用计数语义。实际执行仍按 Experiment 已配置集合验证 modelRole；声明是最小前置要求，JavaScript 可使用额外已配置键。
 
 
 独立 Codex 审查的根工厂边界、推导输入和运行时集合问题已收敛：仅扩展绑定工厂，requires.models 是唯一推导输入，运行时保持配置集合语义。

@@ -72,6 +72,8 @@ export type {
   EvalDescriptor,
   ExperimentAuthorFields,
   SharedStateConfig,
+  SandboxBeforeCache,
+  SandboxCacheConfig,
   ExperimentInput,
   ExperimentDefinition,
   ExperimentHook,
@@ -100,7 +102,6 @@ export type {
   FailureClass,
   FailureScope,
   AttemptFailureInfo,
-  AttemptFailureClassifier,
   ExternalCause,
   ExternalCauseFact,
   ExternalCauseLink,
@@ -157,7 +158,7 @@ export type { EvalUsage, EvalCacheRead } from "./o11y/eval-usage.ts";
 
 export type { AgentMatchContext } from "./context/assert-first.ts";
 
-export type { ModelSlotSelection, ResolvedModelSlot, ResolvedModelSlots } from "./model-slots.ts";
-export { defineModelSlots } from "./model-slots.ts";
+export type { ModelRoleSelection, ResolvedModelRole, ResolvedModelRoles } from "./model-roles.ts";
+export { defineModelRoles } from "./model-roles.ts";
 
 export type { CacheReadReport, CacheReadSummary } from "./o11y/cache-read.ts";

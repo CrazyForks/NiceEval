@@ -66,7 +66,7 @@ Planned attempt 为空。随后一次 `BEGIN IMMEDIATE` 冻结 aggregate、提�
 retry 都不能修改已发布 closure。
 
 carry 与 accept 不复制 Attempt。reference binding transaction 只允许引用已经发布、且通过当次 policy 资格检查的
-Attempt，并在目标空 Planned attempt 原子写入 `{ attemptId, originRunId, originSlotId, publicationIdentity, action }`。
+Attempt。该事务在目标空 Planned attempt 原子写入 `{ attemptId, originRunId, originSlotId, publicationIdentity, action }`。
 origin publication 与 reference binding 竞争同一个 Planned attempt CAS，恰有一个可以成功。origin Run 是否已经收口不改变
 Attempt identity；即使 origin Run 仍为 `active`，已发布 Attempt 也可以被引用。
 

@@ -109,20 +109,20 @@ function runCommand(argv: readonly string[]): Effect.Effect<number, Error, Requi
       try: () => parser.parse(argv, RUN_CLI_OPTIONS),
       catch: (cause) => failure("parse arguments", cause),
     });
+    if (parsed.positionals[0] === "show") return yield* usage("run show is no longer supported. Use niceeval show --run <run-id>.");
     if (parsed.values.help === true) {
       yield* write("stdout", `niceeval run — inspect and manage Run lifecycle
 
 Usage:
   niceeval run list [--invocation <invocation-id>] [--json]
-  niceeval run show <run-id> [--json]
   niceeval run delete <run-id> [--yes] [--json]
   niceeval run recover <run-id> [--yes] [--json]
 `);
       return 0;
     }
     const action = parsed.positionals[0];
-    if (action === undefined || !["list", "show", "delete", "recover"].includes(action)) {
-      return yield* usage(`niceeval run expects exactly one of list, show, delete, or recover.
+    if (action === undefined || !["list", "delete", "recover"].includes(action)) {
+      return yield* usage(`niceeval run expects exactly one of list, delete, or recover.
 `.trimEnd());
     }
     const facts = yield* invocationFacts();
@@ -166,28 +166,6 @@ Usage:
       return yield* usage(`niceeval run ${action} requires one exact Run ID.`);
     }
     const runId = parsed.positionals[1]!;
-    if (action === "show") {
-      const unsupported = unsupportedOption(parsed, ["json"]);
-      if (unsupported !== undefined) return yield* usage(`--${unsupported} is not valid with niceeval run show.`);
-      const decoded = decodeInspectionOperation({ kind: "run.get", runId });
-      if (Result.isFailure(decoded)) return yield* Effect.fail(failure("show", decoded.failure));
-      const operation = decoded.success;
-      if (operation.kind !== "run.get") return yield* Effect.fail(failure("show", new Error("Invalid Run operation.")));
-      const shown = yield* Effect.scoped(Effect.gen(function* () {
-        const source = yield* openInspectionSource(operationalInspectionSource(facts.cwd));
-        return yield* Effect.try({
-          try: () => selectInspectionOperation(source, operation),
-          catch: (cause) => cause,
-        });
-      })).pipe(Effect.mapError((cause) => failure("show", cause)));
-      if (json) {
-        yield* writeJson(shown);
-      } else {
-        yield* write("stdout", renderRun(projectRun(shown)));
-      }
-      return 0;
-    }
-
     const unsupported = unsupportedOption(parsed, ["json", "yes"]);
     if (unsupported !== undefined) return yield* usage(`--${unsupported} is not valid with niceeval run ${action}.`);
     if (parsed.values.yes !== true) {

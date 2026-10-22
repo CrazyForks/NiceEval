@@ -49,6 +49,8 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("assertion/values");
     await turn.succeeded().orStop();
+    if ("message" in turn || "o11y" in t) throw new Error("Retired author aliases must be absent");
+    if (t.observability === undefined) throw new Error("Observability summary must be available");
 
     await t.group("值 matcher", async () => {
       turn.usedNoTools();

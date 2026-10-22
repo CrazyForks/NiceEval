@@ -11,7 +11,7 @@ pure link
   → schedule ready actions by lowest changeFrequency
   → join declared state and stop shared lineage at the first unsupported state
   → BuildKey ready
-  → PreparedArtifact only: build Run prefix DAG by full SetupPrefixKey
+  → PreparedArtifact only: build Run prefix DAG by full BeforeCacheKey
   → settle all prefix nodes (shared nodes single-flight; independent branches may parallelize)
   → global pre-dispatch barrier
   → dispatch eligible Attempts and satisfy their non-shared before work
@@ -20,15 +20,15 @@ pure link
   → Provider finalizer
 ```
 
-`--dry` 完成输入求值、occurrence 编译、依赖验证、频率排序、declared/cumulative state、barrier、SetupPrefixKey、CaseKey 与 fingerprint 计算；它不 lookup cache，不创建 staging 或 Sandbox。普通 callback before 始终真实执行，并截断后续共享捕获 lineage，但仍保留在 DAG 中。
+`--dry` 完成输入求值、occurrence 编译、依赖验证、频率排序、declared/cumulative state、barrier、BeforeCacheKey、CaseKey 与 fingerprint 计算；它不 lookup cache，不创建 staging 或 Sandbox。普通 callback before 始终真实执行，并截断后续共享捕获 lineage，但仍保留在 DAG 中。
 
-只有 `PreparedArtifact` capability 的 eligible prefix 进入 Run DAG。完整 SetupPrefixKey 相同的节点在同一 Run 内 single-flight；父 artifact 已发布且该节点 prepare Scope 已回收，才释放 child。
+只有 `PreparedArtifact` capability 的 eligible prefix 进入 Run DAG。完整 BeforeCacheKey 相同的节点在同一 Run 内 single-flight；父 artifact 已发布且该节点 prepare Scope 已回收，才释放 child。
 
-实际并发是 `maxSetupPrefixConcurrency`（CLI `--max-setup-prefix-concurrency` 可临时替代，默认 2）与 provider `scheduling.lane.limit` 的交集，且不占 Attempt `maxConcurrency`。`Persistent`、`InvocationLocal` 与 `Unsupported` 不进入该 DAG，仍在 Attempt 内处理。
+实际并发是 `maxBefore cacheConcurrency`（CLI `--max-setup-prefix-concurrency` 可临时替代，默认 2）与 provider `scheduling.lane.limit` 的交集，且不占 Attempt `maxConcurrency`。`Persistent`、`InvocationLocal` 与 `Unsupported` 不进入该 DAG，仍在 Attempt 内处理。
 
 全部 prefix 节点结算前不派发任何 Attempt。节点失败只阻断 descendants 和依赖其 terminal prefix 的 slots；独立分支继续。取消停止并回收未结算 prepare staging 与 publication，已验证发布的 immutable artifact 保留。Run prepare activity 不创建 Attempt locator；只有 barrier 后实际 dispatch 的 slot 才分配并永久保持 locator。
 
-`sandboxCache.setup` 默认是 `"use"`。项目 Config 是持久默认，Experiment 可以替换自己的运行声明，CLI `--sandbox-setup-cache=use|bypass` 是本次 Invocation 的最终取值。`bypass` 不查询也不发布 setup prefix，但仍使用 BuildKey cache；它不进入 CaseKey、SetupPrefixKey 或结果 identity。
+`sandboxCache.setup` 默认是 `"use"`。项目 Config 是持久默认，Experiment 可以替换自己的运行声明，CLI `--sandbox-setup-cache=use|bypass` 是本次 Invocation 的最终取值。`bypass` 不查询也不发布 before cache，但仍使用 BuildKey cache；它不进入 CaseKey、BeforeCacheKey 或结果 identity。
 
 ## Cleanup、After 与收尾
 
@@ -69,6 +69,6 @@ Runner E2E owner 通过安装后的 `niceeval exp` 与可控 profile capacity fi
 
 每个 Attempt 保存自己的 queue/satisfaction、restore、action replay、Agent 与 test 时间区间。请求 timing 的 `query` operation 不把 cache 事实投影成跨 Attempt 共享 Activity。Record 不保存本地 image/container locator 或 secret。
 
-Dogfood 使用公开 CLI 比较旧版本对照、冷运行、输入不变的暖运行与只改 Eval/test 的运行。暖运行必须证明 BuildKey 与 Provider 可完整保存的 setup prefix 命中。只改 Eval/test 时 prefix identity 不变，但 Agent/test 仍真实执行。
+Dogfood 使用公开 CLI 比较旧版本对照、冷运行、输入不变的暖运行与只改 Eval/test 的运行。暖运行必须证明 BuildKey 与 Provider 可完整保存的 before cache 命中。只改 Eval/test 时 prefix identity 不变，但 Agent/test 仍真实执行。
 
 Profile 场景还要证明 Docker-data marker 不变、outer workspace/home Action 重新执行，以及每个 Attempt 使用不同 writable slot。只改无密钥公开 `.env` 时，固定 runtime 前缀仍命中，barrier 与后缀按新输入执行。真实 token 继续由每 Attempt 的 runtime overlay 注入，并由 cleanup callback 撤销。

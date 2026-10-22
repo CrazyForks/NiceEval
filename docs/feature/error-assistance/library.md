@@ -22,7 +22,7 @@ interface MigrationGuide {
 }
 ```
 
-行列从 1 开始。`subject` 是 owner 产生的安全 API 名或参数路径，例如 `defineConfig.judgeRuntime`，
+行列从 1 开始。`subject` 是 owner 产生的安全 API 名或参数路径，例如 `defineConfig.judgeProvider`，
 不是旧值的序列化。位置指向用户调用、已经过求值的参数或导入声明，不用 NiceEval 内部抛错行冒充用户位置。
 位置缺失时保留明确 unavailable；不得由相同字段名或错误消息猜测文件与行列。
 

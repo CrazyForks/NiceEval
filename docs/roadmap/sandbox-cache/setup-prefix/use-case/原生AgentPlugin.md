@@ -34,7 +34,7 @@ pinned exact marketplace commit
   → Agent
 ```
 
-前四项在输入固定且 Adapter 能验证安装结果时可以进入准备前缀。公开配置文件按原始字节 digest 成为高频 action。API key、远端 Space、cohort、隧道 locator 与当前 Attempt identity 使用私有 callback，始终真实执行，并关闭后续共享 capture。
+前四项在输入固定且 Adapter 能验证安装结果时可以进入 before 缓存。公开配置文件按原始字节 digest 成为高频 action。API key、远端 Space、cohort、隧道 locator 与当前 Attempt identity 使用私有 callback，始终真实执行，并关闭后续共享 capture。
 
 `gitCheckout()` 的 `ref` 必须直接填写完整 commit。Adapter 若跟随 `main`，先在自己的可信发布流程中查询它当前指向的 commit，并把该 commit 固定到 Plugin 输入；分支推进后输入 commit 改变，前缀自然 miss。NiceEval V1 不执行这项远端身份查找，也不会把 branch 字符串当成缓存身份。
 

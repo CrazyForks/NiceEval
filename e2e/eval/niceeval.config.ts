@@ -1,3 +1,4 @@
+import { customIdentityReporter, timeoutClosedRegistrationReporter } from "./fixtures/custom-applications.ts";
 import { OpenAIProvider } from "niceeval/judge";
 import { defineConfig } from "niceeval";
 
@@ -8,6 +9,7 @@ const judgeBaseUrl = process.env.NICEEVAL_E2E_JUDGE_BASE_URL;
 export default defineConfig({
   timeoutMs: 60_000,
   maxConcurrency: 4,
+  reporters: [customIdentityReporter, timeoutClosedRegistrationReporter],
   pricing: {
     "eval-deterministic": {
       basis: "catalog-reference",

@@ -22,12 +22,12 @@ export default defineEval({
     await t.group("助手描述出图片内容", () => {
       t.succeeded();
       // 必须同时提到两个具体特征(蓝色背景 + 白色方块)，而不是任一宽泛关键词就算数。
-      t.check(turn.message, pattern(/蓝|blue/i));
-      t.check(turn.message, pattern(/白|方块|square/i));
+      t.check(turn.reply, pattern(/蓝|blue/i));
+      t.check(turn.reply, pattern(/白|方块|square/i));
     });
 
     t.judge(
-      { question: turn.input, answer: turn.message, expectedVisualFacts: ["蓝色背景", "白色方块"] },
+      { question: turn.input, answer: turn.reply, expectedVisualFacts: ["蓝色背景", "白色方块"] },
       imageDescriptionQuality,
     )
       .gate(0.7);

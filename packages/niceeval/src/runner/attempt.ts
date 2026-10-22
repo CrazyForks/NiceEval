@@ -145,7 +145,8 @@ import {
   plannedSetupPrefixActions,
   setupPrefixOperation,
 } from "./setup-prefix-plan.ts";
-import { linkPluginLifecycles, type EvalPluginContext } from "../plugin/contracts.ts";
+import type { AttemptPluginContext } from "../plugin/contracts.ts";
+import { attemptPluginLifecycles } from "../plugin/link.ts";
 import { createSourceRegistry, type SourceRegistry } from "../source-loc.ts";
 import {
   createRunnerAttemptSourceCapture,
@@ -169,7 +170,6 @@ import {
 import {
   attemptFailureInfo,
   resolveAttemptFailureClass,
-  type AttemptFailureClassifier,
   type FailureClass,
 } from "../shared/failure-class.ts";
 import type { CapturedEvalSource } from "./eval-source.ts";
@@ -271,7 +271,7 @@ function reportJudgeErrorAssistance(a: Attempt, sealed: SealedAttemptAssertions)
 }
 
 /**
- * 一次终局失败的空间轴决议:走三道链(抛出点声明 → 实验分类器 → 缺省不可重试,见
+ * 一次终局失败的空间轴决议:读取抛出点声明，否则缺省不可重试(见
  * src/shared/failure-class.ts 的 `resolveAttemptFailureClass`),缺省档(`scope` 省略或
  * `"attempt"`)返回 undefined —— 死因只属于本次执行,没有闸可落。
  *
@@ -281,12 +281,11 @@ function reportJudgeErrorAssistance(a: Attempt, sealed: SealedAttemptAssertions)
  * (run.ts 的复用池租借)共用这一份决议,两处不各写一遍链。
  */
 export function attemptFailureDeclaration(
-  classify: AttemptFailureClassifier | undefined,
   phase: LifecyclePhase,
   e: unknown,
 ): AttemptFailureDeclaration | undefined {
   const info = attemptFailureInfo(phase, e);
-  const cls = resolveAttemptFailureClass(info, classify);
+  const cls = resolveAttemptFailureClass(info);
   if (cls.scope !== "eval" && cls.scope !== "experiment") return undefined;
   return { class: cls, phase, text: info.text };
 }
@@ -558,14 +557,14 @@ export function runAttemptEffect<
   /**
    * 终局失败的分类与回执 —— **必须在把错误折成纯数据 `AttemptError` 之前调**:折完之后原错误
    * 对象(连同它携带的 `_tag`/`class` 与 cause 链)就不再是任何人的引用,空间轴声明再也读不出来。
-   * 走生命周期链的三道决议(抛出点声明 → 实验分类器 → 缺省不可重试,见
+   * 读取抛出点声明，否则缺省不可重试(见
    * src/shared/failure-class.ts 的 `resolveAttemptFailureClass`);send 失败的时间轴已由 send 重试
    * 执行体在 context 层消费完,浮出到这里的一定是终局失败,这里只读空间轴。
    * 缺省档(`scope` 省略或 `"attempt"`)不回执:那是「死因只属于本次执行」,没有闸可落。
    */
   const declareFailure = (phase: LifecyclePhase, e: unknown): void => {
     if (!onFailureClass) return;
-    const declaration = attemptFailureDeclaration(run.classifyFailure, phase, e);
+    const declaration = attemptFailureDeclaration(phase, e);
     if (declaration) {
       // 空间轴回执会先于 Attempt 结果封口进入 run.ts，并立即生成运行期反馈与 run.json 的
       // dispatch-halted 诊断。它不能依赖下面的 EvalResult 最终扫描补救，否则同一条错误在
@@ -840,6 +839,23 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       yield* Effect.addFinalizer(() => Effect.promise(() => judgeUsage.closeAndDrain()));
       const assertFirst = yield* makeAssertFirstAttemptBridge<unknown>();
       if (adapter.kind === "custom") {
+        const pluginHooks = attemptPluginLifecycles(evalDef, run);
+        let activated = 0;
+        const pluginContext: AttemptPluginContext = {
+          experimentId: run.experimentId, evalId: evalDef.id, attempt: a.attempt,
+          ...(evalDef.evalGroup === undefined ? {} : { evalGroup: { id: evalDef.evalGroup.id, definitionHash: evalDef.evalGroup.definitionHash } }),
+          signal, progress: scopedFeedback.progress, diagnostic: scopedFeedback.diagnostic,
+        };
+        yield* Effect.addFinalizer(() => Effect.forEach(pluginHooks.slice(0, activated).reverse(), (entry) =>
+          entry.teardown === undefined ? Effect.void : cleanupCallback((cleanupSignal) => entry.teardown!({ ...pluginContext, signal: cleanupSignal })).pipe(
+            Effect.catchCause((cause) => Effect.sync(() => scopedFeedback.diagnostic({
+              code: "plugin-after-failed", level: "warning", message: String(Cause.squash(cause)),
+            }))),
+          ), { concurrency: 1, discard: true }));
+        for (const entry of pluginHooks) {
+          activated += 1;
+          if (entry.setup !== undefined) yield* Effect.tryPromise({ try: () => Promise.resolve(entry.setup!(pluginContext)), catch: (cause) => cause });
+        }
         const resources = new AdapterAttemptResources(() => {
           adapterUsageSnapshot = adapterUsage!.close();
           adapterExecutionTraces!.close();
@@ -2580,13 +2596,13 @@ async function runAttemptBody(
     : undefined;
   /** agent.before 时点已走到(未声明 setup 也置位)——agent.after 的触发条件(成对触发规则)。 */
   let agentSetupReached = false;
-  const evalPluginLifecycles = linkPluginLifecycles(evalDef.plugins, "eval");
+  const evalPluginLifecycles = attemptPluginLifecycles(evalDef, run);
   let activatedEvalPlugins = 0;
-  const evalPluginContext: EvalPluginContext = {
+  const evalPluginContext: AttemptPluginContext = {
     experimentId: run.experimentId,
     evalId: evalDef.id,
     attempt,
-    ...(evalDef.evalGroup === undefined ? {} : { evalGroupId: evalDef.evalGroup.id }),
+    ...(evalDef.evalGroup === undefined ? {} : { evalGroup: { id: evalDef.evalGroup.id, definitionHash: evalDef.evalGroup.definitionHash } }),
     signal,
     progress: feedback.progress,
     diagnostic: feedback.diagnostic,
@@ -2764,7 +2780,7 @@ async function runAttemptBody(
       }
     }
 
-    if (run.sandboxSetupCache === "bypass") {
+    if (run.sandboxBeforeCache === "bypass") {
       await replayAllBefore(linked.before, "replay(bypass)");
       return;
     }
@@ -3146,7 +3162,7 @@ async function runAttemptBody(
       for (const lifecycle of evalPluginLifecycles) {
         activatedEvalPlugins += 1;
         if (lifecycle.setup !== undefined) {
-          await (lifecycle.setup as (context: EvalPluginContext) => void | Promise<void>)(evalPluginContext);
+          await (lifecycle.setup as (context: AttemptPluginContext) => void | Promise<void>)(evalPluginContext);
         }
       }
 
@@ -3185,7 +3201,7 @@ async function runAttemptBody(
       for (const lifecycle of evalPluginLifecycles) {
         activatedEvalPlugins += 1;
         if (lifecycle.setup !== undefined) {
-          await (lifecycle.setup as (context: EvalPluginContext) => void | Promise<void>)(evalPluginContext);
+          await (lifecycle.setup as (context: AttemptPluginContext) => void | Promise<void>)(evalPluginContext);
         }
       }
     }
@@ -3264,10 +3280,6 @@ async function runAttemptBody(
       otel,
       feedback,
       concurrencySlot,
-      // 实验分类器:send 链上排在 adapter 的 classifySendFailure 之前(见
-      // docs/feature/error-classification/architecture.md「分类链」)。与本文件 declareFailure
-      // 走的生命周期链是同一个函数,两条链的决议序各自单源在 send-failures.ts / failure-class.ts。
-      experimentClassifier: run.classifyFailure,
       sourceRegistry,
       resources: attemptResources,
       nextSourceOrder: sourceCapture.nextSourceOrder,
@@ -3724,7 +3736,7 @@ async function runAttemptBody(
           if (lifecycle.teardown === undefined) continue;
           try {
             await assertFirst.requestCleanup(cleanupCallback((signal) =>
-              (lifecycle.teardown as (context: EvalPluginContext) => void | Promise<void>)({
+              (lifecycle.teardown as (context: AttemptPluginContext) => void | Promise<void>)({
                 ...evalPluginContext,
                 signal,
               })

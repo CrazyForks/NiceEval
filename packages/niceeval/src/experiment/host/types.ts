@@ -1,4 +1,4 @@
-import type { ResolvedModelSlots } from "../../model-slots.ts";
+import type { ResolvedModelRoles } from "../../model-roles.ts";
 import { Data, type Effect } from "effect";
 
 import type { Config } from "../../types.ts";
@@ -57,7 +57,7 @@ export interface ExperimentHostEvalSummary {
 }
 
 export interface ExperimentHostExperimentSummary {
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   readonly id: string;
   readonly description?: string;
   readonly adapter: string;
@@ -65,8 +65,8 @@ export interface ExperimentHostExperimentSummary {
   readonly attempts: number;
   readonly evalIds: readonly string[];
   readonly labels: Readonly<Record<string, string | number>>;
-  readonly hasSetup: boolean;
-  readonly hasTeardown: boolean;
+  readonly hasBefore: boolean;
+  readonly hasAfter: boolean;
   readonly sharedStateKey?: string;
 }
 
@@ -104,7 +104,7 @@ export interface ExperimentHostRunOverrides {
   readonly keepSandbox?: "failed" | "all";
   readonly maxConcurrency?: number;
   readonly maxBuildConcurrency?: number;
-  readonly maxSetupPrefixConcurrency?: number;
+  readonly maxBeforeCacheConcurrency?: number;
 }
 
 export interface ExperimentHostCheckRequest extends ExperimentHostSelectionInput {
@@ -140,7 +140,7 @@ export interface ExperimentHostInvocationShape {
   readonly attempts: number;
   readonly maxConcurrency: number;
   readonly maxBuildConcurrency: number;
-  readonly maxSetupPrefixConcurrency: number;
+  readonly maxBeforeCacheConcurrency: number;
   readonly experimentConcurrency: Readonly<Record<string, number>>;
 }
 
@@ -264,7 +264,7 @@ export interface ExperimentHostInvocationSummary {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
   readonly estimatedCostUSD?: number;
-  readonly setupPrefixes: SetupPrefixPreparationSummary;
+  readonly beforeCaches: SetupPrefixPreparationSummary;
 }
 
 export interface ExperimentHostInvocationResult {
@@ -367,7 +367,7 @@ export interface ExperimentHostSharedStateEvidence {
   readonly heartbeatAt: string;
 }
 
-export interface ExperimentHostTeardownInspectRequest {
+export interface ExperimentHostAfterInspectRequest {
   readonly cwd: string;
   readonly experimentSelector?: string;
   readonly coordinationRoot?: string;
@@ -375,7 +375,7 @@ export interface ExperimentHostTeardownInspectRequest {
   readonly recoveryKey?: string;
 }
 
-export type ExperimentHostTeardownInspection =
+export type ExperimentHostAfterInspection =
   | { readonly status: "no-evidence"; readonly key: string }
   | ExperimentHostSelectionProblem
   | {
@@ -389,7 +389,7 @@ export type ExperimentHostTeardownInspection =
       readonly evidence: ExperimentHostSharedStateEvidence;
     }
   | {
-      readonly status: "teardown-required";
+      readonly status: "after-required";
       readonly experimentId: string;
       readonly evidence: ExperimentHostSharedStateEvidence;
     }
@@ -400,15 +400,15 @@ export type ExperimentHostTeardownInspection =
       readonly evidence?: ExperimentHostSharedStateEvidence;
     };
 
-export interface ExperimentHostTeardownRequest extends ExperimentHostTeardownInspectRequest {
-  readonly observer?: ExperimentHostTeardownObserver;
+export interface ExperimentHostAfterRequest extends ExperimentHostAfterInspectRequest {
+  readonly observer?: ExperimentHostAfterObserver;
   readonly signal?: AbortSignal;
   readonly ownerToken?: string;
   readonly confirmOwnerTerminated?: boolean;
   readonly confirmRemoteQuiesced?: boolean;
 }
 
-export type ExperimentHostTeardownEvent =
+export type ExperimentHostAfterEvent =
   | {
       readonly type: "experiment-progress";
       readonly experimentId: string;
@@ -430,12 +430,12 @@ export type ExperimentHostTeardownEvent =
       readonly recovery?: true;
     };
 
-export interface ExperimentHostTeardownObserver {
-  readonly observe: (event: ExperimentHostTeardownEvent) => void;
+export interface ExperimentHostAfterObserver {
+  readonly observe: (event: ExperimentHostAfterEvent) => void;
 }
 
-export type ExperimentHostTeardownResult =
-  | ExperimentHostTeardownInspection
+export type ExperimentHostAfterResult =
+  | ExperimentHostAfterInspection
   | {
       readonly status: "completed";
       readonly experiments: readonly {
@@ -492,13 +492,13 @@ export interface ExperimentHostHighLevelSDK {
       input: ExperimentHostRenameRequest,
     ) => Effect.Effect<ExperimentHostRenameResult, ExperimentHostError>;
   };
-  readonly teardown: {
+  readonly after: {
     readonly inspect: (
-      input: ExperimentHostTeardownInspectRequest,
-    ) => Effect.Effect<ExperimentHostTeardownInspection, ExperimentHostError>;
+      input: ExperimentHostAfterInspectRequest,
+    ) => Effect.Effect<ExperimentHostAfterInspection, ExperimentHostError>;
     readonly run: (
-      input: ExperimentHostTeardownRequest,
-    ) => Effect.Effect<ExperimentHostTeardownResult, ExperimentHostError>;
+      input: ExperimentHostAfterRequest,
+    ) => Effect.Effect<ExperimentHostAfterResult, ExperimentHostError>;
   };
   readonly accept: (
     input: ExperimentHostAcceptRequest,

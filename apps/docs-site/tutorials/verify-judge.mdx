@@ -17,7 +17,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({
+  judgeProvider: OpenAIProvider({
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",
@@ -120,7 +120,7 @@ When you get no score, decide what to check from the result:
 
 | Result you see | Cause | Check first |
 |---|---|---|
-| `unavailable`, reason `judge-provider-unresolved` | No Provider configured; no request was sent | `judgeRuntime` in `niceeval.config.ts` |
+| `unavailable`, reason `judge-provider-unresolved` | No Provider configured; no request was sent | `judgeProvider` in `niceeval.config.ts` |
 | `unavailable`, reason `judge-key-unresolved` | The key could not be read; no request was sent | Whether the variable named in `apiKeyEnv` is set |
 | `unavailable` | The request could not be sent or timed out | Network, `baseUrl`, `timeoutMs` |
 | `errored` | The endpoint returned HTTP 400, the protocol is incompatible, or the response is not in the required format | Whether `baseUrl` points to a compatible gateway, and whether the `model` name is correct |

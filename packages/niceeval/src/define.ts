@@ -1,7 +1,7 @@
 // @concord-file ne-surface-definition-entry
 // @concord-implements docs/feature/plugins/library.md
 import type { Adapter } from "./adapter.ts";
-import { assertRequiredModelSlots, normalizeModelSlots } from "./model-slots.ts";
+import { assertRequiredModelRoles, normalizeModelRoles } from "./model-roles.ts";
 import { parseAdapterFlags } from "./adapter-flags.ts";
 import { decodeExperimentFlags } from "./experiment/flags.ts";
 // 定义入口:把用户对象规格化成核心认得的形状。路径即身份 —— 这里禁止手写 id,
@@ -53,7 +53,7 @@ import {
   type InternalDirectAgentDefinition,
   type InternalSandboxAgentDefinition,
 } from "./agents/agent-effects.ts";
-import { isPluginInstance, pluginInstanceDataOf, type PluginInstance, type PluginOwner } from "./plugin/contracts.ts";
+import { isPluginInstance, assertPluginOwner, type PluginInstance, type PluginOwner } from "./plugin/contracts.ts";
 
 /** Recognize only the retired flat configuration, without evaluating getters. */
 function normalizeDefinitionJudge(value: unknown, label: string) {
@@ -295,18 +295,20 @@ export function defineExperiment<const A extends Adapter>(def: ExperimentInput<A
 // @concord-implements docs/feature/compile-time-contracts/use-case/three-levels.md
 export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonly flags?: unknown }): ExperimentDefinition {
   rejectRemovedField(def, "judgeRuntime", "Use judge.");
+  rejectRemovedField(def, "classifyFailure", "Use built-in failure classification or ExperimentFatalError / EvalFatalError.");
+  rejectRemovedField(def, "agent", "Use adapter to select the tested Agent or Adapter.");
   if (Object.hasOwn(def, "id")) {
     throw new Error(`defineExperiment does not accept id; ids are derived from file paths.`);
   }
-  if ((def.agent === undefined) === (def.adapter === undefined)) {
-    throw new Error(`defineExperiment requires exactly one of agent or adapter.`);
+  if (def.adapter === undefined) {
+    throw new Error(`defineExperiment requires adapter.`);
   }
-  const adapter = def.adapter ?? def.agent!;
+  const adapter = def.adapter;
   if (adapter.kind !== "custom" && def.models !== undefined) {
     throw new TypeError("Experiment models is only supported by custom Adapters.");
   }
-  const models = adapter.kind === "custom" ? normalizeModelSlots(def) : undefined;
-  if (adapter.kind === "custom") assertRequiredModelSlots(adapter.requiredModelSlots, models, `Adapter "${adapter.name}"`);
+  const models = adapter.kind === "custom" ? normalizeModelRoles(def) : undefined;
+  if (adapter.kind === "custom") assertRequiredModelRoles(adapter.requiredModelRoles, models, `Adapter "${adapter.name}"`);
   const judge = def.judge === undefined
     ? undefined
     : normalizeDefinitionJudge(def.judge, "defineExperiment() judge");
@@ -319,21 +321,17 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
       throw new Error(`Custom Adapter experiments do not support budget because Adapter usage is not collected.`);
     }
   }
-  // setup 是实验级生命周期钩子(整场一次,宿主机侧,见 runner/types.ts 的 ExperimentDef.setup);
+  assertAuthorLifecycleNames(def, "Experiment");
+  // before 是实验级生命周期钩子(整场一次,宿主机侧,见 runner/types.ts 的 ExperimentDef.before);
   // 传成非函数(如误把 sandbox 钩子对象塞进来)在解析时就报,不等到调度才炸。
-  if (def.setup !== undefined && typeof def.setup !== "function") {
-    throw new Error(`experiment.setup must be a function ((ctx) => void); use experiment.teardown for cleanup; to prepare the in-sandbox environment per experiment, chain .setup() hooks on the sandbox spec instead.`);
+  if (def.before !== undefined && typeof def.before !== "function") {
+    throw new Error(`experiment.before must be a function ((ctx) => void); use experiment.after for cleanup; to prepare the in-sandbox environment per experiment, chain .before() hooks on the sandbox spec instead.`);
   }
   // teardown 与 setup 是同一个 Experiment lifecycle 边界。非函数值绝不能
   // 伪装成已声明的 cleanup，否则 explicit sharedState recovery 可能在没有
   // 执行补偿的情况下释放 immutable owner generation。
-  if (def.teardown !== undefined && typeof def.teardown !== "function") {
-    throw new Error(`Experiment teardown must be a function ((ctx) => void); use a function-valued paired lifecycle hook so normal cleanup and explicit sharedState recovery can both execute it.`);
-  }
-  // classifyFailure 是失败分类链上的实验通道(见 runner/types.ts 的 ExperimentDef.classifyFailure):
-  // 传成非函数在解析时就报,不等到某条 attempt 撞死才发现这一路声明白写。
-  if (def.classifyFailure !== undefined && typeof def.classifyFailure !== "function") {
-    throw new Error(`experiment.classifyFailure must be a function ((failure) => FailureClass | undefined); it classifies failures that surface as third-party errors and must return undefined for anything it does not recognize.`);
+  if (def.after !== undefined && typeof def.after !== "function") {
+    throw new Error(`Experiment after must be a function ((ctx) => void); use a function-valued paired lifecycle hook so normal cleanup and explicit sharedState recovery can both execute it.`);
   }
   // labels 是报告归类坐标(进 ExperimentRunInfo.labels,不透传 ctx/t):值域 string | number,
   // 解析时即校验,布尔 / 对象 / NaN 直接报错,不等到落盘或报告分组才炸。
@@ -347,7 +345,6 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
   const sandboxCache = normalizeSandboxCache(def.sandboxCache, "defineExperiment");
   const {
     id: _derivedId,
-    agent: _agent,
     adapter: _adapter,
     sharedState: _sharedState,
     sandboxCache: _sandboxCache,
@@ -363,7 +360,6 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
       reasoningEffort: models.default?.reasoningEffort ?? undefined,
     }),
     adapter,
-    ...(adapter.kind === "custom" ? {} : { agent: adapter }),
     flags: adapter.kind === "custom" && adapter.parseFlags !== undefined
       ? parseAdapterFlags(adapter.parseFlags, flags)
       : flags,
@@ -385,17 +381,18 @@ function normalizeSandboxCache(
 ): SandboxCacheConfig | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`${factory} sandboxCache must be an object with optional setup "use" or "bypass".`);
+    throw new TypeError(`${factory} sandboxCache must be an object with optional before "use" or "bypass".`);
   }
+  if (Object.hasOwn(value, "setup")) throw new TypeError(`${factory} sandboxCache.setup is no longer supported. Use sandboxCache.before.`);
   const keys = Object.keys(value);
-  const setup = Reflect.get(value, "setup");
+  const before = Reflect.get(value, "before");
   if (
-    keys.some((key) => key !== "setup") ||
-    (setup !== undefined && setup !== "use" && setup !== "bypass")
+    keys.some((key) => key !== "before") ||
+    (before !== undefined && before !== "use" && before !== "bypass")
   ) {
-    throw new TypeError(`${factory} sandboxCache must be an object with optional setup "use" or "bypass".`);
+    throw new TypeError(`${factory} sandboxCache must be an object with optional before "use" or "bypass".`);
   }
-  return Object.freeze(setup === undefined ? {} : { setup });
+  return Object.freeze(before === undefined ? {} : { before });
 }
 
 const SharedStateKeyPattern = /^[a-z0-9][a-z0-9._/-]{0,127}$/u;
@@ -420,6 +417,7 @@ function normalizeSharedState(value: unknown): SharedStateConfig | undefined {
 function normalizeEvalFields<
   const Sandbox extends SandboxLayer | undefined,
 >(def: EvalInput<Sandbox> | ScoreEvalInput<Sandbox>): EvalDefinitionFields<Sandbox> {
+  rejectRemovedField(def, "reporters", "Use Config.reporters for project-level reporting.");
   const judge = def.judge === undefined
     ? undefined
     : normalizeDefinitionJudge(def.judge, "defineEval() judge");
@@ -429,7 +427,6 @@ function normalizeEvalFields<
     ...(def.sandbox !== undefined ? { sandbox: def.sandbox } : {}),
     plugins: normalizePlugins(def.plugins ?? [], "defineEval plugins", "eval"),
     ...(judge !== undefined ? { judge } : {}),
-    reporters: Object.freeze([...(def.reporters ?? [])]),
     ...(def.timeoutMs !== undefined ? { timeoutMs: def.timeoutMs } : {}),
     metadata: decodeJsonRecord(def.metadata ?? {}, "Eval metadata"),
     diff: Object.freeze({
@@ -449,9 +446,7 @@ function normalizePlugins<Owner extends PluginOwner>(
   if (!Array.isArray(value)) throw new TypeError(`${label} must be an array.`);
   return Object.freeze(value.map((plugin, index) => {
     if (!isPluginInstance(plugin)) throw new TypeError(`${label}[${index}] must be created by definePlugin().`);
-    if (pluginInstanceDataOf(plugin)[owner] === undefined) {
-      throw new TypeError(`${label}[${index}] does not support ${owner} attachment.`);
-    }
+    assertPluginOwner(plugin, owner, `${label}[${index}]`);
     return plugin;
   }));
 }
@@ -509,6 +504,8 @@ function assertSandboxLayer(value: unknown, factory: string): void {
 /** 项目级配置。 */
 export function defineConfig(config: Config): Config {
   rejectRemovedField(config, "judgeRuntime", "Use judgeProvider.");
+  rejectRemovedField(config, "maxSetupPrefixConcurrency", "Use maxBeforeCacheConcurrency.");
+  rejectRemovedField(config, "workspace", "Use the project directory as the working directory.");
   const sandboxCache = normalizeSandboxCache(config.sandboxCache, "defineConfig");
   const judgeProvider = config.judgeProvider === undefined
     ? undefined
@@ -531,4 +528,8 @@ export function defineSandbox(
   def: CustomProviderSandboxOptions,
 ): SandboxLayer<"template-bearing"> {
   return customProviderSandbox(def);
+}
+
+function rejectRemovedField(value: object, field: string, replacement: string): void {
+  if (Object.hasOwn(value, field)) throw new TypeError(`${field} is no longer supported. ${replacement}`);
 }
