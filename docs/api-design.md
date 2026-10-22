@@ -729,3 +729,65 @@ OpenCode parser 只保留固定版本 CLI 实际产出的 JSONL 事件与 `expor
 固定版本产出的真实样本作为 parser 的 fixture。
 parser 不认识的事件不进入 `Turn.events`，也不静默丢弃：每条 Attempt 追加一条 warning diagnostic `agent-event-unrecognized`，列出事件类型与次数。
 已落盘 Record 中的事件是 parse 后的形状，不受影响。产品站的 `/en/*` 与 www 308 重定向属于公开链接，保留。
+
+## 0.19 命名收敛
+
+作者可见名字按本篇准则逐项收敛。持久编码（Record 字段、identity 编码、缓存键内部字段）不改，只在 decode / projection 边界映射到新名。
+旧名不保留别名；定义期或 argv parse 时，以指向新名的错误拒绝。
+
+### 生命周期词汇的遗漏位置
+
+| 旧名 | 新名 |
+| --- | --- |
+| setup prefix 概念、`SetupPrefixKey` | before cache、`BeforeCacheKey` |
+| `Config.maxSetupPrefixConcurrency`、`--max-setup-prefix-concurrency` | `maxBeforeCacheConcurrency`、`--max-before-cache-concurrency` |
+| `sandboxCache.setup`、`SandboxSetupCache` | `sandboxCache.before`、`SandboxBeforeCache` |
+| summary 的 `setupPrefixes`、debug 的 `setupPrefixPlan` | `beforeCaches`、`beforeCachePlan` |
+| `AgentSetup` / `AgentTeardown` 等 Agent 生命周期类型 | `AgentBefore` / `AgentAfter` 等 |
+| `SandboxCommandContext.phase` 的 `agent.post-setup` / `agent.pre-teardown` | `agent.before` / `agent.after` |
+| timing 与 diagnostic activity 的 `*.setup` / `*.teardown` | `*.before` / `*.after` |
+| `experimentHost.teardown`、`hasSetup` / `hasTeardown`、`teardown-required` | `experimentHost.after`、`hasBefore` / `hasAfter`、`after-required` |
+| `niceeval exp --teardown` | `niceeval exp --after` |
+
+`ExperimentHook`、`SandboxHookContext` 等不含 setup 词根的类型保留。Agent 安装事实不是生命周期，改用 installation：
+
+- `AgentSetupManifest` → `AgentInstallationManifest`
+- `ctx.reportSetup` → `ctx.reportInstallation`
+- `EvalResult.agentSetup` → `agentInstallation`
+
+### 公开入口只留作者 API
+
+以下运行时导出属于内部实现，从公开子路径撤销，不提供替代：
+
+- `/sandbox` 身份计算：`computeBuildKey`、`computeCaseKey`、`credentialIdentityContribution`、`assertPureDataIdentity`、`looksLikeDigestRef`。
+- `/sandbox` Compose 编译：`COMPOSE_MATERIALIZER_REVISION`、`collectComposeBuilds`、`leakGateHintsFromComposeFile`。
+- `/sandbox` Compose 校验与生成：`assertComposeBlacklist`、`findComposeBlacklistViolations`、`buildComposeOverlay`、`materializeDockerComposeProviderCase`。
+- `/sandbox` 构建调度：`SANDBOX_BUILD_ACTIVITY`、`prepareSandboxBuilds`、`startSandboxBuilds`、`buildFailureOrigin`、`materializationScopeId`、`sandboxBuildRef`。
+- `/sandbox` 其它：`normalizeSandboxCapture` 及其类型，Docker profile 的内部策略常量。
+- `/loaders`：`captureLoadedFiles` 及其类型；只保留 `loadJson`、`loadText`、`loadYaml` 等加载函数与输入类型。
+- `/inspection`：`canonicalInspectionJson`、`canonicalJsonValue`、`closeInspectionJson`。
+
+同一实现的多个名字只留一个：
+
+| 保留 | 删除 |
+| --- | --- |
+| `decodeDockerExecutionProfile` | `parseDockerExecutionProfile`、`parseDockerExecutionProfileV1`、`decodeDockerExecutionProfileV1` |
+| `defineDockerExecutionProfile` | `makeDockerExecutionProfileV1`、`createDockerExecutionProfileV1` |
+| `indexDockerProfiles` | `createDockerProfileRegistry`、`parseDockerProfileRegistry` |
+| `resolveDockerProfile` | `resolveDockerExecutionProfile` |
+| `DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION` | `DOCKER_PROFILE_SCHEMA_VERSION` |
+
+### 作者字段与 CLI
+
+| 旧名 | 新名 | 理由 |
+| --- | --- | --- |
+| `bubAgent({ apiBase })` | `baseUrl` | 与其它 Agent factory 同一概念 |
+| `t.o11y`、`O11ySummary` | `t.observability`、`ObservabilitySummary` | 内部目录缩写不进入作者面 |
+| `turn.message` | `turn.reply` | 与 `t.reply`、`session.reply` 同指 Agent 返回文字 |
+| `Experiment.judgeRuntime`、`Eval.judge` | 均为 `judge` | 同一 `JudgeSelection`，按 Experiment → Eval → Config 优先级合并 |
+| `Config.judgeRuntime` | `judgeProvider` | 类型是 JudgeProvider，不是选择 |
+| `niceeval session list/show` | `niceeval invocation list/show` | session 已指 Agent 会话 |
+| `niceeval sandbox --record <record-root>` | `--record-root` | `--record` 在 query/show 指单个 Record 文件 |
+
+文档中的 `prepare()`、`SandboxAgent.setup` 等遗留词同步改为现行名字。
+`defineEval`、`check`、`shell`、`command`、`createSessionSlot`、`create*EventStream` 等名字保持不变。
