@@ -11,7 +11,7 @@
 
 ## 术语总表
 
-全项目术语、来源和作用范围由 Concord 只读汇总：
+全项目术语、定义文件和作用范围由 Concord 只读汇总：
 
 ```sh
 pnpm exec concord concepts index --json
@@ -38,17 +38,17 @@ Member 将两者关联；历史结果沿用时，新的 Run 引用既有 Attempt
 例如，Sandbox Agent 在隔离空间里运行 CLI，Direct Agent 则直接调用函数、SDK 或服务端点。
 
 生命周期 Hook 使用 `before` / `after`；所在对象决定执行范围与次数。
-[Sandbox Layer](feature/sandbox/layers.md) 的可缓存前置动作形成 before cache；它与 [结果沿用](feature/experiments/cache.md) 分别复用环境起点和已发布结果。
+[Sandbox Layer](feature/sandbox/layers.md) 的可缓存前置动作形成 before 缓存；它与 [结果沿用](feature/experiments/cache.md) 分别复用 Sandbox 起始状态和已发布结果。
 
 ### 证据与评判
 
-[Assertion](feature/assertions/README.md) 记录检查，[Judge](feature/judge/README.md) 对显式材料求 measurement，
+[Assertion](feature/assertions/README.md) 声明检查条件，[Judge](feature/judge/README.md) 对显式材料求 measurement，
 [Verdict](feature/verdict/README.md) 表达 Attempt 的判定。Score Eval 还保存显式数值贡献。
 例如，Judge 给出质量 measurement，作者再通过 handle 的 `gate` 或 `score` 决定怎样使用它。
 
 ## 候选术语
 
-[Roadmap](roadmap/README.md) 中的候选术语保留其来源和候选身份，不能据此推断公开 API 已存在。
+[Roadmap](roadmap/README.md) 中的候选术语保留其契约链接和候选身份，不能据此推断公开 API 已存在。
 采用或否决时，用 Concord 同步概念定义与引用；本页不复制候选词库。
 
 ## 禁用写法

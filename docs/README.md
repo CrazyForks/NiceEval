@@ -143,7 +143,7 @@ Design 文档的组织方式由 [`design/README.md`](design/README.md) 定义。
 用词由 [`concepts.json`](concepts.json) 拥有；[Concepts](concepts.md) 解释概念关系与案例。
 
 - 同一概念在正文里始终写同一个词，不换同义词，也不临时造中文译名。
-- 要用目录里没有的概念，先用 `pnpm exec concord concepts set` 登记定义和来源，再在正文使用。`concepts index` 只读汇总全项目词条。
+- 要用目录里没有的概念，先用 `pnpm exec concord concepts set` 登记定义和契约链接，再在正文使用。`concepts index` 只读汇总全项目词条。
 - 同义词的首选名与弃用名只在概念目录裁决，允许别名不产生禁词。
 - 其它禁用写法由 `pnpm exec concord writing set` 写入 [`concord-writing.json`](concord-writing.json)，每项带 `term` / `use` / `why`。每项 `roots` 保留设计文档、中文站或两者的作用范围。
 - `pnpm exec concord docs check --json` 检查当前正文，`pnpm lint` 同时执行 Concord 与 NiceEval 专用的示例、SVG 和站点守护。
