@@ -210,3 +210,13 @@ social.defineScoreEval({
 `defineAgent` 和 `defineSandboxAgent` 保留在 `niceeval/adapter`，提供第一方会话接入。
 Experiment 的 `adapter` 接受这些定义；`agent` 是只接受 Agent 的便捷输入，两者不能同时提供。
 结果和事件的 `adapter` 只有名称、接口名称与行为版本，没有可调用方法；方法只在本次 Attempt 的 `t` 上可用。
+
+## 只展示的 Note
+
+`t.note(label, value)` 保存 JSON 值或 `/expect` 构造的 `Quantity`，供结果审阅使用。
+例如 `t.note("延迟", ms(512))` 保留数值与单位；`null` 表示未取得，显示为 unavailable。
+Note 不登记 Assertion，没有 matcher、gate 或 score，也不影响 Verdict、score 与 coverage。
+
+同一 Attempt 的 label 必须唯一，最多保存 64 项，每项序列化 JSON 不超过 64 KiB；违规时抛出 `TypeError`。
+调用时保存值的快照，后续修改原对象不会改变 Note。执行上下文关闭后不能继续写入。
+显示与聚合见 [Inspection CLI](../inspection/cli.md#notes)。

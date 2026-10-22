@@ -53,7 +53,8 @@ const RUNS_ROOT = ".repo-tools/docs-runs";
 const SHARED_FINALIZER_PATHS = [
   "docs/README.md",
   "docs/concepts.md",
-  "docs/writing-rules.json",
+  "docs/concepts.json",
+  "docs/concord-writing.json",
 ] as const;
 
 function validateWorkId(kind: "run" | "item", value: string): Effect.Effect<string, DocsPathError> {

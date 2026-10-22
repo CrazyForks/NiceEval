@@ -1,55 +1,15 @@
 import { defineEval } from "niceeval";
 import { definePlugin } from "niceeval/plugin";
-import { dockerSandbox, sandboxLayer } from "niceeval/sandbox";
-
-const NODE_IMAGE = "node@sha256:cd84903a12dbd26b46f1f3b8144a2568c41c5d37ddd0c7a80a34c7a19786b35f";
-
+import { sandboxLayer } from "niceeval/sandbox";
 function rejects(factory, pattern) {
-  try {
-    factory();
-    return false;
-  } catch (error) {
-    return pattern.test(String(error));
-  }
+  try { factory(); return false; } catch (error) { return pattern.test(String(error)); }
 }
-
-const sandboxOnly = definePlugin({
-  name: "e2e.dynamic.sandbox-only",
-  behaviorRevision: "1",
-  sandbox: () => sandboxLayer(),
-});
-
-const templateBearing = definePlugin({
-  name: "e2e.dynamic.template-bearing",
-  behaviorRevision: "1",
-  eval: () => ({ setup() {} }),
-  sandbox: () => dockerSandbox({ source: { type: "image", image: NODE_IMAGE } }),
-});
-
-const unbranded = definePlugin({
-  name: "e2e.dynamic.unbranded-sandbox",
-  behaviorRevision: "1",
-  eval: () => ({ setup() {} }),
-  sandbox: () => ({ before() {}, after() {} }),
-});
-
-const groupScoped = definePlugin({
-  name: "e2e.dynamic.group-scoped",
-  behaviorRevision: "1",
-  group: () => ({ setup() {} }),
-  sandbox: () => sandboxLayer(),
-});
-
+const sandboxOnly = definePlugin({ name: "e2e.dynamic.sandbox-only", identity: {}, sandbox: { before() {} } });
+const groupScoped = definePlugin({ name: "e2e.dynamic.group-scoped", identity: {}, group: { before() {} } });
 process.stdout.write(JSON.stringify({
-  sandboxOnlyCreated: sandboxOnly() !== undefined,
-  emptyRejected: rejects(
-    () => definePlugin({ name: "e2e.dynamic.empty", behaviorRevision: "1" }),
-    /at least one scope callback/u,
-  ),
-  hostOwnersNotWidened: rejects(
-    () => defineEval({ plugins: [groupScoped()], test() {} }),
-    /does not support eval attachment/u,
-  ),
-  templateRejected: rejects(() => templateBearing(), /command-only/u),
-  unbrandedRejected: rejects(() => unbranded(), /SandboxLayer/u),
+  sandboxOnlyCreated: typeof sandboxOnly === "object",
+  emptyRejected: rejects(() => definePlugin({ name: "empty", identity: {} }), /at least one behavior/u),
+  hostOwnersNotWidened: rejects(() => defineEval({ plugins: [groupScoped], test() {} }), /group.*not allowed.*eval/u),
+  templateRejected: rejects(() => definePlugin({ name: "layer", identity: {}, sandbox: sandboxLayer() }), /before or after/u),
+  unbrandedRejected: rejects(() => definePlugin({ name: "legacy", identity: {}, sandbox: () => ({ before() {} }) }), /object/u),
 }));

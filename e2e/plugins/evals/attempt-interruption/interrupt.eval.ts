@@ -3,7 +3,7 @@ import { appendPluginLifecycleEvent } from "../../fixtures/events.ts";
 import { interruptEvalLifecycle } from "../../plugins/lifecycle.ts";
 
 export default defineEval({
-  plugins: [interruptEvalLifecycle()],
+  plugins: [interruptEvalLifecycle],
   async test(t) {
     const turn = await t.send("start the Eval Plugin interruption fixture");
     await turn.succeeded().orStop();

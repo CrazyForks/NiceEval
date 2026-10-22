@@ -63,7 +63,8 @@ Design 保存多方案比较与裁决存档，Research 只提供决策输入而�
 - [Concepts](concepts.md)、[Architecture](architecture.md)、[Getting Started](getting-started.md) 与 [用户故事地图](user-story.md)。
 - [API 设计](api-design.md)、[Origin 接入](origin-integration.md)、[Observability](observability.md)、[Runner](runner.md) 与 [CLI](cli.md)。
 - [错误反馈](error-feedback.md)、[外部参考](references.md)、[Source Map](source-map.md) 与 [SVG 视觉契约](SVG-DESIGN.md)。
-- [`writing-rules.json`](writing-rules.json)：句长、段长与禁用写法的受管裁决。
+- [`concepts.json`](concepts.json)：由 Concord 管理的术语定义、首选名、允许别名与弃用名。
+- [`concord-writing.json`](concord-writing.json)：由 Concord 管理的句长、段长与禁用写法政策。
 
 ## 文档的唯一归属
 
@@ -139,11 +140,13 @@ Design 文档的组织方式由 [`design/README.md`](design/README.md) 定义。
 只有句末标点算断句，分号和破折号串起来的分句仍是同一句——长难句正是这么长起来的。
 一行有多长不受限：句子写完再换行，中途要不要断行按 diff 好不好读自己定。
 
-用词只有一处出处：[Concepts](concepts.md)。
+用词由 [`concepts.json`](concepts.json) 拥有；[Concepts](concepts.md) 解释概念关系与案例。
 
 - 同一概念在正文里始终写同一个词，不换同义词，也不临时造中文译名。
-- 要用总表里没有的概念，先在 concepts.md 立词，再在正文使用。
-- 已裁决不许出现的写法登记在 [`writing-rules.json`](writing-rules.json) 的 `bannedTerms`，一条带 `term` / `use` / `why`；裁决新术语时同批加一条。只有同时登记在 `siteBannedTerms` 的通用禁词才作用于公开中文站。只针对用户文档内部口吻的写法登记在 `siteOnlyBannedTerms`，不强加给设计契约。
+- 要用目录里没有的概念，先用 `pnpm exec concord concepts set` 登记定义和契约链接，再在正文使用。`concepts index` 只读汇总全项目词条。
+- 首选名与允许别名由概念目录裁决。带历史目录豁免的弃用规则由写作政策拥有，并引用对应 concept；允许别名不产生禁词。
+- 其它禁用写法由 `pnpm exec concord writing set` 写入 [`concord-writing.json`](concord-writing.json)，每项带 `term` / `use` / `why`。每项 `roots` 保留设计文档、中文站或两者的作用范围。
+- `pnpm exec concord docs check --json` 检查当前正文，`pnpm lint` 同时执行 Concord 与 NiceEval 专用的示例、SVG 和站点守护。
 - 要在正文里引用某个禁用写法本身（例如说明为什么不写它），把它写成行内代码：检查会先剥掉行内代码与代码块。
 
 ## 体裁分工:契约页薄,用例页厚

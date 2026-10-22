@@ -13,13 +13,13 @@ kind: engineering
 
 维护 CLI 由 NiceEval 与中立 `concord-sdlc` engine 组合。Concord 拥有 docs/test/trace/memory 等中立治理 contribution。
 
-`@niceeval/repo-tools` 拥有 Preview、Examples、下游链接、Repository setup、PR，以及文档 generators/site/reference/diff-code/terms/work 等 NiceEval 产品流程。最终 CLI 也由 NiceEval 组合。
+`@niceeval/repo-tools` 拥有 Preview、Examples、下游链接、Repository setup、PR，以及文档 generators/site/reference/diff-code/work 等 NiceEval 产品流程。最终 CLI 也由 NiceEval 组合。
 
 当前测试关系使用源码注释，新正式证据使用 `concord.native-reliability/v1`，历史证据原样保留。
 
 `concord.repository.json` 指向 NiceEval 自己的 E2E host。真实 candidate、Testkit、inventory 与 formal evidence 仍由 `packages/e2e-runner` 执行；Concord 原生模式的命令收据不能替代 formal evidence。安装版本不一致时 CLI 拒绝执行，请使用仓库内的 pnpm 入口。
 
-文档维护从唯一的字面入口 `pnpm run repo docs` 进入；pnpm 的内建命令会截获相近的缩写，因此所有文档、Skill、workflow 与 help 检查都使用这一完整形式。
+NiceEval 文档流程从字面入口 `pnpm run repo docs` 进入；pnpm 的内建命令会截获相近的缩写，因此所有文档、Skill、workflow 与 help 检查都使用这一完整形式。
 
 ## 安装与按需指引
 
@@ -76,7 +76,7 @@ Docs contribution 只把显式领域挂到 `pnpm run repo docs` 下，也不解�
 | Trace | `pnpm run repo docs trace recover --help` | 显式恢复中断的 relation publication |
 | Design | `pnpm run repo docs design --help` | `create`、`check`、`decide` 的候选到裁决闭环 |
 | Research | `pnpm run repo docs research --help` | `page`、`package`、`add-page` 与对精确 ref 的 `check` |
-| Terms | `pnpm run repo docs terms --help` | 维护文档用词裁决 |
+| Concepts / Writing | `pnpm exec concord concepts --help`、`pnpm exec concord writing --help` | 维护目录术语与写作政策；`pnpm exec concord docs check --json` 检查正文 |
 | Work | `pnpm run repo docs work --help` | 准备、核对和收尾互斥的文档工作项 |
 | Reference | `pnpm run repo docs reference --help` | 核对或重生成公开 API reference 区块 |
 | Diff code | `pnpm run repo docs diff-code --help` | 核对或重生成接入示例前后对照页 |
@@ -108,7 +108,11 @@ PR 正文入口 `pnpm pr:body` 拥有受模板约束的 Git-private 编辑状态
 缺少父 Feature 或既有用例索引时零写入失败，不隐式创建 package 或分组目录。
 dry-run 与实际 publication 使用相同的输入、路径与索引校验；命令不创建测试或反向关系。
 
-Roadmap 与 Engineering 的结构写入不由 repo-tools 拥有，而是 Concord 基础 CLI 的稳定受管入口：
+术语与写作政策由 Concord 基础 CLI 拥有：`concepts index/show/set` 管理 `docs/concepts.json`，
+`writing index/show/set` 管理 `docs/concord-writing.json`。修改使用最新 owner digest，参数从各自 `--help` 发现。
+Markdown 只解释关系与案例；API 示例规则由 `lint/docs/public-api-examples.json` 拥有，SVG 守护读取 Concord 的词汇裁决。
+
+Roadmap 与 Engineering 的结构写入也使用 Concord 基础 CLI 的受管入口：
 
 - `pnpm exec concord roadmap create/list/show/page/adopt`，参数见 `pnpm exec concord roadmap --help`；
 - `pnpm exec concord engineering create/list/show/page`，参数见 `pnpm exec concord engineering --help`。
@@ -156,7 +160,7 @@ AGENTS 只说明从哪里开始，不复制参数。Skill 保存判断顺序、�
 
 ## 脚本与平台边界
 
-根 `scripts/` 是迁移输入，不是长期 owner。正式 Docs 命令全部从 `pnpm run repo docs` 进入；不保留旧别名。`e2e/scripts/` 仍是 host-side E2E runner，入口为 `pnpm e2e`；产品 runtime 留在 `packages/niceeval`；lint adapter 留在 `lint/**`。
+根 `scripts/` 是迁移输入，不是长期 owner。NiceEval Docs 命令从 `pnpm run repo docs` 进入，中立文档治理使用 `pnpm exec concord`；不保留旧别名。`e2e/scripts/` 仍是 host-side E2E runner，入口为 `pnpm e2e`；产品 runtime 留在 `packages/niceeval`；lint adapter 留在 `lint/**`。
 
 YAML、Netlify 配置和 hooks 只决定平台何时调用正式命令、传入哪些可信参数，以及如何保存 artifact。选择、校验、生成、重试、领域 receipt 与错误呈现都属于 domain contribution。平台文件不得复制文件列表、状态机或成功判定。
 

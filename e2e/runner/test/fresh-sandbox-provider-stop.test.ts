@@ -45,7 +45,7 @@ test.concurrent("fresh custom Provider group.stop 失败保留 sharedState，普
         expect(await exists(join(barrierRoot, "provider-group-stop-started")), failed.diagnostic()).toBe(true);
 
         const inspectionArgs = [
-          "exp", "shared-state-provider-stop-fails", "--teardown",
+          "exp", "shared-state-provider-stop-fails", "--after",
           "--recover-shared-state", "runner/shared-state-provider-stop",
         ];
         const inspection = await niceeval.run(inspectionArgs, { env: { NICEEVAL_SHARED_STATE_PROVIDER_STOP_BARRIER: barrierRoot } });

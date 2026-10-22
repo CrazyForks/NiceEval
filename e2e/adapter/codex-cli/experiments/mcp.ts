@@ -13,7 +13,7 @@ const agent = codexAgent({
     { name: "e2e", command: "node", args: [MCP_FIXTURE_ENTRY] },
     { name: "deepwiki", url: "https://mcp.deepwiki.com/mcp" },
   ],
-  postSetup: [
+  before: [
     async (sb) => {
       // Install before Codex starts the MCP process. A cold npx here used Codex's
       // shorter MCP startup window for registry resolution and obscured install
@@ -27,7 +27,7 @@ const agent = codexAgent({
 
 export default defineExperiment({
   description: "codex-cli MCP 闭环:stdio 与远程 HTTP 两种传输形态,外加未挂载 server 的反例",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["mcp"],

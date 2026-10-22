@@ -1,5 +1,5 @@
 import { projectCacheRead, type CacheReadReport } from "./cache-read.ts";
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 import type { NumericMaterial } from "../assertions/match.ts";
 import type { ResolvedEvidenceCoverage } from "../assertions/coverage.ts";
 import type { PriceOverride, Usage } from "../types.ts";
@@ -17,35 +17,35 @@ import {
 } from "./adapter-usage-projection.ts";
 
 /** Frozen cache report with author-facing selection by Experiment model purpose. */
-export interface EvalCacheRead<ModelSlot extends string = string> extends CacheReadReport {
-  /** Omit the slot for the total. An undeclared slot throws; missing observations remain unavailable. */
-  rate(modelSlot?: ModelSlot): NumericMaterial;
+export interface EvalCacheRead<ModelRole extends string = string> extends CacheReadReport {
+  /** Omit the role for the total. An undeclared role throws; missing observations remain unavailable. */
+  rate(role?: ModelRole): NumericMaterial<"ratio">;
 }
 
-function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): EvalCacheRead {
+function authorCacheRead(report: CacheReadReport, models?: ResolvedModelRoles): EvalCacheRead {
   const declared = new Set(Object.keys(models ?? {}));
-  const rates = new Map(report.modelSlots.map((group) => [group.modelSlot, group.rate]));
+  const rates = new Map(report.roles.map((group) => [group.modelRole, group.rate]));
   return Object.freeze({
     ...report,
-    rate: (modelSlot?: string): NumericMaterial => {
-      if (modelSlot === undefined) return report.total.rate;
-      if (!declared.has(modelSlot)) {
-        throw new TypeError(`Undeclared model slot ${JSON.stringify(modelSlot)}; declared slots: ${[...declared].join(", ") || "(none)"}.`);
+    rate: (role?: string): NumericMaterial<"ratio"> => {
+      if (role === undefined) return Object.freeze({ ...report.total.rate, unit: "ratio" });
+      if (!declared.has(role)) {
+        throw new TypeError(`Undeclared model role ${JSON.stringify(role)}; declared roles: ${[...declared].join(", ") || "(none)"}.`);
       }
-      const rate = rates.get(modelSlot);
-      if (rate !== undefined && !(rate.state === "unavailable" && rate.reason === "no-calls")) return rate;
-      return Object.freeze({ state: "unavailable", reason: "slot-has-no-calls" });
+      const rate = rates.get(role);
+      if (rate !== undefined && !(rate.state === "unavailable" && rate.reason === "no-calls")) return Object.freeze({ ...rate, unit: "ratio" });
+      return Object.freeze({ state: "unavailable", reason: "role-has-no-calls", unit: "ratio" });
     },
   });
 }
 
 /** Internal source-owned shape; package-root exposure belongs to the author facade. */
-export interface EvalUsage<ModelSlot extends string = string> {
+export interface EvalUsage<ModelRole extends string = string> {
   readonly source: "agent" | "adapter" | "unavailable";
   readonly scope: "turn" | "session" | "attempt";
   readonly basis: "reported-sends" | "recorded-calls" | "unbound";
   readonly cut: "call-time";
-  readonly cacheRead: EvalCacheRead<ModelSlot>;
+  readonly cacheRead: EvalCacheRead<ModelRole>;
   readonly inputTokens: NumericMaterial;
   readonly inputTotalTokens: NumericMaterial;
   readonly outputTokens: NumericMaterial;
@@ -99,7 +99,7 @@ function contributionCosts(
   });
 }
 
-export function projectAdapterEvalUsage(usage: ReadableAdapterUsageAttachment, models?: ResolvedModelSlots): EvalUsage {
+export function projectAdapterEvalUsage(usage: ReadableAdapterUsageAttachment, models?: ResolvedModelRoles): EvalUsage {
   return Object.freeze({
     source: "adapter",
     scope: "attempt",

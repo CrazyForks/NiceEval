@@ -236,7 +236,7 @@ export function isOrphanedTeardownRegistration(entry: TeardownRegistration, curr
 }
 
 /**
- * `niceeval exp` 启动提醒:遗留义务里「不在本次选择」的那部分,各给一行 `--teardown` 命令。
+ * `niceeval exp` 启动提醒:遗留义务里「不在本次选择」的那部分,各给一行 `--after` 命令。
  * 在本次选择且仍声明 teardown 的遗留义务由 run.ts 在调度前自动补执行,不出现在这里
  * (见 docs/feature/experiments/architecture.md「强杀后的收尾兜底」)。
  */
@@ -252,7 +252,7 @@ export function orphanedTeardownReminderEffect(
         if (!isOrphanedTeardownRegistration(entry, currentHost)) continue;
         if (recoveringExperimentIds.has(entry.experimentId)) continue;
         lines.push(
-          `unfinished experiment teardown for "${entry.experimentId}" from a killed run — niceeval exp ${entry.experimentId} --teardown\n`,
+          `unfinished experiment teardown for "${entry.experimentId}" from a killed run — niceeval exp ${entry.experimentId} --after\n`,
         );
       }
       return lines.length > 0 ? lines.join("") : undefined;

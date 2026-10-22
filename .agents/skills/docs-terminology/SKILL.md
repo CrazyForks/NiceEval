@@ -1,23 +1,26 @@
 ---
 name: docs-terminology
-description: Maintain NiceEval documentation banned wording and diagnose writing-rule failures. Use when listing, adding, removing, or checking entries in docs/writing-rules.json; use docs/concepts.md instead when establishing a preferred domain term.
+description: Maintain NiceEval concepts and documentation writing policies through Concord, and diagnose terminology or readability findings.
 metadata:
-  command: pnpm run repo docs terms
+  command: pnpm exec concord writing
   design: docs/engineering/repository-tools/README.md
 ---
 
 # Documentation terminology
 
-Read the [writing rules](../../../docs/README.md#写给人读) before changing terminology. Its command owner is defined by [Repository Tools](../../../docs/engineering/repository-tools/README.md#组合边界).
+Read the [writing rules](../../../docs/README.md#写给人读), then run `pnpm exec concord --skill document` and read the installed package's `docs/feature/documentation-quality/policy.md`.
 
-Use `pnpm run repo docs terms --help` as the command reference. Do not hand-edit a second occurrence list.
+Use `pnpm exec concord writing --help` and `pnpm exec concord concepts --help` for command syntax. Concord owns the structured catalog and policy; Markdown explains relationships and examples without a second term table.
 
-- Run `pnpm run repo docs terms list <pattern>` before adding a term.
-- Use `pnpm run repo docs terms add ... --dry-run` to inspect the exact JSON change, then run the same command without `--dry-run`.
-- Choose `--scope docs` for design docs only, `all` for design docs and the Chinese public site, or `site` for public-site wording only.
-- Run `pnpm run repo docs terms check`, fix each contextual hit, then run `pnpm lint`.
-- Use `pnpm run repo docs terms remove <term> --dry-run` before removing a decision. Removal deletes the entry and its site marker together.
+- Run `pnpm exec concord concepts index --json` and `pnpm exec concord writing index --json` to discover owners and scopes.
+- Read an owner with `concepts show --path <path> --json` or `writing show --path <path> --json` and retain its latest digest.
+- Prepare the complete reviewed JSON in a temporary file. Use `concepts set` or `writing set` with `--body`, `--path`, and `--expected-digest`; inspect `--dry-run` first, then publish the same change. Only a missing owner uses `null`.
+- Run `pnpm exec concord docs check --json`, inspect each finding in context, then run `pnpm lint`.
 
-Each handwritten ban needs the literal wording, a concrete replacement, and a reason. Put code identifiers in backticks instead of banning legitimate identifiers. If the decision establishes one preferred domain term over synonyms, record it once in `docs/concepts.md`; the writing lint derives synonym bans from that table.
+Global concepts live in `docs/concepts.json` with stable IDs, sourced definitions, and language-specific preferred names. Aliases remain allowed; deprecated names produce unconditional derived bans. Catalog names cannot carry path exemptions. Put scoped deprecation rules in the writing policy with the concept reference in `why`, and remove their unconditional catalog duplicate. Preserve the distinction between adopted Feature terms and Roadmap candidates in the definition and source link.
 
-Do not perform a whole-repository mechanical rewrite merely because a new entry exposes matches. Read each match in its owning feature or engineering context and use the precise action word for that context.
+Global writing policy lives in `docs/concord-writing.json`. Preserve the scan roots and each ban's roots, exemptions and allowed phrases. Design-only bans use `docs`; site-only bans use `apps/docs-site/zh`; shared bans list both. Sentence and paragraph limits apply to both roots. Issue observations are exempt from all bans and use a local policy with null length limits; Issue schema validation remains with Concord Issue/check. Only the 0.19 deprecations exempt design/research/memory archives; retain the scopes of earlier bans. Use exact lifecycle and slot phrases, not bare setup, teardown or Slot. Each authored ban requires a concrete replacement and reason.
+
+Use scoped `concepts.json` or `concord-writing.json` only when a directory owns a separate decision. Local roots cannot escape that directory. Removing a referenced concept requires resolving its imports first.
+
+Do not mechanically replace every finding. API identifiers and historical spellings quoted as inline code are distinct from prose; inspect the owning contract before changing either. NiceEval's API-example and SVG checks remain under `lint/docs/` and read the same Concord terminology decisions where applicable.

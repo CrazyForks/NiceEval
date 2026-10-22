@@ -53,7 +53,7 @@ test.concurrent("启动期遗留 teardown 先取得同 key authority，健康等
           await holder.done;
 
           const inspectionArgs = [
-            "exp", "shared-state-startup-authority", "--teardown",
+            "exp", "shared-state-startup-authority", "--after",
             "--recover-shared-state", "runner/shared-state-startup-authority",
           ];
           const inspection = await niceeval.run(inspectionArgs, { env });
@@ -95,7 +95,7 @@ test.concurrent("启动期遗留 teardown 先取得同 key authority，健康等
           await writeFile(join(barrierRoot, "release-startup-authority-agent"), "").catch(() => undefined);
           if (!recovered && ownerToken !== undefined) {
             await niceeval.run([
-              "exp", "shared-state-startup-authority", "--teardown",
+              "exp", "shared-state-startup-authority", "--after",
               "--recover-shared-state", "runner/shared-state-startup-authority",
               "--owner-token", ownerToken,
               "--confirm-owner-terminated", "--confirm-remote-quiesced",
@@ -158,7 +158,7 @@ test.concurrent("full-carry 的 selected Experiment 也在同 key authority 后�
           await holder.done;
           await rm(agentStartedPath, { force: true });
 
-          const inspectionArgs = ["exp", experiment, "--teardown", "--recover-shared-state", key];
+          const inspectionArgs = ["exp", experiment, "--after", "--recover-shared-state", key];
           const inspection = await niceeval.run(inspectionArgs, { env });
           expect(inspection.exitCode, inspection.diagnostic()).toBe(1);
           ownerToken = ownerTokenFromInspection(inspection.stderr);
@@ -196,7 +196,7 @@ test.concurrent("full-carry 的 selected Experiment 也在同 key authority 后�
         } finally {
           if (!recovered && ownerToken !== undefined) {
             await niceeval.run([
-              "exp", experiment, "--teardown", "--recover-shared-state", key,
+              "exp", experiment, "--after", "--recover-shared-state", key,
               "--owner-token", ownerToken,
               "--confirm-owner-terminated", "--confirm-remote-quiesced",
             ], { env, timeoutMs: 60_000 }).catch(() => undefined);

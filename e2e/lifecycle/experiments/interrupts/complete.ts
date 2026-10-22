@@ -8,10 +8,10 @@ export const siblingCompleteMarker = ".niceeval-lifecycle-sibling-complete";
 /** The independently sealed sibling in the SIGINT publication lifecycle case. */
 export default defineExperiment({
   description: "complete sibling Run before the interrupted Run is stopped",
-  agent: quickAgent,
+  adapter: quickAgent,
   sandbox: lifecycleSandbox,
   evals: ["probe"],
-  teardown: async () => {
+  after: async () => {
     // Test-only synchronization seam: teardown starts only after this
     // Experiment's Attempt and Eval have settled. Invocation progress remains
     // a sampled heartbeat and is deliberately not used as a barrier.

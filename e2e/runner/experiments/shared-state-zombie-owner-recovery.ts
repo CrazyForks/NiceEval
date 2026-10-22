@@ -40,16 +40,16 @@ const zombieOwnerAgent = defineAgent({
 });
 
 export default defineExperiment({
-  agent: zombieOwnerAgent,
+  adapter: zombieOwnerAgent,
   evals: ["shared-state/"],
   sharedState: { key: "runner/shared-state-zombie-owner" },
-  async setup() {
+  async before() {
     if (barrierRoot === undefined) return;
     await mkdir(barrierRoot, { recursive: true });
     await writeFile(join(barrierRoot, "zombie-owner-external-state"), "owned", { flag: "wx" });
     await writeFile(join(barrierRoot, "zombie-owner-setup-complete"), "");
   },
-  async teardown() {
+  async after() {
     if (barrierRoot === undefined) return;
     await rm(join(barrierRoot, "zombie-owner-external-state"), { force: true });
     await writeFile(join(barrierRoot, "zombie-owner-recovery-teardown-complete"), "");

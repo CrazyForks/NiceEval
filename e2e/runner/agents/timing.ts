@@ -29,7 +29,7 @@ async function lifecycleReceipt(context: AgentContext, event: string): Promise<v
 export const timingAgent = defineAgent({
   name: "runner-timing",
   evidenceCoverage,
-  setup: async (ctx) => {
+  before: async (ctx) => {
     if (ctx.signal.aborted) throw new Error("runner timing fixture setup aborted");
   },
   send: async (_input, ctx) => {
@@ -44,14 +44,14 @@ export const timingAgent = defineAgent({
 export const setupFailureAgent = defineAgent({
   name: "runner-setup-failure",
   evidenceCoverage,
-  setup: async (context) => {
+  before: async (context) => {
     await lifecycleReceipt(context, "setup");
     throw new Error("runner lifecycle setup primary failure");
   },
   send: async () => {
     throw new Error("setup failure fixture unexpectedly reached send");
   },
-  teardown: (context) => lifecycleReceipt(context, "teardown"),
+  after: (context) => lifecycleReceipt(context, "teardown"),
 });
 
 export const noSetupAgent = defineAgent({
@@ -64,20 +64,20 @@ export const noSetupAgent = defineAgent({
       events: [{ type: "message" as const, role: "assistant" as const, text: "no-setup-ok" }],
     };
   },
-  teardown: (context) => lifecycleReceipt(context, "teardown"),
+  after: (context) => lifecycleReceipt(context, "teardown"),
 });
 
 export const setupAndTeardownFailureAgent = defineAgent({
   name: "runner-setup-and-teardown-failure",
   evidenceCoverage,
-  setup: async (context) => {
+  before: async (context) => {
     await lifecycleReceipt(context, "setup");
     throw new Error("runner lifecycle setup retained failure");
   },
   send: async () => {
     throw new Error("setup failure fixture unexpectedly reached send");
   },
-  teardown: async (context) => {
+  after: async (context) => {
     await lifecycleReceipt(context, "teardown");
     throw new Error("runner lifecycle teardown secondary failure");
   },
@@ -90,7 +90,7 @@ export const sendAndTeardownFailureAgent = defineAgent({
     await lifecycleReceipt(context, "send");
     throw new Error("runner lifecycle send retained failure");
   },
-  teardown: async (context) => {
+  after: async (context) => {
     await lifecycleReceipt(context, "teardown");
     throw new Error("runner lifecycle teardown secondary failure");
   },
@@ -106,7 +106,7 @@ export const completionPersistenceFailureAgent = defineAgent({
       events: [{ type: "message", role: "assistant", text: "runner-persistence-ok" }],
     };
   },
-  teardown: async () => {
+  after: async () => {
     holdProjectDatabaseWriteLock(15_000);
   },
 });
@@ -121,7 +121,7 @@ export const attemptPublicationFailureAgent = defineAgent({
       events: [{ type: "message", role: "assistant", text: "runner-timing-ok" }],
     };
   },
-  teardown: async () => {
+  after: async () => {
     rejectAttemptPublication();
   },
 });

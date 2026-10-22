@@ -20,14 +20,17 @@ ctx reader 由 `defineContextMatch` 或 `defineMaterialMatch` 声明。
 
 ## 数值比较
 
-`niceeval/expect` 公开四个 Boolean matcher。工厂 threshold 必须是有限 number；非法 threshold 在调用 matcher 工厂时就是作者错误。非 number candidate 可以作为调用错误拒绝；candidate 已经是 number 但值为 `NaN` 或正负 `Infinity` 时，这条 Assertion 形成 unavailable，不能记为作者错误或普通 mismatch。
+`niceeval/expect` 公开五个数值 Boolean matcher。无单位材料使用有限 number 阈值；带单位的 `Quantity<U>` 或 `NumericMaterial<U>` 使用同单位 Quantity 阈值。单位构造、品牌和运行时校验见 [数值单位](../library.md#数值单位)。非法 threshold 在调用 matcher 工厂时就是作者错误；candidate 已经是 number 但值为 `NaN` 或正负 `Infinity` 时，这条 Assertion 形成 unavailable，不能记为作者错误或普通 mismatch。
 
 ```ts
 declare function lessThan(threshold: number): BooleanMatch<number>;     // candidate < threshold
 declare function atMost(threshold: number): BooleanMatch<number>;       // candidate <= threshold
 declare function greaterThan(threshold: number): BooleanMatch<number>;  // candidate > threshold
 declare function atLeast(threshold: number): BooleanMatch<number>;      // candidate >= threshold
+declare function between(minimum: number, maximum: number): BooleanMatch<number>; // minimum <= candidate <= maximum
 ```
+
+上述无单位签名均有对应的 Quantity 重载；`between` 的两端必须同单位且顺序有效。单位一致性同时在类型与运行时检查；类型被绕过时，不兼容比较为 unavailable。lower-bound 材料超过区间上界时为 mismatched，其他区间比较为 unavailable。
 
 ```ts
 t.check(latencyMs, lessThan(1_000)).label("延迟低于一秒");
@@ -40,7 +43,7 @@ generic numeric matcher 允许负 threshold 与负 candidate。非负约束只�
 这里的 `atLeast(0.95)` 是 numeric Boolean Match，负责比较 `t.check` 提供的 number subject。连续 `ScoreMatch<T>`
 没有 `.atLeast()`；作者在登记后的 measurement handle 上用 `.gate(minimum)` 或 `.orStop(minimum)` 建立唯一的 `[0,1]` condition。
 
-四个 matcher 都登记 `numeric-comparison/v1` criterion。`value-match/v1` 只表示没有可解释数值运算的旧值比较；reader 不从 matcher 名、observed number 或展示文本推断升级它。
+五个 matcher 都登记 `numeric-comparison/v1` criterion，其中带单位的阈值保存 `unit`，区间额外保存 `upperThreshold`。`value-match/v1` 只表示没有可解释数值运算的旧值比较；reader 不从 matcher 名、observed number 或展示文本推断升级它。
 
 ## 值与集合组合
 

@@ -2,152 +2,18 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import {
-  formatLintHits,
-  lintDocsWriting,
-  lintCalledToolContractText,
-  lintSvgTerms,
-  parseConcepts,
-  proseBlocks,
-  proseText,
-  readableProseLines,
-  splitSentences,
-  svgTexts,
-  synonymBans,
-  validateRules,
-} from "./writing.js";
+import { formatLintHits, lintCalledToolContract, lintCalledToolContractText, lintSvgTerms, svgTexts } from "./writing.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 
-// docs/ 与 apps/docs-site/zh/ 的可读性规矩(句长、段长、禁用写法)由 docs/writing-rules.json 声明,
-// 规矩本身写在 docs/README.md「写给人读」与 docs/concepts.md「禁用写法」。
-// 规则与命中位置住在 lint/docs/writing.ts,判对错只有这一处入口——
-// 契约再准确,读不动的段落等于没写,而「以后再顺手改」在没有守护时等于不改。
-describe("文档可读性守护", () => {
-  it("docs/writing-rules.json 的每条禁词都带 use 与 why", () => {
-    // 没有理由的禁词会被下一个人当成洁癖绕过,所以三个字段一个都不能空。
-    expect(validateRules()).toEqual([]);
-  });
-
-  it("超长句、超长段、禁用写法与死词均不得命中", () => {
-    const report = lintDocsWriting();
-    expect(report.hits.length, formatLintHits(report.hits)).toBe(0);
-  }, 30_000);
-
-  it("句子量在软换行拼接之后:在句子中间换行不改变判定", () => {
-    // 这条是句长规则存在的理由:按单行量的话,敲个回车就能把长难句拆过检查,
-    // 而渲染结果一个字没变。两种排版必须给出同一个句子。
-    const long = `${"甲".repeat(200)}。`;
-    const oneLine = proseBlocks([long]);
-    const wrapped = proseBlocks([long.slice(0, 100), long.slice(100)]);
-    expect(splitSentences(proseText(oneLine[0].text))).toHaveLength(1);
-    expect(splitSentences(proseText(wrapped[0].text))[0].length).toBeGreaterThan(140);
-  });
-
-  it("分号与破折号不算断句,句末标点才算", () => {
-    // 分句串联正是长难句的长法。把分号当断句等于放过要治的对象。
-    expect(splitSentences("甲;乙——丙。丁。")).toEqual(["甲;乙——丙。", "丁。"]);
-  });
-
-  it("表格、代码块与标题不是正文,列表项各算一段", () => {
-    const blocks = proseBlocks([
-      "# 标题",
-      "正文甲。",
-      "| 表 | 格 |",
-      "```ts",
-      "const x = 1;",
-      "```",
-      "- 列表甲",
-      "- 列表乙",
-    ]);
-    expect(blocks.map((b) => b.text)).toEqual(["正文甲。", "列表甲", "列表乙"]);
-  });
-
-  it("MDX 只检查读者看到的手写正文", () => {
-    const lines = readableProseLines("apps/docs-site/zh/example.mdx", [
-      "---",
-      'title: "标题"',
-      "---",
-      "组件前正文。",
-      "<Demo",
-      '  title="这是组件属性"',
-      "/>",
-      "组件后正文。",
-      "{/* GENERATED:BEGIN fields */}",
-      "生成内容。",
-      "{/* GENERATED:END fields */}",
-      "```ts",
-      "const generated = true;",
-      "```",
-    ]);
-
-    expect(lines.filter(Boolean)).toEqual(["组件前正文。", "组件后正文。"]);
-  });
-
-  it("Markdown owner 的 YAML frontmatter 不算正文", () => {
-    const lines = readableProseLines("docs/feature/example/README.md", [
-      "---",
-      "format: concord.document/v1",
-      `title: ${"很长的元数据标题".repeat(30)}`,
-      "---",
-      "正文。",
-    ]);
-
-    expect(lines.filter(Boolean)).toEqual(["正文。"]);
-  });
-
-  it("概念表按表头认列,不按位置——表格加一列不会让词条静默错位", () => {
-    // 总表是三列、报告组件表是五列,写死列号的解析器在第二张表上会把「含义」当成词。
-    const five = parseConcepts(
-      ["| 分类 | 中文 | English | API | 主展示单位 |", "|---|---|---|---|---|", "| 汇总 | 样本摘要 | Sample summary | `SampleSummary` | 一批 Sample |"].join("\n"),
-    );
-    expect(five[0].writings).toEqual(["样本摘要", "Sample summary", "SampleSummary"]);
-  });
-
-  it("一格里多个写法:恰好一个加粗才是同义词组,粗体那个是首选", () => {
-    // 报告组件表把七个组件挤在一行(行 / 列 / 分节…),它们互不同义;
-    // 把「多写法」一律当同义词会把六个正当词条判成该改用第七个。
-    const [synonyms, siblings] = [
-      "| **首过即停** / 早停 | EarlyExit | 取通过率时先过一次即中止 |",
-      "| 行 / 列 / 分节 | Row / Col / Section | 版面组件 |",
-    ].map((row) => parseConcepts(["| 中文 | English | 含义 |", "|---|---|---|", row].join("\n"))[0]);
-
-    expect(synonyms.preferred).toBe("首过即停");
-    expect(synonyms.deprecated).toEqual(["早停"]);
-    expect(siblings.preferred).toBeUndefined();
-    expect(siblings.deprecated).toEqual([]);
-  });
-
-  it("首选裁决翻译成禁词条目,概念表自己豁免", () => {
-    // 术语只在概念表裁决一次,writing-rules.json 不再手抄一份同义词对照。
-    const terms = parseConcepts(
-      ["| 中文 | English | 含义 |", "|---|---|---|", "| **首过即停** / 早停 | EarlyExit | 取通过率时先过一次即中止 |"].join("\n"),
-    );
-    const [ban] = synonymBans(terms);
-    expect(ban.term).toBe("早停");
-    expect(ban.use).toContain("首过即停");
-    expect(ban.why).toBeTruthy();
-    expect(ban.exempt).toEqual(["docs/concepts.md"]);
-  });
-
-  it("英文列括号里的代码标识算一种写法", () => {
-    // 表头声明「代码标识与标准术语不同时,英文列把代码标识放在括号里」。
-    // 不拆开的话,正文明明在用 ExecutionTree,这一行仍会被判成死词。
-    const [term] = parseConcepts(
-      ["| 中文 | English | 含义 |", "|---|---|---|", "| Agent 执行树 | Agent execution tree (`ExecutionTree`) | 统一执行记录 |"].join("\n"),
-    );
-    expect(term.writings).toContain("ExecutionTree");
-    expect(term.writings).toContain("Agent execution tree");
-  });
-
-  it("长度只算读者要读的字:链接算文本不算 URL,行内代码算内容不算反引号", () => {
-    expect(proseText("见 [运行器](feature/runner/README.md) 的 `--concurrency`。")).toBe(
-      "见 运行器 的 --concurrency。",
-    );
+describe("公开 API 示例契约", () => {
+  it("正文中的 calledTool 示例符合公开签名", () => {
+    const hits = lintCalledToolContract();
+    expect(hits.length, formatLintHits(hits)).toBe(0);
   });
 
   it("calledTool 示例只接收一个参数，并拒绝局部命令匹配", () => {
-    const rules = JSON.parse(readFileSync(join(ROOT, "docs/writing-rules.json"), "utf8"));
+    const rules = JSON.parse(readFileSync(join(ROOT, "lint/docs/public-api-examples.json"), "utf8"));
     const contract = rules.publicApiExamples.calledToolContract;
     const hits = lintCalledToolContractText(
       "docs/feature/assertions/example.md",

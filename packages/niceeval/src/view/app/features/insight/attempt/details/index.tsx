@@ -59,7 +59,7 @@ function AttemptUsage({ data }: { readonly data: UsageTableData | null }): React
 function CacheReadUsage({ report }: { readonly report: InspectionSuccessDocumentFor<"attempt.usage">["usage"]["cacheRead"] }): ReactElement {
   const { t } = useTranslation();
   const rows = [{ label: t("usage.cacheTotal"), summary: report.total },
-    ...report.modelSlots.map((summary) => ({ label: `${t("usage.slot")}: ${summary.modelSlot ?? t("usage.notRecorded")}`, summary }))];
+    ...report.roles.map((summary) => ({ label: `${t("usage.role")}: ${summary.modelRole ?? t("usage.notRecorded")}`, summary }))];
   const table = (values: typeof rows) => <div className="niceeval-table-wrap" style={{ overflowX: "auto" }}><table aria-label={t("usage.cacheReadRate")}><thead><tr>
     {(["usage.cacheScope", "usage.cacheReadRate", "usage.cacheCoverage", "usage.cacheCollection", "usage.cacheReasons"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
   </tr></thead><tbody>{values.map(({ label, summary }, index) => <tr key={index}><th scope="row">{label}</th>
@@ -67,14 +67,14 @@ function CacheReadUsage({ report }: { readonly report: InspectionSuccessDocument
     <td>{summary.coveredCalls}/{summary.recordedCalls}</td><td>{t(summary.collectionComplete ? "usage.cacheComplete" : "usage.cacheIncomplete")}</td>
     <td>{summary.reasons.join(", ") || "—"}</td></tr>)}</tbody></table></div>;
   return <section aria-label={t("usage.cacheReadRate")}><h4>{t("usage.cacheReadRate")}</h4>{table(rows)}
-    <details><summary>{t("usage.actualModels")}</summary>{table(report.models.map((summary) => ({ label: `${summary.modelSlot ?? t("usage.notRecorded")} / ${summary.provider ?? t("usage.notRecorded")} / ${summary.model ?? t("usage.notRecorded")}`, summary })))}</details>
+    <details><summary>{t("usage.actualModels")}</summary>{table(report.models.map((summary) => ({ label: `${summary.modelRole ?? t("usage.notRecorded")} / ${summary.provider ?? t("usage.notRecorded")} / ${summary.model ?? t("usage.notRecorded")}`, summary })))}</details>
   </section>;
 }
 
 function ExternalUsage({ usage }: { readonly usage: InspectionSuccessDocumentFor<"attempt.usage">["usage"] }): ReactElement {
   const { t } = useTranslation();
   const configured = usage.configuredModels;
-  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelSlot === "default" ? configured.bindings[0] : null;
+  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelRole === "default" ? configured.bindings[0] : null;
   const groups = usage.modelGroups;
   const costs = usage.totals.costs;
   const judgeTotals = "totals" in usage.judgeUsage ? usage.judgeUsage.totals : undefined;
@@ -95,11 +95,11 @@ function ExternalUsage({ usage }: { readonly usage: InspectionSuccessDocumentFor
       <Kpi label={`${t("usage.configuredModel")} (default)`} value={defaultBinding.model ?? "—"} />
       {defaultBinding.reasoningEffort === null ? null : <Kpi label={t("usage.effort")} value={defaultBinding.reasoningEffort} />}
       <Kpi label={t("usage.recordedCalls")} value={recordedCalls(defaultBinding.recordedCalls)} />
-    </Grid> : configured.bindings.length === 0 ? <p>{t("usage.configuredSlotCount", { count: 0 })}</p> : <div className="niceeval-table-wrap" style={{ overflowX: "auto" }}>
+    </Grid> : configured.bindings.length === 0 ? <p>{t("usage.configuredRoleCount", { count: 0 })}</p> : <div className="niceeval-table-wrap" style={{ overflowX: "auto" }}>
       <table aria-label={t("usage.configuredModels")}><thead><tr>
-        {(["usage.slot", "usage.configuredModel", "usage.effort", "usage.recordedCalls"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
-      </tr></thead><tbody>{configured.bindings.map((binding) => <tr key={binding.modelSlot}>
-        <th scope="row">{binding.modelSlot}</th><td>{binding.model ?? "—"}</td><td>{binding.reasoningEffort ?? "—"}</td>
+        {(["usage.role", "usage.configuredModel", "usage.effort", "usage.recordedCalls"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
+      </tr></thead><tbody>{configured.bindings.map((binding) => <tr key={binding.modelRole}>
+        <th scope="row">{binding.modelRole}</th><td>{binding.model ?? "—"}</td><td>{binding.reasoningEffort ?? "—"}</td>
         <td>{recordedCalls(binding.recordedCalls)}</td>
       </tr>)}</tbody></table>
     </div>}
@@ -108,9 +108,9 @@ function ExternalUsage({ usage }: { readonly usage: InspectionSuccessDocumentFor
     {"reason" in groups && groups.reason !== undefined ? <p>{groups.reason}</p> : null}
     {groups.state !== "available" ? <p>{t("cell.metricUnavailable")}</p> : <div className="niceeval-table-wrap" style={{ overflowX: "auto" }}>
       <table aria-label={t("usage.actualModels")}><thead><tr>
-        {(["usage.slot", "usage.servingProvider", "usage.actualModel", "usage.recordedCalls", "usage.tokens", "usage.applicationCost"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
-      </tr></thead><tbody>{groups.groups.map((group) => <tr key={JSON.stringify([group.modelSlot, group.provider, group.model])}>
-        <th scope="row">{group.modelSlot ?? t("usage.notRecorded")}</th><td>{group.provider ?? t("usage.notRecorded")}</td><td>{group.model ?? t("usage.notRecorded")}</td><td>{group.recordedCalls}</td>
+        {(["usage.role", "usage.servingProvider", "usage.actualModel", "usage.recordedCalls", "usage.tokens", "usage.applicationCost"] as const).map((key) => <th key={key} scope="col">{t(key)}</th>)}
+      </tr></thead><tbody>{groups.groups.map((group) => <tr key={JSON.stringify([group.modelRole, group.provider, group.model])}>
+        <th scope="row">{group.modelRole ?? t("usage.notRecorded")}</th><td>{group.provider ?? t("usage.notRecorded")}</td><td>{group.model ?? t("usage.notRecorded")}</td><td>{group.recordedCalls}</td>
         <td>{t("usage.inputTotal")}: {tokenValue(group.tokens.inputTotalTokens)}<br />{t("usage.output")}: {tokenValue(group.tokens.outputTokens)}<br />{t("usage.totalTokens")}: {tokenValue(group.tokens.totalTokens)}</td>
         <td>{group.costs.values.length === 0 ? t("cell.metricUnavailable") : group.costs.values.map((cost) => <div key={cost.currency}>
           {cost.value} {cost.currency} · {costSource(cost.source)} · {group.costs.state}{group.costs.state === "partial" ? ` · ${t("usage.knownSubtotal")}` : ""}<br />
@@ -162,7 +162,7 @@ export function AttemptDetails({ model, locale, className }: { readonly model: A
   const usageQuery = useInspectionQuery(operation("attempt.usage", { kind: "attempt.usage", locator: model.locator }));
   const sourcesQuery = useInspectionQuery(operation("attempt.sources", { kind: "attempt.sources", locator: model.locator }));
   const diffQuery = useInspectionQuery(operation("attempt.diff", { kind: "attempt.diff", locator: model.locator }), { select: projectDiff });
-  const notesQuery = useInspectionQuery(operation("attempt.get", { kind: "attempt.get", locator: model.locator }));
+  const notesQuery = useInspectionQuery(attemptOperations(model.locator)[0]);
   const allQueries = [notesQuery, ...assertionQueries, ...traceDetailQueries, traceQuery, timingQuery, usageQuery, sourcesQuery, diffQuery];
   if (allQueries.some((query) => query.isPending)) return <p role="status">{t("report.loadingDetails")}</p>;
   if (allQueries.some((query) => query.isError)) return <div role="alert"><p>{t("report.unableToLoadDetails")}</p><button type="button" onClick={() => { for (const query of allQueries) if (query.isError) void query.refetch(); }}>{t("report.retry")}</button></div>;

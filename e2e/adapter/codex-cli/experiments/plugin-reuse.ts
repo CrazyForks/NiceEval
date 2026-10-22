@@ -41,12 +41,12 @@ const agent = codexAgent({
   baseUrl: process.env.OPENAI_BASE_URL,
   configFile: "configs/shell-enabled.toml",
   plugins: [{ marketplace: { name: MARKETPLACE, source: SOURCE, ref: REF }, name: PLUGIN }],
-  preTeardown: [rewriteMarketplaceSource],
+  after: [rewriteMarketplaceSource],
 });
 
 export default defineExperiment({
   description: "codex-cli Plugin 安装收敛:复用沙箱的第二条 attempt 面对同名不同源的 marketplace 残留,仍按声明装出插件",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["plugin-hook"],

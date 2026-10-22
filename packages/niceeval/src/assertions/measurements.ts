@@ -39,16 +39,22 @@ export function quantile(
   if (method !== "linear" && method !== "nearest-rank") throw new TypeError("quantile() method must be linear or nearest-rank.");
   const statistics = Object.freeze({ sampleCount: samples.length, probability: p, method });
   if (samples.length === 0) return Object.freeze({ state: "unavailable", reason: "no-samples", statistics });
-  const first = samples[0]!;
-  const unit = isQuantity(first) ? first.unit : undefined;
+  const sampleUnits = new Set<Unit | undefined>();
   const values: number[] = [];
+  let invalidSample = false;
   for (const sample of samples) {
-    const sampleUnit = isQuantity(sample) ? sample.unit : undefined;
-    if (sampleUnit !== unit || (typeof sample !== "number" && !isQuantity(sample))) throw new TypeError("quantile() samples must use one unit, or all be numbers.");
+    if (typeof sample !== "number" && !isQuantity(sample)) {
+      invalidSample = true;
+      continue;
+    }
+    sampleUnits.add(typeof sample === "number" ? undefined : sample.unit);
     const value = typeof sample === "number" ? sample : sample.value;
-    if (!Number.isFinite(value)) return Object.freeze({ state: "unavailable", reason: "non-finite-sample", statistics });
+    if (!Number.isFinite(value)) invalidSample = true;
     values.push(value);
   }
+  if (sampleUnits.size > 1) throw new TypeError("quantile() samples must use one unit, or all be numbers.");
+  const unit = sampleUnits.values().next().value;
+  if (invalidSample) return Object.freeze({ state: "unavailable", reason: "non-finite-sample", statistics, ...(unit === undefined ? {} : { unit }) });
   const sorted = values.sort((a, b) => a - b);
   const position = (sorted.length - 1) * p;
   const lower = sorted[Math.floor(position)]!;

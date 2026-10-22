@@ -31,6 +31,7 @@ import type { JsonValue } from "../shared/types.ts";
 import type { SandboxHook } from "./types.ts";
 import { Data, Effect } from "effect";
 import {
+  pluginSourceOf,
   pluginLifecycleIdentity,
   pluginLifecycleProjection,
   type LinkedPluginLifecycle,
@@ -248,6 +249,7 @@ export interface LinkedSandboxCommand {
 }
 
 interface LinkedSandboxBeforeBase {
+  readonly pluginSource?: string;
   readonly owner: SandboxScheduleOwnerRef;
   readonly ordinal: number;
   readonly id: string;
@@ -271,6 +273,7 @@ export type LinkedSandboxBefore =
 
 export type LinkedSandboxAfter =
   | {
+      readonly pluginSource?: string;
       readonly kind: "action";
       readonly owner: SandboxScheduleOwnerRef;
       readonly ordinal: number;
@@ -278,6 +281,7 @@ export type LinkedSandboxAfter =
       readonly fingerprint: SandboxCommandFingerprint;
     }
   | {
+      readonly pluginSource?: string;
       readonly kind: "command";
       readonly owner: SandboxScheduleOwnerRef;
       readonly ordinal: number;
@@ -557,6 +561,7 @@ function beforeFromDeclaration(
     return Object.freeze({
       kind: "action" as const,
       owner,
+      ...(pluginSourceOf(declaration) === undefined ? {} : { pluginSource: pluginSourceOf(declaration) }),
       ordinal,
       id: data.metadata.id,
       metadata: data.metadata,
@@ -569,6 +574,7 @@ function beforeFromDeclaration(
     return Object.freeze({
       kind: "hook" as const,
       owner,
+      ...(pluginSourceOf(declaration) === undefined ? {} : { pluginSource: pluginSourceOf(declaration) }),
       ordinal,
       id,
       metadata: normalizeSandboxBeforeMetadata({ id }),
@@ -585,6 +591,7 @@ function beforeFromDeclaration(
   return Object.freeze({
     kind: "command" as const,
     owner,
+    ...(pluginSourceOf(declaration) === undefined ? {} : { pluginSource: pluginSourceOf(declaration) }),
     ordinal,
     id,
     metadata,
@@ -934,6 +941,7 @@ function linkedAfter(contributions: readonly NormalizedScheduleContribution[]): 
           kind: "action" as const,
           owner: contribution.owner,
           ordinal,
+          ...(pluginSourceOf(declaration) === undefined ? {} : { pluginSource: pluginSourceOf(declaration) }),
           data: sandboxAfterActionDataOf(declaration.action),
           fingerprint: afterDeclarationFingerprint(contribution.owner, ordinal, declaration),
         })
@@ -941,6 +949,7 @@ function linkedAfter(contributions: readonly NormalizedScheduleContribution[]): 
           kind: "command" as const,
           owner: contribution.owner,
           ordinal,
+          ...(pluginSourceOf(declaration) === undefined ? {} : { pluginSource: pluginSourceOf(declaration) }),
           declaration,
           fingerprint: afterDeclarationFingerprint(contribution.owner, ordinal, declaration),
         }))));

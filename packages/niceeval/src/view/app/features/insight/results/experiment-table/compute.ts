@@ -73,6 +73,7 @@ export interface ExperimentListEvalRow {
 
 /** 一个 experiment 的闭合行。 */
 export interface ExperimentListItem {
+  readonly plugins?: readonly { readonly name: string; readonly key: string; readonly identity: Readonly<globalThis.Record<string, JsonValue>> }[];
   readonly experimentId: string;
   readonly adapter: AdapterValue;
   readonly model: ExecutionValue;
