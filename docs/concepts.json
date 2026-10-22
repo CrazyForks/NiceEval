@@ -1,0 +1,2088 @@
+{
+  "format": "concord.concepts/v1",
+  "concepts": [
+    {
+      "id": "nice-eval",
+      "definition": "产品名。正文写 `NiceEval`;命令、包名、配置文件、代码标识写 `niceeval`",
+      "names": {
+        "zh": {
+          "preferred": "NiceEval"
+        },
+        "en": {
+          "preferred": "NiceEval"
+        }
+      }
+    },
+    {
+      "id": "eval",
+      "definition": "一个 Task 跑在接口相容的 Adapter 上，由已登记的 Assertion 评判；id 从文件路径推导\n\n契约：[Eval](feature/eval/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "评估用例"
+        },
+        "en": {
+          "preferred": "Eval"
+        }
+      }
+    },
+    {
+      "id": "task",
+      "definition": "要让被测应用完成的操作序列；Agent 使用会话动作，自定义应用使用自己的方法\n\n契约：[Eval](feature/eval/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "任务"
+        },
+        "en": {
+          "preferred": "Task"
+        }
+      }
+    },
+    {
+      "id": "fixture",
+      "definition": "第一次 `send` 前通过普通 Sandbox API 写入的起始素材,加 Eval layer `before()` 准备的内容;算 eval 归因,不进 agent diff\n\n契约：[Eval](feature/eval/README.md#defineeval-的形状)",
+      "names": {
+        "zh": {
+          "preferred": "Fixture"
+        },
+        "en": {
+          "preferred": "Fixture"
+        }
+      }
+    },
+    {
+      "id": "transfer-manifest",
+      "definition": "普通本地上传实际读取的 source tree、内容摘要、Sandbox 目标与 send 区间;由 Runner 自动写入\n\n契约：[本地测试文件](feature/eval/use-case/criteria-files.md)",
+      "names": {
+        "zh": {
+          "preferred": "本地传输清单"
+        },
+        "en": {
+          "preferred": "transfer manifest"
+        }
+      }
+    },
+    {
+      "id": "send-window",
+      "definition": "一次逻辑 `t.send()` 从发出到最终 settle 的区间,包含全部物理重试与静止确认;Sandbox 归因按 send 顺序保留每个区间各自的 before/after 端点,不合并成并集\n\n契约：[Agent contract](feature/adapters/architecture/agent-contract.md)",
+      "names": {
+        "zh": {
+          "preferred": "send 区间"
+        },
+        "en": {
+          "preferred": "send window"
+        }
+      }
+    },
+    {
+      "id": "dataset",
+      "definition": "共享同一 `test` 逻辑、只有输入不同的一组 case,`.map` 从输入数组生成多条 eval,id 零填充编号\n\n契约：[Dataset fan-out](feature/eval/use-case/dataset-fanout.md)",
+      "names": {
+        "zh": {
+          "preferred": "测试集"
+        },
+        "en": {
+          "preferred": "Dataset"
+        }
+      }
+    },
+    {
+      "id": "discovery",
+      "definition": "扫 `evals/` 找 `*.eval.ts` / `*.eval.tsx` 与目录入口 `eval.ts`,按路径推导 id;同 id 双入口报重名\n\n契约：[Eval](feature/eval/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "发现"
+        },
+        "en": {
+          "preferred": "Discovery"
+        }
+      }
+    },
+    {
+      "id": "attempt",
+      "definition": "一个 Run 中某个 Eval 的一次独立执行；拥有生命周期、Assertion 与 Verdict，Score Eval 还拥有 score，重复序号为 i；一次实际执行的稳定身份；发布后不等 origin Run 收口即可使用\n\n契约：[Eval context](feature/eval/library/context.md)\n\n契约：[Run Architecture](feature/run/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "Attempt"
+        },
+        "en": {
+          "preferred": "Attempt"
+        }
+      }
+    },
+    {
+      "id": "agent-session",
+      "definition": "Attempt 内的一条对话线;`t.newSession()` 创建独立 Agent Session\n\n契约：[Eval context](feature/eval/library/context.md)",
+      "names": {
+        "zh": {
+          "preferred": "Agent Session"
+        },
+        "en": {
+          "preferred": "Agent Session",
+          "aliases": [
+            "Session"
+          ]
+        }
+      }
+    },
+    {
+      "id": "turn",
+      "definition": "`t.send()` 取得可信协议终态时的返回值；`failed` 是可评分领域失败，不表示进程异常\n\n契约：[Eval context](feature/eval/library/context.md)",
+      "names": {
+        "zh": {
+          "preferred": "Turn"
+        },
+        "en": {
+          "preferred": "Turn"
+        }
+      }
+    },
+    {
+      "id": "assertion",
+      "definition": "对结果、行为、证据或资源使用提出的一项可写入的检查;产出 0–1 分数或 `unavailable`\n\n契约：[Assertions](./feature/assertions/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "断言"
+        },
+        "en": {
+          "preferred": "Assertion"
+        }
+      }
+    },
+    {
+      "id": "verdict",
+      "definition": "由 Assertions 与 Attempt outcome 折叠出的四态值：`passed` / `failed` / `errored` / `skipped`；不另建持久 family，也不是 Attempt lifecycle state\n\n契约：[Severity 与 Verdict](./feature/verdict/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "判定"
+        },
+        "en": {
+          "preferred": "Verdict"
+        }
+      }
+    },
+    {
+      "id": "quality-gate",
+      "definition": "显式 condition 不满足时使 Attempt 为 `failed`；没有全局 strict 或读时提升\n\n契约：[Verdict](./feature/verdict/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "质量门"
+        },
+        "en": {
+          "preferred": "quality gate",
+          "aliases": [
+            "gate"
+          ]
+        }
+      }
+    },
+    {
+      "id": "llm-judged-assertion",
+      "definition": "把显式材料和 rubric 交给裁判模型求 measurement 的 Assertion；是否失败或计分由 handle 配置\n\n契约：[LLM-as-a-judge](./feature/judge/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "Judge 断言"
+        },
+        "en": {
+          "preferred": "LLM-judged assertion"
+        }
+      }
+    },
+    {
+      "id": "assertion-scope",
+      "definition": "`t.*` 看 Attempt、`session.*` 看 Agent Session、`turn.*` 看 Turn 已发生的事件\n\n契约：[Scopes](./feature/assertions/architecture/scopes.md)",
+      "names": {
+        "zh": {
+          "preferred": "断言范围"
+        },
+        "en": {
+          "preferred": "Assertion scope"
+        }
+      }
+    },
+    {
+      "id": "evidence-completeness",
+      "definition": "Adapter 按 events、actions、messages、usage、status、data 六类声明采集完整性；落盘的 `collection` 表达 complete 或 partial，读取状态与 payload limitation 另由读取层表达\n\n契约：[Adapter 证据](feature/adapters/architecture/evidence.md) 与 [Assertion 证据](feature/assertions/architecture/evidence.md)",
+      "names": {
+        "zh": {
+          "preferred": "证据完整度"
+        },
+        "en": {
+          "preferred": "Evidence completeness"
+        }
+      }
+    },
+    {
+      "id": "pass-eval",
+      "definition": "以 Boolean condition 折叠 Attempt Verdict 的评测类型；measurement 用 `gate(n)` 才进入 failed\n\n契约：[Assertions](./feature/assertions/README.md#pass-eval)",
+      "names": {
+        "zh": {
+          "preferred": "Pass Eval"
+        },
+        "en": {
+          "preferred": "Pass Eval",
+          "aliases": [
+            "defineEval"
+          ]
+        }
+      }
+    },
+    {
+      "id": "score-eval",
+      "definition": "同时拥有 Attempt Verdict 与显式 score contribution；不声明隐式总分\n\n契约：[Score Eval](./feature/assertions/library/score-points.md)",
+      "names": {
+        "zh": {
+          "preferred": "Score Eval"
+        },
+        "en": {
+          "preferred": "Score Eval",
+          "aliases": [
+            "defineScoreEval"
+          ]
+        }
+      }
+    },
+    {
+      "id": "score-contribution",
+      "definition": "一个已登记 Assertion 或直接 `t.score(n)` 对 Score Eval 累计 score 的数值贡献\n\n契约：[Score Eval](./feature/assertions/library/score-points.md#显式贡献)",
+      "names": {
+        "zh": {
+          "preferred": "单项贡献分数"
+        },
+        "en": {
+          "preferred": "score contribution",
+          "aliases": [
+            "scoreContribution"
+          ]
+        }
+      }
+    },
+    {
+      "id": "minimum",
+      "definition": "`gate(minimum)` 或 `orStop(minimum)` 把 measurement 与有限 `[0,1]` 下限比较，形成同一条局部 Boolean condition\n\n契约：[Assertions](./feature/assertions/README.md#pass-eval)",
+      "names": {
+        "zh": {
+          "preferred": "最低值"
+        },
+        "en": {
+          "preferred": "minimum"
+        }
+      }
+    },
+    {
+      "id": "authoring-stop-latch",
+      "definition": "`.orStop()` 触发后拒绝后续 NiceEval 作者 API 登记的 Attempt 内控制状态\n\n契约：[Assertions](./feature/assertions/README.md#orstop)",
+      "names": {
+        "zh": {
+          "preferred": "authoring stop latch"
+        },
+        "en": {
+          "preferred": "authoring stop latch"
+        }
+      }
+    },
+    {
+      "id": "custom-adapter",
+      "definition": "每 Attempt 连接被测系统并创建作者上下文，其原生操作与通用评估能力组成强类型的 `t`\n\n契约：[Eval Library](feature/eval/library.md#自定义应用)",
+      "names": {
+        "zh": {
+          "preferred": "自定义适配器"
+        },
+        "en": {
+          "preferred": "Custom adapter",
+          "aliases": [
+            "defineAdapter"
+          ]
+        }
+      }
+    },
+    {
+      "id": "agent",
+      "definition": "提供 `send`、Session 与 Turn 会话协议的 Adapter 特例，分 Direct 与 Sandbox 两种运行方式\n\n契约：[Adapters](feature/adapters/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Agent"
+        },
+        "en": {
+          "preferred": "Agent"
+        }
+      }
+    },
+    {
+      "id": "direct-agent",
+      "definition": "runner 直接调用函数、SDK 或服务端点；不创建也不伪造 Sandbox\n\n契约：[Direct Agent](feature/adapters/library/direct-agent.md)",
+      "names": {
+        "zh": {
+          "preferred": "Direct Agent"
+        },
+        "en": {
+          "preferred": "Direct Agent",
+          "aliases": [
+            "defineAgent"
+          ]
+        }
+      }
+    },
+    {
+      "id": "sandbox-agent",
+      "definition": "runner 创建 Sandbox，并把真实 Sandbox 交给 Adapter 驱动 CLI\n\n契约：[Sandbox Agent](feature/adapters/library/sandbox-agent.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox Agent"
+        },
+        "en": {
+          "preferred": "Sandbox Agent"
+        }
+      }
+    },
+    {
+      "id": "adapter",
+      "definition": "连接被测系统的定义；拥有认证、调用方法与资源释放，不代表业务应用本身\n\n契约：[Adapters](feature/adapters/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "适配器"
+        },
+        "en": {
+          "preferred": "Adapter"
+        }
+      }
+    },
+    {
+      "id": "send",
+      "definition": "Agent 会话协议的驱动方法；协议、事件映射与会话续接由 Adapter 实现\n\n契约：[Agent contract](feature/adapters/architecture/agent-contract.md)",
+      "names": {
+        "zh": {
+          "preferred": "send"
+        },
+        "en": {
+          "preferred": "send"
+        }
+      }
+    },
+    {
+      "id": "send-failure",
+      "definition": "Adapter 无法返回可信 Turn 时 reject 的结构化 envelope；携带 `acceptance`，最终落 `agent-send-failed`\n\n契约：[Error classification](feature/error-classification/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "send 执行失败"
+        },
+        "en": {
+          "preferred": "SendFailure"
+        }
+      }
+    },
+    {
+      "id": "capability",
+      "definition": "`t` 暴露哪些动作由 `send` 的构造证据决定,不是声明式能力位\n\n契约：[Agent contract](feature/adapters/architecture/agent-contract.md)",
+      "names": {
+        "zh": {
+          "preferred": "能力"
+        },
+        "en": {
+          "preferred": "Capability"
+        }
+      }
+    },
+    {
+      "id": "integration-tier",
+      "definition": "Tier 1 只接 `send`,Tier 2 再接 OTel,Tier 3 再暴露实验 flags\n\n契约：[Adapters](feature/adapters/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "接入等级"
+        },
+        "en": {
+          "preferred": "Integration tier"
+        }
+      }
+    },
+    {
+      "id": "non-intrusive",
+      "definition": "Tier 1 / Tier 2 不由 eval spawn 应用进程或另开端口;不写 `黑盒`\n\n契约：[Adapters](feature/adapters/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "无侵入"
+        },
+        "en": {
+          "preferred": "Non-intrusive"
+        }
+      }
+    },
+    {
+      "id": "hitl",
+      "definition": "agent 等待人工输入;`waiting` + `input.requested` 构成能力证据\n\n契约：[Sessions 与 HITL](feature/adapters/library/sessions-and-hitl.md)",
+      "names": {
+        "zh": {
+          "preferred": "人工介入"
+        },
+        "en": {
+          "preferred": "HITL",
+          "aliases": [
+            "human-in-the-loop"
+          ]
+        }
+      }
+    },
+    {
+      "id": "agent-ensure",
+      "definition": "Runner 在 `agent.ensure` 相位执行的 ensure 循环:Adapter 的 探测 未命中时由 Agent 安装层 install,装后复检\n\n契约：[Agent Ensure](feature/adapters/architecture/agent-ensure.md)",
+      "names": {
+        "zh": {
+          "preferred": "Agent Ensure"
+        },
+        "en": {
+          "preferred": "Agent Ensure"
+        }
+      }
+    },
+    {
+      "id": "agent-ensure-declaration",
+      "definition": "Adapter 对自己 CLI 的目标 identity 与只读 探测;纯适配器在 Sandbox 内只保留这一份声明\n\n契约：[Agent Ensure](feature/adapters/architecture/agent-ensure.md)",
+      "names": {
+        "zh": {
+          "preferred": "Adapter 的 ensure 声明",
+          "aliases": [
+            "AgentEnsure"
+          ]
+        },
+        "en": {
+          "preferred": "AgentEnsure"
+        }
+      }
+    },
+    {
+      "id": "agent-installer",
+      "definition": "官方按 ensure identity 配对的安装实现;拥有 staged payload、平台探测与安装模式\n\n契约：[Agent Ensure](feature/adapters/architecture/agent-ensure.md)",
+      "names": {
+        "zh": {
+          "preferred": "Agent 安装层",
+          "aliases": [
+            "AgentInstaller"
+          ]
+        },
+        "en": {
+          "preferred": "AgentInstaller"
+        }
+      }
+    },
+    {
+      "id": "staged-payload",
+      "definition": "题面网络之外准备、经主 Sandbox 文件 API 送入的一组版本锁定安装文件;归 Agent 安装层\n\n契约：[Agent Ensure](feature/adapters/architecture/agent-ensure.md)",
+      "names": {
+        "zh": {
+          "preferred": "staged payload"
+        },
+        "en": {
+          "preferred": "staged payload"
+        }
+      }
+    },
+    {
+      "id": "sandbox",
+      "definition": "Agent 与测试实际执行命令、读写文件的隔离运行空间及其操作句柄\n\n契约：[Sandbox](feature/sandbox/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox"
+        },
+        "en": {
+          "preferred": "Sandbox"
+        }
+      }
+    },
+    {
+      "id": "sandbox-layer",
+      "definition": "Eval 或 Experiment 对同一主 Sandbox 的作者声明,分 template-bearing 与 command-only 两种形态\n\n契约：[Sandbox Layer](feature/sandbox/layers.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox layer"
+        },
+        "en": {
+          "preferred": "SandboxLayer"
+        }
+      }
+    },
+    {
+      "id": "provider",
+      "definition": "Sandbox 的具体实现选择,由内置或自定义工厂显式构造\n\n契约：[Sandbox library](feature/sandbox/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "Provider"
+        },
+        "en": {
+          "preferred": "Provider"
+        }
+      }
+    },
+    {
+      "id": "workdir",
+      "definition": "Sandbox 内 agent 的默认工作目录,也是变更分类账与 agent diff 的参照点\n\n契约：[Sandbox library](feature/sandbox/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "工作目录"
+        },
+        "en": {
+          "preferred": "workdir"
+        }
+      }
+    },
+    {
+      "id": "sandbox-operations",
+      "definition": "`Sandbox`、`EvalSandbox` 与 `SandboxCommandTarget` 共用的命令、文本与字节操作；同名方法同语义\n\n契约：[Sandbox operations](feature/sandbox/library/operations.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 操作协议"
+        },
+        "en": {
+          "preferred": "SandboxOperations"
+        }
+      }
+    },
+    {
+      "id": "eval-sandbox",
+      "definition": "沙箱型 eval 的文件 IO、宿主传输、命令执行、断言与 diff 接口\n\n契约：[Sandbox operations](feature/sandbox/library/operations.md)",
+      "names": {
+        "zh": {
+          "preferred": "t.sandbox"
+        },
+        "en": {
+          "preferred": "EvalSandbox",
+          "aliases": [
+            "t.sandbox"
+          ]
+        }
+      }
+    },
+    {
+      "id": "change-ledger",
+      "definition": "runner 私有的 git 分类账;只把参照点之后的改动放进 agent 归因视图\n\n契约：[Sandbox architecture](feature/sandbox/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "变更分类账"
+        },
+        "en": {
+          "preferred": "Change ledger"
+        }
+      }
+    },
+    {
+      "id": "sandbox-template",
+      "definition": "同时选择 Provider 并由其启动完整 Sandbox 实例的唯一起点；可以是 Compose、Dockerfile、image、E2B template 或 snapshot\n\n契约：[Sandbox Layer](feature/sandbox/layers.md#template-bearing-factory)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox template"
+        },
+        "en": {
+          "preferred": "SandboxTemplate"
+        }
+      }
+    },
+    {
+      "id": "sandbox-capability-requirement",
+      "definition": "Eval 对 Sandbox 必须兑现的 provider-neutral 约束；它不选择 Provider，也不创建第二个 Sandbox origin\n\n契约：[Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#requirement-与-capability)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 能力要求"
+        },
+        "en": {
+          "preferred": "Sandbox capability requirement"
+        }
+      }
+    },
+    {
+      "id": "docker-execution-requirement",
+      "definition": "`docker/v1` 对私有 daemon、Compose、专用 kernel 与最低 Docker data 容量的穷尽要求\n\n契约：[Nested Docker Library](feature/sandbox-nested-docker/library.md#sandboxrequirements)",
+      "names": {
+        "zh": {
+          "preferred": "Docker 执行要求"
+        },
+        "en": {
+          "preferred": "DockerExecutionRequirement"
+        }
+      }
+    },
+    {
+      "id": "dedicated-kernel-isolation",
+      "definition": "Agent 的 Docker 权限止于当前 guest kernel，不能到达宿主 daemon、kernel 或其它 Attempt\n\n契约：[Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#四个-owner)",
+      "names": {
+        "zh": {
+          "preferred": "专用 kernel"
+        },
+        "en": {
+          "preferred": "dedicated-kernel isolation"
+        }
+      }
+    },
+    {
+      "id": "sandbox-instance",
+      "definition": "Provider 启动的主 Sandbox；存在 sidecar、网络或服务时，同时点名这些伴随资源\n\n契约：[Sandbox 实例与伴随资源](feature/sandbox/case.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 实例"
+        },
+        "en": {
+          "preferred": "Sandbox instance"
+        }
+      }
+    },
+    {
+      "id": "main-sandbox",
+      "definition": "Provider 启动的唯一执行空间;Agent、Eval、文件 API、workdir 与 diff 都锚定它\n\n契约：[Sandbox 实例与伴随资源](feature/sandbox/case.md#主-sandbox-不变量)",
+      "names": {
+        "zh": {
+          "preferred": "主 Sandbox"
+        },
+        "en": {
+          "preferred": "Main Sandbox"
+        }
+      }
+    },
+    {
+      "id": "build-key",
+      "definition": "一次 Provider 构建的输入身份,用于复用 Docker image 或 E2B template 构建结果\n\n契约：[Sandbox 实例与伴随资源](feature/sandbox/case.md#buildkey-与-casekey两个身份各管一件事)",
+      "names": {
+        "zh": {
+          "preferred": "BuildKey"
+        },
+        "en": {
+          "preferred": "BuildKey"
+        }
+      }
+    },
+    {
+      "id": "before-cache",
+      "definition": "Base 加上 occurrence 与 owner 包裹顺序规范化的零个或多个可缓存 before action 所形成的内容寻址 Sandbox 起点\n\n契约：[Sandbox · before 缓存](feature/sandbox/architecture.md#before-缓存的身份与验证边界)",
+      "names": {
+        "zh": {
+          "preferred": "before 缓存"
+        },
+        "en": {
+          "preferred": "Before cache",
+          "aliases": [
+            "beforeCaches",
+            "beforeCachePlan",
+            "sandboxCache.before",
+            "SandboxBeforeCache"
+          ]
+        }
+      }
+    },
+    {
+      "id": "before-cache-key",
+      "definition": "parent 前缀、规范化 steps、immutable inputs 与 Provider 捕获协议的链式内容身份\n\n契约：[Sandbox · before 缓存](feature/sandbox/architecture.md#before-缓存的身份与验证边界)",
+      "names": {
+        "zh": {
+          "preferred": "BeforeCacheKey"
+        },
+        "en": {
+          "preferred": "BeforeCacheKey"
+        }
+      }
+    },
+    {
+      "id": "provider-artifact",
+      "definition": "Provider 为 exact Sandbox template 或 before cache 捕获并验证的不可变 image、template、snapshot 或 volume 结果；物理 locator 不成为 Eval 语义\n\n契约：[Sandbox · 前缀缓存](feature/sandbox/architecture.md#前缀缓存是可失败的优化)",
+      "names": {
+        "zh": {
+          "preferred": "Provider artifact"
+        },
+        "en": {
+          "preferred": "Provider artifact"
+        }
+      }
+    },
+    {
+      "id": "sandbox-state-surface",
+      "definition": "一个 before action 承诺写入的完整可观察状态范围；V1 只有完整 Sandbox 与 inner Docker data 两种\n\n契约：[Sandbox Layer](feature/sandbox/layers.md#action-family-与-step)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 状态面"
+        },
+        "en": {
+          "preferred": "Sandbox state surface"
+        }
+      }
+    },
+    {
+      "id": "case-key",
+      "definition": "完整 attempt 运行条件身份,携带门的判据\n\n契约：[Sandbox 实例与伴随资源](feature/sandbox/case.md#buildkey-与-casekey两个身份各管一件事)",
+      "names": {
+        "zh": {
+          "preferred": "CaseKey"
+        },
+        "en": {
+          "preferred": "CaseKey"
+        }
+      }
+    },
+    {
+      "id": "provider-cache",
+      "definition": "Roadmap 候选：Provider 为后续 Sandbox 保留的 Agent npm tarball、任务构建结果或原生 build cache；不属于结果携带或留存 Sandbox\n\n契约：[Provider Cache 生命周期](roadmap/sandbox-cache/cache-lifecycle/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Provider cache"
+        },
+        "en": {
+          "preferred": "Provider cache"
+        }
+      }
+    },
+    {
+      "id": "cache-domain",
+      "definition": "Roadmap 候选：单一 cache backend 的所有权、命中、lease 与回收边界；identity 改变时形成新 Domain\n\n契约：[Provider Cache Architecture](roadmap/sandbox-cache/cache-lifecycle/architecture.md#cache-domain)",
+      "names": {
+        "zh": {
+          "preferred": "Cache Domain"
+        },
+        "en": {
+          "preferred": "Cache Domain"
+        }
+      }
+    },
+    {
+      "id": "gc-plan",
+      "definition": "Roadmap 候选：对一个 Cache Domain 的不可变回收授权预览；apply 只能因事实漂移缩减候选，不能扩大候选\n\n契约：[Provider Cache CLI](roadmap/sandbox-cache/cache-lifecycle/cli.md#两阶段回收)",
+      "names": {
+        "zh": {
+          "preferred": "GC 计划"
+        },
+        "en": {
+          "preferred": "GcPlan"
+        }
+      }
+    },
+    {
+      "id": "sandbox-retention",
+      "definition": "Provider 返回的独立能力句柄；主实例与伴随资源同时 suspend，跨进程由 detached provider inspect / wake / destroy\n\n契约：[Sandbox 实例与伴随资源](feature/sandbox/case.md#收尾留存与注册表)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 留存能力"
+        },
+        "en": {
+          "preferred": "SandboxRetention"
+        }
+      }
+    },
+    {
+      "id": "sandbox-allocation",
+      "definition": "一条 Attempt 对 Provider 实例、私有磁盘与网络的 durable ownership 事实；用 generation fencing 与期望终态支撑 detached recovery\n\n契约：[Nested Docker Architecture](feature/sandbox-nested-docker/architecture.md#sandboxallocation)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox allocation"
+        },
+        "en": {
+          "preferred": "SandboxAllocation"
+        }
+      }
+    },
+    {
+      "id": "docker-storage-profile",
+      "definition": "raw DinD显式选择的宿主声明；只证明 Docker data allocation磁盘配额、跨进程准入与强杀恢复\n\n契约：[Docker 执行配置](feature/sandbox-docker-profiles/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Docker storage profile"
+        },
+        "en": {
+          "preferred": "Docker storage profile"
+        }
+      }
+    },
+    {
+      "id": "docker-data-allocation",
+      "definition": "每 Attempt独占、带 project quota hard limit的磁盘配额分配；固定挂到 inner `/var/lib/docker`，内部可由预建目录池兑现\n\n契约：[Docker profile architecture](feature/sandbox-docker-profiles/architecture.md#单容器资源)",
+      "names": {
+        "zh": {
+          "preferred": "Docker data allocation"
+        },
+        "en": {
+          "preferred": "Docker data allocation"
+        }
+      }
+    },
+    {
+      "id": "template-owner",
+      "definition": "为当前配对提供 template 的 Eval 或 Experiment owner；它只决定 Provider 起点，不形成 action 排序墙\n\n契约：[Sandbox Layer](feature/sandbox/layers.md#顺序与依赖方向)",
+      "names": {
+        "zh": {
+          "preferred": "template owner"
+        },
+        "en": {
+          "preferred": "template owner"
+        }
+      }
+    },
+    {
+      "id": "action-schedule",
+      "definition": "同一 occurrence 内根据显式依赖、typed capability 与 changeFrequency 形成的确定性 before 顺序\n\n契约：[三方准备时序](feature/sandbox/lifecycle.md)",
+      "names": {
+        "zh": {
+          "preferred": "action schedule"
+        },
+        "en": {
+          "preferred": "action schedule"
+        }
+      }
+    },
+    {
+      "id": "sandbox-action",
+      "definition": "四类 owner 共用的 `before` / `after` 执行单元；声明位置保留 owner 与 ordinal，planning 再编译 occurrence\n\n契约：[Sandbox Layer](feature/sandbox/layers.md#command-形状与-identity)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox action"
+        },
+        "en": {
+          "preferred": "SandboxAction"
+        }
+      }
+    },
+    {
+      "id": "detection",
+      "definition": "只读探测命令,零副作用;退出码零为命中,非零是未命中而不是失败\n\n契约：[内置 prepare 命令](feature/sandbox/prepare-commands.md)",
+      "names": {
+        "zh": {
+          "preferred": "探测"
+        },
+        "en": {
+          "preferred": "探测"
+        }
+      }
+    },
+    {
+      "id": "ensure",
+      "definition": "「探测 → 缺失才 install → 复检」的循环语义;`installTool` 是工具版,`agent.ensure` 相位是 Agent 版\n\n契约：[内置 prepare 命令](feature/sandbox/prepare-commands.md)",
+      "names": {
+        "zh": {
+          "preferred": "ensure"
+        },
+        "en": {
+          "preferred": "ensure"
+        }
+      }
+    },
+    {
+      "id": "prepare",
+      "definition": "官方提供、自带 探测、缓存与稳定 identity 的 prepare 命令\n\n契约：[内置 prepare 命令](feature/sandbox/prepare-commands.md)",
+      "names": {
+        "zh": {
+          "preferred": "内置 prepare 命令"
+        },
+        "en": {
+          "preferred": "内置 prepare 命令"
+        }
+      }
+    },
+    {
+      "id": "prebuilt-environment",
+      "definition": "预装稳定依赖的 Docker image、E2B template 或 Vercel snapshot,供全新 Sandbox 直接使用\n\n契约：[Prebuilt environments](feature/sandbox/library/prebuilt-environments.md)",
+      "names": {
+        "zh": {
+          "preferred": "Prebuilt environment"
+        },
+        "en": {
+          "preferred": "Prebuilt environment"
+        }
+      }
+    },
+    {
+      "id": "sandbox-prewarming",
+      "definition": "计划确定后提前创建即将使用的全新 Sandbox，不改变每 Attempt 的生命周期\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 预热"
+        },
+        "en": {
+          "preferred": "Sandbox prewarming"
+        }
+      }
+    },
+    {
+      "id": "sandbox-reuse",
+      "definition": "Experiment 用 `sandboxReuse: true` 声明多条 Attempt 可以共用 Sandbox\n\n契约：[Sandbox reuse](feature/sandbox/reuse.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 复用"
+        },
+        "en": {
+          "preferred": "Sandbox reuse"
+        }
+      }
+    },
+    {
+      "id": "between-eval-reset-point-for-sandbox-reuse",
+      "definition": "Sandbox 实例就绪后落下的 commit；共用同一 Sandbox 的 Attempt 之间重置回这里,再执行两层 prepare\n\n契约：[Sandbox reuse](feature/sandbox/reuse.md)",
+      "names": {
+        "zh": {
+          "preferred": "复用 Sandbox 的题间重置点"
+        },
+        "en": {
+          "preferred": "Between-eval reset point for Sandbox reuse"
+        }
+      }
+    },
+    {
+      "id": "sandbox-reuse-lifetime",
+      "definition": "Provider 能保证一个 Sandbox 继续运行的剩余时间，由 `ensureLifetime` 确认或续期\n\n契约：[Sandbox reuse](feature/sandbox/reuse.md)",
+      "names": {
+        "zh": {
+          "preferred": "Sandbox 复用寿命"
+        },
+        "en": {
+          "preferred": "Sandbox reuse lifetime"
+        }
+      }
+    },
+    {
+      "id": "cleanup-reserve",
+      "definition": "在 Attempt deadline 之外为 Hook 收尾与 Sandbox 销毁保留的内部安全时间\n\n契约：[Sandbox reuse](feature/sandbox/reuse.md)",
+      "names": {
+        "zh": {
+          "preferred": "收尾预留时间"
+        },
+        "en": {
+          "preferred": "Cleanup reserve"
+        }
+      }
+    },
+    {
+      "id": "experiment",
+      "definition": "选择 Adapter、模型与运行条件的可签入配置；不定义 rubric、阈值或评分规则\n\n契约：[Experiments](feature/experiments/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "实验"
+        },
+        "en": {
+          "preferred": "Experiment"
+        }
+      }
+    },
+    {
+      "id": "experiment-group",
+      "definition": "Experiment 的比较准入边界；具名组由 `experimentId` 第一段形成，根级 Experiment 各自形成单成员组\n\n契约：[Experiments](feature/experiments/README.md#实验组与可比边界)",
+      "names": {
+        "zh": {
+          "preferred": "实验组"
+        },
+        "en": {
+          "preferred": "Experiment Group"
+        }
+      }
+    },
+    {
+      "id": "judge-provider",
+      "definition": "显式绑定服务协议、默认 model、端点、凭据声明位置与执行限制；Experiment 可替换模型或整个 Provider\n\n契约：[Judge](feature/judge/library.md#runtime-配置)",
+      "names": {
+        "zh": {
+          "preferred": "裁判 Provider"
+        },
+        "en": {
+          "preferred": "JudgeProvider"
+        }
+      }
+    },
+    {
+      "id": "flags",
+      "definition": "A/B 条件键,经 `ctx.flags` 给 Adapter、`t.flags` 给 eval\n\n契约：[实验值归属](feature/experiments/use-case/实验值归属/)",
+      "names": {
+        "zh": {
+          "preferred": "实验 flags"
+        },
+        "en": {
+          "preferred": "Flags"
+        }
+      }
+    },
+    {
+      "id": "runtime-observation",
+      "definition": "运行时才知道、由 producer-owned typed collector 发布的值；不自动进入 eligibility identity 或 Attempt Core\n\n契约：[实验值归属](feature/experiments/use-case/实验值归属/)",
+      "names": {
+        "zh": {
+          "preferred": "运行时观测"
+        },
+        "en": {
+          "preferred": "Runtime observation"
+        }
+      }
+    },
+    {
+      "id": "model",
+      "definition": "Experiment 为 agent 指定的模型标识;省略则用 agent 原生默认\n\n契约：[Experiments](feature/experiments/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "模型"
+        },
+        "en": {
+          "preferred": "Model"
+        }
+      }
+    },
+    {
+      "id": "reasoning-effort",
+      "definition": "独立于 `model` 的推理强度档位;归属与 `model` 一致\n\n契约：[Experiments](feature/experiments/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "推理强度"
+        },
+        "en": {
+          "preferred": "Reasoning effort",
+          "aliases": [
+            "reasoningEffort"
+          ]
+        }
+      }
+    },
+    {
+      "id": "early-exit",
+      "definition": "一个 eval 先过一次即中止其余 Attempt 的策略;配置名 `earlyExit`\n\n契约：[Early exit](feature/experiments/use-case/early-exit.md)",
+      "names": {
+        "zh": {
+          "preferred": "首过即停"
+        },
+        "en": {
+          "preferred": "EarlyExit"
+        }
+      }
+    },
+    {
+      "id": "eval-group",
+      "definition": "由无业务顺序的 Eval 闭集组成；Runner 按规范化 Eval ID 串行复用一台物理 Sandbox，不同 Group 可以并行\n\n契约：[Eval Group](feature/eval-groups/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Eval Group"
+        },
+        "en": {
+          "preferred": "Eval Group",
+          "aliases": [
+            "defineEvalGroup"
+          ]
+        }
+      }
+    },
+    {
+      "id": "plugin",
+      "definition": "挂在 Eval、Experiment 或 Eval Group 上的不可变条件蓝图；组合既有 owner contribution，不选择 Agent 或建立新运行时\n\n契约：[Plugins](feature/plugins/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Plugin"
+        },
+        "en": {
+          "preferred": "Plugin"
+        }
+      }
+    },
+    {
+      "id": "per-experiment-budget-limit",
+      "definition": "每个 Experiment 独立计账和封顶,不是 Invocation 的共享总预算\n\n契约：[Budget](feature/experiments/use-case/budget-limit.md)",
+      "names": {
+        "zh": {
+          "preferred": "实验预算上限"
+        },
+        "en": {
+          "preferred": "Per-experiment budget limit"
+        }
+      }
+    },
+    {
+      "id": "runner",
+      "definition": "负责发现、有界并发、重试、缓存与结果交付的调度引擎\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "运行器"
+        },
+        "en": {
+          "preferred": "Runner"
+        }
+      }
+    },
+    {
+      "id": "hook",
+      "definition": "Experiment 与 Agent 层的成对 `before` / `after` 回调；Hook 所在字段或对象决定执行范围，Sandbox 与 Eval 使用 layer 的 `before()` / `after()`。\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "生命周期 Hook"
+        },
+        "en": {
+          "preferred": "Hook"
+        }
+      }
+    },
+    {
+      "id": "invocation",
+      "definition": "一次 CLI 调用的编排与 live 聚合边界；可创建多个 Run。编排与 live feedback 只属于当前进程，唯一 durable projection 是 Invocation Session\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "Invocation"
+        },
+        "en": {
+          "preferred": "Invocation"
+        }
+      }
+    },
+    {
+      "id": "dispatch",
+      "definition": "把一个 Attempt 交出去开始执行;排队等待不算派发,停止派发不抢占在飞项\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "派发"
+        },
+        "en": {
+          "preferred": "Dispatch"
+        }
+      }
+    },
+    {
+      "id": "concurrency-capacity",
+      "definition": "全局 `maxConcurrency` 的一个名额,只在 Attempt 真正执行时占用\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "并发名额"
+        },
+        "en": {
+          "preferred": "Concurrency capacity"
+        }
+      }
+    },
+    {
+      "id": "experiment-concurrency-limit",
+      "definition": "`ExperimentDefinition.maxConcurrency` 对本 Invocation 内一个实验的 Attempt 并发限制\n\n契约：[Max concurrency](feature/experiments/use-case/concurrency-max-global.md)",
+      "names": {
+        "zh": {
+          "preferred": "实验并发限制"
+        },
+        "en": {
+          "preferred": "Experiment concurrency limit"
+        }
+      }
+    },
+    {
+      "id": "effective-width",
+      "definition": "全局并发名额和实验并发限制共同允许的同时执行数\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "有效宽度"
+        },
+        "en": {
+          "preferred": "Effective width"
+        }
+      }
+    },
+    {
+      "id": "scheduling-waves",
+      "definition": "`ceil(Attempt 数 / 有效宽度)`;波次多的 Run 优先拿并发名额\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "调度波次"
+        },
+        "en": {
+          "preferred": "Scheduling waves"
+        }
+      }
+    },
+    {
+      "id": "completion-status",
+      "definition": "Invocation 的 `completed` / `interrupted` / `failed` 完成态，独立于 Verdict；Run 的终态由 Run state 表达，不使用完成标识\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "完成状态"
+        },
+        "en": {
+          "preferred": "CompletionStatus"
+        }
+      }
+    },
+    {
+      "id": "fail-fast",
+      "definition": "无声明时按同一 error code 连续复现的 streak 保守停止派发\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "fail-fast"
+        },
+        "en": {
+          "preferred": "fail-fast"
+        }
+      }
+    },
+    {
+      "id": "send-acceptance",
+      "definition": "`rejected` / `started` / `unknown`；只有可证明的 `rejected` 允许整段重发输入\n\n契约：[Error classification](feature/error-classification/architecture.md#分类链)",
+      "names": {
+        "zh": {
+          "preferred": "受理状态"
+        },
+        "en": {
+          "preferred": "Send acceptance"
+        }
+      }
+    },
+    {
+      "id": "timeout",
+      "definition": "Adapter 内层超时加 Runner 外层 Attempt deadline;排队不计入\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "超时"
+        },
+        "en": {
+          "preferred": "Timeout"
+        }
+      }
+    },
+    {
+      "id": "elapsed-time",
+      "definition": "一次 Invocation 从开始到结束经过的时间，包含并行重叠和排队\n\n契约：[Runner](runner.md)",
+      "names": {
+        "zh": {
+          "preferred": "总耗时"
+        },
+        "en": {
+          "preferred": "Elapsed time"
+        }
+      }
+    },
+    {
+      "id": "phase-duration",
+      "definition": "一个生命周期阶段实际经过的时间，由 Attempt 时间树写入\n\n契约：[Benchmark](engineering/benchmark/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "阶段耗时"
+        },
+        "en": {
+          "preferred": "Phase duration"
+        }
+      }
+    },
+    {
+      "id": "input-identity",
+      "definition": "带 domain 的 opaque equality token；只有 domain 相同且 value 相等才允许沿用\n\n契约：[Cache](feature/experiments/cache.md)",
+      "names": {
+        "zh": {
+          "preferred": "输入身份"
+        },
+        "en": {
+          "preferred": "Input identity"
+        }
+      }
+    },
+    {
+      "id": "result-carry-forward",
+      "definition": "合格的历史 Attempt 通过 reference Member 并入本次 Run、不重跑；`carried` 是 actions provenance，不是 Member 或结果状态\n\n契约：[Cache](feature/experiments/cache.md)",
+      "names": {
+        "zh": {
+          "preferred": "结果沿用"
+        },
+        "en": {
+          "preferred": "Result carry-forward",
+          "aliases": [
+            "carried"
+          ]
+        }
+      }
+    },
+    {
+      "id": "config-identity",
+      "definition": "带 domain 的 opaque equality token；配方改变时更换 domain\n\n契约：[Cache](feature/experiments/cache.md)",
+      "names": {
+        "zh": {
+          "preferred": "配置身份"
+        },
+        "en": {
+          "preferred": "Config identity"
+        }
+      }
+    },
+    {
+      "id": "transcript",
+      "definition": "Adapter 的临时逐事件输入；归一后可供本次 Attempt 消费，但不是持久 Run 格式\n\n契约：[Observability](observability.md)",
+      "names": {
+        "zh": {
+          "preferred": "Transcript"
+        },
+        "en": {
+          "preferred": "Transcript"
+        }
+      }
+    },
+    {
+      "id": "stream-event",
+      "definition": "Transcript 或 `send` 返回归一化成的临时统一事件模型\n\n契约：[Events](feature/adapters/architecture/events.md)",
+      "names": {
+        "zh": {
+          "preferred": "标准事件流"
+        },
+        "en": {
+          "preferred": "StreamEvent",
+          "aliases": [
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "id": "trace-waterfall",
+      "definition": "从 owner-monotonic timing interval 投影的时间关系；OTLP 只可补充本次采集\n\n契约：[Observability](observability.md)",
+      "names": {
+        "zh": {
+          "preferred": "trace 瀑布图"
+        },
+        "en": {
+          "preferred": "Trace waterfall"
+        }
+      }
+    },
+    {
+      "id": "usage",
+      "definition": "token bucket、单个 request 或 provider-observed cost 的原子 observation；不是 Attempt 总计\n\n契约：[Observability](observability.md)",
+      "names": {
+        "zh": {
+          "preferred": "用量"
+        },
+        "en": {
+          "preferred": "Usage"
+        }
+      }
+    },
+    {
+      "id": "cost",
+      "definition": "provider-observed cost 是事实；价格表估算、FX 与跨币种汇总是 Calculation\n\n契约：[Observability](observability.md)",
+      "names": {
+        "zh": {
+          "preferred": "成本"
+        },
+        "en": {
+          "preferred": "Cost"
+        }
+      }
+    },
+    {
+      "id": "collection",
+      "definition": "一个已发布 typed fact 的 complete 或 partial 完备度；不是 reader 的 unavailable 或 invalid 状态\n\n契约：[Run](feature/run/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "采集状态"
+        },
+        "en": {
+          "preferred": "Collection"
+        }
+      }
+    },
+    {
+      "id": "limitation",
+      "definition": "partial collection 必有的 closed、非空原因；表达上限、截断、脱敏或采集不足\n\n契约：[Run](feature/run/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "采集限制"
+        },
+        "en": {
+          "preferred": "limitation"
+        }
+      }
+    },
+    {
+      "id": "owner-local-identity",
+      "definition": "producer 为 turn、item、call、command、usage、interval 与 diagnostic mint 的稳定身份\n\n契约：[Run](feature/run/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "owner-local identity"
+        },
+        "en": {
+          "preferred": "owner-local identity"
+        }
+      }
+    },
+    {
+      "id": "source-receipt",
+      "definition": "一个 capture authority 在真实边界产生的已归一、脱敏且不可变事实 segment\n\n契约：[Run](feature/run/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Source receipt"
+        },
+        "en": {
+          "preferred": "Source receipt"
+        }
+      }
+    },
+    {
+      "id": "run",
+      "definition": "创建后立即可发现的运行资源；状态为 `active | completed | interrupted | failed`\n\n契约：[Run](feature/run/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Run"
+        },
+        "en": {
+          "preferred": "Run"
+        }
+      }
+    },
+    {
+      "id": "canonical-record",
+      "definition": "项目内唯一 `.niceeval/record.sqlite`；同时是即时可读事实源与通过 graceful portable gate 后可搬运的 artifact\n\n契约：[Run Architecture](feature/run/architecture.md#canonical-record-与-staging)",
+      "names": {
+        "zh": {
+          "preferred": "Canonical Record"
+        },
+        "en": {
+          "preferred": "canonical Record"
+        }
+      }
+    },
+    {
+      "id": "portable-gate",
+      "definition": "受控退出时 close writer、truncate WAL，并以内建只读路径验证 schema 与领域不变量的交付门\n\n契约：[Run Architecture](feature/run/architecture.md#portable-gate-与不可信输入)",
+      "names": {
+        "zh": {
+          "preferred": "Portable gate"
+        },
+        "en": {
+          "preferred": "portable gate"
+        }
+      }
+    },
+    {
+      "id": "planned-attempt",
+      "definition": "Run 创建时冻结的 expected 位置；最多原子绑定一个已发布 Attempt\n\n契约：[Run Architecture](feature/run/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "计划 Attempt"
+        },
+        "en": {
+          "preferred": "Planned attempt",
+          "aliases": [
+            "plannedAttemptId",
+            "plannedAttempts",
+            "originPlannedAttemptId"
+          ]
+        }
+      }
+    },
+    {
+      "id": "attempt-publication",
+      "definition": "同一事务提交 immutable Attempt closure、publication identity 与 origin binding 的线性化点\n\n契约：[Run Architecture](feature/run/architecture.md#attempt-publication)",
+      "names": {
+        "zh": {
+          "preferred": "Attempt publication"
+        },
+        "en": {
+          "preferred": "Attempt publication"
+        }
+      }
+    },
+    {
+      "id": "member",
+      "definition": "一个 Planned attempt 对已发布 Attempt 的 origin 或 reference binding；不复制 Attempt\n\n契约：[Run Architecture](feature/run/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "Member"
+        },
+        "en": {
+          "preferred": "Member"
+        }
+      }
+    },
+    {
+      "id": "run-absence",
+      "definition": "终态 Run 中未绑定 Planned attempt 的闭集原因；不伪造 Attempt 或 Member\n\n契约：[Run Architecture](feature/run/architecture.md#run-收口与-absence)",
+      "names": {
+        "zh": {
+          "preferred": "Run absence"
+        },
+        "en": {
+          "preferred": "Run absence"
+        }
+      }
+    },
+    {
+      "id": "run-host",
+      "definition": "以 `list/get/delete/recover` 管理 Run 的高层领域 SDK；不暴露 SQLite 或通用 writer\n\n契约：[Run Library](feature/run/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "Run Host"
+        },
+        "en": {
+          "preferred": "runHost"
+        }
+      }
+    },
+    {
+      "id": "sources-snapshot",
+      "definition": "origin Run-owned 不可变事实；保存当时 source closure 的 logical tokens 与 content\n\n契约：[Run Observability](feature/run/architecture/observability-attachments.md)",
+      "names": {
+        "zh": {
+          "preferred": "源码快照"
+        },
+        "en": {
+          "preferred": "Sources snapshot"
+        }
+      }
+    },
+    {
+      "id": "source-item",
+      "definition": "Sources snapshot 中由 `SourceItemId`、canonical project-relative path、SHA-256 与 content 标识的一项源码\n\n契约：[Run Observability](feature/run/architecture/observability-attachments.md)",
+      "names": {
+        "zh": {
+          "preferred": "源码项"
+        },
+        "en": {
+          "preferred": "source item"
+        }
+      }
+    },
+    {
+      "id": "unmapped",
+      "definition": "可读 Assertion 没有可用 source navigation；不改变 Assertion、Verdict 或 Score\n\n契约：[Source sites](feature/assertions/architecture/source-sites.md#局部-unmapped-与-assertion-隔离)",
+      "names": {
+        "zh": {
+          "preferred": "未映射"
+        },
+        "en": {
+          "preferred": "unmapped"
+        }
+      }
+    },
+    {
+      "id": "invocation-receipt",
+      "definition": "交付 `createdRunIds`、Invocation completion 与 opaque `publicationCutoff` 的进程返回值\n\n契约：[Experiments](feature/experiments/architecture.md#invocation-receipt-与退出)",
+      "names": {
+        "zh": {
+          "preferred": "Invocation receipt"
+        },
+        "en": {
+          "preferred": "InvocationReceipt"
+        }
+      }
+    },
+    {
+      "id": "attempt-locator",
+      "definition": "完整 `attemptId` 的确定性人读别名：`@1` 加 SHA-256 前 60 bit 的 12 字符规范大写 Crockford 编码；碰撞时返回 `ambiguous`\n\n契约：[Run](feature/run/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "Attempt 定位符"
+        },
+        "en": {
+          "preferred": "AttemptLocator"
+        }
+      }
+    },
+    {
+      "id": "inspection-operation",
+      "definition": "NiceEval 第一方维护的具名读取问题，拥有穷尽 request、result 与错误 union\n\n契约：[Inspection Architecture](feature/inspection/architecture.md#共享的固定-query-definition)",
+      "names": {
+        "zh": {
+          "preferred": "Inspection operation"
+        },
+        "en": {
+          "preferred": "Inspection operation"
+        }
+      }
+    },
+    {
+      "id": "inspection-result",
+      "definition": "在一个 `PublicationCutoff` 上关闭 selection、分母、limits、issues 与 Evidence 的 plain-data 结果\n\n契约：[Inspection Architecture](feature/inspection/architecture.md)",
+      "names": {
+        "zh": {
+          "preferred": "Inspection result"
+        },
+        "en": {
+          "preferred": "Inspection result"
+        }
+      }
+    },
+    {
+      "id": "publication-cutoff",
+      "definition": "一次 operation 固定的 Run create、Planned attempt binding、Run close 与 deletion 可见边界\n\n契约：[Run Architecture](feature/run/architecture.md#publicationcutoff)",
+      "names": {
+        "zh": {
+          "preferred": "Publication cutoff"
+        },
+        "en": {
+          "preferred": "PublicationCutoff"
+        }
+      }
+    },
+    {
+      "id": "selection-audit",
+      "definition": "结果随附的选择依据、成员与排除说明；不是数据库 cursor 或文件位置\n\n契约：[Inspection CLI](feature/inspection/cli.md#machine-输出与错误面)",
+      "names": {
+        "zh": {
+          "preferred": "Selection audit"
+        },
+        "en": {
+          "preferred": "selection audit"
+        }
+      }
+    },
+    {
+      "id": "execution-reuse-plan",
+      "definition": "对当前逻辑位置保留 reuse 或 gap 适用性，再按运行选项选择沿用或执行；只读预览不分配 Run identity\n\n契约：[Cache](feature/experiments/cache.md#公开形状)",
+      "names": {
+        "zh": {
+          "preferred": "执行沿用计划"
+        },
+        "en": {
+          "preferred": "ExecutionReusePlan"
+        }
+      }
+    },
+    {
+      "id": "execution-gap",
+      "definition": "当前目标中没有合格 Attempt 的位置；不是 Attempt 或 Run state，也不是强制重跑选项；实际派发仍受预算与 early exit 约束\n\n契约：[Cache](feature/experiments/cache.md#当前结果可用性与执行选择)",
+      "names": {
+        "zh": {
+          "preferred": "执行缺口"
+        },
+        "en": {
+          "preferred": "Execution gap"
+        }
+      }
+    },
+    {
+      "id": "pricing-profile",
+      "definition": "带内容身份与 coverage、只供固定 Inspection cost operation 投影成本的价格规则集合\n\n契约：[Inspection](feature/inspection/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "价格配置"
+        },
+        "en": {
+          "preferred": "Pricing profile",
+          "aliases": [
+            "PricingProfile"
+          ]
+        }
+      }
+    },
+    {
+      "id": "insight",
+      "definition": "NiceEval 自己维护、供用户审阅 Run、Attempt 与证据的本机 SPA；不是网页作者平台\n\n契约：[Insight](feature/insight/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Insight"
+        },
+        "en": {
+          "preferred": "Insight"
+        }
+      }
+    },
+    {
+      "id": "view-generation",
+      "definition": "一个 Insight 进程当前固定的 `PublicationCutoff`；刷新成功后才原子切换\n\n契约：[Insight Architecture](feature/insight/architecture.md#generation刷新与收尾)",
+      "names": {
+        "zh": {
+          "preferred": "Insight generation"
+        },
+        "en": {
+          "preferred": "View generation"
+        }
+      }
+    },
+    {
+      "id": "preparation",
+      "definition": "跑 agent 前的准备逻辑,按职责分层:layer 的 `before()`、Agent Ensure、`test(t)` 普通代码与外部编排；`SandboxAgent.before` 只连 runtime / 鉴权\n\n契约：[Sandbox library](feature/sandbox/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "预置准备"
+        },
+        "en": {
+          "preferred": "预置准备"
+        }
+      }
+    },
+    {
+      "id": "cli-flag",
+      "definition": "命令行开关（如 `--model`）；写作时一律带「CLI」限定或写字面 `--xxx`，不与实验 flags 混用\n\n契约：[CLI](cli.md)",
+      "names": {
+        "zh": {
+          "preferred": "CLI flag"
+        },
+        "en": {
+          "preferred": "CLI flag"
+        }
+      }
+    },
+    {
+      "id": "replayable-eval",
+      "definition": "Roadmap 候选：用独立 execution 与 grading definition 保存完整多轮证据，并允许只对 sealed Execution graph 重新评分\n\n契约：[可重评分 Eval](roadmap/replayable-grading/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "可重评分 Eval"
+        },
+        "en": {
+          "preferred": "Replayable Eval"
+        }
+      }
+    },
+    {
+      "id": "execution-graph",
+      "definition": "Roadmap 候选：保存一次 replayable Agent 执行的 Session、Turn、Action、显式材料、provenance 与 ExecutionOutcome 的 sealed semantic source graph\n\n契约：[Replayable Architecture](roadmap/replayable-grading/architecture.md#execution-source)",
+      "names": {
+        "zh": {
+          "preferred": "Execution graph"
+        },
+        "en": {
+          "preferred": "Execution graph"
+        }
+      }
+    },
+    {
+      "id": "grading",
+      "definition": "Roadmap 候选：当前 GradingDefinition 对一份 sealed Execution graph 复用或产生 Judge Evaluation，再建立不可变 Grading Claim\n\n契约：[Replayable Architecture](roadmap/replayable-grading/architecture.md#judgeevaluation-与-gradingclaim)",
+      "names": {
+        "zh": {
+          "preferred": "Grading"
+        },
+        "en": {
+          "preferred": "Grading"
+        }
+      }
+    },
+    {
+      "id": "grading-run",
+      "definition": "Roadmap 候选：对一个 Experiment Run 已写入 Record 的 SampleManifest 执行或复用全部 Grading 的持久批次\n\n契约：[Replayable Architecture](roadmap/replayable-grading/architecture.md#gradingrun-与-gradedsample)",
+      "names": {
+        "zh": {
+          "preferred": "GradingRun"
+        },
+        "en": {
+          "preferred": "GradingRun"
+        }
+      }
+    },
+    {
+      "id": "grading-result",
+      "definition": "Roadmap 候选：单项 Grading 按 pass 或 score evaluation kind 判别的终态，与 ExecutionOutcome 分开保存\n\n契约：[Replayable Architecture](roadmap/replayable-grading/architecture.md#gradingrun-与-gradedsample)",
+      "names": {
+        "zh": {
+          "preferred": "GradingResult"
+        },
+        "en": {
+          "preferred": "GradingResult"
+        }
+      }
+    },
+    {
+      "id": "sample-manifest",
+      "definition": "Roadmap 候选：一个 Experiment Run 写入 Record 的候选分母、Execution graph 引用、carry provenance 与 coverage\n\n契约：[Replayable Architecture](roadmap/replayable-grading/architecture.md#gradingrun-与-gradedsample)",
+      "names": {
+        "zh": {
+          "preferred": "SampleManifest"
+        },
+        "en": {
+          "preferred": "SampleManifest"
+        }
+      }
+    },
+    {
+      "id": "judge-material-view",
+      "definition": "Roadmap 候选：从受管 Execution 或 Grading definition source 创建、只能绑定到 recipe input 的私有品牌 Judge 输入句柄\n\n契约：[Judge Material Library](roadmap/judge-runtimes/material/library.md)",
+      "names": {
+        "zh": {
+          "preferred": "Judge Material View"
+        },
+        "en": {
+          "preferred": "Judge Material View"
+        }
+      }
+    },
+    {
+      "id": "action-result-selector",
+      "definition": "Roadmap 候选：按 occurrence 或封存动作元数据精确选择 Action result、且不能读取 output 的持久选择器\n\n契约：[Judge Material Library](roadmap/judge-runtimes/material/library.md#action-result-selector)",
+      "names": {
+        "zh": {
+          "preferred": "Action Result Selector"
+        },
+        "en": {
+          "preferred": "ActionResultSelector"
+        }
+      }
+    },
+    {
+      "id": "material-binding-manifest",
+      "definition": "Roadmap 候选：穷尽保存一次 Judge Check 的 input 声明、已定位 source、已交付 representation 与授权能力的 canonical manifest\n\n契约：[Judge Material Architecture](roadmap/judge-runtimes/material/architecture.md#materialbindingmanifest)",
+      "names": {
+        "zh": {
+          "preferred": "材料绑定清单"
+        },
+        "en": {
+          "preferred": "MaterialBindingManifest"
+        }
+      }
+    },
+    {
+      "id": "judge-evaluation",
+      "definition": "Roadmap 候选：一次 evaluator occurrence 的 manifest、presentation 或 investigation closure 与 Decision；不拥有 threshold 或 score policy\n\n契约：[Judge Material Architecture](roadmap/judge-runtimes/material/architecture.md#实体与-owner)",
+      "names": {
+        "zh": {
+          "preferred": "Judge Evaluation"
+        },
+        "en": {
+          "preferred": "JudgeEvaluation"
+        }
+      }
+    },
+    {
+      "id": "pilot-selection",
+      "definition": "Roadmap 候选：在 attempts 展开前按共同 Eval ID 总体执行 first 或固定 seed sample，并保留 non-final coverage\n\n契约：[Experiment Pilot 抽样](roadmap/experiment-pilot-sampling/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Pilot 选择"
+        },
+        "en": {
+          "preferred": "Pilot selection"
+        }
+      }
+    },
+    {
+      "id": "experiment-family",
+      "definition": "Roadmap 候选：用一个 keyed record 展开多个普通 Experiment；文件路径与 key 共同形成稳定 ID\n\n契约：[具名 Experiment 族](roadmap/experiment-authoring/families/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "具名 Experiment 族"
+        },
+        "en": {
+          "preferred": "Experiment family",
+          "aliases": [
+            "defineExperiments"
+          ]
+        }
+      }
+    },
+    {
+      "id": "fixture-content-command",
+      "definition": "Roadmap 候选：把本地内容登记、digest-backed identity 与 `putContent` 组成一个普通 prepare command\n\n契约：[Fixture 内容命令](roadmap/sandbox-prepare/fixture-content/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Fixture 内容命令"
+        },
+        "en": {
+          "preferred": "Fixture content command",
+          "aliases": [
+            "putFixture"
+          ]
+        }
+      }
+    },
+    {
+      "id": "agent-judge",
+      "definition": "Roadmap 候选：作为 Assertion evaluator 运行的独立 Agent；调查证据后返回 measurement、理由与引用，不拥有 Verdict 或 score policy\n\n契约：[Agent Judge](roadmap/judge-runtimes/agent/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Agent Judge"
+        },
+        "en": {
+          "preferred": "Agent Judge"
+        }
+      }
+    },
+    {
+      "id": "admission-health",
+      "definition": "Roadmap 候选：每条 fresh Planned attempt 在 Agent 进入前，对 producer occurrence 做一次健康裁决；结果归 Run，不形成 Assertion\n\n契约：[准入健康](roadmap/admission-health/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "准入健康"
+        },
+        "en": {
+          "preferred": "Admission health"
+        }
+      }
+    },
+    {
+      "id": "state-cohort",
+      "definition": "Roadmap 候选：State Provider 颁发身份的一条持久状态 lineage，约束 Checkpoint、Region 与 schema 的共同归属\n\n契约：[持久状态](roadmap/state/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "状态 Cohort"
+        },
+        "en": {
+          "preferred": "State cohort"
+        }
+      }
+    },
+    {
+      "id": "state-checkpoint",
+      "definition": "Roadmap 候选：State cohort 内由 Provider 发布的 immutable exact 状态点；Comparable 状态必须带内容摘要\n\n契约：[持久状态](roadmap/state/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "状态 Checkpoint"
+        },
+        "en": {
+          "preferred": "State checkpoint"
+        }
+      }
+    },
+    {
+      "id": "eval-trajectory",
+      "definition": "Roadmap 候选：由源码路径定身份、用显式依赖组成，并能从 exact Checkpoint 跨 immutable Run segment 恢复的 Eval DAG\n\n契约：[Eval Trajectory](roadmap/eval-trajectories/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Eval Trajectory"
+        },
+        "en": {
+          "preferred": "Eval trajectory"
+        }
+      }
+    },
+    {
+      "id": "workspace-access-evidence",
+      "definition": "Roadmap 候选：可信 Sandbox producer 归因给 Agent 进程树的逻辑文件操作集合\n\n契约：[Workspace 访问证据](roadmap/workspace-access-evidence/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Workspace 访问证据"
+        },
+        "en": {
+          "preferred": "Workspace access evidence"
+        }
+      }
+    },
+    {
+      "id": "discovery-boundary",
+      "definition": "Roadmap 候选：显式目录入口拥有的递归 Eval discovery 范围；父级扫描在入口处停止向内发现\n\n契约：[发现边界](roadmap/discovery-boundaries/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "发现边界"
+        },
+        "en": {
+          "preferred": "Discovery boundary"
+        }
+      }
+    },
+    {
+      "id": "experiment-display-name",
+      "definition": "Roadmap 候选：与 description、Experiment identity 分离且不参与 reuse、选择或去重的人类可读标签\n\n契约：[Experiment 展示名](roadmap/experiment-authoring/display-names/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Experiment 展示名"
+        },
+        "en": {
+          "preferred": "Experiment display name",
+          "aliases": [
+            "displayName"
+          ]
+        }
+      }
+    },
+    {
+      "id": "record-inventory",
+      "definition": "Roadmap 候选：在 frozen Record view 上按 canonical Run ID 枚举的只读库存；不推导最新结果\n\n契约：[Record 库存](roadmap/record-inventory/README.md)",
+      "names": {
+        "zh": {
+          "preferred": "Record 库存"
+        },
+        "en": {
+          "preferred": "Record inventory"
+        }
+      }
+    },
+    {
+      "id": "model-role",
+      "definition": "Experiment 为应用声明的模型用途，例如 mind 与 speech；键表达模型在应用里担任的角色。\n\n契约：docs/feature/adapters/library.md",
+      "names": {
+        "zh": {
+          "preferred": "模型用途"
+        },
+        "en": {
+          "preferred": "Model role",
+          "aliases": [
+            "modelRole",
+            "ModelRoleSelection",
+            "defineModelRoles"
+          ]
+        }
+      }
+    },
+    {
+      "id": "before-hook",
+      "definition": "作者声明的前置生命周期 Hook；所在字段或对象决定包裹的工作、执行位置与次数。\n\n契约：docs/api-design.md#生命周期统一用-before--after",
+      "names": {
+        "zh": {
+          "preferred": "前置 Hook"
+        },
+        "en": {
+          "preferred": "before",
+          "aliases": [
+            "AgentBefore"
+          ]
+        }
+      }
+    },
+    {
+      "id": "after-hook",
+      "definition": "作者声明的收尾生命周期 Hook；按实际已激活顺序逆序执行，并保留既有失败与清理语义。\n\n契约：docs/api-design.md#生命周期统一用-before--after",
+      "names": {
+        "zh": {
+          "preferred": "收尾 Hook"
+        },
+        "en": {
+          "preferred": "after",
+          "aliases": [
+            "AgentAfter"
+          ]
+        }
+      }
+    },
+    {
+      "id": "session-key",
+      "definition": "Adapter 私有会话状态的键；用于在 Agent Session 中保存和读取状态。\n\n契约：docs/api-design.md#不再用-slot",
+      "names": {
+        "zh": {
+          "preferred": "会话状态键"
+        },
+        "en": {
+          "preferred": "SessionKey",
+          "aliases": [
+            "createSessionKey"
+          ]
+        }
+      }
+    },
+    {
+      "id": "recipe-input",
+      "definition": "Judge recipe 接收的显式材料输入，由输入声明确定可交付的材料。\n\n契约：docs/api-design.md#不再用-slot",
+      "names": {
+        "zh": {
+          "preferred": "recipe 输入"
+        },
+        "en": {
+          "preferred": "recipe input"
+        }
+      }
+    },
+    {
+      "id": "observability",
+      "definition": "由 Adapter 收集并归一的事件、用量与时间等运行证据，供 Assertion 与 Inspection 消费。\n\n契约：docs/observability.md",
+      "names": {
+        "zh": {
+          "preferred": "可观测性"
+        },
+        "en": {
+          "preferred": "Observability",
+          "aliases": [
+            "ObservabilitySummary"
+          ]
+        }
+      }
+    },
+    {
+      "id": "base-url",
+      "definition": "Agent factory 连接模型服务的基础端点地址。\n\n契约：docs/api-design.md#作者字段与-cli",
+      "names": {
+        "zh": {
+          "preferred": "服务基础地址"
+        },
+        "en": {
+          "preferred": "baseUrl"
+        }
+      }
+    },
+    {
+      "id": "agent-installation",
+      "definition": "Agent 安装层执行并记录的安装事实；与包裹运行的生命周期 Hook 分开表达。\n\n契约：docs/api-design.md#生命周期词汇的遗漏位置",
+      "names": {
+        "zh": {
+          "preferred": "Agent 安装"
+        },
+        "en": {
+          "preferred": "Agent installation",
+          "aliases": [
+            "AgentInstallationManifest",
+            "reportInstallation",
+            "agentInstallation"
+          ]
+        }
+      }
+    }
+  ],
+  "imports": []
+}
