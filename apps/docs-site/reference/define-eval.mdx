@@ -116,6 +116,12 @@ test(t: TestContext): EvalTestReturn;
 
 ## Test context: `t`
 
+`t.note(label, value)` records a JSON value or Quantity for review, such as `t.note("Latency", ms(512))`.
+It registers no Assertion and does not affect Verdict, score, or coverage. `null` is displayed as unavailable.
+Labels must be unique within an Attempt. The limits are 64 notes and 64 KiB of JSON per note; violations throw `TypeError`.
+`show @<locator>` and View display Notes after Assertions; JSON and Query Attempt results include `notes`.
+`show --exp <experiment-id>` groups numeric notes by label and unit, displaying count, min, median, p90, and max.
+
 `t` (`TestContext`) is the context an Eval author receives in `test(t)`. Each call to a check method registers one assertion.
 
 - `t.check(subject, match)` checks a value you pass explicitly against a match condition.

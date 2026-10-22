@@ -206,3 +206,10 @@ Show 与 View 从同一 costSummary 展示范围、总额和完整度，各 Atte
 应用 usage family revision 4 的 complete 表示 Adapter 显式确认调用集合完整。
 v1、v2、v3 保留独立历史解码及原金额、原应用 costUSD；总费用对其保留 application 缺口。
 revision 3 仍检查用途引用属于 origin Run 的配置。未声明的新账本也保持缺口；已知零金额不等于未知。
+
+## Note 读取与聚合
+
+`attempt.get` 的 `notes` 返回所选 Attempt 的 Note 列表，保留调用顺序、label、value 与可选 unit。
+缺少 `attempt-note` family 的历史 Attempt 返回 `[]`。
+`experiment.get` 的 `notes` 按同一 label 与同一 unit 聚合当前选中 Attempt 的数值 Note，返回 count、min、median、p90、max。
+无单位与有单位分别统计；`null` 和非数值不进入聚合。Notes 不影响 Assertion、Verdict、score 与 coverage。

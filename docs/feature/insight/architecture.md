@@ -74,3 +74,9 @@ PR Preview 的 SPA、唯一获准的 Function 与 Function-private canonical Rec
 receipt 绑定 candidate commit、Function runtime 与 Record digest。静态站不得下载 Record。Preview 只加载仓库控制的合成
 Run facts，不接收真实项目数据、路径、credential 或 loopback session。未来写入能力使用另行定义的本机授权 API，不复用
 只读 Inspection endpoint。
+
+## Attempt Notes
+
+Attempt 详情在 Assertions 后展示 Notes，直接读取同一 Attempt 的 `attempt.get.notes`。
+界面保留调用顺序，展示 label 与 JSON 值；数值按可选单位格式化，`null` 显示为 unavailable。
+Notes 不增加 Assertion 数量，不改变 Verdict、score 或 coverage。

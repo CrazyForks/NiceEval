@@ -248,3 +248,10 @@ Record 格式版本独立于 npm 包版本，不能用产品版本号推断数�
 
 当前完整形状由 [Eval 架构](../eval/architecture.md#应用契约与实现身份) 拥有。
 这些确定转换不查询当前配置，不猜测当年的远端部署，也不把接口名称当作能力证明。
+
+## 展示 Note 的持久化
+
+`niceeval.attempt-note` family revision 1 随 Attempt publication 保存 Note 列表。
+每项含 `label`、零起始且连续的 `sequence`、JSON `value` 与可选 `unit`；顺序与调用顺序一致。
+它与 Assertions 分开保存，不参与 Verdict、score、coverage 或 Assertion 数量。
+旧 Record 缺少该 family 时读取为空列表，不补造 Note。

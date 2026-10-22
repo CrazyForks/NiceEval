@@ -116,6 +116,12 @@ test(t: TestContext): EvalTestReturn;
 
 ## Test context: `t`
 
+`t.note(label, value)` 记录供结果审阅使用的 JSON 值或 Quantity，例如 `t.note("延迟", ms(512))`。
+它不登记 Assertion，不影响 Verdict、score 或 coverage。`null` 显示为 unavailable。
+同一 Attempt 的 label 必须唯一，最多 64 项，每项 JSON 不超过 64 KiB；违规时抛出 `TypeError`。
+`show @<locator>` 和 View 在 Assertions 后展示 Notes；JSON 与 Query 的 Attempt 结果包含 `notes`。
+`show --exp <experiment-id>` 按 label 和单位聚合数值，展示 count、min、median、p90、max。
+
 `t`（`TestContext`）是评估用例作者在 `test(t)` 里拿到的上下文。每调用一次检查方法，就登记一条断言。
 
 - `t.check(subject, match)` 用匹配条件检查你显式传入的值。
@@ -137,6 +143,14 @@ root、Session 和 Turn 上的 `judge` 都要求显式传入材料。官方提�
 {/* GENERATED:BEGIN test-context */}
 
 {/* 本区块由 pnpm run repo docs reference 从源码注释生成,勿手改;要改文案,改对应源码的 TSDoc/JSDoc(映射见 packages/repo-tools/src/docs/reference-compiler.ts) */}
+
+#### `note`
+
+```ts
+note: AssertFirstCoreTestContext<Kind>["note"];
+```
+
+保存 JSON 值或 Quantity 供结果展示，不登记 Assertion，也不影响 Verdict、score 或 coverage。
 
 #### `evaluationKind`
 

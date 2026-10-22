@@ -610,3 +610,12 @@ CLI 不探测 locale，只输出由 Inspection CLI presenter 直接拥有的英�
 `show --experiment <id>` 的 Models and usage 区按当前已选 origin Attempt 展示同一读面，标明 locator 和 origin Run。
 重复 origin 只展示一次，不合并不同局的配置；超出 64 个 Attempt 时说明省略数，未找到的成员另列。
 此区域不从调用或模型组预览重算实验总费用。旧应用 costUSD 口径不变，Judge 未登记与带缺口合计保持显式状态。
+
+## Notes
+
+`show @<locator>` 在 Assertions 后展示 Notes，按调用顺序呈现 label 与 value；`null` 显示为 unavailable。
+Quantity 使用其单位格式显示，例如 `512 ms`、`61.2%` 和 `$0.031`。
+`show @<locator> --json` 与 `query` 的 `attempt.get` 都在 Attempt 结果中返回 `notes`。
+
+`show --exp <experiment-id>` 按 label 和 unit 分组展示数值 Note 的 count、min、median、p90、max。
+JSON 对象、字符串、布尔值与 `null` 不参与这些数值统计。旧 Record 没有 Note 时返回空列表。
