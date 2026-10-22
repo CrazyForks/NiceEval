@@ -24,7 +24,7 @@ import {
   DocsProcessError,
   DocsWorkError,
   errorMessage,
-} from "./errors.js";
+} from "concord-sdlc/repository/docs/errors";
 import {
   type DocsCheck,
   type DocsFinalizeReceipt,
@@ -47,7 +47,7 @@ import {
   runSuccessfulCommand,
   sha256,
   withFileLock,
-} from "./runtime.js";
+} from "concord-sdlc/repository/docs/runtime";
 
 const RUNS_ROOT = ".repo-tools/docs-runs";
 const SHARED_FINALIZER_PATHS = [

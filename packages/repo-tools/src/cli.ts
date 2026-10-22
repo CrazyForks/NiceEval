@@ -1,26 +1,18 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Argument as Args, Command, Flag as Options } from "effect/unstable/cli";
-import { Clock, Data, Effect, FileSystem, Layer, Option } from "effect";
+import { Data, Effect, FileSystem, Layer, Option } from "effect";
 
 import { linkDownstreamCandidate } from "./downstream/index.js";
 import {
-  designCommandContribution,
   diffCodeCommandContribution,
-  featureCommandContribution,
   generateBundledIndex,
   makeDocsCommand,
   referenceCommandContribution,
-  researchCommandContribution,
   siteCommandContribution,
-  testCommandContribution,
-  traceCommandContribution,
   type TerminalDelivery,
-  useCaseCommandContribution,
   workCommandContribution,
 } from "./docs/index.js";
 import { checkExamples, syncExamples } from "./examples/index.js";
-import { FEEDBACK_CLOSURE_KINDS, FEEDBACK_MEMORY_RELATION_KINDS, NodeFeedbackStoreLive, runFeedbackCommand } from "./feedback/index.js";
-import { MEMORY_KINDS, NodeMemoryStoreLive, PROBLEM_RESOLUTION_KINDS, runMemoryCommand } from "./memory/index.js";
 import {
   makeNodePrLive,
   PR_BODY_CASE_DIRECTIONS,
@@ -151,311 +143,6 @@ function renderUnhandledError(error: unknown): string {
   }
   return String(error);
 }
-
-const feedbackImport = Command.make("import", {
-  envelope: Options.string("envelope").pipe(Options.withDescription("Feedback envelope JSON path, or - for stdin.")),
-  artifacts: Options.string("artifacts").pipe(Options.withDescription("Envelope artifact directory.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ artifacts, dryRun, envelope, json }) => readJson(envelope).pipe(
-  Effect.flatMap((value) => runFeedbackCommand({
-    operation: "import",
-    envelope: value,
-    artifacts,
-    dryRun,
-  })),
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Import one verified downstream Feedback envelope."));
-
-const feedbackExport = Command.make("export", {
-  id: Args.string("feedback-id"),
-  json: jsonOption,
-}, ({ id, json }) => runFeedbackCommand({ operation: "export", id }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Export one Feedback document."));
-
-const feedbackList = Command.make("list", {
-  pattern: Args.string("pattern").pipe(Args.optional),
-  json: jsonOption,
-}, ({ json, pattern }) => runFeedbackCommand({
-  operation: "list",
-  pattern: Option.getOrUndefined(pattern),
-}).pipe(Effect.flatMap((outcome) => emit(outcome, json)))).pipe(
-  Command.withDescription("List Feedback, optionally filtered by text."),
-);
-
-const feedbackShow = Command.make("show", {
-  id: Args.string("feedback-id"),
-  json: jsonOption,
-}, ({ id, json }) => runFeedbackCommand({ operation: "show", id }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Show one Feedback document."));
-
-const feedbackLink = Command.make("link", {
-  id: Args.string("feedback-id"),
-  memory: Options.string("memory"),
-  kind: Options.choice("kind", FEEDBACK_MEMORY_RELATION_KINDS),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json, kind, memory }) => runFeedbackCommand({
-  operation: "link",
-  id,
-  relation: { kind, memory },
-  dryRun,
-}).pipe(Effect.flatMap((outcome) => emit(outcome, json)))).pipe(
-  Command.withDescription("Relate Feedback to an existing Memory."),
-);
-
-const feedbackAdopt = Command.make("adopt", {
-  id: Args.string("feedback-id"),
-  to: Options.string("to").pipe(Options.withDescription("Exact repository ref adopted by this Feedback.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json, to }) => runFeedbackCommand({
-  operation: "adopt",
-  id,
-  to,
-  dryRun,
-}).pipe(Effect.flatMap((outcome) => emit(outcome, json)))).pipe(
-  Command.withDescription("Adopt Feedback into one Roadmap, Feature, Use Case, or Engineering target."),
-);
-
-const feedbackRetire = Command.make("retire", {
-  id: Args.string("feedback-id"),
-  from: Options.string("from").pipe(Options.withDescription("Exact current repository ref to retire.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, from, id, json }) => runFeedbackCommand({
-  operation: "retire",
-  id,
-  from,
-  dryRun,
-}).pipe(Effect.flatMap((outcome) => emit(outcome, json)))).pipe(
-  Command.withDescription("Retire one current Feedback adoption while preserving its history."),
-);
-
-const feedbackClose = Command.make("close", {
-  id: Args.string("feedback-id"),
-  kind: Options.choice("kind", FEEDBACK_CLOSURE_KINDS),
-  memory: Options.string("memory").pipe(Options.withDescription("Related Memory ID."), Options.optional),
-  target: Options.string("target").pipe(Options.withDescription("Delivered repository ref."), Options.optional),
-  proof: Options.string("proof").pipe(
-    Options.atLeast(0),
-    Options.withDescription("Closure evidence; repeat for each proof item."),
-  ),
-  canonical: Options.string("canonical").pipe(Options.withDescription("Canonical Feedback ID."), Options.optional),
-  evidence: Options.string("evidence").pipe(
-    Options.atLeast(0),
-    Options.withDescription("Invalid-observation evidence; repeat for each item."),
-  ),
-  dependency: Options.string("dependency").pipe(Options.withDescription("Fixed external dependency."), Options.optional),
-  version: Options.string("version").pipe(Options.withDescription("External fixed version."), Options.optional),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ canonical, dependency, dryRun, evidence, id, json, kind, memory, proof, target, version }) => {
-  const memoryValue = Option.getOrUndefined(memory);
-  const targetValue = Option.getOrUndefined(target);
-  const canonicalValue = Option.getOrUndefined(canonical);
-  const dependencyValue = Option.getOrUndefined(dependency);
-  const versionValue = Option.getOrUndefined(version);
-  const closure = {
-    kind,
-    ...(memoryValue === undefined ? {} : { memory: memoryValue }),
-    ...(targetValue === undefined ? {} : { target: targetValue }),
-    ...(proof.length === 0 ? {} : { proof }),
-    ...(canonicalValue === undefined ? {} : { canonical: canonicalValue }),
-    ...(evidence.length === 0 ? {} : { evidence }),
-    ...(dependencyValue === undefined ? {} : { dependency: dependencyValue }),
-    ...(versionValue === undefined ? {} : { version: versionValue }),
-  };
-  return runFeedbackCommand({ operation: "close", id, closure, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-  );
-}).pipe(Command.withDescription("Close Feedback with validated evidence."));
-
-const feedbackReopen = Command.make("reopen", {
-  id: Args.string("feedback-id"),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json }) => runFeedbackCommand({ operation: "reopen", id, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Reopen closed Issue."));
-
-const feedbackCheck = Command.make("check", { json: jsonOption }, ({ json }) =>
-  runFeedbackCommand({ operation: "check" }).pipe(
-    Effect.flatMap((outcome) => emit(outcome, json)),
-  )).pipe(Command.withDescription("Validate Issues, relations, and closures."));
-
-const feedback = Command.make("feedback").pipe(
-  Command.withDescription("Audit, relate, close, and validate repository Issues."),
-  Command.withSubcommands([
-    feedbackImport,
-    feedbackExport,
-    feedbackList,
-    feedbackShow,
-    feedbackLink,
-    feedbackAdopt,
-    feedbackRetire,
-    feedbackClose,
-    feedbackReopen,
-    feedbackCheck,
-  ]),
-);
-
-const memoryAdd = Command.make("add", {
-  id: Args.string("memory-id"),
-  title: Options.string("title"),
-  kind: Options.choice("kind", MEMORY_KINDS),
-  createdAt: Options.string("created-at").pipe(
-    Options.withDescription("Creation date (YYYY-MM-DD); defaults to today."),
-    Options.optional,
-  ),
-  body: Options.string("body").pipe(Options.withDescription("Markdown body path, or - for stdin.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ body, createdAt, dryRun, id, json, kind, title }) => Effect.all({
-  body: readText(body),
-  createdAt: Option.match(createdAt, {
-    onNone: () => Clock.currentTimeMillis.pipe(Effect.map((millis) => new Date(millis).toISOString().slice(0, 10))),
-    onSome: Effect.succeed,
-  }),
-}).pipe(
-  Effect.flatMap(({ body: source, createdAt }) => runMemoryCommand({
-    operation: "add",
-    metadata: {
-      format: "concord.document/v1",
-      id,
-      title,
-      createdAt,
-      kind: "memory",
-      memoryKind: kind,
-      state: kind === "problem" ? "open" : kind === "note" ? "captured" : "current",
-      epoch: 0,
-      promotions: [],
-      history: [],
-    },
-    body: source,
-    dryRun,
-  })),
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Add one structured Memory."));
-
-const memoryList = Command.make("list", { json: jsonOption }, ({ json }) =>
-  runMemoryCommand({ operation: "list" }).pipe(Effect.flatMap((outcome) => emit(outcome, json)))).pipe(
-  Command.withDescription("List current-format Memory."),
-);
-const memoryShow = Command.make("show", {
-  id: Args.string("memory-id"),
-  json: jsonOption,
-}, ({ id, json }) => runMemoryCommand({ operation: "show", id }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Show one Memory."));
-const memorySearch = Command.make("search", {
-  pattern: Args.string("pattern"),
-  json: jsonOption,
-}, ({ json, pattern }) => runMemoryCommand({ operation: "search", pattern }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Search Memory metadata and body text."));
-
-const memoryAuthorSet = Command.make("set", {
-  id: Args.string("memory-id"),
-  body: Options.string("body").pipe(Options.withDescription("Markdown body path, or - for stdin.")),
-  expectedOwnerDigest: Options.string("expected-owner-digest"),
-  expectedAuthorDigest: Options.string("expected-author-digest"),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ body, dryRun, expectedAuthorDigest, expectedOwnerDigest, id, json }) => readText(body).pipe(
-  Effect.flatMap((source) => runMemoryCommand({ operation: "author-set", id, body: source, expectedOwnerDigest, expectedAuthorDigest, dryRun })),
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Replace the author-owned Memory body while preserving managed history."));
-
-const memoryAuthor = Command.make("author").pipe(
-  Command.withDescription("Update author-owned Memory prose."),
-  Command.withSubcommands([memoryAuthorSet]),
-);
-
-const memoryResolve = Command.make("resolve", {
-  id: Args.string("memory-id"),
-  kind: Options.choice("kind", PROBLEM_RESOLUTION_KINDS),
-  reason: Options.string("reason"),
-  at: Options.string("at").pipe(Options.optional),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ at, dryRun, id, json, kind, reason }) => runMemoryCommand({
-  operation: "resolve",
-  id,
-  resolution: { kind, reason, ...(Option.isSome(at) ? { at: at.value } : {}) },
-  dryRun,
-}).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Resolve one structured Problem Memory."));
-
-const memoryActivate = Command.make("activate", {
-  id: Args.string("memory-id"),
-  reason: Options.string("reason"),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json, reason }) => runMemoryCommand({ operation: "activate", id, reason, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Activate one captured Problem, Decision, or Insight Memory."));
-
-const memoryReopen = Command.make("reopen", {
-  id: Args.string("memory-id"),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json }) => runMemoryCommand({ operation: "reopen", id, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Reopen one resolved Problem Memory."));
-
-const memorySupersede = Command.make("supersede", {
-  id: Args.string("memory-id"),
-  by: Options.string("by").pipe(Options.withDescription("Replacement Memory ID.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ by, dryRun, id, json }) => runMemoryCommand({ operation: "supersede", id, by, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Supersede one Decision or Insight Memory."));
-
-const memoryPromote = Command.make("promote", {
-  id: Args.string("memory-id"),
-  to: Options.string("to").pipe(Options.withDescription("Exact repository ref promoted by this Memory.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, id, json, to }) => runMemoryCommand({ operation: "promote", id, to, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Promote Memory into one Roadmap, Feature, Use Case, or Engineering target."));
-
-const memoryRetire = Command.make("retire", {
-  id: Args.string("memory-id"),
-  from: Options.string("from").pipe(Options.withDescription("Exact current repository ref to retire.")),
-  dryRun: dryRunOption,
-  json: jsonOption,
-}, ({ dryRun, from, id, json }) => runMemoryCommand({ operation: "retire", id, from, dryRun }).pipe(
-  Effect.flatMap((outcome) => emit(outcome, json)),
-)).pipe(Command.withDescription("Retire one current Memory promotion while preserving its history."));
-
-const memoryCheck = Command.make("check", { json: jsonOption }, ({ json }) =>
-  runMemoryCommand({ operation: "check" }).pipe(
-    Effect.flatMap((outcome) => emit(outcome, json)),
-  )).pipe(Command.withDescription("Validate Memory state, promotions, and E2E regression references."));
-
-const memory = Command.make("memory").pipe(
-  Command.withDescription("Record, search, resolve, supersede, promote, and validate repository Memory."),
-  Command.withSubcommands([
-    memoryAdd,
-    memoryList,
-    memoryShow,
-    memorySearch,
-    memoryAuthor,
-    memoryActivate,
-    memoryResolve,
-    memoryReopen,
-    memorySupersede,
-    memoryPromote,
-    memoryRetire,
-    memoryCheck,
-  ]),
-);
 
 const prNumberOption = Options.integer("pr").pipe(Options.withDescription("GitHub pull request number."));
 const sourceOption = Options.string("source").pipe(Options.withDescription(
@@ -899,12 +586,6 @@ const pr = Command.make("pr").pipe(
 );
 
 const docsContributions = Object.freeze([
-  featureCommandContribution,
-  useCaseCommandContribution,
-  testCommandContribution,
-  traceCommandContribution,
-  designCommandContribution,
-  researchCommandContribution,
   workCommandContribution,
   referenceCommandContribution,
   diffCodeCommandContribution,
@@ -1020,13 +701,11 @@ const preview = Command.make("preview").pipe(
 
 const root = Command.make("niceeval-repo").pipe(
   Command.withDescription("NiceEval repository maintenance commands."),
-  Command.withSubcommands([feedback, memory, pr, docs, examples, link, packageSurface, repository, preview]),
+  Command.withSubcommands([pr, docs, examples, link, packageSurface, repository, preview]),
 );
 
 const live = Layer.mergeAll(
   NodeServices.layer,
-  NodeFeedbackStoreLive(ROOT),
-  NodeMemoryStoreLive(ROOT),
   makeNodePrLive(ROOT).pipe(Layer.provide(NodeServices.layer)),
 );
 

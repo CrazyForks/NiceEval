@@ -4,8 +4,8 @@ import {
   defineDocsCommandContribution,
   deliverDomainResult,
   type TerminalDeliverySink,
-} from "./contribution.js";
-import { renderDocsDomainFailure } from "./errors.js";
+} from "concord-sdlc/repository/docs/contribution";
+import { renderDocsDomainFailure } from "concord-sdlc/repository/docs/errors";
 import { MINT_VERSION, runDocsSite } from "./generators.js";
 import type { CommandReceipt } from "./model.js";
 

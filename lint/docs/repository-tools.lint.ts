@@ -54,8 +54,8 @@ function toolSkills(root = ROOT): ToolSkill[] {
 }
 
 function commandArgs(command: string): readonly string[] {
-  const match = /^pnpm ([a-z0-9:.-]+(?: [a-z0-9:.-]+)*)$/iu.exec(command);
-  expect(match, `metadata.command 必须是无 shell 语法的 pnpm 入口: ${command}`).not.toBeNull();
+  const match = /^(?:pnpm|concord) ([a-z0-9:.-]+(?: [a-z0-9:.-]+)*)$/iu.exec(command);
+  expect(match, `metadata.command 必须是无 shell 语法的 pnpm 或 concord 入口: ${command}`).not.toBeNull();
   return match?.[1]?.split(" ") ?? [];
 }
 
@@ -106,10 +106,9 @@ describe("Repository Tools 动态发现", () => {
 
     for (const skill of toolSkills()) {
       expect(agents, `AGENTS.md 没有路由 ${skill.path}`).toContain(skill.path);
-      const args = commandArgs(skill.command);
-      if (args[0] === "exec" && args[1] === "concord") {
+      if (skill.command.startsWith("concord ")) {
         const dependencies = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).devDependencies;
-        expect(dependencies["concord-sdlc"], "Concord 必须来自仓库固定的发行包").toMatch(/^file:vendor\/concord\//u);
+        expect(dependencies["concord-sdlc"], "Concord 库依赖必须来自固定的 Release").toMatch(/^https:\/\/github\.com\/CorrectRoadH\/Concord\/releases\/download\/v[0-9.]+\//u);
       } else {
         const script = scriptName(skill.command);
         expect(scripts, `${skill.command} 不存在`).toHaveProperty(script);
@@ -143,7 +142,7 @@ describe("Repository Tools 动态发现", () => {
       // on CI runners while retaining every command's own deadline and result.
       for (let offset = 0; offset < skills.length; offset += 2) {
         results.push(...await Promise.allSettled(skills.slice(offset, offset + 2).map(async (skill) => {
-          const { stdout: output } = await execFileAsync("pnpm", [...commandArgs(skill.command), "--help"], {
+          const { stdout: output } = await execFileAsync(skill.command.startsWith("concord ") ? "concord" : "pnpm", [...commandArgs(skill.command), "--help"], {
             cwd: copy,
             encoding: "utf8",
             timeout: 20_000,

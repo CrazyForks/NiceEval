@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { Effect, Result, Schema } from "effect";
 
-import { decodeAnnotatedCases, type AnnotatedCase } from "../docs/test-case/annotations.js";
+import { decodeAnnotatedCases, type AnnotatedCase } from "concord-sdlc/repository/docs/test-case/annotations";
 import { PrTestRelationInvalid } from "./errors.js";
 import { PrFileSystem, PrGit } from "./services.js";
 

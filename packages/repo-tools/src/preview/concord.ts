@@ -1,6 +1,5 @@
-import { createRequire } from "node:module";
 import { readFile, stat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { Effect, Schema } from "effect";
 import { decodeChangePreview, PREVIEW_DATA_LIMIT, type ChangePreview } from "concord-sdlc/change-preview";
 import { NICEEVAL_REPOSITORY_URL, PreviewHttpError, PreviewInputError, PreviewIoError, PreviewVerificationError, type PreviewPlatform } from "./model.js";
@@ -59,11 +58,7 @@ export const exportConcordChanges = Effect.fn("preview.exportConcordChanges")(fu
   const mergeBase = yield* git(options.root, ["merge-base", "--all", base, head]);
   yield* Schema.decodeUnknownEffect(Oid)(mergeBase).pipe(Effect.mapError(() => new PreviewVerificationError({ subject: "PR merge-base", message: "expected one unique best common ancestor" })));
   const comparison: ConcordComparison = { base, head, mergeBase, baseLabel: options.baseLabel ?? options.base };
-  const entry = yield* Effect.try({
-    try: () => join(dirname(createRequire(import.meta.url).resolve("concord-sdlc/package.json")), "dist/entry.js"),
-    catch: error => new PreviewInputError({ message: `Installed Concord is unavailable: ${String(error)}` }),
-  });
-  yield* requirePreviewSuccess(process.execPath, [entry, "--root", options.root, "--json", "view", "export", "--base", base, "--head", head, "--base-label", comparison.baseLabel, "--out", options.out], options.root, gitEnvironment());
+  yield* requirePreviewSuccess("concord", ["--root", options.root, "--json", "view", "export", "--base", base, "--head", head, "--base-label", comparison.baseLabel, "--out", options.out], options.root, gitEnvironment());
   const file = join(options.out, "changes.json");
   yield* Effect.tryPromise({
     try: async () => {
