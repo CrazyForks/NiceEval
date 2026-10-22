@@ -651,10 +651,7 @@
       "definition": "Base 加上 occurrence 与 owner 包裹顺序规范化的零个或多个可缓存 before action 所形成的内容寻址 Sandbox 起点\n\n契约：[Sandbox · before 缓存](feature/sandbox/architecture.md#before-缓存的身份与验证边界)",
       "names": {
         "zh": {
-          "preferred": "before 缓存",
-          "deprecated": [
-            "准备前缀"
-          ]
+          "preferred": "before 缓存"
         },
         "en": {
           "preferred": "Before cache",
@@ -663,14 +660,6 @@
             "beforeCachePlan",
             "sandboxCache.before",
             "SandboxBeforeCache"
-          ],
-          "deprecated": [
-            "setup prefix",
-            "SetupPrefix",
-            "setupPrefixes",
-            "setupPrefixPlan",
-            "sandboxCache.setup",
-            "SandboxSetupCache"
           ]
         }
       }
@@ -683,10 +672,7 @@
           "preferred": "BeforeCacheKey"
         },
         "en": {
-          "preferred": "BeforeCacheKey",
-          "deprecated": [
-            "SetupPrefixKey"
-          ]
+          "preferred": "BeforeCacheKey"
         }
       }
     },
@@ -1145,17 +1131,10 @@
       "definition": "全局 `maxConcurrency` 的一个名额,只在 Attempt 真正执行时占用\n\n契约：[Runner](runner.md)",
       "names": {
         "zh": {
-          "preferred": "并发名额",
-          "deprecated": [
-            "并发位"
-          ]
+          "preferred": "并发名额"
         },
         "en": {
-          "preferred": "Concurrency capacity",
-          "deprecated": [
-            "Concurrency slot",
-            "waiting for a slot"
-          ]
+          "preferred": "Concurrency capacity"
         }
       }
     },
@@ -1458,10 +1437,7 @@
       "definition": "Run 创建时冻结的 expected 位置；最多原子绑定一个已发布 Attempt\n\n契约：[Run Architecture](feature/run/architecture.md)",
       "names": {
         "zh": {
-          "preferred": "计划 Attempt",
-          "deprecated": [
-            "执行槽位"
-          ]
+          "preferred": "计划 Attempt"
         },
         "en": {
           "preferred": "Planned attempt",
@@ -1469,12 +1445,6 @@
             "plannedAttemptId",
             "plannedAttempts",
             "originPlannedAttemptId"
-          ],
-          "deprecated": [
-            "Slot",
-            "slotId",
-            "expectedSlots",
-            "originSlotId"
           ]
         }
       }
@@ -2008,13 +1978,6 @@
             "modelRole",
             "ModelRoleSelection",
             "defineModelRoles"
-          ],
-          "deprecated": [
-            "modelSlot",
-            "model slot",
-            "ModelSlotSelection",
-            "defineModelSlots",
-            "modelSlots"
           ]
         }
       }
@@ -2030,10 +1993,6 @@
           "preferred": "before",
           "aliases": [
             "AgentBefore"
-          ],
-          "deprecated": [
-            "setup",
-            "postSetup"
           ]
         }
       }
@@ -2049,11 +2008,6 @@
           "preferred": "after",
           "aliases": [
             "AgentAfter"
-          ],
-          "deprecated": [
-            "teardown",
-            "preTeardown",
-            "AgentTeardown"
           ]
         }
       }
@@ -2069,11 +2023,6 @@
           "preferred": "SessionKey",
           "aliases": [
             "createSessionKey"
-          ],
-          "deprecated": [
-            "SessionSlot",
-            "createSessionSlot",
-            "session slot"
           ]
         }
       }
@@ -2086,10 +2035,7 @@
           "preferred": "recipe 输入"
         },
         "en": {
-          "preferred": "recipe input",
-          "deprecated": [
-            "recipe slot"
-          ]
+          "preferred": "recipe input"
         }
       }
     },
@@ -2104,10 +2050,6 @@
           "preferred": "Observability",
           "aliases": [
             "ObservabilitySummary"
-          ],
-          "deprecated": [
-            "o11y",
-            "O11ySummary"
           ]
         }
       }
@@ -2120,10 +2062,7 @@
           "preferred": "服务基础地址"
         },
         "en": {
-          "preferred": "baseUrl",
-          "deprecated": [
-            "apiBase"
-          ]
+          "preferred": "baseUrl"
         }
       }
     },
@@ -2140,11 +2079,6 @@
             "AgentInstallationManifest",
             "reportInstallation",
             "agentInstallation"
-          ],
-          "deprecated": [
-            "AgentSetupManifest",
-            "reportSetup",
-            "agentSetup"
           ]
         }
       }

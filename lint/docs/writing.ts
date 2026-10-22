@@ -15,11 +15,7 @@ export interface BannedTerm {
   use: string;
   /** 为什么禁——命中时原样打印,作者不必回来翻文档。 */
   why: string;
-  /**
-   * 可选:豁免的路径前缀。留给「立词的那一页自己要写出被淘汰的写法」这一种情形——
-   * 概念表并列列出同义词是它的职责。正文里的命中一律改文字,不加路径豁免:
-   * 豁免一加就是整个目录长期免检,而它挡住的往往正是该改的那几句。
-   */
+  /** Concord 政策明确排除的目录或文件。 */
   exempt?: string[];
   /**
    * 可选:包含该词但语义无关的更长词(如「选集」之于「候选集合」)。中文没有词边界,
@@ -312,6 +308,7 @@ export function lintSvgTerms(): Hit[] {
   for (const file of walkDocs("docs", [".svg"])) {
     for (const node of svgTexts(readFileSync(join(ROOT, file), "utf8"))) {
       for (const term of matchers) {
+        if (term.exempt?.some((path) => file === path || file.startsWith(`${path}/`))) continue;
         const count = countTermHits(node.text, term.re, term.allowIn);
         if (count === 0) continue;
         for (let occurrence = 1; occurrence <= count; occurrence += 1) {

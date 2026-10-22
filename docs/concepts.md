@@ -53,7 +53,7 @@ Member 将两者关联；历史结果沿用时，新的 Run 引用既有 Attempt
 
 ## 禁用写法
 
-概念的弃用名由 Concord 派生禁词，其它禁用写法在写作政策中声明具体替换和理由。
+不需路径豁免的弃用名由 Concord 派生禁词。需要保护历史原话的 0.19 弃用规则在写作政策中声明，并引用对应 concept；不同时保留无豁免的目录裁决。
 维护步骤见 [Documentation terminology skill](../.agents/skills/docs-terminology/SKILL.md)，检查入口为 `pnpm exec concord docs check --json`。
 需要讨论旧词本身时使用行内代码；不要把历史拼写重新当作当前正文用语。
 

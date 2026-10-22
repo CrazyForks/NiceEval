@@ -12,6 +12,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -20,6 +23,9 @@
       "why": "Slot 已经由所属 Run 定位；组合写法会让读者误以为还有另一种未定义的槽位",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -29,6 +35,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -37,6 +46,9 @@
       "why": "同一个宽泛名称会把 ordinary reader、迁移能力与 owner-local collector 误解成万能 client",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -45,6 +57,9 @@
       "why": "完整已发布事实集与 owner-local internal snapshot 的能力边界不同",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -54,6 +69,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -63,6 +81,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -72,6 +93,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -81,6 +105,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -90,6 +117,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -99,6 +129,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -108,6 +141,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -117,6 +153,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -126,6 +165,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -135,6 +177,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -144,6 +189,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -153,6 +201,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -162,6 +213,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -171,6 +225,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -180,6 +237,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -189,6 +249,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -198,6 +261,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -207,6 +273,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -216,6 +285,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -225,6 +297,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -234,6 +309,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -243,6 +321,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -252,6 +333,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -261,6 +345,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -270,6 +357,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -279,6 +369,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -288,6 +381,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -297,6 +393,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -306,6 +405,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -315,6 +417,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -324,6 +429,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -333,6 +441,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -342,6 +453,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ],
       "allowIn": [
         "候选集",
@@ -355,6 +469,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -364,6 +481,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ],
       "allowIn": [
         "e2e-browser-scenario-probe-loop-brittleness"
@@ -376,6 +496,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -385,6 +508,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -394,6 +520,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -403,6 +532,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -412,6 +544,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -421,6 +556,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -430,6 +568,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -438,6 +579,9 @@
       "why": "同一个统计术语被用来指依赖版本、测试对照和已发布环境，读者无法从词本身判断比较对象",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -447,6 +591,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -455,6 +602,9 @@
       "why": "同一个词被用来指 attempt 判定、运行完成态、evaluator Claim 与研究判断，读者必须靠上下文猜数据形状和所有者",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -463,6 +613,9 @@
       "why": "同一个时间与界面比喻被用于 Agent 归因、资源生命周期、采集保留和 UI，起止条件与所有者各不相同",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -471,6 +624,9 @@
       "why": "同一个比喻混指路径基准、运行阶段、版本位置、计时参照和 UI 定位，不能表达实际约束",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -479,6 +635,9 @@
       "why": "度量范围、配置合并与破坏性写入不是同一动作，裸词隐藏了被比较或被替换的对象",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -487,6 +646,9 @@
       "why": "声明期配置、已启动隔离资源、进程变量与宿主条件分属不同生命周期和所有者",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -495,6 +657,9 @@
       "why": "外部资源、文件系统输出、可发布包和内存值的身份、保存位置与失效条件完全不同",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -503,6 +668,9 @@
       "why": "lineage、依赖所有权、运行时生产者与转换输入是不同关系，裸词无法说明可追溯边界",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -511,6 +679,9 @@
       "why": "有副作用的再次执行、只读事件归约与 Provider 内部协议行为具有不同安全性和所有者",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -519,6 +690,9 @@
       "why": "命令补偿、资源终结、历史删除和进程终止由不同生命周期负责，失败语义也不同",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -527,6 +701,9 @@
       "why": "解码结构、合并配置、定位路径、查找对象和规范化数据不是同一步骤，裸词隐藏输入输出",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -535,6 +712,9 @@
       "why": "可导航的数据对象、producer 写入动作和普通日志条目混用，读者无法判断保存位置与所有者",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -544,6 +724,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -553,6 +736,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -562,6 +748,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -571,6 +760,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -580,6 +772,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -589,6 +784,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -598,6 +796,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -607,6 +808,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -616,6 +820,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -625,6 +832,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -634,6 +844,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -643,6 +856,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -652,6 +868,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -661,6 +880,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -670,6 +892,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -679,6 +904,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -688,6 +916,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -697,6 +928,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -706,6 +940,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -715,6 +952,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -724,6 +964,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ],
       "allowIn": [
         "到目前为止"
@@ -737,6 +980,9 @@
         "docs",
         "apps/docs-site/zh"
       ],
+      "exempt": [
+        "docs/issues"
+      ],
       "allowIn": [
         "实现已"
       ]
@@ -748,6 +994,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -757,6 +1006,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -766,6 +1018,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ],
       "allowIn": [
         "新版本"
@@ -778,6 +1033,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -787,6 +1045,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -796,6 +1057,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -805,6 +1069,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -814,6 +1081,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -823,6 +1093,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -832,6 +1105,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ],
       "allowIn": [
         "裸机"
@@ -844,6 +1120,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -853,6 +1132,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -862,6 +1144,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -871,6 +1156,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -880,6 +1168,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -889,6 +1180,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -898,6 +1192,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -907,6 +1204,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -916,6 +1216,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -925,6 +1228,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -934,6 +1240,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -943,6 +1252,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -952,6 +1264,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -961,6 +1276,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -970,6 +1288,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -979,6 +1300,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -988,6 +1312,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -997,6 +1324,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1006,6 +1336,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1015,6 +1348,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1024,6 +1360,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1033,6 +1372,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1042,6 +1384,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1051,6 +1396,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1060,6 +1408,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1069,6 +1420,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1078,6 +1432,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1087,6 +1444,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1096,6 +1456,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1105,6 +1468,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1114,6 +1480,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1123,6 +1492,9 @@
       "roots": [
         "docs",
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1131,6 +1503,9 @@
       "why": "同一 family 的持久化解释只沿 numeric revision 与相邻 migration 演进；version 会与包、API 和 Record root format 混淆。",
       "roots": [
         "docs"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1139,6 +1514,9 @@
       "why": "内部架构简称没有告诉读者要写什么代码，也没有说明连接的是哪个接口",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1147,6 +1525,9 @@
       "why": "名词串把谁在等待、等待什么和用户下一步做什么都省略了",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1155,6 +1536,9 @@
       "why": "实现核对口吻比用户文档需要的精度更强，却没有直接说明接入是否要求修改应用",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1163,6 +1547,9 @@
       "why": "内部抽象词省略了触发条件和用户可观察到的行为",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1171,6 +1558,9 @@
       "why": "公开站把 Sandbox 作为固定领域对象，中文别名会让读者误以为存在另一层抽象",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1179,6 +1569,9 @@
       "why": "内部状态机用语，读者不知道封住了什么、之后能做什么",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1187,6 +1580,9 @@
       "why": "设计契约里的限定词，对读者没有可操作的含义",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1195,6 +1591,9 @@
       "why": "界面行话，没有说明要点哪里、看到什么",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1203,6 +1602,9 @@
       "why": "内部口头简称，第一次读的人不知道指哪三件",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1211,6 +1613,9 @@
       "why": "实现层术语，读者只需要知道是哪一个文件",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1219,6 +1624,9 @@
       "why": "内部状态名，公开站用中文说明可观察结果",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1227,6 +1635,9 @@
       "why": "协议设计用语，没有告诉读者该怎么处理这个值",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1235,6 +1646,9 @@
       "why": "内部数据模型名词，读者关心的是要跑哪些、跑了哪些",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
       ]
     },
     {
@@ -1243,6 +1657,427 @@
       "why": "抽象说法，直接说明它怎么运作更好懂",
       "roots": [
         "apps/docs-site/zh"
+      ],
+      "exempt": [
+        "docs/issues"
+      ]
+    },
+    {
+      "term": "准备前缀",
+      "use": "before 缓存",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "setup prefix",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "SetupPrefix",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "setupPrefixes",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "setupPrefixPlan",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "sandboxCache.setup",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "SandboxSetupCache",
+      "use": "Before cache",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "SetupPrefixKey",
+      "use": "BeforeCacheKey",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-cache-key；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "并发位",
+      "use": "并发名额",
+      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "Concurrency slot",
+      "use": "Concurrency capacity",
+      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "waiting for a slot",
+      "use": "Concurrency capacity",
+      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "执行槽位",
+      "use": "计划 Attempt",
+      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "slotId",
+      "use": "Planned attempt",
+      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "expectedSlots",
+      "use": "Planned attempt",
+      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "originSlotId",
+      "use": "Planned attempt",
+      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "modelSlot",
+      "use": "Model role",
+      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "model slot",
+      "use": "Model role",
+      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "ModelSlotSelection",
+      "use": "Model role",
+      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "defineModelSlots",
+      "use": "Model role",
+      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "modelSlots",
+      "use": "Model role",
+      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "postSetup",
+      "use": "before",
+      "why": "0.19 当前术语采用 docs/concepts.json#before-hook；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "preTeardown",
+      "use": "after",
+      "why": "0.19 当前术语采用 docs/concepts.json#after-hook；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "AgentTeardown",
+      "use": "after",
+      "why": "0.19 当前术语采用 docs/concepts.json#after-hook；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "SessionSlot",
+      "use": "SessionKey",
+      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "createSessionSlot",
+      "use": "SessionKey",
+      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "session slot",
+      "use": "SessionKey",
+      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "recipe slot",
+      "use": "recipe input",
+      "why": "0.19 当前术语采用 docs/concepts.json#recipe-input；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "o11y",
+      "use": "Observability",
+      "why": "0.19 当前术语采用 docs/concepts.json#observability；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "O11ySummary",
+      "use": "Observability",
+      "why": "0.19 当前术语采用 docs/concepts.json#observability；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "apiBase",
+      "use": "baseUrl",
+      "why": "0.19 当前术语采用 docs/concepts.json#base-url；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "AgentSetupManifest",
+      "use": "Agent installation",
+      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "reportSetup",
+      "use": "Agent installation",
+      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "agentSetup",
+      "use": "Agent installation",
+      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "Experiment setup",
+      "use": "Experiment before",
+      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "Experiment teardown",
+      "use": "Experiment after",
+      "why": "0.19 生命周期字段采用 docs/concepts.json#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "setup / teardown",
+      "use": "before / after",
+      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "setup 字段",
+      "use": "before 字段",
+      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
+      ]
+    },
+    {
+      "term": "teardown 字段",
+      "use": "after 字段",
+      "why": "0.19 生命周期字段采用 docs/concepts.json#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "exempt": [
+        "docs/issues",
+        "docs/design",
+        "docs/research",
+        "memory"
       ]
     }
   ],
