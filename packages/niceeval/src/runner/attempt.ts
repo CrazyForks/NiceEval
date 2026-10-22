@@ -1,3 +1,5 @@
+import { retainAttemptNotes } from "./attempt-notes.ts";
+import type { AttemptNotesCollector } from "../context/notes.ts";
 import { AttemptCancellationController } from "./attempt-cancellation.ts";
 import type { AttemptSignal } from "../shared/attempt-lifecycle.ts";
 // 单个 attempt 的完整生命周期:资源(沙箱 / OTLP 接收器)经 Effect.Sample 的
@@ -505,6 +507,7 @@ export function runAttemptEffect<
   // Assert-first state becomes visible only after the real TestContext has
   // been constructed. Scope finalization owns the interruption seal so an
   // aborted Attempt cannot leave declared entries unsealed.
+  let liveNotes: AttemptNotesCollector | undefined;
   let liveAssertions: AssertionsRuntime<"pass" | "score"> | undefined;
   let liveAssertionState: AssertFirstContextState | undefined;
   let adapterResources: AdapterAttemptResources | undefined;
@@ -902,7 +905,8 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
           feedback: scopedFeedback,
           log,
           declareFailure,
-          registerAssertions: (runtime) => {
+          registerAssertions: (runtime, state) => {
+            liveNotes = state.notes;
             if (liveAssertions !== undefined && liveAssertions !== runtime) {
               throw new Error("Attempt tried to register a second Assertions runtime");
             }
@@ -1437,6 +1441,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
             },
             assertFirst,
             registerAssertions: (runtime, state) => {
+              liveNotes = state.notes;
               if (liveAssertions !== undefined && liveAssertions !== runtime) {
                 throw new Error("Attempt tried to register a second Assertions runtime");
               }
@@ -1723,6 +1728,7 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       if (capture !== undefined) {
         retainRunnerAttemptFileChangesCapture(finalResult, capture);
       }
+      retainAttemptNotes(finalResult, liveNotes?.snapshot() ?? []);
       retainJudgeUsage(finalResult, judgeUsage.snapshot());
       if (adapterUsageSnapshot !== undefined) retainAdapterUsage(finalResult, adapterUsageSnapshot);
       if (adapterAttachments !== undefined) retainAdapterAttachments(finalResult, adapterAttachments.snapshot());
@@ -1760,7 +1766,7 @@ interface AdapterAttemptBodyInput {
   readonly feedback: ScopedFeedback;
   readonly log: (message: string) => void;
   readonly declareFailure: (phase: LifecyclePhase, error: unknown) => void;
-  readonly registerAssertions: (runtime: AssertionsRuntime<"pass" | "score">) => void;
+  readonly registerAssertions: (runtime: AssertionsRuntime<"pass" | "score">, state: import("../context/assert-first.ts").AssertFirstCoreContextState) => void;
   readonly closeAuthoring: (reason: "attempt-sealing" | "attempt-interrupted") => void;
   readonly markAssertionsSealed: (sealed: SealedAttemptAssertions) => void;
 }
@@ -1825,7 +1831,7 @@ function runAdapterAttemptBody(
       judge: a.judge,
       executeStop: assertFirst.requestAssertion,
     });
-    registerAssertions(state.assertions);
+    registerAssertions(state.assertions, state);
     sourceCapture.attachAssertions(state.assertions);
 
     let error: AttemptError | undefined;

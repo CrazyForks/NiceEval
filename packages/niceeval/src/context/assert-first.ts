@@ -1,3 +1,4 @@
+import { AttemptNotesCollector } from "./notes.ts";
 import { compareCanonicalDecimal } from "../o11y/adapter-usage-projection.ts";
 import { canonicalDecimalFromNumber } from "../record/family/adapter-usage/pricing.ts";
 import { ownMaterialCollection } from "../assertions/material.ts";
@@ -141,12 +142,14 @@ export interface AssertFirstLateResult {
 }
 
 export interface AssertFirstContextState {
+  readonly notes: AttemptNotesCollector;
   readonly assertions: AssertionsRuntime<"pass" | "score">;
   readonly manager: SessionManager;
   readonly late: AssertFirstLateResult;
 }
 
 export interface AssertFirstCoreContextState {
+  readonly notes: AttemptNotesCollector;
   readonly assertions: AssertionsRuntime<"pass" | "score">;
   skipReason?: string;
 }
@@ -167,6 +170,8 @@ export interface AssertFirstCoreContextDeps {
 }
 
 export type AssertFirstCoreTestContext<Kind extends RuntimeKind = RuntimeKind> = JudgePresetMethods<Kind> & {
+  /** Record display data without affecting Assertions, Verdict or score. */
+  note(label: string, value: import("../shared/types.ts").JsonValue | import("../assertions/quantity.ts").Quantity): void;
   readonly usage: EvalUsage;
   readonly elapsedMs: import("../assertions/match.ts").NumericMaterial;
   maxTokens(max: number): BooleanAssertionHandle<Kind, number>;
@@ -405,6 +410,7 @@ type JudgeFunction<Kind extends RuntimeKind> = <Value>(
 ) => MeasurementAssertionHandle<Kind>;
 
 export type AssertFirstTestContext<Kind extends RuntimeKind> = AgentJudgePresetMethods<Kind, AgentMatchContext<"attempt">> & {
+  note: AssertFirstCoreTestContext<Kind>["note"];
   readonly evaluationKind: Kind;
   send(input: string | { readonly text: string; readonly files?: readonly InputFile[] }): Promise<AssertFirstTurnHandle<Kind>>;
   sendFile(path: string, text?: string): Promise<AssertFirstTurnHandle<Kind>>;
@@ -1553,7 +1559,7 @@ export function createAssertFirstCoreContext(
     if (managedScoreMatchOf(definition) === undefined) throw new TypeError("judge() definition must be a managed ScoreMatch");
     return (runtime.t.check as (subject: unknown, match: unknown) => MeasurementAssertionHandle<RuntimeKind>)(subject, definition);
   }) as JudgeFunction<RuntimeKind>;
-  const state: AssertFirstCoreContextState = { assertions: runtime };
+  const state: AssertFirstCoreContextState = { assertions: runtime, notes: new AttemptNotesCollector() };
   const presets = judgePresetMethods(runtime.t.check);
   const readUsage = (): EvalUsage => { runtime.assertAuthoringOpen(); return deps.readUsage?.() ?? projectAgentEvalUsage({ contributions: [], scope: "attempt" }); };
   const elapsedMs = (): import("../assertions/match.ts").NumericMaterial => {
@@ -1564,6 +1570,7 @@ export function createAssertFirstCoreContext(
   };
   const { maxTokens, maxCost } = usageBudgetMethods(runtime, readUsage);
   const base = {
+    note: (label: string, value: import("../shared/types.ts").JsonValue | import("../assertions/quantity.ts").Quantity): void => { runtime.assertAuthoringOpen(); state.notes.add(label, value); },
     get usage() { return readUsage(); },
     get elapsedMs() { return elapsedMs(); },
     maxTokens, maxCost,
@@ -1659,6 +1666,7 @@ export function createAssertFirstEvalContext(
   const check = core.context.check;
   const judge = core.context.judge;
   const state: AssertFirstContextState = {
+    notes: core.state.notes,
     assertions: runtime,
     manager,
     late: { diff: Object.freeze({ state: "pending" as const }), scripts: {} },

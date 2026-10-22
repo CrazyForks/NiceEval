@@ -91,6 +91,7 @@ const RESERVED_ADAPTER_CONTEXT_KEYS = [
   "maxCost",
   "score",
   "group",
+  "note",
   "skip",
   "signal",
   "model",
