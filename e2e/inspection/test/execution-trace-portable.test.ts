@@ -25,7 +25,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     await rm(join(projectRoot, ".niceeval"), { recursive: true });
     const request = join(projectRoot, "execution.request.json");
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator } }));
     const outline = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
     expect(outline.exitCode, outline.diagnostic()).toBe(0);
     const trace = outline.querySuccess("attempt.trace").trace;
@@ -39,12 +39,12 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(JSON.stringify(trace)).not.toContain("large input ");
     expect(Buffer.byteLength(JSON.stringify(trace))).toBeLessThan(128 * 1024);
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace", locator, continuation: trace.execution.continuation } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator, continuation: trace.execution.continuation } }));
     const next = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
     expect(next.exitCode, next.diagnostic()).toBe(0);
     expect(next.querySuccess("attempt.trace").trace.execution.events[0]).toMatchObject({ ordinal: 32, summary: "Observed event 32" });
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace", locator, actorId: "actor-a", eventType: "position.observed",
     } }));
     const filtered = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -54,7 +54,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(filteredPage.events.every((event) => event.actor?.id === "actor-a" && event.type === "position.observed")).toBe(true);
     expect(filteredPage.hasMore).toBe(true);
     expect(filteredPage.continuation).toBeTypeOf("string");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace", locator, actorId: "actor-a", eventType: "position.observed", continuation: filteredPage.continuation,
     } }));
     const filteredNext = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -80,7 +80,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     for (const event of filteredNextPage.events) expect(filteredShowNext.stdout).toContain(event.eventId);
 
     // A token cannot silently restart or continue under a changed type filter.
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace", locator, actorId: "actor-a", eventType: "operation.completed", continuation: filteredPage.continuation,
     } }));
     const changedType = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -122,7 +122,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
       expect(expandedWithListOption.stderr).toContain(option);
     }
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-event", eventId: missingNativeId } } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-event", eventId: missingNativeId } } }));
     const domainPayload = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
     expect(domainPayload.exitCode, domainPayload.diagnostic()).toBe(0);
     expect(domainPayload.stdout).toContain('"__proto__":{"domain":"preserved"}');
@@ -136,7 +136,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(evidence.stdout).toContain("request-evidence-sentinel");
     expect(evidence.stdout).not.toContain("actual-movement-sentinel");
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-evidence", evidenceId, limit: 128 } } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-evidence", evidenceId, limit: 128 } } }));
     const firstRange = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
     expect(firstRange.exitCode, firstRange.diagnostic()).toBe(0);
     const firstDetail = firstRange.querySuccess("attempt.trace.detail").detail;
@@ -144,7 +144,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     if (firstDetail.kind !== "execution-evidence") throw new Error(firstRange.diagnostic());
     expect(firstDetail).toMatchObject({ pointer: "/events/0", offset: 0, nextOffset: 128 });
     expect(Buffer.from(firstDetail.base64, "base64").byteLength).toBe(128);
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-evidence", evidenceId, offset: firstDetail.nextOffset, limit: 128 } } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-evidence", evidenceId, offset: firstDetail.nextOffset, limit: 128 } } }));
     const secondRange = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
     expect(secondRange.exitCode, secondRange.diagnostic()).toBe(0);
     expect(secondRange.querySuccess("attempt.trace.detail").detail).toMatchObject({
@@ -152,7 +152,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
       targetSha256: firstDetail.targetSha256, targetByteLength: firstDetail.targetByteLength,
     });
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace", locator: conversation.locator, sourceId: "niceeval.agent-turns", actorId: "assistant",
     } }));
     const conversationPage = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -162,7 +162,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(firstConversation.events).toHaveLength(32);
     expect(firstConversation.hasMore).toBe(true);
     expect(firstConversation.continuation).toBeTypeOf("string");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace", locator: conversation.locator, sourceId: "niceeval.agent-turns", actorId: "assistant", continuation: firstConversation.continuation,
     } }));
     const conversationNext = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -173,7 +173,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     const conversationEvents = [...firstConversation.events, ...remaining.events];
     let lastPage = remaining;
     for (let pageIndex = 0; lastPage.hasMore && pageIndex < 8; pageIndex += 1) {
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
         kind: "attempt.trace", locator: conversation.locator, sourceId: "niceeval.agent-turns", actorId: "assistant", continuation: lastPage.continuation,
       } }));
       const nextPage = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -184,7 +184,7 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
     expect(lastPage.hasMore).toBe(false);
     expect(new Set(conversationEvents.map((event) => event.eventId)).size).toBe(conversationEvents.length);
     expect(conversationEvents.filter((event) => event.type === "agent.message")).toHaveLength(20);
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
       kind: "attempt.trace.detail", locator: conversation.locator, selector: { kind: "execution-event", eventId: remaining.events[0]!.eventId },
     } }));
     const conversationDetail = await niceeval.run(["query", "run", "--record", portable, "--request", request]);
@@ -215,7 +215,7 @@ test.concurrent("producer partial 轨迹在空事件、非空事件与分页完�
       expect(result.verdict).toBe("passed");
       const locator = result.locator.startsWith("@") ? result.locator : `@${result.locator}`;
       const request = join(projectRoot, "partial-trace.request.json");
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace", locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator } }));
       const outline = await niceeval.run(["query", "run", "--request", request]);
       expect(outline.exitCode, outline.diagnostic()).toBe(0);
       const execution = outline.querySuccess("attempt.trace").trace.execution;
@@ -237,7 +237,7 @@ test.concurrent("producer partial 轨迹在空事件、非空事件与分页完�
       expect(execution.omittedEventCount).toBe(omittedEventCount);
       if (omittedEventCount > 0) {
         expect(execution.continuation).toBeTypeOf("string");
-        await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+        await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
           kind: "attempt.trace", locator, continuation: execution.continuation,
         } }));
         const next = await niceeval.run(["query", "run", "--request", request]);
@@ -275,7 +275,7 @@ test.concurrent("producer partial 轨迹在空事件、非空事件与分页完�
           { actorId: "absent-actor", eventType: "observation.recorded" },
           { actorId: "observer", eventType: "absent.event" },
         ]) {
-          await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
+          await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
             kind: "attempt.trace", locator, traceId: header.traceId, actorId, eventType,
           } }));
           const zeroMatch = await niceeval.run(["query", "run", "--request", request]);

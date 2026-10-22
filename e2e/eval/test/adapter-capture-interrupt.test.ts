@@ -38,7 +38,7 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
 
     const runId = only(interrupted.expReceipt().createdRunIds, () => true, interrupted.diagnostic());
     const request = join(projectRoot, "capture-query.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.get", runId } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId } }));
     const run = await niceeval.run(["query", "run", "--request", request]);
     expect(run.exitCode, run.diagnostic()).toBe(0);
     const overview = run.querySuccess("run.get").run;
@@ -48,7 +48,7 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
     expect(member).toMatchObject({ state: "executed", verdict: "errored", outcome: "errored", score: { earned: 7 } });
     const locator = defined(member.locator, "cancelled Attempt must be published");
 
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.get", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.get", locator } }));
     const attempt = await niceeval.run(["query", "run", "--request", request]);
     const inspectedAttempt = attempt.querySuccess("attempt.get").attempt;
     expect(inspectedAttempt).toMatchObject({
@@ -56,12 +56,12 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
     });
     expect(inspectedAttempt.assertions.entries).toHaveLength(1);
     expect(inspectedAttempt.assertions.entries[0]?.display.label).toBe("earned before cancellation");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator } }));
     const usage = await niceeval.run(["query", "run", "--request", request]);
     expect(usage.querySuccess("attempt.usage").usage.calls).toEqual([
       expect.objectContaining({ callId: "cancelled-request", status: "cancelled", inputTokens: 13, outputTokens: 5 }),
     ]);
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator } }));
     const trace = await niceeval.run(["query", "run", "--request", request]);
     expect(trace.exitCode, trace.diagnostic()).toBe(0);
     const execution = trace.querySuccess("attempt.trace").trace.execution;
@@ -73,14 +73,14 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
       expect.objectContaining({ summary: "Cancellation observed; capture complete" }),
       expect.objectContaining({ summary: "Verified cancellation tail" }),
     ]));
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifacts", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifacts", locator } }));
     const artifacts = await niceeval.run(["query", "run", "--request", request]);
     const collection = artifacts.querySuccess("attempt.artifacts").artifacts;
     expect(collection.state).toBe("available");
     if (collection.state !== "available") throw new Error(artifacts.diagnostic());
     const artifact = only(collection.value.artifacts, () => true, artifacts.diagnostic());
     expect(artifact.label).toBe("tail.txt");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId: artifact.artifactId } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId: artifact.artifactId } }));
     const bytes = await niceeval.run(["query", "run", "--request", request]);
     expect(bytes.querySuccess("attempt.artifact").artifact).toMatchObject({
       state: "available", base64: Buffer.from("cancelled-tail").toString("base64"), nextOffset: null,

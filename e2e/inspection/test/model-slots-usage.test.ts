@@ -12,7 +12,7 @@ test.concurrent("用途与实际模型分列，零费用与未知费用保留且
     const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-slots", run.diagnostic());
     expect(event.verdict).toBe("passed");
     const request = join(paths.projectRoot, "model-usage.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
@@ -48,7 +48,7 @@ test.concurrent("用途与实际模型分列，零费用与未知费用保留且
     };
     expect(usage.judgeUsage).toEqual({ ...judgeSummary, calls: [], callsTruncated: false, omittedCallCount: 0, priceReceipts: [] });
     expect(usage.totalCosts).toEqual({ state: "partial", values: [{ currency: "USD", value: "0.375", source: "reported" }], missingSources: ["application"] });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "overview.get" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "overview.get" } }));
     const overviewRead = await niceeval.run(["query", "run", "--request", request]);
     expect(overviewRead.exitCode, overviewRead.diagnostic()).toBe(0);
     const overview = overviewRead.querySuccess("overview.get").overview;
@@ -58,7 +58,7 @@ test.concurrent("用途与实际模型分列，零费用与未知费用保留且
     const aggregate = only(overview.experiments, (item) => item.experimentId === "model-slots", overviewRead.diagnostic());
     expect(aggregate.costUSD).toMatchObject({ state: "partial", value: 0.375, source: "reported", unit: "USD" });
     expect(aggregate.tokens).toMatchObject({ state: "partial", value: 40, unit: "tokens" });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "model-slots" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "model-roles" } }));
     const experimentRead = await niceeval.run(["query", "run", "--request", request]);
     expect(experimentRead.exitCode, experimentRead.diagnostic()).toBe(0);
     const experiment = experimentRead.querySuccess("experiment.get").experiment;

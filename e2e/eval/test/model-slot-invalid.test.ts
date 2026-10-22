@@ -14,7 +14,7 @@ test.concurrent("捕获未配置用途引用仍使 Attempt errored 并保留已�
     const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-slot-invalid", run.diagnostic());
     expect(event.verdict).toBe("errored");
     const request = join(paths.projectRoot, "invalid.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     expect(read.querySuccess("attempt.usage").usage).toMatchObject({

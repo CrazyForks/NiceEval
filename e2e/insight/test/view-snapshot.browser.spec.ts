@@ -59,12 +59,12 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
 
       const scoreRequestPath = join(projectRoot, "verdict-scores.request.json");
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v1",
+        protocol: "niceeval.query/v2",
         operation: { kind: "run.get", runId: scoreRunId },
       }));
       const scoreSummary = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
       expect(scoreSummary.exitCode, scoreSummary.diagnostic()).toBe(0);
-      const scoreMembers = scoreSummary.querySuccess("run.get").run.slots;
+      const scoreMembers = scoreSummary.querySuccess("run.get").run.plannedAttempts;
       // These same public facts must survive the Overview aggregation and View.
       for (const [evalId, earned, possible] of [
         ["verdict-scores/failed", 61, 100],
@@ -75,7 +75,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
       }
 
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v1",
+        protocol: "niceeval.query/v2",
         operation: { kind: "overview.get", runIds: [scoreRunId] },
       }));
       const scoreOverview = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
@@ -88,7 +88,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());
         expect(cell.verdict.tally).toEqual({ passed: 0, failed: 1, errored: 0, skipped: 0 });
         expect(cell.score).toMatchObject({
-          state: "available", value: earned, samples: 1, total: 1, basis: "slot",
+          state: "available", value: earned, samples: 1, total: 1, basis: "planned-attempt",
           bounds: { min: 0, max: possible },
         });
         expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({

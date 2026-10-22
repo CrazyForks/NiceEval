@@ -7,7 +7,7 @@ export function expectAttemptSource(
   expected: { readonly path: string; readonly textIncludes: string },
 ): void {
   expect(document).toMatchObject({
-    protocol: "niceeval.query/v1",
+    protocol: "niceeval.query/v2",
     operation: "attempt.sources",
   });
   const projection = document.sources;

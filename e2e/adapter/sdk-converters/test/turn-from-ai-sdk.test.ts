@@ -32,7 +32,7 @@ test("turnFromAiSdk 的锁定 AI SDK 输入经 Experiment 和公开 CLI 确定�
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(summaryReceipt.exitCode, summaryReceipt.diagnostic()).toBe(0);
     const summary = summaryReceipt.run();
-    expect(summary).toMatchObject({ protocol: "niceeval.query/v1", operation: "run.get" });
+    expect(summary).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get" });
     expect(summary.selection).toMatchObject({ selectedRunIds: [receipt.createdRunIds[0]!], missingRunIds: [] });
     expect(JSON.stringify(summary.run)).toContain(event.locator);
 
@@ -53,7 +53,7 @@ test("turnFromAiSdk 的锁定 AI SDK 输入经 Experiment 和公开 CLI 确定�
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(traceReceipt.exitCode, traceReceipt.diagnostic()).toBe(0);
     const traceDocument = traceReceipt.attemptTrace();
-    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
     const trace = JSON.stringify(traceDocument.trace);
     expect(trace).toContain("inventory_lookup");
     expect(trace).toContain("approval_tool");

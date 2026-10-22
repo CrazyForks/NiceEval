@@ -354,7 +354,7 @@ async function inspectCompletedInvocation(
   expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);
   const traceDocument = inspected.receipt.attemptTrace();
   expect(traceDocument).toMatchObject({
-    protocol: "niceeval.query/v1",
+    protocol: "niceeval.query/v2",
     operation: "attempt.trace",
   });
   const evidence = decodeEvidence(traceDocument.trace);

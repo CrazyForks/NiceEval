@@ -109,7 +109,7 @@ it("attempt.trace 读回 Codex SDK converter 的代表性证据", () => {
   const queried = traceReceipt;
   expect(queried.exitCode, queried.diagnostic()).toBe(0);
   const document = queried.attemptTrace();
-  expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+  expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
   // Trace keeps the original command, converted tool identity,
   // completed result, and the second-turn resume probe in the public machine view.
   const trace = JSON.stringify(document.trace);

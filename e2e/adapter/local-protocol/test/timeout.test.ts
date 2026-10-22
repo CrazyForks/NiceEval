@@ -41,7 +41,7 @@ test("uiMessageStreamAgent 的挂起响应在 attempt deadline 后公开为 erro
         }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
         expect(queried.exitCode, queried.diagnostic()).toBe(0);
         const document = queried.attemptTrace();
-        expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+        expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
         const diagnostics = document.trace.diagnostics;
         expect(diagnostics, queried.diagnostic()).toMatchObject({
           state: "complete",
