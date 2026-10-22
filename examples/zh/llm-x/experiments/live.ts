@@ -17,7 +17,7 @@ export default defineExperiment({
   },
   ...(judgeModel
     ? {
-        judgeRuntime: OpenAIProvider({
+        judge: OpenAIProvider({
           model: judgeModel,
           baseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
           apiKeyEnv: "OPENAI_API_KEY",

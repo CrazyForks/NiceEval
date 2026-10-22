@@ -15,7 +15,7 @@ export default defineEval({
     await t.group("正常收发", () => {
       t.succeeded();
       t.noFailedActions();
-      t.check(turn.message, includes("2"));
+      t.check(turn.reply, includes("2"));
     });
 
     t.maxTokens(40_000);

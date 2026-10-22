@@ -16,6 +16,6 @@ export default defineEval({
       t.noFailedActions();
     });
 
-    t.check(turn.message, includes("niceeval-run-command-926"));
+    t.check(turn.reply, includes("niceeval-run-command-926"));
   },
 });
