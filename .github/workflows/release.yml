@@ -157,7 +157,7 @@ jobs:
           cat > experiments/smoke.ts <<'EOF'
           import { defineExperiment } from "niceeval";
           import { smokeAgent } from "../agents/smoke.ts";
-          export default defineExperiment({ agent: smokeAgent, evals: ["smoke"] });
+          export default defineExperiment({ adapter: smokeAgent, evals: ["smoke"] });
           EOF
           pnpm --silent exec niceeval list
           pnpm --silent exec niceeval exp smoke --dry
