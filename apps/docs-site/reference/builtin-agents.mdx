@@ -250,7 +250,7 @@ Skills installed in the Sandbox: a local directory or file, or a Repo with a pin
 version?: string;
 ```
 
-Which Bub version to install, as a PyPI version such as `"0.4.0"`. When omitted, use the default version pinned by NiceEval. It is always a deterministic version and never latest: the system under test's version must be visible from Experiment configuration.
+Uses the fixed Bub 0.5.1 protocol. Omit this option or set it to `"0.5.1"`; any other version throws a `TypeError` when the Agent is defined.
 
 #### `otelPlugin`
 
@@ -260,7 +260,7 @@ otelPlugin?: string;
 
 The git dependency for the OTel tape-store Plugin, the source of the timeline. When omitted, use NiceEval's default pin.
 
-The Plugin and Bub must be from the same generation of the tape protocol. The default pin takes types from `bub.tape` and requires Bub ≥ 0.3.10. Earlier Plugin commits validate against republic types and pair with Bub ≤ 0.3.9. A mismatched generation does not fail installation; it rejects every span and leaves the timeline silently empty. When pinning `version` backward, pin the matching Plugin commit in the same change.
+Custom Plugins must support the tape protocol of the fixed Bub 0.5.1 version.
 
 #### `pythonPlugins`
 
