@@ -199,7 +199,7 @@ token 用量或 OTel span 反推得到)。与顶层 `estimatedCostUSD`(价目表
 
 | 事件 | 说什么 | 消费它的断言 / API |
 |---|---|---|
-| `message` | agent（或用户）说了一段话 | `turn.reply`、`turn.event(eventMatch("message", ...))`、Judge 的材料 |
+| `message` | agent（或用户）说了一段话 | `turn.message`、`turn.event(eventMatch("message", ...))`、Judge 的材料 |
 | `operation.started`（`kind: "tool"`） | 发起一次工具调用 | `turn.calledTool(...)`、`turn.toolOrder(...)`、`turn.event(...)` |
 | `operation.finished`（`kind: "tool"`） | 该次工具调用的结果 | 带状态条件的 `ToolMatch` |
 | `operation.started`（`kind: "subagent"`） | 委派一个子 agent | 保留在原始事件和报告里；没有子 agent 专用断言 |

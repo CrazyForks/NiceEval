@@ -120,7 +120,7 @@ export default defineExperiment({
 
 ### bub
 
-- **Authentication**: `BUB_API_KEY` plus `BUB_API_BASE` for an OpenAI-compatible proxy. The `apiKey` / `baseUrl` factory options can override them.
+- **Authentication**: `BUB_API_KEY` plus `BUB_API_BASE` for an OpenAI-compatible proxy. The `apiKey` / `apiBase` factory options can override them.
 - **Install a Skill**: use `skills: SkillSpec[]`, the same type as the other two Adapters. They are installed in `.agents/skills/<name>/`, with a discovery instruction in AGENTS.md.
 - **Install a Plugin**: use `pythonPlugins: PythonPluginSpec[]`. `{ package }` can be a PyPI package, version specifier, or git URL. During `setup`, it becomes `uv tool install … --with <package>`. This type belongs only to bub. The package set enters the installation checkpoint key, so two variants with different Plugins never reuse the same installation cache.
 - **Prebuilt Bub**: NiceEval's E2B recipe includes Bub, the OTel Plugin, and the Python Plugin set in an installation fingerprint. The Adapter reuses only an environment with an exactly matching fingerprint. Simply having `bub` on `PATH` is not proof of compatibility. For the build entry point, see [Prebuilt Sandbox environments · Build on the official baselines](/tutorials/prebuilt-sandbox#continue-building-from-the-official-baseline).

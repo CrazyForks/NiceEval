@@ -30,36 +30,3 @@ test.concurrent("内建 Agent 工厂只接受 before 与 after 生命周期声�
     expect(result.exitCode, result.diagnostic()).toBe(0);
   });
 });
-
-// @feature docs/feature/experiments/README.md
-test.concurrent("Experiment 与自定义 Agent 明确拒绝旧生命周期字段", async () => {
-  await evalE2E.case("author-lifecycle-names", async ({ paths }) => {
-    await writeFile(join(paths.projectRoot, "author-lifecycle-names.mjs"), `
-      import assert from "node:assert/strict";
-      import { defineExperiment } from "niceeval";
-      import { defineAgent, defineSandboxAgent, completeEvidenceCoverage } from "niceeval/adapter";
-      const spec = { name: "lifecycle", evidenceCoverage: completeEvidenceCoverage,
-        send: async () => ({ status: "completed", events: [] }) };
-      const agent = defineAgent({ ...spec, before: () => {}, after: () => {} });
-      assert.equal(typeof agent.before, "function");
-      assert.equal(typeof agent.after, "function");
-      const experiment = defineExperiment({ adapter: agent, before: () => {}, after: () => {} });
-      assert.equal(typeof experiment.before, "function");
-      assert.equal(typeof experiment.after, "function");
-      for (const factory of [defineAgent, defineSandboxAgent, defineExperiment]) {
-        for (const [previous, current] of [["setup", "before"], ["teardown", "after"]]) {
-          for (const value of [undefined, () => {}]) {
-            assert.throws(() => factory({ ...spec, adapter: agent, [previous]: value }), (error) => {
-              assert.ok(error instanceof TypeError);
-              assert.match(error.message, new RegExp(previous));
-              assert.match(error.message, new RegExp(current));
-              return true;
-            });
-          }
-        }
-      }
-    `);
-    const result = await command([process.execPath]).run(["author-lifecycle-names.mjs"], { cwd: paths.projectRoot });
-    expect(result.exitCode, result.diagnostic()).toBe(0);
-  });
-});

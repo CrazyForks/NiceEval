@@ -154,7 +154,7 @@ When new results are published, the page prompts you to refresh and only switche
 ```sh
 pnpm --silent exec niceeval query run --request - <<'JSON'
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": { "kind": "attempt.get", "locator": "@1K1P0VJAPVJ12" }
 }
 JSON
@@ -165,7 +165,7 @@ Pick an `entryId` from the returned `assertions.entries`, then read its detail:
 ```sh
 pnpm --silent exec niceeval query run --request - <<'JSON'
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": {
     "kind": "attempt.assertion.detail",
     "locator": "@1K1P0VJAPVJ12",

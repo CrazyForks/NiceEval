@@ -95,7 +95,7 @@ niceeval show @1K1P0VJAPVJ12
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": { "kind": "project.get", "experimentIds": ["harness/canary"] }
 }
 ```
@@ -110,7 +110,7 @@ niceeval show @1K1P0VJAPVJ12
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": {
     "kind": "runs.compare",
     "mode": "paired",

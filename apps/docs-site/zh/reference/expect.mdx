@@ -24,27 +24,6 @@ const config = await t.check(rawConfig, pattern(/runtime/)).orStop();
 | `await handle.orStop()` | 同一 handle 的 async barrier；mismatch 或 below 时停止当前 continuation |
 | `handle.score(n)` / `t.score(n)` | 在计分制评估中让该项贡献分数，或直接登记 contribution |
 
-## 数值单位
-
-先用普通数值计算，再用 `ms`、`seconds`、`tokens`、`usd`、`ratio`、`count` 或 `bytes` 包装结果。它们返回冻结的 `Quantity<U>`，通过 `.value` 读取数值，通过 `.unit` 读取单位。Quantity 不参与算术，也不自动换算单位。
-
-所有构造函数只接受有限数；`ratio(n)` 还要求 `0 ≤ n ≤ 1`，否则抛出 `RangeError`。
-
-```ts
-import { atMost, between, measured, ms, quantile, ratio } from "niceeval/expect";
-
-const latency = measured(ms(512), { unavailable: "missing" });
-t.check(latency, atMost(ms(600)));
-t.check(quantile([ms(100), ms(200)], 0.9), between(ms(100), ms(200)));
-t.check(t.usage.cacheRead.rate(), atMost(ratio(0.9)));
-```
-
-`measured` 接受 `number | null` 或 `Quantity<U> | null`；`quantile` 接受普通数值数组或单位一致的 Quantity 数组，并保留单位。混合单位、混合普通数值与 Quantity 的数组会抛出 `TypeError`。空数组和缺失观测保留 unavailable，不补零。
-
-`atLeast`、`atMost`、`greaterThan`、`lessThan` 的阈值必须与观测单位相同。`between(minimum, maximum)` 检查含端点的区间，两端也必须同单位且按大小排列。普通数值只接受普通数值阈值。
-
-TypeScript 拒绝跨单位调用。JavaScript 绕过类型时，该检查返回 unavailable 并说明单位不符。`show` 和 `view` 按单位显示，例如 `512 ms`、`61.2%`、`$0.031`。
-
 ## Matchers
 
 下面每个 matcher 的签名和说明从 `niceeval/expect` 的源码生成，和当前实现保持同步。

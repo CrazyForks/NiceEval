@@ -2,7 +2,7 @@ import { Schema } from "effect";
 import type {
   CommandPlan,
   CommandPlanStep,
-  BeforeCachePlan,
+  SetupPrefixPlan,
 } from "../../../runner/command-plan.ts";
 import { isJsonValue } from "../../../shared/json-value.ts";
 import type { JsonValue } from "../../../shared/types.ts";
@@ -243,7 +243,7 @@ const CommandPlanSchema: Schema.Codec<CommandPlan> = Schema.Struct({
   })),
 });
 
-const BeforeCachePlanSchema: Schema.Codec<BeforeCachePlan> = Schema.Struct({
+const SetupPrefixPlanSchema: Schema.Codec<SetupPrefixPlan> = Schema.Struct({
   lookup: Schema.Literal("not-probed"),
   nodes: Schema.Array(Schema.Struct({
     prefixIdentity: Schema.String,
@@ -259,7 +259,7 @@ export const DebugPlanDocumentSchema = Schema.Struct({
   experimentId: Schema.String,
   evalId: Schema.optional(Schema.String),
   evalIds: Schema.Array(Schema.String),
-  beforeCachePlan: BeforeCachePlanSchema,
+  setupPrefixPlan: SetupPrefixPlanSchema,
   commandPlan: CommandPlanSchema,
 });
 

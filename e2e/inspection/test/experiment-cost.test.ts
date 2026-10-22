@@ -20,15 +20,15 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     expect(run.expEvalEvents()).toHaveLength(2);
     const originalRunId = only(run.expReceipt().createdRunIds, () => true, run.diagnostic());
     const request = join(paths.projectRoot, "experiment-cost.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "experiment-cost" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "experiment-cost" } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const experiment = read.querySuccess("experiment.get").experiment;
     // 35 × 0.100000001 + 35 × 0.200000002; no float or preview-derived oracle.
     expect(experiment.costSummary).toEqual({
-      scope: "latest-recorded-attempts",
+      scope: "latest-recorded-slots",
       totalCosts: { state: "complete", values: [{ currency: "USD", value: "10.500000105", source: "reported" }], missingSources: [] },
-      coverage: { plannedAttemptCount: 70, recordedAttemptCount: 70, originAttemptCount: 70, completeAttemptCount: 70, partialAttemptCount: 0, unavailableAttemptCount: 0, missingAttemptCount: 0 },
+      coverage: { selectedSlotCount: 70, resolvedSlotCount: 70, originAttemptCount: 70, completeAttemptCount: 70, partialAttemptCount: 0, unavailableAttemptCount: 0, unresolvedSlotCount: 0 },
     });
     expect(experiment.modelUsage).toMatchObject({ totalAttemptCount: 70, omittedAttemptCount: 6, unresolvedAttemptCount: 0 });
     expect(experiment.modelUsage.attempts).toHaveLength(64);
@@ -42,9 +42,9 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     expect(summary, shown.diagnostic()).toBeDefined();
     expect(summary).toMatch(/USD\s+10\.500000105\b/u);
     expect(summary).toMatch(/Scope[^\n]*Latest recorded slots/u);
-    expect(summary).toMatch(/Planned attempts[^\n]*\b70\b/u);
+    expect(summary).toMatch(/Selected slots[^\n]*\b70\b/u);
     expect(summary).toMatch(/Unique origin Attempts[^\n]*\b70\b/u);
-    expect(summary).toMatch(/Missing attempts[^\n]*\b0\b/u);
+    expect(summary).toMatch(/Unresolved slots[^\n]*\b0\b/u);
 
     const rerun = await niceeval.run(["exp", "experiment-cost", "experiment-cost-paid", "--rerun", "all", "--json"], {
       env: { NICEEVAL_E2E_EXPERIMENT_COST_PHASE: "replacement" },
@@ -61,9 +61,9 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     const replaced = reread.querySuccess("experiment.get").experiment;
     // 35 × 0.300000003 + the untouched 35 × 0.200000002, excluding old paid origins.
     expect(replaced.costSummary).toEqual({
-      scope: "latest-recorded-attempts",
+      scope: "latest-recorded-slots",
       totalCosts: { state: "complete", values: [{ currency: "USD", value: "17.500000175", source: "reported" }], missingSources: [] },
-      coverage: { plannedAttemptCount: 70, recordedAttemptCount: 70, originAttemptCount: 70, completeAttemptCount: 70, partialAttemptCount: 0, unavailableAttemptCount: 0, missingAttemptCount: 0 },
+      coverage: { selectedSlotCount: 70, resolvedSlotCount: 70, originAttemptCount: 70, completeAttemptCount: 70, partialAttemptCount: 0, unavailableAttemptCount: 0, unresolvedSlotCount: 0 },
     });
     expect(replaced.modelUsage).toMatchObject({ totalAttemptCount: 70, omittedAttemptCount: 6, unresolvedAttemptCount: 0 });
     expect(replaced.modelUsage.attempts).toHaveLength(64);

@@ -28,7 +28,7 @@ export const ExpTerminalSummarySchema = Schema.Struct({
   inputTokens: Schema.optional(NonNegativeIntegerSchema),
   outputTokens: Schema.optional(NonNegativeIntegerSchema),
   estimatedCostUSD: Schema.optional(NonNegativeNumberSchema),
-  beforeCaches: Schema.Struct({
+  setupPrefixes: Schema.Struct({
     total: NonNegativeIntegerSchema,
     hit: NonNegativeIntegerSchema,
     prepared: NonNegativeIntegerSchema,

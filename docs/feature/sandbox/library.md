@@ -174,44 +174,44 @@ import { e2bSandbox } from "niceeval/sandbox";
 import { claudeCodeAgent } from "niceeval/adapter";
 
 export default defineExperiment({
-  adapter: claudeCodeAgent(),
+  agent: claudeCodeAgent(),
   sandbox: e2bSandbox({ template: "niceeval-agents" }),
 });
 ```
 
 多个 Experiment 共享同一起点时,把 factory 调用抽成普通 TypeScript 导出函数；Sandbox 设计不提供 profile registry 或按名字查表。
 
-## Before cache 配置
+## Setup prefix cache 配置
 
-Before cache 是 Host 执行优化。项目级 `niceeval.config.ts` 提供默认值，Experiment 可以替换本次运行声明：
+Setup prefix cache 是 Host 执行优化。项目级 `niceeval.config.ts` 提供默认值，Experiment 可以替换本次运行声明：
 
 ```typescript
 interface Config {
   readonly sandboxCache?: {
-    readonly before?: "use" | "bypass";
+    readonly setup?: "use" | "bypass";
   };
   /** 同一 Run 内 PreparedArtifact 前缀节点可同时准备的最大数；省略为 2。 */
-  readonly maxBeforeCacheConcurrency?: number;
+  readonly maxSetupPrefixConcurrency?: number;
 }
 
 interface ExperimentDefinition {
   readonly sandboxCache?: {
-    readonly before?: "use" | "bypass";
+    readonly setup?: "use" | "bypass";
   };
 }
 
 export default defineConfig({
-  sandboxCache: { before: "use" },
+  sandboxCache: { setup: "use" },
 });
 ```
 
-省略 `sandboxCache` 或 `before` 时默认 `use`。项目 Config 提供持久默认；Experiment 可以替换自己的运行声明。该字段不出现在 Eval 或 Eval Group，因为同一个 Experiment 内的全部 Attempt 必须使用同一策略。固定优先级是 `--sandbox-before-cache` → `defineExperiment().sandboxCache.before` → `defineConfig().sandboxCache.before` → `"use"`。
+省略 `sandboxCache` 或 `setup` 时默认 `use`。项目 Config 提供持久默认；Experiment 可以替换自己的运行声明。该字段不出现在 Eval 或 Eval Group，因为同一个 Experiment 内的全部 Attempt 必须使用同一策略。固定优先级是 `--sandbox-setup-cache` → `defineExperiment().sandboxCache.setup` → `defineConfig().sandboxCache.setup` → `"use"`。
 
-`bypass` 禁止 Before cache lookup 与 publication，但仍按同一 DAG 真实执行 before action。BuildKey cache 仍正常使用。该选择不进入 BuildKey、BeforeCacheKey、CaseKey、Attempt fingerprint、result identity 或携带资格；同一声明只因 cache 冷热或排障开关不同，结果仍可比较。
+`bypass` 禁止 SetupPrefix lookup 与 publication，但仍按同一 DAG 真实执行 before action。BuildKey cache 仍正常使用。该选择不进入 BuildKey、SetupPrefixKey、CaseKey、Attempt fingerprint、result identity 或携带资格；同一声明只因 cache 冷热或排障开关不同，结果仍可比较。
 
 `niceeval debug` 会显示求值后的 `setupCache: use | bypass`，但仍固定显示 `cacheLookup: "not-probed"`。运行时 bypass 使用 `replay` 反馈并带 `reason: "bypass"`。
 
-`maxBeforeCacheConcurrency` 只限制一个 Run 中 `PreparedArtifact` 前缀 DAG 的同时 prepare 节点数；它必须是正整数，省略为 `2`。`niceeval exp` 的 `--max-before-cache-concurrency <n>` 只临时替代本次 Invocation 的该值。它既不改变 `BeforeCacheKey`、BuildKey、CaseKey、Attempt/result identity，也不替代 `maxConcurrency`：前者限制派发前的共享准备，后者限制已派发的 Attempt。实际同时 prepare 数还受 provider `scheduling.lane.limit` 约束，取两者交集。
+`maxSetupPrefixConcurrency` 只限制一个 Run 中 `PreparedArtifact` 前缀 DAG 的同时 prepare 节点数；它必须是正整数，省略为 `2`。`niceeval exp` 的 `--max-setup-prefix-concurrency <n>` 只临时替代本次 Invocation 的该值。它既不改变 `SetupPrefixKey`、BuildKey、CaseKey、Attempt/result identity，也不替代 `maxConcurrency`：前者限制派发前的共享准备，后者限制已派发的 Attempt。实际同时 prepare 数还受 provider `scheduling.lane.limit` 约束，取两者交集。
 
 ## 起点参数与 `lifetimeMs`
 
@@ -276,7 +276,7 @@ e2bSandbox({
 
 Agent 要在 Sandbox 内运行 Docker 或 Compose 时，Eval 用 `sandboxRequirements()` 声明 provider-neutral 的 `docker/v1`、Compose、专用 kernel 与最低 data capacity。Experiment 用 `incusSandbox()` 选择 Host 管理的 Incus project、storage pool 与 digest-pinned trusted image。完整公开形状、资源字段、capability receipt 与错误码见 [Nested Docker Library](../sandbox-nested-docker/library.md)。
 
-Incus 为每条 Attempt 创建一次性 VM。guest 内运行普通 dockerd，Docker data 使用与 root / workspace 分开的私有 virtual disk；`resources.cpus`、`memoryBytes` 与 `dockerDataBytes` 进入 identity 和容量检查。Before cache 复用完整、可验证的 immutable Provider artifact，每个 consumer clone 私有 writable root / data disk。
+Incus 为每条 Attempt 创建一次性 VM。guest 内运行普通 dockerd，Docker data 使用与 root / workspace 分开的私有 virtual disk；`resources.cpus`、`memoryBytes` 与 `dockerDataBytes` 进入 identity 和容量检查。SetupPrefix 复用完整、可验证的 immutable Provider artifact，每个 consumer clone 私有 writable root / data disk。
 
 raw privileged / managed rootless DinD、privileged outer container、inner daemon data-root clone / capture 均不属于支持目标，也不能在 Incus planning 失败时作为 fallback。宿主 Docker socket不能满足 `dedicated-kernel/v1`；可信本地工具若需要该能力，必须另立 capability 与 trust boundary。普通 Docker provider 本身不受这项迁移影响。
 
@@ -300,13 +300,13 @@ layer 的 `before()` 只处理必须按 Experiment / Eval Group / Eval / Agent �
 声明形状、command identity 与 cleanup 契约见 [Sandbox Layer](layers.md);执行时序见 [三方准备时序](lifecycle.md)。
 
 这一层解决的是一类特定问题:**Sandbox 内容必须按实验或题目变化,不能在构建期固定**。
-稳定的大依赖先做进 image / template / snapshot;before 是运行时的薄层,昂贵动作可以命中 before 缓存,不是每 Attempt 重装工具链和下载大模型的默认位置。
+稳定的大依赖先做进 image / template / snapshot;before 是运行时的薄层,昂贵动作可以命中准备前缀,不是每 Attempt 重装工具链和下载大模型的默认位置。
 
 Action 默认声明 `cache.state = sandboxState.all`，表示命中必须恢复它的全部可观察副作用。nested Docker 不提供 `sandboxState.dockerData` 特殊缓存；Incus Provider 只对完整、可验证的 prepared Sandbox artifact 报告 coverage，每个 Attempt 从 artifact clone 私有 writable state。
 
 ```typescript
 export default defineExperiment({
-  adapter: codexAgent({ mcpServers: [mempalMcp] }),
+  agent: codexAgent({ mcpServers: [mempalMcp] }),
   sandbox: e2bSandbox({ template: "fasteval-agents-mempal" }) // 二进制和模型 cache 已预制
     .before(shell({                                          // 单个声明式 Action
       id: "install-mempal",
@@ -417,12 +417,12 @@ provider 的 retry/backoff 与 SDK 原始日志也走这条反馈管线,不能�
 | 要准备的东西 | 放哪 | 怎么收尾 |
 |---|---|---|
 | 所有 attempt 都相同、无需运行中 daemon 的重依赖(系统包、CLI、二进制、大模型 cache) | provider 原生 image/template/snapshot 构建脚本;template factory 只引用构建结果 | provider 的 image/template/snapshot 生命周期管理 |
-| 必须等 Provider ready 后生成的确定性状态 | [可缓存 before](architecture.md#before-缓存的身份与验证边界)；typed inputs、owner 与数值顺序决定 BeforeCacheKey | 普通 Docker 恢复 exact image；Incus 恢复完整 verified Provider artifact；其它 Provider 如实 replay |
+| 必须等 Provider ready 后生成的确定性状态 | [可缓存 before](architecture.md#准备前缀的身份与验证边界)；typed inputs、owner 与数值顺序决定 SetupPrefixKey | 普通 Docker 恢复 exact image；Incus 恢复完整 verified Provider artifact；其它 Provider 如实 replay |
 | **这个实验**整场一份、宿主机侧的共享服务(隧道、每实验专用 mock server、license 租约) | [`ExperimentDefinition.setup`](../experiments/library.md#实验级共享服务setup-与-teardown):整场一次,第一个要派发的 attempt 前跑 | `ExperimentDefinition.teardown`,全部 attempt 收尾后执行(中断也执行;setup 时点走到过才触发) |
 | **这次实验**才知道的沙箱内内容(工具检查与安装、小配置、预检) | Experiment layer 的 [`before()`](layers.md);每次 occurrence 可以 restore 或 replay | 成功取得的外部资源用 `context.onCleanup()` 登记释放;沙箱内文件随销毁自动没了 |
 | **这条 eval** 的题目准备(checkout、依赖)与任务 Fixture | Eval layer 的 [`before()`](layers.md),或 `test(t)` 里的普通代码(`t.sandbox.writeText` / `writeBytes` / `runCommand`) | 随沙箱销毁或题间 reset;无条件收尾用 `after()`,条件释放用 `context.onCleanup()` |
 | Agent CLI 的精确版本(每 Attempt 探测) | Adapter 必填 `ensure` + identity 匹配的 [`AgentInstaller`](../adapters/architecture/agent-ensure.md)；Runner 负责 探测、缺失时安装、复检 | 安装失败归 `agent.ensure`；安装的文件随 Sandbox 销毁或题间复用策略处理 |
-| 连 agent、写鉴权、主配置与扩展(每 Attempt 一次) | [`SandboxAgent.before`](../adapters/architecture/agent-contract.md#生命周期不变量)；要读写 Agent 安装文件的后续脚本走 factory 的 [`postSetup`](../adapters/library/coding-agent-extensions.md#安装后运行脚本postsetup) | 随 Sandbox 销毁；要收尾的动作挂成对的 `preTeardown`，逆序且先于 Agent teardown |
+| 连 agent、写鉴权、主配置与扩展(每 Attempt 一次) | [`SandboxAgent.setup`](../adapters/architecture/agent-contract.md#生命周期不变量)；要读写 Agent 安装文件的后续脚本走 factory 的 [`postSetup`](../adapters/library/coding-agent-extensions.md#安装后运行脚本postsetup) | 随 Sandbox 销毁；要收尾的动作挂成对的 `preTeardown`，逆序且先于 Agent teardown |
 | 跨 Attempt 的沙箱内状态(记忆库、累积笔记) | Experiment callback before 恢复状态并用 `context.onCleanup()` 登记回存；planning 验证 owner 对 cohort 稳定 | cleanup 在最后一个 Attempt 后、provider finalizer 前逆序运行；`maxConcurrency: 1` 只保证本 Invocation 串行，多个 Invocation 共用 checkpoint 时还要声明 Experiment `sharedState.key` |
 | **跨实验共享**、这次 run 之前就该存在的外部服务(共享 DB、公司内网服务本体) | 外部编排:`docker compose up -d && niceeval exp … && docker compose down`,或 CI 脚本 | 外部编排负责,URL 经 env 传入 agent / eval |
 

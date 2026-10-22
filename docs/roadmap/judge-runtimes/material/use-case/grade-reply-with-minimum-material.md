@@ -11,7 +11,7 @@ const check = judge.check({
 t.judge.llm(check).gate(0.8).label("表达质量");
 ```
 
-判断是否完成任务时，recipe 明确要求 task 与 reply 两个 input：
+判断是否完成任务时，recipe 明确要求 task 与 reply 两个 slot：
 
 ```ts
 const check = judge.check({
@@ -27,7 +27,7 @@ t.judge.llm(check).gate(0.8).label("任务完成度");
 
 两条 Check 都不会自动追加本 Turn 的 Action、result、其它 Turn 或 trace。
 
-内建 factuality、summarizes 一类 recipe 的 expected answer 或 source text 也必须是显式 reference input。Replayable Grading 中这样绑定短文本参考：
+内建 factuality、summarizes 一类 recipe 的 expected answer 或 source text 也必须是显式 reference slot。Replayable Grading 中这样绑定短文本参考：
 
 ```ts
 const definition = defineGrading({

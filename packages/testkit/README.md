@@ -38,7 +38,7 @@ Run lifecycle CLI 的 `niceeval.run/v1` 与 inspection 不同。`runListDocument
 `niceeval run list --json`，`runGetDocument()` 严格读取 `niceeval run show --json`；两者直接调用候选包
 `niceeval/run` 的唯一 decoder，并返回候选包派生的 `RunListDocument` / `RunGetDocument` 正式类型。
 Testkit 从根入口转出这些必要类型，但不复制 Run Schema。既有 `runsList()` / `run()` 继续只表示
-`niceeval.query/v2` inspection operation。
+`niceeval.query/v1` inspection operation。
 
 `retryFailedExpEvalsOnce({ events, targets, runRetry })` 只机械执行调用方明确选出的 live Eval 单次补跑：
 串行调用保留在 owner 正文中的完整 argv，严格核对唯一返回身份、`passed` verdict 与零退出码，再按

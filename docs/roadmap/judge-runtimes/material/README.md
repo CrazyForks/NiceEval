@@ -12,7 +12,7 @@ Execution source / Grading definition source
                   ▼
          branded Material View
                   │
-        recipe input 明确绑定
+        recipe slot 明确绑定
                   ▼
              Judge Check
                   │
@@ -31,6 +31,6 @@ Prompt injection 防护只保证材料不能变成 rubric、系统协议或工�
 
 ## 入口
 
-- [Library](library.md) —— View、selector、recipe input 与 Judge Check。
+- [Library](library.md) —— View、selector、recipe slot 与 Judge Check。
 - [Architecture](architecture.md) —— owner、manifest、coverage、安全、身份与审计。
 - [Use cases](use-case/README.md) —— 最小回复、动作、结果、自定义材料与合批。

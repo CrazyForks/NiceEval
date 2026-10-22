@@ -15,7 +15,7 @@
 - 存量 Feedback 迁移或审计：先读 [`.agents/skills/feedback/SKILL.md`](.agents/skills/feedback/SKILL.md)；不再把 Feedback 作为新 Observation 的长期 owner
 - 开发问题、根因、裁决与 know-how：先读 [`.agents/skills/memory/SKILL.md`](.agents/skills/memory/SKILL.md)，再用 `pnpm memory --help` 进入正式命令
 - PR、文档、示例、下游安装与仓库初始化：分别从 [Pull Request](.agents/skills/pull-request/SKILL.md)、[Docs Terminology](.agents/skills/docs-terminology/SKILL.md)、[Docs Work](.agents/skills/docs-work/SKILL.md)、[Docs Reference](.agents/skills/docs-reference/SKILL.md)、[Docs Diff Code](.agents/skills/docs-diff-code/SKILL.md)、[Docs Development](.agents/skills/docs-development/SKILL.md)、[Examples Sync](.agents/skills/examples-sync/SKILL.md)、[Downstream Link](.agents/skills/downstream-link/SKILL.md) 与 [Repository Setup](.agents/skills/repository-setup/SKILL.md) 继续；下游链接入口为 `pnpm dev:link`，完整参数只看对应 pnpm 入口的 `--help`
-- 文档用词审查：先读 `.agents/skills/docs-terminology/SKILL.md`，用 `pnpm exec concord concepts` 与 `pnpm exec concord writing` 维护裁决并运行 `pnpm lint`；不手工搜索并维护另一份命中清单
+- 文档用词审查：先读 `.agents/skills/docs-terminology/SKILL.md`，用 `pnpm run repo docs terms` 维护裁决并运行 `pnpm lint`；不手工搜索并维护另一份命中清单
 - 设计到源码的定位：[`docs/source-map.md`](docs/source-map.md)
 - 历史踩坑与设计裁决：[`memory/INDEX.md`](memory/INDEX.md)，命中索引项后才读正文
 - 公开文档站：[`apps/docs-site/AGENTS.md`](apps/docs-site/AGENTS.md)

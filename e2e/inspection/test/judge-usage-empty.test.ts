@@ -22,7 +22,7 @@ test.concurrent("完整空材料证明没有 Judge 发送，应用费用与总�
       expect(event.verdict).toBe("passed");
       expect(fixture.requests).toHaveLength(0);
       const request = join(paths.projectRoot, "judge-usage.request.json");
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
       const read = await niceeval.run(["query", "run", "--request", request]);
       expect(read.exitCode, read.diagnostic()).toBe(0);
       const usage = read.querySuccess("attempt.usage").usage;
@@ -53,7 +53,7 @@ test.concurrent("完整空材料证明没有 Judge 发送，应用费用与总�
       expect(usage.totals.costs).toEqual({ state: "complete", source: "reported", values: [{ currency: "USD", value: "0.25", source: "reported", coveredCalls: 1, reportedCalls: 1, estimatedCalls: 0 }], totalCalls: 1 });
       expect(usage.totalCosts).toEqual({ state: "complete", values: [{ currency: "USD", value: "0.25", source: "reported" }], missingSources: [] });
 
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "judge-usage-empty" } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "judge-usage-empty" } }));
       const experimentRead = await niceeval.run(["query", "run", "--request", request]);
       expect(experimentRead.exitCode, experimentRead.diagnostic()).toBe(0);
       const experiment = experimentRead.querySuccess("experiment.get").experiment;

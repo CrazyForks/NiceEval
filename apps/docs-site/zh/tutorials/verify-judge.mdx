@@ -17,7 +17,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",
@@ -120,7 +120,7 @@ pnpm exec niceeval show @<attempt-locator>
 
 | 看到的结果 | 原因 | 先查什么 |
 |---|---|---|
-| `unavailable`，原因 `judge-provider-unresolved` | 没有配置 Provider，没有发请求 | `niceeval.config.ts` 的 `judgeProvider` |
+| `unavailable`，原因 `judge-provider-unresolved` | 没有配置 Provider，没有发请求 | `niceeval.config.ts` 的 `judgeRuntime` |
 | `unavailable`，原因 `judge-key-unresolved` | 读不到 key，没有发请求 | `apiKeyEnv` 写的变量名是否已设置 |
 | `unavailable` | 请求发不出去或超时 | 网络、`baseUrl`、`timeoutMs` |
 | `errored` | 端点返回 HTTP 400、协议不兼容，或返回内容不符合要求的格式 | `baseUrl` 是否指向兼容网关、`model` 名是否正确 |

@@ -29,7 +29,7 @@ feature: docs/feature/error-classification/README.md
    ⠸ onboarding/greet#2  turn retry 2/4 (rate_limit) — waiting 8s
    ```
 
-退避中的 attempt 让出全局并发名额给排队中的其它 attempt,整批吞吐不塌;大多数情况下第二三次尝试就过,**重试成功的 attempt 在结果里零痕迹**——你根本不会走到本篇。
+退避中的 attempt 让出全局并发槽位给排队中的其它 attempt,整批吞吐不塌;大多数情况下第二三次尝试就过,**重试成功的 attempt 在结果里零痕迹**——你根本不会走到本篇。
 你看到的耗尽摘要(`… · retries exhausted (4 attempts, rate_limit)`)意味着限流持续压过了整个重试预算(单次 send 封顶 4 次尝试,attempt 另有加总上限)。
 并发本身超出配额,把 `--max-concurrency` 降下来才是对因下药,重试只兜抖动不兜超卖。
 

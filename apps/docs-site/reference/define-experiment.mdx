@@ -25,10 +25,10 @@ export default defineExperiment({
 #### `models`
 
 ```ts
-models?: Readonly<Record<string, ModelRoleSelection>>;
+models?: Readonly<Record<string, ModelSlotSelection>>;
 ```
 
-Selects a model for each named model role of a custom Adapter; cannot be combined with the single-model shorthand.
+Selects a model for each named model slot of a custom Adapter; cannot be combined with the single-model shorthand.
 
 #### `description`
 
@@ -70,10 +70,10 @@ reasoningEffort?: string;
 
 The model's reasoning effort (such as "low"/"medium"/"high"; valid values depend on the specific model/adapter); omitted = use the agent's native default. Passed to the adapter and eval through ctx.reasoningEffort.
 
-#### `judge`
+#### `judgeRuntime`
 
 ```ts
-judge?: JudgeSelection;
+judgeRuntime?: JudgeSelection;
 ```
 
 This Experiment's Judge execution configuration. It overrides only the model / endpoint / credential selector / call budget;
@@ -204,10 +204,23 @@ maxConcurrency?: number;
 This Experiment's own concurrency limit within this Invocation: the scheduler throttles only this Experiment's attempts; other Experiments in the batch are unaffected
 and still run under the global concurrency (CLI / env / config / Sandbox default). Use it to serialize Experiments with shared state
 (such as memory accumulated across evals: `maxConcurrency: 1` guarantees attempts run one by one in eval order),
-or to slow down an Experiment that hits provider limits. A concurrency permit shares the attempt's lifetime: it is held from before Sandbox creation until
+or to slow down an Experiment that hits provider limits. A slot shares the attempt's lifetime: it is held from before Sandbox creation until
 teardown and Sandbox destruction finish, and any wait along the way (including turn retry backoff) keeps holding it.
 `maxConcurrency: 1` is therefore a strict critical section that the next attempt of the same Experiment cannot enter early.
 It does not span Invocations; for shared external state across Invocations, declare `sharedState`.
+
+#### `classifyFailure`
+
+```ts
+classifyFailure?: AttemptFailureClassifier;
+```
+
+This Experiment's failure classifier: it recognizes your own shared-infrastructure causes of death that surface in third-party error shapes (such as connections refused by your own tunnel host),
+and returns `undefined` for "unknown, hand off to the rest of the chain". Failures in any per-attempt phase of this Experiment
+are all routed to it; on the send failure chain it runs before the adapter's `classifySendFailure`, because filtering by your own coordinates
+is more specific than the protocol's generic shape, so the scope axis wins when both claim the failure. The classifier must be fast, pure, and must not throw (a throw falls back to
+`undefined` and is swallowed); it declares only the decision axis and the `reason` word, and retry and gating policy belong to the executor.
+See docs/feature/error-classification/library.md "Experiment / eval authors: declaring the blast radius of a cause of death".
 
 #### `setup`
 

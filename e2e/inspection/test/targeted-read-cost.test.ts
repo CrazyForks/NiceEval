@@ -24,7 +24,7 @@ export default adapter.defineEval({ async test(t) { t.check(await t.read(), equa
     const runId = only(produced.expReceipt().createdRunIds, () => true, produced.diagnostic());
     const locator = only(produced.expEvalEvents(), (event) => event.evalId === "read-target", produced.diagnostic()).locator;
     const requestPath = join(projectRoot, "read-target.request.json");
-    await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId } }));
+    await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.get", runId } }));
     const queried = await niceeval.run(["query", "run", "--request", requestPath]);
     expect(queried.exitCode, queried.diagnostic()).toBe(0);
     const document = queried.querySuccess("run.get");

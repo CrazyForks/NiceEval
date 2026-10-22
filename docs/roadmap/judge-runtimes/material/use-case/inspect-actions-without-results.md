@@ -18,4 +18,4 @@ t.judge.llm(check).gate(0.8).label("公开验证流程");
 
 因此 Judge 可以确认 Agent 自己运行过 `niceeval query`，却不能从 query 输出替 Agent 推理答案。若任务要求 Agent 在最终回复解释 `runtime: node` 到 `runtime: python` 的变化，只授权 reply；Judge 只有在 Agent 写出这项理解时才能得分。
 
-Action collection 不完整时 required `actions` input 为 unavailable，不拿已采到的半条 transcript 继续判分。
+Action collection 不完整时 required `actions` slot 为 unavailable，不拿已采到的半条 transcript 继续判分。

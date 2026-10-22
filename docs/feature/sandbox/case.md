@@ -169,11 +169,11 @@ CaseKey
 
 **BuildKey 负责构建结果复用,CaseKey 负责完整 attempt 运行身份与 fingerprint。**
 
-当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 BeforeCacheKey。最终 CaseKey 再包含最终 BeforeCacheKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#before-缓存的身份与验证边界)。
+当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 SetupPrefixKey。最终 CaseKey 再包含最终 SetupPrefixKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#准备前缀的身份与验证边界)。
 
-cache policy、`sandboxCache.before`、hit/replay 与本地 Docker image/container locator 不进入 CaseKey。`bypass` 也不进入 BuildKey、BeforeCacheKey、Attempt fingerprint 或 result identity。因此同一内容不会因本机缓存冷热或排障开关而失去可比性。
+cache policy、`sandboxCache.setup`、hit/replay 与本地 Docker image/container locator 不进入 CaseKey。`bypass` 也不进入 BuildKey、SetupPrefixKey、Attempt fingerprint 或 result identity。因此同一内容不会因本机缓存冷热或排障开关而失去可比性。
 
-Eval `test`、Assertion 与 Agent/test 阶段输入不进入未改变的 BeforeCacheKey。它们仍改变各自拥有的 Attempt 或 result identity，所以只改 Eval/test 时可以继续命中 BuildKey 与 before 缓存，但 Agent 与 test 必须真实执行。
+Eval `test`、Assertion 与 Agent/test 阶段输入不进入未改变的 SetupPrefixKey。它们仍改变各自拥有的 Attempt 或 result identity，所以只改 Eval/test 时可以继续命中 BuildKey 与准备前缀，但 Agent 与 test 必须真实执行。
 只挂进 sidecar 的脚本改动不触发 client 镜像重建,但改变 CaseKey、作废旧结果。
 逐 attempt 的容器名、临时目录和随机 project name 由 Provider 生成,不进 CaseKey，也不成为 portable Record identity。创建命令、计时与诊断需要可观察时，按其内容进入 Observability。
 
@@ -218,14 +218,14 @@ Dockerfile provider 对内置 staged Agent 另有按需派生镜像缓存,但不
 4. cache miss 才调用 provider 原生构建 API;成功后以 BuildKey 登记 locator,再放行依赖它的 attempt。放行逐 key 发生:一条 attempt 只等自己引用的那几个 key,不等同批其它 key 收工,不引用任何 BuildKey 的 attempt 从第一秒就可派发。
 5. 瞬时构建失败(基础镜像拉取限流、传输层中断)由 builder 按 [Provisioning 的性质分类](architecture.md#provisioning-失败与重试)指数退避重试、封顶次数。构建结果是镜像与 template,没有计费实例的泄漏面,歧义类失败同样可重试——一次镜像拉取的 EOF 不该让整批依赖该 key 的 Attempt 形成 `errored` Verdict。
 6. 重试耗尽或确定性构建失败（构建定义错误、基础镜像不存在）按共享该 key 的范围止损。
-   失败的 BuildKey 只执行一次；每个依赖它、本应 fresh 执行的 Planned attempt 保持 `not-dispatched`，不制造 Attempt。
-   Runner 在既有 Run-owned `niceeval.runner-diagnostics` source 中为这些 Planned attempt 保存同一 shared failure identity；Analysis
-   据此显示 Planned attempt outcome `errored`。历史 Record 没有采集该诊断时只保留 membership，不反推错误。
+   失败的 BuildKey 只执行一次；每个依赖它、本应 fresh 执行的 Slot 保持 `not-dispatched`，不制造 Attempt。
+   Runner 在既有 Run-owned `niceeval.runner-diagnostics` source 中为这些 Slot 保存同一 shared failure identity；Analysis
+   据此显示 slot outcome `errored`。历史 Record 没有采集该诊断时只保留 membership，不反推错误。
 
 预算分两层,口径不混:
 
-- **Run 级共享准备**:BuildKey 构建、共享拉取或发布受独立构建并发、逐 key timeout、全局准备上限和 Invocation abort 约束,不占 attempt 并发名额。构建并发由 `maxBuildConcurrency` / `--max-build-concurrency` 控制，默认 2；它与 `maxConcurrency` / `--max-concurrency` 正交。
-- **attempt 级启动**:从 image / template / snapshot 启动主 Sandbox 实例和伴随资源、等待服务 ready;Agent Ensure、执行与评分共享同一个 attempt 并发名额和 deadline。attempt deadline 从拿到构建结果并开始启动 Sandbox 时起算。
+- **Run 级共享准备**:BuildKey 构建、共享拉取或发布受独立构建并发、逐 key timeout、全局准备上限和 Invocation abort 约束,不占 attempt 并发位。构建并发由 `maxBuildConcurrency` / `--max-build-concurrency` 控制，默认 2；它与 `maxConcurrency` / `--max-concurrency` 正交。
+- **attempt 级启动**:从 image / template / snapshot 启动主 Sandbox 实例和伴随资源、等待服务 ready;Agent Ensure、执行与评分共享同一个 attempt 并发位和 deadline。attempt deadline 从拿到构建结果并开始启动 Sandbox 时起算。
 
 共享构建不属于任一 attempt,不计入任何 attempt 的 `executionMs`;一次十分钟的冷构建在整份 Record 里只出现一次时间。
 共享构建的 activity 与失败诊断分别归 Run-owned Runner Activities 与 Runner Diagnostics；Attempt 内的受管命令才归 Sandbox Commands。用于解释构建输入的源码 closure 归 Sources，需要保留的大型构建输出归 Artifacts。

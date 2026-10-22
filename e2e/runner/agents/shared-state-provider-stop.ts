@@ -132,13 +132,13 @@ export const sharedStateProviderStopSandbox = defineSandbox({
 
 export function sharedStateProviderStopHooks(role: string) {
   return {
-    async before() {
+    async setup() {
       if (barrierRoot === undefined) return;
       await mark(`${role}-setup-attempted`);
       await writeFile(join(barrierRoot, "provider-stop-external-state-owner"), role, { flag: "wx" });
       await mark(`${role}-setup-complete`);
     },
-    async after() {
+    async teardown() {
       if (barrierRoot === undefined) return;
       await rm(join(barrierRoot, "provider-stop-external-state-owner"), { force: true });
       await mark(`${role}-teardown-complete`);

@@ -33,7 +33,7 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
       expect(only(mixedEntries, (entry) => entry.display.label === label, run.diagnostic()).decision.result).toBe(result);
     }
     const request = join(paths.projectRoot, "usage.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
@@ -132,7 +132,7 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
 
     const overviewRequest = join(paths.projectRoot, "overview.request.json");
     await writeFile(overviewRequest, JSON.stringify({
-      protocol: "niceeval.query/v2",
+      protocol: "niceeval.query/v1",
       operation: { kind: "overview.get" },
     }));
     const overview = await niceeval.run(["query", "run", "--request", overviewRequest]);
@@ -171,7 +171,7 @@ test.concurrent("调用身份冲突即使被捕获仍公开为执行错误并保
     const event = only(run.expEvalEvents(), (item) => item.evalId === "conflicting-usage", run.diagnostic());
     expect(event.verdict).toBe("errored");
     const request = join(paths.projectRoot, "usage.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;

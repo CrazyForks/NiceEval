@@ -4,7 +4,7 @@ import type { Event } from "@langchain/protocol";
 import {
   completeEvidenceCoverage,
   createLangGraphEventStream,
-  createSessionKey,
+  createSessionSlot,
   defineAgent,
 } from "niceeval/adapter";
 import { z } from "zod";
@@ -27,7 +27,7 @@ const hitlGraph = new StateGraph(HitlState)
   .addEdge("approval_node", END)
   .compile({ checkpointer: new MemorySaver(), name: "sdk-converters-langgraph-hitl" });
 
-const hitlKey = createSessionKey<{ threadId: string; firstSeq: number }>("sdk-converters/langgraph-hitl/run");
+const hitlSlot = createSessionSlot<{ threadId: string; firstSeq: number }>("sdk-converters/langgraph-hitl/run");
 const timestamp = 1_786_233_600_000;
 
 function runtimeReceiptMessage(seq: number, text: string): Event[] {
@@ -218,12 +218,12 @@ export const langGraphHitlFixtureAgent = defineAgent({
   name: "langgraph-hitl-deterministic-fixture",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input, ctx) {
-    const pending = ctx.session.take(hitlKey);
+    const pending = ctx.session.take(hitlSlot);
     if (pending === undefined) {
       const threadId = `langgraph-hitl-${randomUUID()}`;
       const runtime = await consumeInitialRuntimeRun(input.text, threadId);
       ctx.session.capture(threadId);
-      ctx.session.set(hitlKey, { threadId, firstSeq: runtime.firstSeq });
+      ctx.session.set(hitlSlot, { threadId, firstSeq: runtime.firstSeq });
 
       const converter = createLangGraphEventStream();
       const events: ReturnType<typeof converter.add> = [];

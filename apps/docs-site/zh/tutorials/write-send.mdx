@@ -89,25 +89,25 @@ if (!res.requestId) {
 
 怎么续接取决于应用接口：
 
-- **客户端每轮发完整历史**（服务端不记状态，Chat Completions 形是典型）：用 `createSessionKey<TMsg[]>()` 声明一份 Adapter 私有的会话状态，再用 `ctx.session.get(...)` / `ctx.session.set(...)` 存取历史消息。
+- **客户端每轮发完整历史**（服务端不记状态，Chat Completions 形是典型）：用 `createSessionSlot<TMsg[]>()` 声明一份 Adapter 私有的会话状态，再用 `ctx.session.get(...)` / `ctx.session.set(...)` 存取历史消息。
 - **服务端记历史**（接口收一个会话 id，例如 Responses 形的 `previous_response_id`、各 SDK 的原生 session / thread）：用 `ctx.session.id` 读取，用 `ctx.session.capture(id)` 写回。
 
 本教程的接口是前一种：
 
 ```ts
 // agents/chat-app.ts
-import { completeEvidenceCoverage, createSessionKey, defineAgent } from "niceeval/adapter";
+import { completeEvidenceCoverage, createSessionSlot, defineAgent } from "niceeval/adapter";
 
 const BASE_URL = "http://localhost:8080";
 
 interface Msg { role: "user" | "assistant"; content: string | null }
-const historyKey = createSessionKey<Msg[]>("chat-app/history");
+const historySlot = createSessionSlot<Msg[]>("chat-app/history");
 
 export default defineAgent({
   name: "chat-app",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input, ctx) {
-    const history = ctx.session.get(historyKey) ?? []; // ← 新会话线上还没有历史
+    const history = ctx.session.get(historySlot) ?? []; // ← 新会话线上还没有历史
     const messages = [...history, { role: "user" as const, content: input.text }];
 
     const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
@@ -116,7 +116,7 @@ export default defineAgent({
     }).then((r) => r.json());
 
     const reply = res.choices[0].message;
-    ctx.session.set(historyKey, [...messages, reply]); // ← 写回。同一条线的下一轮 get() 自动带上
+    ctx.session.set(historySlot, [...messages, reply]); // ← 写回。同一条线的下一轮 get() 自动带上
 
     return {
       status: "completed",
@@ -126,7 +126,7 @@ export default defineAgent({
 });
 ```
 
-这里不需要“第一轮”分支。新会话线上 `ctx.session.get(historyKey)` 返回 `undefined`，`?? []` 把它变成空历史，第一轮自然就是空历史加一条新消息。也不需要在 `defineAgent` 上声明额外能力：用了 `ctx.session`，多轮就能续上；不用，每轮各是一场新对话。
+这里不需要“第一轮”分支。新会话线上 `ctx.session.get(historySlot)` 返回 `undefined`，`?? []` 把它变成空历史，第一轮自然就是空历史加一条新消息。也不需要在 `defineAgent` 上声明额外能力：用了 `ctx.session`，多轮就能续上；不用，每轮各是一场新对话。
 
 应用接口收会话 id 时，历史留在服务端，Adapter 只记住 id。`send` 里只改两处：
 
@@ -240,7 +240,7 @@ type StreamEvent =
 
 | 你返回的事件 | 能写的断言 |
 |---|---|
-| `message` | `t.reply`、`t.check(turn.reply, includes(...))` / `pattern(...)`、Judge 的对话材料 |
+| `message` | `t.reply`、`t.check(turn.message, includes(...))` / `pattern(...)`、Judge 的对话材料 |
 | tool `operation.started` / `operation.finished`（靠 `operationId` 配对） | `turn.calledTool()` / `turn.toolOrder()` / `turn.maxToolCalls()` / `turn.noFailedActions()`… |
 | `input.requested`（配合 status `"waiting"`） | `t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()`、`t.respond()`（第五步） |
 | `thinking` / `compaction` / `error` | 报告与诊断；也可把原始 `events` 交给普通 `check(events, match)` |
@@ -256,20 +256,20 @@ Chat Completions 响应**不保证列出全过程**。应用可能在服务端�
 - **等待的那一轮**：返回 `status: "waiting"`，并为每个待回答的问题返回一条带稳定 `id` 的 `input.requested` 事件。`t.check(turn.status, equals("waiting"))` 和 `t.requireInputRequest()` 读的就是它，回答也靠这个 `id` 对上问题。
 - **回答的那一轮**：评估用例里的 `t.respond(...)` 到 Adapter 这边是**又一次普通的 `send`**，还在同一条会话线上，拿到同一份状态。回答随 `input.responses` 到达，每条带 `requestId`，以及 `optionId` 或 `text`（形态见[不同回答的入参](/zh/explanation/adapter#不同回答的入参)）。Adapter 先把回答交给应用，再接着取结果。被拒绝的工具调用，`operation.finished` 的 `status` 写 `"rejected"`，不写 `"failed"`。拒绝是人的决定，不是工具故障，`noFailedActions()` 不会把它算成失败。
 
-等待时还没读完的东西，例如一条读到一半的 SSE 流，也存在 `ctx.session` 上。Adapter 用 `createSessionKey<Pending>()` 声明一份私有状态，等待时 `ctx.session.set(...)` 存进去，回答轮开头 `ctx.session.take(...)` 取回。取出后它就被清掉，只能取一次。
+等待时还没读完的东西，例如一条读到一半的 SSE 流，也存在 `ctx.session` 上。Adapter 用 `createSessionSlot<Pending>()` 声明一份私有状态，等待时 `ctx.session.set(...)` 存进去，回答轮开头 `ctx.session.take(...)` 取回。取出后它就被清掉，只能取一次。
 
 HITL 几乎总发生在流式接口上，应用停在流的中间。所以这一步的示例换成一个用 SSE 透传原生事件的应用，它同时用上前面几步的全部内容（完整可跑版本见 [tier1 示例](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/tier1)）：
 
 ```ts
 // agents/my-app.ts
-import { completeEvidenceCoverage, createSessionKey, defineAgent, sseJsonFrames, createPiAgentEventStream, driveFrameStream } from "niceeval/adapter";
+import { completeEvidenceCoverage, createSessionSlot, defineAgent, sseJsonFrames, createPiAgentEventStream, driveFrameStream } from "niceeval/adapter";
 import type { AgentContext, PiAgentStream, SseFrameCursor } from "niceeval/adapter";
 import type { Turn, TurnInput } from "niceeval";
 
 const BASE_URL = "http://localhost:5299";               // 应用自己的端口，eval 不代管进程
 
 interface Pending { cursor: SseFrameCursor<Frame>; stream: PiAgentStream; callId: string }
-const pendingKey = createSessionKey<Pending>("my-app/pending");
+const pendingSlot = createSessionSlot<Pending>("my-app/pending");
 
 function readStream(cursor: SseFrameCursor<Frame>, ctx: AgentContext, stream: PiAgentStream): Promise<Turn> {
   return driveFrameStream(cursor, stream, ctx, (frame) => {
@@ -278,7 +278,7 @@ function readStream(cursor: SseFrameCursor<Frame>, ctx: AgentContext, stream: Pi
       return;
     }
     if (frame.type === "approval_request") {            // ← 本步：应用停下等审批，存下现场
-      ctx.session.set(pendingKey, { cursor, stream, callId: frame.toolCallId });
+      ctx.session.set(pendingSlot, { cursor, stream, callId: frame.toolCallId });
       return { pause: { id: frame.toolCallId, action: frame.toolName,
                         options: [{ id: "approve" }, { id: "deny" }] } };
       // driveFrameStream 收到 pause：补一条 input.requested、status 置 "waiting"、停止读流
@@ -291,7 +291,7 @@ export default defineAgent({
   name: "my-app",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
-    const held = ctx.session.take(pendingKey);
+    const held = ctx.session.take(pendingSlot);
     if (held) {                                         // ← t.respond("approve")：普通 send，先交裁决
       const approved = input.responses?.[0]?.optionId === "approve";  // 多请求并停时按 requestId 对位
       if (!approved) held.stream.markRejected(held.callId);
@@ -314,7 +314,7 @@ export default defineAgent({
 });
 ```
 
-不需要 HITL 的接口，删掉和等待相关的三处（`Pending`、`pendingKey`、开头的 `take` 分支），其余不变。等待、回答、继续执行的完整流程见 [HITL](/zh/explanation/hitl)。
+不需要 HITL 的接口，删掉和等待相关的三处（`Pending`、`pendingSlot`、开头的 `take` 分支），其余不变。等待、回答、继续执行的完整流程见 [HITL](/zh/explanation/hitl)。
 
 **这一步支持**：`t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()`。被拒绝的调用可以用 `calledTool(toolMatch(..., { status: "rejected" }))` 精确断言。`t.requireInputRequest()` 找不到请求时，先查等待的那一轮是否同时返回了 `status: "waiting"` 和 `input.requested` 事件。
 

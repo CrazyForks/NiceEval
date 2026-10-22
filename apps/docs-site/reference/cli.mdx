@@ -20,7 +20,7 @@ niceeval query explain [--record <file>] --request <file|->
 niceeval query run [--record <file>] --request <file|->
 ```
 
-`query` uses the versioned JSON request protocol `niceeval.query/v2`. Each fixed read question is called an operation. A successful result and a failure defined by the protocol each write exactly one JSON document to stdout. When arguments are wrong, or the process fails before it can produce a document, the error goes only to stderr.
+`query` uses the versioned JSON request protocol `niceeval.query/v1`. Each fixed read question is called an operation. A successful result and a failure defined by the protocol each write exactly one JSON document to stdout. When arguments are wrong, or the process fails before it can produce a document, the error goes only to stderr.
 
 - `discover` lists the operation IDs the current version supports. It does not read the run record, so it accepts no `--record`, and it does not return the request field structure.
 - `explain` validates a complete request and explains which operation it will run and which requests you can send next.
@@ -110,13 +110,13 @@ The table below is generated from each command's own option definitions. Flags n
 | `--help` | `niceeval` | boolean | Print the root command index. |
 | `--version` | `niceeval` | boolean | Print the installed NiceEval version. |
 | `--tag` | `niceeval check`, `niceeval exp`, `niceeval exp list` | string | Select only Evals with this tag. |
-| `--help` | `niceeval check`, `niceeval exp`, `niceeval exp list`, `niceeval exp rename`, `niceeval exp --teardown`, `niceeval debug`, `niceeval accept`, `niceeval invocation` | boolean | Print help for this command. |
+| `--help` | `niceeval check`, `niceeval exp`, `niceeval exp list`, `niceeval exp rename`, `niceeval exp --teardown`, `niceeval debug`, `niceeval accept`, `niceeval session` | boolean | Print help for this command. |
 | `--experiment` | `niceeval exp` | string[] | Narrow the current project's results by Experiment selector. |
 | `--attempts` | `niceeval exp` | number | Run each selected Eval the given number of times. |
 | `--max-concurrency` | `niceeval exp` | number | Limit the number of Attempts executing at the same time. |
 | `--max-build-concurrency` | `niceeval exp` | number | Limit the number of Sandbox builds prepared at the same time. |
-| `--max-before-cache-concurrency` | `niceeval exp` | number | Limit the number of Sandbox before caches prepared at the same time. |
-| `--sandbox-before-cache` | `niceeval exp` | string | Use or bypass the Sandbox preparation cache. |
+| `--max-setup-prefix-concurrency` | `niceeval exp` | number | Limit the number of Sandbox setup prefixes prepared at the same time. |
+| `--sandbox-setup-cache` | `niceeval exp` | string | Use or bypass the Sandbox preparation cache. |
 | `--timeout` | `niceeval exp` | number | Set each Attempt's timeout in milliseconds. |
 | `--budget` | `niceeval exp` | number | Set this Invocation's budget in US dollars. |
 | `--junit` | `niceeval exp` | string | Write the required JUnit report. |
@@ -139,9 +139,9 @@ The table below is generated from each command's own option definitions. Flags n
 | `--json` | `niceeval debug` | boolean | Write this command's machine document or event stream. |
 | `--run` | `niceeval accept` | string[] | Adopt one published exact Run; repeating it is rejected. |
 | `--dry` | `niceeval accept` | boolean | Complete the whole-Run adoption preflight without publishing a new Run. |
-| `--all` | `niceeval invocation` | boolean | Include status entries for completed Invocations. |
-| `--json` | `niceeval invocation` | boolean | Write this command's machine document or event stream. |
-| `--request` | `niceeval query` | string | Read one niceeval.query/v2 request from a file or standard input. |
+| `--all` | `niceeval session` | boolean | Include status entries for completed Invocations. |
+| `--json` | `niceeval session` | boolean | Write this command's machine document or event stream. |
+| `--request` | `niceeval query` | string | Read one niceeval.query/v1 request from a file or standard input. |
 | `--record` | `niceeval query`, `niceeval show` | string | Read an external canonical SQLite Record. |
 | `--help` | `niceeval query` | boolean | Print help for this command. |
 | `--run` | `niceeval show` | string[] | Show one sealed Run; can be repeated. |
@@ -173,7 +173,7 @@ The table below is generated from each command's own option definitions. Flags n
 | `--window` | `niceeval sandbox diff` | string | Select one recorded change window. |
 | `--path` | `niceeval sandbox diff` | string | Select one path in the Sandbox diff. |
 | `--leave-running` | `niceeval sandbox enter` | boolean | Keep the Sandbox after leaving the shell. |
-| `--record-root` | `niceeval sandbox list`, `niceeval sandbox enter`, `niceeval sandbox history`, `niceeval sandbox diff`, `niceeval sandbox stop`, `niceeval sandbox prune` | string | Use the given NiceEval Record root. |
+| `--record` | `niceeval sandbox list`, `niceeval sandbox enter`, `niceeval sandbox history`, `niceeval sandbox diff`, `niceeval sandbox stop`, `niceeval sandbox prune` | string | Use the given NiceEval Record root. |
 | `--orphans` | `niceeval sandbox list` | boolean | Check for unregistered Sandbox instances left by terminated runs. |
 | `--force` | `niceeval sandbox prune` | boolean | Also clean up unverified orphan candidates. |
 | `--development` | `niceeval sandbox` | boolean | Diagnose the isolated Incus development domain instead of reference. |

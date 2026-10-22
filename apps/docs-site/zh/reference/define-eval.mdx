@@ -71,6 +71,14 @@ judge?: JudgeSelection;
 
 模型字符串只替换项目 Judge Provider 的模型；Provider 实例整体替换。Experiment 设置优先。
 
+#### `reporters`
+
+```ts
+reporters?: Reporter[];
+```
+
+覆盖 / 追加项目级 Config.reporters,只对这一条评估用例生效。
+
 #### `timeoutMs`
 
 ```ts
@@ -108,12 +116,6 @@ test(t: TestContext): EvalTestReturn;
 
 ## Test context: `t`
 
-`t.note(label, value)` 记录供结果审阅使用的 JSON 值或 Quantity，例如 `t.note("延迟", ms(512))`。
-它不登记 Assertion，不影响 Verdict、score 或 coverage。`null` 显示为 unavailable。
-同一 Attempt 的 label 必须唯一，最多 64 项，每项 JSON 不超过 64 KiB；违规时抛出 `TypeError`。
-`show @<locator>` 和 View 在 Assertions 后展示 Notes；JSON 与 Query 的 Attempt 结果包含 `notes`。
-`show --exp <experiment-id>` 按 label 和单位聚合数值，展示 count、min、median、p90、max。
-
 `t`（`TestContext`）是评估用例作者在 `test(t)` 里拿到的上下文。每调用一次检查方法，就登记一条断言。
 
 - `t.check(subject, match)` 用匹配条件检查你显式传入的值。
@@ -135,14 +137,6 @@ root、Session 和 Turn 上的 `judge` 都要求显式传入材料。官方提�
 {/* GENERATED:BEGIN test-context */}
 
 {/* 本区块由 pnpm run repo docs reference 从源码注释生成,勿手改;要改文案,改对应源码的 TSDoc/JSDoc(映射见 packages/repo-tools/src/docs/reference-compiler.ts) */}
-
-#### `note`
-
-```ts
-note: AssertFirstCoreTestContext<Kind>["note"];
-```
-
-保存 JSON 值或 Quantity 供结果展示，不登记 Assertion，也不影响 Verdict、score 或 coverage。
 
 #### `evaluationKind`
 
@@ -291,10 +285,10 @@ readonly toolCalls: ManagedToolCalls<"attempt">;
 readonly sandbox: Sandbox<Kind>;
 ```
 
-#### `observability`
+#### `o11y`
 
 ```ts
-readonly observability: import("../o11y/types.ts").ObservabilitySummary;
+readonly o11y: import("../o11y/types.ts").O11ySummary;
 ```
 
 #### `usage`
@@ -388,14 +382,14 @@ const factualSummary = defineJudge({
 });
 
 const turn = await t.send("总结需求。");
-t.judge({ source: expected, summary: turn.reply }, factualSummary)
+t.judge({ source: expected, summary: turn.message }, factualSummary)
   .gate(0.8)
   .label("事实一致");
 ```
 
 Judge 材料可以是大小有上限的 JSON 值，也可以是 `judgeImage()` 生成的图片，登记时就会保存一份快照。
 
-Judge 用哪个模型按顺序决定：先取项目配置的 `judgeProvider`，再应用评估用例的 `judge`，最后应用 Experiment 的 `judge`。后一层给的是完整 Provider 时，会整体替换服务和执行配置；只给模型字符串时，只换掉已选 Provider 的模型。评估用例的 `judge` 只决定这道题用哪个模型或 Provider，不限制能用哪些匹配条件。
+Judge 用哪个模型按顺序决定：先取项目配置的 `judgeRuntime`，再应用评估用例的 `judge`，最后应用 Experiment 的 `judgeRuntime`。后一层给的是完整 Provider 时，会整体替换服务和执行配置；只给模型字符串时，只换掉已选 Provider 的模型。评估用例的 `judge` 只决定这道题用哪个模型或 Provider，不限制能用哪些匹配条件。
 
 通过制和计分制都可以调用 `.gate(minimum)`。计分制还可以调用 `.score(n)`，gate 失败时仍保留这一项的得分。
 
@@ -522,10 +516,10 @@ readonly eventOccurrences: ManagedEventOccurrences<"turn">;
 readonly status: "completed" | "failed" | "waiting";
 ```
 
-#### `reply`
+#### `message`
 
 ```ts
-readonly reply: string;
+readonly message: string;
 ```
 
 #### `data`

@@ -30,7 +30,7 @@ Execution graph                         Grading definition
 |---|---|---|
 | Execution graph | 一次 Agent execution | Session/Turn input 与 reply、Action occurrence/result、显式快照的 custom text/file |
 | Grading definition source | 当前 GradingDefinition | rubric、anchors、reference text/file、definition custom text |
-| MaterialBindingManifest | 一次 Judge Check 求值 | input 声明、已定位 source、实际 presentation 与授权能力 |
+| MaterialBindingManifest | 一次 Judge Check 求值 | slot 声明、已定位 source、实际 presentation 与授权能力 |
 | JudgeEvaluation | 一次 evaluator occurrence | manifest、LLM presentation 或 Agent investigation closure、Decision |
 | GradingClaim | 一次评分投影 | subject/check identity、AssertionResult、threshold/score/control policy |
 
@@ -90,9 +90,9 @@ interface MaterialViewBindingManifest {
   readonly presented?: readonly PresentedMaterial[];
 }
 
-interface InputBindingManifest {
-  readonly inputName: string;
-  readonly inputRole: string;
+interface SlotBindingManifest {
+  readonly slotName: string;
+  readonly slotRole: string;
   readonly multiplicity: "one" | "many";
   readonly views: readonly MaterialViewBindingManifest[];
 }
@@ -117,10 +117,10 @@ interface JudgeWorkspaceCapabilityManifest {
 interface MaterialBindingManifest {
   readonly schemaVersion: number;
   readonly recipeIdentity: string;
-  readonly inputSchemaIdentity: string;
+  readonly slotSchemaIdentity: string;
   readonly executionGraphDigest: string;
   readonly evaluatorPrivateInputDigest: string;
-  readonly bindings: readonly InputBindingManifest[];
+  readonly bindings: readonly SlotBindingManifest[];
   readonly maxRenderedBytes: number;
   readonly renderedBytes?: number;
   readonly renderingProtocolVersion: string;
@@ -131,9 +131,9 @@ interface MaterialBindingManifest {
 }
 ```
 
-`presented` 和 `renderedBytes` 只有 evaluator 已启动并收到材料时才存在；预检失败或 required input 不可用时不能写空 presentation。Manifest 不保存 human label、title、绝对路径、secret、raw secret digest、provider credential 或模型响应。
+`presented` 和 `renderedBytes` 只有 evaluator 已启动并收到材料时才存在；预检失败或 required slot 不可用时不能写空 presentation。Manifest 不保存 human label、title、绝对路径、secret、raw secret digest、provider credential 或模型响应。
 
-`workspace` 只属于 Agent Judge invocation，持久化 sealed snapshot ref/digest、授权 scope、file count、bytes、limitations、受管 tool allowlist 与 network allowlist。Workspace 不是 Material input；完整授权范围代表“可能可见”，不冒充实际 read set。
+`workspace` 只属于 Agent Judge invocation，持久化 sealed snapshot ref/digest、授权 scope、file count、bytes、limitations、受管 tool allowlist 与 network allowlist。Workspace 不是 Material slot；完整授权范围代表“可能可见”，不冒充实际 read set。
 
 ## 绑定、coverage 与顺序
 
@@ -143,9 +143,9 @@ interface MaterialBindingManifest {
 2. `selectorResolution` 在完整 universe 上执行 selector，并验证精确 cardinality。
 3. `materialization` 执行读取、MIME 校验、安全处理、预算与 renderer 转换。
 
-任一 required input 为 partial 或 unavailable 时，不启动 evaluator；该 Assertion 以具体 unavailable reason 交付。Redaction 改变 required bytes、需要截断、选择为零、选中数量不符、Action universe 不完整或 Adapter 不能把某次 result 从混合 transcript 中隔离，都不能回退成更宽材料，也不能当作 measurement `0`。
+任一 required slot 为 partial 或 unavailable 时，不启动 evaluator；该 Assertion 以具体 unavailable reason 交付。Redaction 改变 required bytes、需要截断、选择为零、选中数量不符、Action universe 不完整或 Adapter 不能把某次 result 从混合 transcript 中隔离，都不能回退成更宽材料，也不能当作 measurement `0`。
 
-同一 Turn 的 View 保留事件位置；同一 Session 的多 Turn 保留 Session-local ordinal。跨 Session 没有共同因果全序，manifest 分别保存 per-session sequence；作者把多个 View 放入 `many` input 的顺序标记为 `noncausalAuthorOrder`。V1 不读取 wall-clock 顺序推导因果关系。
+同一 Turn 的 View 保留事件位置；同一 Session 的多 Turn 保留 Session-local ordinal。跨 Session 没有共同因果全序，manifest 分别保存 per-session sequence；作者把多个 View 放入 `many` slot 的顺序标记为 `noncausalAuthorOrder`。V1 不读取 wall-clock 顺序推导因果关系。
 
 ## 安全、预算与呈现
 
@@ -153,15 +153,15 @@ Renderer 把材料编码成版本化 untrusted block 或受管 file；rubric、D
 
 Redaction 只使用已知 credential registry、显式 secret input 与结构化 sensitive field，不做通用秘密猜测。先 redaction，再计算 evaluator 可见 bytes 和 `visibleDigest`；系统不保存 raw secret、raw-secret digest 或可逆 preview。
 
-每个 input 有 source byte 上限，每个 recipe 有 rendered total 上限。预算在 provider 或 Agent 启动前检查，不做静默裁剪。Token、cost 与 timeout 属于 runtime profile；显式 cost cap 无法保守估算时，不发送请求。
+每个 slot 有 source byte 上限，每个 recipe 有 rendered total 上限。预算在 provider 或 Agent 启动前检查，不做静默裁剪。Token、cost 与 timeout 属于 runtime profile；显式 cost cap 无法保守估算时，不发送请求。
 
-构造器的 `name`、Assertion label 和展示 title 都不进入 evaluator presentation，所以不进入 Judge Evaluation identity。Renderer 只使用 recipe input identity 与 ordinal 生成稳定 heading/path。任何未来可见的 heading、filename 或 label 都必须进入 `PresentedMaterial.visibleDigest` 和复用身份。
+构造器的 `name`、Assertion label 和展示 title 都不进入 evaluator presentation，所以不进入 Judge Evaluation identity。Renderer 只使用 recipe slot identity 与 ordinal 生成稳定 heading/path。任何未来可见的 heading、filename 或 label 都必须进入 `PresentedMaterial.visibleDigest` 和复用身份。
 
 ## 四层审计
 
 读面使用下面四组词，不声称“模型实际看见”：
 
-- 声明：recipe input、View、selector 与 workspace 请求。
+- 声明：recipe slot、View、selector 与 workspace 请求。
 - 已定位：source refs、selector cardinality 与三层 coverage。
 - 已交付：发送给 LLM 的 blocks，或授权给 Agent 的 workspace/material files。
 - 调查：Agent Judge 的受管命令、tool result 与 evidence refs。

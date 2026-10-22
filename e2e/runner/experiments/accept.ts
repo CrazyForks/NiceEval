@@ -2,14 +2,16 @@ import { defineExperiment } from "niceeval";
 import { definePlugin } from "niceeval/plugin";
 import { deterministicAgent } from "../agents/deterministic.ts";
 
-const acceptIdentity = definePlugin(({ revision }: { readonly revision: string }) => ({
-  name: "niceeval.e2e.accept-identity", key: revision, identity: { revision },
-  experiment: { before: () => {} },
-}));
+const acceptIdentity = definePlugin<{ readonly revision: string }>({
+  name: "niceeval.e2e.accept-identity",
+  behaviorRevision: "1",
+  instanceKey: ({ revision }) => revision,
+  experiment: ({ revision }) => ({ identity: { revision }, setup: () => {} }),
+});
 
 export default defineExperiment({
   description: "accept and reanchor",
-  adapter: deterministicAgent,
+  agent: deterministicAgent,
   evals: ["accept/"],
   plugins: [acceptIdentity({ revision: "stable" })],
 });

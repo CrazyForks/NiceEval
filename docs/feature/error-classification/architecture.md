@@ -36,7 +36,7 @@ interface SendFailure {
 
 重试只包一次 `agent.send` 调用。每个 send 最多四次物理尝试；一个 Attempt 合计最多八次重试。退避使用全抖动指数等待，并且不延长 Attempt deadline。
 
-等待重试时释放全局并发名额；Experiment 自己的并发限制仍贯穿该 Attempt 的整个生命周期。已被重试吸收的失败只写入该 Attempt 的诊断数据，不进入逻辑会话数据，也不触发停止派发。
+等待重试时释放全局并发位；Experiment 自己的并发限制仍贯穿该 Attempt 的整个生命周期。已被重试吸收的失败只写入该 Attempt 的诊断数据，不进入逻辑会话数据，也不触发停止派发。
 
 重试耗尽或不可重试的失败成为终局执行错误。Runner 将它写入 Attempt diagnostic channel，并让 Verdict 形成 `errored`。
 
@@ -44,15 +44,15 @@ interface SendFailure {
 
 `scope: "eval"` 停止同一 `(experimentId, evalId)` 的后续派发。`scope: "experiment"` 停止该 Experiment 的后续派发。已在执行的 Attempt 可以完成收尾。
 
-停止派发是一次 Invocation 内的状态。Runner 在对应 Run diagnostic channel 写入 `dispatch-halted`，并保留未派发 expected Planned attempts。固定 Inspection operation 将它们显示为 `not-recorded`。
+停止派发是一次 Invocation 内的状态。Runner 在对应 Run diagnostic channel 写入 `dispatch-halted`，并保留未派发 expected slots。固定 Inspection operation 将它们显示为 `not-recorded`。
 
-此状态不跨 Invocation 保留。修复条件后再次运行，由 carry 与普通规划规则重新决定每个 Planned attempt。
+此状态不跨 Invocation 保留。修复条件后再次运行，由 carry 与普通规划规则重新决定每个 slot。
 
 ## 生命周期边界
 
 Experiment setup 的确定性失败写入 Run diagnostic channel，并阻止该 Run 的 Attempt 派发。Experiment teardown 失败只写入 Run 范围诊断，因为此时已经没有可停止的后续派发。
 
-Attempt teardown 的失败保留为该 Attempt 的诊断；若分类带有可证明的范围，Runner 仍可停止兄弟 Planned attempt 的派发。
+Attempt teardown 的失败保留为该 Attempt 的诊断；若分类带有可证明的范围，Runner 仍可停止兄弟 slot 的派发。
 
 用户中断、timeout、budget 与首过即停使用各自的 Runner 规则。它们不通过 FailureClass 冒充 Agent send 错误。
 
@@ -67,7 +67,7 @@ Delivery 只消费 Inspection 已交付的具名值。它不由当前进程反�
 - 分类器不会制造新的失败，也不会改变原始错误的事实边界。
 - 被安全重试吸收的失败不会停止派发。
 - 无法证明共享范围时使用 `attempt`。
-- 未派发 Planned attempt 不制造 Attempt、Member 或 Verdict。
+- 未派发 slot 不制造 Attempt、Member 或 Verdict。
 - 重试、停止派发和 channel 写入都不改变 Record 的核心 Run、Member 与 Attempt 协议。
 
 ## 相关阅读

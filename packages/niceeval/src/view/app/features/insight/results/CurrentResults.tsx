@@ -8,7 +8,7 @@ import type { Locale } from "../shell/types.ts";
 import { currentExperimentRows } from "./model.ts";
 
 type Project = InspectionSuccessDocumentFor<"project.get">["project"];
-type ProjectSlot = Project["plannedAttempts"][number];
+type ProjectSlot = Project["slots"][number];
 type Metric = Project["totals"]["verdict"]["passRate"];
 
 function metricText(value: Metric, locale: Locale, partial: string): string {

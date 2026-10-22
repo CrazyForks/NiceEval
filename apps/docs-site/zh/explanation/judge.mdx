@@ -39,7 +39,7 @@ export default defineEval({
     const change = "修改持久化字段并提供回滚方案";
     const turn = await t.send(`解释这项变更：${change}`);
 
-    t.judge({ change, explanation: turn.reply }, explainsRisk)
+    t.judge({ change, explanation: turn.message }, explainsRisk)
       .gate(0.8)
       .label("风险说明质量");
   },
@@ -91,7 +91,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",

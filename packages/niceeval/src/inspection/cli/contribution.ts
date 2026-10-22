@@ -31,7 +31,7 @@ const help = (summary: string) => Object.freeze({ summary, visibility: "public" 
 const option = (value: CliOptionDefinition): CliOptionDefinition => Object.freeze(value);
 
 export const QUERY_CLI_OPTIONS = Object.freeze({
-  request: option({ type: "string", help: help("Read one niceeval.query/v2 request from a file or -.") }),
+  request: option({ type: "string", help: help("Read one niceeval.query/v1 request from a file or -.") }),
   record: option({ type: "string", help: help("Read an external canonical SQLite Record.") }),
   help: option({ type: "boolean", short: "h", help: help("Print query help.") }),
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
@@ -197,7 +197,7 @@ function queryFailureDocument(
 ): InspectionFailureDocument {
   const detail = queryFailureDetail(error);
   return Object.freeze({
-    protocol: "niceeval.query/v2" as const,
+    protocol: "niceeval.query/v1" as const,
     outcome: "failure" as const,
     operation: operation ?? null,
     failure: Object.freeze(detail),
@@ -279,7 +279,7 @@ function queryFailureDetail(error: Error): InspectionFailureDocument["failure"] 
     return Object.freeze({
       code: cause.code,
       reason: cause.code === "inspection-request-invalid"
-        ? "The query request does not match niceeval.query/v2."
+        ? "The query request does not match niceeval.query/v1."
         : "NiceEval could not encode the fixed Inspection result.",
       correction: cause.code === "inspection-request-invalid"
         ? "fix-request" as const
@@ -290,7 +290,7 @@ function queryFailureDetail(error: Error): InspectionFailureDocument["failure"] 
   return requestFailure
     ? Object.freeze({
       code: "inspection-request-invalid" as const,
-      reason: "The query request could not be read as niceeval.query/v2.",
+      reason: "The query request could not be read as niceeval.query/v1.",
       correction: "fix-request" as const,
     })
     : Object.freeze({

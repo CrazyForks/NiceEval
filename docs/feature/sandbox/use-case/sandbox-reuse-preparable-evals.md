@@ -256,7 +256,7 @@ niceeval exp toggl
 恢复动作归 Experiment 的 physical callback before。成功取得 checkpoint handle 后立即用 `context.onCleanup()` 登记回存；二者边界是一台物理 Sandbox。新的 Run 也从同一 before 恢复，但该外部状态不进入共享 prefix。
 声明复用后 `$HOME` 残留活过题间重置，正是 mempal 条件需要的连续物理实例；若实验要求每题完全独立，则不声明 `sandboxReuse`。
 
-做不到可重复执行、或不能接受 workdir 之外的残留时,出路不是硬改,是**不声明、用并行**: 省略 `sandboxReuse` 时每条 Attempt 全新 Sandbox,并行照样由 `maxConcurrency` 与全局并发名额给出。
+做不到可重复执行、或不能接受 workdir 之外的残留时,出路不是硬改,是**不声明、用并行**: 省略 `sandboxReuse` 时每条 Attempt 全新 Sandbox,并行照样由 `maxConcurrency` 与全局并发位给出。
 复用省的是每个 Sandbox 一次的创建与检查命中前的那次昂贵准备;这段时间远小于单条 Attempt 时, 并行已经给出几乎全部墙钟收益,不必背复用的状态语义。
 
 ## 相关阅读

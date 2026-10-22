@@ -84,7 +84,7 @@ function DisplayImage({ locator, block }: { readonly locator: string; readonly b
     {bytes.isError ? <p role="alert">{bytes.error.message}</p> : null}
     {block.byteLength > MAX_INLINE_IMAGE_BYTES ? <>
       <p>{t("executionTrace.imageTooLarge")}</p>
-      <pre>{JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } }, null, 2)}</pre>
+      <pre>{JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } }, null, 2)}</pre>
     </> : null}
   </figure>;
 }

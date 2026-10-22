@@ -6,8 +6,6 @@ createdAt: 2026-07-12T19:13:58+08:00
 kind: feature
 ---
 
-
-
 # Sandbox —— 在哪里跑
 
 沙箱回答"在哪里、如何隔离地运行 agent 命令"。
@@ -83,7 +81,7 @@ interface Sandbox extends SandboxOperations, SandboxTransferOperations {
 eval 作者在 `test(t)` 里拿到的是 author-facing `EvalSandbox`:复用同一操作词汇，只增加归因断言声明，不暴露 `stop()` 或 provider 元数据。
 沙箱生命周期由 runner 统一管理。
 
-声明式 `before` action 还形成内容寻址的 before 缓存。缓存是透明优化：命中只恢复经过身份、完整性与私有写入隔离验证的状态，未命中或不支持时执行同一 action。`defineSandboxAction()` 是作者的确定性承诺；NiceEval 不把 `verified` 解释成对任意 shell、网络或时间读取的自动证明。完整边界见 [Architecture](architecture.md#before-缓存的身份与验证边界) 与 [Lifecycle](lifecycle.md#before 缓存的运行时序)。
+声明式 `before` action 还形成内容寻址的准备前缀。缓存是透明优化：命中只恢复经过身份、完整性与私有写入隔离验证的状态，未命中或不支持时执行同一 action。`defineSandboxAction()` 是作者的确定性承诺；NiceEval 不把 `verified` 解释成对任意 shell、网络或时间读取的自动证明。完整边界见 [Architecture](architecture.md#准备前缀的身份与验证边界) 与 [Lifecycle](lifecycle.md#准备前缀的运行时序)。
 
 文本读取只有一个 API:`readText(path)` 读一个文件。二进制读写使用 `readBytes` / `writeBytes`；`upload*` / `download*` 专指宿主机与 Sandbox 传输。
 
@@ -123,6 +121,6 @@ niceeval 的调用方是写 eval 的人,大多数调用(`runCommand("npm", ["tes
 - [操作 Sandbox](library/operations.md) —— eval 里怎样读写文件和运行命令。
 - [断言 Sandbox 结果](library/asserting-results.md) —— 怎样判断 diff、文件和 shell 行为。
 - [Architecture](architecture.md) —— provider 内部实现、生命周期在 attempt 里的位置、性能与重试。
-- [before 缓存](architecture.md#before-缓存的身份与验证边界) —— BeforeCacheKey、Docker 支持边界、失败降级与观测。
+- [准备前缀](architecture.md#准备前缀的身份与验证边界) —— SetupPrefixKey、Docker 支持边界、失败降级与观测。
 - [Sandbox Agent](../adapters/library/sandbox-agent.md) —— Adapter 如何通过 `Sandbox` 接口驱动 agent。
 - [Runner](../../runner.md) —— 并发、预热、复用的调度。

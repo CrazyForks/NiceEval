@@ -29,14 +29,14 @@ import { matchExperimentSelector } from "../../shared/aggregate.ts";
 import { ExperimentHostError } from "./types.ts";
 
 import type {
-  ExperimentHostAfterEvent,
-  ExperimentHostAfterObserver,
+  ExperimentHostTeardownEvent,
+  ExperimentHostTeardownObserver,
   ExperimentHostOperation,
   ExperimentHostSharedStateEvidence,
-  ExperimentHostAfterInspection,
-  ExperimentHostAfterInspectRequest,
-  ExperimentHostAfterRequest,
-  ExperimentHostAfterResult,
+  ExperimentHostTeardownInspection,
+  ExperimentHostTeardownInspectRequest,
+  ExperimentHostTeardownRequest,
+  ExperimentHostTeardownResult,
 } from "./types.ts";
 
 function operationError(
@@ -113,7 +113,7 @@ function selectTeardowns(input: {
 }
 
 function teardownOf(experiment: DiscoveredExperiment): ExperimentHook | undefined {
-  return typeof experiment.after === "function" ? experiment.after : undefined;
+  return typeof experiment.teardown === "function" ? experiment.teardown : undefined;
 }
 
 function evidenceOf(record: SharedStateLeaseRecord): ExperimentHostSharedStateEvidence {
@@ -131,7 +131,7 @@ function evidenceOf(record: SharedStateLeaseRecord): ExperimentHostSharedStateEv
 function noExperimentMatch(
   selector: string,
   selection: TeardownSelection,
-): ExperimentHostAfterInspection {
+): ExperimentHostTeardownInspection {
   return Object.freeze({
     status: "experiment-no-match" as const,
     selector,
@@ -202,7 +202,7 @@ function clearExactRegistration(input: {
   });
 }
 
-function emit(observer: ExperimentHostAfterObserver | undefined, event: ExperimentHostAfterEvent): void {
+function emit(observer: ExperimentHostTeardownObserver | undefined, event: ExperimentHostTeardownEvent): void {
   try {
     observer?.observe(Object.freeze(event));
   } catch {
@@ -213,7 +213,7 @@ function emit(observer: ExperimentHostAfterObserver | undefined, event: Experime
 function hookContext(input: {
   readonly experimentId: string;
   readonly selectedEvalIds: readonly string[];
-  readonly observer?: ExperimentHostAfterObserver;
+  readonly observer?: ExperimentHostTeardownObserver;
   readonly signal?: AbortSignal;
 }): ExperimentHookContext {
   return {
@@ -238,7 +238,7 @@ function hookContext(input: {
 function runAuthorTeardown(input: {
   readonly experiment: DiscoveredExperiment;
   readonly selectedEvalIds: readonly string[];
-  readonly observer?: ExperimentHostAfterObserver;
+  readonly observer?: ExperimentHostTeardownObserver;
   readonly signal?: AbortSignal;
   readonly recovery: boolean;
 }) {
@@ -272,8 +272,8 @@ function runAuthorTeardown(input: {
 }
 
 export function inspectTeardown(
-  input: ExperimentHostAfterInspectRequest,
-): Effect.Effect<ExperimentHostAfterInspection, ExperimentHostError, ProjectStateDatabase> {
+  input: ExperimentHostTeardownInspectRequest,
+): Effect.Effect<ExperimentHostTeardownInspection, ExperimentHostError, ProjectStateDatabase> {
   return closeOperation("teardown-inspect", Effect.gen(function* () {
     const selection = yield* selectTeardowns(input);
     if (input.experimentSelector !== undefined && selection.selected.length === 0) {
@@ -303,7 +303,7 @@ export function inspectTeardown(
       }
       if (teardownOf(target.experiment) === undefined) {
         return Object.freeze({
-          status: "after-required" as const,
+          status: "teardown-required" as const,
           experimentId: target.experiment.id,
           evidence,
         });
@@ -332,10 +332,10 @@ export function inspectTeardown(
 }
 
 function runExplicitRecovery(
-  input: ExperimentHostAfterRequest,
+  input: ExperimentHostTeardownRequest,
   selection: TeardownSelection,
   record: SharedStateLeaseRecord,
-): Effect.Effect<ExperimentHostAfterResult, unknown, ProjectStateDatabase> {
+): Effect.Effect<ExperimentHostTeardownResult, unknown, ProjectStateDatabase> {
   return Effect.gen(function* () {
     const evidence = evidenceOf(record);
     if (selection.selected.length !== 1) {
@@ -355,7 +355,7 @@ function runExplicitRecovery(
     }
     if (teardownOf(target.experiment) === undefined) {
       return Object.freeze({
-        status: "after-required" as const,
+        status: "teardown-required" as const,
         experimentId: target.experiment.id,
         evidence,
       });
@@ -443,8 +443,8 @@ function runExplicitRecovery(
 }
 
 export function runTeardown(
-  input: ExperimentHostAfterRequest,
-): Effect.Effect<ExperimentHostAfterResult, ExperimentHostError, ProjectStateDatabase> {
+  input: ExperimentHostTeardownRequest,
+): Effect.Effect<ExperimentHostTeardownResult, ExperimentHostError, ProjectStateDatabase> {
   return closeOperation("teardown-run", Effect.gen(function* () {
     const inspection = yield* inspectTeardown(input);
     if (inspection.status !== "ready") return inspection;

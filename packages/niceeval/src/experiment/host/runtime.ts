@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { assembleCommandPlan, beforeCachePlanOf, type CommandPlan, type BeforeCachePlan } from "../../runner/command-plan.ts";
+import { assembleCommandPlan, setupPrefixPlanOf, type CommandPlan, type SetupPrefixPlan } from "../../runner/command-plan.ts";
 import { discoverEvals, discoverExperiments } from "../../runner/discover.ts";
 import { planProjectTarget } from "../../runner/fingerprint.ts";
 import { resolveExperimentEvals } from "../../runner/eval-selection.ts";
@@ -10,7 +10,7 @@ import type {
   DiscoveredEval,
   DiscoveredExperiment,
 } from "../../runner/types.ts";
-import { resolveSandboxBeforeCache } from "../../runner/types.ts";
+import { resolveSandboxSetupCache } from "../../runner/types.ts";
 import { matchExperimentSelector } from "../../shared/aggregate.ts";
 import {
   accept,
@@ -104,7 +104,7 @@ export interface ExperimentHostDebugPlan {
   readonly evalId?: string;
   readonly evalIds: readonly string[];
   readonly commandPlan: CommandPlan;
-  readonly beforeCachePlan: BeforeCachePlan;
+  readonly setupPrefixPlan: SetupPrefixPlan;
 }
 
 /**
@@ -162,7 +162,7 @@ function debugAgentRun(
     plugins: experiment.plugins,
     attempts: experiment.attempts ?? 1,
     earlyExit: experiment.earlyExit ?? false,
-    sandboxBeforeCache: resolveSandboxBeforeCache(
+    sandboxSetupCache: resolveSandboxSetupCache(
       undefined,
       experiment.sandboxCache,
       config.sandboxCache,
@@ -180,8 +180,8 @@ function debugAgentRun(
     description: experiment.description,
     labels: experiment.labels,
     maxConcurrency: experiment.maxConcurrency,
-    setup: experiment.before,
-    teardown: experiment.after,
+    setup: experiment.setup,
+    teardown: experiment.teardown,
     classifyFailure: experiment.classifyFailure,
   };
 }
@@ -267,7 +267,7 @@ function debug(
       ...(selectedEvals.length === 1 ? { evalId: selectedEvals[0]!.id } : {}),
       evalIds: Object.freeze(selectedEvals.map((evalDef) => evalDef.id)),
       commandPlan,
-      beforeCachePlan: beforeCachePlanOf(commandPlan),
+      setupPrefixPlan: setupPrefixPlanOf(commandPlan),
     });
   }).pipe(Effect.mapError((cause) => new ExperimentHostError({
     operation: "debug",
@@ -286,7 +286,7 @@ export const rawExperimentHost = Object.freeze({
   invocation: Object.freeze({ plan: planInvocation, run: runInvocation }),
   invocationStatus: Object.freeze({ list: listInvocationStatus, show: showInvocationStatus }),
   rename: Object.freeze({ plan: planRename, apply: applyRename }),
-  after: Object.freeze({ inspect: inspectTeardown, run: runTeardown }),
+  teardown: Object.freeze({ inspect: inspectTeardown, run: runTeardown }),
   debug,
   accept,
   acceptRun: Object.freeze({ plan: planRunAccept, apply: applyRunAccept }),

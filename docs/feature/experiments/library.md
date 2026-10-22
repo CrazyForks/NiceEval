@@ -36,7 +36,7 @@ Inspection 关闭分母与指标；固定 `overview.get`、`experiment.get`、Ru
 
 ## 选择 Adapter
 
-`defineExperiment` 通过唯一字段 `adapter: Adapter` 选择被测对象。`defineAgent` 与 `defineSandboxAgent` 的返回值可以直接传入；出现旧字段 `agent` 时加载失败并提示改为 `adapter`。
+`defineExperiment` 的被测对象输入为二选一：`adapter: Adapter`，或 Agent 专用的 `agent: Agent`。
 两者都给出或都省略属于定义错误。Definition 只保留统一的 Adapter 选择。
 
 ```ts
@@ -68,14 +68,14 @@ const plan = decodeDebugPlanDocument(JSON.parse(stdout));
 console.log(plan.experimentId, plan.evalIds);
 ```
 
-解码器检查计划的具名字段及嵌套 action、lane 和 before cache 结构，拒绝额外字段。
+解码器检查计划的具名字段及嵌套 action、lane 和 setup prefix 结构，拒绝额外字段。
 输入是 [CLI 即时 Debug 文档](cli.md)，不带版本 envelope；调用方应使用生成该输出的同一 NiceEval 候选来解码。
 
 ## 读取 Invocation Session
 
 同一 `niceeval/experiment/host` 入口导出 `decodeSessionListDocument()` 与 `decodeSessionShowDocument()`。
 对应的 Schema 是 `SessionListDocumentSchema` 与 `SessionShowDocumentSchema`。
-它们严格读取当前候选的 `niceeval invocation list --json` 与 `session show --json` 文档，保留既有
+它们严格读取当前候选的 `niceeval session list --json` 与 `session show --json` 文档，保留既有
 `niceeval.sessions` / `niceeval.session` discriminator，拒绝额外字段。
 
 调用方沿 `session.experiments` 的 `experimentId` 定位 Experiment，再沿 `attempts` 的
@@ -87,7 +87,7 @@ Agent 定义不写死模型、推理努力程度或实验参数。Experiment 给
 
 ```ts
 export default defineExperiment({
-  adapter: codexAgent(),
+  agent: codexAgent(),
   model: "gpt-5.6",
   reasoningEffort: "high",
   flags: { webResearch: true, skill: "memory-v2" },
@@ -133,7 +133,7 @@ parser 的同步、未知键与版本责任见 [Adapter flags 契约](../adapter
 
 ```ts
 export default defineExperiment({
-  adapter: codexAgent(),
+  agent: codexAgent(),
   evals: (e) =>
     e.id.startsWith("coding/") &&
     e.tags.includes("coding") &&
@@ -147,7 +147,7 @@ export default defineExperiment({
 `niceeval exp --dry` 与普通运行在 Agent、Sandbox、fingerprint 和 Record 写入前拒绝，并分别列出 Pass/Score Eval ID。
 两种题型需要复用同一 Agent 配置时仍写两个 Experiment 文件；CLI 前缀可以继续收窄一个本来更宽的选择，只要本次实际集合保持同型。
 
-Invocation builder 先把求值结果形成 `ExecutionTarget` 的 expected Planned attempts。reuse planning 完成后，writer 才原样写入 Run；固定 Inspection 只读取这份已落盘分母，不重新执行谓词，也不从当前源码猜历史范围。
+Invocation builder 先把求值结果形成 `ExecutionTarget` 的 expected slots。reuse planning 完成后，writer 才原样写入 Run；固定 Inspection 只读取这份已落盘分母，不重新执行谓词，也不从当前源码猜历史范围。
 
 ## labels 与运行时观测
 
@@ -155,7 +155,7 @@ Invocation builder 先把求值结果形成 `ExecutionTarget` 的 expected Plann
 
 ```ts
 export default defineExperiment({
-  adapter: codexAgent(),
+  agent: codexAgent(),
   model: "gpt-5.6",
   labels: { line: "codex", memory: "mempal" },
 });
@@ -204,7 +204,7 @@ export default defineEval({
 let tunnel: { url: string; stop(): Promise<void> } | undefined;
 
 export default defineExperiment({
-  adapter: nowledgeAgent(() => ({ url: tunnel!.url })),
+  agent: nowledgeAgent(() => ({ url: tunnel!.url })),
   evals: ["memory/"],
   async setup(ctx) {
     tunnel = await nowledgeTunnel({ signal: ctx.signal });

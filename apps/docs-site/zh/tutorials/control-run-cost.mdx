@@ -113,11 +113,11 @@ Attempt 页面先显示应用和 Judge 的合计费用：
 Headless Adapter 使用 `ctx.recordUsage` 登记真实调用，并在采集结束后调用 `ctx.sealUsage`。随后可以直接用 `t.usage.cacheRead` 设置缓存读取率门槛：
 
 ```ts
-import { atLeast, ratio } from "niceeval/expect";
+import { atLeast } from "niceeval/expect";
 
-t.check(t.usage.cacheRead.rate("planner"), atLeast(ratio(0.6))).gate();
+t.check(t.usage.cacheRead.rate("planner"), atLeast(0.6)).gate();
 // 不区分用途时，检查所有已登记调用的合计。
-t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6))).gate();
+t.check(t.usage.cacheRead.rate(), atLeast(0.6)).gate();
 ```
 
 读取率是同组调用的 **缓存读取 token 总量 / 含缓存输入 token 总量**，包括失败调用与重试。它不是逐次百分比的平均值。每次调用优先使用 `inputTotalTokens`；没有独立总量时，必须同时提供 `inputTokens`、`cacheReadTokens`、`cacheWriteTokens` 三个互斥桶。
@@ -185,14 +185,14 @@ export const slots = defineModelSlots({
 在已有 Adapter 的绑定工厂上声明要求。也可解构 `adapter.defineScoreEval`，但根入口的同名工厂不接受 `requires`：
 
 ```ts title="evals/cache.eval.ts"
-import { atLeast, ratio } from "niceeval/expect";
+import { atLeast } from "niceeval/expect";
 import { adapter } from "../adapter";
 import { slots } from "../models";
 
 export default adapter.defineScoreEval({
   requires: { models: slots },
   test(t) {
-    t.check(t.usage.cacheRead.rate("mind"), atLeast(ratio(0.6))).gate();
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
     // rate("mimd") 会产生 TypeScript 错误；rate() 仍查询全部用途的合计。
   },
 });

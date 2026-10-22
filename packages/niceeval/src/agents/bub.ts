@@ -1,4 +1,3 @@
-import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { Effect } from "effect";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { makeSandboxAgent } from "../define.ts";
@@ -177,7 +176,7 @@ export function bubAgent(config?: BubConfig): Agent {
   // sandboxId → { home, workspace }; persists values detected in setup() so send() can use them.
   const sessionInfo = new Map<string, { home: string; workspace: string }>();
 
-  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "bub",
     ensure: { identity, probe },
     installers: [{
@@ -342,7 +341,7 @@ ${last}`);
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after), "bub", config, bubAgent);
+  }), config?.before, config?.after);
 }
 
 export default bubAgent();

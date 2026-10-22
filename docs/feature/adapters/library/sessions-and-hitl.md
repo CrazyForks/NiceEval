@@ -26,15 +26,15 @@ async send(input, ctx) {
 无状态服务要求每轮发送完整消息数组时：
 
 ```ts
-const historyKey = createSessionKey<ModelMessage[]>("my-agent/history");
+const historySlot = createSessionSlot<ModelMessage[]>("my-agent/history");
 
 async send(input, ctx) {
   const messages = [
-    ...(ctx.session.get(historyKey) ?? []),
+    ...(ctx.session.get(historySlot) ?? []),
     { role: "user", content: input.text },
   ];
   const result = await generate(messages, { signal: ctx.signal });
-  ctx.session.set(historyKey, [...messages, result.message]);
+  ctx.session.set(historySlot, [...messages, result.message]);
   return toTurn(result);
 }
 ```
@@ -72,10 +72,10 @@ await t.respond({ request, optionId: "approve" });
 原生 SDK 在请求处暂停、同一条流要继续消费时，把 cursor、reducer 和 request ID 保存在 session：
 
 ```ts
-const heldKey = createSessionKey<Held>("my-agent/held-stream");
+const heldSlot = createSessionSlot<Held>("my-agent/held-stream");
 
 async function send(input: TurnInput, ctx: AgentContext) {
-  const held = ctx.session.take(heldKey);
+  const held = ctx.session.take(heldSlot);
 
   if (held) {
     const response = input.responses?.find(
@@ -85,7 +85,7 @@ async function send(input: TurnInput, ctx: AgentContext) {
     return driveFrameStream(held.cursor, held.reducer, ctx);
   }
 
-  // 开始新一轮；遇到审批 frame 时调用 ctx.session.set(heldKey, ...)
+  // 开始新一轮；遇到审批 frame 时调用 ctx.session.set(heldSlot, ...)
 }
 ```
 

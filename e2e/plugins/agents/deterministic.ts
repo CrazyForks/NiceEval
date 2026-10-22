@@ -58,7 +58,7 @@ export const pluginAgent = defineSandboxAgent({
 export const pluginDirectAgent = defineAgent({
   name: "plugin-lifecycle-direct-fixture",
   evidenceCoverage,
-  before: (context) => {
+  setup: (context) => {
     const attemptId = context.attempt?.id;
     if (attemptId === undefined) throw new Error("Plugin Direct Agent requires an Attempt identity.");
     const child = startPluginLifecycleResource();
@@ -78,7 +78,7 @@ export const pluginDirectAgent = defineAgent({
       events: [{ type: "message", role: "assistant", text: "plugin interrupt fixture ready" }],
     };
   },
-  after: async (context) => {
+  teardown: async (context) => {
     const attemptId = context.attempt?.id;
     if (attemptId === undefined) throw new Error("Plugin Direct Agent requires an Attempt identity.");
     const child = directAgentResources.get(attemptId);

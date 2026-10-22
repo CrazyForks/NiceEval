@@ -6,8 +6,8 @@
 
 ```text
 Invocation starts
-  → one transaction creates active Session + Runs + expected plannedAttempts + case-lock generations
-  → publish origin/reference plannedAttempt bindings independently
+  → one transaction creates active Session + Runs + expected slots + case-lock generations
+  → publish origin/reference slot bindings independently
   → close Run: terminal state + absence reasons
   → return InvocationReceipt at one PublicationCutoff
 ```
@@ -22,7 +22,7 @@ Run close 不重新发布或撤销 Attempt，只冻结终态与剩余 absence re
 
 正常退出停止新的 reservation，等待已经接纳的 Attempt publication，再提交 Run close。
 
-SIGINT 与 SIGTERM 走同一受控路径：发布已经完成的 Attempt，并把没有 publication 的 Planned attempt 以 `interrupted-before-publication` 收口。
+SIGINT 与 SIGTERM 走同一受控路径：发布已经完成的 Attempt，并把没有 publication 的 slot 以 `interrupted-before-publication` 收口。
 
 普通 Adapter 的在途 Attempt 先停止 forward，在固定 cleanup 总预算内排空尾部采集，再把可验证的 `errored` Attempt 发布到仍活动的 Run。
 Runner 等待这次 publication 后恢复中断，停止后续派发，再提交 Run 终态。封口或存储失败仍按 Run 失败与 absence 规则处理，不伪造已发布结果。
@@ -34,7 +34,7 @@ Runner 等待这次 publication 后恢复中断，停止后续派发，再提交
 ## 崩溃与 recovery
 
 SIGKILL 可能在 ProjectDatabase 中留下 `active` Run 与未发布 aggregate，但不会产生半个公开 Attempt。普通读取继续展示
-Run、已发布 Attempt 与 pending Planned attempts，不根据时间推断 owner 已死，也不在打开时删除或晋升运行中 rows。
+Run、已发布 Attempt 与 pending slots，不根据时间推断 owner 已死，也不在打开时删除或晋升运行中 rows。
 
 `run recover` 必须取得精确 process identity 已终止的可验证证据。
 writer 在取得 generation 时封存自己的 process identity；recover 在同一台机器上重新观察同样的字段。
@@ -59,7 +59,7 @@ Linux 与 Darwin 是提供这种证据的平台，两者使用同一判定规则
 
 它以两阶段、可重试的 `active → recovering → interrupted` 收口。
 第一笔短事务 fence owner generation 并写入精确 recovery actor。第二笔短事务在 actor/generation 仍匹配时删除仅属该 owner 的未发布 aggregate。
-第二笔事务也写 recovery receipt，并把 Run 与 pending-Planned attempt absence reasons 共同收口。
+第二笔事务也写 recovery receipt，并把 Run 与 pending-slot absence reasons 共同收口。
 
 任一步崩溃留下 `recovering`，只能由新的精确 recovery actor 重试，不能把它猜回 active 或 free。证据不足时 fail closed；没有 TTL、heartbeat expiry 或“看起来很久”接管。
 

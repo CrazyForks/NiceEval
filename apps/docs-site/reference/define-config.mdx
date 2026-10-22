@@ -11,7 +11,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({ model: "gpt-5.4-mini", maxOutputTokens: 512 }),
+  judgeRuntime: OpenAIProvider({ model: "gpt-5.4-mini", maxOutputTokens: 512 }),
   maxConcurrency: 4,
   timeoutMs: 300_000,
 });
@@ -33,10 +33,18 @@ name?: LocalizedText;
 The project name, shown in the hero (`<h1>`) at the top of `niceeval view`; it falls back to a generic title when omitted.
 It can be a string, or text in multiple locales (such as `{ en: "...", "zh-CN": "..." }`) that switches with the view language.
 
-#### `judgeProvider`
+#### `workspace`
 
 ```ts
-judgeProvider?: JudgeProvider;
+workspace?: string;
+```
+
+The workspace root uploaded into a Sandbox; it defaults to the project root. An Eval's Sandbox view starts from here.
+
+#### `judgeRuntime`
+
+```ts
+judgeRuntime?: JudgeProvider;
 ```
 
 The project-level default Judge Provider; an Eval or Experiment can replace the model or the whole Provider.
@@ -47,7 +55,7 @@ The project-level default Judge Provider; an Eval or Experiment can replace the 
 reporters?: Reporter[];
 ```
 
-The project-level Reporter list, for example for persisting or uploading results.
+The project-level default Reporter list (for example, persisting or uploading results); `EvalDef.reporters` merges with it.
 
 #### `maxConcurrency`
 
@@ -65,10 +73,10 @@ maxBuildConcurrency?: number;
 
 Run-level concurrency for preparing Sandbox images; independent of Attempt concurrency, with a safe default of 2 when omitted.
 
-#### `maxBeforeCacheConcurrency`
+#### `maxSetupPrefixConcurrency`
 
 ```ts
-maxBeforeCacheConcurrency?: number;
+maxSetupPrefixConcurrency?: number;
 ```
 
 Run-level concurrency for preparing the PreparedArtifact prefix DAG; independent of build and Attempt concurrency.
@@ -79,7 +87,7 @@ Run-level concurrency for preparing the PreparedArtifact prefix DAG; independent
 sandboxCache?: SandboxCacheConfig;
 ```
 
-The project-level before cache default; an Experiment or an explicit CLI flag can override it.
+The project-level SetupPrefix cache default; an Experiment or an explicit CLI flag can override it.
 
 #### `timeoutMs`
 

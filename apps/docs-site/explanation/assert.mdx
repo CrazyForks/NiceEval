@@ -11,10 +11,10 @@ There is no step where you first create a check object and then hand it to anoth
 ```ts
 import { includes } from "niceeval/expect";
 
-t.check(turn.reply, includes("Completed")).label("Reply says it completed");
+t.check(turn.message, includes("Completed")).label("Reply says it completed");
 turn.succeeded().label("Turn completed");
 turn.calledTool("get_weather").label("Looks up weather");
-t.judge({ question, answer: turn.reply }, answerQuality)
+t.judge({ question, answer: turn.message }, answerQuality)
   .gate(0.8).label("Answer quality");
 ```
 
@@ -29,10 +29,10 @@ Everything `niceeval/expect` exports is a Match, and a Match is one comparison r
 ```ts
 import { equals, includes, matches, satisfies, toolMatch } from "niceeval/expect";
 
-t.check(turn.reply, includes("Order confirmed"));
+t.check(turn.message, includes("Order confirmed"));
 t.check(turn.data, equals({ status: "refund", amount: 42 }));
 t.check(turn.data, matches(OrderSchema));
-t.check(turn.reply.length, satisfies("Reply is not empty", (length) => length > 0));
+t.check(turn.message.length, satisfies("Reply is not empty", (length) => length > 0));
 ```
 
 Whether the result is `matched` or `mismatched` only says whether the value satisfies this rule. It does not say whether the rule itself is written correctly. When a task allows several correct results, the rule must cover all of them.
@@ -63,7 +63,7 @@ turn.calledTool(toolMatch("read_file").exactly(2)).label("Reads twice");
 Continuous-value checks and Judges give measurements between 0 and 1. By default, measurements do not affect the verdict. After you call `.gate(minimum)` on the handle, falling below the minimum gives `failed`.
 
 ```ts
-t.judge({ task, answer: turn.reply }, actionableQuality)
+t.judge({ task, answer: turn.message }, actionableQuality)
   .gate(0.8).label("Actionable steps");
 ```
 
@@ -74,7 +74,7 @@ By default, an Assertion only records its result and does not score. Adding `.sc
 ```ts
 turn.calledTool("search");                       // Saves only the evaluation
 turn.calledTool("search").score(2);              // +2 when matched
-t.check({ task, answer: turn.reply }, completeness).score(5); // +4 when the measurement is 0.8
+t.check({ task, answer: turn.message }, completeness).score(5); // +4 when the measurement is 0.8
 t.score(5);                                      // Directly +5
 ```
 
@@ -93,7 +93,7 @@ A low score alone is not a failure. Only when a gate is set and not met is the v
 ```ts
 const turn = await t.send("Search for information and explain the conclusion.");
 await turn.succeeded().orStop();
-const search = await t.check(turn.reply, includes("conclusion")).orStop();
+const search = await t.check(turn.message, includes("conclusion")).orStop();
 ```
 
 Stopping only affects code after the `await` that has not run yet, and that code produces no results. Ordinary JavaScript side effects that already happened are not undone, and concurrent tasks started earlier are not cancelled.

@@ -8,7 +8,7 @@ kind: feature
 
 # Run → Inspection → Insight
 
-NiceEval 的运行后数据流由三个领域 owner 闭合：Run 保存已发布 Attempt、Planned attempt binding、状态与 absence；Inspection 在
+NiceEval 的运行后数据流由三个领域 owner 闭合：Run 保存已发布 Attempt、slot binding、状态与 absence；Inspection 在
 一个 PublicationCutoff 上解释固定读取问题；Insight 以人读 SPA 审阅同一事实。
 
 ```text

@@ -31,7 +31,7 @@ import { makeSendFailure } from "../context/send-failures.ts";
 import { normalizeExternalCause } from "../shared/external-cause.ts";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import type { Agent, AgentContext, AgentTracing, CommandProjection, EvidenceCoverage, InputResponse, JsonValue, SpanMapper, StreamEvent, TurnInput } from "../types.ts";
-import { createSessionKey } from "./session-key.ts";
+import { createSessionSlot } from "./session-slot.ts";
 import { unclassifiedToolActionsCoverage } from "../o11y/command-projection.ts";
 
 // UI Message Stream 帧里没有 usage(协议本身不带 token 计数,见 docs/engineering/testing/e2e/README.md
@@ -77,8 +77,8 @@ interface UiMessageSessionState {
   reported?: ReportedState;
 }
 
-const historySlot = createSessionKey<UIMessageLike[]>("ui-message-stream/history");
-const sessionStateSlot = createSessionKey<UiMessageSessionState>("ui-message-stream/state");
+const historySlot = createSessionSlot<UIMessageLike[]>("ui-message-stream/history");
+const sessionStateSlot = createSessionSlot<UiMessageSessionState>("ui-message-stream/state");
 
 type ReadUIMessageStream = (options: {
   message?: UIMessageLike;

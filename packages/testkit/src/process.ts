@@ -372,7 +372,7 @@ export class ProcessReceipt {
 
   private queryDocument(api: string): QueryDocument {
     const decoded = decodeInspectionDocument(this.json<unknown>());
-    if (!decoded.success) throw new Error(`${api}(): stdout is not a valid niceeval.query/v2 document: ${decoded.reason}\n\n${this.diagnostic()}`);
+    if (!decoded.success) throw new Error(`${api}(): stdout is not a valid niceeval.query/v1 document: ${decoded.reason}\n\n${this.diagnostic()}`);
     return decoded.value;
   }
 

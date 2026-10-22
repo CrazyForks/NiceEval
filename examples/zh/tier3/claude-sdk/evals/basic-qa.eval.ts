@@ -22,6 +22,6 @@ export default defineEval({
 
     t.maxTokens(20_000);
 
-    t.judge({ prompt: turn.input, answer: turn.reply }, answerQuality).gate(0.6);
+    t.judge({ prompt: turn.input, answer: turn.message }, answerQuality).gate(0.6);
   },
 });

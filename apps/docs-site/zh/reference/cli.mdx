@@ -20,7 +20,7 @@ niceeval query explain [--record <file>] --request <file|->
 niceeval query run [--record <file>] --request <file|->
 ```
 
-`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v2`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
+`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v1`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
 
 - `discover` 列出当前版本支持的 operation ID。它不读运行记录，所以不接受 `--record`，也不返回请求的字段结构。
 - `explain` 校验完整请求，说明它会运行哪个 operation，以及接下来可以发哪些请求。
@@ -140,7 +140,7 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--dry` | `niceeval accept` | boolean | 完成整 Run 采用预检，但不发布新 Run。 |
 | `--all` | `niceeval session` | boolean | 包含已经完成的 Invocation 状态条目。 |
 | `--json` | `niceeval session` | boolean | 写出该命令的机器文档或事件流。 |
-| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v2 request。 |
+| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v1 request。 |
 | `--record` | `niceeval query`、`niceeval show` | string | 读取一个外部 canonical SQLite Record。 |
 | `--help` | `niceeval query` | boolean | 打印该命令的帮助。 |
 | `--run` | `niceeval show` | string[] | 显示一个已封口的 Run；可重复传入。 |

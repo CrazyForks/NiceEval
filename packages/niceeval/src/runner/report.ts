@@ -70,7 +70,7 @@ export function filterSummary(summary: InvocationSummary, ids: ReadonlySet<strin
     summary.startedAt,
     summary.durationMs,
     summary.name,
-    summary.beforeCaches,
+    summary.setupPrefixes,
   );
   // completedAt 用原值(summarize 会重新取 now);name 等其余字段原样保留。
   return { ...summary, ...sub, completedAt: summary.completedAt };
@@ -126,7 +126,7 @@ export function summarize(
   startedAt: string,
   durationMs: number,
   name?: LocalizedText,
-  beforeCaches: InvocationSummary["beforeCaches"] = Object.freeze({ total: 0, hit: 0, prepared: 0, failed: 0 }),
+  setupPrefixes: InvocationSummary["setupPrefixes"] = Object.freeze({ total: 0, hit: 0, prepared: 0, failed: 0 }),
 ): InvocationSummary {
   const counts = { passed: 0, failed: 0, skipped: 0, errored: 0 };
   let inTok = 0;
@@ -159,6 +159,6 @@ export function summarize(
     estimatedCostUSD: hasEstimatedCost ? cost : undefined,
     reusedAttempts: Object.freeze([...reusedAttempts]),
     results,
-    beforeCaches,
+    setupPrefixes,
   };
 }

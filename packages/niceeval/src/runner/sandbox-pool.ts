@@ -260,9 +260,10 @@ export class ReusableSandboxPool {
                   signal,
                 }),
               )),
-          { concurrency: 1 },
+          { concurrency: "unbounded" },
         );
         for (const exit of groupTeardowns) {
+          exits.push(exit);
           if (Exit.isFailure(exit)) {
             this.feedback.diagnostic({
               code: "plugin-lifecycle-teardown-failed",

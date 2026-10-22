@@ -18,7 +18,7 @@ export async function withInspectionRequest<T>(
     const requestPath = join(directory, "request.json");
     const decoded = decodeInspectionRequest({ protocol: QUERY_PROTOCOL, operation });
     if (Result.isFailure(decoded)) {
-      throw new Error(`withInspectionRequest(): invalid niceeval.query/v2 request: ${decoded.failure.reason}`);
+      throw new Error(`withInspectionRequest(): invalid niceeval.query/v1 request: ${decoded.failure.reason}`);
     }
     const request = decoded.success;
     await writeFile(requestPath, `${JSON.stringify(request)}\n`, "utf8");

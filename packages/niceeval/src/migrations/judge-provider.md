@@ -20,7 +20,7 @@ shape can contain any of these legacy fields:
 ```
 
 Choose the provider that actually serves the model, construct it explicitly,
-and assign that value to `judgeProvider`. This makes the service, protocol,
+and assign that value to `judgeRuntime`. This makes the service, protocol,
 endpoint, credential source, and execution limits unambiguous.
 
 ## OpenAI and OpenAI-compatible endpoints
@@ -30,7 +30,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "judge-model",
     // Keep this only for an OpenAI-compatible custom gateway:
     // baseUrl: "https://gateway.example.test/v1",
@@ -52,7 +52,7 @@ import { defineConfig } from "niceeval";
 import { VercelProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: VercelProvider({ model: "provider/model" }),
+  judgeRuntime: VercelProvider({ model: "provider/model" }),
 });
 ```
 
@@ -65,7 +65,7 @@ import { defineConfig } from "niceeval";
 import { OpenRouterProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenRouterProvider({ model: "provider/model" }),
+  judgeRuntime: OpenRouterProvider({ model: "provider/model" }),
 });
 ```
 
@@ -78,7 +78,7 @@ import { defineConfig } from "niceeval";
 import { TypesafeProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: TypesafeProvider({ model: "jev-1.13.0" }),
+  judgeRuntime: TypesafeProvider({ model: "jev-1.13.0" }),
 });
 ```
 
@@ -99,7 +99,7 @@ If an existing deployment must keep its current variable name temporarily,
 select it explicitly without copying the secret into source code:
 
 ```ts
-judgeProvider: OpenAIProvider({
+judgeRuntime: OpenAIProvider({
   model: "judge-model",
   apiKeyEnv: "NICEEVAL_JUDGE_KEY",
 })

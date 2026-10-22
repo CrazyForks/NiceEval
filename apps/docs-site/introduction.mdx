@@ -44,12 +44,12 @@ export default defineEval({
     turn.succeeded().label("Turn succeeded");
 
     t.calledTool("get_weather").label("Calls the weather tool");
-    t.check(turn.reply, includes("weather")).label("Describes the weather");
+    t.check(turn.message, includes("weather")).label("Describes the weather");
 
     const second = await t.send("And Shanghai tomorrow?");
     t.check(second.message, includes("Shanghai")).label("Second turn follows the context");
 
-    t.judge({ question: turn.input, answer: turn.reply }, groundedAnswer).gate(0.7)
+    t.judge({ question: turn.input, answer: turn.message }, groundedAnswer).gate(0.7)
       .label("Answer is grounded");
   },
 });

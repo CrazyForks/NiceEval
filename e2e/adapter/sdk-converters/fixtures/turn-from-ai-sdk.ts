@@ -1,11 +1,11 @@
 import { generateText, tool, type ModelMessage } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import { createSessionKey, defineAgent, turnFromAiSdk } from "niceeval/adapter";
+import { createSessionSlot, defineAgent, turnFromAiSdk } from "niceeval/adapter";
 import { completeEvidenceCoverage } from "niceeval/adapter";
 import { z } from "zod";
 
 const AI_SDK_SESSION_ID = "turn-from-ai-sdk-deterministic-session";
-const approvalKey = createSessionKey<{
+const approvalSlot = createSessionSlot<{
   responseMessages: ModelMessage[];
   approvalId: string;
 }>("sdk-converters/turn-from-ai-sdk/approval");
@@ -95,7 +95,7 @@ export const turnFromAiSdkFixtureAgent = defineAgent({
   evidenceCoverage: completeEvidenceCoverage,
   async send(input, ctx) {
     ctx.session.capture(AI_SDK_SESSION_ID);
-    const pending = ctx.session.take(approvalKey);
+    const pending = ctx.session.take(approvalSlot);
 
     if (pending !== undefined) {
       const approved = approvedResponse(input, pending.approvalId);
@@ -124,7 +124,7 @@ export const turnFromAiSdkFixtureAgent = defineAgent({
     if (approval?.approvalId === undefined) {
       throw new Error("AI SDK fixture expected its real generateText result to contain a tool approval request");
     }
-    ctx.session.set(approvalKey, {
+    ctx.session.set(approvalSlot, {
       responseMessages: result.responseMessages,
       approvalId: approval.approvalId,
     });

@@ -11,7 +11,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({ model: "gpt-5.4-mini", maxOutputTokens: 512 }),
+  judgeRuntime: OpenAIProvider({ model: "gpt-5.4-mini", maxOutputTokens: 512 }),
   maxConcurrency: 4,
   timeoutMs: 300_000,
 });
@@ -33,10 +33,18 @@ name?: LocalizedText;
 项目名,显示在 `niceeval view` 顶部 hero(`<h1>`),省略则回退到通用标题。
 可传字符串,或按 locale 提供多语言(如 `{ en: "...", "zh-CN": "..." }`),随 view 语言切换。
 
-#### `judgeProvider`
+#### `workspace`
 
 ```ts
-judgeProvider?: JudgeProvider;
+workspace?: string;
+```
+
+上传进 Sandbox 的工作区根目录,省略则用项目根;评估用例的 sandbox 视图从这里起步。
+
+#### `judgeRuntime`
+
+```ts
+judgeRuntime?: JudgeProvider;
 ```
 
 项目级默认 Judge Provider；Eval 与 Experiment 可替换模型或整个 Provider。
@@ -47,7 +55,7 @@ judgeProvider?: JudgeProvider;
 reporters?: Reporter[];
 ```
 
-项目级默认 reporter 列表(如落盘 / 上传结果)。
+项目级默认 reporter 列表(如落盘 / 上传结果);EvalDef.reporters 会与它合并。
 
 #### `maxConcurrency`
 
@@ -65,10 +73,10 @@ maxBuildConcurrency?: number;
 
 Run 级 Sandbox 镜像准备并发；与 attempt 并发独立，省略时安全默认 2。
 
-#### `maxBeforeCacheConcurrency`
+#### `maxSetupPrefixConcurrency`
 
 ```ts
-maxBeforeCacheConcurrency?: number;
+maxSetupPrefixConcurrency?: number;
 ```
 
 Run 级 PreparedArtifact 前缀 DAG 准备并发；与 build / attempt 并发独立。
@@ -79,7 +87,7 @@ Run 级 PreparedArtifact 前缀 DAG 准备并发；与 build / attempt 并发独
 sandboxCache?: SandboxCacheConfig;
 ```
 
-项目级 before cache 默认；Experiment 与显式 CLI flag 可覆盖。
+项目级 SetupPrefix cache 默认；Experiment 与显式 CLI flag 可覆盖。
 
 #### `timeoutMs`
 

@@ -181,9 +181,6 @@ export const cliProgram = <R>(
     yield* writeStdout(`${yield* packageVersion()}\n`);
     return 0;
   }
-  if (root?.name === "session") {
-    return yield* Effect.fail(usageError("Command session is no longer supported. Use invocation list/show.\n"));
-  }
   if (root !== undefined) {
     return yield* Effect.fail(usageError(`Unknown command "${root.name}".
 Run \`niceeval --help\` for usage.

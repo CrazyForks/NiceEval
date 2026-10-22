@@ -115,12 +115,6 @@ function matcherName(check: ClosedAssertionFactValue): string | undefined {
     const comparator = stringValue(field(data, "comparator"));
     const threshold = numberValue(field(data, "threshold"));
     if (comparator !== undefined && threshold !== undefined) {
-      const unit = stringValue(field(data, "unit"));
-      const formattedThreshold = formatNumericUnit(threshold, unit);
-      const upperThreshold = numberValue(field(data, "upperThreshold"));
-      if (comparator === "between" && upperThreshold !== undefined) {
-        return `between(${formattedThreshold}, ${formatNumericUnit(upperThreshold, unit)})`;
-      }
       const name = comparator === "less-than"
         ? "lessThan"
         : comparator === "at-most"
@@ -130,7 +124,7 @@ function matcherName(check: ClosedAssertionFactValue): string | undefined {
         : comparator === "at-least"
         ? "atLeast"
         : undefined;
-      if (name !== undefined) return `${name}(${formattedThreshold})`;
+      if (name !== undefined) return `${name}(${threshold})`;
     }
   }
   const valueMatcher = stringValue(field(field(data, "matcher"), "name"));

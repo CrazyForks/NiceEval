@@ -17,13 +17,13 @@ niceeval query explain --request operation.json
 niceeval query run --request operation.json
 ```
 
-选择 `run.get` 与 exact `runId` 后，结果一次交付完整 expected Planned attempts、`expected`／`published`／`missing`、Planned attempt binding、
-Attempt locator、coverage 与每项指标自己的分母。Run 仍为 `active` 时，missing Planned attempt 显示 `pending`；Run 进入终态后，
-同一 Planned attempt 显示具名 `absenceReason`。两种情况都不会伪造失败 Attempt 或把缺失按零计入指标。
+选择 `run.get` 与 exact `runId` 后，结果一次交付完整 expected slots、`expected`／`published`／`missing`、slot binding、
+Attempt locator、coverage 与每项指标自己的分母。Run 仍为 `active` 时，missing slot 显示 `pending`；Run 进入终态后，
+同一 slot 显示具名 `absenceReason`。两种情况都不会伪造失败 Attempt 或把缺失按零计入指标。
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": { "kind": "run.get", "runId": "run_example_next" }
 }
 ```
@@ -38,16 +38,16 @@ Run run_example_next · active
   Missing    1
   Coverage   1/2
 
-Planned attempts
-  plannedAttempt-1  published  @ATTEMPT-NEXT
-  plannedAttempt-2  pending
+Slots
+  slot-1  published  @ATTEMPT-NEXT
+  slot-2  pending
 
 Metrics
   Pass rate  100% (1/1 classified)
   Score      16 (1 available)
 ```
 
-这里 coverage 的分母是全部 expected Planned attempts；pass rate 和 score 的分母只包含已发布且对应指标 available 的 Attempt。
+这里 coverage 的分母是全部 expected slots；pass rate 和 score 的分母只包含已发布且对应指标 available 的 Attempt。
 删去任一分母都会让读者误把“运行尚未发布完”与“已发布结果质量差”混为一谈。
 
 Attempt evidence 继续通过 locator 下钻：

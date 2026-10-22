@@ -7,7 +7,6 @@ kind: feature
 ---
 
 
-
 # Eval —— 编写 eval
 
 写一个 eval 应该像写一个测试:一个文件、一个 `test(t)` 函数,断言写在你观察结果的地方。
@@ -51,7 +50,7 @@ export default defineEval({
 
 `judge` 是这条 Eval 的 Judge 选择，不是评分定义的允许列表。
 模型字符串只替换已选 Provider 的模型；完整 Provider 替换服务、端点、凭据声明位置和执行限制。
-配置求值从 `Config.judgeProvider` 开始，再应用 `Eval.judge` 和 `Experiment.judge`。
+配置求值从 `Config.judgeRuntime` 开始，再应用 `Eval.judge` 和 `Experiment.judgeRuntime`。
 
 Eval 创建时冻结自己写下的配置。`defineJudge`、现成裁判与自定义受管 `ScoreMatch` 都能经 `t.check()` 登记，
 不需要先在 Eval 上登记实例。

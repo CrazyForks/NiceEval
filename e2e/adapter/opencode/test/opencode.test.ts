@@ -189,7 +189,7 @@ it("真实 OpenCode CLI adapter 在 Docker sandbox 中的运行结果经过公�
   }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
   expect(queried.exitCode, queried.diagnostic()).toBe(0);
   const document = queried.attemptTrace();
-  expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+  expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
   const trace = JSON.stringify(document.trace);
   expect(
     trace.includes("notes.txt") || trace.includes("file_write") || trace.includes("write"),
@@ -206,7 +206,7 @@ it("真实 OpenCode CLI adapter 在 Docker sandbox 中的运行结果经过公�
   }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
   expect(usageReceipt.exitCode, usageReceipt.diagnostic()).toBe(0);
   const usageDocument = usageReceipt.attemptUsage();
-  expect(usageDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.usage" });
+  expect(usageDocument).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.usage" });
   const usageObservations = usageDocument.usage.observations.filter((record) =>
     record.kind === "request" || record.kind === "token-bucket"
   );
@@ -290,7 +290,7 @@ it("真实 OpenCode CLI adapter 在 Docker sandbox 中的运行结果经过公�
   }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
   expect(goQuery.exitCode, goQuery.diagnostic()).toBe(0);
   const goDocument = goQuery.attemptTrace();
-  expect(goDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+  expect(goDocument).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
   // Go Eval 自己判定 export 中的 provider/model 与回复 marker。公开 trace 只承诺
   // bounded command projection，因此这里验收稳定 shape，不要求后段 export 命令
   // 穿过 MAX_COMMANDS 截止线。
@@ -303,7 +303,7 @@ it("真实 OpenCode CLI adapter 在 Docker sandbox 中的运行结果经过公�
   expect(goDetailQuery.exitCode, goDetailQuery.diagnostic()).toBe(0);
   const goDetailDocument = goDetailQuery.attemptTraceDetail();
   expect(goDetailDocument).toMatchObject({
-    protocol: "niceeval.query/v2",
+    protocol: "niceeval.query/v1",
     operation: "attempt.trace.detail",
   });
   expectCommandDetail(goDetailDocument, command);

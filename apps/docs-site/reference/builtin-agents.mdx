@@ -11,7 +11,7 @@ The three built-in Sandbox Agents—`claude-code`, `codex`, and `bub`—do not a
 | Capability | Assertion / API that corresponds to it |
 |---|---|
 | Send and receive messages (base contract) | `t.send()` (can be called multiple times), `t.reply`, `t.check(turn.data, equals(...))` / `matches(...)`, and status-based `t.succeeded()` |
-| Event-stream completeness | Scoped assertions including `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event`; `toolOrder` / `eventOrder` accept matchers only on a Turn or Session. For messages, use `t.check(turn.reply, includes(...))` or `t.check(turn.reply, pattern(...))`. **A negative assertion such as `notCalledTool` is trustworthy only with a complete event stream.** |
+| Event-stream completeness | Scoped assertions including `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event`; `toolOrder` / `eventOrder` accept matchers only on a Turn or Session. For messages, use `t.check(turn.message, includes(...))` or `t.check(turn.message, pattern(...))`. **A negative assertion such as `notCalledTool` is trustworthy only with a complete event stream.** |
 | Session continuation | Cross-turn memory assertions and session isolation with `t.newSession()` |
 | HITL | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, `t.respond()` / `t.respondAll()` |
 | `tracing` | Trace decoding and the call waterfall in `niceeval view` |
@@ -228,10 +228,10 @@ apiKey?: string;
 
 API key for the OpenAI-compatible proxy. Falls back to the `BUB_API_KEY` env var if omitted.
 
-#### `baseUrl`
+#### `apiBase`
 
 ```ts
-baseUrl?: string;
+apiBase?: string;
 ```
 
 Base URL for the OpenAI-compatible proxy. Falls back to the `BUB_API_BASE` env var if omitted.
@@ -305,7 +305,7 @@ export default uiMessageStreamAgent({
 Capabilities it provides for you:
 
 - **Send/receive and event stream**: SSE frames are reduced through the framework-agnostic `readUIMessageStream` reducer from the official `ai` package—the same reducer `useChat` uses internally. Tool calls, results, and message text are constructed directly from message parts. **The application does not need OTel.**
-- **Session continuation**: the protocol is stateless on the server and the client carries complete history. The factory stores complete `UIMessage[]` history in an Adapter-private typed key and replays it verbatim each turn. A new session line after `t.newSession()` has not written that key yet.
+- **Session continuation**: the protocol is stateless on the server and the client carries complete history. The factory stores complete `UIMessage[]` history in an Adapter-private typed slot and replays it verbatim each turn. A new session line after `t.newSession()` has not written that slot yet.
 - **HITL**: AI SDK v7 tool approval—a tool with `needsApproval: true`—maps natively. When a part stops at `approval-requested`, that Turn has `status: "waiting"` plus `input.requested`. `t.respond("approve" / "deny")` translates to `approval-responded`, rewrites that part in place, and resends `messages` to continue server execution. That is the same protocol behavior as a real frontend's `addToolApprovalResponse()` plus `sendMessage()`. There is no separate approval endpoint.
 - **Rejection**: an invocation enters the event stream with `rejected` and, by default, a "do not retry" reason that `denyReason` can override. Without it, models often repeat the exact call.
 - **Usage and waterfall**: UI Message Stream frames have no usage, so usage assertions such as `t.maxTokens` have no data by default on this built-in. An application that puts usage in message metadata is adding its own protocol extension. The waterfall is separate: when the application has OTel instrumentation, such as official `@ai-sdk/otel`, send spans to [NiceEval](https://niceeval.com/) according to [OTel integration](/tutorials/connect-otel) and `niceeval view` has the complete waterfall. Spans go only to the waterfall, not assertions.
@@ -431,24 +431,24 @@ Runnable reference implementations are in [`examples/zh/tier1`](https://github.c
 
 ## General assembly helpers: `driveFrameStream` / `deltaStream` + `ctx.session`
 
-Only three pieces of a hand-written send are truly independent: transport (how to send), reduction (raw data → events, handled by the converters above), and orchestration (session continuation plus HITL pause and resume). The third has nothing to do with a particular protocol; it is a pure control-flow pattern. For server history, use `ctx.session.id` / `capture`. For client history and paused HITL state, declare an Adapter-private typed key with `createSessionKey<T>()`, then use `ctx.session.get` / `set` / `take` to access it. See `AgentSession` in [Adapter concepts](/explanation/adapter#context-agentcontext). Only two official helpers actually reuse across protocols:
+Only three pieces of a hand-written send are truly independent: transport (how to send), reduction (raw data → events, handled by the converters above), and orchestration (session continuation plus HITL pause and resume). The third has nothing to do with a particular protocol; it is a pure control-flow pattern. For server history, use `ctx.session.id` / `capture`. For client history and paused HITL state, declare an Adapter-private typed slot with `createSessionSlot<T>()`, then use `ctx.session.get` / `set` / `take` to access it. See `AgentSession` in [Adapter concepts](/explanation/adapter#context-agentcontext). Only two official helpers actually reuse across protocols:
 
 | Helper | What it solves |
 |---|---|
-| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | Feeds frames to a reducer one at a time, handles transport frames, and detects a HITL pause signal, collecting the loop into one function. On pause, `cursor` stays open. Use `ctx.session.set(key, cursor)` in `onFrame` to retain it, then `ctx.session.take(key)` on the response turn to continue reading rather than send another request. |
+| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | Feeds frames to a reducer one at a time, handles transport frames, and detects a HITL pause signal, collecting the loop into one function. On pause, `cursor` stays open. Use `ctx.session.set(slot, cursor)` in `onFrame` to retain it, then `ctx.session.take(slot)` on the response turn to continue reading rather than send another request. |
 | `deltaStream(spec)` | A general accumulator for token-by-token or argument-by-argument deltas. Use it for protocols with no complete frame, such as raw streaming OpenAI/Anthropic APIs or a hand-written token-by-token backend. Declare which operation a frame belongs to—text delta, tool-argument delta, or finishing—and it handles concatenation timing. |
 
 ```ts
-const pendingKey = createSessionKey<Pending>("my-adapter/pending");
+const pendingSlot = createSessionSlot<Pending>("my-adapter/pending");
 
 // On entry to send, first check for retained state from a paused HITL turn.
-const pending = ctx.session.take(pendingKey);
+const pending = ctx.session.take(pendingSlot);
 if (pending) {
   // …match decisions against input.responses and return approval to the application…
   return driveFrameStream(pending.cursor, pending.stream, ctx, onFrame);
 }
 
-// Normal turn: session continuation uses ctx.session.id / capture; retain the cursor in a typed key on pause.
+// Normal turn: session continuation uses ctx.session.id / capture; retain the cursor in a typed slot on pause.
 return driveFrameStream(cursor, stream, ctx, (frame, derived) => {
   ctx.session.capture(stream.sessionId);
   const gated = derived.find((event) =>
@@ -457,13 +457,13 @@ return driveFrameStream(cursor, stream, ctx, (frame, derived) => {
     event.operation.name === GATED_TOOL_NAME
   );
   if (gated?.type === "operation.started") {
-    ctx.session.set(pendingKey, { cursor, stream, toolUseId: gated.operationId });
+    ctx.session.set(pendingSlot, { cursor, stream, toolUseId: gated.operationId });
     return { pause: { id: gated.operationId, action: GATED_TOOL_NAME, options: [{ id: "approve" }, { id: "deny" }] } };
   }
 });
 ```
 
-The three Tier 1 examples—claude-sdk and pi-sdk with `driveFrameStream` plus a typed key, and codex-sdk with `driveFrameStream` only—have already been rewritten around these helpers. An Adapter is left only with transport and the decision in `onFrame` about whether a frame needs extra handling; it has no hand-written loop or module-level Map.
+The three Tier 1 examples—claude-sdk and pi-sdk with `driveFrameStream` plus a typed slot, and codex-sdk with `driveFrameStream` only—have already been rewritten around these helpers. An Adapter is left only with transport and the decision in `onFrame` about whether a frame needs extra handling; it has no hand-written loop or module-level Map.
 
 ## `turnFromAiSdk`: AI SDK result → event-stream converter
 
@@ -489,9 +489,9 @@ The converter supplies `status`: it is `"waiting"` when a tool approval awaits a
 - For an AI SDK application with a `useChat` backend: use the built-in `uiMessageStreamAgent` for non-intrusive, zero-mapping integration, including HITL.
 - For another Agent system, such as an HTTP / gRPC service: integrate non-intrusively and write event mapping. The official converters cover most of it. The five examples under [`examples/zh/tier1`](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/tier1) all take this route. If the application already has OTel, connect it too for an extra waterfall.
 - For a call waterfall—the trace in `niceeval view`: all three `claude-code` / `codex` / `bub` send OTLP themselves. claude-code uses CLI beta telemetry, whose spans have only structure and timing. A self-written Adapter only needs to declare `tracing`; see the OTel guide.
-- For human approval or multi-step confirmation (HITL): `uiMessageStreamAgent` provides it natively through AI SDK v7 tool approval. The three Sandbox Agents do not. For another system, write an Adapter and compose it with `driveFrameStream` plus a typed key; Tier 1 pi-sdk / claude-sdk have ready patterns.
+- For human approval or multi-step confirmation (HITL): `uiMessageStreamAgent` provides it natively through AI SDK v7 tool approval. The three Sandbox Agents do not. For another system, write an Adapter and compose it with `driveFrameStream` plus a typed slot; Tier 1 pi-sdk / claude-sdk have ready patterns.
 - To run a coding Agent that changes code, inspect diff, and evaluate tool calls: use `claude-code` / `codex` / `bub` for send/receive, event stream, session continuation, workspace, and Sandbox.
-- When the backend protocol is your own and no official SDK converter applies, do not write send from zero. Choose a reduction shape: a small mapping for complete frames or `deltaStream` for token deltas. Use `ctx.session.id` / `capture` for server session continuation, a typed key for client history or HITL state, and compose them into send.
+- When the backend protocol is your own and no official SDK converter applies, do not write send from zero. Choose a reduction shape: a small mapping for complete frames or `deltaStream` for token deltas. Use `ctx.session.id` / `capture` for server session continuation, a typed slot for client history or HITL state, and compose them into send.
 
 ## Related reading
 

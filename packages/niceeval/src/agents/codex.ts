@@ -1,4 +1,3 @@
-import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { Effect } from "effect";
 import { makeSandboxAgent } from "../define.ts";
@@ -312,7 +311,7 @@ export function codexAgent(config?: CodexConfig): Agent {
     },
   });
 
-  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "codex",
     // 官方 adapter:transcript 经生命周期 fixture 验证,全通道 complete。
     evidenceCoverage: completeEvidenceCoverage,
@@ -486,11 +485,8 @@ export function codexAgent(config?: CodexConfig): Agent {
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // codex 目前没有其它收尾步骤,这段就是整个 teardown。
-        try {
-          await runPreTeardownHooks(sb, { ...ctx, signal }, "codex", config?.after);
-        } finally {
-          await attemptResources(ctx)?.shutdownAll(signal);
-        }
+        await runPreTeardownHooks(sb, { ...ctx, signal }, "codex", config?.after);
+        await attemptResources(ctx)?.shutdownAll(signal);
       },
       catch: (cause) => cause,
     }),
@@ -528,7 +524,7 @@ export function codexAgent(config?: CodexConfig): Agent {
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after), "codex", config, codexAgent);
+  }), config?.before, config?.after);
 }
 
 /**

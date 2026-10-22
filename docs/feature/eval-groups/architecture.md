@@ -22,16 +22,16 @@ Group 是物理 resource lane，也是 Group Plugin 的显式声明位置。Grou
 ## 调度
 
 运行器把每个 Group 建成一条 capacity-one lane。lane 内按规范化 Eval ID 排序，再把每个
-成员的 Attempt index 连续展开。carry Planned attempt 在建 wave 前移除，不占并发名额，也不取得 Sandbox。
+成员的 Attempt index 连续展开。carry slot 在建 wave 前移除，不占并发位，也不取得 Sandbox。
 
 不同 lane 按调度波次公平进入全局与 Experiment 并发限制。Group 的 capacity-one 只约束自己，
 不把整个 Experiment 降成串行。每个 Group 使用独立复用池；普通 `sandboxReuse` 的共享池
 不与 Group pool 合并。
 
 波次公平只决定多个**当前可派发** lane 同时竞争许可时的先后，必须保持 work-conserving：只要全局与
-Experiment 并发名额空闲，并且某条 lane 能复用已经取得的 Sandbox，Runner 就继续派发该 lane。
-首波准入条件不得要求所有 lane 先取得 Provider reservation、创建物理 Sandbox 或完成第一条 Planned attempt，才允许任一
-lane 派发后继；等待 `provider-capacity` 的 lane 也不得占住 Experiment 并发名额。否则 Group 数量大于
+Experiment 并发位空闲，并且某条 lane 能复用已经取得的 Sandbox，Runner 就继续派发该 lane。
+首波准入条件不得要求所有 lane 先取得 Provider reservation、创建物理 Sandbox 或完成首槽位，才允许任一
+lane 派发后继；等待 `provider-capacity` 的 lane 也不得占住 Experiment 并发位。否则 Group 数量大于
 Provider 物理容量时，首波会保留全部容量、后继又被首波准入条件阻塞，形成循环等待。
 
 尚未取得 Provider reservation 并启动 Sandbox 的 lane 不因暂时缺少 capacity 永久失去公平机会。已有实例释放或容量增加后，

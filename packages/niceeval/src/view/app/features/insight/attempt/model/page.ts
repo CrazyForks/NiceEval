@@ -21,8 +21,8 @@ export function closeAttemptPage(
   attempt: InspectionSuccessDocumentFor<"attempt.get">,
   trace: InspectionSuccessDocumentFor<"attempt.trace">,
 ): AttemptPageModel {
-  const slot = attempt.attempt.originRun.plannedAttempts.find(({ plannedAttemptId }) =>
-    plannedAttemptId === attempt.attempt.core.plannedAttemptId);
+  const slot = attempt.attempt.originRun.expectedSlots.find(({ slotId }) =>
+    slotId === attempt.attempt.core.slotId);
   const score = attempt.attempt.score;
   const totalScore = score.state === "complete" ? score.earned : undefined;
   return Object.freeze({

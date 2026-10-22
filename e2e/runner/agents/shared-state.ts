@@ -55,7 +55,7 @@ function priorTeardownMarkerFor(role: string): string | undefined {
 
 export function sharedStateHooks(role: string) {
   return {
-    async before() {
+    async setup() {
       if (barrierRoot === undefined) return;
       await mkdir(barrierRoot, { recursive: true });
       await writeFile(join(barrierRoot, `${role}-setup-attempted`), "");
@@ -67,7 +67,7 @@ export function sharedStateHooks(role: string) {
       await writeFile(join(barrierRoot, "external-state-owner"), role, { flag: "wx" });
       await writeFile(join(barrierRoot, `${role}-setup-complete`), "");
     },
-    async after(ctx: { readonly signal: AbortSignal }) {
+    async teardown(ctx: { readonly signal: AbortSignal }) {
       if (barrierRoot === undefined) return;
       if (role === "pool-first") {
         await writeFile(join(barrierRoot, "experiment-teardown-started"), "");

@@ -68,7 +68,7 @@ t.calledTool("get_weather").label("调用了天气工具");
 
 | 属性 | 内容 |
 |---|---|
-| `turn.reply` | 助手的文本回复 |
+| `turn.message` | 助手的文本回复 |
 | `turn.toolCalls` | 这一轮的工具调用 |
 | `turn.data` | 结构化输出 |
 | `turn.status` | `"completed"`、`"failed"` 或 `"waiting"` |
@@ -111,7 +111,7 @@ const grounded = defineJudge({
 export default defineEval({
   async test(t) {
     const turn = await t.send("北京今天天气怎么样？");
-    t.judge({ question: turn.input, answer: turn.reply }, grounded).gate(0.7).label("回答有依据");
+    t.judge({ question: turn.input, answer: turn.message }, grounded).gate(0.7).label("回答有依据");
   },
 });
 ```

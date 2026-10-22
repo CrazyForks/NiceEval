@@ -26,13 +26,13 @@ async function waitFor(path: string, signal: AbortSignal): Promise<void> {
 
 export function sharedStateStartupAuthorityHooks() {
   return {
-    async before() {
+    async setup() {
       if (barrierRoot === undefined) return;
       await mark("startup-authority-setup-attempted");
       await writeFile(join(barrierRoot, "startup-authority-external-state"), "owned", { flag: "wx" });
       await mark("startup-authority-setup-complete");
     },
-    async after() {
+    async teardown() {
       if (barrierRoot === undefined) return;
       await mark("startup-authority-recovery-teardown-started");
       await rm(join(barrierRoot, "startup-authority-external-state"), { force: true });

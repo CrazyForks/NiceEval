@@ -149,23 +149,17 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
           ]);
           expect(historicalShownReceipt.exitCode, historicalShownReceipt.diagnostic()).toBe(0);
           const historicalSlot = only(
-            historicalShownReceipt.runGetDocument().run.plannedAttempts,
+            historicalShownReceipt.runGetDocument().run.slots,
             (slot) => slot.publication.state === "published",
             historicalShownReceipt.diagnostic(),
           );
-          const historicalRun = historicalShownReceipt.runGetDocument().run;
-          expect(Object.hasOwn(historicalRun.value, "expectedSlots")).toBe(false);
-          expect(Object.hasOwn(historicalRun, "slots")).toBe(false);
-          expect(Object.hasOwn(historicalSlot, "slotId")).toBe(false);
-          expect(historicalRun.value.plannedAttempts.some((position) => position.plannedAttemptId === historicalSlot.plannedAttemptId)).toBe(true);
           if (historicalSlot.publication.state !== "published") {
-            throw new Error("predecessor planned attempt was not published");
+            throw new Error("predecessor slot was not published");
           }
           expect(historicalSlot.publication).toMatchObject({
             state: "published",
             action: "executed",
             originRunId: historicalSummary.runId,
-            originPlannedAttemptId: historicalSlot.plannedAttemptId,
           });
 
           const historicalRequest = join(
@@ -173,7 +167,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
             `${predecessor.version}-${experiment.id}-historical.request.json`,
           );
           await writeFile(historicalRequest, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v1",
             operation: { kind: "run.get", runId: historicalSummary.runId },
           })}\n`, "utf8");
           const historicalQuery = await niceeval.run(["query", "run", "--request", historicalRequest]);
@@ -234,7 +228,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
         if (externalHistorical === undefined) throw new Error("external historical Run missing");
         const externalRequest = join(projectRoot, `external-${predecessor.version}.request.json`);
         await writeFile(externalRequest, `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v1",
           operation: { kind: "run.get", runId: externalHistorical.runId },
         })}\n`, "utf8");
 
@@ -287,7 +281,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
           expect(currentShownReceipt.exitCode, currentShownReceipt.diagnostic()).toBe(0);
           const currentShown = currentShownReceipt.runGetDocument();
           const currentSlot = only(
-            currentShown.run.plannedAttempts,
+            currentShown.run.slots,
             (slot) => slot.publication.state === "published",
             currentShownReceipt.diagnostic(),
           );
@@ -296,7 +290,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
 
           const currentRequest = join(projectRoot, `${predecessor.version}-${experiment.id}-current.request.json`);
           await writeFile(currentRequest, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v1",
             operation: { kind: "run.get", runId: currentRunId },
           })}\n`, "utf8");
           const currentQuery = await niceeval.run(["query", "run", "--request", currentRequest]);
@@ -341,13 +335,12 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
               `${predecessor.version}-${experiment.id}-${label}-attempt.request.json`,
             );
             await writeFile(attemptRequest, `${JSON.stringify({
-              protocol: "niceeval.query/v2",
+              protocol: "niceeval.query/v1",
               operation: { kind: "attempt.get", locator },
             })}\n`, "utf8");
             const attemptQuery = await niceeval.run(["query", "run", "--request", attemptRequest]);
             expect(attemptQuery.exitCode, attemptQuery.diagnostic()).toBe(0);
             const attemptDocument = attemptQuery.querySuccess("attempt.get");
-            expect(attemptDocument.attempt.notes).toEqual([]);
             expect(attemptDocument.attempt.assertions.state).toBe("available");
             const assertionEntry = only(
               attemptDocument.attempt.assertions.entries,
@@ -360,7 +353,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
               `${predecessor.version}-${experiment.id}-${label}-assertion.request.json`,
             );
             await writeFile(assertionRequest, `${JSON.stringify({
-              protocol: "niceeval.query/v2",
+              protocol: "niceeval.query/v1",
               operation: {
                 kind: "attempt.assertion.detail",
                 locator,
@@ -413,7 +406,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
           const acceptedShownReceipt = await niceeval.run(["run", "show", acceptedRunId, "--json"]);
           expect(acceptedShownReceipt.exitCode, acceptedShownReceipt.diagnostic()).toBe(0);
           const acceptedSlot = only(
-            acceptedShownReceipt.runGetDocument().run.plannedAttempts,
+            acceptedShownReceipt.runGetDocument().run.slots,
             (slot) => slot.publication.state === "published",
             acceptedShownReceipt.diagnostic(),
           );
@@ -426,7 +419,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
 
           const acceptedRequest = join(projectRoot, `${predecessor.version}-${experiment.id}-accepted.request.json`);
           await writeFile(acceptedRequest, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v1",
             operation: { kind: "run.get", runId: acceptedRunId },
           })}\n`, "utf8");
           const acceptedQuery = await niceeval.run(["query", "run", "--request", acceptedRequest]);

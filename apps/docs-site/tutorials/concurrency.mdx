@@ -8,7 +8,7 @@ import { Picker, Schedule } from '/snippets/widgets.jsx';
 
 200 evals took two hours, and you want them to go faster. The first instinct is to raise concurrency, but concurrency is only one possible cause. Unchanged tasks may be running again, every eval may be creating a new Sandbox, or the Provider's quota may hit its limit first.
 
-When you do decide to tune concurrency, remember that the number of Attempts running at once has two levels of limits: global concurrency controls how much this machine and the Provider can handle, and the Experiment's own `maxConcurrency` controls how many Attempts this Experiment runs in parallel at most. An Attempt starts only when both levels have available capacity.
+When you do decide to tune concurrency, remember that the number of Attempts running at once has two levels of limits: global concurrency controls how much this machine and the Provider can handle, and the Experiment's own `maxConcurrency` controls how many Attempts this Experiment runs in parallel at most. An Attempt starts only when both levels have a free slot.
 
 First find where the time goes, then change the matching setting:
 
@@ -63,7 +63,7 @@ First find where the time goes, then change the matching setting:
 
 ## What each concurrency limit controls
 
-The number of Attempts that can run at once is decided by the following together. If any of them has no available capacity, the Attempt queues:
+The number of Attempts that can run at once is decided by the following together. If any of them has no free slot, the Attempt queues:
 
 | Concurrency limit | Where it is set | What it controls | With several terminals |
 | --- | --- | --- | --- |
@@ -78,50 +78,50 @@ Global concurrency takes its value in this order: `--max-concurrency`, then `max
 pnpm exec niceeval exp compare --max-concurrency 19
 ```
 
-## How concurrency capacity is shared
+## How slots are shared
 
-Below is a mixed batch: a global concurrency limit of 3, `fast` is an ordinary Experiment, and `slow` declares `maxConcurrency: 1`.
+Below is a mixed batch: 3 global concurrency slots, `fast` is an ordinary Experiment, and `slow` declares `maxConcurrency: 1`.
 
 <Schedule
   locale="en"
-  title="3 concurrent attempts · slow limits itself to 1"
+  title="3 global slots · slow limits itself to 1"
   hint="Vertical lines mark time; hover to pause"
   lanes={[
-    { label: "Lane 1", bars: [
+    { label: "Slot 1", bars: [
       { text: "slow · a1", from: 1, to: 5, tone: "serial" },
       { text: "slow · a2", from: 5, to: 9, tone: "serial" },
       { text: "slow · a3", from: 9, to: 13, tone: "serial" },
     ] },
-    { label: "Lane 2", bars: [
+    { label: "Slot 2", bars: [
       { text: "fast · a1", from: 1, to: 4 },
       { text: "fast · a3", from: 4, to: 8 },
       { text: "fast · a5", from: 8, to: 13 },
     ] },
-    { label: "Lane 3", bars: [
+    { label: "Slot 3", bars: [
       { text: "fast · a2", from: 1, to: 3 },
       { text: "fast · a4", from: 3, to: 7 },
       { text: "fast · a6", from: 7, to: 13 },
     ] },
-    { label: "Waiting for capacity", bars: [
+    { label: "No slot", bars: [
       { text: "fast · a2 backs off to retry", from: 3, to: 6, tone: "backoff" },
     ] },
   ]}
   legend={[
-    { text: "Ordinary Experiment, takes any capacity that frees up" },
+    { text: "Ordinary Experiment, takes any slot that frees up" },
     { tone: "serial", text: "Declares maxConcurrency: 1, always occupies one lane" },
-    { tone: "backoff", text: "Backs off to retry, gives up its capacity but still counts as running" },
+    { tone: "backoff", text: "Backs off to retry, gives up its slot but still counts as running" },
   ]}
 />
 
 This diagram shows three things:
 
-- **`slow` always occupies one lane.** Its second Attempt waits until the first one's `teardown` and Sandbox destruction finish. Other Experiments in the batch are not affected and keep using the remaining capacity.
-- **Capacity goes first to the Experiment that still has the most rounds to run.** Running fast and slow Experiments in one command is safe. You do not need to split them into batches by hand or reserve capacity for fast tasks. Fast tasks fill available capacity automatically.
-- **An Attempt backing off to retry gives up its global capacity, but not its Experiment's own capacity.** So when you hit rate limits, `running` in the live panel can exceed the limit, by exactly the number of Attempts backing off. At any moment, the work actually executing still does not exceed the limit. Concurrency control has not failed.
+- **`slow` always occupies one lane.** Its second Attempt waits until the first one's `teardown` and Sandbox destruction finish. Other Experiments in the batch are not affected and keep using the remaining slots.
+- **Slots go first to the Experiment that still has the most rounds to run.** Running fast and slow Experiments in one command is safe. You do not need to split them into batches by hand or reserve slots for fast tasks. Fast tasks fill free slots automatically.
+- **An Attempt backing off to retry gives up its global slot, but not its Experiment's own slot.** So when you hit rate limits, `running` in the live panel can exceed the limit, by exactly the number of Attempts backing off. At any moment, the work actually executing still does not exceed the limit. Concurrency control has not failed.
 
-Attempts waiting for Experiment-level `setup` (starting a tunnel, starting shared services) do not consume concurrency capacity and show as `queued` in the counts. So when a tunnel is slow to start, the panel shows "0 running, N queued" for a long time; the problem is in `setup`, not in the concurrency configuration.
+Attempts waiting for Experiment-level `setup` (starting a tunnel, starting shared services) do not take a concurrency slot and show as `queued` in the counts. So when a tunnel is slow to start, the panel shows "0 running, N queued" for a long time; the problem is in `setup`, not in the concurrency configuration.
 
-Attempts waiting for Docker profile capacity also show as `queued`, with the queue reason `provider-capacity`. They do not show `creating sandbox` and do not consume ordinary concurrency capacity. Once the profile has room, the Attempt acquires concurrency capacity again and enters `running` only after it is assigned resources. Attempts in the same batch that use other Providers can keep starting and are not held up by Docker tasks ahead of them.
+Attempts waiting for Docker profile capacity also show as `queued`, with the queue reason `provider-capacity`. They do not show `creating sandbox` and do not take an ordinary concurrency slot. Once the profile has room, the Attempt gets a concurrency slot again and enters `running` only after it is assigned resources. Attempts in the same batch that use other Providers can keep starting and are not held up by Docker tasks ahead of them.
 
 ## Confirm in the live panel that concurrency took effect
 
@@ -179,7 +179,7 @@ If these Attempts really must read and write the same business state in order, d
 
 ## Let related evals reuse a Sandbox by group
 
-When only a few groups of evals need a shared environment, list the members of each group with `defineEvalGroup()`. Each group runs only one Attempt at a time and reuses at most one Sandbox. Other groups and ungrouped evals keep using the remaining concurrency capacity. You do not need to set the whole Experiment to `maxConcurrency: 1`.
+When only a few groups of evals need a shared environment, list the members of each group with `defineEvalGroup()`. Each group runs only one Attempt at a time and reuses at most one Sandbox. Other groups and ungrouped evals keep using the remaining concurrency slots. You do not need to set the whole Experiment to `maxConcurrency: 1`.
 
 The `evals` array only lists members; it does not decide the order. Within a group, evals run sorted by eval ID. When `attempts > 1`, the Attempts of one eval run back to back before the next eval's turn. For the full directory layout, Experiment shape, and `--dry` check, see [Reuse Sandboxes with Eval Groups](/tutorials/eval-groups).
 
@@ -197,7 +197,7 @@ Results are always output in discovery order, regardless of how much concurrency
 export default defineExperiment({
   attempts: 5,
   earlyExit: true,
-  maxConcurrency: 1,   // With only one Attempt at a time, early exit takes effect before the next one is dispatched
+  maxConcurrency: 1,   // With only one slot, early exit takes effect before the next one is dispatched
   // ...
 });
 ```
@@ -226,7 +226,7 @@ After the run, view results in the terminal with `pnpm exec niceeval show`, or i
 
 - Concurrency limits control resource use, not spending. To limit spending, use `--budget`; see [Control Run Cost](/tutorials/control-run-cost).
 - Some Providers declare that they can only run one at a time, and no `--max-concurrency` value changes that. It is a correctness requirement, not a scheduling parameter.
-- When an Agent service bills or limits by "number of tasks running at once", setting the global limit right at the service limit does not hold steady: capacity released during backoff is immediately filled by a new Attempt, so concurrency on the service side stays at the limit. In a single terminal, leave headroom with an Experiment-level `maxConcurrency`. With several terminals, the values add up, so lower each side separately for an account-level quota, or hand it to external orchestration.
+- When an Agent service bills or limits by "number of tasks running at once", setting the global limit right at the service limit does not hold steady: a slot given up during backoff is immediately filled by a new Attempt, so concurrency on the service side stays at the limit. In a single terminal, leave headroom with an Experiment-level `maxConcurrency`. With several terminals, the values add up, so lower each side separately for an account-level quota, or hand it to external orchestration.
 - An Experiment that declares `sandboxReuse: true` runs one after another inside each Sandbox, and Sandboxes run in parallel; see [Reuse Sandboxes](/tutorials/sandbox-reuse).
 - An eval group runs in order internally, and different groups can still run in parallel; see [Eval Groups](/tutorials/eval-groups).
 

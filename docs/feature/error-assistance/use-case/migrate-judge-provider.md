@@ -7,7 +7,6 @@ kind: use-case
 feature: docs/feature/error-assistance/README.md
 ---
 
-
 # 迁移旧 Judge 配置
 
 项目使用普通对象配置 Judge，升级后在项目加载阶段收到 `migration-required`。
@@ -19,7 +18,7 @@ feature: docs/feature/error-assistance/README.md
 import { defineConfig } from "niceeval";
 
 export default defineConfig({
-  judgeProvider: {
+  judgeRuntime: {
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",
@@ -28,7 +27,7 @@ export default defineConfig({
 ```
 
 运行原有命令。CLI 在创建 Invocation、执行 setup 或发出 Provider 请求前拒绝该形状，
-显示 `judge-provider` guide ID、`defineConfig.judgeProvider` subject 与用户源码位置。
+显示 `judge-provider` guide ID、`defineConfig.judgeRuntime` subject 与用户源码位置。
 如果同一指南命中多处，反馈先列出已收集位置，再输出一次完整英文指南。
 
 ## 应用替代写法
@@ -38,7 +37,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",

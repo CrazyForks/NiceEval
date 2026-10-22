@@ -7,10 +7,9 @@ kind: use-case
 feature: docs/feature/experiments/README.md
 ---
 
-
 # 准备任务 Fixture
 
-某道 Eval 独有的起始仓库、数据文件或任务依赖，写 Eval `sandbox` layer 的 `before()` 命令或 `test(t)` 普通代码。
+某道 Eval 独有的起始仓库、数据文件或任务依赖，写 Eval `sandbox` layer 的 `prepare()` 命令或 `test(t)` 普通代码。
 它们随 Eval 变化，并且属于该题的归因边界。
 
 ```ts

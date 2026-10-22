@@ -1,4 +1,3 @@
-import { PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
 // @concord-file ne-eval-inspection-overview
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
@@ -7,7 +6,8 @@ import { foldRecordedAttemptVerdict } from "../eval/record/verdict.ts";
 import type { VerdictState } from "../eval/record/verdict.ts";
 import { Predicate, Result, Schema } from "effect";
 import type { MemberDocument, RecordSlotIdentity } from "../record/model/core.ts";
-import type { RunPluginIdentity, AdapterIdentity } from "../record/model/run-context.ts";
+import type { AdapterIdentity } from "../record/model/run-context.ts";
+import type { RunSlotPublication } from "../run/index.ts";
 import {
   NiceEvalCurrentRecordAttachments,
   NiceEvalRecordAttachments,
@@ -53,7 +53,7 @@ export interface InspectionMetricValue {
   readonly state: InspectionMetricState;
   readonly samples: number;
   readonly total: number;
-  readonly basis: "planned-attempt" | "eval";
+  readonly basis: "slot" | "eval";
   readonly issues: readonly InspectionJson[];
   readonly refs: readonly InspectionAttemptRef[];
   readonly unit?: "points" | "USD" | "ms" | "tokens";
@@ -100,13 +100,13 @@ export interface InspectionOverviewAggregate {
 
 export interface InspectionOverviewMember {
   readonly runId: string;
-  readonly plannedAttemptId: string;
+  readonly slotId: string;
   readonly evalId: string;
   readonly attemptOrdinal: number;
   readonly labels: InspectionLabels;
   readonly publication:
-    | Exclude<Schema.Schema.Type<typeof PlannedAttemptPublicationSchema>, { readonly state: "published" }>
-    | (Extract<Schema.Schema.Type<typeof PlannedAttemptPublicationSchema>, { readonly state: "published" }> & {
+    | Exclude<RunSlotPublication, { readonly state: "published" }>
+    | (Extract<RunSlotPublication, { readonly state: "published" }> & {
         readonly verdict: VerdictState | null;
         readonly score: InspectionMetricValue;
         readonly costUSD: InspectionCostMetricValue;
@@ -127,7 +127,6 @@ export interface InspectionOverviewGroup extends InspectionOverviewAggregate {
 }
 
 export interface InspectionOverviewExperiment extends InspectionOverviewAggregate {
-  readonly plugins: readonly RunPluginIdentity[];
   readonly experimentId: string;
   readonly adapter: InspectionAdapterValue;
   readonly model: InspectionExecutionValue;
@@ -453,7 +452,7 @@ function makeCell(
       const resolved = selected.resolved;
       return [Object.freeze({
         runId: selected.target.run.runId,
-        plannedAttemptId: selected.slot.slotId,
+        slotId: selected.slot.slotId,
         evalId: selected.slot.evalId,
         attemptOrdinal: selected.slot.attemptOrdinal,
         labels: inspectionLabels([selected], labelKeys),
@@ -493,7 +492,6 @@ function makeExperiment(
     }));
   return Object.freeze({
     experimentId: first.experimentId,
-    plugins: Object.freeze([...new Map(slots.flatMap(({ target }) => target?.run.context.execution.plugins ?? []).map((plugin) => [JSON.stringify(plugin), plugin])).values()]),
     adapter: adapterValue(slots.map(({ adapter }) => adapter)),
     model: executionValue(slots.map(({ model }) => model)),
     labels: inspectionLabels(slots, labelKeys),
@@ -611,7 +609,7 @@ function metricForSlots(
     state: failed ? "failed" : valued.length === 0 ? "unavailable" : partial ? "partial" : "available",
     samples: valued.length,
     total: slots.length,
-    basis: "planned-attempt",
+    basis: "slot",
     issues: Object.freeze([]),
     refs: refsOf(valued),
     unit,
@@ -639,7 +637,7 @@ function overviewPublication(
     attemptId: member.attempt.attemptId,
     attemptLocator: resolved.locator,
     originRunId: member.attempt.originRunId,
-    originPlannedAttemptId: resolved.attempt.slotId,
+    originSlotId: resolved.attempt.slotId,
     verdict: selected.analysis.verdict,
     score: scoreForMember(selected),
     costUSD: costForSlots([selected]),
@@ -758,7 +756,7 @@ function costForSlots(slots: readonly SelectedSlot[]): InspectionCostMetricValue
         : "available" as const,
     samples: valued.length,
     total: subjects.length,
-    basis: "planned-attempt" as const,
+    basis: "slot" as const,
     issues: Object.freeze([]),
     refs: refsOf(valued),
     unit: "USD" as const,
@@ -814,7 +812,7 @@ function passRateOf(
     }),
     samples: denominator.classified,
     total: denominator.expected,
-    basis: "planned-attempt" as const,
+    basis: "slot" as const,
     issues,
     refs: refsOf(classified),
   });
@@ -828,7 +826,7 @@ function scoreForMember(selected: SelectedSlot): InspectionMetricValue {
       state: "unsupported" as const,
       samples: 0,
       total: 0,
-      basis: "planned-attempt" as const,
+      basis: "slot" as const,
       issues: Object.freeze([]),
       refs: analysis.ref === null ? Object.freeze([]) : Object.freeze([analysis.ref]),
       unit: "points" as const,
@@ -852,7 +850,7 @@ function scoreForMember(selected: SelectedSlot): InspectionMetricValue {
           }),
     samples: complete ? 1 : 0,
     total: 1,
-    basis: "planned-attempt" as const,
+    basis: "slot" as const,
     issues: uniqueJson([
       ...analysis.issues,
       ...(analysis.score.hasPoints && !analysis.score.complete
@@ -880,7 +878,7 @@ function scoreForCell(slots: readonly SelectedSlot[]): InspectionMetricValue {
       state: slots.length === 0 ? "empty" as const : "unsupported" as const,
       samples: 0,
       total: 0,
-      basis: "planned-attempt" as const,
+      basis: "slot" as const,
       issues: Object.freeze([]),
       refs: Object.freeze([]),
       unit: "points" as const,
@@ -921,7 +919,7 @@ function scoreForCell(slots: readonly SelectedSlot[]): InspectionMetricValue {
     }),
     samples: complete.length,
     total: eligible.length,
-    basis: "planned-attempt" as const,
+    basis: "slot" as const,
     issues,
     refs: refsOf(eligible),
     unit: "points" as const,
@@ -1109,7 +1107,7 @@ function overviewIssue(
   return Object.freeze({
     code,
     runId,
-    plannedAttemptId: slot.slotId,
+    slotId: slot.slotId,
     evalId: slot.evalId,
     attemptOrdinal: slot.attemptOrdinal,
   });

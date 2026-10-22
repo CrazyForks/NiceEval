@@ -73,8 +73,7 @@ import { cleanupCallback } from "./cleanup-timeout.ts";
 import { resolveAttemptTimeout } from "./timeout.ts";
 import { hostname } from "node:os";
 import { recordRootPaths } from "../record/platform/root.ts";
-import type { GroupPluginContext } from "../plugin/contracts.ts";
-import { groupPluginLifecycles } from "../plugin/link.ts";
+import { linkPluginLifecycles, type GroupPluginContext } from "../plugin/contracts.ts";
 import {
   isOrphanedTeardownRegistration,
   readTeardownRegistrationsEffect,
@@ -537,7 +536,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     attempts,
     {
       signal: opts.signal,
-      maxConcurrency: opts.maxBeforeCacheConcurrency ?? 2,
+      maxConcurrency: opts.maxSetupPrefixConcurrency ?? 2,
       onActivity: (event) => {
         reportRunActivity({
           id: event.id,
@@ -892,7 +891,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
         progress: setupContext.progress,
         diagnostic: setupContext.diagnostic,
       }, setupContext, liveSandboxRuntimeServices, agent, runTiming, materializationOwnerId, () => nextReuseSandboxNumber(a.run),
-      groupPluginLifecycles(a.evalDef, a.run),
+      a.evalDef.evalGroup === undefined ? Object.freeze([]) : linkPluginLifecycles(a.evalDef.evalGroup.plugins ?? [], "group"),
       groupPluginContext);
       bySpec.set(key, pool);
       return pool.managed().pipe(Effect.map((managed) => ({ _tag: "Reuse", pool: managed }) as const));
@@ -1194,7 +1193,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
   /**
    * Owner tokens are an explicit inspection capability, not ordinary Runner
    * feedback. Keep both the live feedback event and the durable Run diagnostic
-   * limited to the key and recovery obligation; `exp --after` is the only
+   * limited to the key and recovery obligation; `exp --teardown` is the only
    * public surface that renders immutable owner evidence.
    */
   const reportSharedStateRecoveryRequired = (input: {
@@ -1204,7 +1203,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     readonly phase: LifecyclePhase;
   }): void => {
     const key = input.run.sharedState?.key ?? "";
-    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --after --recover-shared-state <key>\`.
+    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --teardown --recover-shared-state <key>\`.
 `.trimEnd();
     reportDiagnostic({
       key: `state-lease-recovery-required:${key || input.experimentId}`,
@@ -1676,7 +1675,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
               host: currentHost,
               startedAt: new Date().toISOString(),
             }).pipe(Effect.catch((error) => Effect.sync(() => {
-              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --after\` or the startup self-heal — check the canonical ProjectDatabase write failure.
+              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --teardown\` or the startup self-heal — check the canonical ProjectDatabase write failure.
 `.trimEnd();
               reportDiagnostic({
                 key: `teardown-registration-write-failed:${experimentId}`,

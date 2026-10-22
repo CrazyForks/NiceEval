@@ -113,11 +113,11 @@ An empty record that was not declared complete shows as an unknown cost, never a
 A Headless Adapter registers real calls with `ctx.recordUsage` and calls `ctx.sealUsage` after collection ends. You can then set a cache read rate threshold directly with `t.usage.cacheRead`:
 
 ```ts
-import { atLeast, ratio } from "niceeval/expect";
+import { atLeast } from "niceeval/expect";
 
-t.check(t.usage.cacheRead.rate("planner"), atLeast(ratio(0.6))).gate();
+t.check(t.usage.cacheRead.rate("planner"), atLeast(0.6)).gate();
 // Check the total across all recorded calls when no purpose is needed.
-t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6))).gate();
+t.check(t.usage.cacheRead.rate(), atLeast(0.6)).gate();
 ```
 
 The read rate is **total cache read tokens / total input tokens including cache** across calls in the same group, including failed calls and retries. It is not an average of per-call percentages. Each call uses `inputTotalTokens` first; without a separate total, it must provide all three mutually exclusive buckets: `inputTokens`, `cacheReadTokens`, and `cacheWriteTokens`.
@@ -185,14 +185,14 @@ export const slots = defineModelSlots({
 Declare requirements on the factories bound to your existing Adapter. You can also destructure `adapter.defineScoreEval`, but the factory with the same name at the package root does not accept `requires`:
 
 ```ts title="evals/cache.eval.ts"
-import { atLeast, ratio } from "niceeval/expect";
+import { atLeast } from "niceeval/expect";
 import { adapter } from "../adapter";
 import { slots } from "../models";
 
 export default adapter.defineScoreEval({
   requires: { models: slots },
   test(t) {
-    t.check(t.usage.cacheRead.rate("mind"), atLeast(ratio(0.6))).gate();
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
     // rate("mimd") causes a TypeScript error; rate() still queries the total across all purposes.
   },
 });

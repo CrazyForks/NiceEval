@@ -80,23 +80,23 @@ pnpm exec niceeval exp compare --max-concurrency 19
 
 ## 名额怎么分
 
-下面是一批混跑：全局 3 个并发名额，`fast` 是普通实验，`slow` 声明了 `maxConcurrency: 1`。
+下面是一批混跑：全局 3 个并发位，`fast` 是普通实验，`slow` 声明了 `maxConcurrency: 1`。
 
 <Schedule
   title="全局 3 位 · slow 实验自己限 1"
   hint="竖线是时间，悬停暂停"
   lanes={[
-    { label: "并发名额 1", bars: [
+    { label: "并发位 1", bars: [
       { text: "slow · a1", from: 1, to: 5, tone: "serial" },
       { text: "slow · a2", from: 5, to: 9, tone: "serial" },
       { text: "slow · a3", from: 9, to: 13, tone: "serial" },
     ] },
-    { label: "并发名额 2", bars: [
+    { label: "并发位 2", bars: [
       { text: "fast · a1", from: 1, to: 4 },
       { text: "fast · a3", from: 4, to: 8 },
       { text: "fast · a5", from: 8, to: 13 },
     ] },
-    { label: "并发名额 3", bars: [
+    { label: "并发位 3", bars: [
       { text: "fast · a2", from: 1, to: 3 },
       { text: "fast · a4", from: 3, to: 7 },
       { text: "fast · a6", from: 7, to: 13 },
@@ -108,7 +108,7 @@ pnpm exec niceeval exp compare --max-concurrency 19
   legend={[
     { text: "普通实验，抢空出来的位" },
     { tone: "serial", text: "声明了 maxConcurrency: 1，永远只占一条" },
-    { tone: "backoff", text: "退避重试，让出并发名额但仍计 running" },
+    { tone: "backoff", text: "退避重试，让出并发位但仍计 running" },
   ]}
 />
 
@@ -118,9 +118,9 @@ pnpm exec niceeval exp compare --max-concurrency 19
 - **名额优先给还要跑最多轮的实验。** 快慢实验放在一条命令里跑是安全的，不需要手工分批，也不需要给快任务预留名额。快的任务会自动补上空位。
 - **退避重试中的 Attempt 让出全局位，但不让出实验自己的位。** 所以撞上限流时，live 面板的 `running` 会超过上限，超出的数量正好是正在退避的数量。任一时刻真正在执行的仍然不超过上限，这不是并发失效。
 
-等待实验级 `setup`（起隧道、起共享服务）的 Attempt 不占并发名额，计数里显示为 `queued`。所以隧道启动慢时，面板长时间显示 “0 running、N queued”，问题在 `setup`，不在并发配置。
+等待实验级 `setup`（起隧道、起共享服务）的 Attempt 不占并发位，计数里显示为 `queued`。所以隧道启动慢时，面板长时间显示 “0 running、N queued”，问题在 `setup`，不在并发配置。
 
-等待 Docker profile 容量的 Attempt 也显示为 `queued`，排队原因是 `provider-capacity`。它不会显示 `creating sandbox`，也不占普通并发名额。profile 有空余后，它重新拿到并发名额，分到资源才进入 `running`。同批用其它 Provider 的 Attempt 可以继续启动，不会被排在前面的 Docker 任务卡住。
+等待 Docker profile 容量的 Attempt 也显示为 `queued`，排队原因是 `provider-capacity`。它不会显示 `creating sandbox`，也不占普通并发位。profile 有空余后，它重新拿到并发位，分到资源才进入 `running`。同批用其它 Provider 的 Attempt 可以继续启动，不会被排在前面的 Docker 任务卡住。
 
 ## 在 live 面板确认并发生效
 
@@ -178,7 +178,7 @@ const fixtures = new WeakMap<Sandbox, { repoUrl: string; destroy(): Promise<void
 
 ## 让相关评估按组复用 Sandbox
 
-只有几组评估需要共享环境时，用 `defineEvalGroup()` 列出同组成员。每个组同一时刻只跑一个 Attempt，最多复用一台 Sandbox；不同组和没分组的评估用例继续用剩下的并发名额。你不需要把整个 Experiment 设成 `maxConcurrency: 1`。
+只有几组评估需要共享环境时，用 `defineEvalGroup()` 列出同组成员。每个组同一时刻只跑一个 Attempt，最多复用一台 Sandbox；不同组和没分组的评估用例继续用剩下的并发位。你不需要把整个 Experiment 设成 `maxConcurrency: 1`。
 
 `evals` 数组只列成员，不决定顺序。组内按评估用例 ID 排序执行；`attempts > 1` 时，同一道题的几次 Attempt 连续跑完再轮到下一道。完整目录、Experiment 写法和 `--dry` 检查见[用评估组复用 Sandbox](/zh/tutorials/eval-groups)。
 

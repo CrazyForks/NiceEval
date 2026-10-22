@@ -41,7 +41,7 @@ test("uiMessageStreamAgent 审批等待、批准与拒绝保持同一 call 生�
         }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
         expect(queried.exitCode, queried.diagnostic()).toBe(0);
         const document = queried.attemptTrace();
-        expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+        expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
         const trace = JSON.stringify(document.trace);
         expect(trace, queried.diagnostic()).toContain("local-approval-approved");
         expect(trace, queried.diagnostic()).toContain("local-approval-denied");

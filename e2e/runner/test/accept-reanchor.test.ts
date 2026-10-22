@@ -106,7 +106,7 @@ export default defineExperiment({ adapter, evals: ["locator-background"] });
     expect(acceptedDocument).toMatchObject({ operation: "run.get", issues: [] });
     expect(acceptedDocument.run.value).toMatchObject({ runId: acceptedRunId });
     expect(acceptedDocument.run.denominator).toEqual({ expected: 1, published: 1, missing: 0 });
-    expect(acceptedDocument.run.plannedAttempts).toEqual([
+    expect(acceptedDocument.run.slots).toEqual([
       expect.objectContaining({
         evalId: "accept/accept-target",
         locator: oldLocator,

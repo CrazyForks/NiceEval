@@ -422,7 +422,7 @@ Sandbox 的 profile 查找函数只保留 `resolveDockerProfile` 这个名称，
 
 一个 Experiment 可以为应用声明多个模型用途，例如 `mind` 与 `speech`。
 这些键表达“这个模型在应用里担任什么角色”，不是可插拔的空位。
-它们也不与 Record 的 expected slot、Slot binding 或 Adapter session slot 同义。
+它们也不与 Run 的 Planned attempt 或 Adapter 的 SessionKey 同义。
 仓库里 slot 已经指称 Run 分母成员与会话存储；再让它表示模型用途，同一词根会在相邻 API 里指向三种对象。
 因此作者可见的模型用途统一使用 role：
 
@@ -581,7 +581,7 @@ spec 的字段：
 `sandbox: { before, after }` 与在挂载点自己的 SandboxLayer 上追加 `.before(...)` / `.after(...)` 完全等价，不引入新的物理生命周期：
 
 - 元素是受管 Action（如 `writeText`、`uploadDirectory`）或 `(sandbox, ctx) => …` 回调，与 `.before()` / `.after()` 参数相同。
-- 每条 Attempt 形成一次 occurrence，题间 reset 之后执行；受管 Action 照常参与 Action DAG 排序与 setup prefix 缓存，回调每次真实执行。
+- 每条 Attempt 形成一次 occurrence，题间 reset 之后执行；受管 Action 照常参与 Action DAG 排序与 before cache，回调每次真实执行。
 - 回调上下文就是现有 `SandboxCommandContext`，绑定当前 Attempt 与它的 signal、deadline。
 - Experiment 挂载的 Plugin 投影到 Experiment layer，EvalGroup 与 Eval 挂载的分别投影到对应 owner layer。
 - 挂在 Eval 上的 `sandbox` 字段隔离普通 reuse pool；同一 Group 成员的 Sandbox 字段身份不同时，在创建前报 `eval-group-incompatible`。

@@ -118,8 +118,8 @@ test("debug 交付统一且无副作用的 Sandbox action 计划", async () => {
     }));
     expect(document).not.toHaveProperty("format");
     expect(document).not.toHaveProperty("schemaVersion");
-    expect(document.beforeCachePlan.lookup).toBe("not-probed");
-    expect(document.beforeCachePlan.nodes.every((node) => node.lookup === "not-probed")).toBe(true);
+    expect(document.setupPrefixPlan.lookup).toBe("not-probed");
+    expect(document.setupPrefixPlan.nodes.every((node) => node.lookup === "not-probed")).toBe(true);
 
     const nodes = actionNodes(document.commandPlan);
     const byId = new Map(nodes.map((node) => [actionId(node), node]));
@@ -371,12 +371,12 @@ test("debug 交付统一且无副作用的 Sandbox action 计划", async () => {
     expect(wholeDocument).toEqual(expect.objectContaining({
       experimentId: "sandbox-action-debug",
       evalIds: ["sandbox-action-debug/plan", "sandbox-action-debug/secondary"],
-      beforeCachePlan: expect.objectContaining({ lookup: "not-probed" }),
+      setupPrefixPlan: expect.objectContaining({ lookup: "not-probed" }),
     }));
     expect(wholeDocument).not.toHaveProperty("evalId");
-    expect(new Set(wholeDocument.beforeCachePlan.nodes.map((node) => node.prefixIdentity)).size)
-      .toBe(wholeDocument.beforeCachePlan.nodes.length);
-    const consumerEvalIds = new Set(wholeDocument.beforeCachePlan.nodes.flatMap((node) =>
+    expect(new Set(wholeDocument.setupPrefixPlan.nodes.map((node) => node.prefixIdentity)).size)
+      .toBe(wholeDocument.setupPrefixPlan.nodes.length);
+    const consumerEvalIds = new Set(wholeDocument.setupPrefixPlan.nodes.flatMap((node) =>
       node.consumers.map((consumer) => consumer.evalId)));
     expect(consumerEvalIds).toEqual(new Set([
       "sandbox-action-debug/plan",

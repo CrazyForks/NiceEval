@@ -190,13 +190,13 @@ declare function OpenRouterProvider(options: ChatJudgeProviderOptions): JudgePro
 declare function TypesafeProvider(options: TypesafeProviderOptions): JudgeProvider;
 
 interface ProjectJudgeSettings {
-  readonly judgeProvider?: JudgeProvider;
+  readonly judgeRuntime?: JudgeProvider;
 }
 interface EvalJudgeSettings {
   readonly judge?: JudgeSelection;
 }
 interface ExperimentJudgeSettings {
-  readonly judge?: JudgeSelection;
+  readonly judgeRuntime?: JudgeSelection;
 }
 ```
 
@@ -228,7 +228,7 @@ interface ExperimentJudgeSettings {
 
 ### 模型与 Provider 替换
 
-配置求值从 `Config.judgeProvider` 开始，依次应用 `Eval.judge` 和 `Experiment.judge`。
+配置求值从 `Config.judgeRuntime` 开始，依次应用 `Eval.judge` 和 `Experiment.judgeRuntime`。
 最高优先级的 Provider 是整份配置的起点；只应用它之后更高层的模型字符串。`undefined` 不改变选择。
 
 | 替换值 | 结果 |
@@ -245,7 +245,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({ model: "judge-model", timeoutMs: 120_000 }),
+  judgeRuntime: OpenAIProvider({ model: "judge-model", timeoutMs: 120_000 }),
 });
 ```
 
@@ -321,7 +321,7 @@ const provider = VercelProvider({
   model: "your-vision-and-tool-capable-model",
   supportsImages: true,
 });
-// Set Config.judgeProvider or Experiment.judge to this provider.
+// Set provider as judgeRuntime in the project or Experiment.
 // Inside the Eval, pngBytes are already captured application bytes:
 t.judge({
   behavior,

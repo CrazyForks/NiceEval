@@ -89,25 +89,25 @@ The Runner promises one thing for sessions: **every `send` in one session line r
 
 How you continue a session depends on the application interface shape:
 
-- **The client supplies complete history**—the server is stateless and receives the full messages list each Turn, as with Chat Completions—→ create an Adapter-private key with `createSessionKey<TMsg[]>()`, then read and write it with `ctx.session.get(key)` / `set(key, messages)`.
+- **The client supplies complete history**—the server is stateless and receives the full messages list each Turn, as with Chat Completions—→ create an Adapter-private slot with `createSessionSlot<TMsg[]>()`, then read and write it with `ctx.session.get(slot)` / `set(slot, messages)`.
 - **The server keeps history**—the interface accepts a session ID, such as a Responses-shaped `previous_response_id` or an SDK-native session/thread—→ use `ctx.session.id` and `ctx.session.capture(id)`.
 
 The main example uses the first form:
 
 ```ts
 // agents/chat-app.ts
-import { completeEvidenceCoverage, createSessionKey, defineAgent } from "niceeval/adapter";
+import { completeEvidenceCoverage, createSessionSlot, defineAgent } from "niceeval/adapter";
 
 const BASE_URL = "http://localhost:8080";
 
 interface Msg { role: "user" | "assistant"; content: string | null }
-const historyKey = createSessionKey<Msg[]>("chat-app/history");
+const historySlot = createSessionSlot<Msg[]>("chat-app/history");
 
 export default defineAgent({
   name: "chat-app",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input, ctx) {
-    const history = ctx.session.get(historyKey) ?? []; // ← This key has not been written on a new session line.
+    const history = ctx.session.get(historySlot) ?? []; // ← This slot has not been written on a new session line.
     const messages = [...history, { role: "user" as const, content: input.text }];
 
     const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
@@ -116,7 +116,7 @@ export default defineAgent({
     }).then((r) => r.json());
 
     const reply = res.choices[0].message;
-    ctx.session.set(historyKey, [...messages, reply]); // ← Write it back. The next Turn on this line gets it automatically.
+    ctx.session.set(historySlot, [...messages, reply]); // ← Write it back. The next Turn on this line gets it automatically.
 
     return {
       status: "completed",
@@ -126,7 +126,7 @@ export default defineAgent({
 });
 ```
 
-No first-turn branch is needed. On a new session line, `ctx.session.get(historyKey)` returns `undefined`; `?? []` turns it into empty history. The first turn is simply empty history plus a new message. There is no extra capability to declare on `defineAgent`: use `ctx.session` to continue the conversation, or omit it to start a new one each turn.
+No first-turn branch is needed. On a new session line, `ctx.session.get(historySlot)` returns `undefined`; `?? []` turns it into empty history. The first turn is simply empty history plus a new message. There is no extra capability to declare on `defineAgent`: use `ctx.session` to continue the conversation, or omit it to start a new one each turn.
 
 When the application interface accepts a session ID, history lives on the server and the Adapter records only that ID. Change only these two places inside `send`:
 
@@ -240,7 +240,7 @@ After normalization, the events you emit determine the assertion families Eval a
 
 | Events you emit | Assertions unlocked |
 |---|---|
-| `message` | `t.reply`, `t.check(turn.reply, includes(...))` / `pattern(...)`, Judge conversation material |
+| `message` | `t.reply`, `t.check(turn.message, includes(...))` / `pattern(...)`, Judge conversation material |
 | Tool `operation.started` / `operation.finished`, paired by `operationId` | `turn.calledTool()` / `turn.toolOrder()` / `turn.maxToolCalls()` / `turn.noFailedActions()`… |
 | `input.requested`, with status `"waiting"` | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, `t.respond()` (step five) |
 | `thinking` / `compaction` / `error` | Reports and diagnostics; you can also pass raw `events` to an ordinary `check(events, match)` |
@@ -256,20 +256,20 @@ When an application stops mid-Turn to wait for a person—for tool approval or m
 - **The pausing Turn** returns `status: "waiting"` and emits an `input.requested` event with a stable `id` for every pending question. `t.check(turn.status, equals("waiting"))` and `t.requireInputRequest()` read them, and answers match by this `id`.
 - **The answer Turn** reaches the Adapter from an Eval's `t.respond(...)` as **another ordinary `send`** on the same session line with the same state. A human decision arrives structurally through `input.responses`; each entry carries `requestId`, `optionId`, or `text`. See [Inputs for the Different Answers](/explanation/adapter#inputs-for-the-different-answers) for the shapes. The Adapter gives that decision back to the application, then continues fetching the result. For a call a human rejects, set the tool `operation.finished` event's `status` to `"rejected"`, not `"failed"`: rejection is a human decision, not a tool failure, so `noFailedActions()` does not misfire.
 
-Store unfinished work, such as a partly read SSE stream, in `ctx.session` too. Declare private state with `createSessionKey<Pending>()`, save it with `ctx.session.set(...)` when waiting, and retrieve it with `ctx.session.take(...)` at the start of the answering turn. Taking clears the value, so it can be consumed only once.
+Store unfinished work, such as a partly read SSE stream, in `ctx.session` too. Declare private state with `createSessionSlot<Pending>()`, save it with `ctx.session.set(...)` when waiting, and retrieve it with `ctx.session.take(...)` at the start of the answering turn. Taking clears the value, so it can be consumed only once.
 
 HITL almost always occurs on a streaming interface because the pause happens in the middle of a stream. This example therefore switches to an application that passes native events through SSE. It exercises every preceding step together; see the complete runnable version in the [tier1 example](https://github.com/CorrectRoadH/niceeval/tree/main/examples/zh/tier1):
 
 ```ts
 // agents/my-app.ts
-import { completeEvidenceCoverage, createSessionKey, defineAgent, sseJsonFrames, createPiAgentEventStream, driveFrameStream } from "niceeval/adapter";
+import { completeEvidenceCoverage, createSessionSlot, defineAgent, sseJsonFrames, createPiAgentEventStream, driveFrameStream } from "niceeval/adapter";
 import type { AgentContext, PiAgentStream, SseFrameCursor } from "niceeval/adapter";
 import type { Turn, TurnInput } from "niceeval";
 
 const BASE_URL = "http://localhost:5299";               // The application's own port; evals do not manage its process.
 
 interface Pending { cursor: SseFrameCursor<Frame>; stream: PiAgentStream; callId: string }
-const pendingKey = createSessionKey<Pending>("my-app/pending");
+const pendingSlot = createSessionSlot<Pending>("my-app/pending");
 
 function readStream(cursor: SseFrameCursor<Frame>, ctx: AgentContext, stream: PiAgentStream): Promise<Turn> {
   return driveFrameStream(cursor, stream, ctx, (frame) => {
@@ -278,7 +278,7 @@ function readStream(cursor: SseFrameCursor<Frame>, ctx: AgentContext, stream: Pi
       return;
     }
     if (frame.type === "approval_request") {            // ← This step: the application pauses for approval, so retain the scene.
-      ctx.session.set(pendingKey, { cursor, stream, callId: frame.toolCallId });
+      ctx.session.set(pendingSlot, { cursor, stream, callId: frame.toolCallId });
       return { pause: { id: frame.toolCallId, action: frame.toolName,
                         options: [{ id: "approve" }, { id: "deny" }] } };
       // On pause, driveFrameStream adds input.requested, sets status to "waiting", and stops reading the stream.
@@ -291,7 +291,7 @@ export default defineAgent({
   name: "my-app",
   evidenceCoverage: completeEvidenceCoverage,
   async send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
-    const held = ctx.session.take(pendingKey);
+    const held = ctx.session.take(pendingSlot);
     if (held) {                                         // ← t.respond("approve"): an ordinary send; deliver the decision first.
       const approved = input.responses?.[0]?.optionId === "approve";  // Match by requestId when several requests are pending.
       if (!approved) held.stream.markRejected(held.callId);
@@ -314,7 +314,7 @@ export default defineAgent({
 });
 ```
 
-For an interface without HITL, remove the three waiting-related parts: `Pending`, `pendingKey`, and the initial `take` branch. Keep the rest. See [HITL](/explanation/hitl) for the complete waiting, answering, and resuming flow.
+For an interface without HITL, remove the three waiting-related parts: `Pending`, `pendingSlot`, and the initial `take` branch. Keep the rest. See [HITL](/explanation/hitl) for the complete waiting, answering, and resuming flow.
 
 **This step supports** `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`. Assert a rejected call with `calledTool(toolMatch(..., { status: "rejected" }))`. If `t.requireInputRequest()` finds no request, check that the waiting turn returned both `status: "waiting"` and an `input.requested` event.
 

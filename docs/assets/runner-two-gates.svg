@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 480" role="img" aria-labelledby="figTitle figDesc">
   <title id="figTitle">两级并发限制的持有期不同</title>
-  <desc id="figDesc">实验并发限制从 Attempt 进入到收尾始终持有，而全局并发名额只在执行时持有，退避等待会释放给其它 Attempt。</desc>
+  <desc id="figDesc">实验并发限制从 Attempt 进入到收尾始终持有，而全局并发位只在执行时持有，退避等待会释放给其它 Attempt。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0 0 L8 4 L0 8 z" fill="#74747b" />

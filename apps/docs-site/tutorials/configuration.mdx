@@ -50,7 +50,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({ model: "gpt-5.4-mini" }),
+  judgeRuntime: OpenAIProvider({ model: "gpt-5.4-mini" }),
   maxConcurrency: 4,
   timeoutMs: 300_000,
 });
@@ -61,7 +61,7 @@ export default defineConfig({
 | Field | What goes in it |
 | --- | --- |
 | `name` | Project name, shown at the top of `niceeval view`. Can have one per language |
-| `judgeProvider` | Default Judge Provider, built with a named factory from `niceeval/judge` |
+| `judgeRuntime` | Default Judge Provider, built with a named factory from `niceeval/judge` |
 | `workspace` | Root of the workspace uploaded into the Sandbox |
 | `reporters` | Default reporter list (write to disk, report to an experiment platform) |
 | `maxConcurrency` | Default concurrency cap |
@@ -80,7 +80,7 @@ Put secrets in the environment variables below. These are all the environment va
 | `ANTHROPIC_API_KEY` | `claudeCodeAgent()` | Can be overridden by the factory parameter `apiKey` |
 | `ANTHROPIC_BASE_URL` | `claudeCodeAgent()` | Gateway address; can be overridden by the factory parameter `baseUrl` |
 | `CODEX_API_KEY` / `CODEX_BASE_URL` | `codexAgent()` | Key required, proxy address optional; can be overridden by the factory parameters `apiKey` / `baseUrl` |
-| `BUB_API_KEY` / `BUB_API_BASE` | `bubAgent()` | Both required; can be overridden by the factory parameters `apiKey` / `baseUrl` |
+| `BUB_API_KEY` / `BUB_API_BASE` | `bubAgent()` | Both required; can be overridden by the factory parameters `apiKey` / `apiBase` |
 | `OPENCLAW_API_KEY` / `OPENCLAW_BASE_URL` | `openClawAgent()` | When the key is omitted, falls back to `ANTHROPIC_API_KEY` |
 | `OPENCODE_API_KEY` / `OPENCODE_BASE_URL` | `openCodeAgent()` | When the key is omitted, falls back to `ANTHROPIC_API_KEY` |
 | `HERMES_API_KEY` / `HERMES_API_BASE` | `hermesAgent()` | When the key is omitted, falls back to `OPENROUTER_API_KEY`, then `ANTHROPIC_API_KEY` |
@@ -100,7 +100,7 @@ To have the Judge read its key from a different variable name, spell out the var
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "gpt-5.4-mini",
     baseUrl: "https://gateway.example.com/v1",   // The gateway address is configuration, so it goes here
     apiKeyEnv: "MY_GATEWAY_KEY",                  // The key is a secret, so read it from this environment variable
@@ -112,7 +112,7 @@ When the gateway address should not be committed to the repository either, read 
 
 ```ts
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "gpt-5.4-mini",
     baseUrl: process.env.MY_GATEWAY_URL,   // You name the variable and read it yourself
     apiKeyEnv: "MY_GATEWAY_KEY",

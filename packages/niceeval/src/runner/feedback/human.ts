@@ -602,7 +602,7 @@ function buildSummaryLines(
     { kind: "line", text: formatSummaryCostLine(state) },
     {
       kind: "line",
-      text: `Before caches: ${summary.beforeCaches.hit} hit · ${summary.beforeCaches.prepared} prepared · ${summary.beforeCaches.failed} failed (${summary.beforeCaches.total} total)`,
+      text: `Setup prefixes: ${summary.setupPrefixes.hit} hit · ${summary.setupPrefixes.prepared} prepared · ${summary.setupPrefixes.failed} failed (${summary.setupPrefixes.total} total)`,
     },
   ];
   const blocks: string[][] = [

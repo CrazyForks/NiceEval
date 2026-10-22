@@ -915,12 +915,10 @@ class AssertionsRuntimeImplementation {
     const managed = assertManagedValueMatch(match, "t.check() match");
     if (managed.kind === "boolean") {
       if (isNumericComparisonMatch(managed)) {
-        const isMaterial = typeof value === "object" && value !== null &&
-          ["exact", "lower-bound", "unavailable"].includes(String((value as { state?: unknown }).state));
-        const material: NumericMaterial<Unit | undefined> = isMaterial
-          ? value as NumericMaterial<Unit | undefined>
-          : isQuantity(value)
+        const material: NumericMaterial<Unit | undefined> = isQuantity(value)
           ? Object.freeze({ state: "exact" as const, value: value.value, unit: value.unit })
+          : typeof value === "object" && value !== null && ["exact", "lower-bound", "unavailable"].includes(String((value as {state?: unknown}).state))
+          ? value as NumericMaterial<Unit | undefined>
           : typeof value === "number" && Number.isFinite(value)
           ? Object.freeze({ state: "exact" as const, value })
           : Object.freeze({ state: "unavailable" as const, reason: "non-finite-number" });
@@ -935,7 +933,7 @@ class AssertionsRuntimeImplementation {
           criterionSubject: Object.freeze({ kind: "explicit-value" as const }),
           material,
           captured,
-          matchedValue: (numericValue) => !isMaterial && isQuantity(value) ? value : numericValue,
+          matchedValue: (numericValue) => isQuantity(value) ? value : numericValue,
         }));
       }
       const captured = captureAssertionSnapshot(value);

@@ -154,7 +154,7 @@ pnpm exec niceeval view --run <run-id>
 ```sh
 pnpm --silent exec niceeval query run --request - <<'JSON'
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": { "kind": "attempt.get", "locator": "@1K1P0VJAPVJ12" }
 }
 JSON
@@ -165,7 +165,7 @@ JSON
 ```sh
 pnpm --silent exec niceeval query run --request - <<'JSON'
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v1",
   "operation": {
     "kind": "attempt.assertion.detail",
     "locator": "@1K1P0VJAPVJ12",

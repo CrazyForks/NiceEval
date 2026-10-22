@@ -24,7 +24,7 @@ feature: docs/feature/experiments/README.md
    ```
 
 2. 语义只有一条:**`passed` 触发**。
-   某条 eval 的一个 attempt 通过后,同 eval 还没开跑的其余轮次停止派发;已经在飞的照常跑完并独立发布。未派发 Planned attempt 不伪造 Member，Run close 将其 absence reason 冻结为 `early-exit-satisfied`(契约见 [Runner · 调度](../../../runner.md#调度))。
+   某条 eval 的一个 attempt 通过后,同 eval 还没开跑的其余轮次停止派发;已经在飞的照常跑完并独立发布。未派发 slot 不伪造 Member，Run close 将其 absence reason 冻结为 `early-exit-satisfied`(契约见 [Runner · 调度](../../../runner.md#调度))。
 3. 人读文本下被省略的 ordinal 从 `queued` 进入明确的未启动计数。
    Live reducer 的计数始终自洽，不留下永久 running。
    `--json` 不伪造 skipped Attempt、locator 或 Verdict；它发送同一 Reducer 的 Live record，并以末尾 `InvocationReceipt` 表达完成态（见 [CLI · attempts 与首过即停怎样展示](../cli.md#attempts-与首过即停怎样展示)）。
@@ -35,7 +35,7 @@ feature: docs/feature/experiments/README.md
 
 ## 边界
 
-- early-exit 不改变派发节奏,只减少已派发的浪费:`attempts: N` 的多个 attempt 按并发名额一起进等待集,能省下的只是还在排队的那些。
+- early-exit 不改变派发节奏,只减少已派发的浪费:`attempts: N` 的多个 attempt 按并发位一起进等待集,能省下的只是还在排队的那些。
   要「过了就停、没过才跑下一次」的严格串行重试,配实验级 `maxConcurrency: 1`(见 [Runner · 调度](../../../runner.md#调度))。
 - 做通过率对比时别开：分母被截断，pass at k 失真；实验里签入了 `earlyExit: true` 而本次要完整分布时，用 `--no-early-exit` 关回跑满。
 - reuse 的 `passed` 与它组合遵守同一语义：reuse planning 已选择通过结果时，缺失序号不再派发（见 [Reuse planning](../cache.md#coordinatorplanner-与-writer)）。

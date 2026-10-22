@@ -24,7 +24,7 @@ test.concurrent("非法展示块拒绝整份快照并保留已接纳事件与采
     }
     const locator = result.locator.startsWith("@") ? result.locator : `@${result.locator}`;
     const request = join(projectRoot, "display-rejection.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.trace", locator } }));
     const query = await niceeval.run(["query", "run", "--request", request]);
     expect(query.exitCode, query.diagnostic()).toBe(0);
     const execution = query.querySuccess("attempt.trace").trace.execution;

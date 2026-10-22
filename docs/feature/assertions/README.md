@@ -7,7 +7,6 @@ kind: feature
 ---
 
 
-
 # Assertions
 
 Assertion 是一次 Attempt 内已经完成、可离线复核的检查事实。值比较、scope 检查、Sandbox 验证、资源限制和 Judge 都归一到 Attempt-owned 的 `niceeval.assertions` family（envelope `schemaVersion: 4`）。producer 在整个 Run 发布前封口它；Record、Verdict 与 Inspection 只读取已封口的事实，不重新执行 matcher 或作者代码。
@@ -93,13 +92,13 @@ const answerQuality = defineJudge({
 const question = "搜索资料并说明结论。";
 const turn = await t.send(question);
 
-t.check(turn.reply, includes("已完成"))
+t.check(turn.message, includes("已完成"))
   .key("reply-complete")
   .label("说明已完成");
 
 turn.succeeded().label("Turn 完成");
 turn.calledTool("search").label("调用搜索工具");
-t.check({ question, answer: turn.reply }, answerQuality).gate(0.8);
+t.check({ question, answer: turn.message }, answerQuality).gate(0.8);
 turn.closeQA("这轮全部材料是否支持结论？").gate(0.8);
 ```
 

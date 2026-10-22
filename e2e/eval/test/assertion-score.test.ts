@@ -48,7 +48,7 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
       const summary = await inspectRunSummary(niceeval, projectRoot, runId);
       expect(summary.receipt.exitCode, summary.receipt.diagnostic()).toBe(0);
       expect(summary.document).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v1",
         operation: "run.get",
         issues: [],
         run: { denominator: { expected: 12, published: 12, missing: 0 } },
@@ -61,13 +61,13 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
         ["assertion-score/stopped", "passed"],
         ["assertion-score/skipped", "skipped"],
       ] as const) {
-        expect(summary.document.run.plannedAttempts.filter((member) =>
+        expect(summary.document.run.slots.filter((member) =>
           member.evalId === evalId && member.verdict === verdict
         )).toHaveLength(2);
       }
 
       const entriesByEval = new Map<string, (readonly ReturnType<typeof assertionEntry>[])[]>();
-      for (const member of summary.document.run.plannedAttempts) {
+      for (const member of summary.document.run.slots) {
         expect(member.locator, `${member.evalId} must have a published Attempt locator`).toEqual(expect.any(String));
         const inspected = await inspectAttempt(niceeval, projectRoot, member.locator!, "attempt.get");
         expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);
@@ -167,7 +167,7 @@ test.concurrent("计分 Eval 公开区分质量门失败、连续得分与停止
       expect(shown.exitCode, shown.diagnostic()).toBe(0);
       expect(shown.stdout).toMatch(/Verdicts\s+6 passed; 2 failed; 2 errored; 2 skipped/u);
       const overviewRequest = join(projectRoot, "score-overview.json");
-      await writeFile(overviewRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "overview.get" } }));
+      await writeFile(overviewRequest, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "overview.get" } }));
       const overview = await niceeval.run(["query", "run", "--request", overviewRequest]);
       expect(overview.exitCode, overview.diagnostic()).toBe(0);
       const cells = overview.querySuccess("overview.get").overview.cells;

@@ -20,8 +20,8 @@ published Run facts at PublicationCutoff
   → React routes and components
 ```
 
-View 不要求 Run 先进入终态。`active` Run 已发布的 Attempt 立即可读，尚未发布的 expected Planned attempt 显示 `pending`；
-终态 Run 的空 Planned attempt 显示 `absenceReason`。Run detail 只消费 `run.get`，列表只消费 `run.list`。Results、指标、比较和
+View 不要求 Run 先进入终态。`active` Run 已发布的 Attempt 立即可读，尚未发布的 expected slot 显示 `pending`；
+终态 Run 的空 slot显示 `absenceReason`。Run detail 只消费 `run.get`，列表只消费 `run.list`。Results、指标、比较和
 层级 table 同样只呈现 Inspection 已关闭的成员、分母与 Evidence，组件不自行聚合。
 
 Insight 不是可定制 Report、component 或 service 作者面。它不提供持久 DTO、业务 REST、任意 SQL、任意 route，
@@ -37,7 +37,7 @@ Header 右上角先显示 `Experiments` selector，再显示 `Language`。Result
 Experiment、Eval 与 Attempt 行的 token 和单一 cost 列读取同一个 Inspection selector。父行按 origin Attempt 与 call identity
 并集聚合，不因引用或展示分页重复计量；partial 与 unknown 在每一层保持可见。
 
-Run debugger 显示 state、`expected`／`published`／`missing`、pending/absence、coverage、指标分母、Planned attempt bindings 与
+Run debugger 显示 state、`expected`／`published`／`missing`、pending/absence、coverage、指标分母、slot bindings 与
 Attempt locators。Attempt debugger 连续呈现身份、判定、source、assertions、trajectory、tool input/output、timeline、
 usage、commands、diagnostics 与 diff。partial、unavailable 与 truncated 始终是可见事实。
 

@@ -98,7 +98,7 @@ export default defineExperiment({
 });
 ```
 
-这里不要写 `sandboxReuse: true`。`maxConcurrency: 4` 是整个 Experiment 的上限，不会让同组同时跑四个；剩下的并发名额留给其它组和没分组的评估用例。
+这里不要写 `sandboxReuse: true`。`maxConcurrency: 4` 是整个 Experiment 的上限，不会让同组同时跑四个；剩下的并发位留给其它组和没分组的评估用例。
 
 评估组只能和在 Sandbox 里运行的 Agent、支持复用的 Provider 一起用。不带 Sandbox 的 Agent 不能运行评估组。
 

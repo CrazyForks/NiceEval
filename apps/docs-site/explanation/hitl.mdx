@@ -61,7 +61,7 @@ HITL asks an Adapter to do exactly three things. The first two happen in the pau
 2. **Emit one `input.requested` event for every question waiting for an answer.** Keep `id` stable and populate as many fields as possible. eval-side checks and alignment depend on them.
 3. **On the next `send`, return the decision first, then continue.** Take each decision from `input.responses` by `requestId` rather than guessing by order, then continue from where the previous turn paused instead of resending the request.
 
-The paused state, such as a partially read SSE stream, lives in `ctx.session` on this session line. The Adapter declares a private typed key with `createSessionKey<Pending>()`, saves it on pause with `ctx.session.set(key, pending)`, and recovers it on the response turn with `ctx.session.take(key)`. `take` clears the value as it retrieves it. See step 5 of [Write Send](/tutorials/write-send#step-5-hitl) for the complete streaming + HITL skeleton.
+The paused state, such as a partially read SSE stream, lives in `ctx.session` on this session line. The Adapter declares a private typed slot with `createSessionSlot<Pending>()`, saves it on pause with `ctx.session.set(slot, pending)`, and recovers it on the response turn with `ctx.session.take(slot)`. `take` clears the value as it retrieves it. See step 5 of [Write Send](/tutorials/write-send#step-5-hitl) for the complete streaming + HITL skeleton.
 
 Like other [NiceEval](https://niceeval.com/) capabilities, HITL does not have a Boolean declaration: **if you do it, you have it**. Once `send` has returned `"waiting"` and emitted `input.requested`, `t.respond` works. If it has not, the eval case fails explicitly at the status check or `requireInputRequest()` rather than silently passing. See [Adapter](/explanation/adapter#where-capabilities-come-from-proof-by-construction-not-a-questionnaire) for how capability follows from construction.
 
@@ -83,5 +83,5 @@ There is one test: use HITL only if your Agent's execution loop has a branch tha
 
 - [Drive](/explanation/drive#human-in-the-loop-hitl) — The complete eval-side usage: status checks, `t.requireInputRequest()`, and `t.respond()` / `t.respondAll()`.
 - [Adapter](/explanation/adapter#inputs-for-the-different-answers) — The structured input that reaches an Adapter, in four typical forms.
-- [Write Send](/tutorials/write-send) — Adapter-side practice: typed session keys and the complete streaming + HITL skeleton.
+- [Write Send](/tutorials/write-send) — Adapter-side practice: typed session slots and the complete streaming + HITL skeleton.
 - [Connect Your Agent](/tutorials/connect-your-agent) — The integration overview: minimal integration, parameter channels, and the incremental map.

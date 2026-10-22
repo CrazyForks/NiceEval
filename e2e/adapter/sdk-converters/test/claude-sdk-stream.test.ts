@@ -37,7 +37,7 @@ test("createClaudeSdkEventStream 的锁定上游帧经 Experiment 和公开 CLI 
       }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
       expect(summaryReceipt.exitCode, summaryReceipt.diagnostic()).toBe(0);
       const summary = summaryReceipt.run();
-      expect(summary).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get" });
+      expect(summary).toMatchObject({ protocol: "niceeval.query/v1", operation: "run.get" });
       expect(summary.selection).toMatchObject({
         selectedRunIds: [receipt.createdRunIds[0]!],
         missingRunIds: [],
@@ -61,7 +61,7 @@ test("createClaudeSdkEventStream 的锁定上游帧经 Experiment 和公开 CLI 
       }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
       expect(traceReceipt.exitCode, traceReceipt.diagnostic()).toBe(0);
       const traceDocument = traceReceipt.attemptTrace();
-      expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+      expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
       const trace = JSON.stringify(traceDocument.trace);
       expect(trace).toContain("claude-sdk-assistant-marker");
       expect(trace).toMatch(/"tool":"(?:shell|Bash)"/);

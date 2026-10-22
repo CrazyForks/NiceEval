@@ -25,7 +25,7 @@ export default defineEval({
   async test(t) {
     const turn = await t.send("修复测试并说明原因。");
 
-    t.check(turn.reply, includes("原因")).label("说明失败原因");
+    t.check(turn.message, includes("原因")).label("说明失败原因");
 
     const tests = await t.sandbox.runCommand("pnpm", ["test"]);
     await t.check(tests, commandSucceeded()).label("测试通过").orStop();
@@ -40,7 +40,7 @@ Boolean `matched` 进入 Verdict；`mismatched` 使最终 Verdict 为 `failed`�
 `similarity(...)` 这类 Match 产生 `[0, 1]` 的 measurement。它计算字符级 Levenshtein 编辑相似度，不判断语义。通过制评估在 handle 上用 `.gate(minimum)` 建立质量门：
 
 ```ts
-t.check(turn.reply, similarity(expected))
+t.check(turn.message, similarity(expected))
   .gate(0.8)
   .label("回答接近期望内容");
 ```
@@ -66,7 +66,7 @@ export default defineScoreEval({
     t.check(health, commandSucceeded()).score(1).label("健康检查可达");
     t.check(health.stdout, includes("ok")).score(1).label("健康检查内容正确");
 
-    t.check(turn.reply, includes("验证")).score(2).label("回复说明验证方法");
+    t.check(turn.message, includes("验证")).score(2).label("回复说明验证方法");
 
     t.score(1).label("代码精简");
   },
@@ -89,7 +89,7 @@ export default defineScoreEval({
 ## Judge 也是 Measurement
 
 `defineJudge` 声明一个受管 Judge Match。作者把完成判断所需的值组成带语义字段的材料。
-裁判可以直接传给 `t.judge`，无需在评估上登记。模型默认使用项目的 `judgeProvider`；单题只换模型时设置 `judge: "judge-model"`。
+裁判可以直接传给 `t.judge`，无需在评估上登记。模型默认使用项目的 `judgeRuntime`；单题只换模型时设置 `judge: "judge-model"`。
 
 ```ts
 const explainsMotive = defineJudge({
@@ -105,7 +105,7 @@ export default defineEval({
   async test(t) {
     const change = "把缓存键加入模型版本";
     const turn = await t.send(`说明这项变更的动机和风险：${change}`);
-    const material = { change, explanation: turn.reply };
+    const material = { change, explanation: turn.message };
     t.judge(material, explainsMotive).gate(0.8).label("变更动机");
     t.judge(material, explainsRisk).gate(0.8).label("具体风险");
   },

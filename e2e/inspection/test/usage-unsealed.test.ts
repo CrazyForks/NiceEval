@@ -17,7 +17,7 @@ test.concurrent("应用账本未读的 errored Attempt 保留费用缺口，默�
     expect(event).toMatchObject({ verdict: "errored", attempts: 1 });
 
     const request = join(projectRoot, "usage-unsealed.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;

@@ -7,7 +7,6 @@ kind: use-case
 feature: docs/feature/judge/README.md
 ---
 
-
 # Judge：选择 Provider 并确认真实评估
 
 从 `niceeval/judge` 导入具名工厂，把服务、model、endpoint 和 credential selector 绑定为一个 Provider。
@@ -18,7 +17,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeProvider: OpenAIProvider({
+  judgeRuntime: OpenAIProvider({
     model: "judge-model",
     baseUrl: "https://gateway.example.com/v1",
     apiKeyEnv: "JUDGE_GATEWAY_KEY",
@@ -42,7 +41,7 @@ export default defineEval({
   async test(t) {
     const operation = "完成数据导入";
     const turn = await t.send(operation);
-    t.judge({ operation, response: turn.reply }, expressesSuccess)
+    t.judge({ operation, response: turn.message }, expressesSuccess)
       .gate(0.8)
       .label("成功表达");
   },

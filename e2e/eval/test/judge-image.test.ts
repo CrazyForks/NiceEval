@@ -64,7 +64,7 @@ test.concurrent("截图以真实视觉材料参与判分，冻结原图与发送
       await copyFile(join(projectRoot, ".niceeval", "record.sqlite"), portable);
       await rm(join(projectRoot, ".niceeval"), { recursive: true });
       const requestPath = join(projectRoot, "image-inspection.json");
-      await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
+      await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
         kind: "attempt.assertion.detail", locator: evaluation.locator, entryId: entry.entryId,
       } }));
       const detail = await niceeval.run(["query", "run", "--record", portable, "--request", requestPath]);
@@ -84,7 +84,7 @@ test.concurrent("截图以真实视觉材料参与判分，冻结原图与发送
       const chunks: Buffer[] = [];
       let offset: number | null = 0;
       while (offset !== null) {
-        await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: {
+        await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: {
           kind: "attempt.assertion.image", locator: evaluation.locator, entryId: entry.entryId,
           imageId: image.imageId, offset, limit: 256 * 1024,
         } }));

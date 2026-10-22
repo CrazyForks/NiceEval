@@ -41,7 +41,7 @@ const agent = codexAgent({
   baseUrl: process.env.OPENAI_BASE_URL,
   configFile: "configs/shell-enabled.toml",
   plugins: [{ marketplace: { name: MARKETPLACE, source: SOURCE, ref: REF }, name: PLUGIN }],
-  after: [rewriteMarketplaceSource],
+  preTeardown: [rewriteMarketplaceSource],
 });
 
 export default defineExperiment({

@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import ts from "typescript";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const RULES_FILE = "lint/docs/public-api-examples.json";
+const RULES_FILE = "docs/writing-rules.json";
 
 interface ApiRuleBase {
   readonly roots: readonly string[];

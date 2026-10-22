@@ -52,7 +52,6 @@ interface OverviewGroup extends OverviewAggregate {
 }
 
 interface OverviewExperiment extends OverviewAggregate {
-  readonly plugins: NonNullable<ExperimentListItem["plugins"]>;
   readonly experimentId: string;
   readonly adapter: AdapterValue;
   readonly model: ExecutionValue;
@@ -87,7 +86,7 @@ type CurrentProject = InspectionSuccessDocumentFor<"project.get">["project"];
 /** Groups already closed project.get slots for presentation; no recorded member is reselected. */
 export function currentExperimentRows(project: CurrentProject) {
   return project.experiments.map((experiment) => {
-    const slots = project.plannedAttempts.filter((slot) => slot.experimentId === experiment.experimentId);
+    const slots = project.slots.filter((slot) => slot.experimentId === experiment.experimentId);
     const covered = slots.filter((slot) => slot.state === "reuse").length;
     return Object.freeze({ experiment, slots, covered, gaps: slots.length - covered });
   });
@@ -128,7 +127,6 @@ export function closeOverview(document: InspectionSuccessDocumentFor<"overview.g
     durationMs: projectMetric(experiment.durationMs),
     tokens: projectMetric(experiment.tokens),
     adapter: experiment.adapter,
-    plugins: experiment.plugins,
     model: experiment.model,
     groups: Object.freeze(experiment.groups.map((group) => Object.freeze({
       groupPath: Object.freeze([...group.groupPath]),
@@ -173,7 +171,7 @@ function projectMetric(metric: OverviewMetric): MetricValue<number> {
     state: metric.state,
     samples: metric.samples,
     total: metric.total,
-    basis: metric.basis === "planned-attempt" ? "slot" : metric.basis,
+    basis: metric.basis,
     issues: Object.freeze(metric.issues),
     refs: Object.freeze(metric.refs.map((ref) => Object.freeze({
       identity: Object.freeze({ kind: ref.identity.kind, locator: ref.identity.locator }),
@@ -207,7 +205,6 @@ export function overviewData(
     return [Object.freeze({
       experimentId,
       adapter: experiment.adapter,
-      plugins: experiment.plugins,
       model: experiment.model,
       flags: null,
       evaluationKind,

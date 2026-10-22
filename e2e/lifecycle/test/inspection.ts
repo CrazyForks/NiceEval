@@ -19,7 +19,7 @@ export async function inspectAttempt<Kind extends AttemptInspectionOperation>(
   await writeFile(
     requestPath,
     `${JSON.stringify({
-      protocol: "niceeval.query/v2",
+      protocol: "niceeval.query/v1",
       operation: { kind: operation, locator },
     })}\n`,
     "utf8",
@@ -35,7 +35,7 @@ export async function inspectRuns(
 ): Promise<{ readonly receipt: ProcessReceipt; readonly document: QuerySuccessDocumentFor<"run.list"> }> {
   const requestPath = join(projectRoot, ".inspection-runs-list.json");
   await writeFile(requestPath, `${JSON.stringify({
-    protocol: "niceeval.query/v2",
+    protocol: "niceeval.query/v1",
     operation: { kind: "run.list" },
   })}\n`, "utf8");
   const receipt = await niceeval.run(["query", "run", "--request", requestPath], options);

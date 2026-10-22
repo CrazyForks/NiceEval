@@ -7,7 +7,6 @@ kind: use-case
 feature: docs/feature/eval/README.md
 ---
 
-
 # 裁判评质量：规则写不出对错时
 
 “语气是否专业”“说明是否清楚”这类问题没有稳定的精确 Matcher。Judge 用 rubric 和 anchors 描述连续质量量尺，
@@ -27,7 +26,7 @@ export default defineEval({
   async test(t) {
     const request = "帮我拟一封跟进邮件。";
     const turn = await t.send(request);
-    t.judge({ request, draft: turn.reply }, professionalTone)
+    t.judge({ request, draft: turn.message }, professionalTone)
       .gate(0.8)
       .label("专业语气");
   },

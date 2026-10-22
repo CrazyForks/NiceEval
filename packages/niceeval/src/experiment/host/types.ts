@@ -65,8 +65,8 @@ export interface ExperimentHostExperimentSummary {
   readonly attempts: number;
   readonly evalIds: readonly string[];
   readonly labels: Readonly<Record<string, string | number>>;
-  readonly hasBefore: boolean;
-  readonly hasAfter: boolean;
+  readonly hasSetup: boolean;
+  readonly hasTeardown: boolean;
   readonly sharedStateKey?: string;
 }
 
@@ -104,7 +104,7 @@ export interface ExperimentHostRunOverrides {
   readonly keepSandbox?: "failed" | "all";
   readonly maxConcurrency?: number;
   readonly maxBuildConcurrency?: number;
-  readonly maxBeforeCacheConcurrency?: number;
+  readonly maxSetupPrefixConcurrency?: number;
 }
 
 export interface ExperimentHostCheckRequest extends ExperimentHostSelectionInput {
@@ -140,7 +140,7 @@ export interface ExperimentHostInvocationShape {
   readonly attempts: number;
   readonly maxConcurrency: number;
   readonly maxBuildConcurrency: number;
-  readonly maxBeforeCacheConcurrency: number;
+  readonly maxSetupPrefixConcurrency: number;
   readonly experimentConcurrency: Readonly<Record<string, number>>;
 }
 
@@ -264,7 +264,7 @@ export interface ExperimentHostInvocationSummary {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
   readonly estimatedCostUSD?: number;
-  readonly beforeCaches: SetupPrefixPreparationSummary;
+  readonly setupPrefixes: SetupPrefixPreparationSummary;
 }
 
 export interface ExperimentHostInvocationResult {
@@ -367,7 +367,7 @@ export interface ExperimentHostSharedStateEvidence {
   readonly heartbeatAt: string;
 }
 
-export interface ExperimentHostAfterInspectRequest {
+export interface ExperimentHostTeardownInspectRequest {
   readonly cwd: string;
   readonly experimentSelector?: string;
   readonly coordinationRoot?: string;
@@ -375,7 +375,7 @@ export interface ExperimentHostAfterInspectRequest {
   readonly recoveryKey?: string;
 }
 
-export type ExperimentHostAfterInspection =
+export type ExperimentHostTeardownInspection =
   | { readonly status: "no-evidence"; readonly key: string }
   | ExperimentHostSelectionProblem
   | {
@@ -389,7 +389,7 @@ export type ExperimentHostAfterInspection =
       readonly evidence: ExperimentHostSharedStateEvidence;
     }
   | {
-      readonly status: "after-required";
+      readonly status: "teardown-required";
       readonly experimentId: string;
       readonly evidence: ExperimentHostSharedStateEvidence;
     }
@@ -400,15 +400,15 @@ export type ExperimentHostAfterInspection =
       readonly evidence?: ExperimentHostSharedStateEvidence;
     };
 
-export interface ExperimentHostAfterRequest extends ExperimentHostAfterInspectRequest {
-  readonly observer?: ExperimentHostAfterObserver;
+export interface ExperimentHostTeardownRequest extends ExperimentHostTeardownInspectRequest {
+  readonly observer?: ExperimentHostTeardownObserver;
   readonly signal?: AbortSignal;
   readonly ownerToken?: string;
   readonly confirmOwnerTerminated?: boolean;
   readonly confirmRemoteQuiesced?: boolean;
 }
 
-export type ExperimentHostAfterEvent =
+export type ExperimentHostTeardownEvent =
   | {
       readonly type: "experiment-progress";
       readonly experimentId: string;
@@ -430,12 +430,12 @@ export type ExperimentHostAfterEvent =
       readonly recovery?: true;
     };
 
-export interface ExperimentHostAfterObserver {
-  readonly observe: (event: ExperimentHostAfterEvent) => void;
+export interface ExperimentHostTeardownObserver {
+  readonly observe: (event: ExperimentHostTeardownEvent) => void;
 }
 
-export type ExperimentHostAfterResult =
-  | ExperimentHostAfterInspection
+export type ExperimentHostTeardownResult =
+  | ExperimentHostTeardownInspection
   | {
       readonly status: "completed";
       readonly experiments: readonly {
@@ -492,13 +492,13 @@ export interface ExperimentHostHighLevelSDK {
       input: ExperimentHostRenameRequest,
     ) => Effect.Effect<ExperimentHostRenameResult, ExperimentHostError>;
   };
-  readonly after: {
+  readonly teardown: {
     readonly inspect: (
-      input: ExperimentHostAfterInspectRequest,
-    ) => Effect.Effect<ExperimentHostAfterInspection, ExperimentHostError>;
+      input: ExperimentHostTeardownInspectRequest,
+    ) => Effect.Effect<ExperimentHostTeardownInspection, ExperimentHostError>;
     readonly run: (
-      input: ExperimentHostAfterRequest,
-    ) => Effect.Effect<ExperimentHostAfterResult, ExperimentHostError>;
+      input: ExperimentHostTeardownRequest,
+    ) => Effect.Effect<ExperimentHostTeardownResult, ExperimentHostError>;
   };
   readonly accept: (
     input: ExperimentHostAcceptRequest,

@@ -143,7 +143,7 @@ export default defineSandboxAgent({
 |---|---|---|
 | 收发消息 | 返回可信 Turn；执行异常 reject `SendFailure` | 单轮发送、输出断言 |
 | 标准事件流 | 完整映射消息与 operation，保持顺序和 operation ID | 工具、消息与事件断言 |
-| 多轮会话 | 使用 typed session key 或 `id` / `capture()` | 多轮与 `newSession()` |
+| 多轮会话 | 使用 typed session slot 或 `id` / `capture()` | 多轮与 `newSession()` |
 | HITL | 返回 `waiting`、`input.requested`，按 request ID 恢复 | `t.check(turn.status, equals("waiting"))`、`requireInputRequest`、`respond` |
 | tracing | 配置 exporter 与 span mapper | 结果 trace 和 view 瀑布图 |
 
@@ -153,9 +153,9 @@ export default defineSandboxAgent({
 
 | 存取器 | 后端形态 |
 |---|---|
-| `ctx.session.get(key)` / `set(key, value)` | 无状态服务；用 adapter 私有 typed key 保存完整消息历史 |
+| `ctx.session.get(slot)` / `set(slot, value)` | 无状态服务；用 adapter 私有 typed slot 保存完整消息历史 |
 | `ctx.session.id` / `capture(id)` | 服务端保存历史；请求携带 session/thread ID |
-| `ctx.session.take(key)` | HITL 回答轮一次消费 adapter 私有 key 中的暂停现场 |
+| `ctx.session.take(slot)` | HITL 回答轮一次消费 adapter 私有 slot 中的暂停现场 |
 
 会话状态只保存在 `ctx.session`。
 模块级 Map 会让并发 attempt 或 `t.newSession()` 之间串线。

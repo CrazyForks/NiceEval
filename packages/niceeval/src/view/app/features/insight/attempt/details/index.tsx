@@ -162,7 +162,7 @@ export function AttemptDetails({ model, locale, className }: { readonly model: A
   const usageQuery = useInspectionQuery(operation("attempt.usage", { kind: "attempt.usage", locator: model.locator }));
   const sourcesQuery = useInspectionQuery(operation("attempt.sources", { kind: "attempt.sources", locator: model.locator }));
   const diffQuery = useInspectionQuery(operation("attempt.diff", { kind: "attempt.diff", locator: model.locator }), { select: projectDiff });
-  const notesQuery = useInspectionQuery(attemptOperations(model.locator)[0]);
+  const notesQuery = useInspectionQuery(operation("attempt.get", { kind: "attempt.get", locator: model.locator }));
   const allQueries = [notesQuery, ...assertionQueries, ...traceDetailQueries, traceQuery, timingQuery, usageQuery, sourcesQuery, diffQuery];
   if (allQueries.some((query) => query.isPending)) return <p role="status">{t("report.loadingDetails")}</p>;
   if (allQueries.some((query) => query.isError)) return <div role="alert"><p>{t("report.unableToLoadDetails")}</p><button type="button" onClick={() => { for (const query of allQueries) if (query.isError) void query.refetch(); }}>{t("report.retry")}</button></div>;

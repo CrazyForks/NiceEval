@@ -7,7 +7,6 @@ kind: use-case
 feature: docs/feature/eval/README.md
 ---
 
-
 # 本地测试文件:普通上传与动态身份
 
 ## 解决什么问题
@@ -82,6 +81,6 @@ agent diff 只折叠 `send` 区间内的 Sandbox 变化。
 ## 边界
 
 - Agent 一开始就应看到的文件，在第一次 `send` 前普通上传。
-- checkout、凭据派生或外部临时资源可以放 Eval layer 的 `before()`，cleanup 经 `context.onCleanup()` 登记。
+- checkout、凭据派生或外部临时资源可以放 Eval layer 的 `prepare()`，cleanup 经 `context.onCleanup()` 登记。
 - 内存生成的内容使用 Buffer 上传；其身份由生成它的源码或已登记数据输入承担。
 - 巨型模型、系统包和运行时归 template，不在每条 Eval 中上传。

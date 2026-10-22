@@ -80,7 +80,7 @@ export default defineScoreEval({
       .score(2)
       .label("测试通过");
 
-    t.judge({ task: "说明验证过程", answer: turn.reply }, explanationQuality)
+    t.judge({ task: "说明验证过程", answer: turn.message }, explanationQuality)
       .score(2)
       .gate(0.7)
       .label("说明质量");

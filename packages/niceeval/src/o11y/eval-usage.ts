@@ -19,7 +19,7 @@ import {
 /** Frozen cache report with author-facing selection by Experiment model purpose. */
 export interface EvalCacheRead<ModelSlot extends string = string> extends CacheReadReport {
   /** Omit the slot for the total. An undeclared slot throws; missing observations remain unavailable. */
-  rate(modelSlot?: ModelSlot): NumericMaterial<"ratio">;
+  rate(modelSlot?: ModelSlot): NumericMaterial;
 }
 
 function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): EvalCacheRead {
@@ -27,14 +27,14 @@ function authorCacheRead(report: CacheReadReport, models?: ResolvedModelSlots): 
   const rates = new Map(report.modelSlots.map((group) => [group.modelSlot, group.rate]));
   return Object.freeze({
     ...report,
-    rate: (modelSlot?: string): NumericMaterial<"ratio"> => {
-      if (modelSlot === undefined) return Object.freeze({ ...report.total.rate, unit: "ratio" });
+    rate: (modelSlot?: string): NumericMaterial => {
+      if (modelSlot === undefined) return report.total.rate;
       if (!declared.has(modelSlot)) {
         throw new TypeError(`Undeclared model slot ${JSON.stringify(modelSlot)}; declared slots: ${[...declared].join(", ") || "(none)"}.`);
       }
       const rate = rates.get(modelSlot);
-      if (rate !== undefined && !(rate.state === "unavailable" && rate.reason === "no-calls")) return Object.freeze({ ...rate, unit: "ratio" });
-      return Object.freeze({ state: "unavailable", reason: "slot-has-no-calls", unit: "ratio" });
+      if (rate !== undefined && !(rate.state === "unavailable" && rate.reason === "no-calls")) return rate;
+      return Object.freeze({ state: "unavailable", reason: "slot-has-no-calls" });
     },
   });
 }

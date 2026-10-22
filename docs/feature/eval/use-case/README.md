@@ -38,7 +38,7 @@ Assertions 与显式 skip 的 Verdict 读侧折叠；其它 Assertion 继续结�
 
 | API | 所在篇目 |
 |---|---|
-| `t.send` / `t.sendFile` / `t.reply` / `turn.reply` / `turn.data` | [单轮](first-single-turn.md) |
+| `t.send` / `t.sendFile` / `t.reply` / `turn.message` / `turn.data` | [单轮](first-single-turn.md) |
 | `turn.succeeded` / `turn.input` / `t.newSession()` / `session.*` | [多轮与并行会话](multi-turn-sessions.md) |
 | `calledTool` / `notCalledTool` / `toolOrder` / `event` | [过程与成本](process-and-cost.md) · [calledTool 匹配](calledtool.md) |
 | `t.check(subject, match)` / `.orStop()` / `niceeval/expect` matcher | [单轮](first-single-turn.md) · [沙箱](sandbox-coding.md) |

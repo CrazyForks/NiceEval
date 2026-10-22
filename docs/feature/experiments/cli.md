@@ -20,8 +20,8 @@ niceeval exp --experiment <exact-id> --experiment <exact-id> [<eval-prefix>...] 
 niceeval exp list [<experiment-prefix>] [--json]
 niceeval exp <experiment-prefix> --dry [--json]
 niceeval debug <experiment-selector> <eval-selector> [--json]
-niceeval invocation list [--all] [<experiment-prefix>] [--json]
-niceeval invocation show <invocation-id> [--json]
+niceeval session list [--all] [<experiment-prefix>] [--json]
+niceeval session show <invocation-id> [--json]
 ```
 
 `exp` 的位置参数先选择 Experiment ID 或路径前缀，再用后续 Eval ID 前缀收窄。它们只能缩小 Experiment 自己的 `evals` 选择，不能把未选中的 Eval 加回计划。
@@ -41,7 +41,7 @@ niceeval invocation show <invocation-id> [--json]
 每个目标位置的当前 reuse / gap，以及本次 reuse / execute 动作。完整人读形态见
 [dry plan 输出案例](output/dry-plan.md)。
 
-reuse planning 先精确比较当前与历史 Core expected Planned attempt 的组合 `executionIdentityDigest`，并要求历史 Core
+reuse planning 先精确比较当前与历史 Core expected slot 的组合 `executionIdentityDigest`，并要求历史 Core
 Attempt outcome 为 `completed`。它从 Assertions 折叠可采用 Verdict，再从 Observability 读取完整真实 timing。
 source 按每个逻辑位置的 Run create publication revision 选择，包含 pending 与空位置，不回扫更旧 Run。
 完整 scored 同样可以沿用；Pass Verdict 与 Score 结果不互相转换。
@@ -65,12 +65,12 @@ niceeval debug compare/codex memory/commit0 --json
 
 Eval selector 只能在 Experiment 自己的 `evals` 封闭范围内匹配。选中 Group 的一个成员不会把同组其它 Eval 加回计划，但该成员仍处于 Group lane，Group author 与 Plugin lifecycle 会围住这次 selected slice。省略的成员不参与 cohort compatibility。
 
-人读输出和 JSON 都来自同一棵 Experiment → lane → Planned attempt 树。下面这些步骤都留在真实包裹位置：
+人读输出和 JSON 都来自同一棵 Experiment → lane → slot 树。下面这些步骤都留在真实包裹位置：
 
 - Experiment、Group、Eval Plugin lifecycle 与 Sandbox Plugin lifecycle；
 - Experiment/Group/Eval/Agent before/after、Agent runtime、test、cleanup 与 Provider finalizer。
 
-TTY 人读输出不把整棵树放入一个总框。总览、Experiment、lane、Planned attempt 与每个 lifecycle step 都分别使用全仓统一的圆角区域框；各框按计划顺序堆叠，框内列出 position、owner、label、template、命令或不可检查原因、条件与脱敏项。这样每个 Plugin occurrence 和每条 Shell 都有自己的可复制边界。完整形态见
+TTY 人读输出不把整棵树放入一个总框。总览、Experiment、lane、slot 与每个 lifecycle step 都分别使用全仓统一的圆角区域框；各框按计划顺序堆叠，框内列出 position、owner、label、template、命令或不可检查原因、条件与脱敏项。这样每个 Plugin occurrence 和每条 Shell 都有自己的可复制边界。完整形态见
 [command plan 输出案例](output/debug-command-plan.md)。
 
 多行 Shell 不折成带 `\n` 的单行 JSON 字符串。框内代码区显示原始行数，并用固定 gutter 保留缩进、空行和末尾换行。单行过宽时，续行仍从同一个 gutter 开始；tab、回车、ESC 与其它终端控制字符显示为转义文本。完整形态见
@@ -78,7 +78,7 @@ TTY 人读输出不把整棵树放入一个总框。总览、Experiment、lane�
 
 非 TTY、`NO_COLOR` 或过窄终端按同一 Panel 契约逐框降级为无框的标题与正文；节点、字段和顺序不变。`--json` 不携带框线，继续输出同一棵计划树的机器形状。
 
-Human 的 lane 顺序固定为 Group before actions → physical enter → Planned attempts → physical exit → Group after actions。Physical teardown 与 Provider finalizer 因而始终列在使用该实例的 Planned attempt 工作之后。
+Human 的 lane 顺序固定为 Group before-slots → physical enter → slots → physical exit → Group after-slots。Physical teardown 与 Provider finalizer 因而始终列在使用该实例的 slot 工作之后。
 
 可声明的 `shell()` / `command()` 展开为具体命令；不能安全检查的 callback 标为 `opaque`。每个 action 使用独立圆角框，显示 owner、phase、occurrenceKind 与推导依据。
 
@@ -99,19 +99,19 @@ custom provider / case 也只显示 `Opaque`。build args、env value、credenti
 Human 的结构化字段在统一终端出口把 C0、C1、ESC 与 tab/carriage return 可见化为转义文本；这条规则作用于 panel 标题、metadata、template、owner、locator、label、condition 与 Shell 行。JSON 保留结构化原值，由 JSON string escaping 防止控制序列直接写入终端。
 `ACTIVE` 的自由文本采用更严格的短命边界：去掉 VT、ANSI、C0 与 C1，折叠空白，并在已知 secret 脱敏后截到 256 UTF-8 bytes。
 
-`--json` 输出单个 `{ experimentId, evalIds, beforeCachePlan, commandPlan }` 计划对象；单 pair 继续带 `evalId`。它是当前 CLI 版本的即时调试结果，不声明 `format`、`schemaVersion` 或跨版本解码协议。`beforeCachePlan` 按 prefix identity 去重所选 Eval 的消费者，所有节点固定写 `lookup: "not-probed"`，不把静态 planning 冒充库存探测。
+`--json` 输出单个 `{ experimentId, evalIds, setupPrefixPlan, commandPlan }` 计划对象；单 pair 继续带 `evalId`。它是当前 CLI 版本的即时调试结果，不声明 `format`、`schemaVersion` 或跨版本解码协议。`setupPrefixPlan` 按 prefix identity 去重所选 Eval 的消费者，所有节点固定写 `lookup: "not-probed"`，不把静态 planning 冒充库存探测。
 
 同一安装候选的调用方可通过 `niceeval/experiment/host` 的 `decodeDebugPlanDocument()` 严格解码，类型与 Schema 见 [Library](library.md#读取-debug-计划)。
 
 该文档不带 dry matrix、reuse、carry 或 Plugin audit 顶层字段。Locator 使用 `_tag: "Exact" | "Redacted" | "Opaque"`。前两种带非空、字段名唯一的 `fields`；`Redacted` 另带只指向已有字段的 `redactions`，`Opaque` 带结构化 `reason`。
 
-真实 `exp` 结束页与机器 terminal envelope 的 `summary.beforeCaches` 从同一份稳定结算读取准备结果。它按本次 Invocation 的唯一 before-cache node 计数 `total / hit / prepared / failed`；多个 Eval 或 Attempt 消费同一 node 不重复计数，也不与 result reuse、`sandboxReuse` 或 task-build cache 合并。运行中的 activity 仍只是 live 反馈，不承担最终结算。
+真实 `exp` 结束页与机器 terminal envelope 的 `summary.setupPrefixes` 从同一份稳定结算读取准备结果。它按本次 Invocation 的唯一 setup-prefix node 计数 `total / hit / prepared / failed`；多个 Eval 或 Attempt 消费同一 node 不重复计数，也不与 result reuse、`sandboxReuse` 或 task-build cache 合并。运行中的 activity 仍只是 live 反馈，不承担最终结算。
 
 `debug` 不执行 Experiment、Plugin、Sandbox 或 Agent 的 before、after、cleanup、test、ensure 或 finalizer,也不 lookup cache、不创建 Invocation、Run、持久事实、锁、Sandbox 或 build。它会加载 `.env`、求值受信任定义与 Experiment 的 `evals` predicate；Provider planner 也可以读文件、调用只读 CLI、查询 Docker control plane 或远端 API。NiceEval 保证自己不发起资源变更，但不能保证受信任模块求值或远端服务不产生自身副作用、审计日志或缓存。
 
-计划把 Experiment 配置的全部 attempts 都列成候选 dispatch Planned attempt。这不是实际运行保证：正常 `exp` 仍可能因 carry、首过即停、预算、fail-fast 或取消而阻止某个 Planned attempt 启动。`debug` 只接受 `--json`；`--help` 与 `--version` 仍由全局 CLI 处理。
+计划把 Experiment 配置的全部 attempts 都列成候选 dispatch slot。这不是实际运行保证：正常 `exp` 仍可能因 carry、首过即停、预算、fail-fast 或取消而阻止某个 slot 启动。`debug` 只接受 `--json`；`--help` 与 `--version` 仍由全局 CLI 处理。
 
-Sandbox reuse lane 的 `id` 只是在同一份计划内关联 Planned attempt 的 opaque digest。调用方不应按格式拆解它；前缀与跨版本值都不稳定，输出也不会展开 digest 输入。
+Sandbox reuse lane 的 `id` 只是在同一份计划内关联 slot 的 opaque digest。调用方不应按格式拆解它；前缀与跨版本值都不稳定，输出也不会展开 digest 输入。
 
 ## `niceeval accept`
 
@@ -123,13 +123,13 @@ niceeval accept --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706 --dry
 niceeval accept --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706
 ```
 
-locator 形态显式采用列出的 Attempt；`--run` 形态以一个 exact source Run 的 expected Planned attempts 作为批量授权范围。
+locator 形态显式采用列出的 Attempt；`--run` 形态以一个 exact source Run 的 expected slots 作为批量授权范围。
 两者互斥。`--run` 只接受一个完整 Run ID，不接受前缀、`latest`、多个 Run、query 或 `--all`。
 
 locator 与 `--run` 两种形式都支持 `--dry`。预览与正式执行运行同一份完整闭合预检，但预览不建立 Invocation 或目标 Run。
 
 计划逐项显示 source Experiment、当前 target、Eval、ordinal、locator 与资格。只有 source Run 的 expected membership
-与当前 target 在 `(experimentId, evalId, attemptOrdinal)` 上双向全等，且每个 target Planned attempt 都有唯一、可读、终态、合格的
+与当前 target 在 `(experimentId, evalId, attemptOrdinal)` 上双向全等，且每个 target slot 都有唯一、可读、终态、合格的
 Attempt，整 Run 才可采用。source 多出已退役成员、current 多出未对应成员、缺失 Member 或任一资格失败都阻断整批；
 命令不静默取交集。需要审阅后采用子集时，改用显式 locator 列表。
 
@@ -147,7 +147,7 @@ Assertions 的 Verdict 折叠，以及 Observability 的完整 timing。任一�
 | `run-not-found` | 公开 Run 读取面没有 exact source Run |
 | `accept-run-not-closed` | 列出 source-only、target-only、missing、duplicate 或 ineligible 成员；整批零写入 |
 | `accept-ineligible` | 列出 Verdict、timeout、配置或计划的阻断条件 |
-| `duplicate-accept-member` | 指出重复的目标 Planned attempt |
+| `duplicate-accept-member` | 指出重复的目标 slot |
 
 `exp --dry` 若发现同一当前 Experiment 的全部 identity gap 都能由一个完整 source Run 闭合，优先给出可复制的
 `niceeval accept --run <run-id> --dry`。否则只对合格子集给出逐 locator 预览建议。
@@ -221,7 +221,7 @@ Experiment `setup` 与 `teardown` 显示为 Run 范围活动。其它 Invocation
 
 Experiment `maxConcurrency` 只在本 Invocation 内限流，不产生跨 Invocation 的等待或被其它 Invocation 收紧。
 跨 Invocation 的 Eval dispatch claim 仍由 ProjectDatabase row 中的 case lock 协调。声明 `sharedState.key` 的 Invocation 在拿到
-共享状态租约前不运行 Experiment Hook、不创建 Sandbox，也不持有 Eval lock 或全局并发名额。
+共享状态租约前不运行 Experiment Hook、不创建 Sandbox，也不持有 Eval lock 或全局并发位。
 
 它也不占有限 dispatch execution worker 或 Provider lane。
 
@@ -265,7 +265,7 @@ generation，错误/旧 token 不会修改 lease，也不能删除恢复后的�
 TTY 结束反馈显示 Invocation completion、Run ID、终态计数、`RESULTS` 和下一步命令。它不持久化成另一份结果文档。
 完整的通过场景见[正常完成输出案例](output/completed-run.md)。
 
-Pass 与 Score 的终态摘要都显示尚未启动的 Attempt 数量；fail-fast 停止派发的 Planned attempt 计为 `not started`，不计为 `skipped`。
+Pass 与 Score 的终态摘要都显示尚未启动的 Attempt 数量；fail-fast 停止派发的 slot 计为 `not started`，不计为 `skipped`。
 
 结果标题是人类结果摘要，不是 `InvocationReceipt.completion` 的别名。正常发布后的优先级固定为：
 
@@ -345,7 +345,7 @@ receipt 不复制 locator、Verdict、usage、cost 或 Attempt 计数。需要�
 `createdRunIds` 构造固定 Inspection request。`publicationCutoff` 的语义见 [Invocation receipt](architecture.md#invocation-receipt-与退出)。
 
 `createdRunIds` 穷尽包含已提交 create transaction 的 Run，不以 Run close 成功为门。
-收到 `SIGINT` 时，Runner 保留已发布 Attempt，并把其余 Planned attempt 以
+收到 `SIGINT` 时，Runner 保留已发布 Attempt，并把其余 slot 以
 `interrupted-before-publication` 收口。收尾失败仍交付 Run ID；SIGKILL 无 receipt，使用
 `niceeval run list --invocation <invocationId>` 找回已创建 Run。
 
@@ -365,7 +365,7 @@ CI 用退出状态判断门禁，使用 `--junit` 输出平台注解。JUnit 由
 |---|---|---|
 | 选择 | 位置参数 | 收窄 Experiment 与 Eval |
 | 调度 | `--attempts`、`--max-concurrency`、`--budget` | 影响本次派发 |
-| timeout | `--timeout` | 进入本次 project-target policy，可能使目标 Planned attempt 形成 gap |
+| timeout | `--timeout` | 进入本次 project-target policy，可能使目标 slot 形成 gap |
 | 采用 | `--rerun` | 进入本次 policy，决定哪些 Verdict 可以形成 reuse |
 | Sandbox | `--keep-sandbox` | 本次全部目标执行以取得新现场；不改变当前适用性 |
 | 输出 | `--json`、`--junit` | 改变交付形式，不改业务事实 |

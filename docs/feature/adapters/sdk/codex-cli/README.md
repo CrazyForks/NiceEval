@@ -13,7 +13,7 @@
 
 Human live 面板会依次显示 `checking Codex CLI <version>`、`installing official OpenAI Codex CLI <version>` 与 `Codex CLI <version> ready`。这是 Codex Adapter 声明的短期进度，不进入 JSON、落盘结果或 Sandbox 身份。
 
-安装过程属于 Agent 层，而不是 Sandbox layer 的 `before()`。后者只放题目或实验自身的运行依赖，例如系统包、数据、预热和内部工具。完整的身份、平台与失败归属契约见 [Agent Ensure](../../architecture/agent-ensure.md)。
+安装过程属于 Agent 层，而不是 Sandbox layer 的 `prepare()`。后者只放题目或实验自身的运行依赖，例如系统包、数据、预热和内部工具。完整的身份、平台与失败归属契约见 [Agent Ensure](../../architecture/agent-ensure.md)。
 
 ```ts
 import { codexAgent } from "niceeval/adapter";

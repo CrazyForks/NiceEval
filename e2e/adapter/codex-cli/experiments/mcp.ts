@@ -13,7 +13,7 @@ const agent = codexAgent({
     { name: "e2e", command: "node", args: [MCP_FIXTURE_ENTRY] },
     { name: "deepwiki", url: "https://mcp.deepwiki.com/mcp" },
   ],
-  before: [
+  postSetup: [
     async (sb) => {
       // Install before Codex starts the MCP process. A cold npx here used Codex's
       // shorter MCP startup window for registry resolution and obscured install

@@ -13,7 +13,7 @@ feature: docs/feature/eval-groups/README.md
 [Lifecycle](../lifecycle.md)。本页只说明 MemoryBench 的组合方式。
 
 MemoryBench 把同一记忆条件下、物理 Sandbox 计划兼容的 Eval 切成多个 Group。每个 Group 使用一台
-Docker Sandbox 串行运行成员；多个 Group 同时占用 Experiment 的并发名额。这样既复用昂贵的
+Docker Sandbox 串行运行成员；多个 Group 同时占用 Experiment 的并发位。这样既复用昂贵的
 记忆工具与 Agent setup，也不会把整批评估压成一条长串行队列。
 
 仓库准备由 MemoryBench 自己的 Eval Plugin resource 持有，不进入 NiceEval 官方 Plugin：

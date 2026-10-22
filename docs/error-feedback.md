@@ -14,7 +14,7 @@ NiceEval 将持久事实、Inspection 问题和面向读者的界面分开。这
 Core 与固定 family 保存稳定 code、phase、detail、context 与必要计数。它们不保存某个页面的措辞、语言、按钮文案或修复命令。
 query codec 与 View 把这些稳定事实组合成各自交付；Delivery 不回写 Record。
 
-Inspection result 保留 Planned attempt 的 `not-recorded`、`core-invalid` 或 `excluded`，不会把它们改成空的成功数据。每个具名 operation
+Inspection result 保留 slot 的 `not-recorded`、`core-invalid` 或 `excluded`，不会把它们改成空的成功数据。每个具名 operation
 把 selection、sealed cutoff、partial、missing、issues 与 Evidence 关闭成 plain-data result。
 
 ## Record open 与 family 读取

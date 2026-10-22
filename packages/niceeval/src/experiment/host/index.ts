@@ -21,7 +21,7 @@ export const experimentHost: ExperimentHostSDK = Object.freeze({
   invocation: Object.freeze({ plan: withNode(rawExperimentHost.invocation.plan), run: withNode(rawExperimentHost.invocation.run) }),
   invocationStatus: Object.freeze({ list: withNode(rawExperimentHost.invocationStatus.list), show: withNode(rawExperimentHost.invocationStatus.show) }),
   rename: Object.freeze({ plan: withNode(rawExperimentHost.rename.plan), apply: withNode(rawExperimentHost.rename.apply) }),
-  after: Object.freeze({ inspect: withNode(rawExperimentHost.after.inspect), run: withNode(rawExperimentHost.after.run) }),
+  teardown: Object.freeze({ inspect: withNode(rawExperimentHost.teardown.inspect), run: withNode(rawExperimentHost.teardown.run) }),
   debug: rawExperimentHost.debug,
   accept: withNode(rawExperimentHost.accept),
   acceptRun: Object.freeze({ plan: withNode(rawExperimentHost.acceptRun.plan), apply: withNode(rawExperimentHost.acceptRun.apply) }),

@@ -7,7 +7,6 @@ kind: use-case
 feature: docs/feature/error-classification/README.md
 ---
 
-
 # 抛出点声明死因:一次命中,按波及范围止损
 
 ## 解决什么问题
@@ -45,7 +44,7 @@ feature: docs/feature/error-classification/README.md
    }),
    ```
 
-   fixture 校验写在 Eval layer 的 `before()` 里:
+   fixture 校验写在 Eval layer 的 `prepare()` 里:
 
    ```ts
    import { EvalFatalError } from "niceeval";

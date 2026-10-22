@@ -61,7 +61,7 @@ OpenAI 系协议报的「含缓存输入总量」要先扣掉缓存命中子集�
 各协议的原生口径与扣减明细见各 adapter 的 cost 文档。
 网关实测成本只经 `usage.costUSD` 显式带回,core 从不从 token 反推。
 
-Adapter 只负责把行为落进 `events` 单源，`send` 返回的 `Turn` 不含消息便利字段；core 在把结果交给 eval 作者前，把本轮 assistant `message` 事件的文本按序折叠成便利字段 `turn.reply` 补上（作者面字段表见 [Context · 读取结果](../../eval/library/context.md#读取结果)）。
+Adapter 只负责把行为落进 `events` 单源，`send` 返回的 `Turn` 不含消息便利字段；core 在把结果交给 eval 作者前，把本轮 assistant `message` 事件的文本按序折叠成便利字段 `turn.message` 补上（作者面字段表见 [Context · 读取结果](../../eval/library/context.md#读取结果)）。
 `thinking`、`compaction`、`context.injected` 不获得同类便利字段，按 `type` 过滤 `events` 读取（见[标准事件模型](events.md#派生事实)）。
 
 `send()` 返回 Turn 还是 reject failure，必须由协议事实决定：
@@ -133,7 +133,7 @@ Agent 没有声明式 capabilities：会话能力来自 `ctx.session` 的使用�
 
 Sandbox Agent 的 CLI 与所需运行时只由 `ensure` 和 identity 匹配的 Installer 安装。
 `setup` 只连接 runtime、注入鉴权、写运行配置与扩展，并且每 Attempt 只执行一次。
-准备逻辑属于 Eval / Experiment layer 的 `before()`，任务 Fixture 属于 `test(t)`。
+准备逻辑属于 Eval / Experiment layer 的 `prepare()`，任务 Fixture 属于 `test(t)`。
 setup 基础设施失败产生 `errored`，Agent 运行结果通过 Turn 表达。
 
 `setup` / `teardown` 遵循成对语义：`teardown` 当且仅当本 Attempt 走到过 agent setup 时点才执行，`setup` 抛错不豁免。

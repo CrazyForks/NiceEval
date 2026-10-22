@@ -42,7 +42,7 @@ export type {
   TraceJson,
 } from "../adapter-execution-trace.ts";
 export { defineAgent, defineSandboxAgent } from "../define.ts";
-export { createSessionKey } from "./session-key.ts";
+export { createSessionSlot } from "./session-slot.ts";
 export { shared } from "./shared.ts";
 export type { Shared } from "./shared.ts";
 
@@ -199,7 +199,7 @@ export type {
   DirectAgentBefore,
   DirectAgentAfter,
   AgentSession,
-  SessionKey,
+  SessionSlot,
   AgentBefore,
   AgentBeforeContext,
   AgentInstallationManifest,
