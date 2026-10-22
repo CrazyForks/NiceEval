@@ -496,12 +496,14 @@ Hook 包裹哪段工作、在宿主还是 Sandbox 内执行、多久执行一次
 | Experiment `setup` / `teardown` | `before` / `after` | 宿主侧，一次 Run 的全部 Attempt |
 | SandboxLayer `.before()` / `.after()` | 不变 | Sandbox 内，该实例上的 Agent 运行 |
 | Agent factory `postSetup` / `preTeardown` | `before` / `after` | Sandbox 内，Agent 安装之后、收尾之前 |
+| `defineAgent` / `defineSandboxAgent` 的 `setup` / `teardown` | `before` / `after` | 自定义 Agent 的会话前后 |
 | Plugin 各字段 | `before` / `after`，见下节 | 由字段决定 |
 
 `setup` / `teardown` 与 `postSetup` / `preTeardown` 不保留别名；出现旧名时，定义期以指向新名的错误拒绝。
 2026-07-18 的裁决确定的是“成对字段、不用 setup 返回 cleanup”，这一结构保留，本次只替换词。
 两对词并存时，读者无法从名字判断它们是否是同一机制，因此只留一对。
-改名不改变执行顺序、触发规则与 identity；同一份声明改用新名后，config identity 与 0.18 相同，已有结果继续 carry。
+改名不改变执行顺序、触发规则与失败语义，也不改内部 identity 与 Record 编码。
+同一份声明改用新名后，config identity 与 0.18 相同；能否 carry 仍受 Eval sourceClosure 等既有规则约束。
 
 ## Plugin 是一个可复用的实验条件
 
@@ -546,7 +548,7 @@ spec 的字段：
 | `agent` | Agent 扩展，见下文 |
 | `experiment` | `{ before?, after? }`，宿主侧，每次 Run 一次 |
 | `group` | `{ before?, after? }`，宿主侧，每条 Eval Group lane 一次 |
-| `sandbox` | `{ before?, after? }`，在每个物理 Sandbox 实例上执行 |
+| `sandbox` | `{ before?, after? }`，Sandbox 内，等同挂载点 SandboxLayer 的 `.before()` / `.after()` |
 | `attempt` | `{ before?, after? }`，宿主侧，每条 fresh Attempt 一次 |
 
 除 `name`、`key`、`identity`、`requires` 外至少声明一个字段。每个 `before` / `after` 接受一个元素或数组。
@@ -562,18 +564,29 @@ spec 的字段：
 | `Eval.plugins` | `sandbox`、`attempt` | 该 Eval |
 
 挂在 Experiment 上的 Plugin，其 `group` 字段对该 Experiment 的每条 Group lane 生效，`attempt` 字段对每条 fresh Attempt 生效。
-旧语义缺少这种组合：实验条件写在 Experiment 上，按 Group 隔离的状态由 Plugin 自己承担。
-挂载点不允许的字段在加载期以错误拒绝，类型层面同样拒绝。
+未分组的 Eval 不激活 `group` 字段。挂载点不允许的字段在加载期以错误拒绝，类型层面同样拒绝。
 
-`requires: { evalGroup: true }` 的 Plugin 在派发任何工作前检查作用范围：
+激活只针对实际执行的工作：
+
+- `experiment` 只在本次 Run 至少有一条 fresh Attempt 时激活；全部 carry 时不执行任何 Plugin Hook，也不创建 Sandbox。
+- `group` 每条至少有一条 fresh Attempt 的 lane 激活一次，replacement Sandbox 不重新执行。
+- `attempt` 每条 fresh Attempt 激活一次。
+
+`requires: { evalGroup: true }` 在完整 selection 形成后、任何 build、prepare、Sandbox 创建或宿主 Hook 之前检查作用范围内的全部选中 Eval，含将被 carry 的 Eval。
 有 Eval 不属于 Eval Group 时报 `plugin-requires-eval-group`，并列出这些 Eval。
-声明后，`sandbox` 与 `attempt` Hook上下文中的 `evalGroup` 类型上必有，作者不再写运行时判空。
-未声明时 `evalGroup` 是可选字段。
+声明后，该 Plugin 的 `sandbox` 与 `attempt` Hook 上下文中 `evalGroup` 类型上必有，作者不再写运行时判空；未声明时它是可选字段，非 Group 的 Eval 上为 undefined。
 
-`sandbox.before` / `after` 的元素与 SandboxLayer `.before()` / `.after()` 的参数相同：
-受管 Action（如 `writeText`、`uploadDirectory`）或 `(sandbox, ctx) => …` 回调。受管 Action 照常进入 setup prefix 缓存。
-`sandbox` Hook在 replacement Sandbox 上重新执行；`group` Hook每条 lane 只执行一次，replacement 不重新执行。
-挂在 Eval 上的 `sandbox` 字段隔离普通 reuse pool；同一 Group 的成员若 Sandbox 字段身份不同，在创建前报 `eval-group-incompatible`。
+### `sandbox` 字段就是一段 SandboxLayer
+
+`sandbox: { before, after }` 与在挂载点自己的 SandboxLayer 上追加 `.before(...)` / `.after(...)` 完全等价，不引入新的物理生命周期：
+
+- 元素是受管 Action（如 `writeText`、`uploadDirectory`）或 `(sandbox, ctx) => …` 回调，与 `.before()` / `.after()` 参数相同。
+- 每条 Attempt 形成一次 occurrence，题间 reset 之后执行；受管 Action 照常参与 Action DAG 排序与 setup prefix 缓存，回调每次真实执行。
+- 回调上下文就是现有 `SandboxCommandContext`，绑定当前 Attempt 与它的 signal、deadline。
+- Experiment 挂载的 Plugin 投影到 Experiment layer，EvalGroup 与 Eval 挂载的分别投影到对应 owner layer。
+- 挂在 Eval 上的 `sandbox` 字段隔离普通 reuse pool；同一 Group 成员的 Sandbox 字段身份不同时，在创建前报 `eval-group-incompatible`。
+
+需要“整条 lane 只做一次”的宿主侧工作写在 `group.before` / `group.after`；需要每题恢复与保存的 Sandbox 状态写在 `sandbox`。
 
 ### Agent 扩展
 
@@ -591,41 +604,66 @@ agent: {
 合并规则：
 
 - factory 自身配置在前，各 Plugin 按数组顺序追加；`before` 按同一顺序执行，`after` 逆序执行。
+- 合并后的 `before` / `after` 保留 factory 的既有失败语义：任一步失败使该 Attempt 失败，其余 `after` 与底层 finalizer 仍执行。
+  因此 Nowledge、mem0 这类“条件仍有效”的探针放在 `agent.*.after`，失败会反映在结果里。
 - skill 名、MCP server 名、原生插件名重复时，加载期报错并给出两处声明位置。
 - `configFile` / `settingsFile` 只能由 factory 或一个 Plugin 声明。
 - 所选 Adapter 不支持某个通用字段（例如 Bub 没有 `mcpServers`）时报错，不静默丢弃。
 - Plugin 声明了按 agent 区分的子字段、却没有所选 Adapter 的那一项时报错；只有通用字段的 Plugin 可用于任意内建 coding agent。
 - 自定义 Adapter（`defineAdapter`）不接受 `agent` 扩展，挂载时报错。
 
-合并结果就是 Adapter 实际收到并进入 Adapter identity 的配置，与直接写在 factory 中的同一配置相同。
+合并结果就是 Adapter 实际收到的配置，与直接写在 factory 中的同一配置执行效果相同。
+连接参数、凭据仍在 Adapter 构造或 Hook 执行时求值，Plugin 不提前读取或保存它们。
 
-### 顺序
+### 顺序与失败
 
-同一时机内，作者自己的Hook在前，Plugin 在后。
-Plugin 之间先按挂载层级（Experiment、EvalGroup、Eval），再按数组顺序执行 before；after 完全逆序。
-before 调用前先计入已激活前缀，因此 before 自身失败也会得到对应 after。
-任一 before 失败跳过其后的业务阶段；after 失败只追加 warning diagnostic，不跳过剩余 after 或底层 finalizer。
-`niceeval debug <experiment> <eval>` 展示展开后的完整生命周期，每一步标出声明它的 Plugin 的 `name` 与 `key`。
+宿主 Hook（`experiment`、`group`、`attempt`）严格按声明顺序执行：
+
+- before：作者自己的 Hook 先执行；Plugin 再按挂载层级（Experiment、EvalGroup、Eval）与数组顺序执行。
+- after：按实际已激活顺序完全逆序，因此 Plugin 的 after 先于作者自己的 after。
+- before 调用前先计入已激活前缀，自身失败也会得到对应 after；未激活的 Plugin 不执行 after。
+- 任一 before 失败跳过其后的业务阶段。宿主 after 失败只追加 warning diagnostic，不跳过剩余 after 或底层 finalizer。
+- 宿主 after 使用独立的收尾 signal 与预算，不继承已耗尽的执行 deadline。
+
+`sandbox` 字段的元素加入 Action DAG，顺序服从现有规则：依赖优先，其次 changeFrequency，最后 owner 与声明序号。
+Plugin 元素的声明序号排在同一 owner 作者元素之后；数组顺序不构成依赖，需要先后关系时显式写 `dependsOn`。
+`niceeval debug <experiment> <eval>` 展示展开后的完整生命周期与实际 Action 顺序，每一步标出声明它的 Plugin 的 `name` 与 `key`。
 
 ### 身份
 
-每个生效的 Plugin 以 `(挂载层级, name, key, identity, requires, 已声明字段的形状, 顺序)` 进入 Attempt fingerprint。
-回调函数体不进入 fingerprint；行为变化时修改 `identity`，或显式 `--rerun all`。
-同一 Attempt 的生效集合里 `(name, key)` 重复时，加载期报错。
+每个生效的 Plugin 以下列投影进入 Attempt fingerprint，按挂载层级与数组顺序排列：
+
+| 投影项 | 内容 |
+| --- | --- |
+| 挂载 | 挂载层级、在数组中的位置 |
+| 名称 | `name`、`key` |
+| 版本 | `identity`、`requires` |
+| 形状 | 声明了哪些字段，以及每个 before / after 的元素个数 |
+| Sandbox | `sandbox` 字段中受管 Action 的 canonical identity，与作者 layer 中的同一 Action 完全相同 |
+| Agent | `agent` 字段的无凭据投影：skill 规格与内容摘要、MCP 的 name / command / args / url（不含 headers 与 env）、原生插件规格、配置文件内容摘要 |
+
+回调函数体不进入 Plugin 投影。只改 Experiment 模块里 Plugin 回调的函数体时，结果继续 carry；需要重跑时修改 `identity` 或显式 `--rerun all`。
+Eval 模块及其静态 import 仍按既有 sourceClosure 规则进入 fingerprint，Plugin 不绕开它。
+同一 Attempt 的生效集合里 `(name, key)` 重复时，加载期报错；这比旧 Plugin 的同 scope 检查更严格。
 
 `show --exp`、`show --json` 与 `view` 的 Experiment 信息列出生效 Plugin 的 `name`、`key` 与 `identity`。
 条件版本因此不需要另写一份 flags。Plugin identity 不进入 `ctx.flags`；Adapter 与 Eval 需要读取的条件参数仍用 flags。
-没有挂载 Plugin 的 Experiment，其 config identity 与 0.18 相同。
+没有挂载 Plugin 的 Experiment，其 config identity 与 0.18 相同。旧 Plugin 写法迁移到新语法后不保证 carry。
 
 ### 验收
 
-- 安装后候选的公开入口：mempal 形态的 Plugin 挂在 Experiment 上，跑两个 Group、各两个 Eval。
-- `sandbox` Hook在每个物理 Sandbox 上执行，replacement 后重新执行；`group.before` 每条 lane 只执行一次。
-- Group 外的 Eval 触发 `plugin-requires-eval-group`，且在任何 Sandbox 创建前失败。
-- Agent 扩展在 Codex 与 Claude Code 上都实际安装；重名、多个 configFile、Adapter 不支持的字段各自报错。
-- 挂载点不允许的字段在 `.mts` 与 `.cts` 类型检查中编译失败，运行时同样拒绝。
-- 修改 `identity` 使已有结果不再 carry；只改回调函数体时仍 carry。
-- 没有 Plugin 的 Experiment 在 0.18 与候选下 config identity 相同；Experiment `setup` 改写为 `before` 后 identity 不变。
+全部经安装后候选的公开入口，通过 `show`、`query`、`debug` 观察，不读私有缓存目录。
+
+- mempal 形态的 Plugin 挂在 Experiment 上，两个 Group 各两个 Eval：`group.before` 每条 lane 一次；`sandbox` 元素每条 Attempt 一次，replacement 后照常执行；workdir 内 marker 跨 Attempt 的可见性与作者 layer 相同。
+- 全部 carry 时零 Hook、零 Sandbox 创建；部分 carry、只选一个 Group 成员时只激活 fresh 的部分。
+- before 中途失败与取消：已激活前缀得到 after，未激活的不执行；某个 after 失败后其余 after 与 finalizer 仍执行；`group.after` 在首条 Attempt 超时后仍有收尾预算。
+- `agent.codex.after` 探针抛错使该 Attempt 失败，且剩余 after 与 finalizer 完成。
+- Group 外的 Eval 触发 `plugin-requires-eval-group`，在任何 build 与 Sandbox 创建前失败，含全部 carry 的情况。
+- `.mts` 与 `.cts`：声明 requires 的 Plugin 回调可直接读 `ctx.evalGroup.id`，未声明时直接读编译失败；挂载点不允许的字段编译失败，运行时同样拒绝。
+- Agent 扩展在 Codex 与 Claude Code 上都实际安装；重名、多个 configFile、Bub 的 `mcpServers`、缺目标 agent 子字段、`defineAdapter` 加 `agent` 扩展各自报出具名错误。
+- 身份反例：`identity` 固定时改 `writeText` 内容不再 carry；改 skill 内容不再 carry；只换 MCP header 凭据仍 carry；只改 Experiment 模块里回调函数体仍 carry；改 Eval 模块里的回调不再 carry。
+- 顺序反例：作者 Action frequency=100、Plugin Action frequency=10 且无依赖时，`debug` 显示 Plugin Action 先执行；加 `dependsOn` 后顺序反转。
+- 没有 Plugin 的 Experiment 在 0.18 与候选下 config identity 相同；Experiment `setup` 改写为 `before`、`postSetup` 改写为 `before` 后 identity 不变。
 
 ## 只展示的 Note：`t.note`
 
