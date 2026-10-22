@@ -726,5 +726,6 @@ Bub Adapter 只支持 Adapter 当前固定的 Bub 版本。
 删除 0.3.9 legacy live 版本线、对应 E2E Experiment，以及只为旧 top-level `type` 事件存在的 parser 分支。
 OpenCode parser 只保留固定版本 CLI 实际产出的 JSONL 事件与 `export` 形状，删除其它字段 fallback。
 
-固定版本产出的真实样本作为 parser 的 fixture。parser 不认识的事件按现有未知事件路径保留原文，不静默丢弃。
+固定版本产出的真实样本作为 parser 的 fixture。
+parser 不认识的事件不进入 `Turn.events`，也不静默丢弃：每条 Attempt 追加一条 warning diagnostic `agent-event-unrecognized`，列出事件类型与次数。
 已落盘 Record 中的事件是 parse 后的形状，不受影响。产品站的 `/en/*` 与 www 308 重定向属于公开链接，保留。
