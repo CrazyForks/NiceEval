@@ -3,6 +3,14 @@ import { defineScoreEval } from "niceeval";
 import { deepStrictEqual, throws } from "node:assert";
 import {
   atMost,
+  atLeast,
+  lessThan,
+  greaterThan,
+  between,
+  ms,
+  seconds,
+  ratio,
+  usd,
   measured,
   quantile,
   and,
@@ -65,6 +73,21 @@ export default defineScoreEval({
     t.check(measured(0, { unavailable: "no-actions" }), atMost(0)).label("measured:matched");
     t.check(measured(null, { unavailable: "no-actions" }), atMost(0)).label("measured:unavailable");
     t.check(measured(Infinity, { unavailable: "no-actions" }), atMost(0)).label("measured.invalid:unavailable");
+    t.check(measured(ms(512), { unavailable: "missing" }), atMost(ms(600))).label("units.ms:matched");
+    t.check(measured(ratio(0.612), { unavailable: "missing" }), atLeast(ratio(0.6))).label("units.ratio:matched");
+    t.check(measured(usd(0.031), { unavailable: "missing" }), lessThan(usd(0.04))).label("units.usd:matched");
+    t.check(ms(512), and(greaterThan(ms(500)), lessThan(ms(600)))).label("units.combined:matched");
+    t.check(quantile([ms(100), ms(200)], 0.5), between(ms(150), ms(150))).label("units.between:matched");
+    t.check(measured(ms(512), { unavailable: "missing" }), between(ms(100), ms(500))).label("units.between:mismatched");
+    t.check({ state: "lower-bound", value: 512, unit: "ms" }, between(ms(100), ms(500))).label("units.partial:mismatched");
+    t.check({ state: "lower-bound", value: 200, unit: "ms" }, between(ms(100), ms(500))).label("units.partial:unavailable");
+    // Runtime must also reject incompatible units when JavaScript bypasses TypeScript.
+    // @ts-expect-error Deliberate runtime unit mismatch.
+    t.check(measured(ms(512), { unavailable: "missing" }), atMost(seconds(1))).label("units.mismatch:unavailable");
+    // @ts-expect-error Deliberate runtime unitless threshold.
+    t.check(measured(ms(512), { unavailable: "missing" }), atMost(600)).label("units.unwrapped:unavailable");
+    // @ts-expect-error Deliberate runtime unitless subject.
+    t.check(512, atMost(ms(600))).label("units.unitless:unavailable");
 
     const turn = await t.send("assertion/match-outcomes");
     await turn.succeeded().orStop();
