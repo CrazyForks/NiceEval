@@ -12,7 +12,7 @@ test.concurrent("Group 成员耗尽执行时限后仍能在 cleanup 保存 check
     links: [{ from: resolve("node_modules"), to: "node_modules", type: "dir" }],
   }, async ({ root }) => {
     const result = await command([resolve("node_modules/.bin/niceeval")]).run(
-      ["exp", "group-checkpoint", "--rerun", "all", "--json"], { cwd: root, timeoutMs: 90_000 });
+      ["exp", "group-checkpoint", "--rerun", "all", "--json"], { cwd: root, timeoutMs: 180_000 });
     expect(result.expReceipt().completion, result.diagnostic()).toBe("completed");
     expect(result.expEvalEvents()).toEqual([
       expect.objectContaining({ evalId: "group-checkpoint/first", verdict: "passed" }),

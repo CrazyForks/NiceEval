@@ -1,7 +1,8 @@
 import { defineEval } from "niceeval";
 
 export default defineEval({
-  timeoutMs: 5_000,
+  // Include Docker preparation under CI load before deliberately exhausting the deadline.
+  timeoutMs: 30_000,
   async test(t) {
     await t.sandbox.writeText("/tmp/group-checkpoint-state", "second");
     // Exhaust the Attempt deadline without a provider command retiring the

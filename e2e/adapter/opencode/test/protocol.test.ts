@@ -24,15 +24,14 @@ test.concurrent("OpenCode 固定版本样本保留文本和用量并汇总未知
     `);
     await writeFile(join(paths.projectRoot, "evals/protocol.eval.ts"), `
       import { defineEval } from "niceeval";
-      import { equals } from "niceeval/expect";
+      import { between, equals } from "niceeval/expect";
       export default defineEval({ async test(t) {
         for (let i = 0; i < 2; i++) {
           const turn = await t.send("Replay the captured response.");
           await turn.succeeded().orStop();
           t.check(turn.reply, equals("Protocol fixture complete."));
-          t.check(turn.usage.inputTotalTokens, equals(11));
-          t.check(turn.usage.outputTokens, equals(5));
-          t.check(turn.usage.requests, equals(1));
+          t.check(turn.usage.inputTokens, between(11, 11));
+          t.check(turn.usage.outputTokens, between(5, 5));
         }
       }});
     `);
@@ -43,6 +42,10 @@ test.concurrent("OpenCode 固定版本样本保留文本和用量并汇总未知
     const queried = await withInspectionRequest({ kind: "attempt.trace", locator: outcome.locator },
       (request) => niceeval.run(["query", "run", "--request", request]));
     expect(queried.exitCode, queried.diagnostic()).toBe(0);
+    const usageReceipt = await withInspectionRequest({ kind: "attempt.usage", locator: outcome.locator },
+      (request) => niceeval.run(["query", "run", "--request", request]));
+    expect(usageReceipt.exitCode, usageReceipt.diagnostic()).toBe(0);
+    expect(usageReceipt.attemptUsage().usage.totals.requests).toMatchObject({ state: "available", value: 2 });
     const trace = queried.attemptTrace().trace;
     const warnings = trace.diagnostics.items.filter((item) => item.code === "agent-event-unrecognized");
     expect(warnings).toHaveLength(faults ? 1 : 0);

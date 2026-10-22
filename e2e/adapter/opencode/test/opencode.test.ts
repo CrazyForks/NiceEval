@@ -95,12 +95,12 @@ function expectCommandSummary(document: InspectionAttemptTraceDocument): Inspect
   for (const command of commands.items) {
     expect(command.commandId).toMatch(/\S/u);
     expect([
-      "attempt.setup",
+      "attempt.before",
       "sandbox.prepare",
       "agent.ensure",
       "eval.run",
       "sandbox.command",
-      "attempt.teardown",
+      "attempt.after",
     ]).toContain(command.phase);
     expectCommandOutcome(command.outcome);
   }

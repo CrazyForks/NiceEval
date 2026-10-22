@@ -31,7 +31,14 @@ test.concurrent("并发多次 Attempt 全部结束后，四种结果均可从 Ru
         expect(attempt.exitCode, attempt.diagnostic()).toBe(0);
         expect(attempt.attempt().attempt).toMatchObject({ locator: slot.locator });
         if (verdict === "errored") {
-          expect(JSON.stringify(attempt.attempt().attempt)).toContain("mixed-outcomes error body remains auditable");
+          const traceRequest = await writeInspectionRequest(paths.projectRoot, `mixed-error-trace-${attemptOrdinal}`, {
+            kind: "attempt.trace", locator: slot.locator,
+          });
+          const trace = await niceeval.run(["query", "run", "--request", traceRequest]);
+          expect(trace.exitCode, trace.diagnostic()).toBe(0);
+          expect(trace.attemptTrace().trace.diagnostics.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ kind: "execution-error", summary: expect.stringContaining("mixed-outcomes error body remains auditable") }),
+          ]));
         }
       }
     }

@@ -176,7 +176,7 @@ async function readActiveSession(environment, processHandle, timeoutMs = 10_000)
       );
     }
     const receipt = await runProcess(
-      ["node_modules/.bin/niceeval", "session", "list", "--json"],
+      ["node_modules/.bin/niceeval", "invocation", "list", "--json"],
       { env: environment },
     );
     lastReceipt = receipt;
@@ -210,7 +210,7 @@ async function waitForProviderCapacityObservation(
       );
     }
     const receipt = await runProcess(
-      ["node_modules/.bin/niceeval", "session", "show", sessionId, "--json"],
+      ["node_modules/.bin/niceeval", "invocation", "show", sessionId, "--json"],
       { env: environment },
     );
     lastReceipt = receipt;
@@ -684,7 +684,7 @@ async function makeWritableForHost() {
 
 async function latestPublicSession(environment, experimentId) {
   const listed = await runProcess(
-    ["node_modules/.bin/niceeval", "session", "list", "--all", "--json"],
+    ["node_modules/.bin/niceeval", "invocation", "list", "--all", "--json"],
     { env: environment },
   );
   const document = JSON.parse(listed.stdout);
@@ -699,7 +699,7 @@ async function latestPublicSession(environment, experimentId) {
     throw new Error(`public Session for ${experimentId} was not discoverable`);
   }
   const show = await runProcess(
-    ["node_modules/.bin/niceeval", "session", "show", session.sessionId, "--json"],
+    ["node_modules/.bin/niceeval", "invocation", "show", session.sessionId, "--json"],
     { env: environment },
   );
   return { sessionShowJson: show.stdout, sessionId: session.sessionId };
@@ -894,11 +894,11 @@ async function main() {
     await waitForHumanPass(transcript, invocation, 20_000);
     const [listJson, showHuman] = await Promise.all([
       runProcess(
-        ["node_modules/.bin/niceeval", "session", "list", "--json"],
+        ["node_modules/.bin/niceeval", "invocation", "list", "--json"],
         { env: childEnvironment },
       ),
       runProcess(
-        ["node_modules/.bin/niceeval", "session", "show", sessionId],
+        ["node_modules/.bin/niceeval", "invocation", "show", sessionId],
         { env: childEnvironment },
       ),
     ]);
