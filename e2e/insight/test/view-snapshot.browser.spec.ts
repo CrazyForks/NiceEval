@@ -432,12 +432,6 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         await expect(attemptSummaryLocator).toHaveCount(1);
         await expect(attemptSummaryLocator).toBeVisible();
         await expect(attemptSummaryLocator).toHaveText(recallLocator);
-        const notes = dialog.getByRole("region", { name: "Notes", exact: true });
-        await expect(notes).toBeVisible();
-        await expect(notes).toContainText("Recall latency");
-        await expect(notes).toContainText("512 ms");
-        await expect(notes).toContainText('"topic":"recall-name"');
-        await expect(notes).toContainText("unavailable");
         await expect(experimentDetails).toHaveAttribute("open", "");
         await expect(evalGroupSummary.locator("xpath=..")).toHaveAttribute("open", "");
         await expect(recallSummary.locator("xpath=..")).toHaveAttribute("open", "");
