@@ -474,3 +474,56 @@ NiceEval-Eval 和 ljkx-game、rpg-game 五个已知使用方的作者源码。
 
 被删字段若出现在作者配置中，加载时以说明替代方式的错误拒绝，而不是静默忽略。
 未使用被删字段的 Experiment，其 config identity 与 0.18 完全相同，已有结果继续 carry。
+
+## Experiment 只用 adapter 选择被测对象
+
+Experiment 的 `agent` 字段删除，统一写 `adapter`。`defineAgent` 与 `defineSandboxAgent` 的返回值本身就是 Adapter，
+可直接放进 `adapter`；两个工厂不变。定义时出现 `agent` 以说明替代写法的错误拒绝。
+被测对象的 config identity 与 0.18 写 `agent` 时完全相同，已有结果继续 carry。
+
+`model` / `reasoningEffort` 简写保留，`models` 也保留，二者不是重复入口：前者服务只有一个模型的 Agent，
+在定义边界归一为唯一的 `default` role；后者服务声明多个 role 的 Adapter。两者仍互斥，已有归一与 identity 不变。
+
+## 只展示的记录：`t.note`
+
+```ts
+t.note("出手频率", result.activity);
+t.note("首个决策延迟", ms(result.firstDecisionMs));
+```
+
+`t.note(label, value)` 记录一条不参与判定的展示项：没有 matcher、gate、score，不进入 Verdict、score、coverage，
+也不计入 Assertion 数量。value 是 JSON 值或带单位的数值（见下节）；null 表示该项未取得，呈现为 unavailable。
+它不是 Assertion：Record 新增 `attempt-note` family（revision 1），每项保存 label、按调用顺序的序号、value 与可选 unit。
+同一 Attempt 内 label 唯一，重复 label、超过 64 项或单项 JSON 超过 64 KiB 时 `t.note` 抛出 TypeError。
+`show @<locator>` 在 Assertion 之后列出 Notes，`--json` 与 `query` 的 Attempt 结果带 `notes`；
+`show --exp` 对同一 label、同一单位的数值 note 跨 Attempt 给出 count、min、median、p90、max；`view` 的 Attempt 详情展示同一内容。
+旧 Record 没有该 family，读取为空列表。
+
+## 数值单位
+
+单位同时是编译期品牌和运行时元数据，从 `/expect` 导出：
+
+| 构造 | 单位 |
+| --- | --- |
+| `ms(n)` | 毫秒 |
+| `seconds(n)` | 秒 |
+| `tokens(n)` | token 数 |
+| `usd(n)` | 美元 |
+| `ratio(n)` | [0,1] 之间的比例，越界抛出 RangeError |
+| `count(n)` | 计数 |
+| `bytes(n)` | 字节 |
+
+构造返回 `Quantity<U>`，它是带品牌的 number，可直接参与普通算术，结果退化为无单位 number；NiceEval 不提供单位换算或单位算术。
+`measured(value, opts)`、`quantile(samples, p, opts)` 与 `t.note` 接受 `Quantity<U>`，产出的 `NumericMaterial<U>` 携带 unit，
+`quantile` 要求样本单位一致并保留它。`t.usage.cacheRead.rate(role?)` 返回 `NumericMaterial<"ratio">`。
+数值 matcher（`atLeast`、`atMost`、`greaterThan`、`lessThan`、`between` 等）对有单位的材料要求同单位阈值：
+`t.check(latency, atMost(ms(500)))` 通过编译，`atMost(seconds(1))` 或裸 `500` 编译失败；无单位材料继续接受裸 number。
+运行时同样校验单位，品牌被绕过时以 unavailable 并给出原因，不按数值比较。
+NumericMaterial 的 Record 编码新增可选 `unit`；旧 Record 缺省为无单位。`show`、`view` 按单位格式化（如 `512 ms`、`61.2%`、`$0.031`）。
+
+## Bub 与 OpenCode 只解析钉住版本的协议
+
+Bub Adapter 只支持当前钉住的 Bub 版本：删除 0.3.9 legacy live 版本线、对应 E2E Experiment，以及只为旧 top-level `type` 事件存在的 parser 分支。
+OpenCode parser 只保留钉住 CLI 实际产出的 JSONL 事件与 `export` 形状，删除其它字段 fallback。
+钉住版本产出的真实样本作为 parser 的 fixture；解析不到的事件按现有未知事件路径保留原文，不静默丢弃。
+已落盘 Record 中的事件是解析后的形状，不受影响。产品站的 `/en/*` 与 www 308 重定向属于公开链接，保留。
