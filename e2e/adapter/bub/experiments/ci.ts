@@ -12,10 +12,9 @@ const markSecond: SandboxCommand = async (sandbox) => {
 };
 
 // 不写 version:这条线始终跑 NiceEval 当前默认钉的 Bub,默认版本一升级它就跟着换代。
-// 往回钉一代的覆盖在 experiments/legacy.ts。
 const agent = bubAgent({
   apiKey: process.env.OPENAI_API_KEY,
-  apiBase: process.env.OPENAI_BASE_URL,
+  baseUrl: process.env.OPENAI_BASE_URL,
   skills: [{ kind: "local", path: "skills/review/SKILL.md" }],
   pythonPlugins: [{ package: "cowsay" }],
   before: [markFirst, markSecond],
