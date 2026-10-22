@@ -43,7 +43,7 @@ Provider inventory 中带 NiceEval prepared-artifact metadata 的对象，必须
 project、kind 与 name。
 
 建议以该 exact locator 为 quarantine key。doctor 不 adopt、不补写 intent，也不删除对象。一个对象无法闭合时，
-doctor 不能只按已登记 intent 计算空闲槽位并报告通过。
+doctor 不能只按已登记 intent 计算空闲容量并报告通过。
 
 reference 成功时，Human 输出把两个容量面和 domain 一起列出：
 
@@ -58,7 +58,7 @@ trusted image: niceeval/docker-execution-v1@sha256:0123456789abcdef…
 inventory: project niceeval-eval · storage pool niceeval-evals
 ```
 
-缺任一 artifact 槽位即使 warm artifact 仍能命中也整体失败，且 doctor 不会顺手回收：
+缺任一 artifact 位置即使 warm artifact 仍能命中也整体失败，且 doctor 不会顺手回收：
 
 ```text
 $ niceeval sandbox provider doctor incus

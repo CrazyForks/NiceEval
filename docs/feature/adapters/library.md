@@ -627,9 +627,9 @@ type CacheReadReport = {
 传入未声明用途会在调用处同步抛 TypeError，列出可选用途；拼写错误不会转成 unavailable。
 已声明用途在完整采集下没有调用返回 role-has-no-calls，其余情况保留分组 rate 的原因，包括 collection-incomplete 和 zero-input-total。
 
-数组报告继续使用 no-calls；方法将空计划 Attempt原因具体化。无参数方法原样返回 total.rate。
+数组报告继续使用 no-calls；方法将未调用 role 的原因具体化。无参数方法原样返回 total.rate。
 作者无需 find、可选链或自行构造 unavailable。方法不重算比例、不修改数组，也不进入 Query JSON 或持久数据。
-Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导计划 Attempt类型。
+Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导 role 类型。
 
 `rate` 只返回 exact 或 unavailable，不返回 lower-bound。公式是同组调用的 `Σ cacheReadTokens / Σ inputTotalTokens`。
 每次调用优先采用独立观测到的 `inputTotalTokens`；缺少总量时，只有 input、cacheRead、cacheWrite 三个互斥桶全部已知才求和。
@@ -700,21 +700,21 @@ defineExperiment({ adapter, models: slots, evals: ["combat"] });
 ```
 
 自定义 Adapter 的 defineAdapter 同样接受 requires.models。create(ctx) 的 ctx.models 键和 ctx.recordUsage 的 modelRole 都收窄为声明键。
-可空物理关联仍允许 null 或省略，表达确实无法归因的调用；它们不是一个额外声明计划 Attempt。已有 flags、应用方法和 Assertion sugar 的推导必须保留。
+可空物理关联仍允许 null 或省略，表达确实无法归因的调用；它们不是一个额外声明的 role。已有 flags、应用方法和 Assertion sugar 的推导必须保留。
 
 Adapter 声明的用途在 defineExperiment 归一化时校验。Eval 的用途在发现并求值 Experiment 的 evals 选择器后统一校验，发生在任何 Attempt、Adapter create 或数据库写入之前。
-校验的是完整 discovery 中 Experiment 选择的整个 Eval 集合，predicate 只求值一次，再应用 tag 与 CLI 临时前缀；错误包含 Experiment、Eval 和全部缺失键。额外声明的计划 Attempt合法。
+校验的是完整 discovery 中 Experiment 选择的整个 Eval 集合，predicate 只求值一次，再应用 tag 与 CLI 临时前缀；错误包含 Experiment、Eval 和全部缺失键。额外声明的 role 合法。
 
 要求只按排序后的键存入归一化定义，不保存对象引用品牌，也不把声明里的模型值当作 Eval 配置。
 声明源码沿用既有 source closure 追踪范围；项目内相对静态导入可被追踪，不扩展到动态导入或外部包。这项加载前置条件不新增 RunContext、configHash 或 Usage 持久化字段。
 两个共享同组用途的 Experiment 可以选不同模型并复用同一 Eval；这不是 Eval 与 Experiment 的一对一绑定。
 
-验收包括安装后正反类型用例、两个不同模型 Experiment 复用同一 Eval、缺失计划 Attempt在 dry 阶段拒绝且 create 未执行、旧宽字符串入口及可空物理关联。
+验收包括安装后正反类型用例、两个不同模型 Experiment 复用同一 Eval、缺失 role 在 dry 阶段拒绝且 create 未执行、旧宽字符串入口及可空物理关联。
 单位品牌不加入该契约：模型用途约束与数值单位独立；毫秒与比例的类型扩展需另有实际误用证据和完整算术边界。
 
 
 根 defineEval / defineScoreEval 继续拥有 Agent 路径，不增加 requires；自定义 Adapter 作者使用绑定工厂，也可先解构同名函数。
-requires 是最小前置集合与静态作者约束。Experiment 的额外计划 Attempt合法；JavaScript 或类型断言使用额外已配置计划 Attempt仍被接纳，未配置计划 Attempt仍被拒绝。
+requires 是最小前置集合与静态作者约束。Experiment 的额外 role 合法；JavaScript 或类型断言使用额外已配置 role 仍被接纳，未配置 role 仍被拒绝。
 requires 的未知字段、null、数组、缺少 models、非法键或超额声明都在定义边界报错，不能降级成省略配置。
 
 精确键只从 requires.models 推导；test/create 参数使用 NoInfer 阻止 callback 反向放宽。先移除宽 rate、models 索引签名或 recordUsage 后再提供窄类型，不交叉保留宽签名。

@@ -145,7 +145,7 @@ export type FailureClass =
 - 不在 `EvalInput` 上挂分类器——「以第三方错误形态浮出、且死因只属于单条 eval」的场景没有真实样本;作者代码能触到的 eval 级死因由抛出点的 `EvalFatalError` 涵盖,有样本再扩。
 - 不跨 invocation 记忆止损状态,不提供解除/隔离命令。
 - 不抢占在飞的 attempt——已花的沙箱与 token 成本不可回收。
-- 不复用或修改 sandbox provisioning 重试的实现——那层要处理「远端资源是否已创建」的对账;两层只共享词表、退避形状与计划 Attempt接口。
+- 不复用或修改 sandbox provisioning 重试的实现——那层要处理「远端资源是否已创建」的对账;两层只共享词表、退避形状与并发名额接口。
 - 不在 CLI 或 `defineEval` / `defineExperiment` 加重试次数、退避参数一类配置——封顶次数与退避参数是固定值,有真实需要再考虑开放。
 - 不改 `attempts` / `earlyExit` / run 级 fail-fast 的既有语义——止损机制在其旁并存,streak 推断继续兜没有声明的场景。
 

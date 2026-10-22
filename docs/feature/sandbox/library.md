@@ -296,7 +296,7 @@ layer 的 `before()` 只处理必须按 Experiment / Eval Group / Eval / Agent �
 
 ## Owner 包裹：layer 的 `before()` / `after()`
 
-跑 Agent 前的预置写成 layer 的 `before()` action。planning 根据 typed inputs 编译 attempt occurrence。缓存命中 restore verified state,不调用 action；physical promotion 属于后续性能工作。
+跑 Agent 前的预置准备写成 layer 的 `before()` action。planning 根据 typed inputs 编译 attempt occurrence。缓存命中 restore verified state,不调用 action；physical promotion 属于后续性能工作。
 声明形状、command identity 与 cleanup 契约见 [Sandbox Layer](layers.md);执行时序见 [三方准备时序](lifecycle.md)。
 
 这一层解决的是一类特定问题:**Sandbox 内容必须按实验或题目变化,不能在构建期固定**。

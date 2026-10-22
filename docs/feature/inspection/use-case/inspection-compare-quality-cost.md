@@ -40,7 +40,7 @@ Next: niceeval exp harness/canary --dry
 ```
 
 历史三条结果不能被显示成当前 `3/3`，变更前的分数也不能填入缺口。旧 locator 只提供下钻入口。
-默认当前摘要来自 `project.get`，不能换成历史成员集合。`show --experiment` 读取该 Experiment 各计划 Attempt最新已发布结果，用于审阅费用与 Attempt 明细，不回答当前缺口。
+默认当前摘要来自 `project.get`，不能换成历史成员集合。`show --experiment` 读取该 Experiment 各计划 Attempt 最新已发布结果，用于审阅费用与 Attempt 明细，不回答当前缺口。
 
 ```sh
 niceeval show @1K1P0VJAPVJ12 --source

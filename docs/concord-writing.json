@@ -1687,7 +1687,8 @@
         "memory",
         "docs/api-design.md",
         "apps/docs-site/zh/tutorials/upgrade-0-19.mdx",
-        "apps/docs-site/tutorials/upgrade-0-19.mdx"
+        "apps/docs-site/tutorials/upgrade-0-19.mdx",
+        "docs/roadmap/sandbox-cache"
       ]
     },
     {
@@ -1701,7 +1702,8 @@
         "memory",
         "docs/api-design.md",
         "apps/docs-site/zh/tutorials/upgrade-0-19.mdx",
-        "apps/docs-site/tutorials/upgrade-0-19.mdx"
+        "apps/docs-site/tutorials/upgrade-0-19.mdx",
+        "docs/roadmap/sandbox-cache"
       ]
     },
     {

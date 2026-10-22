@@ -88,7 +88,7 @@ reference Experiment：
 
 ```ts
 export default defineExperiment({
-  agent: codexAgent(),
+  adapter: codexAgent(),
   maxConcurrency: 4,
   sandbox: incusSandbox({
     image: "niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
