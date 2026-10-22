@@ -24,6 +24,16 @@ export interface AgentLifecycleHookCommands {
 // 实例上，不把这份纯预览元数据扩成第二个公开 Agent 执行协议。
 const lifecycleHookCommands = new WeakMap<SandboxAgent, AgentLifecycleHookCommands>();
 
+/** Reject removed author vocabulary even when an old field is explicitly undefined. */
+export function assertAgentLifecycleNames(config: object | undefined, factory: string): void {
+  if (config === undefined) return;
+  for (const [previous, current] of [["postSetup", "before"], ["preTeardown", "after"]] as const) {
+    if (Object.hasOwn(config, previous)) {
+      throw new TypeError(`${factory} ${previous} is no longer supported; use ${current}.`);
+    }
+  }
+}
+
 /** @internal 为内置 Adapter 登记与实际执行共用的 hook 数组。 */
 export function registerAgentLifecycleHookCommands<T extends SandboxAgent>(
   agent: T,

@@ -15,6 +15,7 @@ import { mapClaudeCodeSpans } from "../o11y/otlp/mappers/claude-code.ts";
 import { DEFAULT_CLAUDE_CODE_CLI_VERSION, AGENT_BASELINE_RECIPE_REVISION } from "./coding-cli-versions.ts";
 import { assertMcpServers, isHttpMcp, mcpManifestEntries } from "./mcp.ts";
 import {
+  assertAgentLifecycleNames,
   registerAgentLifecycleHookCommands,
   runPostSetupHooks,
   runPreTeardownHooks,
@@ -110,21 +111,22 @@ export interface ClaudeCodeConfig {
    * 「安装产物就位后才能跑」的过程动作。抛错按基础设施错误计(attempt errored)。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
-  postSetup?: readonly SandboxCommand[];
+  before?: readonly SandboxCommand[];
   /**
-   * 与 `postSetup` 成对的收尾 Hook:按 `postSetup` 的逆序语义,在 agent 自己的 teardown 步骤
-   * 之前执行(LIFO 镜像 —— `postSetup` 跑在 agent 安装之后,`preTeardown` 就跑在 agent 收尾
-   * 之前),当且仅当 `postSetup` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+   * 之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
+   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
    * 按 teardown-failed 诊断收束。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
-  preTeardown?: readonly SandboxCommand[];
+  after?: readonly SandboxCommand[];
 }
 
 // @concord-code ne-adapter-claude-code-agent
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/claude-code/README.md
 export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
+  assertAgentLifecycleNames(config, "claudeCodeAgent");
   const getApiKey = () => config?.apiKey ?? requireEnv("ANTHROPIC_API_KEY");
   const getBaseUrl = () => config?.baseUrl ?? getEnv("ANTHROPIC_BASE_URL");
   const agentEnv = Object.freeze({ ...(config?.env ?? {}) });
@@ -245,9 +247,9 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
             ctx.reportSetup(manifest);
           }
 
-          // 安装后钩子(postSetup):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
+          // 安装后钩子(before):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
           // 钩子失败不该丢掉这份证据。
-          await runPostSetupHooks(sb, ctx, "claude-code", config?.postSetup);
+          await runPostSetupHooks(sb, ctx, "claude-code", config?.before);
         },
         catch: (cause) => cause,
       });
@@ -255,9 +257,9 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
 
     teardown: (sb, ctx) => Effect.tryPromise({
       try: async (signal) => {
-        // preTeardown 与 postSetup 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
+        // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // claude-code 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.preTeardown);
+        await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.after);
         await attemptResources(ctx)?.shutdownAll(signal);
       },
       catch: (cause) => cause,
@@ -284,7 +286,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       },
       catch: (cause) => cause,
     }),
-  }), config?.postSetup, config?.preTeardown);
+  }), config?.before, config?.after);
 }
 
 

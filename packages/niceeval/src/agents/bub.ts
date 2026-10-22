@@ -12,6 +12,7 @@ import {
 import { mapBubSpans } from "../o11y/otlp/mappers/bub.ts";
 import { unclassifiedToolActionsCoverage } from "../o11y/command-projection.ts";
 import {
+  assertAgentLifecycleNames,
   registerAgentLifecycleHookCommands,
   runPostSetupHooks,
   runPreTeardownHooks,
@@ -86,15 +87,15 @@ export interface BubConfig {
    * Python package、写 manifest 全部完成后执行。抛错按基础设施错误计(attempt errored)。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
-  postSetup?: SandboxCommand[];
+  before?: SandboxCommand[];
   /**
-   * 与 `postSetup` 成对的收尾 Hook:按 `postSetup` 的逆序语义,在 agent 自己的 teardown 步骤
-   * 之前执行(LIFO 镜像 —— `postSetup` 跑在 agent 安装之后,`preTeardown` 就跑在 agent 收尾
-   * 之前),当且仅当 `postSetup` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+   * 与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+   * 之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
+   * 之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
    * 按 teardown-failed 诊断收束。
    * 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
    */
-  preTeardown?: SandboxCommand[];
+  after?: SandboxCommand[];
 }
 
 const UV = "$HOME/.local/bin/uv";
@@ -150,6 +151,7 @@ function tapePath(workspace: string, sessionId: string, bubHome: string): string
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/bub/README.md
 export function bubAgent(config?: BubConfig): Agent {
+  assertAgentLifecycleNames(config, "bubAgent");
   const getApiKey = () => config?.apiKey ?? requireEnv("BUB_API_KEY");
   const getApiBase = () => config?.apiBase ?? requireEnv("BUB_API_BASE");
   const packages = normalizePackages(config?.pythonPlugins);
@@ -256,18 +258,18 @@ ${last}`);
           ctx.reportSetup(manifest);
         }
 
-        // 安装后钩子(postSetup):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
+        // 安装后钩子(before):排在 manifest 之后——manifest 审计 Adapter 自身的安装事实,
         // 钩子失败不该丢掉这份证据。
-        await runPostSetupHooks(sb, ctx, "bub", config?.postSetup);
+        await runPostSetupHooks(sb, ctx, "bub", config?.before);
       },
       catch: (cause) => cause,
     }),
 
     teardown: (sb, ctx) => Effect.tryPromise({
       try: async () => {
-        // preTeardown 与 postSetup 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
+        // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // bub 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, ctx, "bub", config?.preTeardown);
+        await runPreTeardownHooks(sb, ctx, "bub", config?.after);
       },
       catch: (cause) => cause,
     }),
@@ -336,7 +338,7 @@ ${last}`);
       },
       catch: (cause) => cause,
     }),
-  }), config?.postSetup, config?.preTeardown);
+  }), config?.before, config?.after);
 }
 
 export default bubAgent();
