@@ -390,7 +390,7 @@ loader 收 `URL` 就是这条判据的结果——判据文件按 eval 相对路
 
 根入口提供作者定义与作者所需的错误值。本次只撤销下文列举的运行时导出，其余值与现有类型出口保留。
 
-`defineModelSlots` 继续从根入口导出。
+`defineModelRoles` 从根入口导出，命名理由与完整改名表见下文[模型用途统一称为 role](#模型用途统一称为-role)。
 `ExperimentFatalError`、`EvalFatalError`、`failureClassOf` 和 `MigrationRequiredError` 也保留在根入口。
 
 判据构造统一从 `/expect` 导入：
@@ -417,3 +417,60 @@ Sandbox 的 profile 查找函数只保留 `resolveDockerProfile` 这个名称，
 混合模块消费与 `.mts`、`.cts` 类型检查需包含保留的根类型；审计 reader 比较两种模块的解码行为，
 不要求独立浏览器 ESM bundle 与 CJS reader 的函数身份相同。
 当前 Record 读取、迁移恢复、资源账本和第三方协议解码不因名称含 legacy 而删除。
+
+## 模型用途统一称为 role
+
+一个 Experiment 可以为应用声明多个模型用途，例如 `mind` 与 `speech`。这些键表达“这个模型在应用里担任什么角色”，
+不是可插拔的空位，也不与 Record 的 expected slot、Run slot binding 或 Adapter session slot 同义。
+仓库里 slot 已经指称 Run 分母成员与会话存储，再让它表示模型用途会让同一词根在相邻 API 里指向三种对象。
+因此作者可见的模型用途统一使用 role：
+
+| 旧名 | 新名 |
+| --- | --- |
+| `defineModelSlots(...)` | `defineModelRoles(...)` |
+| `ModelSlotSelection` | `ModelRoleSelection` |
+| `ctx.recordUsage({ modelSlot })` | `ctx.recordUsage({ modelRole })` |
+| `cacheRead.modelSlots[]` 及其中 `modelSlot` | `cacheRead.roles[]` 及其中 `modelRole` |
+| `models[]` 分组键 `[modelSlot, provider, model]` | `[modelRole, provider, model]` |
+| unavailable 原因 `slot-has-no-calls` | `role-has-no-calls` |
+| 错误文案 `undeclared model slots` | `undeclared model roles` |
+
+`t.usage.cacheRead.rate(role?)`、`requires: { models }`、Experiment 的 `models` 与 `ctx.models` 字段名不变；
+`rate` 的参数名改为 `role`。`show`、`show --json`、`query` 输出与 `view` 中描述模型用途的字段和文案同步改为 role。
+内部类型与函数随之改名，例如 `ResolvedModelRoles`、`normalizeModelRoles`、`assertRequiredModelRoles`，源码模块改为 `model-roles.ts`。
+不保留 `defineModelSlots` 或 `modelSlot` 的 deprecated 转发；beta 期直接迁移，升级说明给出逐项替换。
+
+持久编码不改：adapter-usage Record 的 `modelSlot` 列与 revision、config identity 中 `models: { version: 1, slots }` 的
+编码保持原样，只在 decode/projection 边界映射到 role。这样已落盘的 Record 无需迁移，下游已有结果的 eligibility identity
+不因改名变成 stale。新增 Record revision 或改 identity 编码不属于本次改名。
+
+验收：安装后候选的 `.mts` 与 `.cts` 类型检查中，`rate("mimd")`、未声明的 `modelRole` 编译失败，旧名导入编译失败；
+0.18 写入的 Record 被候选读取后以 role 字段呈现；同一份 Experiment 在 0.18 与候选下的 config identity 相同。
+
+## 扩展与配置面的保留裁决
+
+0.18 交给维护方裁决的表面按真实使用证据定案。证据覆盖本仓库 E2E 与示例，以及工作区内 terminal-bench、MemoryBench、
+NiceEval-Eval 和 ljkx-game、rpg-game 五个已知使用方的作者源码。
+
+删除：
+
+- NiceEval Plugin 生命周期：`niceeval/plugin` 子路径、`definePlugin` 与相关类型，Experiment、EvalGroup、Eval 的 `plugins` 字段，
+  以及 runner 里只为 Plugin host/sandbox fragment 存在的组合、identity 与 setup/teardown 接线。五个使用方均未使用；
+  MemoryBench 的 `plugins: [...]` 是 Codex / Claude Code 原生插件配置，属于 Adapter，不受影响。
+  实验级准备与清理由 Experiment `setup` / `teardown` 承担，环境改动由 SandboxLayer 承担。`docs/feature/plugins` 随之撤销。
+- `Config.workspace`：没有任何读取者，是无效字段。
+- `Eval.reporters`：逐 Eval 的报告器没有使用方；报告输出属于项目级。
+- `Experiment.classifyFailure`：没有使用方，失败分类保留内建语义与 `ExperimentFatalError` / `EvalFatalError`。
+- `niceeval run show <run-id>`：与 `niceeval show --run <run-id>` 消费同一 `run.get`，保留后者作为唯一读取入口。
+  `run` 命令组只保留 list、delete、recover 这类 Run 生命周期动作。
+
+保留：
+
+- `Config.reporters` 与内建 Json、JUnit、Braintrust：这是 CI 与外部实验平台的项目级集成出口。
+- `Eval.diff` 与 `Eval.metadata`：terminal-bench 全部题目、MemoryBench 大部分题目在用；0.18 盘点漏扫了这两个使用方。
+- `maxBuildConcurrency`、`maxSetupPrefixConcurrency`：各自约束独立资源，删除后没有替代旋钮。
+- 旧 Record、RunContext 与 trace 的读取迁移链：下游已落盘的付费结果依赖它们保持可读。
+- Agent / Adapter 与 `model` / `reasoningEffort` 简写：能力边界不同，另行设计。
+
+被删字段若出现在作者配置中，加载时以说明替代方式的错误拒绝，而不是静默忽略。
+未使用被删字段的 Experiment，其 config identity 与 0.18 完全相同，已有结果继续 carry。
