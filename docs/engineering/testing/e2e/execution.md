@@ -83,6 +83,10 @@ pnpm e2e verify-release --plan artifacts/release-plan.json \
 - `run` 在选中 Testkit consumer 时构建当前 workspace Testkit 的 invocation-local scratch snapshot 一次；
 - 合法 affected 空计划不 pack、不 build；project / metadata 非法时以 `invalid` 红灯退出；
 - CI 的 prepare job 先 plan，只在选中 Repo 后测试 Testkit 并 pack 一次 candidate；
+- prepare 安装并验证 Node、pnpm 与 Concord 后，将可执行文件和 Concord 生产依赖封装为同一次 workflow 的工具 artifact。
+  matrix 在安装场景依赖前校验 prepare output 中的 SHA-256、平台和工具版本，并检查 Git 根与 Concord engine 入口；
+  校验失败立即停止，不回退到重新下载或其它版本。工具 artifact 不属于测试证据，不能替代 candidate、receipt 或 certificate。
+  pnpm store 只作按平台与依赖输入区分的下载缓存；matrix 不再独立从 npm 下载 pnpm 或安装 Concord 生产依赖；
 - matrix run 消费 candidate artifact、同一次生成的 plan 与当前 checkout，通过 `--plan/--cell` 精确执行该格；它不再把 Repo 列表和并发数翻译成 workflow shell，也不下载第二份 Testkit artifact；
 - matrix run 把 plan 的 mode、reason、lane、cell ID 与可选 base/head 写入根 summary 和每个 Repo receipt；
 - 声明 browser capability 的 matrix cell 使用与根 `@playwright/test` 精确版本相同的官方 Playwright Noble container；

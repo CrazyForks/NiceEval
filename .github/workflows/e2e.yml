@@ -64,6 +64,7 @@ jobs:
       inject-secrets: ${{ steps.lane.outputs.inject-secrets }}
       environment: ${{ steps.lane.outputs.environment }}
       candidate_sha256: ${{ steps.pack.outputs.candidate_sha256 }}
+      toolchain_sha256: ${{ steps.toolchain.outputs.sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -84,6 +85,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install Concord CLI
+        id: concord
         uses: ./.github/actions/setup-concord
 
       - name: Resolve lane and environment
@@ -274,6 +276,22 @@ jobs:
         if: steps.plan.outputs.has-jobs == 'true'
         run: pnpm --filter @niceeval/e2e-runner run typecheck
 
+      - name: Capture verified E2E tools once
+        if: steps.plan.outputs.has-jobs == 'true'
+        id: toolchain
+        env:
+          CONCORD_PACKAGE_ROOT: ${{ steps.concord.outputs.package-root }}
+        run: bash .github/scripts/e2e-toolchain.sh capture "${RUNNER_TEMP}/e2e-toolchain.tgz"
+
+      - name: Upload verified E2E tools
+        if: steps.plan.outputs.has-jobs == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-toolchain
+          path: ${{ runner.temp }}/e2e-toolchain.tgz
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Pack exact NiceEval candidate once
         if: steps.plan.outputs.has-jobs == 'true'
         id: pack
@@ -346,38 +364,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Resolve dependency cache inputs
-        id: dependency-cache
-        env:
-          REPO_DIRS_JSON: ${{ toJSON(matrix.dirs) }}
-        run: |
-          set -euo pipefail
-          {
-            echo 'paths<<EOF'
-            echo 'pnpm-lock.yaml'
-            while IFS= read -r repo_dir; do
-              lockfile="e2e/${repo_dir}/pnpm-lock.yaml"
-              test -f "$lockfile"
-              echo "$lockfile"
-            done < <(node -e 'for (const dir of JSON.parse(process.env.REPO_DIRS_JSON)) console.log(dir)')
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Set up pnpm and Node
-        uses: pnpm/setup@v3
+      - name: Download verified E2E tools
+        uses: actions/download-artifact@v8
         with:
-          runtime: node@24
-          cache: true
-          cache-dependency-path: ${{ steps.dependency-cache.outputs.paths }}
-          install: false
+          name: e2e-toolchain
+          path: ${{ runner.temp }}/e2e-toolchain-download
+
+      - name: Verify tools and repository environment
+        id: toolchain
+        env:
+          EXPECTED_TOOLCHAIN_SHA256: ${{ needs.prepare.outputs.toolchain_sha256 }}
+        run: bash .github/scripts/e2e-toolchain.sh restore "${RUNNER_TEMP}/e2e-toolchain-download/e2e-toolchain.tgz"
+
+      - name: Cache dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.toolchain.outputs.store }}
+          key: e2e-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json') }}-${{ hashFiles('pnpm-lock.yaml', 'e2e/**/pnpm-lock.yaml') }}
+          restore-keys: |
+            e2e-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json') }}-
 
       - name: Install orchestrator dependencies
         # prepare 已从同一 checkout 构建并封装 exact candidate；matrix 只需要根 CLI 的
         # JS 依赖，不能为每个 cell 重跑根 prepare 的 report/index 构建。
         run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Install Concord CLI
-        uses: ./.github/actions/setup-concord
 
       - name: Derive safe artifact id
         id: safe
