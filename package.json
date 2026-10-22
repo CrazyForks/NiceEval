@@ -44,6 +44,6 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11",
     "yaml": "^2.9.1",
-    "concord-sdlc": "file:vendor/concord/concord-sdlc-0.10.0.tgz"
+    "concord-sdlc": "https://github.com/CorrectRoadH/Concord/releases/download/v0.12.0/concord-sdlc-0.12.0.tgz"
   }
 }
