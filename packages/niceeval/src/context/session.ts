@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 
 import { Cause, Effect, Exit, Option, Semaphore } from "effect";
 
-import type { Agent, AgentContext, AgentSendContext, AgentSession, InputFile, InputRequest, InputResponse, JsonValue, Sandbox, SessionSlot, StreamEvent, Telemetry, TraceSpan, Turn, TurnInput, Usage } from "../types.ts";
+import type { Agent, AgentContext, AgentSendContext, AgentSession, InputFile, InputRequest, InputResponse, JsonValue, Sandbox, SessionKey, StreamEvent, Telemetry, TraceSpan, Turn, TurnInput, Usage } from "../types.ts";
 import { entityIdFromEntropy, type TurnId } from "../record/family/source-receipt/model.ts";
 import {
   ObservedEventIngestionCorrelator,
@@ -60,23 +60,23 @@ type ObserveSendUsage = (
  * 一条会话线的存取器实现。slot 值只按 factory 创建的 symbol 身份存取；
  * 从异构 Map 取出后立即依 typed slot 恢复 `T`，不让擦除后的值流入领域逻辑。
  */
-abstract class StoredSessionSlotValue {
-  declare private readonly storedSessionSlotValue: void;
+abstract class StoredSessionKeyValue {
+  declare private readonly storedSessionKeyValue: void;
 }
 
-class StoredSessionSlotValueOf<T> extends StoredSessionSlotValue {
+class StoredSessionKeyValueOf<T> extends StoredSessionKeyValue {
   constructor(readonly value: T) {
     super();
   }
 }
 
-function valueFromStoredSlot<T>(stored: StoredSessionSlotValue): T {
-  return (stored as StoredSessionSlotValueOf<T>).value;
+function valueFromStoredSlot<T>(stored: StoredSessionKeyValue): T {
+  return (stored as StoredSessionKeyValueOf<T>).value;
 }
 
 export function createAgentSession(): AgentSession {
   let capturedId: string | undefined;
-  const slots = new Map<symbol, StoredSessionSlotValue>();
+  const slots = new Map<symbol, StoredSessionKeyValue>();
 
   return {
     get id() {
@@ -86,14 +86,14 @@ export function createAgentSession(): AgentSession {
       if (!id || capturedId !== undefined) return; // 空值忽略;first-writer-wins
       capturedId = id;
     },
-    get<T>(slot: SessionSlot<T>): T | undefined {
+    get<T>(slot: SessionKey<T>): T | undefined {
       const stored = slots.get(slot.key);
       return stored === undefined ? undefined : valueFromStoredSlot<T>(stored);
     },
-    set<T>(slot: SessionSlot<T>, value: T): void {
-      slots.set(slot.key, new StoredSessionSlotValueOf(value));
+    set<T>(slot: SessionKey<T>, value: T): void {
+      slots.set(slot.key, new StoredSessionKeyValueOf(value));
     },
-    take<T>(slot: SessionSlot<T>): T | undefined {
+    take<T>(slot: SessionKey<T>): T | undefined {
       const stored = slots.get(slot.key);
       if (stored === undefined) return undefined;
       slots.delete(slot.key);
@@ -139,13 +139,13 @@ export class RunSession implements AgentSession {
   capture(id: string | undefined): void {
     this.session.capture(id);
   }
-  get<T>(slot: SessionSlot<T>): T | undefined {
+  get<T>(slot: SessionKey<T>): T | undefined {
     return this.session.get(slot);
   }
-  set<T>(slot: SessionSlot<T>, value: T): void {
+  set<T>(slot: SessionKey<T>, value: T): void {
     this.session.set(slot, value);
   }
-  take<T>(slot: SessionSlot<T>): T | undefined {
+  take<T>(slot: SessionKey<T>): T | undefined {
     return this.session.take(slot);
   }
 
