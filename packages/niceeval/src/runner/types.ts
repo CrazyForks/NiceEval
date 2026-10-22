@@ -1,11 +1,10 @@
-import type { ModelSlotSelection, ResolvedModelSlots } from "../model-slots.ts";
+import type { ModelRoleSelection, ResolvedModelRoles } from "../model-roles.ts";
 import type { AdapterFlagsParser, AdapterFlagsOutput, AdapterFlagsValue } from "../adapter-flags.ts";
 // runner 域类型:结果 / 汇总 / reporter 契约,eval / experiment / config 定义,
 // 以及调度器的编排类型(AgentRun / RunOptions / Attempt)。
 
 import type { Effect } from "effect";
 import type { ExperimentFlags, FlagValue, JsonValue, LocalizedText, ScopedFeedback, SourceArtifact, Verdict } from "../shared/types.ts";
-import type { AttemptFailureClassifier } from "../shared/failure-class.ts";
 import type { ObservabilitySummary, StreamEvent, TraceSpan, Truncation, Usage } from "../o11y/types.ts";
 import type { Agent, AgentInstallationManifest } from "../agents/types.ts";
 import type { Adapter, AdapterRuntimeEvalDefinition } from "../adapter.ts";
@@ -38,7 +37,7 @@ import type { PluginInstance, PluginOnUnavailable } from "../plugin/contracts.ts
  * 这里不复制(见 docs/feature/record/architecture.md「run.json」)。
  */
 export interface ExperimentRunInfo {
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   description?: string;
   reasoningEffort?: string;
   flags?: globalThis.Record<string, JsonValue>;
@@ -554,8 +553,8 @@ export interface InvocationSummary {
   /** Current Record readbacks adopted by this invocation; these are never recreated EvalResults. */
   reusedAttempts: readonly CurrentReusedAttemptReadback[];
   results: EvalResult[];
-  /** Unique provider-native setup-prefix nodes settled before Attempt dispatch. */
-  setupPrefixes: SetupPrefixPreparationSummary;
+  /** Unique provider-native before-cache nodes settled before Attempt dispatch. */
+  beforeCaches: SetupPrefixPreparationSummary;
 }
 
 /**
@@ -609,7 +608,7 @@ export interface Reporter {
  * `required` 语义(见 docs/feature/experiments/cli.md「运行完成状态不只看 verdict 计数」):
  * - CLI 显式 `--junit`:`required: true`——这是调用者要求的附加聚合文件,写失败必须让
  *   `InvocationCompletion` 判红、CI 退出码非零。CLI `--json` 是终端 receipt 流，不是 Reporter。
- * - 用户 `Config.reporters` / `EvalDef.reporters`:`required: false`——失败只折成一条
+ * - 用户 `Config.reporters`:`required: false`——失败只折成一条
  *   diagnostic,不影响 completion,也不阻断其它 reporter 收尾或后续 attempt。
  *
  * `target` 是可选的落盘路径(如 `--json`/`--junit` 指定的文件),纯展示 / 排障用途,不参与判定。
@@ -702,8 +701,6 @@ export interface EvalAuthorFields {
   plugins?: readonly PluginInstance<"eval">[];
   /** 模型字符串只替换项目 Judge Provider 的模型；Provider 实例整体替换。Experiment 设置优先。 */
   judge?: JudgeSelection;
-  /** 覆盖 / 追加项目级 Config.reporters,只对这一条评估用例生效。 */
-  reporters?: Reporter[];
   /** 覆盖项目级 / CLI 的单次 attempt 超时(毫秒),只对这一条评估用例生效。 */
   timeoutMs?: number;
   /** 任意附加元数据,作为 Attempt Provenance 保存,不参与调度或打分;供自定义 reporter 消费。 */
@@ -746,7 +743,7 @@ export type ScoreEvalInput<
 export interface EvalDefinitionFields<
   Sandbox extends SandboxLayer | undefined = SandboxLayer | undefined,
 > {
-  readonly requiredModelSlots?: readonly string[];
+  readonly requiredModelRoles?: readonly string[];
   readonly description?: string;
   readonly tags: readonly string[];
   /**
@@ -756,7 +753,6 @@ export interface EvalDefinitionFields<
   readonly sandbox?: Sandbox;
   readonly plugins: readonly PluginInstance<"eval">[];
   readonly judge?: JudgeSelection;
-  readonly reporters: readonly Reporter[];
   readonly timeoutMs?: number;
   readonly metadata: Readonly<globalThis.Record<string, JsonValue>>;
   readonly diff: {
@@ -906,33 +902,31 @@ export interface SharedStateConfig {
   readonly key: string;
 }
 
-/** Host-only SetupPrefix cache policy. It is resolved per AgentRun and never participates in identity. */
-export type SandboxSetupCache = "use" | "bypass";
+/** Host-only before cache policy. It is resolved per AgentRun and never participates in identity. */
+export type SandboxBeforeCache = "use" | "bypass";
 
 export interface SandboxCacheConfig {
-  readonly setup?: SandboxSetupCache;
+  readonly before?: SandboxBeforeCache;
 }
 
 /**
  * Resolve the one completed runtime policy without projecting it into any identity shape.
  * The argument order mirrors the public precedence: CLI → Experiment → Config → default.
  */
-export function resolveSandboxSetupCache(
-  cli: SandboxSetupCache | undefined,
+export function resolveSandboxBeforeCache(
+  cli: SandboxBeforeCache | undefined,
   experiment: SandboxCacheConfig | undefined,
   config: SandboxCacheConfig | undefined,
-): SandboxSetupCache {
-  return cli ?? experiment?.setup ?? config?.setup ?? "use";
+): SandboxBeforeCache {
+  return cli ?? experiment?.before ?? config?.before ?? "use";
 }
 
 /** Experiment 作者自行选择的字段；不包含路径 id 与 factory 品牌。 */
 export interface ExperimentAuthorFields {
-  /** 为自定义 Adapter 的各个具名模型槽选择模型；不能与单模型简写同时使用。 */
-  models?: Readonly<Record<string, ModelSlotSelection>>;
+  /** 为自定义 Adapter 的各个模型用途选择模型；不能与单模型简写同时使用。 */
+  models?: Readonly<Record<string, ModelRoleSelection>>;
   /** 一句话描述,展示在 view / CLI 里;纯说明,不影响调度或打分。 */
   description?: string;
-  /** 对话 Adapter 的简写；`agent` 与 `adapter` 必须且只能提供一个。 */
-  agent?: Agent;
   /** 本实验使用的 Adapter 实现。 */
   adapter?: Adapter;
   /** 单个模型(agent 留空时实验决定);省略=用 agent 原生默认。跨模型对比写多个实验文件,别用数组。 */
@@ -1009,15 +1003,6 @@ export interface ExperimentAuthorFields {
    */
   maxConcurrency?: number;
   /**
-   * 本实验的失败分类器:识别以第三方错误形态浮出的自家共享基建死因(对自家隧道 host 的拒连
-   * 一类),返回 `undefined` 表示「不认识,交给后续链路」。本实验任意 per-attempt 阶段的失败
-   * 都会问到它;send 失败链上它排在 adapter 的 `classifySendFailure` 之前——按自家坐标过滤的
-   * 特异性高于协议通用形状,两者同时认领时空间轴才赢得下来。分类器要快、纯、不抛错(抛错按
-   * `undefined` 回落并被吞掉);只声明决策轴与 `reason` 词,重试与落闸策略归执行体。
-   * 见 docs/feature/error-classification/library.md「实验 / eval 作者:声明死因的波及范围」。
-   */
-  classifyFailure?: AttemptFailureClassifier;
-  /**
    * 实验级生命周期钩子对的 setup 侧:整场至多一次、宿主机侧,管「每实验一份、所有 attempt
    * 共享」的宿主机资源(隧道、mock server、license 租约)。本实验第一个通过派发许可的
    * attempt 触发(memoized,并发 attempt 等同一个结果;全部结果被 carry 携入时不执行)。
@@ -1027,14 +1012,14 @@ export interface ExperimentAuthorFields {
    * 函数体不进 fingerprint,改了钩子逻辑用 `--rerun all` 明确全部重跑。
    * 见 docs/feature/experiments/architecture.md「实验级生命周期」。
    */
-  setup?: ExperimentHook;
+  before?: ExperimentHook;
   /**
    * 实验级生命周期钩子对的 teardown 侧:本实验全部 attempt 收尾后执行(运行被中断也执行),
    * 当且仅当 setup 时点走到过——setup 抛错不豁免(半初始化现场同样要扫尾,teardown 对可能
    * 未赋值的闭包变量做防御),未声明 setup 不影响触发;一个 attempt 都不派发则跳过。
    * 抛错或超 30s 清理上限只记运行级 diagnostic(`experiment-teardown-failed`),不改判定。
    */
-  teardown?: ExperimentHook;
+  after?: ExperimentHook;
 }
 
 /** 作者输入：id 只能由发现阶段从文件路径推导。 */
@@ -1046,27 +1031,23 @@ type ExperimentFlagsFields<A extends Adapter> = {
   readonly flags?: NoInfer<AdapterFlagsValue<ExperimentFlagsParser<A>>>;
 };
 
-type ExperimentAdapterSelection<A extends Adapter> =
-  | { readonly adapter: A; readonly agent?: never }
-  | { readonly agent: A & Agent; readonly adapter?: never };
+type ExperimentAdapterSelection<A extends Adapter> = { readonly adapter: A };
 
 type ExperimentModelFields<A extends Adapter> = A extends { readonly kind: "custom" }
-  ? ({ readonly models: Readonly<Record<string, ModelSlotSelection>>; readonly model?: never; readonly reasoningEffort?: never }
+  ? ({ readonly models: Readonly<Record<string, ModelRoleSelection>>; readonly model?: never; readonly reasoningEffort?: never }
     | { readonly models?: never; readonly model?: string; readonly reasoningEffort?: string })
   : { readonly models?: never; readonly model?: string; readonly reasoningEffort?: string };
 
-export type ExperimentInput<A extends Adapter = Adapter> = Omit<ExperimentAuthorFields, "agent" | "adapter" | "flags" | "models" | "model" | "reasoningEffort"> & ExperimentModelFields<A> &
+export type ExperimentInput<A extends Adapter = Adapter> = Omit<ExperimentAuthorFields, "adapter" | "flags" | "models" | "model" | "reasoningEffort"> & ExperimentModelFields<A> &
   ExperimentAdapterSelection<A> & ExperimentFlagsFields<NoInfer<A>> & {
   id?: ExperimentIdComesFromFilePath;
 };
 
 /** Factory 完成默认归一后的 Experiment 字段；无默认语义的 Hook 仍保持作者声明。 */
 export interface ExperimentDefinition<A extends Adapter = Adapter> {
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   readonly description?: string;
   readonly adapter: A;
-  /** Present when the selected Adapter is an Agent, regardless of the input shorthand. */
-  readonly agent?: Agent;
   readonly model?: string;
   readonly reasoningEffort?: string;
   readonly judge?: JudgeSelection;
@@ -1084,9 +1065,8 @@ export interface ExperimentDefinition<A extends Adapter = Adapter> {
   readonly sharedState?: SharedStateConfig;
   readonly budget?: number;
   readonly maxConcurrency?: number;
-  readonly classifyFailure?: AttemptFailureClassifier;
-  readonly setup?: ExperimentHook;
-  readonly teardown?: ExperimentHook;
+  readonly before?: ExperimentHook;
+  readonly after?: ExperimentHook;
   readonly [EXPERIMENT_DEFINITION]: true;
 }
 
@@ -1154,19 +1134,17 @@ export interface Config {
    * 可传字符串,或按 locale 提供多语言(如 `{ en: "...", "zh-CN": "..." }`),随 view 语言切换。
    */
   name?: LocalizedText;
-  /** 上传进 Sandbox 的工作区根目录,省略则用项目根;评估用例的 sandbox 视图从这里起步。 */
-  workspace?: string;
   /** 项目级默认 Judge Provider；Eval 与 Experiment 可替换模型或整个 Provider。 */
   judgeProvider?: JudgeProvider;
-  /** 项目级默认 reporter 列表(如落盘 / 上传结果);EvalDef.reporters 会与它合并。 */
+  /** 项目级默认 reporter 列表(如落盘 / 上传结果)。 */
   reporters?: Reporter[];
   /** 项目级默认并发上限;CLI flag / experiment 的同名设置优先级更高(没有环境变量层)。 */
   maxConcurrency?: number;
   /** Run 级 Sandbox 镜像准备并发；与 attempt 并发独立，省略时安全默认 2。 */
   maxBuildConcurrency?: number;
   /** Run 级 PreparedArtifact 前缀 DAG 准备并发；与 build / attempt 并发独立。 */
-  maxSetupPrefixConcurrency?: number;
-  /** 项目级 SetupPrefix cache 默认；Experiment 与显式 CLI flag 可覆盖。 */
+  maxBeforeCacheConcurrency?: number;
+  /** 项目级 before cache 默认；Experiment 与显式 CLI flag 可覆盖。 */
   sandboxCache?: SandboxCacheConfig;
   /** 项目级默认单次 attempt 超时(毫秒);CLI flag / experiment / EvalDef 的同名设置优先级更高。 */
   timeoutMs?: number;
@@ -1241,7 +1219,7 @@ export function runWho(run: { agentName: string; model?: string; experimentId?: 
 
 /** 一个 (agent, model, flags) 的运行配置 —— 由 CLI / 实验展开。 */
 export interface AdapterRun {
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   readonly adapter: Adapter;
   /** Present exactly when `adapter` is an Agent implementation. */
   readonly agent?: Agent;
@@ -1251,7 +1229,7 @@ export interface AdapterRun {
   readonly attempts: number;
   readonly earlyExit: boolean;
   /** 本次 Invocation 已按 CLI → Experiment → Config → default 归一的 Host cache 策略。 */
-  readonly sandboxSetupCache: SandboxSetupCache;
+  readonly sandboxBeforeCache: SandboxBeforeCache;
   /** Experiment 的作者 layer；省略在 link 输入归一为 command-only。 */
   readonly sandbox?: SandboxLayer;
   /** Experiment Plugin occurrences carried into zero-resource pair link. */
@@ -1297,9 +1275,6 @@ export interface AdapterRun {
    *  (语义见 ExperimentDef 对应字段)。 */
   readonly setup?: ExperimentHook;
   readonly teardown?: ExperimentHook;
-  /** 实验声明的失败分类器(来自 ExperimentDef.classifyFailure):turn 链上排在 adapter 之前,
-   *  生命周期链上排在抛出点声明之后;产出的空间轴由止损闸在 attempt 封口消费。 */
-  readonly classifyFailure?: AttemptFailureClassifier;
 }
 
 /** @internal Transitional name while Agent-only execution seams are narrowed. */
@@ -1346,16 +1321,14 @@ export interface RunOptions<RecordError = never, RecordRequirements = never> {
   /**
    * 已注册的 reporter,携带 name/required 元数据(见 `ReporterRegistration`)。这是内部编排
    * 通道——调用方(今天只有 `cli.ts`)按来源(显式 --junit / 用户 `Config.reporters`)把裸
-   * `Reporter` 各自包一层元数据后传进来;eval 级 `EvalDef.reporters`
-   * 不经过这里,由 `runEvals()` 自己按 `scopeReporter()` 包装、统一记作 `required: false`
-   *(见 run.ts 的 scopedSets 处理)。
+   * `Reporter` 各自包一层元数据后传进来。项目 Reporter 使用 `required: false`。
    */
   reporters: ReporterRegistration[];
   maxConcurrency: number;
   /** Run 级 Sandbox 镜像 lookup/build 并发；省略时安全默认 2。 */
   maxBuildConcurrency?: number;
   /** Run 级 PreparedArtifact 前缀 DAG 并发；省略时安全默认 2。 */
-  maxSetupPrefixConcurrency?: number;
+  maxBeforeCacheConcurrency?: number;
   signal?: AbortSignal;
   /**
    * 非沙箱 tracing agent 的 run 级共享 OTLP 接收池(runEvals 创建并回收;
@@ -1418,7 +1391,7 @@ export interface Attempt {
 export type OutputProfile = "human" | "json";
 
 // 反馈系统的 attempt 阶段与落盘 / envelope 用同一套 `LifecyclePhase` 闭集(见上),
-// 不再有独立的 dashboard 词表;`waiting for a slot` 是 attempt 开始前的调度态,不属于闭集;
+// 不再有独立的 dashboard 词表;`waiting for capacity` 是 attempt 开始前的调度态,不属于闭集;
 // `passed` / `failed` / `errored` / `reused` / `early-exit` / `budget-unstarted` 是 outcome,
 // 发生在阶段结束后,也不塞进 phase 闭集。
 

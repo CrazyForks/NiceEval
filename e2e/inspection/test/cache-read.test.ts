@@ -14,12 +14,12 @@ test.concurrent("按用途与真实模型判定缓存读取率并解释覆盖缺
       expect(run.exitCode, run.diagnostic()).toBe(0);
       const event = only(run.expEvalEvents(), (item) => item.evalId === "cache-read", run.diagnostic());
       expect(event.verdict).toBe("passed");
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
       const read = await niceeval.run(["query", "run", "--request", request]);
       expect(read.exitCode, read.diagnostic()).toBe(0);
       const report = read.querySuccess("attempt.usage").usage.cacheRead;
-      const planner = only(report.modelSlots, (group) => group.modelSlot === "planner", read.diagnostic());
-      expect(only(report.modelSlots, (group) => group.modelSlot === "unused", read.diagnostic()).rate.state).toBe("unavailable");
+      const planner = only(report.roles, (group) => group.modelRole === "planner", read.diagnostic());
+      expect(only(report.roles, (group) => group.modelRole === "unused", read.diagnostic()).rate.state).toBe("unavailable");
       if (scenario === "exact") {
         expect(report.total).toMatchObject({ rate: { state: "exact", value: 910 / 1100 }, recordedCalls: 2, coveredCalls: 2, collectionComplete: true, reasons: [] });
         expect(planner.rate).toEqual(report.total.rate);
@@ -31,7 +31,7 @@ test.concurrent("按用途与真实模型判定缓存读取率并解释覆盖缺
         expect(shown.stdout).toContain("no-calls");
       } else if (scenario === "missing") {
         expect(planner).toMatchObject({ rate: { state: "unavailable", reason: "cache-read-missing" }, coveredCalls: 0, recordedCalls: 2, missingCacheReadCalls: 1, missingInputTotalCalls: 1 });
-        expect(only(report.modelSlots, (group) => group.modelSlot === "reviewer", read.diagnostic())).toMatchObject({ coveredCalls: 1, unknownStatusCalls: 1, rate: { state: "unavailable", reason: "call-status-unknown" } });
+        expect(only(report.roles, (group) => group.modelRole === "reviewer", read.diagnostic())).toMatchObject({ coveredCalls: 1, unknownStatusCalls: 1, rate: { state: "unavailable", reason: "call-status-unknown" } });
       } else if (scenario === "zero") {
         expect(planner.rate).toEqual({ state: "unavailable", reason: "zero-input-total" });
       } else if (scenario === "uncached") {

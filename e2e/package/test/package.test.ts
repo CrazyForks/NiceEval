@@ -73,6 +73,9 @@ test("pnpm 11 默认 CommonJS 项目无需补运行依赖即可完成安装后 C
   expect(existsSync(join(installedRoot, "packages", "testkit")), "候选包不得携带 packages/testkit").toBe(false);
 
   const rootEntry = await import("niceeval");
+  const adapterEntry = await import("niceeval/adapter");
+  expect(Reflect.get(adapterEntry, "createSessionKey")).toBeTypeOf("function");
+  expect(Object.hasOwn(adapterEntry, "createSessionSlot")).toBe(false);
   const expectEntry = await import("niceeval/expect");
   const inspectionEntry = await import("niceeval/inspection");
   const sandboxEntry = await import("niceeval/sandbox");

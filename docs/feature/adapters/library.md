@@ -626,6 +626,7 @@ type CacheReadReport = {
 
 传入未声明用途会在调用处同步抛 TypeError，列出可选用途；拼写错误不会转成 unavailable。
 已声明用途在完整采集下没有调用返回 role-has-no-calls，其余情况保留分组 rate 的原因，包括 collection-incomplete 和 zero-input-total。
+
 数组报告继续使用 no-calls；方法将空计划 Attempt原因具体化。无参数方法原样返回 total.rate。
 作者无需 find、可选链或自行构造 unavailable。方法不重算比例、不修改数组，也不进入 Query JSON 或持久数据。
 Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导计划 Attempt类型。

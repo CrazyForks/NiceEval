@@ -65,13 +65,13 @@ function ExperimentCosts({ summary }: {
   const complete = totalCosts.state === "complete";
   const title = t(complete ? "experimentCost.totalCosts" : "experimentCost.knownSubtotal");
   const counts = [
-    ["experimentCost.selectedSlots", coverage.selectedSlotCount],
-    ["experimentCost.resolvedSlots", coverage.resolvedSlotCount],
+    ["experimentCost.selectedSlots", coverage.plannedAttemptCount],
+    ["experimentCost.resolvedSlots", coverage.recordedAttemptCount],
     ["experimentCost.originAttempts", coverage.originAttemptCount],
     ["experimentCost.completeAttempts", coverage.completeAttemptCount],
     ["experimentCost.partialAttempts", coverage.partialAttemptCount],
     ["experimentCost.unavailableAttempts", coverage.unavailableAttemptCount],
-    ["experimentCost.unresolvedSlots", coverage.unresolvedSlotCount],
+    ["experimentCost.unresolvedSlots", coverage.missingAttemptCount],
   ] as const;
   return (
     <section className="niceeval-report niceeval-section" aria-label={title}>

@@ -9,6 +9,7 @@ import { evalE2E } from "./context.ts";
 import { assertionEntry, inspectAssertionEntries, inspectAttempt, type AssertionInspectionCheckpoint } from "./inspection.ts";
 
 const MATCHED_LABELS = [
+  "units.ms:matched", "units.ratio:matched", "units.usd:matched", "units.combined:matched", "units.between:matched",
   "quantile:matched", "measured:matched",
   "inOrder.adjacent:matched", "inOrder.subsequence:matched", "inOrder.distinct-items:matched",
   "inOrder.known-witness:matched", "inOrder.alternatives:matched", "inOrder.not:matched",
@@ -29,6 +30,7 @@ const MATCHED_LABELS = [
 ] as const;
 
 const MISMATCHED_LABELS = [
+  "units.between:mismatched", "units.partial:mismatched",
   "quantile:mismatched",
   "inOrder.reverse:mismatched", "inOrder.empty:mismatched", "inOrder.single-item:mismatched",
   "inOrder.impossible:mismatched", "inOrder.not:mismatched", "inOrder.heard-movement:mismatched",
@@ -48,6 +50,7 @@ const MISMATCHED_LABELS = [
 ] as const;
 
 const UNAVAILABLE_LABELS = [
+  "units.partial:unavailable", "units.mismatch:unavailable", "units.unwrapped:unavailable", "units.unitless:unavailable",
   "quantile.empty:unavailable", "quantile.invalid:unavailable", "measured:unavailable", "measured.invalid:unavailable",
   "inOrder.possible:unavailable", "inOrder.nonfinite:unavailable", "inOrder.null:unavailable",
   "inOrder.hole:unavailable", "inOrder.not:unavailable", "inOrder.step:unavailable",
@@ -177,7 +180,7 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果", async () =>
         expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);
         expect(inspected.receipt.stdout).toBe(`${JSON.stringify(inspected.document)}\n`);
         expect(inspected.document).toMatchObject({
-          protocol: "niceeval.query/v1",
+          protocol: "niceeval.query/v2",
           operation: "attempt.get",
           attempt: { locator: outcomes.locator, core: { outcome: "completed" }, verdict: "failed" },
         });
@@ -205,6 +208,15 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果", async () =>
         for (const label of MATCHED_LABELS) expect(states.get(label), label).toBe("matched");
         for (const label of MISMATCHED_LABELS) expect(states.get(label), label).toBe("mismatched");
         for (const label of UNAVAILABLE_LABELS) expect(states.get(label), label).toBe("unavailable");
+        expect(entries.find(entry => entry.display.label === "units.ms:matched")).toMatchObject({
+          criterion: { state: "available", value: { id: "numeric-comparison/v1", data: { comparator: "at-most", threshold: 600, unit: "ms" } } },
+        });
+        expect(entries.find(entry => entry.display.label === "units.between:matched")).toMatchObject({
+          criterion: { state: "available", value: { id: "numeric-comparison/v1", data: { comparator: "between", threshold: 150, upperThreshold: 150, unit: "ms" } } },
+        });
+        const incompatible = entries.find(entry => entry.display.label === "units.mismatch:unavailable");
+        expect(JSON.stringify(incompatible)).toContain("numeric-unit-mismatch");
+        expect(JSON.stringify(incompatible)).toContain("512 ms");
         const composed = entries.find(entry => entry.display.label === "filterWhere.mapEach:matched");
         expect(JSON.stringify(composed)).toContain("actor-a");
         expect(JSON.stringify(composed)).toContain("actor-c");

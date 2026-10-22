@@ -7,6 +7,7 @@ kind: use-case
 feature: docs/feature/insight/README.md
 ---
 
+
 # 审阅一次 Run 怎样采用结果
 
 用户从 Experiment Results 追到 exact Attempt，并以完整证据决定怎样采用该 Run 的结果。Run 无需先进入终态；Insight
@@ -29,7 +30,7 @@ http://127.0.0.1:43173/#<one-time-credential>
 URL 是本机 session material。自动化需要启动 View 时，使用 `--no-open --port <port>`，等待该 URL 可访问，
 并以进程退出码与 stderr 判断失败；View 不另提供机器 lifecycle 协议。
 
-Run debugger 只消费 `run.get`，显示 identity、state、expected/published/missing、coverage、指标分母、Planned attempt binding、
+Run debugger 只消费 `run.get`。它显示 identity、state、expected/published/missing、coverage、指标分母、Planned attempt binding、
 Attempt locator，以及 active pending 或 terminal absence。这样读者能区分“尚未发布完”“终态缺席”和“已发布指标较差”。
 
 Attempt debugger 把 source、assertions、trajectory、tool input/output、timeline、usage、commands、diagnostics 和 diff 排成

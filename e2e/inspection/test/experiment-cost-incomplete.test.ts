@@ -16,14 +16,14 @@ test.concurrent("实验已知零费用保留另一 Eval 的缺费来源，Query 
     ]));
     expect(run.expEvalEvents()).toHaveLength(2);
     const request = join(paths.projectRoot, "experiment-cost-incomplete.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "experiment-cost-incomplete" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "experiment-cost-incomplete" } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const experiment = read.querySuccess("experiment.get").experiment;
     expect(experiment.costSummary).toEqual({
-      scope: "latest-recorded-slots",
+      scope: "latest-recorded-attempts",
       totalCosts: { state: "partial", values: [{ currency: "USD", value: "0", source: "reported" }], missingSources: ["application"] },
-      coverage: { selectedSlotCount: 2, resolvedSlotCount: 2, originAttemptCount: 2, completeAttemptCount: 1, partialAttemptCount: 0, unavailableAttemptCount: 1, unresolvedSlotCount: 0 },
+      coverage: { plannedAttemptCount: 2, recordedAttemptCount: 2, originAttemptCount: 2, completeAttemptCount: 1, partialAttemptCount: 0, unavailableAttemptCount: 1, missingAttemptCount: 0 },
     });
     expect(experiment.modelUsage).toMatchObject({ totalAttemptCount: 2, omittedAttemptCount: 0, unresolvedAttemptCount: 0 });
     const zeroLocator = only(run.expEvalEvents(), (event) => event.evalId === "experiment-cost-zero", run.diagnostic()).locator;

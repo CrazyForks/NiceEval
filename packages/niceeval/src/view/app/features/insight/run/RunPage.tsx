@@ -42,7 +42,7 @@ export function RunPage({ model, locale }: {
         ? { kind: "notApplicable" }
         : { kind: "locator", locator: member.locator, ...(member.verdict === null ? {} : { verdict: member.verdict }) },
       selectedRun: { kind: "text", text: model.runId },
-      slot: { kind: "text", text: member.slotId },
+      slot: { kind: "text", text: member.plannedAttemptId },
     };
     return Object.freeze({
       key: member.key,
@@ -60,7 +60,7 @@ export function RunPage({ model, locale }: {
       { key: "verdict", header: { en: "Verdict", "zh-CN": "判定" } },
       { key: "locator", header: { en: "Attempt locator", "zh-CN": "Attempt 定位符" } },
       { key: "selectedRun", header: { en: "Selected run", "zh-CN": "所选 Run" } },
-      { key: "slot", header: { en: "Slot", "zh-CN": "槽位" } },
+      { key: "slot", header: { en: "Planned attempt", "zh-CN": "计划 Attempt" } },
     ]),
     rows: Object.freeze(rows),
   });

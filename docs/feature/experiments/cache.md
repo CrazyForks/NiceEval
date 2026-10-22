@@ -98,7 +98,7 @@ interface ExecutionComparison {
 `{ family, revision }` 中表达，不能拼进 family 名称。
 
 当前 input/config/timeout 只在本次 target builder 内计算，最终以 Core expected Planned attempt 的组合
-`executionIdentityDigest` 表达；历史 Attempt 不把同一 digest 伪装成两份 input/config identity。source outcome
+`executionIdentityDigest` 表达。历史 Attempt 不把同一 digest 伪装成两份 input/config identity。source outcome
 由 Core Attempt 唯一拥有。Verdict 是 Core outcome 加 `niceeval.assertions` 的读时折叠；duration 只从
 `niceeval.runner-activities` 的 reader-side timing projection 得到。
 
@@ -293,8 +293,7 @@ interface ExplicitAdoptionMember extends TargetSlot {
 
 explicit adoption planning 在写入前对全部 locator、Attempt、当前 Experiment/Eval、Core combined execution identity、timeout、Sandbox pair 和 target uniqueness 完成预检。它从 Core outcome 与 Assertions 折叠 Verdict，并要求 Runner Activities 能形成完整真实 timing；任一项失败都让整个 plan 失败并零业务写入，不能降级成 gap。成功后 writer 写 Core reference Member 和 `accepted` action；它不复制 Attempt 数据，也不改变 origin。
 
-Run 授权还要求 source expected membership 与当前 target 在 Experiment、Eval 和 ordinal 上双向闭合。每个 source Planned attempt
-必须有唯一 Member 与 exact Attempt，每个 current Planned attempt 必须恰好命中一次；source-only、target-only、missing、duplicate、
+Run 授权还要求 source expected membership 与当前 target 在 Experiment、Eval 和 ordinal 上双向闭合。每个 source Planned attempt 必须有唯一 Member 与 exact Attempt。每个 current Planned attempt 必须恰好命中一次。source-only、target-only、missing、duplicate、
 dangling 或 ineligible 都阻断整批。`--dry` 与正式执行共用该 plan，区别只在前者不进入 commit scope。
 
 accepted 的唯一含义是“操作者当时明确采用这个 immutable Attempt identity”。它不是审批、签名或真实性声明。

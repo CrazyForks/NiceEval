@@ -6,28 +6,28 @@ import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
 // @feature docs/feature/inspection/README.md
 test.concurrent("调用和模型组预览均漏掉 z 时用途计数仍为 129、1、0", async () => {
-  await inspectionE2E.case("model-slots-truncated", { artifacts: inspectionCaseArtifacts() }, async ({ paths, commands: { niceeval } }) => {
-    const run = await niceeval.run(["exp", "model-slots-truncated", "--rerun", "all", "--json"]);
+  await inspectionE2E.case("model-roles-truncated", { artifacts: inspectionCaseArtifacts() }, async ({ paths, commands: { niceeval } }) => {
+    const run = await niceeval.run(["exp", "model-roles-truncated", "--rerun", "all", "--json"]);
     expect(run.exitCode, run.diagnostic()).toBe(0);
-    const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-slots-truncated", run.diagnostic());
+    const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-roles-truncated", run.diagnostic());
     expect(event.verdict).toBe("passed");
     const request = join(paths.projectRoot, "truncated.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
     expect(usage.configuredModels).toEqual({ state: "available", bindings: [
-      { modelSlot: "a", model: "fixture/requested-a", reasoningEffort: null, recordedCalls: 129 },
-      { modelSlot: "unused", model: "fixture/unused", reasoningEffort: null, recordedCalls: 0 },
-      { modelSlot: "z", model: "fixture/z", reasoningEffort: null, recordedCalls: 1 },
+      { modelRole: "a", model: "fixture/requested-a", reasoningEffort: null, recordedCalls: 129 },
+      { modelRole: "unused", model: "fixture/unused", reasoningEffort: null, recordedCalls: 0 },
+      { modelRole: "z", model: "fixture/z", reasoningEffort: null, recordedCalls: 1 },
     ] });
     expect(usage.callsTruncated).toBe(true);
     expect(usage.omittedCallCount).toBe(2);
     expect(usage.calls).toHaveLength(128);
-    expect(defined(usage.calls, read.diagnostic()).every((call) => call.modelSlot === "a")).toBe(true);
+    expect(defined(usage.calls, read.diagnostic()).every((call) => call.modelRole === "a")).toBe(true);
     expect(usage.modelGroups).toMatchObject({ state: "available", basis: "recorded-calls", totalGroupCount: 130, groupsTruncated: true, omittedGroupCount: 66 });
     expect(usage.modelGroups.groups).toHaveLength(64);
-    expect(usage.modelGroups.groups.every((group) => group.modelSlot === "a" && group.recordedCalls === 1)).toBe(true);
+    expect(usage.modelGroups.groups.every((group) => group.modelRole === "a" && group.recordedCalls === 1)).toBe(true);
     expect(usage.totals.requests).toMatchObject({ state: "available", value: 130, observationCount: 130 });
     expect(usage.totals.inputTotalTokens).toMatchObject({ state: "available", value: 136, observationCount: 130 });
     expect(usage.totals.outputTokens).toMatchObject({ state: "available", value: 132, observationCount: 130 });
@@ -44,17 +44,17 @@ test.concurrent("调用和模型组预览均漏掉 z 时用途计数仍为 129�
     };
     expect(usage.judgeUsage).toEqual({ ...judgeSummary, calls: [], callsTruncated: false, omittedCallCount: 0, priceReceipts: [] });
     expect(usage.totalCosts).toEqual({ state: "complete", values: [{ currency: "USD", value: "0.5", source: "reported" }], missingSources: [] });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "overview.get" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "overview.get" } }));
     const overviewRead = await niceeval.run(["query", "run", "--request", request]);
     expect(overviewRead.exitCode, overviewRead.diagnostic()).toBe(0);
     const overview = overviewRead.querySuccess("overview.get").overview;
-    const cell = only(overview.cells, (item) => item.experimentId === "model-slots-truncated" && item.evalId === "model-slots-truncated", overviewRead.diagnostic());
+    const cell = only(overview.cells, (item) => item.experimentId === "model-roles-truncated" && item.evalId === "model-roles-truncated", overviewRead.diagnostic());
     expect(cell.costUSD).toMatchObject({ state: "available", value: 0.5, source: "reported", unit: "USD" });
     expect(cell.tokens).toMatchObject({ state: "available", value: 268, unit: "tokens" });
-    const aggregate = only(overview.experiments, (item) => item.experimentId === "model-slots-truncated", overviewRead.diagnostic());
+    const aggregate = only(overview.experiments, (item) => item.experimentId === "model-roles-truncated", overviewRead.diagnostic());
     expect(aggregate.costUSD).toMatchObject({ state: "available", value: 0.5, source: "reported", unit: "USD" });
     expect(aggregate.tokens).toMatchObject({ state: "available", value: 268, unit: "tokens" });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "model-slots-truncated" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "model-roles-truncated" } }));
     const experimentRead = await niceeval.run(["query", "run", "--request", request]);
     expect(experimentRead.exitCode, experimentRead.diagnostic()).toBe(0);
     const experiment = experimentRead.querySuccess("experiment.get").experiment;

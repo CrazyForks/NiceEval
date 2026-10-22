@@ -8,7 +8,7 @@ import { Effect } from "effect";
 //     协议帧里本来就有全量工具过程;
 //   · `text-delta` 累积成完整回复,轮次结束补一条 message 事件;
 //   · HITL:`tool-approval-request` → input.requested + waiting,停轮现场(还开着的流 +
-//     挂起的 toolCallId)用 heldSlot 存住,回答轮 take(heldSlot) 取回接着读。
+//     挂起的 toolCallId)用 heldKey 存住,回答轮 take(heldKey) 取回接着读。
 //
 // 这是 Tier 3(侵入改造 + experiment flags):比 ../../tier2/langgraph 多一层——应用侧把
 // system prompt 提升为请求体可选字段(src/backend/{agent.py,server.py}),本文件把
@@ -18,7 +18,7 @@ import { Effect } from "effect";
 // OTel 只管 `niceeval view` 的瀑布图:LangSmith OTel 导出的 span 发到钉住的接收端口
 // (环境变量在启动应用时给,见 README「跑起来」)——span 不喂断言,断言与 Tier 1 完全相同,
 // 埋点缺一块也只影响瀑布图。
-import { createSessionSlot, defineAgent, sseJsonFrames } from "niceeval/adapter";
+import { createSessionKey, defineAgent, sseJsonFrames } from "niceeval/adapter";
 import type { AgentContext, EvidenceCoverage, SseFrameCursor } from "niceeval/adapter";
 import type { JsonValue, StreamEvent, Turn, TurnInput } from "niceeval";
 
@@ -60,13 +60,13 @@ type LanggraphFrame =
 type SseCursor = SseFrameCursor<LanggraphFrame>;
 
 // HITL 停轮现场:还开着的流 + 挂起的审批 toolCallId。approve/deny 的续读发生在下一次
-// send()(一个全新的 drainStream 调用),局部变量活不过这次函数返回——存进 heldSlot,
-// 回答轮 take(heldSlot) 取回(取到即清除,一次消费)。
+// send()(一个全新的 drainStream 调用),局部变量活不过这次函数返回——存进 heldKey,
+// 回答轮 take(heldKey) 取回(取到即清除,一次消费)。
 interface PendingApproval {
   readonly cursor: SseCursor;
   readonly toolCallId: string;
 }
-const heldSlot = createSessionSlot<PendingApproval>("langgraph/held-stream");
+const heldKey = createSessionKey<PendingApproval>("langgraph/held-stream");
 
 const evidenceCoverage = {
   events: { status: "complete" },
@@ -135,7 +135,7 @@ async function drainStream(cursor: SseCursor, ctx: AgentContext): Promise<Turn> 
         // 停轮:流不关,现场 hold 住;回答轮 take 回来接着读同一条流,不重新发起请求。
         // 中断前模型可能已经吐了一段前言(比如"好的,我来算一下"),一并收进这一轮——
         // 不套 finalize() 的 flush grace:图还停在中断点,没有"这一轮的 otel 导出"这回事。
-        ctx.session.set(heldSlot, { cursor, toolCallId: frame.toolCallId });
+        ctx.session.set(heldKey, { cursor, toolCallId: frame.toolCallId });
         if (messageText) events.push({ type: "message", role: "assistant", text: messageText });
         events.push({
           type: "input.requested",
@@ -171,7 +171,7 @@ async function drainStream(cursor: SseCursor, ctx: AgentContext): Promise<Turn> 
 
 async function send(input: TurnInput, ctx: AgentContext): Promise<Turn> {
   // 回答轮:取回停轮现场,把裁决交回应用,接着读同一条流。
-  const pending = ctx.session.take(heldSlot);
+  const pending = ctx.session.take(heldKey);
   if (pending) {
     // 按 requestId(挂起的 toolCallId)从 input.responses 里对位取裁决,不从 text 猜;
     // 这里每次只挂一条审批,取第一条即可——多请求并停时按 requestId 对位。

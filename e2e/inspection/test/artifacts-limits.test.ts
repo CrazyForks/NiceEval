@@ -22,7 +22,7 @@ test.concurrent("附件拒绝非法输入和超限时仍保存接管的快照并
       const locator = event.locator.startsWith("@") ? event.locator : `@${event.locator}`;
       const artifactId = await readFile(join(projectRoot, "accepted-artifact-id.txt"), "utf8");
       const requestPath = join(projectRoot, "artifact-limit.request.json");
-      await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId } }));
+      await writeFile(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId } }));
       const read = await niceeval.run(["query", "run", "--request", requestPath]);
       expect(read.exitCode, read.diagnostic()).toBe(0);
       expect(read.querySuccess("attempt.artifact").artifact).toMatchObject({

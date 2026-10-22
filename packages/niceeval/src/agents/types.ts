@@ -13,9 +13,9 @@ import type { SandboxLayer } from "../sandbox/layer.ts";
 import type { AttemptRef, MaybePromise, SandboxCommandTarget, StableSandboxCommand } from "../sandbox/commands.ts";
 import type { RegisteredSandboxContent } from "../sandbox/content.ts";
 import type { SendFailureClassifier } from "../context/send-failures.ts";
-import type { SessionSlot } from "./session-slot.ts";
+import type { SessionKey } from "./session-key.ts";
 
-export type { SessionSlot } from "./session-slot.ts";
+export type { SessionKey } from "./session-key.ts";
 
 /**
  * 本地 stdio 形态的 MCP server:沙箱内起子进程,按 stdio 说 MCP 协议。
@@ -55,8 +55,8 @@ export interface McpHttpServer {
 /**
  * MCP server 描述符 —— 支持 MCP 的 adapter(Claude Code / Codex)共用的工具服务单元,
  * 不是 native plugin 的一种。stdio 与 Streamable HTTP 两种形态按形状判别,不设 kind 标签
- * (两种形态各有唯一必填判别字段);同时给出 `command` 与 `url` 属配置错误,setup 报错点名。
- * 在 agent factory config 里声明,setup 阶段写进各自的配置文件。
+ * (两种形态各有唯一必填判别字段);同时给出 `command` 与 `url` 属配置错误,before 报错点名。
+ * 在 agent factory config 里声明,before 阶段写进各自的配置文件。
  * 见 docs/feature/adapters/architecture/coding-agent-extensions.md「类型边界」。
  */
 export type McpServer = McpStdioServer | McpHttpServer;
@@ -78,7 +78,7 @@ export type SkillSpec =
       kind: "repo";
       /** GitHub `owner/repo` 或 Git URL。 */
       source: string;
-      /** 多 Skill Repo 中要启用的 Skill;repo 只有一个 Skill 时可省略,多个时省略即 setup 失败。 */
+      /** 多 Skill Repo 中要启用的 Skill;repo 只有一个 Skill 时可省略,多个时省略即 before 失败。 */
       skills?: readonly string[];
       /** Tag、Commit 或 Branch;省略表示 repo 默认 ref。 */
       ref?: string;
@@ -90,7 +90,7 @@ export type AgentInstallationSkill =
   | { kind: "repo"; source: string; ref?: string; skills: string[] };
 
 /**
- * 一次 Agent setup 实际装了什么 —— 沙箱型 Coding Agent Adapter 在 setup 收尾经
+ * 一次 Agent before 实际装了什么 —— 沙箱型 Coding Agent Adapter 在 before 收尾经
  * `ctx.reportInstallation()` 交回的安装清单。它是宿主侧内存对象,运行器把它作为 attempt artifact 存成
  * `agent-setup.json`(见 docs/feature/record/architecture.md);沙箱磁盘上不落它。不参与评分,
  * 只回答「这次实际装了什么」;**环境变量值与 secret 不写进来**(所以 mcpServers 只记
@@ -227,7 +227,7 @@ export interface Telemetry {
 
 /**
  * agent 的 OTLP 导出配置 —— 「沙箱里怎么让这个 CLI 把 trace 发到 endpoint」。
- * 刻意从 setup 里拆出来:setup 管运行配置,这里只管 otel 导出。CLI 安装归 `agent.ensure`。两种投递方式
+ * 刻意从 before 里拆出来:before 管运行配置,这里只管 otel 导出。CLI 安装归 `agent.ensure`。两种投递方式
  * (互不排斥,按 CLI 而定):
  *   · env-based(标准 OTEL_* 环境变量,如 bub/Python OTel SDK)—— 用 `env`;
  *   · file-based(CLI 自有配置文件,如 codex 的 config.toml [otel] 块)—— 用 `configure`。
@@ -255,8 +255,8 @@ export interface AgentTracing {
   env?(endpoint: string): globalThis.Record<string, string>;
   /**
    * file-based 导出:给 sandbox + ctx(ctx.telemetry.endpoint 必有),自己写 / 追加配置文件。
-   * 运行器在 agent.setup 之后、首次 send 之前调一次(仅当 tracing 开 + 有 endpoint)。
-   * 注:codex 的 [otel.trace_exporter.otlp-http] 是子表,configure 在 setup 写完主配置后
+   * 运行器在 agent.before 之后、首次 send 之前调一次(仅当 tracing 开 + 有 endpoint)。
+   * 注:codex 的 [otel.trace_exporter.otlp-http] 是子表,configure 在 before 写完主配置后
    * 追加到 config.toml 末尾,天然满足「子表在所有上层表之后」。
    */
   configure?(sandbox: Sandbox, ctx: SandboxAgentContext): Promise<void> | void;
@@ -266,19 +266,19 @@ export interface AgentTracing {
  * 一条会话线。核心承诺只有一句:**同一条会话线的每次 send 拿到同一个 `ctx.session`,
  * 新会话线(eval 第一轮 / t.newSession() 之后)拿到一个全新的。**
  * 服务端历史用 `id` / `capture`，客户端历史与 HITL 停轮现场用 Adapter
- * 私有的 typed slot。"第一轮"是新会话线的自然形态，没有要判断的分支。
+ * 私有的 typed key。"第一轮"是新会话线的自然形态，没有要判断的分支。
  */
 export interface AgentSession {
   /** 会话续接:服务端记历史。本线记过的会话 id;新会话线是 undefined。 */
   readonly id?: string;
   /** 记回传的会话 id;只在还没记过时落地(first-writer-wins),空值忽略。 */
   capture(id: string | undefined): void;
-  /** 读 Adapter 私有 slot；新会话线或未写过的 slot 为空。 */
-  get<T>(slot: SessionSlot<T>): T | undefined;
-  /** 写 Adapter 私有 slot；同一 slot 再写覆盖旧值。 */
-  set<T>(slot: SessionSlot<T>, value: T): void;
-  /** 读并删除 Adapter 私有 slot，只消费一次。 */
-  take<T>(slot: SessionSlot<T>): T | undefined;
+  /** 读 Adapter 私有 key；新会话线或未写过的 key 为空。 */
+  get<T>(key: SessionKey<T>): T | undefined;
+  /** 写 Adapter 私有 key；同一 key 再写覆盖旧值。 */
+  set<T>(key: SessionKey<T>, value: T): void;
+  /** 读并删除 Adapter 私有 key，只消费一次。 */
+  take<T>(key: SessionKey<T>): T | undefined;
 }
 
 /** Runner-owned Attempt resource registry; adapters use it for cross-send drivers. */
@@ -301,7 +301,7 @@ export interface AgentContext {
    * `Effect.timeoutTo` 兜底强制收尾(停 Sandbox 容器)。
    */
   readonly signal: AbortSignal;
-  /** 本次 attempt 用的模型名,透传自 experiment 的 `model` 字段。sandbox 型 agent 通常在 setup 里用它写配置,direct 型通常在 send 里用它选模型。 */
+  /** 本次 attempt 用的模型名,透传自 experiment 的 `model` 字段。sandbox 型 agent 通常在 before 里用它写配置,direct 型通常在 send 里用它选模型。 */
   readonly model?: string;
   /** 模型推理努力程度;归属同 model——实验决定,省略时不覆盖 agent 原生默认。 */
   readonly reasoningEffort?: string;
@@ -346,7 +346,7 @@ export interface AgentContext {
   /**
    * 作用域反馈:报告此刻正在做什么(turn / tool / 安装进度)。短命状态——Human profile
    * 更新 active 行,`agent`/`ci` 不逐条打印,也不进最终结果;不要每个 token/delta 都调用。
-   * runner 按当前回调所处的生命周期阶段(agent.setup / agent.run / agent.teardown)归因,
+   * runner 按当前回调所处的生命周期阶段(agent.before / agent.run / agent.after)归因,
    * 调用方不能冒充其它阶段(见 docs/feature/experiments/library.md)。
    */
   progress(update: ProgressUpdate): void;
@@ -368,7 +368,7 @@ export interface SandboxAgentContext extends AgentContext {
   readonly sandbox: Sandbox;
 }
 
-/** Per-send context; setup and teardown deliberately never receive a turn identity. */
+/** Per-send context; before and after deliberately never receive a turn identity. */
 export interface AgentSendContext extends SandboxAgentContext {
   readonly turnId: import("../record/family/source-receipt/model.ts").TurnId;
 }
@@ -376,26 +376,26 @@ export interface AgentSendContext extends SandboxAgentContext {
 export interface SandboxAgentSendContext extends AgentSendContext {}
 
 /**
- * Agent `setup` 的上下文:沙箱上下文再加一条宿主侧安装清单回执通道。只有 `setup` 收得到它——
- * 安装事实在这一步产生,`send` / `teardown` 不再补写。
+ * Agent `before` 的上下文:沙箱上下文再加一条宿主侧安装清单回执通道。只有 `before` 收得到它——
+ * 安装事实在这一步产生,`send` / `after` 不再补写。
  */
 export interface AgentBeforeContext extends SandboxAgentContext {
   /**
    * 交回这次实际安装了什么(Skill / 原生 Plugin / MCP / 原生配置文件)。清单是宿主侧内存对象,
    * 运行器直接存成 attempt artifact `agent-setup.json`;沙箱里不落任何框架文件
    * (见 docs/observability.md「宿主侧行为断言:t.o11y」)。什么都没装就别调——空清单不生成
-   * artifact。同一次 `setup` 内多次调用后写覆盖先写。
+   * artifact。同一次 `before` 内多次调用后写覆盖先写。
    */
   reportInstallation(manifest: AgentInstallationManifest): void;
 }
 
 /**
  * agent 自己的沙箱运行时生命周期(每个 Attempt 一次,与「每轮 send」分开):
- * CLI 安装属于 runner 的 agent.ensure；`setup` 只写 model/base/auth 等本 Attempt 运行配置，`send` 只管把一轮 prompt
- * 跑起来(第一次 fresh / 后续 resume)+ 解析 transcript,`teardown` 清理。
- * 运行器在 layer prepare → agent.ensure → baseline 后、第一次 send 前调一次 `setup`,不返回值;
- * `teardown` 当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免——半初始化
- * 的现场同样要扫尾),在 finally 里跑。要把 `setup` 里创建的句柄传给 `teardown`,以
+ * CLI 安装属于 runner 的 agent.ensure；`before` 只写 model/base/auth 等本 Attempt 运行配置，`send` 只管把一轮 prompt
+ * 跑起来(第一次 fresh / 后续 resume)+ 解析 transcript,`after` 清理。
+ * 运行器在 layer prepare → agent.ensure → baseline 后、第一次 send 前调一次 `before`,不返回值;
+ * `after` 当且仅当本 attempt 走到过 `before` 时点才执行(`before` 抛错不豁免——半初始化
+ * 的现场同样要扫尾),在 finally 里跑。要把 `before` 里创建的句柄传给 `after`,以
  * `sandbox` 实例为键存取(同一个 Agent 实例服务并发 attempt,不要用实例字段或模块变量)。
  */
 export interface SandboxAgentBeforeContext extends AgentBeforeContext {}
@@ -424,8 +424,8 @@ interface AgentBase {
   /**
    * 可选 send 执行失败分类器:归类 adapter reject 的 `SendFailure`；可信的 failed Turn
    * 是领域结果，不进入这条链。
-   * 返回 `undefined` 表示不认识、回落保守兜底。链上排在实验的 `classifyFailure` 之后,
-   * 实验作者认领过的失败问不到这里。分类器只声明决策轴与诊断词,不影响重试策略(次数、
+   * 返回 `undefined` 表示不认识、回落保守兜底。抛出点的内建失败声明优先。
+   * 分类器只声明决策轴与诊断词,不影响重试策略(次数、
    * 退避对所有 agent 一致);抛错按 `undefined` 回落并被吞掉,不掩盖原始失败。形状与分类链、
    * 执行体时序见 docs/feature/error-classification/architecture.md。
    */
@@ -562,7 +562,7 @@ export interface SandboxAgent extends AgentBase {
   readonly kind: "sandbox";
   /** Adapter-owned command-only contribution to the unified Sandbox action DAG. */
   readonly sandbox?: SandboxLayer<"command-only">;
-  /** Runner 在 author layers 后、setup 前按声明顺序执行。 */
+  /** Runner 在 author layers 后、before 前按声明顺序执行。 */
   readonly ensure: readonly AgentEnsure[];
   /** 官方或第三方随 adapter 提供的安装层；仅 identity 精确匹配时可接手。 */
   readonly installers: readonly AgentInstaller[];
@@ -605,7 +605,7 @@ export interface SandboxAgentDef {
    * 备好(layer prepare/ensure/baseline 之后)、第一次 send 前调用一次,不返回值。
    */
   before?: AgentBefore;
-  /** OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 setup 拆出。 */
+  /** OTLP 导出配置:Sandbox 里怎么让 CLI 把 trace 发到 endpoint(env / 配置文件),从 before 拆出。 */
   tracing?: AgentTracing;
   /** 原生 span → canonical 的薄 mapper;省略走通用 heuristic。只影响瀑布图。 */
   spanMapper?: SpanMapper;
@@ -613,7 +613,7 @@ export interface SandboxAgentDef {
   send(input: TurnInput, ctx: SandboxAgentSendContext): Promise<Turn>;
   /** 可选 send 执行失败分类器:见 `Agent.classifySendFailure`。 */
   classifySendFailure?: SendFailureClassifier;
-  /** Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
+  /** Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `before` 时点才执行(`before` 抛错不豁免),
    * 在 finally 里跑一次。 */
   after?: AgentAfter;
 }
@@ -636,7 +636,7 @@ export interface DirectAgentDef {
   send(input: TurnInput, ctx: AgentSendContext): Promise<Turn>;
   /** 可选 send 执行失败分类器:见 `Agent.classifySendFailure`。 */
   classifySendFailure?: SendFailureClassifier;
-  /** 运行结束前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
+  /** 运行结束前的清理,当且仅当本 attempt 走到过 `before` 时点才执行(`before` 抛错不豁免),
    * 在 finally 里跑一次。 */
   after?: DirectAgentAfter;
 }

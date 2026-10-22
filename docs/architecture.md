@@ -244,6 +244,7 @@ Agent 的 `test(t)` 暴露会话 `TestContext`，其中方法能否读到完整�
 - `defineSandboxAgent` 构造(`kind: "sandbox"`)→ `t.sandbox`:文件 IO、宿主传输与归因断言。
   `writeText` / `readText` / `writeBytes` / `readBytes`、`upload*` / `download*`、`runCommand` / `runShell`,以及 `fileChanged` / `notInDiff` 等归因断言都收在这一个命名空间下。
   评文件内容先 `readText` 读成字符串，再在根级 `t.check({ task, content }, definition)` 传入命名材料；是否改过该文件由 `fileChanged` 判定。
+
   非沙箱型 agent 调用这组方法会立即报错(`capabilityGuard`)——这是唯一仍需要运行时拦截的能力。
 
 ## 一次 Invocation,端到端

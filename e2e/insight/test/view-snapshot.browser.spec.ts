@@ -59,12 +59,12 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
 
       const scoreRequestPath = join(projectRoot, "verdict-scores.request.json");
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v1",
+        protocol: "niceeval.query/v2",
         operation: { kind: "run.get", runId: scoreRunId },
       }));
       const scoreSummary = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
       expect(scoreSummary.exitCode, scoreSummary.diagnostic()).toBe(0);
-      const scoreMembers = scoreSummary.querySuccess("run.get").run.slots;
+      const scoreMembers = scoreSummary.querySuccess("run.get").run.plannedAttempts;
       // These same public facts must survive the Overview aggregation and View.
       for (const [evalId, earned, possible] of [
         ["verdict-scores/failed", 61, 100],
@@ -75,7 +75,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
       }
 
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v1",
+        protocol: "niceeval.query/v2",
         operation: { kind: "overview.get", runIds: [scoreRunId] },
       }));
       const scoreOverview = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
@@ -88,7 +88,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());
         expect(cell.verdict.tally).toEqual({ passed: 0, failed: 1, errored: 0, skipped: 0 });
         expect(cell.score).toMatchObject({
-          state: "available", value: earned, samples: 1, total: 1, basis: "slot",
+          state: "available", value: earned, samples: 1, total: 1, basis: "planned-attempt",
           bounds: { min: 0, max: possible },
         });
         expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({
@@ -276,10 +276,10 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         const cache = externalUsage.getByRole("region", { name: "Cache read rate", exact: true });
         const cacheTable = cache.getByRole("table", { name: "Cache read rate", exact: true });
         await expect(cacheTable.getByRole("row")).toHaveCount(5);
-        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: primary", exact: true }) }).getByRole("cell")).toHaveText(["0.00%", "1/1", "Collection complete", "—"]);
-        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: secondary", exact: true }) })).toContainText("cache-read-missing, input-total-missing");
-        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Slot: unused", exact: true }) })).toContainText("no-calls");
-        const configuredModels = externalUsage.getByRole("table", { name: "Configured model slots", exact: true });
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Role: primary", exact: true }) }).getByRole("cell")).toHaveText(["0.00%", "1/1", "Collection complete", "—"]);
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Role: secondary", exact: true }) })).toContainText("cache-read-missing, input-total-missing");
+        await expect(cacheTable.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "Role: unused", exact: true }) })).toContainText("no-calls");
+        const configuredModels = externalUsage.getByRole("table", { name: "Configured model roles", exact: true });
         await expect(configuredModels.getByRole("row")).toHaveCount(4);
         for (const [slot, model, calls] of [
           ["primary", "typesafe-ai/requested", "1"],

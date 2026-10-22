@@ -10,14 +10,14 @@ export interface RunPageModel {
 
 export interface RunMemberModel {
   readonly key: string;
-  readonly slotId: string;
+  readonly plannedAttemptId: string;
   readonly evalId: string;
   readonly attemptOrdinal: number;
   readonly state: "executed" | "carried" | "accepted" | "not-dispatched" | "interrupted" | "pending";
   readonly locator: string | null;
   readonly outcome: "completed" | "errored" | "cancelled" | "interrupted" | null;
   readonly verdict: "passed" | "failed" | "errored" | "skipped" | null;
-  readonly score?: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["score"];
+  readonly score?: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["score"];
 }
 
 export function closeRun(
@@ -27,9 +27,9 @@ export function closeRun(
     runId: run.run.value.runId,
     experimentId: run.run.value.experimentId,
     adapter: run.run.value.context?.execution.adapter ?? null,
-    members: Object.freeze(run.run.slots.map((member, index) => Object.freeze({
-      key: `${member.slotId}:${index}`,
-      slotId: member.slotId,
+    members: Object.freeze(run.run.plannedAttempts.map((member, index) => Object.freeze({
+      key: `${member.plannedAttemptId}:${index}`,
+      plannedAttemptId: member.plannedAttemptId,
       evalId: member.evalId,
       attemptOrdinal: member.attemptOrdinal,
       state: member.state,

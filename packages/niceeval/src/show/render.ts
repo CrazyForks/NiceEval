@@ -319,7 +319,7 @@ export function renderOverview(
         title: `Attempts · ${group.name ?? group.experiments[0]!.experimentId}`,
         blocks: group.experiments.flatMap((experiment) => {
           const experimentCells = value.cells.filter((cell) => cell.experimentId === experiment.experimentId && cell.members.length > 0);
-          const gaps = current.slots.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
+          const gaps = current.plannedAttempts.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
           return [
             ...(group.name === null ? [] : [{ kind: "divider" as const, title: `Experiment ${experiment.experimentId}`, attachNext: true }]),
             ...gaps.flatMap((slot): TerminalPanelContentBlock[] => slot.state !== "gap" ? [] : [
@@ -387,20 +387,23 @@ export function renderExperiment(value: ExperimentView): string {
       kind: "panel",
       title: `Experiment ${value.experimentId}`,
       blocks: [
+        { kind: "divider", title: "Plugins" },
+        { kind: "table", columns: ["Name", "Key", "Identity"].map((header) => ({ header })),
+          rows: value.plugins.map((plugin) => [plugin.name, plugin.key, JSON.stringify(plugin.identity)]) },
         { kind: "divider", title: "Notes" },
         { kind: "table", columns: ["Label", "Count", "Min", "Median", "P90", "Max"].map((header) => ({ header })),
           rows: value.notes.map((note) => [note.label, String(note.count), ...[note.min, note.median, note.p90, note.max].map((n) => formatNumericUnit(n, note.unit))]) },
         { kind: "divider", title: totalCosts.state === "complete" ? "Experiment total costs" : "Experiment known subtotal" },
         ...totalCostBlocks(totalCosts).slice(1),
         { kind: "keyValue", entries: [
-          { key: "Scope", value: "Latest recorded slots; replaced executions excluded" },
-          { key: "Selected slots", value: String(coverage.selectedSlotCount) },
-          { key: "Resolved slots", value: String(coverage.resolvedSlotCount) },
+          { key: "Scope", value: "Latest recorded attempts; replaced executions excluded" },
+          { key: "Planned attempts", value: String(coverage.plannedAttemptCount) },
+          { key: "Recorded attempts", value: String(coverage.recordedAttemptCount) },
           { key: "Unique origin Attempts", value: String(coverage.originAttemptCount) },
           { key: "Attempts with complete costs", value: String(coverage.completeAttemptCount) },
           { key: "Attempts with partial costs", value: String(coverage.partialAttemptCount) },
           { key: "Attempts with unavailable costs", value: String(coverage.unavailableAttemptCount) },
-          { key: "Unresolved slots", value: String(coverage.unresolvedSlotCount) },
+          { key: "Missing attempts", value: String(coverage.missingAttemptCount) },
         ] },
         { kind: "divider", title: "Summary" },
         aggregateEntries(value.aggregate),
@@ -486,7 +489,7 @@ export function renderRun(value: RunView): string {
   for (const member of value.members) {
     blocks.push({
       kind: "panel",
-      title: `Member ${member.slotId}`,
+      title: `Member ${member.plannedAttemptId}`,
       meta: member.state,
       blocks: [
         {
@@ -588,12 +591,12 @@ function runLocatedLimitationTable(
   return {
     kind: "table",
     columns: [
-      { header: "Slot" },
+      { header: "Planned attempt" },
       { header: "Attempt" },
       { header: "Limitation" },
     ],
     rows: values.map((value) => [
-      value.slotId,
+      value.plannedAttemptId,
       value.locator ?? "not-recorded",
       formatRunMemberLimitation(value.limitation),
     ]),
@@ -643,7 +646,7 @@ export function renderAttempt(value: AttemptView): string {
             { key: "Eval", value: value.evalId },
             { key: "Run", value: value.originRunId },
             { key: "Attempt", value: value.attemptId },
-            { key: "Slot", value: value.slotId },
+            { key: "Planned attempt", value: value.plannedAttemptId },
             { key: "Outcome", value: value.outcome },
             { key: "Verdict", value: value.verdict ?? "not-available" },
             { key: "Score", value: score(value.score, value.verdict) },
@@ -883,7 +886,7 @@ function displayDetailBlocks(block: ExecutionDisplayDetailBlock, locator: string
   const lines = displayLines(block, eventId, TERMINAL_OPTIONS.width);
   const blocks: TerminalBlock[] = [{ kind: "code", text: lines.join("\n") }];
   if (block.kind === "image") {
-    const request = JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
+    const request = JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
     blocks.push({ kind: "code", text: `niceeval query run --request - <<'NICEEVAL_REQUEST'\n${request}\nNICEEVAL_REQUEST` });
   }
   return blocks;
@@ -1654,8 +1657,8 @@ function cacheReadBlocks(report: import("../o11y/cache-read.ts").CacheReadReport
   ];
   return [{ kind: "divider", title: "Cache read rate" }, { kind: "table",
     columns: [{ header: "Scope" }, { header: "Rate" }, { header: "Covered calls" }, { header: "Collection" }, { header: "Reasons" }],
-    rows: [row("Total", report.total), ...report.modelSlots.map((group) => row(`Slot: ${group.modelSlot ?? "not-recorded"}`, group)),
-      ...report.models.map((group) => row(`${group.modelSlot ?? "not-recorded"} / ${group.provider ?? "not-recorded"} / ${group.model ?? "not-recorded"}`, group))], overflow: "wrap" }];
+    rows: [row("Total", report.total), ...report.roles.map((group) => row(`Role: ${group.modelRole ?? "not-recorded"}`, group)),
+      ...report.models.map((group) => row(`${group.modelRole ?? "not-recorded"} / ${group.provider ?? "not-recorded"} / ${group.model ?? "not-recorded"}`, group))], overflow: "wrap" }];
 }
 
 function modelUsageBlocks(
@@ -1664,7 +1667,7 @@ function modelUsageBlocks(
   const configured = value.configuredModels;
   const groups = value.modelGroups;
   const recordedCalls = (count: number | null): string => count === null ? "—" : count === 0 ? "0 (no recorded calls)" : String(count);
-  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelSlot === "default" ? configured.bindings[0] : null;
+  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelRole === "default" ? configured.bindings[0] : null;
   const configurationBlocks: readonly TerminalPanelContentBlock[] = configured.state !== "available"
     ? [{ kind: "keyValue", entries: [{ key: "Configuration", value: configured.state }] }]
     : defaultBinding !== null
@@ -1674,12 +1677,12 @@ function modelUsageBlocks(
       { key: "Recorded calls", value: recordedCalls(defaultBinding.recordedCalls) },
     ] }]
     : configured.bindings.length === 0
-    ? [{ kind: "keyValue", entries: [{ key: "Configured slots", value: "0" }] }]
-    : [{ kind: "table", columns: [{ header: "Slot" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
-      rows: configured.bindings.map((binding) => [binding.modelSlot, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
+    ? [{ kind: "keyValue", entries: [{ key: "Configured roles", value: "0" }] }]
+    : [{ kind: "table", columns: [{ header: "Role" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
+      rows: configured.bindings.map((binding) => [binding.modelRole, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
   return [
     ...cacheReadBlocks(value.cacheRead),
-    { kind: "divider", title: "Configured model slots" },
+    { kind: "divider", title: "Configured model roles" },
     ...configurationBlocks,
     { kind: "divider", title: "Actual model usage" },
     { kind: "keyValue", entries: [
@@ -1689,10 +1692,10 @@ function modelUsageBlocks(
       ...("reason" in groups && groups.reason !== undefined ? [{ key: "Reason", value: groups.reason }] : []),
     ] },
     { kind: "table", columns: [
-      { header: "Slot / provider / actual model", maxWidth: 30 },
+      { header: "Role / provider / actual model", maxWidth: 30 },
       { header: "Calls / tokens", maxWidth: 18 }, { header: "Application cost", maxWidth: 24 },
     ], rows: groups.groups.map((group) => [
-      `Slot: ${group.modelSlot ?? "not-recorded"}\nProvider: ${group.provider ?? "not-recorded"}\n${group.model ?? "not-recorded"}`,
+      `Role: ${group.modelRole ?? "not-recorded"}\nProvider: ${group.provider ?? "not-recorded"}\n${group.model ?? "not-recorded"}`,
       `${group.recordedCalls} calls\nInput incl. cache: ${metric(group.tokens.inputTotalTokens)}\nOutput: ${metric(group.tokens.outputTokens)}\nTotal: ${metric(group.tokens.totalTokens)}`,
       group.costs.values.length === 0 ? group.costs.state : group.costs.values.map((cost) =>
         `${cost.value} ${cost.currency} (${group.costs.state}${group.costs.state === "partial" ? "; known subtotal" : ""}; ${cost.coveredCalls}/${group.costs.totalCalls} covered; ${cost.source})`

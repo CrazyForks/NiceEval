@@ -41,7 +41,7 @@ test("uiMessageStreamAgent 完整 SSE transport 交付 fixture 文本", async ()
         }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
         expect(queried.exitCode, queried.diagnostic()).toBe(0);
         const document = queried.attemptTrace();
-        expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+        expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
         expect(JSON.stringify(document.trace), queried.diagnostic()).toContain("local-protocol-ok");
       });
     },

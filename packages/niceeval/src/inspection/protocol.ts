@@ -8,7 +8,7 @@ import { AssertionEntryIdSchema } from "../assertions/record/codec.ts";
 import { ATTEMPT_LOCATOR_PATTERN } from "../attempt-locator.ts";
 import { ArtifactIdSchema, ExperimentIdSchema, RunIdSchema } from "../record/codec/identifiers.ts";
 import { InspectionArtifactLimitSchema, InspectionArtifactOffsetSchema, InspectionArtifactResultSchema } from "./artifacts.ts";
-import { RunDocumentSchema } from "../record/codec/core.ts";
+import { InspectionRunCoreSchema } from "./planned-attempt.ts";
 import { InspectionArtifactMetadataSchema, InspectionArtifactsPageLimitSchema, InspectionArtifactsValueSchema } from "./artifact-list.ts";
 import { isCommandId, isItemId, isToolOccurrenceId } from "../record/family/source-receipt/model.ts";
 import { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.ts";
@@ -78,13 +78,13 @@ const ArtifactsResultSchema = Schema.Union([
   }),
 ]);
 const ComparisonMemberSchema = Schema.Struct({
-  key: Schema.String, runId: Schema.String, slotId: Schema.String, evalId: Schema.String,
+  key: Schema.String, runId: Schema.String, plannedAttemptId: Schema.String, evalId: Schema.String,
   attemptOrdinal: Schema.Number, locator: Schema.String,
 });
 const RunsCompareResultSchema = Schema.Struct({
   mode: Schema.Literals(["side-by-side", "exact", "paired"]),
-  left: Schema.Struct({ runs: Schema.Array(RunDocumentSchema), members: Schema.Array(ComparisonMemberSchema) }),
-  right: Schema.Struct({ runs: Schema.Array(RunDocumentSchema), members: Schema.Array(ComparisonMemberSchema) }),
+  left: Schema.Struct({ runs: Schema.Array(InspectionRunCoreSchema), members: Schema.Array(ComparisonMemberSchema) }),
+  right: Schema.Struct({ runs: Schema.Array(InspectionRunCoreSchema), members: Schema.Array(ComparisonMemberSchema) }),
   exactMemberSet: Schema.Boolean,
   pairs: Schema.Array(Schema.Struct({ key: Schema.String, left: ComparisonMemberSchema, right: ComparisonMemberSchema })),
 });

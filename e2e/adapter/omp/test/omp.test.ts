@@ -49,7 +49,7 @@ it("OMP adapter 从公开工厂完成 Eval 并公开读回结果", async () => {
   }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
   expect(queried.exitCode, queried.diagnostic()).toBe(0);
   const document = queried.attemptTrace();
-  expect(document).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+  expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
   expect(JSON.stringify(document.trace)).toContain(OMP_MARKER);
 
 }, 8 * 60_000);

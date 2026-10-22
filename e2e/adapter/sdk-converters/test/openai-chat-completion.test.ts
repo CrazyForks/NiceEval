@@ -32,7 +32,7 @@ test("turnFromChatCompletion 的 function 与 custom tool 输入经 Experiment �
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(summaryReceipt.exitCode, summaryReceipt.diagnostic()).toBe(0);
     const summary = summaryReceipt.run();
-    expect(summary).toMatchObject({ protocol: "niceeval.query/v1", operation: "run.get" });
+    expect(summary).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get" });
     expect(summary.selection).toMatchObject({ selectedRunIds: [receipt.createdRunIds[0]!], missingRunIds: [] });
     expect(JSON.stringify(summary.run)).toContain(event.locator);
 
@@ -53,7 +53,7 @@ test("turnFromChatCompletion 的 function 与 custom tool 输入经 Experiment �
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(traceReceipt.exitCode, traceReceipt.diagnostic()).toBe(0);
     const traceDocument = traceReceipt.attemptTrace();
-    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v1", operation: "attempt.trace" });
+    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
     const trace = JSON.stringify(traceDocument.trace);
     expect(trace).toContain("openai-chat-completion-message-marker");
     expect(trace).toContain("weather_lookup");

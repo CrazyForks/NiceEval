@@ -1,5 +1,5 @@
 import type { InputResponse, SandboxAgentContext, StreamEvent, Turn, TurnEvidenceCoverage, Usage } from "../types.ts";
-import { createSessionSlot } from "./session-slot.ts";
+import { createSessionKey } from "./session-key.ts";
 import { ManagedJsonlDriver } from "./managed-jsonl.ts";
 import { shared } from "./shared.ts";
 import { unclassifiedToolActionsCoverage } from "../o11y/command-projection.ts";
@@ -27,7 +27,7 @@ type CodexState = {
   readonly reported: Set<string>;
 };
 
-const stateSlot = createSessionSlot<CodexState>("codex/app-server-native");
+const stateSlot = createSessionKey<CodexState>("codex/app-server-native");
 
 function record(value: unknown): RecordValue | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : undefined;

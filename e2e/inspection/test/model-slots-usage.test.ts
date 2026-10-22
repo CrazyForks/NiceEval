@@ -6,34 +6,34 @@ import { inspectionCaseArtifacts, inspectionE2E } from "./support.ts";
 
 // @feature docs/feature/inspection/README.md
 test.concurrent("用途与实际模型分列，零费用与未知费用保留且裁判缺口可读", async () => {
-  await inspectionE2E.case("model-slots-usage", { artifacts: inspectionCaseArtifacts() }, async ({ paths, commands: { niceeval } }) => {
-    const run = await niceeval.run(["exp", "model-slots", "--rerun", "all", "--json"]);
+  await inspectionE2E.case("model-roles-usage", { artifacts: inspectionCaseArtifacts() }, async ({ paths, commands: { niceeval } }) => {
+    const run = await niceeval.run(["exp", "model-roles", "--rerun", "all", "--json"]);
     expect(run.exitCode, run.diagnostic()).toBe(0);
-    const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-slots", run.diagnostic());
+    const event = only(run.expEvalEvents(), (entry) => entry.evalId === "model-roles", run.diagnostic());
     expect(event.verdict).toBe("passed");
     const request = join(paths.projectRoot, "model-usage.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
     expect(usage.configuredModels).toEqual({ state: "available", bindings: [
-      { modelSlot: "planner", model: "fixture/shared", reasoningEffort: "high", recordedCalls: 2 },
-      { modelSlot: "reviewer", model: "fixture/shared", reasoningEffort: null, recordedCalls: 1 },
-      { modelSlot: "unused", model: "fixture/unused", reasoningEffort: null, recordedCalls: 0 },
+      { modelRole: "planner", model: "fixture/shared", reasoningEffort: "high", recordedCalls: 2 },
+      { modelRole: "reviewer", model: "fixture/shared", reasoningEffort: null, recordedCalls: 1 },
+      { modelRole: "unused", model: "fixture/unused", reasoningEffort: null, recordedCalls: 0 },
     ] });
     expect(usage.calls).toHaveLength(4);
     expect(usage.calls).toEqual([
-      expect.objectContaining({ callId: "planner-1", modelSlot: "planner", status: "failed", effectiveCost: expect.objectContaining({ amount: "0", source: { kind: "reported", id: "offline.response" } }) }),
-      expect.objectContaining({ callId: "planner-2", modelSlot: "planner", retryOf: "planner-1", provider: null, model: "fixture/fallback" }),
-      expect.objectContaining({ callId: "reviewer-1", modelSlot: "reviewer", model: "fixture/shared" }),
-      expect.objectContaining({ callId: "unattributed-1", modelSlot: null, provider: null, effectiveCost: null }),
+      expect.objectContaining({ callId: "planner-1", modelRole: "planner", status: "failed", effectiveCost: expect.objectContaining({ amount: "0", source: { kind: "reported", id: "offline.response" } }) }),
+      expect.objectContaining({ callId: "planner-2", modelRole: "planner", retryOf: "planner-1", provider: null, model: "fixture/fallback" }),
+      expect.objectContaining({ callId: "reviewer-1", modelRole: "reviewer", model: "fixture/shared" }),
+      expect.objectContaining({ callId: "unattributed-1", modelRole: null, provider: null, effectiveCost: null }),
     ]);
     expect(usage.modelGroups).toMatchObject({ state: "available", basis: "recorded-calls", totalGroupCount: 4, groupsTruncated: false, omittedGroupCount: 0 });
     expect(usage.modelGroups.groups).toEqual([
-      expect.objectContaining({ modelSlot: null, provider: null, model: "fixture/unpriced", recordedCalls: 1, costs: { state: "unavailable", source: null, values: [], totalCalls: 1 } }),
-      expect.objectContaining({ modelSlot: "planner", provider: null, model: "fixture/fallback", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0.125" })] }) }),
-      expect.objectContaining({ modelSlot: "planner", provider: "fixture-provider", model: "fixture/shared", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0", reportedCalls: 1 })] }) }),
-      expect.objectContaining({ modelSlot: "reviewer", provider: "fixture-provider", model: "fixture/shared", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0.25" })] }) }),
+      expect.objectContaining({ modelRole: null, provider: null, model: "fixture/unpriced", recordedCalls: 1, costs: { state: "unavailable", source: null, values: [], totalCalls: 1 } }),
+      expect.objectContaining({ modelRole: "planner", provider: null, model: "fixture/fallback", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0.125" })] }) }),
+      expect.objectContaining({ modelRole: "planner", provider: "fixture-provider", model: "fixture/shared", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0", reportedCalls: 1 })] }) }),
+      expect.objectContaining({ modelRole: "reviewer", provider: "fixture-provider", model: "fixture/shared", recordedCalls: 1, costs: expect.objectContaining({ values: [expect.objectContaining({ currency: "USD", value: "0.25" })] }) }),
     ]);
     expect(usage.totals.costs).toEqual({ state: "partial", source: "reported", values: [{ currency: "USD", value: "0.375", source: "reported", coveredCalls: 3, reportedCalls: 3, estimatedCalls: 0 }], totalCalls: 4 });
     const judgeSummary = {
@@ -48,17 +48,17 @@ test.concurrent("用途与实际模型分列，零费用与未知费用保留且
     };
     expect(usage.judgeUsage).toEqual({ ...judgeSummary, calls: [], callsTruncated: false, omittedCallCount: 0, priceReceipts: [] });
     expect(usage.totalCosts).toEqual({ state: "partial", values: [{ currency: "USD", value: "0.375", source: "reported" }], missingSources: ["application"] });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "overview.get" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "overview.get" } }));
     const overviewRead = await niceeval.run(["query", "run", "--request", request]);
     expect(overviewRead.exitCode, overviewRead.diagnostic()).toBe(0);
     const overview = overviewRead.querySuccess("overview.get").overview;
-    const cell = only(overview.cells, (item) => item.experimentId === "model-slots" && item.evalId === "model-slots", overviewRead.diagnostic());
+    const cell = only(overview.cells, (item) => item.experimentId === "model-roles" && item.evalId === "model-roles", overviewRead.diagnostic());
     expect(cell.costUSD).toMatchObject({ state: "partial", value: 0.375, source: "reported", unit: "USD" });
     expect(cell.tokens).toMatchObject({ state: "partial", value: 40, unit: "tokens" });
-    const aggregate = only(overview.experiments, (item) => item.experimentId === "model-slots", overviewRead.diagnostic());
+    const aggregate = only(overview.experiments, (item) => item.experimentId === "model-roles", overviewRead.diagnostic());
     expect(aggregate.costUSD).toMatchObject({ state: "partial", value: 0.375, source: "reported", unit: "USD" });
     expect(aggregate.tokens).toMatchObject({ state: "partial", value: 40, unit: "tokens" });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "experiment.get", experimentId: "model-slots" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "model-roles" } }));
     const experimentRead = await niceeval.run(["query", "run", "--request", request]);
     expect(experimentRead.exitCode, experimentRead.diagnostic()).toBe(0);
     const experiment = experimentRead.querySuccess("experiment.get").experiment;

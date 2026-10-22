@@ -46,7 +46,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
         const runId = only(receipt.createdRunIds, () => true, run.diagnostic());
         const runRequest = join(projectRoot, `custom-run-${implementation}.request.json`);
         await writeFile(runRequest, `${JSON.stringify({
-          protocol: "niceeval.query/v1",
+          protocol: "niceeval.query/v2",
           operation: { kind: "run.get", runId },
         })}\n`, "utf8");
         const inspectedRun = await niceeval.run(["query", "run", "--request", runRequest]);
@@ -103,8 +103,8 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
 
         const summary = await inspectRunSummary(niceeval, projectRoot, runId);
         expect(summary.receipt.exitCode, summary.receipt.diagnostic()).toBe(0);
-        expect(summary.document.run.slots).toHaveLength(2);
-        for (const member of summary.document.run.slots) {
+        expect(summary.document.run.plannedAttempts).toHaveLength(2);
+        for (const member of summary.document.run.plannedAttempts) {
           expect(member).toMatchObject({
             state: "executed",
             outcome: "completed",
@@ -165,7 +165,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
 
           const usageRequest = join(projectRoot, `custom-usage-${locator.slice(1)}.request.json`);
           await writeFile(usageRequest, `${JSON.stringify({
-            protocol: "niceeval.query/v1",
+            protocol: "niceeval.query/v2",
             operation: { kind: "attempt.usage", locator },
           })}\n`, "utf8");
           const usageReceipt = await niceeval.run(["query", "run", "--request", usageRequest]);

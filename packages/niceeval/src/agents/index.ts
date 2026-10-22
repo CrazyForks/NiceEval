@@ -42,7 +42,7 @@ export type {
   TraceJson,
 } from "../adapter-execution-trace.ts";
 export { defineAgent, defineSandboxAgent } from "../define.ts";
-export { createSessionSlot } from "./session-slot.ts";
+export { createSessionKey } from "./session-key.ts";
 export { shared } from "./shared.ts";
 export type { Shared } from "./shared.ts";
 
@@ -199,7 +199,7 @@ export type {
   DirectAgentBefore,
   DirectAgentAfter,
   AgentSession,
-  SessionSlot,
+  SessionKey,
   AgentBefore,
   AgentBeforeContext,
   AgentInstallationManifest,
@@ -216,4 +216,4 @@ export type {
   SkillSpec,
 } from "../types.ts";
 
-export type { ModelSlotSelection, ResolvedModelSlot, ResolvedModelSlots } from "../model-slots.ts";
+export type { ModelRoleSelection, ResolvedModelRole, ResolvedModelRoles } from "../model-roles.ts";

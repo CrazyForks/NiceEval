@@ -35,8 +35,8 @@ export function selectInspectionProject(input: FrozenProjectInput, experimentIds
     }
   }
   const currentPositions = new Set(input.target.slots.map((slot) => logicalKey(slot.experimentId, slot.evalId, slot.attempt)));
-  const slots: InspectionProjectResult["slots"] = assessments.map((slot) => {
-    const position = { experimentId: slot.experimentId as InspectionProjectResult["slots"][number]["experimentId"], evalId: slot.evalId as InspectionProjectResult["slots"][number]["evalId"], attemptOrdinal: slot.attempt };
+  const plannedAttempts: InspectionProjectResult["plannedAttempts"] = assessments.map((slot) => {
+    const position = { experimentId: slot.experimentId as InspectionProjectResult["plannedAttempts"][number]["experimentId"], evalId: slot.evalId as InspectionProjectResult["plannedAttempts"][number]["evalId"], attemptOrdinal: slot.attempt };
     if (slot.state === "reuse") return { ...position, state: "reuse" as const, ...{
       sourceRunId: slot.source.sourceBarrier.runId, locator: slot.source.locator, relation: slot.source.relation, action: slot.source.action,
     } };
@@ -73,14 +73,14 @@ export function selectInspectionProject(input: FrozenProjectInput, experimentIds
       ...empty, experimentId: experiment.experimentId, adapter: { state: "available" as const, value: experiment.adapter },
       model: experiment.model === undefined ? { state: "unavailable" as const } : { state: "available" as const, value: experiment.model }, labels: {}, groups: [],
     });
-  const covered = slots.filter((slot) => slot.state === "reuse").length;
+  const covered = plannedAttempts.filter((slot) => slot.state === "reuse").length;
   const history = [...previous.values()].filter((slot) => !currentPositions.has(logicalKey(slot.experimentId, slot.evalId, slot.attemptOrdinal)) && (experimentIds === undefined || selectedIds.has(slot.experimentId)))
     .sort((left, right) => compare(left.experimentId, right.experimentId) || compare(left.evalId, right.evalId) || left.attemptOrdinal - right.attemptOrdinal);
-  return Schema.decodeUnknownSync(InspectionProjectResultSchema)({ targetIdentity: input.target.identity, coverage: { expected: slots.length, covered, gaps: slots.length - covered }, slots,
+  return Schema.decodeUnknownSync(InspectionProjectResultSchema)({ targetIdentity: input.target.identity, coverage: { expected: plannedAttempts.length, covered, gaps: plannedAttempts.length - covered }, plannedAttempts,
     totals: overview.totals, experiments, cells: overview.cells, history });
 }
 
-function gapReason(reason: ExecutionGapReason): Extract<InspectionProjectResult["slots"][number], { state: "gap" }>["reason"] {
+function gapReason(reason: ExecutionGapReason): Extract<InspectionProjectResult["plannedAttempts"][number], { state: "gap" }>["reason"] {
   switch (reason) {
     case "no-source-run": case "source-slot-missing": return "no-result";
     case "source-member-missing": case "source-publication-unavailable": return "not-published";

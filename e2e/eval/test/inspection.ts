@@ -39,7 +39,7 @@ export async function inspectAssertion(
   await writeFile(
     requestPath,
     `${JSON.stringify({
-      protocol: "niceeval.query/v1",
+      protocol: "niceeval.query/v2",
       operation: { kind: "attempt.assertion.detail", locator, entryId },
     })}\n`,
     "utf8",
@@ -90,7 +90,7 @@ export async function inspectAttempt<Kind extends AttemptInspectionOperation>(
   await writeFile(
     requestPath,
     `${JSON.stringify({
-      protocol: "niceeval.query/v1",
+      protocol: "niceeval.query/v2",
       operation: { kind: operation, locator },
     })}\n`,
     "utf8",
@@ -109,7 +109,7 @@ export async function inspectRunSummary(
   await writeFile(
     requestPath,
     `${JSON.stringify({
-      protocol: "niceeval.query/v1",
+      protocol: "niceeval.query/v2",
       operation: { kind: "run.get", runId },
     })}\n`,
     "utf8",

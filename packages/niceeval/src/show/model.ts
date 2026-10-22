@@ -10,7 +10,7 @@ import type {
 import type { AttemptOutcome as RecordAttemptOutcome, MembershipAction as RecordMembershipAction } from "../record/model/core.ts";
 import type { AdapterIdentity } from "../record/model/run-context.ts";
 import type { Verdict as PublicVerdict } from "../shared/types.ts";
-import type { AgentTurnOutcome as ReceiptAgentTurnOutcome, SANDBOX_COMMAND_PHASES } from "../record/family/protocol-values.ts";
+import type { AgentTurnOutcome as ReceiptAgentTurnOutcome } from "../record/family/protocol-values.ts";
 
 export type MetricState = "available" | "partial" | "unavailable" | "empty" | "unsupported" | "failed";
 export type Verdict = PublicVerdict;
@@ -27,7 +27,7 @@ export type SourceContent =
 export type AssertionSource =
   | { readonly state: "mapped"; readonly sourceItemId: string; readonly sha256: string }
   | { readonly state: "unmapped"; readonly reason: "source-snapshot-not-recorded" | "position-unrepresentable" };
-export type CommandPhase = (typeof SANDBOX_COMMAND_PHASES)[number];
+export type CommandPhase = InspectionSuccessDocumentFor<"attempt.trace">["trace"]["commands"]["items"][number]["phase"];
 export type CommandOutcome = "exited" | "terminated" | "not-started";
 export type Metric = { readonly state: MetricState; readonly value: number | null };
 export type ExecutionValue =
@@ -72,7 +72,7 @@ export interface OverviewView {
             readonly attemptId: string;
             readonly attemptLocator: string;
             readonly originRunId: string;
-            readonly originSlotId: string;
+            readonly originPlannedAttemptId: string;
             readonly verdict: Verdict | null;
             readonly score: Metric;
             readonly durationMs: Metric;
@@ -82,6 +82,7 @@ export interface OverviewView {
   }[];
 }
 export interface ExperimentView {
+  readonly plugins: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["experiment"]["plugins"];
   readonly notes: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["notes"];
   readonly experimentId: string;
   readonly aggregate: Aggregate;
@@ -102,7 +103,7 @@ export interface RunView {
   readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["usage"];
   readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["limitations"];
   readonly members: readonly {
-    readonly slotId: string;
+    readonly plannedAttemptId: string;
     readonly evalId: string;
     readonly attemptOrdinal: number;
     readonly locator: string | null;
@@ -111,9 +112,9 @@ export interface RunView {
     readonly outcome: AttemptOutcome | null;
     readonly verdict: Verdict | null;
     readonly score: ScoredValue | null;
-    readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["coverage"];
-    readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["usage"];
-    readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["limitations"];
+    readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["coverage"];
+    readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["usage"];
+    readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["limitations"];
   }[];
 }
 export interface AttemptView {
@@ -123,7 +124,7 @@ export interface AttemptView {
   readonly verdict: Verdict | null;
   readonly attemptId: string;
   readonly evalId: string;
-  readonly slotId: string;
+  readonly plannedAttemptId: string;
   readonly outcome: AttemptOutcome;
   readonly originRunId: string;
   readonly experimentId: string;
@@ -261,6 +262,7 @@ export function projectExperiment(document: InspectionSuccessDocumentFor<"experi
   return {
     experimentId: document.experiment.experiment.experimentId,
     notes: document.experiment.notes,
+    plugins: document.experiment.experiment.plugins,
     aggregate: aggregate(document.experiment.experiment),
     cells: cells(document.experiment.cells),
     costSummary: document.experiment.costSummary,
@@ -284,8 +286,8 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): R
     coverage: detail.coverage,
     usage: detail.usage,
     limitations: detail.limitations,
-    members: detail.slots.map((member) => ({
-      slotId: member.slotId,
+    members: detail.plannedAttempts.map((member) => ({
+      plannedAttemptId: member.plannedAttemptId,
       evalId: member.evalId,
       attemptOrdinal: member.attemptOrdinal,
       locator: member.locator,
@@ -311,7 +313,7 @@ export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.g
     verdict: value.verdict,
     attemptId: value.core.attemptId,
     evalId: value.core.evalId,
-    slotId: value.core.slotId,
+    plannedAttemptId: value.core.plannedAttemptId,
     outcome: value.core.outcome,
     originRunId: value.core.originRunId,
     experimentId: value.originRun.experimentId,

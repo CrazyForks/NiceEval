@@ -13,7 +13,7 @@ test.concurrent("Adapter flags 规范化等价时复用且 parseFlags 行为版�
     expect(initial.expEvalEvents()).toEqual([expect.objectContaining({ verdict: "passed" })]);
     const runId = only(initial.expReceipt().createdRunIds, () => true, initial.diagnostic());
     const request = join(projectRoot, "flags-run.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "run.get", runId } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId } }));
     const inspected = await niceeval.run(["query", "run", "--request", request]);
     expect(inspected.exitCode, inspected.diagnostic()).toBe(0);
     expect(inspected.querySuccess("run.get").run.value.context?.execution?.flags).toEqual({ strategy: "safe", limit: 2, enabled: true });
