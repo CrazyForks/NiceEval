@@ -110,7 +110,7 @@ await t.group("输出", () => {
 statistics 包含 sampleCount、probability 和 method。默认 linear 采用排序副本上的 h=(n-1)*p，在 floor(h) 与 ceil(h) 之间线性插值。
 nearest-rank 采用 max(1,ceil(n*p)) 的一基秩。p 必须是 [0,1] 有限数值；端点返回最小值、最大值，单样本返回自身。
 
-不修改输入；不丢弃坏样本。空数组为 no-samples，任一非有限数值样本为 non-finite-sample；无效 p、method 或非数组输入同步抛 TypeError。
+不修改输入；不丢弃坏样本。空数组为 no-samples，任一非有限或非数值样本为 non-finite-sample；无效 p、method 或非数组输入同步抛 TypeError。
 算法元数据随返回材料进入既有 Assertion source snapshot，不引入新的 criterion 或持久化版本，也不保存完整样本数组。
 
 ```ts
