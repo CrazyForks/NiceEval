@@ -1,5 +1,5 @@
 import { isTrue } from "niceeval/expect";
-import { defineAdapter, defineExperiment, defineScoreEval, defineModelSlots, type AdapterCreateContext, type AdapterUsageInput } from "niceeval";
+import { defineAdapter, defineExperiment, defineScoreEval, defineModelRoles, type AdapterCreateContext, type AdapterUsageInput } from "niceeval";
 import { deterministicAgent } from "../agents/deterministic.ts";
 
 function readSelection(ctx: AdapterCreateContext) {
@@ -28,15 +28,15 @@ defineExperiment({ adapter, models: { default: { model: "fixture/default" } }, r
 defineExperiment({ adapter, models: { planner: { reasoningEffort: "high" } } });
 // @ts-expect-error A slot model must be a string.
 defineExperiment({ adapter, models: { planner: { model: 123 } } });
-const linked: AdapterUsageInput = { callId: "linked", modelSlot: "planner", provider: null, model: "fixture/fallback", status: "succeeded", inputTokens: null, outputTokens: null };
-const unknown: AdapterUsageInput = { ...linked, callId: "unknown", modelSlot: null };
+const linked: AdapterUsageInput = { callId: "linked", modelRole: "planner", provider: null, model: "fixture/fallback", status: "succeeded", inputTokens: null, outputTokens: null };
+const unknown: AdapterUsageInput = { ...linked, callId: "unknown", modelRole: null };
 const omitted = { callId: "omitted", provider: null, model: null, status: "unknown", inputTokens: null, outputTokens: null } satisfies AdapterUsageInput;
 // @ts-expect-error Usage references are nullable strings.
-const invalid: AdapterUsageInput = { ...linked, modelSlot: 123 };
+const invalid: AdapterUsageInput = { ...linked, modelRole: 123 };
 void [unknown, omitted, invalid];
 
 
-const purposes = defineModelSlots({ mind: { model: "fixture/mind" }, speech: { model: "fixture/speech" } });
+const purposes = defineModelRoles({ mind: { model: "fixture/mind" }, speech: { model: "fixture/speech" } });
 const requiredAdapter = defineAdapter({
   name: "required-slot-types",
   requires: { models: purposes },
@@ -44,11 +44,11 @@ const requiredAdapter = defineAdapter({
     const model: string | null = ctx.models.mind.model;
     // @ts-expect-error Only declared purposes can be read.
     ctx.models.mimd;
-    ctx.recordUsage({ ...linked, modelSlot: "mind" });
-    ctx.recordUsage({ ...linked, modelSlot: null });
+    ctx.recordUsage({ ...linked, modelRole: "mind" });
+    ctx.recordUsage({ ...linked, modelRole: null });
     ctx.recordUsage(omitted);
     // @ts-expect-error Unknown purposes cannot be recorded.
-    ctx.recordUsage({ ...linked, modelSlot: "mimd" });
+    ctx.recordUsage({ ...linked, modelRole: "mimd" });
     return { configuredModel: () => model };
   },
 });
@@ -87,9 +87,9 @@ const flagsAndAssertions = defineAdapter({
   parseFlags: (_input: unknown) => ({ enabled: true }),
   create(ctx) {
     const enabled: boolean = ctx.flags.enabled;
-    ctx.recordUsage({ ...linked, modelSlot: "speech" });
+    ctx.recordUsage({ ...linked, modelRole: "speech" });
     // @ts-expect-error Assertions overload cannot erase model purpose checking.
-    ctx.recordUsage({ ...linked, modelSlot: "other" });
+    ctx.recordUsage({ ...linked, modelRole: "other" });
     return { enabled: () => enabled };
   },
   assertions: ({ app, check }) => ({ active() { return check(app.enabled(), isTrue()); } }),
@@ -116,3 +116,11 @@ flagsAndAssertions.defineEval({
     t.usage.cacheRead.rate("other");
   },
 });
+
+// @ts-expect-error Removed purpose factory is not exported.
+import { defineModelSlots } from "niceeval";
+// @ts-expect-error Removed purpose type is not exported.
+import type { ModelSlotSelection } from "niceeval";
+// @ts-expect-error Old usage property is not accepted.
+const oldUsage: AdapterUsageInput = { ...linked, modelSlot: "mind" };
+void oldUsage;

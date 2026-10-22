@@ -8,7 +8,7 @@ export interface AdapterUsageInput {
   readonly callId: string;
   readonly retryOf?: string;
   /** Frozen application model purpose; omission records an unknown purpose. */
-  readonly modelSlot?: string | null;
+  readonly modelRole?: string | null;
   /** Upstream-proven serving provider. Transport and protocol identities belong in route. */
   readonly provider: string | null;
   readonly model: string | null;

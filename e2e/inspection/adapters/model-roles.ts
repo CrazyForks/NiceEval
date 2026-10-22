@@ -1,8 +1,8 @@
 import { defineAdapter, type AdapterUsageInput } from "niceeval";
 
 // This is an offline application boundary, not an implementation of the ledger.
-export const modelSlots = defineAdapter({
-  name: "model-slots",
+export const roles = defineAdapter({
+  name: "model-roles",
   behaviorRevision: "1",
   create(ctx) {
     return {

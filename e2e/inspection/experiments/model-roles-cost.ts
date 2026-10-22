@@ -1,8 +1,8 @@
 import { defineExperiment } from "niceeval";
-import { modelSlots } from "../adapters/model-slots.ts";
+import { roles } from "../adapters/model-roles.ts";
 
 export default defineExperiment({
-  adapter: modelSlots,
+  adapter: roles,
   models: { unused: { model: "fixture/unused" }, reviewer: { model: "fixture/unpriced" }, planner: { model: "fixture/shared" } },
-  evals: ["model-slots-cost"], attempts: 1,
+  evals: ["model-roles-cost"], attempts: 1,
 });

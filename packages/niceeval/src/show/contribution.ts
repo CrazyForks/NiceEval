@@ -59,6 +59,8 @@ const help = (summary: string) =>
 const option = (value: CliOptionDefinition): CliOptionDefinition =>
   Object.freeze(value);
 export const SHOW_CLI_OPTIONS = Object.freeze({
+  json: option({ type: "boolean", help: help("Print the public Attempt query result as JSON.") }),
+  exp: option({ type: "string", multiple: true, help: help("Show one Experiment; repeat to show more.") }),
   record: option({
     type: "string",
     help: help("Read an external canonical SQLite Record."),
@@ -113,7 +115,7 @@ Usage:
   niceeval show [--all] [--record <file>]
   niceeval show --run <run-id>... [--record <file>]
   niceeval show --experiment <experiment-id>... [--record <file>]
-  niceeval show @<locator> [--record <file>]
+  niceeval show @<locator> [--json] [--record <file>]
   niceeval show @<locator> --source
   niceeval show @<locator> --execution [--expand <stable-id>]
   niceeval show @<locator> --execution [--actor <id>] [--type <event-type>] [--continuation <token>]
@@ -204,8 +206,13 @@ function runShow(
       );
     const runIds = parseRunIds(parsed.values.run);
     if (typeof runIds === "string") return yield* usage(runIds);
-    const experimentIds = parseExperimentIds(parsed.values.experiment);
+    const primaryExperimentIds = parseExperimentIds(parsed.values.experiment);
+    if (typeof primaryExperimentIds === "string") return yield* usage(primaryExperimentIds);
+    const shortExperimentIds = parseExperimentIds(parsed.values.exp);
+    if (typeof shortExperimentIds === "string") return yield* usage(shortExperimentIds);
+    const experimentIds = [...primaryExperimentIds, ...shortExperimentIds];
     if (typeof experimentIds === "string") return yield* usage(experimentIds);
+    const json = parsed.values.json === true;
     const source = parsed.values.source === true;
     const execution = parsed.values.execution === true;
     const timing = parsed.values.timing === true;
@@ -228,6 +235,7 @@ function runShow(
       return yield* usage(`${listOptions.join(", ")} require --execution.`);
     if (listOptions.length > 0 && expand !== undefined)
       return yield* usage(`--expand cannot be combined with ${listOptions.join(", ")}.`);
+    if (json && (locator === undefined || detailModes > 0)) return yield* usage("--json requires one Attempt locator without a detail selector; use query for other JSON reads.");
     if (detailModes > 1)
       return yield* usage(
         "--source, --execution, --timing, --usage, and --diff are mutually exclusive.",
@@ -456,6 +464,7 @@ function runShow(
             locator: selectedLocator,
           }),
         );
+        if (json) { yield* write("stdout", `${JSON.stringify(document)}\n`); return 0; }
         const usage = yield* select("attempt.usage", () =>
           selectInspectionOperation(opened, { kind: "attempt.usage", locator: selectedLocator }),
         );

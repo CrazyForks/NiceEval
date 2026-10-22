@@ -1,4 +1,4 @@
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 // 配置身份的字段级投影:`configHash` 的哈希输入本身,加上「同一份输入怎样按字段路径比对」。
 //
 // 哈希只回答「等不等」,回答不了「哪里变了」。`--accept config:<字段路径>` 与 `--dry` 的逐条
@@ -24,7 +24,7 @@ import type { AdapterIdentity } from "../record/model/run-context.ts";
  * 无端改变基础 configHash。新增公开配置字段时只在这里裁决一次「进不进 configHash」。
  */
 export interface ConfigIdentity {
-  readonly models?: { readonly version: 1; readonly slots: ResolvedModelSlots };
+  readonly models?: { readonly version: 1; readonly slots: ResolvedModelRoles };
   readonly adapter: AdapterIdentity;
   readonly model: DeclaredConfigValue<string>;
   readonly reasoningEffort: DeclaredConfigValue<string>;

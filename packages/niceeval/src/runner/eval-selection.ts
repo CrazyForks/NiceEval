@@ -1,4 +1,4 @@
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 // 纯选题边界:发现结果 → EvalDescriptor 投影 → 用户谓词求值 → selectedEvalIds。
 // CLI 在构造每个 AgentRun 前对候选 eval 各调用一次谓词并把结果落进这里;下游(dry-run、
 // sandbox 查表、fingerprint/carry、attempt 展开、hook ctx、快照)只消费返回的
@@ -22,7 +22,7 @@ export function evalDescriptorOf(evalDef: DiscoveredEval): EvalDescriptor {
 
 export interface ResolveExperimentEvalsInput {
   experimentId: string;
-  models?: ResolvedModelSlots;
+  models?: ResolvedModelRoles;
   tag?: string;
   validateModelRequirements?: boolean;
   selector: ExperimentAuthorFields["evals"];
@@ -99,8 +99,8 @@ export function resolveExperimentEvals(input: ResolveExperimentEvalsInput): Reso
   }
   if (input.validateModelRequirements !== false) {
     const errors = selectorEvals.flatMap((evalDef) => {
-      const missing = evalDef.requiredModelSlots?.filter((key) => !Object.hasOwn(input.models ?? {}, key)) ?? [];
-      return missing.length === 0 ? [] : [`Eval "${evalDef.id}" requires undeclared model slots: ${missing.join(", ")}`];
+      const missing = evalDef.requiredModelRoles?.filter((key) => !Object.hasOwn(input.models ?? {}, key)) ?? [];
+      return missing.length === 0 ? [] : [`Eval "${evalDef.id}" requires undeclared model roles: ${missing.join(", ")}`];
     });
     if (errors.length > 0) throw new TypeError(`Experiment "${experimentId}": ${errors.join("; ")}.`);
   }

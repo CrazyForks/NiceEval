@@ -1,4 +1,4 @@
-import { normalizeModelRequirements, type ModelRequirements, type ResolvedModelSlot, type ResolvedModelSlots } from "./model-slots.ts";
+import { normalizeModelRequirements, type ModelRequirements, type ResolvedModelRole, type ResolvedModelRoles } from "./model-roles.ts";
 import { resolveAdapterCleanupTimeoutMs } from "./shared/adapter-cleanup.ts";
 import type { AttemptSignal } from "./shared/attempt-lifecycle.ts";
 export type { AttemptCancellation, AttemptSignal } from "./shared/attempt-lifecycle.ts";
@@ -186,10 +186,10 @@ export interface AdapterCleanupContext {
   readonly signal: AbortSignal;
 }
 
-export interface AdapterCreateContext<Flags = ExperimentFlags, Slots extends string = string> {
+export interface AdapterCreateContext<Flags = ExperimentFlags, Roles extends string = string> {
   /** Frozen application model selections for this Attempt. */
-  readonly models: Readonly<Record<Slots, ResolvedModelSlot>>;
-  recordUsage(input: Omit<import("./adapter-usage.ts").AdapterUsageInput, "modelSlot"> & { readonly modelSlot?: Slots | null }): void;
+  readonly models: Readonly<Record<Roles, ResolvedModelRole>>;
+  recordUsage(input: Omit<import("./adapter-usage.ts").AdapterUsageInput, "modelRole"> & { readonly modelRole?: Roles | null }): void;
   /** Close application usage admission and declare whether the recorded collection is complete. */
   sealUsage(input: import("./adapter-usage.ts").AdapterUsageSeal): void;
   attach(input: import("./adapter-attachments.ts").AdapterAttachmentInput): Promise<import("./adapter-attachments.ts").AdapterAttachmentReceipt>;
@@ -263,11 +263,11 @@ export type AdapterEvalInput<
   Context extends object,
   Assertions extends object | undefined = undefined,
   Flags extends AdapterFlagsParser = undefined,
-  Slots extends string = string,
+  Roles extends string = string,
 > = AdapterEvalFields & {
-  readonly requires?: ModelRequirements<Slots>;
+  readonly requires?: ModelRequirements<Roles>;
   test(
-    t: Omit<EvalContext<"pass", AdapterFlagsOutput<Flags>, Context>, "usage"> & { readonly usage: EvalUsage<NoInfer<Slots>> } & Readonly<Context> & AdapterAssertionsFor<Assertions, "pass">,
+    t: Omit<EvalContext<"pass", AdapterFlagsOutput<Flags>, Context>, "usage"> & { readonly usage: EvalUsage<NoInfer<Roles>> } & Readonly<Context> & AdapterAssertionsFor<Assertions, "pass">,
   ): void | Promise<void>;
 };
 
@@ -275,11 +275,11 @@ export type AdapterScoreEvalInput<
   Context extends object,
   Assertions extends object | undefined = undefined,
   Flags extends AdapterFlagsParser = undefined,
-  Slots extends string = string,
+  Roles extends string = string,
 > = AdapterScoreEvalFields & {
-  readonly requires?: ModelRequirements<Slots>;
+  readonly requires?: ModelRequirements<Roles>;
   test(
-    t: Omit<EvalContext<"score", AdapterFlagsOutput<Flags>, Context>, "usage"> & { readonly usage: EvalUsage<NoInfer<Slots>> } & Readonly<Context> & AdapterAssertionsFor<Assertions, "score">,
+    t: Omit<EvalContext<"score", AdapterFlagsOutput<Flags>, Context>, "usage"> & { readonly usage: EvalUsage<NoInfer<Roles>> } & Readonly<Context> & AdapterAssertionsFor<Assertions, "score">,
   ): void | Promise<void>;
 };
 
@@ -324,9 +324,9 @@ export interface AdapterDefinition<
 > {
   readonly name: string;
   readonly parseFlags: Flags;
-  defineEval<const Slots extends string = string>(input: AdapterEvalInput<Context, Assertions, Flags, Slots>): AdapterEvalDefinition<"pass", Context, Assertions, Flags>;
-  defineScoreEval<const Slots extends string = string>(
-    input: AdapterScoreEvalInput<Context, Assertions, Flags, Slots>,
+  defineEval<const Roles extends string = string>(input: AdapterEvalInput<Context, Assertions, Flags, Roles>): AdapterEvalDefinition<"pass", Context, Assertions, Flags>;
+  defineScoreEval<const Roles extends string = string>(
+    input: AdapterScoreEvalInput<Context, Assertions, Flags, Roles>,
   ): AdapterEvalDefinition<"score", Context, Assertions, Flags>;
 }
 
@@ -334,7 +334,7 @@ export interface AdapterDefinition<
 export interface AdapterRuntimeDefinition {
   readonly parseFlags?: Exclude<AdapterFlagsParser, undefined>;
   readonly kind: "custom";
-  readonly requiredModelSlots?: readonly string[];
+  readonly requiredModelRoles?: readonly string[];
   readonly name: string;
   readonly contract: string;
   readonly behaviorRevision: string | null;
@@ -444,14 +444,14 @@ function boundEvalFactories<
       assertAdapterEvalInput(input, "defineEval");
       return defineEvalForContext("pass", input, {
         [EVAL_ADAPTER_CONTRACT_TOKEN]: token,
-        requiredModelSlots: normalizeModelRequirements(input.requires),
+        requiredModelRoles: normalizeModelRequirements(input.requires),
       }) as AdapterEvalDefinition<"pass", Context, Assertions, Flags>;
     },
     defineScoreEval(input) {
       assertAdapterEvalInput(input, "defineScoreEval");
       return defineEvalForContext("score", input, {
         [EVAL_ADAPTER_CONTRACT_TOKEN]: token,
-        requiredModelSlots: normalizeModelRequirements(input.requires),
+        requiredModelRoles: normalizeModelRequirements(input.requires),
       }) as AdapterEvalDefinition<"score", Context, Assertions, Flags>;
     },
   };
@@ -496,7 +496,7 @@ function implementAdapter<
   };
   return Object.freeze({
     kind: "custom" as const,
-    requiredModelSlots: normalizeModelRequirements(input.requires),
+    requiredModelRoles: normalizeModelRequirements(input.requires),
     parseFlags: token.parseFlags,
     name: input.name,
     contract: token.name,
@@ -509,13 +509,13 @@ function implementAdapter<
 }
 
 /** Defines one Adapter implementation with an automatically private contract. */
-export function defineAdapter<Context extends object, Flags extends AdapterFlagsParser = undefined, const Slots extends string = string>(input: {
+export function defineAdapter<Context extends object, Flags extends AdapterFlagsParser = undefined, const Roles extends string = string>(input: {
   readonly name: string;
-  readonly requires?: ModelRequirements<Slots>;
+  readonly requires?: ModelRequirements<Roles>;
   readonly behaviorRevision?: string;
   /** Adapter 总清理预算，默认 30000 ms；允许整数 1–300000。 */
   readonly cleanupTimeoutMs?: number;
-  readonly create: (context: AdapterCreateContext<AdapterFlagsOutput<Flags>, NoInfer<Slots>>) => (Context & ThisType<Context>) | Promise<Context & ThisType<Context>>;
+  readonly create: (context: AdapterCreateContext<AdapterFlagsOutput<Flags>, NoInfer<Roles>>) => (Context & ThisType<Context>) | Promise<Context & ThisType<Context>>;
   readonly parseFlags?: Flags;
   readonly assertions?: undefined;
 } & AdapterContextValidation<NoInfer<Context>> & AdapterFlagsParserValidation<NoInfer<Flags>>): AdapterImplementation<Context, undefined, Flags>;
@@ -523,14 +523,14 @@ export function defineAdapter<
   Context extends object,
   Assertions extends object,
   Flags extends AdapterFlagsParser = undefined,
-  const Slots extends string = string,
+  const Roles extends string = string,
 >(input: {
   readonly name: string;
-  readonly requires?: ModelRequirements<Slots>;
+  readonly requires?: ModelRequirements<Roles>;
   readonly behaviorRevision?: string;
   /** Adapter 总清理预算，默认 30000 ms；允许整数 1–300000。 */
   readonly cleanupTimeoutMs?: number;
-  readonly create: (context: AdapterCreateContext<AdapterFlagsOutput<Flags>, NoInfer<Slots>>) => (Context & ThisType<Context>) | Promise<Context & ThisType<Context>>;
+  readonly create: (context: AdapterCreateContext<AdapterFlagsOutput<Flags>, NoInfer<Roles>>) => (Context & ThisType<Context>) | Promise<Context & ThisType<Context>>;
   readonly parseFlags?: Flags;
   /** Attempt-local Assertion sugar, assembled once after create() succeeds. */
   readonly assertions: AdapterAssertionsFactory<Context, Assertions>;

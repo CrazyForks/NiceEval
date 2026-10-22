@@ -1,7 +1,7 @@
 import { defineAdapter, type AdapterUsageInput } from "niceeval";
 
-export const modelSlots = defineAdapter({
-  name: "model-slots",
+export const roles = defineAdapter({
+  name: "model-roles",
   behaviorRevision: "1",
   create(ctx) {
     const initialModels = ctx.models;
@@ -21,7 +21,7 @@ export const modelSlots = defineAdapter({
       catchInvalidReference() {
         try {
           ctx.recordUsage({
-            callId: "invalid-slot", modelSlot: "undeclared", provider: null,
+            callId: "invalid-slot", modelRole: "undeclared", provider: null,
             model: "fixture/actual", status: "succeeded", inputTokens: 1, outputTokens: 1,
           });
           return false;

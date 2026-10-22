@@ -1,4 +1,4 @@
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 import type { ExperimentFlags } from "../shared/types.ts";
 import type { AdapterIdentity } from "../record/model/run-context.ts";
 import type { EvaluationKind } from "./types.ts";
@@ -21,7 +21,7 @@ export interface ProjectCurrentExperimentTarget {
   readonly attempts: number;
   readonly adapter: AdapterIdentity;
   readonly model?: string;
-  readonly models?: ResolvedModelSlots;
+  readonly models?: ResolvedModelRoles;
   readonly reasoningEffort?: string;
   readonly flags: ExperimentFlags;
   readonly labels?: globalThis.Record<string, string | number>;

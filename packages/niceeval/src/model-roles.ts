@@ -1,37 +1,37 @@
 import { Schema } from "effect";
 
 /** A model selected for one application-defined purpose. */
-export interface ModelSlotSelection {
+export interface ModelRoleSelection {
   readonly model: string;
   readonly reasoningEffort?: string;
 }
 
 /** Frozen selection; null preserves an unspecified native default. */
-export interface ResolvedModelSlot {
+export interface ResolvedModelRole {
   readonly model: string | null;
   readonly reasoningEffort: string | null;
 }
-export type ResolvedModelSlots = Readonly<Record<string, ResolvedModelSlot>>;
+export type ResolvedModelRoles = Readonly<Record<string, ResolvedModelRole>>;
 
 const modelText = Schema.String.check(Schema.isPattern(/\S/u));
-const slotKey = Schema.String.check(Schema.isPattern(/^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\s\S])/u));
-const selections = Schema.Record(slotKey, Schema.Struct({
+const roleKey = Schema.String.check(Schema.isPattern(/^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\s\S])/u));
+const selections = Schema.Record(roleKey, Schema.Struct({
   model: modelText,
   reasoningEffort: Schema.optionalKey(modelText),
 })).check(Schema.makeFilter((value) => Object.keys(value).length > 0 && Object.keys(value).length <= 64));
 
 export interface ModelRequirements<Keys extends string = string> {
-  readonly models: Readonly<Record<Keys, ModelSlotSelection>>;
+  readonly models: Readonly<Record<Keys, ModelRoleSelection>>;
 }
 
 /** Share immutable model purposes without binding an Eval to one Experiment. */
-export function defineModelSlots<const Keys extends string>(
-  input: Readonly<Record<Keys, ModelSlotSelection>>,
-): Readonly<Record<Keys, ModelSlotSelection>> {
+export function defineModelRoles<const Keys extends string>(
+  input: Readonly<Record<Keys, ModelRoleSelection>>,
+): Readonly<Record<Keys, ModelRoleSelection>> {
   const decoded = Schema.decodeUnknownSync(selections, { onExcessProperty: "error" })(input);
   return Object.freeze(Object.fromEntries(Object.keys(decoded).sort().map((key) =>
     [key, Object.freeze({ ...decoded[key]! })],
-  ))) as Readonly<Record<Keys, ModelSlotSelection>>;
+  ))) as Readonly<Record<Keys, ModelRoleSelection>>;
 }
 
 export function normalizeModelRequirements(value: unknown): readonly string[] | undefined {
@@ -40,26 +40,26 @@ export function normalizeModelRequirements(value: unknown): readonly string[] | 
   return Object.freeze(Object.keys(decoded.models).sort());
 }
 
-export function assertRequiredModelSlots(
+export function assertRequiredModelRoles(
   required: readonly string[] | undefined,
-  models: ResolvedModelSlots | undefined,
+  models: ResolvedModelRoles | undefined,
   subject: string,
 ): void {
   const missing = required?.filter((key) => !Object.hasOwn(models ?? {}, key)) ?? [];
-  if (missing.length > 0) throw new TypeError(`${subject} requires undeclared model slots: ${missing.join(", ")}.`);
+  if (missing.length > 0) throw new TypeError(`${subject} requires undeclared model roles: ${missing.join(", ")}.`);
 }
 
-export const ResolvedModelSlotsSchema: Schema.Codec<ResolvedModelSlots> = Schema.Record(slotKey, Schema.Struct({
+export const ResolvedModelRolesSchema: Schema.Codec<ResolvedModelRoles> = Schema.Record(roleKey, Schema.Struct({
   model: Schema.NullOr(modelText),
   reasoningEffort: Schema.NullOr(modelText),
 })).check(Schema.makeFilter((value) => Object.keys(value).length <= 64));
 
 /** Only the definition boundary interprets author syntax. Downstream owners pass this value through. */
-export function normalizeModelSlots(input: {
+export function normalizeModelRoles(input: {
   readonly model?: string;
   readonly reasoningEffort?: string;
-  readonly models?: Readonly<Record<string, ModelSlotSelection>>;
-}): ResolvedModelSlots {
+  readonly models?: Readonly<Record<string, ModelRoleSelection>>;
+}): ResolvedModelRoles {
   if (input.models !== undefined) {
     if (input.model !== undefined || input.reasoningEffort !== undefined) {
       throw new TypeError("Experiment models cannot be combined with model or reasoningEffort.");

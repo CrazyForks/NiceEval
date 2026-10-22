@@ -2,7 +2,7 @@ import { projectAdapterEvalUsage, type EvalUsage } from "../o11y/eval-usage.ts";
 import { Result, Schema } from "effect";
 import type { AdapterUsageInput, AdapterUsageSeal } from "../adapter-usage.ts";
 import { SafeIdentifierSchema } from "../record/family/common.ts";
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 import { createAdapterCallPriceReceipts } from "../o11y/adapter-call-price.ts";
 import { RecordExactParseOptions } from "../record/codec/core.ts";
 import { AdapterUsageCallSchema, AdapterUsageLimits, validateAdapterUsageCalls, type AdapterUsageCall, type AdapterUsageAttachment } from "../record/family/adapter-usage/schema.ts";
@@ -30,17 +30,18 @@ export class AdapterUsageCollector {
   constructor(
     private readonly assertOpen: () => void,
     private readonly pricing: Readonly<Record<string, PriceOverride>> | undefined,
-    private readonly models: ResolvedModelSlots = {},
+    private readonly models: ResolvedModelRoles = {},
   ) {}
   record = (input: AdapterUsageInput): void => {
     if (this.closed) throw new Error("Adapter usage capture is closed");
     this.assertOpen();
     try {
+      if (Object.hasOwn(input, "modelSlot")) throw new Error("Adapter usage modelSlot is no longer supported; use modelRole");
       if (this.sealed !== undefined) throw new Error("Adapter usage is already sealed");
       const decoded = Schema.decodeUnknownResult(AdapterUsageCallSchema, RecordExactParseOptions)({
-        ...input,
+        ...Object.fromEntries(Object.entries(input).filter(([key]) => key !== "modelRole")),
         retryOf: input.retryOf ?? null,
-        modelSlot: input.modelSlot ?? null,
+        modelSlot: input.modelRole ?? null,
         route: input.route ?? { transportProvider: null, endpointId: null },
         cost: input.cost ?? null,
         inputTotalTokens: input.inputTotalTokens ?? null,
@@ -50,7 +51,7 @@ export class AdapterUsageCollector {
       if (Result.isFailure(decoded)) throw new Error("Invalid Adapter usage snapshot");
       const call = deepFreeze(structuredClone(decoded.success));
       if (call.modelSlot !== null && !Object.hasOwn(this.models, call.modelSlot)) {
-        throw new Error("Adapter usage modelSlot must reference a configured model purpose in this Attempt");
+        throw new Error("Adapter usage modelRole must reference a configured model purpose in this Attempt");
       }
       const prior = this.calls.get(call.callId);
       if (prior !== undefined) {

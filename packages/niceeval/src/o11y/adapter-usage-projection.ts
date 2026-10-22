@@ -2,14 +2,15 @@ import { projectCacheRead } from "./cache-read.ts";
 import type { ReadableAdapterUsageAttachment, AdapterUsageCall, AdapterCallPriceReceipt } from "../record/family/adapter-usage/schema.ts";
 import { addCanonicalDecimals } from "../record/family/adapter-usage/pricing.ts";
 import type { NumericMaterial } from "../assertions/match.ts";
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 export interface EffectiveCallCost { readonly amount: string; readonly currency: string; readonly source: { readonly kind: "reported" | "estimated"; readonly id: string }; readonly state: "complete" | "partial" }
-export type EffectiveUsageCall = AdapterUsageCall & { readonly effectiveCost: EffectiveCallCost | null };
+export type EffectiveUsageCall = Omit<AdapterUsageCall, "modelSlot"> & { readonly modelRole: string | null } & { readonly effectiveCost: EffectiveCallCost | null };
 export function effectiveUsageCalls(usage: ReadableAdapterUsageAttachment): readonly EffectiveUsageCall[] {
   const receipts = new Map((usage.priceReceipts ?? []).map((receipt) => [receipt.callId, receipt]));
   return Object.freeze(usage.calls.map((call) => {
     const receipt = receipts.get(call.callId);
-    return Object.freeze({ ...call, effectiveCost: call.cost !== null ? Object.freeze({ ...call.cost, state: "complete" as const }) : receipt === undefined ? null : Object.freeze({ amount: receipt.amount, currency: receipt.currency, source: receipt.source, state: receipt.state }) });
+    const { modelSlot, ...fields } = call;
+    return Object.freeze({ ...fields, modelRole: modelSlot, effectiveCost: call.cost !== null ? Object.freeze({ ...call.cost, state: "complete" as const }) : receipt === undefined ? null : Object.freeze({ amount: receipt.amount, currency: receipt.currency, source: receipt.source, state: receipt.state }) });
   }));
 }
 export function effectiveCostTotals(calls: readonly { readonly effectiveCost: EffectiveCallCost | null }[], collectionState: "complete" | "partial") {
@@ -20,11 +21,11 @@ export function effectiveCostTotals(calls: readonly { readonly effectiveCost: Ef
   const complete = collectionState === "complete" && known.length === calls.length && known.every((cost) => cost.state === "complete");
   return Object.freeze({ state: known.length === 0 ? "unavailable" as const : complete ? "complete" as const : "partial" as const, source: kind(known), values: Object.freeze([...grouped.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([currency, values]) => Object.freeze({ currency, value: addCanonicalDecimals(values.map((value) => value.amount)), source: kind(values)!, coveredCalls: values.filter((value) => value.state === "complete").length, reportedCalls: values.filter((value) => value.source.kind === "reported").length, estimatedCalls: values.filter((value) => value.source.kind === "estimated").length }))), totalCalls: calls.length });
 }
-function inputTotal(call: AdapterUsageCall): { value: number | null; complete: boolean } {
+function inputTotal(call: Omit<AdapterUsageCall, "modelSlot">): { value: number | null; complete: boolean } {
   const known = [call.inputTokens, call.cacheReadTokens, call.cacheWriteTokens].filter((value): value is number => value !== null);
   return { value: call.inputTotalTokens ?? (known.length === 0 ? null : known.reduce((sum, value) => sum + value, 0)), complete: call.inputTotalTokens !== null || known.length === 3 };
 }
-export function adapterTokenMaterial(usage: ReadableAdapterUsageAttachment, metric: "inputTokens" | "inputTotalTokens" | "outputTokens" | "cacheReadTokens" | "cacheWriteTokens" | "totalTokens"): NumericMaterial {
+export function adapterTokenMaterial(usage: { readonly collection: ReadableAdapterUsageAttachment["collection"]; readonly calls: readonly Omit<AdapterUsageCall, "modelSlot">[] }, metric: "inputTokens" | "inputTotalTokens" | "outputTokens" | "cacheReadTokens" | "cacheWriteTokens" | "totalTokens"): NumericMaterial {
   const provenance = Object.freeze({ source: "adapter", scope: "recorded-calls", unit: "tokens", cut: "call-time" });
   let value = 0; let observations = 0; let complete = usage.collection.state === "complete" && usage.calls.length > 0;
   for (const call of usage.calls) {
@@ -44,7 +45,7 @@ export function adapterTokenMaterial(usage: ReadableAdapterUsageAttachment, metr
 }
 
 export function adapterInspectionTokenTotal(
-  usage: ReadableAdapterUsageAttachment,
+  usage: { readonly collection: ReadableAdapterUsageAttachment["collection"]; readonly calls: readonly Omit<AdapterUsageCall, "modelSlot">[] },
   metric: "inputTotalTokens" | "outputTokens" | "totalTokens",
 ) {
   const material = adapterTokenMaterial(usage, metric);
@@ -61,10 +62,10 @@ export function adapterInspectionTokenTotal(
 
 /** Tuple order is stable across hosts, with missing identities before strings. */
 export function compareAdapterModelGroups(
-  left: Pick<AdapterUsageCall, "modelSlot" | "provider" | "model">,
-  right: Pick<AdapterUsageCall, "modelSlot" | "provider" | "model">,
+  left: Pick<EffectiveUsageCall, "modelRole" | "provider" | "model">,
+  right: Pick<EffectiveUsageCall, "modelRole" | "provider" | "model">,
 ): number {
-  for (const key of ["modelSlot", "provider", "model"] as const) {
+  for (const key of ["modelRole", "provider", "model"] as const) {
     const a = left[key]; const b = right[key];
     if (a === b) continue;
     if (a === null) return -1;
@@ -77,7 +78,7 @@ export function compareAdapterModelGroups(
 /** Configuration counts and grouped statistics both consume the complete sealed ledger. */
 export function projectAdapterModelUsage(
   usage: ReadableAdapterUsageAttachment | null,
-  models: ResolvedModelSlots | undefined,
+  models: ResolvedModelRoles | undefined,
   unavailable: {
     readonly basis: "recorded-calls" | "reported-sends" | "unavailable";
     readonly reason: "source-invalid" | "usage-not-recorded" | "physical-call-identity-not-recorded";
@@ -93,9 +94,9 @@ export function projectAdapterModelUsage(
     ? Object.freeze({ state: "not-recorded" as const })
     : Object.freeze({
         state: "available" as const,
-        bindings: Object.freeze(Object.keys(models).sort().map((modelSlot) => Object.freeze({
-          modelSlot, ...models[modelSlot]!,
-          recordedCalls: usage === null ? null : counts.get(modelSlot) ?? 0,
+        bindings: Object.freeze(Object.keys(models).sort().map((modelRole) => Object.freeze({
+          modelRole, ...models[modelRole]!,
+          recordedCalls: usage === null ? null : counts.get(modelRole) ?? 0,
         }))),
       });
   if (usage === null) return Object.freeze({
@@ -109,17 +110,17 @@ export function projectAdapterModelUsage(
   });
   const grouped = new Map<string, EffectiveUsageCall[]>();
   for (const call of effectiveUsageCalls(usage)) {
-    const identity = JSON.stringify([call.modelSlot, call.provider, call.model]);
+    const identity = JSON.stringify([call.modelRole, call.provider, call.model]);
     const group = grouped.get(identity);
     if (group === undefined) grouped.set(identity, [call]);
     else group.push(call);
   }
   const allGroups = [...grouped.values()].sort((left, right) => compareAdapterModelGroups(left[0]!, right[0]!));
   const groups = allGroups.slice(0, 64).map((calls) => {
-    const { modelSlot, provider, model } = calls[0]!;
+    const { modelRole, provider, model } = calls[0]!;
     const groupUsage = { ...usage, calls };
     return Object.freeze({
-      modelSlot, provider, model, recordedCalls: calls.length,
+      modelRole, provider, model, recordedCalls: calls.length,
       tokens: Object.freeze({
         inputTotalTokens: adapterInspectionTokenTotal(groupUsage, "inputTotalTokens"),
         outputTokens: adapterInspectionTokenTotal(groupUsage, "outputTokens"),

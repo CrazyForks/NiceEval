@@ -7,10 +7,10 @@ import { evalE2E } from "./context.ts";
 // @feature docs/feature/adapters/README.md
 // @regression memory/shared-model-purpose-requirements.md
 test.concurrent("共享用途要求在计划前拒绝缺失且同一 Eval 可复用不同模型", async () => {
-  await evalE2E.case("required-model-slots", async ({ paths, commands: { niceeval } }) => {
+  await evalE2E.case("required-model-roles", async ({ paths, commands: { niceeval } }) => {
     await writeFile(join(paths.projectRoot, "fixtures/required-purposes.ts"), `
-      import { defineAdapter, defineModelSlots } from "niceeval";
-      export const purposes = defineModelSlots({ mind: { model: "fixture/mind" }, speech: { model: "fixture/speech" } });
+      import { defineAdapter, defineModelRoles } from "niceeval";
+      export const purposes = defineModelRoles({ mind: { model: "fixture/mind" }, speech: { model: "fixture/speech" } });
       export const adapter = defineAdapter({ name: "required-purposes", create() { return { observed: () => true }; } });
     `);
     await writeFile(join(paths.projectRoot, "evals/required-purposes.eval.ts"), `
@@ -35,9 +35,9 @@ test.concurrent("共享用途要求在计划前拒绝缺失且同一 Eval 可复
       import assert from "node:assert/strict";
       import { Cause, Effect, Exit } from "effect";
       import { experimentHost } from "niceeval/experiment/host";
-      import { defineAdapter, defineModelSlots } from "niceeval";
+      import { defineAdapter, defineModelRoles } from "niceeval";
       const input = { mind: { model: "fixture/mind" } };
-      const shared = defineModelSlots(input);
+      const shared = defineModelRoles(input);
       assert.ok(Object.isFrozen(shared) && Object.isFrozen(shared.mind));
       assert.equal(Object.isFrozen(input), false);
       input.mind.model = "fixture/changed";

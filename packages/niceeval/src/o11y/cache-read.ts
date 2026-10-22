@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import type { ResolvedModelSlots } from "../model-slots.ts";
+import type { ResolvedModelRoles } from "../model-roles.ts";
 import type { AdapterUsageCall, ReadableAdapterUsageAttachment } from "../record/family/adapter-usage/schema.ts";
 import { NonNegativeSafeIntegerSchema } from "../record/family/common.ts";
 
@@ -38,9 +38,9 @@ const Summary = SummaryShape.check(Schema.makeFilter(consistent));
 export type CacheReadSummary = typeof Summary.Type;
 export const CacheReadReportSchema = Schema.Struct({
   total: Summary,
-  modelSlots: Schema.Array(Schema.Struct({ modelSlot: Schema.NullOr(Schema.String), ...fields }).check(Schema.makeFilter(consistent))),
-  models: Schema.Array(Schema.Struct({ modelSlot: Schema.NullOr(Schema.String), provider: Schema.NullOr(Schema.String), model: Schema.NullOr(Schema.String), ...fields }).check(Schema.makeFilter(consistent))),
-}).check(Schema.makeFilter((value) => value.modelSlots.length <= 65 && value.models.length <= 4000));
+  roles: Schema.Array(Schema.Struct({ modelRole: Schema.NullOr(Schema.String), ...fields }).check(Schema.makeFilter(consistent))),
+  models: Schema.Array(Schema.Struct({ modelRole: Schema.NullOr(Schema.String), provider: Schema.NullOr(Schema.String), model: Schema.NullOr(Schema.String), ...fields }).check(Schema.makeFilter(consistent))),
+}).check(Schema.makeFilter((value) => value.roles.length <= 65 && value.models.length <= 4000));
 /** Complete per-Attempt report; unknown model identities remain null. */
 export type CacheReadReport = typeof CacheReadReportSchema.Type;
 
@@ -79,27 +79,27 @@ const compare = (a: string | null, b: string | null): number => a === b ? 0 : a 
 /** A historical collection marked complete is not proof of an explicit producer seal. */
 export function projectCacheRead(
   usage: ReadableAdapterUsageAttachment | null,
-  slots: ResolvedModelSlots | undefined,
+  roles: ResolvedModelRoles | undefined,
   producerCompletenessKnown: boolean,
   absent: "usage-not-recorded" | "source-invalid" | "adapter-usage-required" = "usage-not-recorded",
 ): CacheReadReport {
-  if (usage === null) return Object.freeze({ total: summary([], false, absent), modelSlots: Object.freeze([]), models: Object.freeze([]) });
+  if (usage === null) return Object.freeze({ total: summary([], false, absent), roles: Object.freeze([]), models: Object.freeze([]) });
   const complete = producerCompletenessKnown && usage.collection.state === "complete";
-  const bySlot = new Map<string | null, AdapterUsageCall[]>(Object.keys(slots ?? {}).map((slot) => [slot, []]));
+  const byRole = new Map<string | null, AdapterUsageCall[]>(Object.keys(roles ?? {}).map((role) => [role, []]));
   const byModel = new Map<string, AdapterUsageCall[]>();
   for (const call of usage.calls) {
-    const slot = bySlot.get(call.modelSlot);
-    if (slot === undefined) bySlot.set(call.modelSlot, [call]); else slot.push(call);
+    const role = byRole.get(call.modelSlot);
+    if (role === undefined) byRole.set(call.modelSlot, [call]); else role.push(call);
     const key = JSON.stringify([call.modelSlot, call.provider, call.model]);
     const model = byModel.get(key);
     if (model === undefined) byModel.set(key, [call]); else model.push(call);
   }
   const models = [...byModel.values()].map((calls) => {
-    const { modelSlot, provider, model } = calls[0]!;
-    return Object.freeze({ modelSlot, provider, model, ...summary(calls, complete) });
-  }).sort((a, b) => compare(a.modelSlot, b.modelSlot) || compare(a.provider, b.provider) || compare(a.model, b.model));
+    const { modelSlot: modelRole, provider, model } = calls[0]!;
+    return Object.freeze({ modelRole, provider, model, ...summary(calls, complete) });
+  }).sort((a, b) => compare(a.modelRole, b.modelRole) || compare(a.provider, b.provider) || compare(a.model, b.model));
   return Object.freeze({ total: summary(usage.calls, complete),
-    modelSlots: Object.freeze([...bySlot].sort(([a], [b]) => compare(a, b)).map(([modelSlot, calls]) => Object.freeze({ modelSlot, ...summary(calls, complete) }))),
+    roles: Object.freeze([...byRole].sort(([a], [b]) => compare(a, b)).map(([modelRole, calls]) => Object.freeze({ modelRole, ...summary(calls, complete) }))),
     models: Object.freeze(models),
   });
 }

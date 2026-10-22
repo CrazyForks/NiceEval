@@ -1,7 +1,7 @@
 import { equals } from "niceeval/expect";
-import { modelSlots } from "../fixtures/model-slots.ts";
+import { roles } from "../fixtures/model-roles.ts";
 
-export default modelSlots.defineEval({
+export default roles.defineEval({
   description: "Read one immutable canonical selection and its default aliases",
   test(t) {
     const first = t.selection();
@@ -15,7 +15,7 @@ export default modelSlots.defineEval({
     t.check(t.reasoningEffort ?? null, equals(first.reasoningEffort)).gate();
     // An unattributed observation makes the ledger available without inventing a default reference.
     t.record({ callId: "unattributed", provider: null, model: null, status: "succeeded", inputTokens: 0, outputTokens: 0 });
-    t.record({ callId: "explicit-null", modelSlot: null, provider: null, model: null, status: "succeeded", inputTokens: 0, outputTokens: 0 });
+    t.record({ callId: "explicit-null", modelRole: null, provider: null, model: null, status: "succeeded", inputTokens: 0, outputTokens: 0 });
     t.finishUsage();
   },
 });
