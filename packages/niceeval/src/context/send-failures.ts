@@ -6,7 +6,6 @@ import type { StreamEvent, Usage } from "../types.ts";
 import {
   callClassifier,
   failureClassOf,
-  type AttemptFailureClassifier,
   type FailureClass,
 } from "../shared/failure-class.ts";
 import {
@@ -116,24 +115,17 @@ export function classifySendFailure(failure: SendFailure): FailureClass {
 }
 
 export interface SendFailureClassifiers {
-  experiment?: AttemptFailureClassifier;
   adapter?: SendFailureClassifier;
 }
 
-/** 完整五道链：声明 → 实验 → adapter → 保守回退 → acceptance 门。 */
+/** 分类链：声明 → Adapter → 保守回退 → acceptance 门。 */
 export function resolveSendFailureClass(
   failure: SendFailure,
   classifiers: SendFailureClassifiers = {},
 ): FailureClass {
   const declared = failureClassOf(failure);
-  const info = {
-    phase: "agent.run" as const,
-    text: sendFailureText(failure),
-    cause: normalizeExternalCause(failure),
-  };
   const resolved =
     declared ??
-    callClassifier(classifiers.experiment, info) ??
     callClassifier(classifiers.adapter, failure) ??
     classifySendFailure(failure);
   const hasStartedEvidence = failure.events !== undefined && sendAcceptanceFromEvents(failure.events) === "started";

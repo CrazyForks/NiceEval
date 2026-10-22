@@ -1,9 +1,8 @@
 import { equals } from "niceeval/expect";
-import { customTimeoutCancellation, timeoutClosedRegistrationReporter } from "../fixtures/custom-applications.ts";
+import { customTimeoutCancellation } from "../fixtures/custom-applications.ts";
 
 export default customTimeoutCancellation.defineEval({
   description: "Attempt 取消后清理资源并拒绝迟到 Assertion",
-  reporters: [timeoutClosedRegistrationReporter],
   async test(t) {
     const observations = t.observations;
     const { onCancellation } = t;

@@ -70,7 +70,7 @@ query discover
 | 找不到项目的结果文件 | 确认在项目目录里运行，并检查 `.niceeval/record.sqlite` 是否存在。 |
 | `--record` 指定的文件被拒绝 | 确认它是运行结束后复制的完整单文件，复制期间没有别的进程在写。不要删除还没合并的 WAL 文件。外部文件会经过完整性和数据一致性校验。 |
 | 不支持的格式版本或数据库无效 | 保留原文件，核实写入它的 NiceEval 版本。支持的历史格式会自动升级；未知格式或损坏的数据不会被修补，也不会只读一部分。 |
-| Run 仍为 `active`，但原进程已经终止 | 先用 `pnpm exec niceeval run show <run-id>` 核对，再运行 `pnpm exec niceeval run recover <run-id> --yes`。 |
+| Run 仍为 `active`，但原进程已经终止 | 先用 `pnpm exec niceeval show --run <run-id>` 核对，再运行 `pnpm exec niceeval run recover <run-id> --yes`。 |
 
 已发布的结果不能手动修改。需要不同的结果时，重新运行创建新的 Run。`niceeval run recover` 只会结束能证明原进程已经终止的 Run，已经发布的 Attempt 都会保留。完整步骤见[运行被强杀后恢复](/zh/troubleshooting/recover-after-kill)。
 
@@ -78,7 +78,7 @@ query discover
 
 这里的格式版本是结果文件内部的标识，和 NiceEval 的 npm 包版本无关。不要通过修改数据库里的版本字段尝试升级。
 
-`show`、`query`、`run list`、`run show` 与 `view` 可以直接读取 0.15、0.16、0.17 格式的历史结果文件。读取时 NiceEval 在私有副本里自动升级，原文件、Run、Attempt 和引用都保持不变，不需要先运行评估。
+`show`、`query`、`run list`、`show --run` 与 `view` 可以直接读取 0.15、0.16、0.17 格式的历史结果文件。读取时 NiceEval 在私有副本里自动升级，原文件、Run、Attempt 和引用都保持不变，不需要先运行评估。
 
 用 `--record` 读取时，文件必须是已经交付的完整单文件，读取期间不能被其它进程修改。文件还带着未合并的 WAL、仍有运行在写，或无法确认写入进程是否已经结束时，命令会拒绝读取。不要删除旁边的文件来绕过检查。
 

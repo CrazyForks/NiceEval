@@ -12,7 +12,7 @@ pnpm add niceeval@^0.18.0
 
 ## Share model purposes
 
-Extract a declaration with `defineModelSlots`, then reference it from the experiment's `models` and the Adapter-bound eval's `requires.models`.
+Extract a declaration with `defineModelRoles`, then reference it from the experiment's `models` and the Adapter-bound eval's `requires.models`.
 Adding `requires.models` to `defineAdapter` also narrows the purpose keys in `ctx.models` and `ctx.recordUsage`.
 For a complete example, see [Check cache read rate by purpose](/tutorials/control-run-cost#type-check-model-purpose-names).
 

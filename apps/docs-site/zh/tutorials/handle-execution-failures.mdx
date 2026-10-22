@@ -95,35 +95,9 @@ export default defineEval({
 
 错误消息会出现在终端和运行记录中。请写明发生了什么，以及下一步怎么修复。
 
-## 识别运行中断开的共享服务
+## 共享服务在执行中断开
 
-有些共享服务在实验开始时正常，却在运行中断开。这种失败通常由 SDK、CLI 或网络库抛出。你可以用实验的 `classifyFailure` 识别自己的服务地址：
-
-```ts
-// experiments/compare.ts
-import { defineExperiment } from "niceeval";
-
-const serviceHost = "memory.internal.example";
-
-export default defineExperiment({
-  // agent 和 sandbox 配置省略
-  classifyFailure({ text }) {
-    const isOurService = text.includes(serviceHost);
-    const isConnectionFailure = /ECONNREFUSED|ENOTFOUND|connection refused/i.test(text);
-
-    if (isOurService && isConnectionFailure) {
-      return {
-        retryable: false,
-        scope: "experiment",
-        reason: "shared_service_unavailable",
-      };
-    }
-    return undefined;
-  },
-});
-```
-
-只识别你能确定影响范围的服务。不要把所有 `ECONNREFUSED` 都当成实验级故障，因为 Agent 访问其他站点时也可能出现同样的错误。
+在能够确认影响范围的调用边界捕获 SDK 错误，抛出 `ExperimentFatalError` 或 `EvalFatalError`，并通过 cause 保留原始错误。Experiment 不再接受 `classifyFailure`；内建重试规则与 Adapter 的 `classifySendFailure` 保留。
 
 ## 修好后补跑没完成的部分
 

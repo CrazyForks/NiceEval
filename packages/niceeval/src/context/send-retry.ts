@@ -3,7 +3,7 @@
 
 import { Clock, Effect, Random } from "effect";
 
-import { attachFailureClass, type AttemptFailureClassifier, type FailureClass } from "../shared/failure-class.ts";
+import { attachFailureClass, type FailureClass } from "../shared/failure-class.ts";
 import {
   makeSendFailure,
   normalizeSendFailure,
@@ -42,7 +42,6 @@ export interface RetriedSendFailure {
 
 export interface SendRetryDeps {
   classifier?: SendFailureClassifier;
-  experimentClassifier?: AttemptFailureClassifier;
   /** 只回报被自动重试吸收的物理失败；终局失败由抛出值承载。 */
   onRetryAttempt?: (attempt: RetriedSendFailure) => void;
   budget: AttemptRetryBudget;
@@ -109,7 +108,6 @@ export function sendWithTurnRetry<T>(
             Number(monotonicEndedAt - monotonicStartedAt) / 1_000_000,
           );
           const cls = resolveSendFailureClass(failure, {
-            experiment: deps.experimentClassifier,
             adapter: deps.classifier,
           });
           if (!cls.retryable) return yield* Effect.fail(attachFailureClass(failure, cls));

@@ -12,7 +12,7 @@ pnpm add niceeval@^0.18.0
 
 ## 共享模型用途
 
-用 `defineModelSlots` 提取声明，实验的 `models` 与 Adapter 绑定评估的 `requires.models` 引用它。
+用 `defineModelRoles` 提取声明，实验的 `models` 与 Adapter 绑定评估的 `requires.models` 引用它。
 给 `defineAdapter` 同样添加 `requires.models` 后，`ctx.models` 与 `ctx.recordUsage` 的用途键也会被收窄。
 完整示例见[按用途检查缓存读取率](/zh/tutorials/control-run-cost#让模型用途名称参与类型检查)。
 

@@ -107,7 +107,7 @@ function writeJournal(entry: JournalEntry): Promise<void> {
 
 export const customIdentityReporter: Reporter = {
   onEvent(event) {
-    if (event.type !== "eval:start") return;
+    if (event.type !== "eval:start" || event.eval.id !== "custom-native-actions") return;
     const path = join(process.cwd(), customIdentityJournal);
     journalWrites = journalWrites.then(() => appendFile(path, `${JSON.stringify({
       source: "event",
@@ -118,6 +118,7 @@ export const customIdentityReporter: Reporter = {
     return journalWrites;
   },
   onEvalComplete(result) {
+    if (result.id !== "custom-native-actions") return;
     const path = join(process.cwd(), customIdentityJournal);
     journalWrites = journalWrites.then(() => appendFile(path, `${JSON.stringify({
       source: "result",
@@ -146,6 +147,7 @@ const lifecycleContract = defineAdapterContract<CustomLifecycleAdapter>({ name: 
 let registerAfterTimeout: (() => void) | undefined;
 export const timeoutClosedRegistrationReporter: Reporter = {
   async onEvalComplete(result) {
+    if (result.id !== "custom-timeout-cancel") return;
     if (registerAfterTimeout === undefined) throw new Error("fixture did not retain its registration callback");
     let outcome = "accepted";
     try { registerAfterTimeout(); } catch { outcome = "rejected"; }

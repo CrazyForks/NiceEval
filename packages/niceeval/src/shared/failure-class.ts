@@ -42,12 +42,6 @@ export interface AttemptFailureInfo {
   readonly cause: ExternalCause;
 }
 
-/**
- * 实验可选分类器,挂载在 `ExperimentDef.classifyFailure`:识别自家共享基建的死因
- * (对自家隧道 host 的拒连一类)。返回 `undefined` 表示「不认识,交给后续链路」。
- * 分类器必须快、纯、不抛错——抛错按 `undefined` 回落并被吞掉,不掩盖原始失败。
- */
-export type AttemptFailureClassifier = (failure: AttemptFailureInfo) => FailureClass | undefined;
 
 /** 携带分类的错误对象的判别字段值;识别只看这个数据字段,不看类身份。 */
 const FAILURE_CLASS_TAG = "NiceevalClassifiedError";
@@ -173,7 +167,7 @@ export function errorChainText(error: unknown): string {
 
 /**
  * @internal 调分类器的统一纪律:抛错按 `undefined` 回落(自身错误被吞掉,不得用新错误掩盖
- * 原始失败),返回值原样透出。turn 链与生命周期链共用这一处,两条链的纪律不会跑偏。
+ * 原始失败),返回值原样透出。Adapter 的 send 分类链使用此处保护原始失败。
  */
 export function callClassifier<T>(classifier: ((failure: T) => FailureClass | undefined) | undefined, failure: T) {
   if (!classifier) return undefined;
@@ -185,21 +179,20 @@ export function callClassifier<T>(classifier: ((failure: T) => FailureClass | un
 }
 
 /**
- * @internal 生命周期阶段失败的分类链(三道):抛出点携带的分类 → 实验分类器 → 缺省
+ * @internal 生命周期阶段失败的分类链:抛出点携带的分类 → 缺省
  * `{ retryable: false }`。这些位置(sandbox 钩子、`EvalDef.setup`、`test(t)` 体内、
  * per-attempt teardown)没有重试执行体,链上不挂产时间轴的兜底正则——时间轴即使给出也无人
  * 消费(见 architecture.md「分类链」)。
  */
 export function resolveAttemptFailureClass(
   info: AttemptFailureInfo,
-  experimentClassifier?: AttemptFailureClassifier,
 ): FailureClass {
   const declared = failureClassOf(info.cause);
   if (declared) return declared;
-  return callClassifier(experimentClassifier, info) ?? { retryable: false };
+  return { retryable: false };
 }
 
-/** @internal 从一个抛出的错误构造实验分类器的输入(文本与报错文案同源)。 */
+/** @internal 从一个抛出的错误构造内建分类的输入(文本与报错文案同源)。 */
 export function attemptFailureInfo(phase: LifecyclePhase, error: unknown): AttemptFailureInfo {
   const cause = normalizeExternalCause(error);
   return { phase, text: externalCauseMessageChain(cause), cause };

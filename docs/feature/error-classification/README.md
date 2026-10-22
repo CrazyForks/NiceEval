@@ -72,7 +72,7 @@ export type FailureClass =
 - `"experiment"`:全实验的兄弟 attempt 同因必死——实验共享服务死亡、共享凭据失效、实验级配置错误。
   命中即停止派发同 experiment 的全部剩余 attempt。
 
-两轴的误判代价不对称方向不同，把关手段也不同。时间轴误重试赔判定正确性，由 `SendFailure.acceptance` 的[受理证据门](architecture.md#分类链)机器检查。空间轴误扩 scope 赔整批命中范围数据，没有机器门可查，靠判据从严——**唯一有权扩 scope 的是携带作者知识的声明点**（抛出点声明、adapter / 实验分类器），保守回退分类器永不扩 scope，「看起来像基建问题」不构成证明。
+两轴的误判代价不对称方向不同，把关手段也不同。时间轴误重试赔判定正确性，由 `SendFailure.acceptance` 的[受理证据门](architecture.md#分类链)机器检查。空间轴误扩 scope 赔整批命中范围数据，没有机器门可查，靠判据从严——**唯一有权扩 scope 的是携带作者知识的声明点**（抛出点声明、Adapter 分类器），保守回退分类器永不扩 scope，「看起来像基建问题」不构成证明。
 
 **组合规则:时间轴先走,空间轴只对终局失败生效。**
  可重试的失败先被重试执行体吸收,只有重试耗尽或不可重试的失败,才携带 scope 抵达止损机制。
@@ -84,7 +84,7 @@ export type FailureClass =
 
 - **抛出点声明**(作者拥有的错误):包根导出空间轴 fatal 错误类 `ExperimentFatalError` / `EvalFatalError`——作者写下 探测、fixture 校验时就知道失败的波及范围,直接 throw,任何 per-attempt 阶段可抛。
   fatal 错误类只开空间轴,不提供「可重试」的对应类:时间轴的消费点只有 send 与 provisioning 两处(见下节),作者代码不在任何重试执行体的包裹范围内,可重试声明是一张永远无法兑现的支票。
-- **分类器**（第三方错误，事后识别）：错误由 SDK / CLI / 网络栈抛出，制造者不可能使用我们的类，由最懂其形状的一方在自己的边界识别，按特异性降序决议。实验的 `classifyFailure` 识别自家共享基建的死因；adapter 的 `classifySendFailure` 识别自家协议 code（写法见 [Library](library.md#adapter-作者classifysendfailure)）。保守回退只识别结构化的 admission / transport 事实，不从自然语言猜受理状态。
+- **分类器**（第三方错误，事后识别）：错误由 SDK / CLI / 网络栈抛出，制造者不可能使用我们的类，由最懂其形状的一方在自己的边界识别，按特异性降序决议。adapter 的 `classifySendFailure` 识别自家协议 code（写法见 [Library](library.md#adapter-作者classifysendfailure)）。保守回退只识别结构化的 admission / transport 事实，不从自然语言猜受理状态。
 - **provisioning**:sandbox 层的分类自治(性质 + 后果两维不外泄),向外浮出的确定性配置死因附带按**声明 owner** 定档的 scope。
   凭据缺失 → `"experiment"`;template 不存在时波及范围由携带 template 的 owner(eval / experiment)决定,落 `"eval"` 或 `"experiment"`。
   映射单源在 [Sandbox · Provisioning 失败与重试](../sandbox/architecture.md#provisioning-失败与重试)。
@@ -145,14 +145,14 @@ export type FailureClass =
 - 不在 `EvalInput` 上挂分类器——「以第三方错误形态浮出、且死因只属于单条 eval」的场景没有真实样本;作者代码能触到的 eval 级死因由抛出点的 `EvalFatalError` 涵盖,有样本再扩。
 - 不跨 invocation 记忆止损状态,不提供解除/隔离命令。
 - 不抢占在飞的 attempt——已花的沙箱与 token 成本不可回收。
-- 不复用或修改 sandbox provisioning 重试的实现——那层要处理「远端资源是否已创建」的对账;两层只共享词表、退避形状与槽位接口。
+- 不复用或修改 sandbox provisioning 重试的实现——那层要处理「远端资源是否已创建」的对账;两层只共享词表、退避形状与计划 Attempt接口。
 - 不在 CLI 或 `defineEval` / `defineExperiment` 加重试次数、退避参数一类配置——封顶次数与退避参数是固定值,有真实需要再考虑开放。
 - 不改 `attempts` / `earlyExit` / run 级 fail-fast 的既有语义——止损机制在其旁并存,streak 推断继续兜没有声明的场景。
 
 ## 相关阅读
 
 - [Architecture](architecture.md) —— 类型形状、分类链、重试执行体、止损执行体与不变量。
-- [Library](library.md) —— fatal 错误类与实验分类器的写法、adapter 作者的 `classifySendFailure`、观察面。
+- [Library](library.md) —— fatal 错误类的写法、adapter 作者的 `classifySendFailure`、观察面。
 - [用例](use-case/README.md) —— 三种姿态的全流程叙事:读懂 errored、抛出点声明死因、写分类器。
 - [Runner](../../runner.md) —— earlyExit、run 级 fail-fast、完成状态与外层超时。
 - [Experiments · 实验级共享服务](../experiments/library.md#实验级共享服务setup-与-teardown) —— 实验级 setup 失败的既有语义。

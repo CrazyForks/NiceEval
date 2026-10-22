@@ -1,9 +1,8 @@
 import { equals } from "niceeval/expect";
-import { customAlpha, customIdentityReporter } from "../fixtures/custom-applications.ts";
+import { customAlpha } from "../fixtures/custom-applications.ts";
 
 export default customAlpha.defineEval({
   description: "同一 Adapter contract 的具体实现执行自己的原生动作",
-  reporters: [customIdentityReporter],
   async test(t) {
     const expectedImplementation = t.flags.implementation;
     const opened = t.begin("native-actions");

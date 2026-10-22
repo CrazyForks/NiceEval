@@ -95,35 +95,9 @@ export default defineEval({
 
 The error message appears in the terminal and in the run record. State what happened and how to fix it next.
 
-## Recognize a shared service that disconnects mid-run
+## Handle a disconnected shared service
 
-Some shared services are fine when the experiment starts but disconnect during the run. Such failures are usually thrown by an SDK, CLI, or network library. You can recognize your own service address with the experiment's `classifyFailure`:
-
-```ts
-// experiments/compare.ts
-import { defineExperiment } from "niceeval";
-
-const serviceHost = "memory.internal.example";
-
-export default defineExperiment({
-  // agent and sandbox configuration omitted
-  classifyFailure({ text }) {
-    const isOurService = text.includes(serviceHost);
-    const isConnectionFailure = /ECONNREFUSED|ENOTFOUND|connection refused/i.test(text);
-
-    if (isOurService && isConnectionFailure) {
-      return {
-        retryable: false,
-        scope: "experiment",
-        reason: "shared_service_unavailable",
-      };
-    }
-    return undefined;
-  },
-});
-```
-
-Only recognize services whose affected scope you are sure of. Do not treat every `ECONNREFUSED` as an experiment-level fault, because the Agent may hit the same error when visiting other sites.
+At the call boundary where you can establish the affected scope, catch the SDK error and throw `ExperimentFatalError` or `EvalFatalError` with the original error as `cause`. Experiment definitions do not accept `classifyFailure`. Built-in retry rules and the Adapter `classifySendFailure` hook remain available.
 
 ## After fixing, rerun what did not finish
 
