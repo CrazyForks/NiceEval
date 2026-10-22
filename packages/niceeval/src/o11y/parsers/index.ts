@@ -16,6 +16,8 @@ export interface ParsedTranscript {
   usage: Usage;
   compactions: number;
   parseSuccess: boolean;
+  /** Unknown upstream event types, excluded from the normalized event stream. */
+  unrecognizedEvents?: Readonly<Record<string, number>>;
 }
 
 export {

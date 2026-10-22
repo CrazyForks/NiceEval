@@ -1,3 +1,4 @@
+import { UnrecognizedAgentEvents } from "./unrecognized-events.ts";
 import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { Effect } from "effect";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
@@ -27,7 +28,6 @@ import {
   DEFAULT_BUB_OTEL_PLUGIN,
   DEFAULT_BUB_REQUIREMENT,
   bubInstallHash,
-  bubRequirement,
   normalizeBubPackages,
 } from "./bub-install-spec.ts";
 import { makeSendFailure, sendAcceptanceFromEvents } from "../context/send-failures.ts";
@@ -65,16 +65,13 @@ export interface BubConfig {
    */
   skills?: SkillSpec[];
   /**
-   * 装哪一版 Bub(PyPI 版本号,如 `"0.5.1"`)。省略时用 NiceEval 钉的默认版本;
-   * 永远是确定版本,不装 latest —— 被测对象的版本要能从实验配置读出来。
+   * 固定 Bub 0.5.1 协议。省略或填写 "0.5.1"；其它版本在定义期抛出 TypeError。
    */
   version?: string;
   /**
    * OTel tape store 插件的 git 依赖(时间轨的来源)。省略时用 NiceEval 钉的默认 pin。
    *
-   * 插件与 Bub 的 tape 协议同代:默认 pin 从 `bub.tape` 取类型,要求 Bub ≥ 0.3.10;更早的
-   * 插件 commit 按 republic 的类型校验,配 Bub ≤ 0.3.9。配错代不会安装失败,而是 span 全被拒、
-   * 时间轨静默为空 —— 所以往回钉 `version` 时必须同批钉配套的插件 commit。
+   * 自定义插件必须支持固定版本 Bub 0.5.1 的 tape 协议。
    */
   otelPlugin?: string;
   /**
@@ -119,13 +116,10 @@ interface BubInstallPin {
 }
 
 function resolvePin(config?: BubConfig): BubInstallPin {
-  const version = config?.version ?? DEFAULT_BUB_VERSION;
   return {
-    requirement: config?.version ? bubRequirement(config.version) : DEFAULT_BUB_REQUIREMENT,
+    requirement: DEFAULT_BUB_REQUIREMENT,
     otelPlugin: config?.otelPlugin ?? DEFAULT_BUB_OTEL_PLUGIN,
-    // NiceEval can reproduce the default release's upstream lock exactly. A caller-selected
-    // historical Bub version owns a different closure, so do not silently apply the default pins.
-    dependencyOverrides: version === DEFAULT_BUB_VERSION ? DEFAULT_BUB_DEPENDENCY_OVERRIDES : [],
+    dependencyOverrides: DEFAULT_BUB_DEPENDENCY_OVERRIDES,
   };
 }
 
@@ -148,12 +142,15 @@ function tapePath(workspace: string, sessionId: string, bubHome: string): string
   return `${bubHome}/tapes/${w}__${s}.jsonl`;
 }
 
-// @concord-code ne-adapter-bub-agent
+// @concord-code
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/bub/README.md
 export function bubAgent(config?: BubConfig): Agent {
   if (config !== undefined && Object.hasOwn(config, "apiBase")) {
     throw new TypeError("bubAgent() apiBase is no longer supported. Use baseUrl.");
+  }
+  if (config?.version !== undefined && config.version !== DEFAULT_BUB_VERSION) {
+    throw new TypeError(`bubAgent() only supports Bub ${DEFAULT_BUB_VERSION}; remove version or set version: "${DEFAULT_BUB_VERSION}".`);
   }
   assertAgentLifecycleNames(config, "bubAgent");
   const getApiKey = () => config?.apiKey ?? requireEnv("BUB_API_KEY");
@@ -175,7 +172,7 @@ export function bubAgent(config?: BubConfig): Agent {
     },
   );
   // sandboxId → { home, workspace }; persists values detected in setup() so send() can use them.
-  const sessionInfo = new Map<string, { home: string; workspace: string }>();
+  const sessionInfo = new Map<string, { home: string; workspace: string; unknown: UnrecognizedAgentEvents }>();
 
   return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "bub",
@@ -227,7 +224,7 @@ ${last}`);
         const home = (await sb.runShell("printf '%s' $HOME")).stdout.trim();
         if (!home) throw new Error(`Failed to detect sandbox $HOME (empty output from \`printf $HOME\`). Refusing to fall back to a provider-specific path; check the sandbox provider.`);
         const workspace = sb.workdir;
-        sessionInfo.set(sb.sandboxId, { home, workspace });
+        sessionInfo.set(sb.sandboxId, { home, workspace, unknown: new UnrecognizedAgentEvents() });
         // Agent CLI 已由 runner 的 agent.ensure 循环完成安装与复检。
         // adapter setup 只写本 Attempt 的 runtime config。
         if (!(await sb.pathExists(`${workspace}/AGENTS.md`))) {
@@ -273,7 +270,12 @@ ${last}`);
       try: async () => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // bub 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, ctx, "bub", config?.after);
+        try {
+          await runPreTeardownHooks(sb, ctx, "bub", config?.after);
+        } finally {
+          sessionInfo.get(sb.sandboxId)?.unknown.report((diagnostic) => ctx.diagnostic(diagnostic));
+          sessionInfo.delete(sb.sandboxId);
+        }
       },
       catch: (cause) => cause,
     }),
@@ -306,6 +308,7 @@ ${last}`);
 
         const raw = await sb.readText(tapePath(workspace, sessionId, bubHome)).catch(() => undefined);
         const parsed = shared.parseBub(raw);
+        info.unknown.observe(parsed.unrecognizedEvents, sessionId);
         const events = [...parsed.events];
         let turnEvidenceCoverage: TurnEvidenceCoverage | undefined;
         if (!raw?.trim()) {
@@ -315,7 +318,7 @@ ${last}`);
             actions: { status: "unavailable", reason },
             usage: { status: "unavailable", reason },
           };
-        } else if (!parsed.parseSuccess) {
+        } else if (!parsed.parseSuccess || Object.keys(parsed.unrecognizedEvents ?? {}).length > 0) {
           const reason = "Some Bub tape lines could not be parsed.";
           turnEvidenceCoverage = {
             events: { status: "partial", reason },

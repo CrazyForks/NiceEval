@@ -1,4 +1,4 @@
-// Bub(republic tape)transcript 解析器,同时充当「通用 JSONL」兜底解析器。
+// Bub 0.5.1 tape transcript 解析器。
 //
 // 真实 tape 格式(~/.bub/tapes/<md5(ws)__md5(sess)>.jsonl,按 id 升序逐行):
 //   - kind=message      payload={role, content}                 → 对话
@@ -9,7 +9,7 @@
 //   - kind=system/error
 // 用量路径(已对真实 tape 校验):payload.data.usage.{prompt_tokens,completion_tokens,total_tokens,
 //   prompt_tokens_details.cached_tokens, cost}。compaction = 非 bootstrap 的 anchor(handoff)条数。
-// 也保留 legacy {type:...} 与无 type/kind 的通用兜底。
+// 只读取固定版本的 kind + payload 协议。
 
 import type { StreamEvent, Usage, ToolName, JsonValue } from "../../types.ts";
 import type { ParsedTranscript } from "./index.ts";
@@ -97,6 +97,10 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   let requests = 0;
   let compactions = 0;
   let parseSuccess = true;
+  const unrecognizedEvents: Record<string, number> = Object.create(null);
+  const unrecognized = (type: string): void => {
+    unrecognizedEvents[type] = (unrecognizedEvents[type] ?? 0) + 1;
+  };
 
   if (!raw || !raw.trim()) {
     return { events, usage: {}, compactions: 0, parseSuccess: true };
@@ -109,13 +113,12 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   let synth = 0;
   const nextSynthId = (): string => `bub_${++synth}`;
 
-  // 从 event/run 的 data.usage(或 legacy 顶层 usage)累加用量。
+  // 从 event/run 的 data.usage 累加用量。
   const addUsage = (usage: unknown): void => {
     if (!usage || typeof usage !== "object") return;
-    const rawInput = num(usage, "input_tokens", "prompt_tokens", "inputTokens");
-    const output = num(usage, "output_tokens", "completion_tokens", "outputTokens");
-    let cache = num(usage, "cached_input_tokens", "cache_read_input_tokens", "cacheReadTokens");
-    if (cache === 0) cache = num(get(usage, "prompt_tokens_details"), "cached_tokens");
+    const rawInput = num(usage, "prompt_tokens");
+    const output = num(usage, "completion_tokens");
+    const cache = num(get(usage, "prompt_tokens_details"), "cached_tokens");
     const cost = optionalNum(usage, "cost");
     if (rawInput === 0 && output === 0 && cache === 0 && cost === undefined) return;
     // Chat Completions 口径的 prompt_tokens 含缓存命中,cached_tokens 是其子集;
@@ -175,33 +178,12 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
       const type = get(entry, "type");
       const kind = get(entry, "kind");
 
-      // ── legacy: 顶层 type ──
-      if (typeof type === "string") {
-        addUsage(get(entry, "usage"));
-        if (type === "message") {
-          const role = get(entry, "role") === "user" ? "user" : "assistant";
-          const text = extractText(get(entry, "content") ?? get(entry, "text"));
-          if (text) events.push({ type: "message", role, text });
-        } else if (type === "tool_call") {
-          const name = String(get(entry, "tool_name") ?? get(entry, "name") ?? get(entry, "tool") ?? "unknown");
-          emitCall(name, coerceArgs(get(entry, "args") ?? get(entry, "input")), get(entry, "call_id") ?? get(entry, "id"));
-        } else if (type === "tool_result") {
-          emitResult(get(entry, "result") ?? get(entry, "output") ?? get(entry, "content"), get(entry, "success") !== false && !get(entry, "error"), get(entry, "call_id") ?? get(entry, "tool_call_id") ?? get(entry, "id"));
-        } else if (type === "thinking" || type === "reasoning") {
-          const text = extractText(get(entry, "content") ?? get(entry, "text"));
-          if (text) events.push({ type: "thinking", text });
-        } else if (type === "error") {
-          events.push({ type: "error", message: String(get(entry, "message") ?? get(entry, "error") ?? "error") });
-        }
-        continue;
-      }
-
       // ── republic tape: kind + payload ──
       if (typeof kind === "string") {
         const payload = get(entry, "payload");
         if (kind === "message") {
           const role = get(payload, "role") === "user" ? "user" : "assistant";
-          const text = extractText(get(payload, "content") ?? get(payload, "text"));
+          const text = extractText(get(payload, "content"));
           if (text) events.push({ type: "message", role, text });
         } else if (kind === "tool_call") {
           // 模型「先说话再调工具」:伴随文本记在 tool_call 的 payload.content 上
@@ -210,28 +192,31 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
           const accompanying = extractText(get(payload, "content"));
           if (accompanying) events.push({ type: "message", role: "assistant", text: accompanying });
           const calls = get(payload, "calls");
-          const list = Array.isArray(calls) ? calls : [payload];
+          const list = Array.isArray(calls) ? calls : [];
           lastCallIds = [];
           for (const call of list) {
-            const fn = get(call, "function") ?? call;
-            const name = String(get(fn, "name") ?? get(call, "name") ?? "unknown");
-            const id = emitCall(name, coerceArgs(get(fn, "arguments") ?? get(call, "args") ?? get(call, "input")), get(call, "id") ?? get(call, "call_id"));
+            const fn = get(call, "function");
+            const name = String(get(fn, "name") ?? "unknown");
+            const id = emitCall(name, coerceArgs(get(fn, "arguments")), get(call, "id"));
             lastCallIds.push(id);
           }
         } else if (kind === "tool_result") {
           const results = get(payload, "results");
-          const list = Array.isArray(results) ? results : [get(payload, "result") ?? payload];
+          const list = Array.isArray(results) ? results : [];
           // republic:results 与上一条 tool_call.calls 按位对齐。
           list.forEach((r, i) => {
             const isError = typeof r === "object" && r !== null && "error" in (r as globalThis.Record<string, unknown>);
-            const explicitId = get(r, "tool_call_id") ?? get(r, "id") ?? lastCallIds[i];
-            emitResult(get(r, "output") ?? get(r, "result") ?? get(r, "content") ?? r, !isError, explicitId);
+            const explicitId = lastCallIds[i];
+            emitResult(r, !isError, explicitId);
           });
         } else if (kind === "event") {
+          const name = get(payload, "name");
+          if (typeof name !== "string" || !["run", "handoff", "loop.start", "loop.step.start", "loop.step"].includes(name)) {
+            unrecognized(`event:${String(name ?? "<missing-name>")}`);
+            continue;
+          }
           const data = get(payload, "data");
-          // 用量:run 事件首选 data.usage;但新版 bub.tape 不一定每轮都发 run/usage,
-          // 所以任何 event 上挂的 usage 也兜底累加(addUsage 自带去重式全零跳过)。
-          addUsage(get(data, "usage"));
+          if (name === "run") addUsage(get(data, "usage"));
           // 仅在「真失败」时记 error:有 error 字段,或 status 命中失败词。
           // loop.step 这类控制事件 status=="continue"/"running" 不是错误 —— 别再当 error 刷屏。
           const status = get(data, "status");
@@ -251,24 +236,13 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
           }
         } else if (kind === "error") {
           events.push({ type: "error", message: String(get(payload, "message") ?? get(payload, "kind") ?? "error") });
+        } else if (kind !== "system") {
+          unrecognized(kind);
         }
         continue;
       }
 
-      // ── 通用兜底:既无 type 也无 kind ──
-      addUsage(get(entry, "usage"));
-      const role = get(entry, "role");
-      const name = get(entry, "tool") ?? get(entry, "name");
-      if (role === "assistant" || role === "user") {
-        const text = extractText(get(entry, "content") ?? get(entry, "text"));
-        if (text) events.push({ type: "message", role, text });
-      } else if (typeof name === "string") {
-        if (get(entry, "result") !== undefined || get(entry, "output") !== undefined) {
-          emitResult(get(entry, "result") ?? get(entry, "output"), !get(entry, "error"), get(entry, "call_id") ?? get(entry, "id"));
-        } else {
-          emitCall(name, coerceArgs(get(entry, "args") ?? get(entry, "arguments") ?? get(entry, "input")), get(entry, "call_id") ?? get(entry, "id"));
-        }
-      }
+      unrecognized(typeof type === "string" ? `type:${type}` : "<missing-kind>");
     } catch {
       parseSuccess = false;
     }
@@ -281,7 +255,7 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   if (requests > 0) usage.requests = requests;
   if (hasObservedCostUSD) usage.costUSD = costUSD;
 
-  return { events, usage, compactions, parseSuccess };
+  return { events, usage, compactions, parseSuccess, unrecognizedEvents };
 }
 
 /** 便捷形态:只要 StreamEvent[]。 */

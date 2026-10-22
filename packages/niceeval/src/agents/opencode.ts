@@ -1,3 +1,4 @@
+import { UnrecognizedAgentEvents } from "./unrecognized-events.ts";
 import { makeSandboxAgent } from "../define.ts";
 import { Effect } from "effect";
 import { requireEnv, getEnv } from "../util.ts";
@@ -100,7 +101,7 @@ function resolveModelFlag(model: string | undefined, hasCompatBase: boolean): st
 /**
  * OpenCode 的内置 sandbox Agent 工厂。
  */
-// @concord-code ne-adapter-opencode-agent
+// @concord-code
 // @concord-implements docs/feature/adapters/README.md
 // @concord-implements docs/feature/adapters/sdk/opencode/README.md
 export function openCodeAgent(config?: OpenCodeConfig): Agent {
@@ -115,6 +116,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
     bin: "opencode",
   });
 
+  const unknownEvents = new Map<string, UnrecognizedAgentEvents>();
   return makeSandboxAgent({
     name: "opencode",
     evidenceCoverage: completeEvidenceCoverage,
@@ -133,6 +135,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
 
     before: (sb, ctx) => Effect.tryPromise({
       try: async () => {
+        unknownEvents.set(sb.sandboxId, new UnrecognizedAgentEvents());
         const baseUrl = resolveBaseUrl(config);
         const provider: globalThis.Record<string, unknown> = {};
         if (baseUrl) {
@@ -184,6 +187,11 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
       catch: (cause) => cause,
     }),
 
+    after: (sb, ctx) => Effect.sync(() => {
+      unknownEvents.get(sb.sandboxId)?.report((diagnostic) => ctx.diagnostic(diagnostic));
+      unknownEvents.delete(sb.sandboxId);
+    }),
+
     send: (input, ctx) => Effect.gen(function* () {
       const sb = ctx.sandbox;
       const opencodeBin = yield* resolveAgentBinEffect(sb, "opencode");
@@ -214,6 +222,8 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
           if (sessionId) ctx.session.capture(sessionId);
 
           let parsed = parseOpenCodeTranscript(raw);
+          const unknown = unknownEvents.get(sb.sandboxId);
+          unknown?.observe(parsed.unrecognizedEvents);
           // 仅当 stdout 既没有工具也没有助手文本时才 export 补读——纯对话轮
           // (session/recall) 的 text 事件已在 JSONL 里,再 export 会冲掉已解析事件。
           const hasActions = parsed.events.some((e) => e.type === "operation.started" && e.operation.kind === "tool");
@@ -224,6 +234,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
             if (exported.exitCode === 0 && exported.stdout.trim()) {
               raw = exported.stdout;
               parsed = parseOpenCodeTranscript(raw);
+              unknown?.observe(parsed.unrecognizedEvents, `export:${sid}`);
               sessionId = sessionIdFromOpenCodeTranscript(raw) ?? sessionId;
               if (sessionId) ctx.session.capture(sessionId);
             }
@@ -239,7 +250,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
               actions: { status: "unavailable", reason },
               usage: { status: "unavailable", reason },
             };
-          } else if (!parsed.parseSuccess) {
+          } else if (!parsed.parseSuccess || Object.keys(parsed.unrecognizedEvents ?? {}).length > 0) {
             const reason = "Some OpenCode transcript lines could not be parsed.";
             turnEvidenceCoverage = {
               events: { status: "partial", reason },
