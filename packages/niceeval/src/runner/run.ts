@@ -73,7 +73,8 @@ import { cleanupCallback } from "./cleanup-timeout.ts";
 import { resolveAttemptTimeout } from "./timeout.ts";
 import { hostname } from "node:os";
 import { recordRootPaths } from "../record/platform/root.ts";
-import { linkPluginLifecycles, type GroupPluginContext } from "../plugin/contracts.ts";
+import type { GroupPluginContext } from "../plugin/contracts.ts";
+import { groupPluginLifecycles } from "../plugin/link.ts";
 import {
   isOrphanedTeardownRegistration,
   readTeardownRegistrationsEffect,
@@ -891,7 +892,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
         progress: setupContext.progress,
         diagnostic: setupContext.diagnostic,
       }, setupContext, liveSandboxRuntimeServices, agent, runTiming, materializationOwnerId, () => nextReuseSandboxNumber(a.run),
-      a.evalDef.evalGroup === undefined ? Object.freeze([]) : linkPluginLifecycles(a.evalDef.evalGroup.plugins ?? [], "group"),
+      groupPluginLifecycles(a.evalDef, a.run),
       groupPluginContext);
       bySpec.set(key, pool);
       return pool.managed().pipe(Effect.map((managed) => ({ _tag: "Reuse", pool: managed }) as const));

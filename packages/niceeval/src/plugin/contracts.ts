@@ -1,6 +1,9 @@
 // @concord-file ne-surface-plugin-contracts
 // @concord-implements docs/feature/plugins/README.md
 // @concord-implements docs/feature/compile-time-contracts/README.md
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { registerSandboxContent } from "../sandbox/content.ts";
 import type { ExperimentHookContext } from "../runner/types.ts";
 import type { JsonValue, ScopedFeedback } from "../shared/types.ts";
 import { sandboxLayer, type SandboxLayer } from "../sandbox/layer.ts";
@@ -73,10 +76,9 @@ interface PluginIdentity {
   readonly key?: string;
   readonly identity: Readonly<globalThis.Record<string, JsonValue>>;
 }
-export type PluginDefinition = PluginIdentity & (
-  | ({ readonly requires: { readonly evalGroup: true } } & NonEmptyFields<true>)
-  | ({ readonly requires?: { readonly evalGroup?: false } } & NonEmptyFields<false>)
-);
+type GroupRequiredPluginDefinition = PluginIdentity & { readonly requires: { readonly evalGroup: true } } & NonEmptyFields<true>;
+type OptionalGroupPluginDefinition = PluginIdentity & { readonly requires?: { readonly evalGroup?: false } } & NonEmptyFields<false>;
+export type PluginDefinition = GroupRequiredPluginDefinition | OptionalGroupPluginDefinition;
 type OwnersOf<Definition> = Definition extends { readonly agent: unknown } | { readonly experiment: unknown }
   ? "experiment" : Definition extends { readonly group: unknown } ? "experiment" | "group" : PluginOwner;
 interface NormalizedLifecycle<Context> {
@@ -94,6 +96,7 @@ export interface PluginInstanceData {
   readonly attempt?: NormalizedLifecycle<AttemptPluginContext>;
   readonly sandbox?: SandboxLayer<"command-only">;
   readonly shape: JsonValue;
+  readonly agentProjection?: JsonValue;
 }
 // setup/teardown remain private execution slots shared with the runner.
 export interface LinkedPluginLifecycle {
@@ -103,6 +106,7 @@ export interface LinkedPluginLifecycle {
   readonly identity: Readonly<globalThis.Record<string, JsonValue>>;
   readonly requires: PluginInstanceData["requires"];
   readonly shape: JsonValue;
+  readonly agentProjection?: JsonValue;
   readonly arrayPosition: number;
   readonly hasSetup: boolean;
   readonly hasTeardown: boolean;
@@ -195,6 +199,34 @@ function createPlugin(spec: unknown): PluginInstance {
   }
   if (spec.agent !== undefined && !isPlainRecord(spec.agent)) throw new TypeError(`Plugin ${name}.agent must be an object.`);
   const count = (value: NormalizedLifecycle<any>) => ({ before: value.before.length, after: value.after.length });
+  let agentProjection: JsonValue | undefined;
+  if (isPlainRecord(spec.agent)) {
+    for (const field of Object.keys(spec.agent)) if (!["skills", "mcpServers", "codex", "claudeCode", "bub"].includes(field)) throw new TypeError(`Plugin ${name}.agent.${field} is not supported.`);
+    const extension = spec.agent as PluginAgentExtensions;
+    const digest = (path: string) => registerSandboxContent(pathToFileURL(resolve(path))).digest;
+    const targets: globalThis.Record<string, JsonValue> = {};
+    for (const kind of ["codex", "claudeCode", "bub"] as const) {
+      const target = extension[kind];
+      if (target === undefined) continue;
+      if (!isPlainRecord(target)) throw new TypeError(`Plugin ${name}.agent.${kind} must be an object.`);
+      const allowed = kind === "bub" ? ["pythonPlugins", "before", "after"] : ["plugins", kind === "codex" ? "configFile" : "settingsFile", "before", "after"];
+      for (const field of Object.keys(target)) if (!allowed.includes(field)) throw new TypeError(`Plugin ${name}.agent.${kind}.${field} is not supported; use before or after for lifecycle hooks.`);
+      for (const phase of ["before", "after"] as const) if (target[phase] !== undefined && (!Array.isArray(target[phase]) || target[phase].some((hook: unknown) => typeof hook !== "function"))) throw new TypeError(`Plugin ${name}.agent.${kind}.${phase} must be an array of commands.`);
+      targets[kind] = normalizeJson({
+        ...("plugins" in target && target.plugins !== undefined ? { plugins: target.plugins } : {}),
+        ...("pythonPlugins" in target && target.pythonPlugins !== undefined ? { pythonPlugins: target.pythonPlugins } : {}),
+        ...("configFile" in target && typeof target.configFile === "string" ? { configFile: { path: target.configFile, digest: digest(target.configFile) } } : {}),
+        ...("settingsFile" in target && typeof target.settingsFile === "string" ? { settingsFile: { path: target.settingsFile, digest: digest(target.settingsFile) } } : {}),
+        before: target.before?.length ?? 0, after: target.after?.length ?? 0,
+      }, `Plugin ${name}.agent.${kind}`);
+    }
+    agentProjection = normalizeJson({
+      ...(extension.skills === undefined ? {} : { skills: extension.skills.map((skill) => skill.kind === "local" ? { ...skill, digest: digest(skill.path) } : skill) }),
+      ...(extension.mcpServers === undefined ? {} : { mcpServers: extension.mcpServers.map((server) => ({ name: server.name,
+        ...(server.command === undefined ? {} : { command: server.command }), ...(server.args === undefined ? {} : { args: server.args }), ...(server.url === undefined ? {} : { url: server.url }),
+      })) }), ...targets,
+    }, `Plugin ${name}.agent`);
+  }
   const shape = Object.freeze({
     ...(experiment === undefined ? {} : { experiment: count(experiment) }),
     ...(group === undefined ? {} : { group: count(group) }),
@@ -203,6 +235,7 @@ function createPlugin(spec: unknown): PluginInstance {
     ...(spec.agent === undefined ? {} : { agent: true }),
   });
   const data: PluginInstanceData = Object.freeze({ name, key, identity: identity as Readonly<globalThis.Record<string, JsonValue>>, requires, shape,
+    ...(agentProjection === undefined ? {} : { agentProjection }),
     ...(experiment === undefined ? {} : { experiment }), ...(group === undefined ? {} : { group }),
     ...(attempt === undefined ? {} : { attempt }), ...(sandbox === undefined ? {} : { sandbox }),
     ...(spec.agent === undefined ? {} : { agent: spec.agent as PluginAgentExtensions }),
@@ -211,8 +244,10 @@ function createPlugin(spec: unknown): PluginInstance {
   pluginInstances.set(instance, data);
   return instance;
 }
-export function definePlugin<const Definition extends PluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
-export function definePlugin<Options, const Definition extends PluginDefinition>(factory: (options: Options) => Definition): (options: Options) => PluginInstance<OwnersOf<Definition>>;
+export function definePlugin<const Definition extends GroupRequiredPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
+export function definePlugin<const Definition extends OptionalGroupPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
+export function definePlugin<Options, const Definition extends GroupRequiredPluginDefinition>(factory: (options: Options) => Definition): (options: Options) => PluginInstance<OwnersOf<Definition>>;
+export function definePlugin<Options, const Definition extends OptionalGroupPluginDefinition>(factory: (options: Options) => Definition): (options: Options) => PluginInstance<OwnersOf<Definition>>;
 // @concord-code ne-surface-define-plugin
 // @concord-implements docs/feature/plugins/library.md
 export function definePlugin(spec: unknown): PluginInstance | ((options: unknown) => PluginInstance) {
@@ -245,6 +280,7 @@ export function linkPluginLifecycles<Scope extends PluginOwner>(plugins: readonl
     seen.add(duplicate);
     const lifecycle = data[field];
     return Object.freeze({ scope, name: data.name, key: data.key, identity: data.identity, requires: data.requires, shape: data.shape, arrayPosition,
+      ...(data.agentProjection === undefined ? {} : { agentProjection: data.agentProjection }),
       hasSetup: (lifecycle?.before.length ?? 0) > 0, hasTeardown: (lifecycle?.after.length ?? 0) > 0,
       hostDeclared: lifecycle !== undefined,
       ...(data.sandbox === undefined ? {} : { sandboxLayer: data.sandbox }),
@@ -259,8 +295,8 @@ export function linkPluginLifecycles<Scope extends PluginOwner>(plugins: readonl
     });
   }));
 }
-export function pluginLifecycleIdentity({ scope, name, key, identity, requires, shape, arrayPosition }: LinkedPluginLifecycle): JsonValue {
-  return Object.freeze({ scope, name, key, identity, requires, shape, arrayPosition });
+export function pluginLifecycleIdentity({ scope, name, key, identity, requires, shape, agentProjection, arrayPosition }: LinkedPluginLifecycle): JsonValue {
+  return Object.freeze({ scope, name, key, identity, requires, shape, arrayPosition, ...(agentProjection === undefined ? {} : { agent: agentProjection }) });
 }
 export function pluginLifecycleProjection(lifecycles: readonly LinkedPluginLifecycle[]): JsonValue {
   return Object.freeze(lifecycles.map(pluginLifecycleIdentity)) as JsonValue;

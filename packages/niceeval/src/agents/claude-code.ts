@@ -1,3 +1,4 @@
+import { attachCodingAgentExtensions } from "./plugin-extensions.ts";
 import { completeEvidenceCoverage } from "../assertions/coverage.ts";
 import { Effect } from "effect";
 import { makeSandboxAgent } from "../define.ts";
@@ -141,7 +142,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
     bin: "claude",
   });
 
-  return registerAgentLifecycleHookCommands(makeSandboxAgent({
+  return attachCodingAgentExtensions(registerAgentLifecycleHookCommands(makeSandboxAgent({
     name: "claude-code",
     // 官方 adapter:transcript 经生命周期 fixture 验证,全通道 complete。
     evidenceCoverage: completeEvidenceCoverage,
@@ -259,8 +260,11 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       try: async (signal) => {
         // after 与 before 成对:LIFO 镜像,先于 agent 自己的收尾步骤执行。
         // claude-code 目前没有其它收尾步骤,这段就是整个 teardown。
-        await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.after);
-        await attemptResources(ctx)?.shutdownAll(signal);
+        try {
+          await runPreTeardownHooks(sb, { ...ctx, signal }, "claude-code", config?.after);
+        } finally {
+          await attemptResources(ctx)?.shutdownAll(signal);
+        }
       },
       catch: (cause) => cause,
     }),
@@ -286,7 +290,7 @@ export function claudeCodeAgent(config?: ClaudeCodeConfig): Agent {
       },
       catch: (cause) => cause,
     }),
-  }), config?.before, config?.after);
+  }), config?.before, config?.after), "claudeCode", config, claudeCodeAgent);
 }
 
 
