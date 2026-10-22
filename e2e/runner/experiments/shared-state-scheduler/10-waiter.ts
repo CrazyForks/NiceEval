@@ -2,7 +2,7 @@ import { defineExperiment } from "niceeval";
 import { sharedStateSchedulerAgent, sharedStateSchedulerHooks } from "../../agents/shared-state-scheduler.ts";
 
 export default defineExperiment({
-  agent: sharedStateSchedulerAgent,
+  adapter: sharedStateSchedulerAgent,
   flags: { role: "waiter" },
   attempts: 3,
   evals: ["shared-state/"],

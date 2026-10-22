@@ -9,7 +9,7 @@ import { webAgent } from "../../adapter/adapter.ts";
 // baseUrl 由实验在这里传给 adapter(adapter 自己不写死、不读 env)。
 export default defineExperiment({
   description: "deepseek-v4-pro: 对比模型",
-  agent: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
+  adapter: webAgent({ baseUrl: "http://127.0.0.1:5188" }),
   model: "deepseek-v4-pro",
   attempts: 2,   // 跑满 2 次,才能比较 model 间的通过率
   budget: 5, // $5 上限

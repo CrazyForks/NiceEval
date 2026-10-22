@@ -14,7 +14,7 @@ export default defineExperiment({
   // 30 seconds. Leave enough Attempt budget for slow CI Sandbox startup before
   // that controlled wait begins.
   timeoutMs: 120_000,
-  agent: providerCapacityAgent,
+  adapter: providerCapacityAgent,
   sandbox: dockerSandbox({
     source: { type: "image", image: profileImage ?? NODE_IMAGE },
     user: profile === undefined ? "node" : "root",

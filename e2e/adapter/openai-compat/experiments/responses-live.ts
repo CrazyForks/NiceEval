@@ -47,7 +47,7 @@ const agent = defineAgent({
 
 export default defineExperiment({
   description: "One real OpenAI Responses function-call value, raw into NiceEval",
-  agent,
+  adapter: agent,
   evals: ["responses-live"],
   attempts: 1,
 });

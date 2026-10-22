@@ -10,7 +10,7 @@ const controlRoot = process.env.NICEEVAL_E2E_PROVIDER_CAPACITY_CONTROL_ROOT;
 
 export default defineExperiment({
   description: "capacity one is observed through real Docker sandbox lifecycle",
-  agent: providerCapacityAgent,
+  adapter: providerCapacityAgent,
   sandbox: dockerSandbox({
     source: { type: "image", image: profileImage ?? NODE_IMAGE },
     user: profile === undefined ? "node" : "root",

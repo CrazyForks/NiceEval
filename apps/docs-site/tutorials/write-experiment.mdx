@@ -211,7 +211,7 @@ export default defineExperiment({
 });
 ```
 
-The Adapter reads this configuration from `ctx.models` and hands it to the application, and on each model request it writes the matching `modelSlot` in `ctx.recordUsage`. That way usage and cost can be counted separately by purpose; roles that are never called incur no cost.
+The Adapter reads this configuration from `ctx.models` and hands it to the application, and on each model request it writes the matching `modelRole` in `ctx.recordUsage`. That way usage and cost can be counted separately by purpose; roles that are never called incur no cost.
 
 `models` cannot be written together with `model` or `reasoningEffort`. Agent-style Adapters use only a single `model`.
 

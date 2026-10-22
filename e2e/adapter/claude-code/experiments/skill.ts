@@ -18,7 +18,7 @@ const agent = claudeCodeAgent({
 // 普通对话 Eval 则证明一个都没加载。
 export default defineExperiment({
   description: "skill:三个互斥本地 Skill 的正选、反选与零加载契约",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   attempts: 1,

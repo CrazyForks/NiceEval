@@ -6,7 +6,7 @@ import {
 } from "../agents/shared-state-provider-stop.ts";
 
 export default defineExperiment({
-  agent: sharedStateProviderStopAgent,
+  adapter: sharedStateProviderStopAgent,
   flags: { role: "provider-stop-waiter" },
   sandbox: sharedStateProviderStopSandbox,
   evals: ["shared-state/"],

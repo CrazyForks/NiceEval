@@ -15,7 +15,7 @@ const agent = openClawAgent({
 
 export default defineExperiment({
   description: "openclaw: Docker 沙箱内真实 CLI 协议闭环",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["skills/status-report", "session/recall", "usage/tokens"],

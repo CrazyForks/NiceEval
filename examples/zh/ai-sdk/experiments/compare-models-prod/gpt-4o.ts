@@ -9,7 +9,7 @@ import { webAgent } from "../../adapter/adapter.ts";
 // baseUrl 由实验在这里传给 adapter(adapter 自己不写死、不读 env)。
 export default defineExperiment({
   description: "AI 助手:gpt-4o",
-  agent: webAgent({ baseUrl: "https://example.com" }),
+  adapter: webAgent({ baseUrl: "https://example.com" }),
   model: "gpt-4o",
   attempts: 3,   // 跑 3 次评估稳定性,earlyExit 默认关,给出完整分布
   budget: 5, // $5 上限

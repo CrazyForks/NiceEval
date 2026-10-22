@@ -11,7 +11,7 @@ const agent = openCodeAgent({
 
 export default defineExperiment({
   description: "opencode: Docker 沙箱内真实 CLI 协议闭环",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["coding-task/write-and-verify", "session/recall", "usage/tokens"],

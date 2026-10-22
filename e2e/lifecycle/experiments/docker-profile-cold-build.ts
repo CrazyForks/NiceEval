@@ -36,7 +36,7 @@ const MiB = 1024 ** 2;
 
 export default defineExperiment({
   description: "control-owned profile Dockerfile cold build",
-  agent,
+  adapter: agent,
   sandbox: dockerSandbox({
     source: {
       type: "dockerfile",

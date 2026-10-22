@@ -3,6 +3,6 @@ import { deterministicAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "Public Match factories publish matched and mismatched score evidence",
-  agent: deterministicAgent,
+  adapter: deterministicAgent,
   evals: ["assertion-match-outcomes"],
 });

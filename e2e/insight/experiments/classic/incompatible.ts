@@ -3,7 +3,7 @@ import { classicMemoryAgent } from "../../agents/classic.ts";
 
 export default defineExperiment({
   description: "classic/incompatible: same author group with a deliberately different Eval population",
-  agent: classicMemoryAgent(),
+  adapter: classicMemoryAgent(),
   model: "gpt-6-luna",
   evals: ["score"],
   flags: { memory: "incompatible" },

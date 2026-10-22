@@ -4,7 +4,7 @@ import { preContextErrorAgent } from "../../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "provider-error/sandbox:Attempt 创建前保留 builder stderr 与 Run 下钻",
-  agent: preContextErrorAgent,
+  adapter: preContextErrorAgent,
   sandbox: dockerSandbox({
     source: {
       type: "dockerfile",

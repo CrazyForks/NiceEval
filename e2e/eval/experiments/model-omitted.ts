@@ -1,4 +1,4 @@
 import { defineExperiment } from "niceeval";
-import { modelSlots } from "../fixtures/model-slots.ts";
+import { roles } from "../fixtures/model-roles.ts";
 
-export default defineExperiment({ adapter: modelSlots, evals: ["model-slot-selection"], attempts: 1 });
+export default defineExperiment({ adapter: roles, evals: ["model-role-selection"], attempts: 1 });

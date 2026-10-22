@@ -14,7 +14,7 @@ export const readLimitedSandbox = defineSandbox({
 
 export default defineExperiment({
   description: "Public Sandbox assertion evidence",
-  agent: deterministicSandboxAgent,
+  adapter: deterministicSandboxAgent,
   // Every native test gives this test-only Provider its own copied project and
   // fixed HOME/CODEX_HOME/TMPDIR below that copy.
   sandbox: readLimitedSandbox,

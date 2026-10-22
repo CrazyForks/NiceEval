@@ -4,7 +4,7 @@ import { fixtureBaseUrl } from "../src/fixture/address.ts";
 
 export default defineExperiment({
   description: "local-protocol timeout: fixture 挂起直到 attempt 超时",
-  agent: uiMessageStreamAgent({
+  adapter: uiMessageStreamAgent({
     name: "local-protocol-timeout",
     url: `${fixtureBaseUrl()}/modes/hang/api/chat`,
   }),

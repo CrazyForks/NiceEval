@@ -15,7 +15,7 @@ const barrierRoot = process.env.NICEEVAL_MAX_CONCURRENCY_BARRIER;
 
 export default defineExperiment({
   description: "invocation-local experiment concurrency",
-  agent: maxConcurrencyAgent,
+  adapter: maxConcurrencyAgent,
   evals: ["max-concurrency/"],
   maxConcurrency: positiveIntegerFromEnv("NICEEVAL_MAX_CONCURRENCY_LIMIT", 3),
   ...(barrierRoot === undefined ? {} : { flags: { barrierRoot } }),

@@ -156,7 +156,7 @@ setupPrefixSandbox = setupPrefixSandbox.before(uploadDirectory({
 
 export default defineExperiment({
   description: "persistent Docker SetupPrefix restore and private writable clones",
-  agent: setupPrefixAgent,
+  adapter: setupPrefixAgent,
   sandbox: setupPrefixSandbox,
   evals: ["setup-prefix-cache"],
   attempts: 1,

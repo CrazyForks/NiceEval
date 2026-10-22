@@ -4,7 +4,7 @@ import { sandboxStepActivityAgent } from "../agents/sandbox-step-activity.ts";
 
 export default defineExperiment({
   description: "Runtime TTY feedback for declarative Sandbox steps",
-  agent: sandboxStepActivityAgent,
+  adapter: sandboxStepActivityAgent,
   sandbox: dockerSandbox({
     source: {
       type: "dockerfile",

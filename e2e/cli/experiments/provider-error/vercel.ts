@@ -7,7 +7,7 @@ const message = "403 Forbidden — Vercel rejected the sandbox request because t
 
 export default defineExperiment({
   description: "provider-error/vercel:保留 Vercel provider message 与 Attempt 下钻",
-  agent: preContextErrorAgent,
+  adapter: preContextErrorAgent,
   sandbox: defineSandbox({
     name: "vercel-feedback-fixture",
     targetPlatform: { _tag: "Linux", os: "linux", arch: "amd64", libc: "gnu" },

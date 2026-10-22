@@ -3,6 +3,6 @@ import { deterministicAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "Public turn, session, and attempt assertion scopes",
-  agent: deterministicAgent,
+  adapter: deterministicAgent,
   evals: ["assertion-scopes"],
 });

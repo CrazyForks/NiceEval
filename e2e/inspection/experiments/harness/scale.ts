@@ -3,7 +3,7 @@ import { deterministicAgent, deterministicSandbox } from "../../agents/determini
 
 export default defineExperiment({
   description: "harness/scale: keep the complete terminal Overview readable at benchmark scale",
-  agent: deterministicAgent(),
+  adapter: deterministicAgent(),
   sandbox: deterministicSandbox,
   model: "inspection-fixture-v1",
   evals: ["overview-scale"],

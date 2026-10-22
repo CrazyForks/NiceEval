@@ -3,6 +3,6 @@ import { attemptPublicationFailureAgent } from "../agents/timing.ts";
 
 export default defineExperiment({
   description: "attempt publication failure",
-  agent: attemptPublicationFailureAgent,
+  adapter: attemptPublicationFailureAgent,
   evals: ["timing/basic"],
 });

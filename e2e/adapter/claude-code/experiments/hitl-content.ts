@@ -5,7 +5,7 @@ import { sandbox } from "../sandbox.ts";
 
 export default defineExperiment({
   description: "hitl-content:Claude Code 只输出普通内容时，HITL Eval 必须判为 failed",
-  agent: claudeCodeAgent({
+  adapter: claudeCodeAgent({
     apiKey: process.env.ANTHROPIC_API_KEY,
     baseUrl: process.env.ANTHROPIC_BASE_URL,
     env: claudeCodeProviderEnv,

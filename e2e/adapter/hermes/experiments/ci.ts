@@ -14,7 +14,7 @@ const agent = hermesAgent({
 
 export default defineExperiment({
   description: "hermes: Docker 沙箱内真实 CLI 协议闭环",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["coding-task/write-and-verify", "skills/selected", "session/recall", "usage/tokens"],

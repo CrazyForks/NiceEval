@@ -3,7 +3,7 @@ import { codexThreadStreamFixtureAgent } from "../fixtures/codex-thread-stream.t
 
 export default defineExperiment({
   description: "Offline locked Codex ThreadEvent frames through createCodexThreadEventStream",
-  agent: codexThreadStreamFixtureAgent,
+  adapter: codexThreadStreamFixtureAgent,
   evals: ["codex-thread-stream"],
   attempts: 1,
 });

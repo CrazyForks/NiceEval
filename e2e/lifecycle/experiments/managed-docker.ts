@@ -3,7 +3,7 @@ import { managedProcessAgent, managedProcessSandbox } from "../agents/determinis
 
 export default defineExperiment({
   description: "Docker managed process lifecycle",
-  agent: managedProcessAgent,
+  adapter: managedProcessAgent,
   sandbox: managedProcessSandbox,
   evals: ["managed-process"],
 });

@@ -13,7 +13,7 @@ import { defineExperiment } from "niceeval";
 import { deterministicAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
-  agent: deterministicAgent("mixed-evaluation-kinds"),
+  adapter: deterministicAgent("mixed-evaluation-kinds"),
   evals: ["greet", "deliberate-score"],
 });
 `);

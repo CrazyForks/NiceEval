@@ -11,7 +11,7 @@ const scenario = process.env.NICEEVAL_E2E_PROVIDER_CAPACITY_SCENARIO;
 
 export default defineExperiment({
   description: "the profile waiter times out while reacquiring runner permits",
-  agent: providerCapacityAgent,
+  adapter: providerCapacityAgent,
   sandbox: dockerSandbox({
     source: { type: "image", image: profileImage ?? NODE_IMAGE },
     user: profile === undefined ? "node" : "root",

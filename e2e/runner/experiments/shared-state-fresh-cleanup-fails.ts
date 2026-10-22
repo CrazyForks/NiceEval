@@ -6,7 +6,7 @@ import {
 } from "../agents/shared-state.ts";
 
 export default defineExperiment({
-  agent: sharedStateReuseAgent,
+  adapter: sharedStateReuseAgent,
   flags: { role: "fresh-cleanup-fails" },
   sandbox: sharedStateReuseSandbox,
   evals: ["shared-state/"],

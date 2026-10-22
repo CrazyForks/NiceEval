@@ -4,7 +4,7 @@ import { preContextErrorAgent } from "../../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "provider-error/sandbox-secondary:另一 Run 的同名内部 timing node 不得吞掉错误",
-  agent: preContextErrorAgent,
+  adapter: preContextErrorAgent,
   sandbox: dockerSandbox({
     source: {
       type: "dockerfile",

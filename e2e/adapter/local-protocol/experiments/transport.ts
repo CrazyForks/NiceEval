@@ -7,7 +7,7 @@ import { fixtureBaseUrl } from "../src/fixture/address.ts";
 // approval 的确定性状态机由 experiments/approval.ts 拥有，live SDK 兼容性仍属于 adapter/ai-sdk。
 export default defineExperiment({
   description: "local-protocol transport: canned SSE 完整 text 往返",
-  agent: uiMessageStreamAgent({
+  adapter: uiMessageStreamAgent({
     name: "local-protocol-ok",
     url: `${fixtureBaseUrl()}/modes/ok/api/chat`,
   }),

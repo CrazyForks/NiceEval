@@ -3,7 +3,7 @@ import consumer from "../src/consumer.ts";
 
 export default defineExperiment({
   description: "Codex SDK converter: one real ThreadEvent stream plus native thread resume",
-  agent: consumer,
+  adapter: consumer,
   model: "gpt-6-luna",
   evals: ["live-compatibility"],
   attempts: 1,

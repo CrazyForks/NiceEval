@@ -10,7 +10,7 @@ const agent = openCodeAgent({
 
 export default defineExperiment({
   description: "opencode:Go 套餐 API key + DeepSeek V4.1 Flash 原生 provider 闭环",
-  agent,
+  adapter: agent,
   model: "opencode-go/deepseek-v4.1-flash",
   sandbox,
   evals: ["provider/go-routing"],

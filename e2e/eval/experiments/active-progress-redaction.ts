@@ -4,7 +4,7 @@ import { readLimitedSandbox } from "./assertion-sandbox.ts";
 
 export default defineExperiment({
   description: "ACTIVE detail control-sequence redaction owner",
-  agent: deterministicSandboxAgent,
+  adapter: deterministicSandboxAgent,
   sandbox: readLimitedSandbox,
   model: "eval-active-progress-redaction",
   evals: ["active-progress-redaction"],

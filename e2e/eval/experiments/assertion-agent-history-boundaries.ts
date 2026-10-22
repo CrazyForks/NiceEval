@@ -3,6 +3,6 @@ import { boundaryAgent } from "../evals/assertion-agent-history-boundaries.eval.
 
 export default defineExperiment({
   description: "Agent QA coverage, observed failures, and session-prefix operation joining",
-  agent: boundaryAgent,
+  adapter: boundaryAgent,
   evals: ["assertion-agent-history-boundaries"],
 });

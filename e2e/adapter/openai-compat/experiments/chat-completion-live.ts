@@ -58,7 +58,7 @@ const agent = defineAgent({
 
 export default defineExperiment({
   description: "One real OpenAI Chat Completions function-call response, raw into NiceEval",
-  agent,
+  adapter: agent,
   evals: ["chat-completion-live"],
   attempts: 1,
 });

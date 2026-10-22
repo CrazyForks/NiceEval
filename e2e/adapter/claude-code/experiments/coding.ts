@@ -12,7 +12,7 @@ const agent = claudeCodeAgent({
 // 基线 agent:coding-task(文件/shell 工具轨)+ session-resume(原生 resume + usage)。
 export default defineExperiment({
   description: "coding:基线 claude-code agent —— coding-task、session resume/usage 与 WebSearch 正例",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   flags: { webResearch: true, expectedWebSearch: true },
   sandbox,

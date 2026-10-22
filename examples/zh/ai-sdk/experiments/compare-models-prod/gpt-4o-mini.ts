@@ -5,7 +5,7 @@ import { webAgent } from "../../adapter/adapter.ts";
 // 差异才干净归因到模型这一个轴。
 export default defineExperiment({
   description: "AI 助手:gpt-4o-mini",
-  agent: webAgent({ baseUrl: "https://example.com" }),
+  adapter: webAgent({ baseUrl: "https://example.com" }),
   model: "gpt-4o-mini",
   attempts: 3,
   budget: 5,

@@ -3,7 +3,7 @@ import { deterministicAgent, deterministicSandbox } from "../agents/deterministi
 
 export default defineExperiment({
   description: "Score completeness is independent of Verdict in Insight results",
-  agent: deterministicAgent(),
+  adapter: deterministicAgent(),
   sandbox: deterministicSandbox,
   model: "inspection-fixture-v1",
   evals: ["verdict-scores"],

@@ -23,7 +23,7 @@ const agent = claudeCodeAgent({
 
 export default defineExperiment({
   description: "plugin 复用:四路并发的两波 attempt 都能调用签入的 MCP Plugin 的 MCP 工具",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox: pluginSandbox,
   evals: (e) => e.id === "plugin-mcp",

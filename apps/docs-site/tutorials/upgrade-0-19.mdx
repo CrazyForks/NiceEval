@@ -29,6 +29,15 @@ Removed fields fail at definition loading, including fields explicitly set to `u
 
 Existing results stay readable. Stored usage and config identity encodings are unchanged, so experiments that do not use removed fields can continue carrying their existing results.
 
+## Experiment uses adapter
+
+Replace `defineExperiment({ agent: target })` with `defineExperiment({ adapter: target })`.
+Values returned by `defineAgent` and `defineSandboxAgent` work directly as `adapter`; no wrapper is required.
+Definitions containing `agent` fail, even when its value is explicitly `undefined`.
+
+The single-model `model` / `reasoningEffort` shorthand remains and normalizes to the `default` role; use `models` for multiple purposes.
+Do not combine the two forms. Renaming `agent` to `adapter` preserves config identity, so existing results can still carry.
+
 ## t.note
 
 Use `t.note(label, value)` to save data for review without adding an Assertion or affecting Verdict, score, or coverage.

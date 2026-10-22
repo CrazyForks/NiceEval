@@ -7,7 +7,7 @@ const message = `401 Unauthorized — E2B 返回了一段需要按 UTF-8 bytes �
 
 export default defineExperiment({
   description: "provider-error/e2b:保留 E2B provider message 与 Attempt 下钻",
-  agent: preContextErrorAgent,
+  adapter: preContextErrorAgent,
   sandbox: defineSandbox({
     name: "e2b-feedback-fixture",
     targetPlatform: { _tag: "Linux", os: "linux", arch: "amd64", libc: "gnu" },

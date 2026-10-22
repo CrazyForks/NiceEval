@@ -15,7 +15,7 @@ const agent = codexAgent({
 
 export default defineExperiment({
   description: "codex-cli Skill 闭环:三个互斥 Skill 的目标读取、反选与产出约定",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["status-report", "skill-release-note"],

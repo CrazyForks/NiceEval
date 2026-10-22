@@ -9,7 +9,7 @@ export const experimentCost = defineAdapter({
       recordCost(amount: string | undefined, status: "succeeded" | "failed" = "succeeded") {
         ctx.recordUsage({
           callId: "application-request",
-          modelSlot: "default",
+          modelRole: "default",
           provider: "offline-application",
           model: "fixture/experiment-cost",
           status,

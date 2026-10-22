@@ -5,7 +5,7 @@ import { sandbox } from "../sandbox.ts";
 
 export default defineExperiment({
   description: "hitl:Claude Code 原生选项请求、结构化选择与会话恢复",
-  agent: claudeCodeAgent({
+  adapter: claudeCodeAgent({
     apiKey: process.env.ANTHROPIC_API_KEY,
     baseUrl: process.env.ANTHROPIC_BASE_URL,
     env: claudeCodeProviderEnv,

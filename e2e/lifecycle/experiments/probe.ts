@@ -3,7 +3,7 @@ import { lifecycleSandbox, quickAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "next consumer after interrupted run",
-  agent: quickAgent,
+  adapter: quickAgent,
   sandbox: lifecycleSandbox,
   evals: ["probe"],
 });

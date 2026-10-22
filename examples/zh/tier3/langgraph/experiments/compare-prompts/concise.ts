@@ -11,7 +11,7 @@ const CONCISE_PROMPT = `你是一个乐于助人的中文 AI 助手,回复必须
 
 export default defineExperiment({
   description: "concise: 极简风格 system prompt",
-  agent,
+  adapter: agent,
   flags: { systemPrompt: CONCISE_PROMPT },
   attempts: 1,
 });

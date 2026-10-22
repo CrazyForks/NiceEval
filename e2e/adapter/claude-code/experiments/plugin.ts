@@ -21,7 +21,7 @@ const agent = claudeCodeAgent({
 // 独立实验：从本地 marketplace 安装签入的 Plugin，并调用其 stdio MCP。
 export default defineExperiment({
   description: "plugin:从本地 marketplace 安装 Plugin，并调用其 stdio MCP server",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox: pluginSandbox,
   attempts: 1,

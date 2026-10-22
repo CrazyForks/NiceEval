@@ -3,6 +3,6 @@ import { timingAgent } from "../agents/timing.ts";
 
 export default defineExperiment({
   description: "generic runner timing",
-  agent: timingAgent,
+  adapter: timingAgent,
   evals: ["timing/basic"],
 });

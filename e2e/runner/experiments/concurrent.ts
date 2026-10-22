@@ -5,7 +5,7 @@ const barrierRoot = process.env.NICEEVAL_CONCURRENCY_BARRIER;
 
 export default defineExperiment({
   description: "concurrent invocation deduplication",
-  agent: deterministicAgent,
+  adapter: deterministicAgent,
   evals: ["concurrent/"],
   ...(barrierRoot === undefined ? {} : { flags: { barrierRoot } }),
 });

@@ -211,7 +211,7 @@ export default defineExperiment({
 });
 ```
 
-Adapter 从 `ctx.models` 读取这份配置交给应用，每次请求模型时在 `ctx.recordUsage` 里写上对应的 `modelSlot`。这样用量和费用能按用途分开统计；没被调用的角色不会产生费用。
+Adapter 从 `ctx.models` 读取这份配置交给应用，每次请求模型时在 `ctx.recordUsage` 里写上对应的 `modelRole`。这样用量和费用能按用途分开统计；没被调用的角色不会产生费用。
 
 `models` 不能和 `model`、`reasoningEffort` 同时写。Agent 类的 Adapter 只用单个 `model`。
 

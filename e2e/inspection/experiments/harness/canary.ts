@@ -3,7 +3,7 @@ import { deterministicAgent, deterministicSandbox } from "../../agents/determini
 
 export default defineExperiment({
   description: "harness/canary: exercise grouped terminal inspection output",
-  agent: deterministicAgent(),
+  adapter: deterministicAgent(),
   sandbox: deterministicSandbox,
   model: "inspection-fixture-v1",
   evals: ["inspection"],

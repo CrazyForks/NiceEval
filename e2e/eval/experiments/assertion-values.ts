@@ -3,6 +3,6 @@ import { deterministicAgent } from "../agents/deterministic.ts";
 
 export default defineExperiment({
   description: "Public value matchers and pass handles",
-  agent: deterministicAgent,
+  adapter: deterministicAgent,
   evals: ["assertion-values"],
 });

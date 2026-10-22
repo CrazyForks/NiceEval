@@ -16,7 +16,7 @@ const agent = uiMessageStreamAgent({
 // Live compatibility observes one real attempt; retries must not rewrite a first failure as green.
 export default defineExperiment({
   description: "ai-sdk:HTTP useChat 后端(SSE、全量历史重放、审批改写重发、OTel)",
-  agent,
+  adapter: agent,
   model: DEFAULT_MODEL,
   attempts: 1,
   evals: ["tool-call", "hitl-approval", "session-replay"],

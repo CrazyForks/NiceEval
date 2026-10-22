@@ -3,7 +3,7 @@ import { deterministicAgent, deterministicSandbox } from "../agents/deterministi
 
 export default defineExperiment({
   description: "alternate: 为固定 View 提供第二个可选择实验",
-  agent: deterministicAgent(),
+  adapter: deterministicAgent(),
   sandbox: deterministicSandbox,
   model: "inspection-fixture-v1",
   evals: ["inspection"],

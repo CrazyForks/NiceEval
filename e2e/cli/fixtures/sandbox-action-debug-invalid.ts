@@ -16,7 +16,7 @@ const sandbox = dockerSandbox({
 
 export default defineExperiment({
   description: "Invalid Sandbox action DAG debug attribution",
-  agent: sandboxActionDebugAgent,
+  adapter: sandboxActionDebugAgent,
   sandbox,
   evals: ["sandbox-action-debug/plan"],
 });

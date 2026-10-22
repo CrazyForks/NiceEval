@@ -6,7 +6,7 @@ import { preContextErrorAgent } from "../agents/deterministic.ts";
 // 完全确定且不依赖网络或远端 provider。
 export default defineExperiment({
   description: "deliberate-error:Context 建立前执行错误,验证发布与 JUnit <error>",
-  agent: preContextErrorAgent,
+  adapter: preContextErrorAgent,
   sandbox: dockerSandbox({
     source: {
       type: "dockerfile",

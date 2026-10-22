@@ -6,6 +6,6 @@ import agent from "../agents/langgraph.ts";
 // pi-sdk 三个,这里不建 experiments/compare-models/。
 export default defineExperiment({
   description: "langgraph:真实 LangGraph + DeepSeek 后端",
-  agent,
+  adapter: agent,
   attempts: 1,
 });

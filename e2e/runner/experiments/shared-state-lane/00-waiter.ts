@@ -3,7 +3,7 @@ import { sharedStateExclusiveLaneAgent, sharedStateHooks } from "../../agents/sh
 import { controlledExclusiveSandbox } from "../../agents/controlled-exclusive-sandbox.ts";
 
 export default defineExperiment({
-  agent: sharedStateExclusiveLaneAgent,
+  adapter: sharedStateExclusiveLaneAgent,
   flags: { role: "lane-waiter" },
   sandbox: controlledExclusiveSandbox,
   evals: ["shared-state/"],

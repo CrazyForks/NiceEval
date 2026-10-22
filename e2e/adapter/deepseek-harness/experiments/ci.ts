@@ -9,7 +9,7 @@ const agent = deepSeekHarnessAgent({
 
 export default defineExperiment({
   description: "DeepSeek Harness adapter 的目标兼容性闭环",
-  agent,
+  adapter: agent,
   model: "deepseek-v4-flash",
   sandbox,
   evals: ["message"],

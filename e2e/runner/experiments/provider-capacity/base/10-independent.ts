@@ -7,7 +7,7 @@ const controlRoot = process.env.NICEEVAL_E2E_PROVIDER_CAPACITY_CONTROL_ROOT;
 
 export default defineExperiment({
   description: "an unrelated Docker Provider remains dispatchable",
-  agent: providerCapacityAgent,
+  adapter: providerCapacityAgent,
   sandbox: dockerSandbox({
     source: { type: "image", image: NODE_IMAGE },
     user: "node",

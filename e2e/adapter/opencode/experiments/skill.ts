@@ -13,7 +13,7 @@ const agent = openCodeAgent({
 
 export default defineExperiment({
   description: "opencode:Skill 安装、原生发现、目标选择与 decoy 反选闭环",
-  agent,
+  adapter: agent,
   model: "gpt-6-luna",
   sandbox,
   evals: ["skills/status-report"],

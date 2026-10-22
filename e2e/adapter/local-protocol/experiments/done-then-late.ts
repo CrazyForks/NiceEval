@@ -4,7 +4,7 @@ import { fixtureBaseUrl } from "../src/fixture/address.ts";
 
 export default defineExperiment({
   description: "local-protocol malformed stream: [DONE] 后仍发送 assistant 帧",
-  agent: uiMessageStreamAgent({
+  adapter: uiMessageStreamAgent({
     name: "local-protocol-done-then-late",
     url: `${fixtureBaseUrl()}/modes/done-then-late/api/chat`,
   }),

@@ -6,7 +6,7 @@ import agent from "../../agents/codex-sdk.ts";
 // "同一批 eval 在哪个变体下红"。基础问答、跑只读命令不受影响。
 export default defineExperiment({
   description: "read-only: 只读沙箱(写盘类 eval 预期失败)",
-  agent,
+  adapter: agent,
   flags: { sandboxMode: "read-only" },
   attempts: 1,
 });

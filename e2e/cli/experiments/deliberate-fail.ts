@@ -7,6 +7,6 @@ const agent = deterministicAgent("cli-deliberate-fail");
 // 进程非零退出、JUnit 折叠成 <failure>(不是 <error>)。
 export default defineExperiment({
   description: "deliberate-fail:确定性失败断言,验证退出码折叠与 JUnit <failure>",
-  agent,
+  adapter: agent,
   evals: ["deliberate-fail"],
 });

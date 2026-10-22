@@ -5,7 +5,7 @@ import agent from "../../agents/codex-sdk.ts";
 // ctx.flags 透传,adapter 塞进请求体的 sandboxMode 字段,应用把它交给 threadOptions。
 export default defineExperiment({
   description: "workspace-write: 沙箱可写(默认档)",
-  agent,
+  adapter: agent,
   flags: { sandboxMode: "workspace-write" },
   attempts: 1,
 });

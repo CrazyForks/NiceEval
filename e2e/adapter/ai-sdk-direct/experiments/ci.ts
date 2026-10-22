@@ -34,7 +34,7 @@ const agent = aiSdkAgent<ModelMessage>({
 
 export default defineExperiment({
   description: "AI SDK 进程内官方 Direct Agent factory 的真实 provider 闭环",
-  agent,
+  adapter: agent,
   model: DEFAULT_MODEL,
   evals: ["direct-agent"],
   attempts: 1,

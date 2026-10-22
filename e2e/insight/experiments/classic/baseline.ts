@@ -3,7 +3,7 @@ import { classicMemoryAgent } from "../../agents/classic.ts";
 
 export default defineExperiment({
   description: "classic/baseline: MemoryBench-like no-memory condition",
-  agent: classicMemoryAgent(),
+  adapter: classicMemoryAgent(),
   model: "gpt-6-luna",
   evals: ["classic/", "source-snapshot"],
   flags: { memory: "baseline" },

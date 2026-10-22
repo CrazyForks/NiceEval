@@ -29,6 +29,15 @@ description: "替换模型用途名称，迁移撤销的作者配置。"
 
 已有结果保持可读。持久化用量和 config identity 编码不变，不使用撤销字段的实验可以继续 carry 已有结果。
 
+## Experiment 使用 adapter
+
+将 `defineExperiment({ agent: target })` 改为 `defineExperiment({ adapter: target })`。
+`defineAgent` 与 `defineSandboxAgent` 的返回值可直接用作 `adapter`，无需包装。
+定义中仍出现 `agent` 时会报错，显式写成 `undefined` 也会被拒绝。
+
+单模型的 `model` / `reasoningEffort` 简写保留，归一为 `default` role；多用途配置继续使用 `models`。
+两种写法不能混用。仅将 `agent` 改成 `adapter` 不改变配置身份，已有结果可以继续 carry。
+
 ## t.note
 
 用 `t.note(label, value)` 保存只供审阅的数据，不增加 Assertion，也不影响 Verdict、score 或 coverage。

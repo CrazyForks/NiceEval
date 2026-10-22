@@ -3,6 +3,6 @@ import { completionPersistenceFailureAgent } from "../agents/timing.ts";
 
 export default defineExperiment({
   description: "completion persistence failure",
-  agent: completionPersistenceFailureAgent,
+  adapter: completionPersistenceFailureAgent,
   evals: ["timing/basic"],
 });
