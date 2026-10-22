@@ -1,3 +1,4 @@
+import { isQuantity, type Quantity, type Unit, formatNumericUnit } from "./quantity.ts";
 // @concord-file ne-eval-assertions-match
 // @concord-implements docs/feature/assertions/library/value-assertions.md
 // @concord-implements docs/feature/assertions/library/scoped-assertions.md
@@ -102,15 +103,17 @@ const toolOccurrenceIdentityBrand: unique symbol = Symbol("niceeval.toolOccurren
 const matchBrands = new WeakSet<object>();
 const numericComparisons = new WeakMap<object, NumericComparison>();
 
-export const NUMERIC_COMPARATORS = ["less-than", "at-most", "greater-than", "at-least"] as const;
+export const NUMERIC_COMPARATORS = ["less-than", "at-most", "greater-than", "at-least", "between"] as const;
 export type NumericComparator = (typeof NUMERIC_COMPARATORS)[number];
 
 export interface NumericComparison {
   readonly comparator: NumericComparator;
   readonly threshold: number;
+  readonly upperThreshold?: number;
+  readonly unit?: Unit;
 }
 
-export type NumericMaterial = { readonly provenance?: { readonly source: string; readonly scope: string; readonly unit: string; readonly cut: string } } & (
+export type NumericMaterial<U extends Unit | undefined = undefined> = { readonly unit?: U; readonly provenance?: { readonly source: string; readonly scope: string; readonly unit: string; readonly cut: string } } & (
   | {
       readonly state: "exact";
       readonly value: number;
@@ -136,8 +139,8 @@ export interface BooleanMatch<in T, out R extends T, D extends MatchDomain = "va
   readonly [matchRefinementBrand]: () => R;
 }
 
-export interface NumericComparisonMatch extends BooleanMatch<number, number, "value"> {
-  readonly [numericComparisonMatchBrand]: true;
+export interface NumericComparisonMatch<U extends Unit | undefined = undefined> extends BooleanMatch<U extends Unit ? Quantity<U> : number, U extends Unit ? Quantity<U> : number, "value"> {
+  readonly [numericComparisonMatchBrand]: (unit: U) => U;
 }
 
 export interface ScoreMatch<in T> extends Match<T, "value"> {
@@ -445,13 +448,13 @@ function createBooleanMatch<T, R extends T, D extends MatchDomain>(
 
 function numericDiagnostic(
   comparison: NumericComparison,
-  material: NumericMaterial,
+  material: NumericMaterial<Unit | undefined>,
   code: string,
   message: string,
 ): MatchDiagnostic {
   return diagnostic(code, message, {
-    expected: `${comparison.comparator} ${comparison.threshold}`,
-    received: material.state === "unavailable" ? material.reason : String(material.value),
+    expected: `${comparison.comparator} ${formatNumericUnit(comparison.threshold, comparison.unit)}${comparison.upperThreshold === undefined ? "" : ` … ${formatNumericUnit(comparison.upperThreshold, comparison.unit)}`}`,
+    received: material.state === "unavailable" ? material.reason : formatNumericUnit(material.value, material.unit),
     ...(material.state === "unavailable" ? { reason: material.reason } : {}),
   });
 }
@@ -466,6 +469,8 @@ function compareExact(value: number, comparison: NumericComparison): boolean {
       return value > comparison.threshold;
     case "at-least":
       return value >= comparison.threshold;
+    case "between":
+      return value >= comparison.threshold && value <= comparison.upperThreshold!;
   }
 }
 
@@ -474,7 +479,7 @@ function compareExact(value: number, comparison: NumericComparison): boolean {
  * monotone result; all other partial observations remain unavailable.
  */
 export function evaluateNumericComparison(
-  material: NumericMaterial,
+  material: NumericMaterial<Unit | undefined>,
   comparison: NumericComparison,
 ): BooleanMatchEvaluation<number> {
   if (material.state === "unavailable") {
@@ -482,6 +487,9 @@ export function evaluateNumericComparison(
       material.reason,
       numericDiagnostic(comparison, material, "numeric-value-unavailable", "the numeric value is unavailable"),
     );
+  }
+  if (material.unit !== comparison.unit) {
+    return unavailable("numeric-unit-mismatch", numericDiagnostic(comparison, material, "numeric-unit-mismatch", `numeric units differ: ${material.unit ?? "unitless"} and ${comparison.unit ?? "unitless"}`));
   }
   if (!Number.isFinite(material.value)) {
     const unavailableMaterial = Object.freeze({
@@ -509,7 +517,9 @@ export function evaluateNumericComparison(
         ));
   }
 
-  const decided = comparison.comparator === "at-most"
+  const decided = comparison.comparator === "between"
+    ? material.value > comparison.upperThreshold! ? "mismatched" : undefined
+    : comparison.comparator === "at-most"
     ? material.value > comparison.threshold
       ? "mismatched"
       : undefined
@@ -544,39 +554,68 @@ export function evaluateNumericComparison(
   );
 }
 
-function numericMatch(comparator: NumericComparator, threshold: number): NumericComparisonMatch {
+function numericMatch<U extends Unit | undefined>(comparator: NumericComparator, input: number | Quantity, upper?: number | Quantity): NumericComparisonMatch<U> {
+  const threshold = isQuantity(input) ? input.value : input;
+  const unit = isQuantity(input) ? input.unit : undefined;
   if (typeof threshold !== "number" || !Number.isFinite(threshold)) {
     throw new TypeError(`${comparator} threshold must be a finite number`);
   }
-  const comparison = Object.freeze({ comparator, threshold });
-  const match = createBooleanMatch<number, number, "value">(
+  const upperThreshold = isQuantity(upper) ? upper.value : upper;
+  if (comparator === "between") {
+    if ((isQuantity(upper) ? upper.unit : undefined) !== unit) throw new TypeError("between() bounds must have the same unit.");
+    if (typeof upperThreshold !== "number" || !Number.isFinite(upperThreshold) || upperThreshold < threshold) {
+      throw new RangeError("between() requires finite, ordered inclusive bounds.");
+    }
+  }
+  const comparison = Object.freeze({ comparator, threshold, ...(upperThreshold === undefined ? {} : { upperThreshold }), ...(unit === undefined ? {} : { unit }) });
+  const match = createBooleanMatch<number | Quantity, number | Quantity, "value">(
     "value",
-    `${comparator}(${threshold})`,
-    (candidate) => evaluateNumericComparison(
-      Number.isFinite(candidate)
-        ? Object.freeze({ state: "exact" as const, value: candidate })
-        : Object.freeze({ state: "unavailable" as const, reason: "non-finite-number" }),
-      comparison,
-    ),
-  ) as NumericComparisonMatch;
+    `${comparator}(${formatNumericUnit(threshold, unit)}${upperThreshold === undefined ? "" : `, ${formatNumericUnit(upperThreshold, unit)}`})`,
+    (candidate) => {
+      const result = evaluateNumericComparison(
+        isQuantity(candidate)
+          ? Object.freeze({ state: "exact" as const, value: candidate.value, unit: candidate.unit })
+          : typeof candidate === "number" && Number.isFinite(candidate)
+          ? Object.freeze({ state: "exact" as const, value: candidate })
+          : Object.freeze({ state: "unavailable" as const, reason: "non-finite-number" }),
+        comparison,
+      );
+      return result.state === "matched" ? matched(candidate) : result;
+    },
+  ) as unknown as NumericComparisonMatch<U>;
   numericComparisons.set(match, comparison);
   return match;
 }
 
-export function lessThan(threshold: number): NumericComparisonMatch {
+export function lessThan<U extends Unit>(threshold: Quantity<U>): NumericComparisonMatch<U>;
+export function lessThan(threshold: number): NumericComparisonMatch;
+export function lessThan(threshold: number | Quantity): NumericComparisonMatch<any> {
   return numericMatch("less-than", threshold);
 }
 
-export function atMost(threshold: number): NumericComparisonMatch {
+export function atMost<U extends Unit>(threshold: Quantity<U>): NumericComparisonMatch<U>;
+export function atMost(threshold: number): NumericComparisonMatch;
+export function atMost(threshold: number | Quantity): NumericComparisonMatch<any> {
   return numericMatch("at-most", threshold);
 }
 
-export function greaterThan(threshold: number): NumericComparisonMatch {
+export function greaterThan<U extends Unit>(threshold: Quantity<U>): NumericComparisonMatch<U>;
+export function greaterThan(threshold: number): NumericComparisonMatch;
+export function greaterThan(threshold: number | Quantity): NumericComparisonMatch<any> {
   return numericMatch("greater-than", threshold);
 }
 
-export function atLeast(threshold: number): NumericComparisonMatch {
+export function atLeast<U extends Unit>(threshold: Quantity<U>): NumericComparisonMatch<U>;
+export function atLeast(threshold: number): NumericComparisonMatch;
+export function atLeast(threshold: number | Quantity): NumericComparisonMatch<any> {
   return numericMatch("at-least", threshold);
+}
+
+/** Match a value inside inclusive bounds with the same unit. */
+export function between<U extends Unit>(minimum: Quantity<U>, maximum: Quantity<NoInfer<U>>): NumericComparisonMatch<U>;
+export function between(minimum: number, maximum: number): NumericComparisonMatch;
+export function between(minimum: number | Quantity, maximum: number | Quantity): NumericComparisonMatch<any> {
+  return numericMatch("between", minimum, maximum);
 }
 
 function createScoreMatch<T>(

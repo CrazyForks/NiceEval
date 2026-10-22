@@ -72,6 +72,7 @@ import {
 import { prepareManagedScoreMatch } from "./score-match-gateway.ts";
 import { assertionRuntimeLimits } from "./limits.ts";
 import { numericBooleanRegistration } from "./numeric.ts";
+import { isQuantity, type Unit } from "./quantity.ts";
 import { transferFullAssertionContent } from "./full-content.ts";
 
 const unitRatio = Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1 }));
@@ -914,8 +915,10 @@ class AssertionsRuntimeImplementation {
     const managed = assertManagedValueMatch(match, "t.check() match");
     if (managed.kind === "boolean") {
       if (isNumericComparisonMatch(managed)) {
-        const material: import("./match.ts").NumericMaterial = typeof value === "object" && value !== null && ["exact", "lower-bound", "unavailable"].includes(String((value as {state?: unknown}).state))
-          ? value as import("./match.ts").NumericMaterial
+        const material: NumericMaterial<Unit | undefined> = isQuantity(value)
+          ? Object.freeze({ state: "exact" as const, value: value.value, unit: value.unit })
+          : typeof value === "object" && value !== null && ["exact", "lower-bound", "unavailable"].includes(String((value as {state?: unknown}).state))
+          ? value as NumericMaterial<Unit | undefined>
           : typeof value === "number" && Number.isFinite(value)
           ? Object.freeze({ state: "exact" as const, value })
           : Object.freeze({ state: "unavailable" as const, reason: "non-finite-number" });
@@ -930,7 +933,7 @@ class AssertionsRuntimeImplementation {
           criterionSubject: Object.freeze({ kind: "explicit-value" as const }),
           material,
           captured,
-          matchedValue: (numericValue) => numericValue,
+          matchedValue: (numericValue) => isQuantity(value) ? value : numericValue,
         }));
       }
       const captured = captureAssertionSnapshot(value);

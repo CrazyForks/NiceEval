@@ -46,6 +46,8 @@ function numericCriterion(
     numeric: Object.freeze({
       comparator: comparison.comparator,
       threshold: comparison.threshold,
+      ...(comparison.upperThreshold === undefined ? {} : { upperThreshold: comparison.upperThreshold }),
+      ...(comparison.unit === undefined ? {} : { unit: comparison.unit }),
       subject: Object.freeze({ ...subject }),
     }),
   });
@@ -58,7 +60,7 @@ function numericCriterion(
 export function numericBooleanRegistration<Refined>(input: {
   readonly match: BooleanMatch<number, number, "value">;
   readonly criterionSubject: NumericCriterionSubject;
-  readonly material: NumericMaterial;
+  readonly material: NumericMaterial<import("./quantity.ts").Unit | undefined>;
   readonly captured: CapturedAssertionSnapshot;
   readonly matchedValue: (value: number) => Refined;
 }): BooleanAssertionRegistration<Refined> {

@@ -7,6 +7,7 @@ export {
   and,
   atLeast,
   atMost,
+  between,
   commandMatch,
   commandSucceeded,
   countWhere,

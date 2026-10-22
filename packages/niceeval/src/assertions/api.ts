@@ -94,6 +94,8 @@ export type AssertionCriterion =
       readonly numeric: {
         readonly comparator: NumericComparator;
         readonly threshold: number;
+        readonly upperThreshold?: number;
+        readonly unit?: import("./quantity.ts").Unit;
         readonly subject:
           | { readonly kind: "explicit-value" }
           | {
@@ -760,6 +762,7 @@ export interface AssertionCheck<Kind extends AssertionCheckKind, Context = unkno
     value: AssertionSubject<Value>,
     match: ScoreMatch<NoInfer<Value>>,
   ): CheckedMeasurementHandle<Kind>;
+  <U extends import("./quantity.ts").Unit>(value: import("./match.ts").NumericMaterial<U>, match: NumericComparisonMatch<NoInfer<U>>): CheckedBooleanHandle<Kind, number>;
 }
 
 export interface AssertionGroupContext {

@@ -270,6 +270,8 @@ function encodeCriterion(criterion: AssertionCriterion): WritableCriterionEnvelo
           data: Object.freeze({
             comparator: criterion.numeric.comparator,
             threshold: criterion.numeric.threshold,
+            ...(criterion.numeric.upperThreshold === undefined ? {} : { upperThreshold: criterion.numeric.upperThreshold }),
+            ...(criterion.numeric.unit === undefined ? {} : { unit: criterion.numeric.unit }),
             subject: criterion.numeric.subject,
           }),
         });

@@ -88,8 +88,10 @@ export type BuiltInCriterion =
       readonly kind: "builtin";
       readonly id: "numeric-comparison/v1";
       readonly data: {
-        readonly comparator: "less-than" | "at-most" | "greater-than" | "at-least";
+        readonly comparator: "less-than" | "at-most" | "greater-than" | "at-least" | "between";
         readonly threshold: number;
+        readonly upperThreshold?: number;
+        readonly unit?: import("../quantity.ts").Unit;
         readonly subject:
           | { readonly kind: "explicit-value" }
           | {

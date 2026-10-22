@@ -398,6 +398,8 @@ const NumericComparisonCriterionSchema = Schema.Struct({
   data: Schema.Struct({
     comparator: Schema.Literals(NUMERIC_COMPARATORS),
     threshold: Schema.Finite,
+    upperThreshold: Schema.optional(Schema.Finite),
+    unit: Schema.optional(Schema.Literals(["ms", "seconds", "tokens", "usd", "ratio", "count", "bytes"])),
     subject: Schema.Union([
       Schema.Struct({ kind: Schema.Literal("explicit-value") }),
       Schema.Struct({
