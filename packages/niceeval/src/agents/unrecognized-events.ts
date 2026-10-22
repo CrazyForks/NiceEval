@@ -6,7 +6,8 @@ export class UnrecognizedAgentEvents {
   private sequence = 0;
 
   observe(counts: Readonly<Record<string, number>> | undefined, source?: string): void {
-    this.sources.set(source ?? `send:${++this.sequence}`, counts ?? {});
+    if (counts === undefined) return;
+    this.sources.set(source ?? `send:${++this.sequence}`, counts);
   }
 
   report(diagnostic: (input: DiagnosticInput) => void): void {

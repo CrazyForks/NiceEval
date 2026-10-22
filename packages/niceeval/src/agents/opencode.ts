@@ -222,6 +222,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
           if (sessionId) ctx.session.capture(sessionId);
 
           let parsed = parseOpenCodeTranscript(raw);
+          let hasUnrecognizedEvents = Object.keys(parsed.unrecognizedEvents ?? {}).length > 0;
           const unknown = unknownEvents.get(sb.sandboxId);
           unknown?.observe(parsed.unrecognizedEvents);
           // 仅当 stdout 既没有工具也没有助手文本时才 export 补读——纯对话轮
@@ -234,6 +235,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
             if (exported.exitCode === 0 && exported.stdout.trim()) {
               raw = exported.stdout;
               parsed = parseOpenCodeTranscript(raw);
+              hasUnrecognizedEvents ||= Object.keys(parsed.unrecognizedEvents ?? {}).length > 0;
               unknown?.observe(parsed.unrecognizedEvents, `export:${sid}`);
               sessionId = sessionIdFromOpenCodeTranscript(raw) ?? sessionId;
               if (sessionId) ctx.session.capture(sessionId);
@@ -250,7 +252,7 @@ export function openCodeAgent(config?: OpenCodeConfig): Agent {
               actions: { status: "unavailable", reason },
               usage: { status: "unavailable", reason },
             };
-          } else if (!parsed.parseSuccess || Object.keys(parsed.unrecognizedEvents ?? {}).length > 0) {
+          } else if (!parsed.parseSuccess || hasUnrecognizedEvents) {
             const reason = "Some OpenCode transcript lines could not be parsed.";
             turnEvidenceCoverage = {
               events: { status: "partial", reason },

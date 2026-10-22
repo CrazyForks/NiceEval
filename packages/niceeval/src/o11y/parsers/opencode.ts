@@ -202,7 +202,9 @@ export function parseOpenCodeTranscript(raw: string | undefined): ParsedTranscri
       case "step_start": break;
       case "step_finish": addUsage(get(part, "tokens")); break;
       case "error": {
-        const message = str(get(get(get(entry, "error"), "data"), "message"));
+        // NamedError is the fixed protocol: some variants only carry a name.
+        const error = get(entry, "error");
+        const message = str(get(get(error, "data"), "message")) ?? str(get(error, "name"));
         if (message) events.push({ type: "error", message });
         else parseSuccess = false;
         break;
