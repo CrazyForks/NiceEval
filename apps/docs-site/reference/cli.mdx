@@ -110,7 +110,7 @@ The table below is generated from each command's own option definitions. Flags n
 | `--help` | `niceeval` | boolean | Print the root command index. |
 | `--version` | `niceeval` | boolean | Print the installed NiceEval version. |
 | `--tag` | `niceeval check`, `niceeval exp`, `niceeval exp list` | string | Select only Evals with this tag. |
-| `--help` | `niceeval check`, `niceeval exp`, `niceeval exp list`, `niceeval exp rename`, `niceeval exp --teardown`, `niceeval debug`, `niceeval accept`, `niceeval invocation` | boolean | Print help for this command. |
+| `--help` | `niceeval check`, `niceeval exp`, `niceeval exp list`, `niceeval exp rename`, `niceeval exp --after`, `niceeval debug`, `niceeval accept`, `niceeval invocation` | boolean | Print help for this command. |
 | `--experiment` | `niceeval exp` | string[] | Narrow the current project's results by Experiment selector. |
 | `--attempts` | `niceeval exp` | number | Run each selected Eval the given number of times. |
 | `--max-concurrency` | `niceeval exp` | number | Limit the number of Attempts executing at the same time. |
@@ -130,12 +130,12 @@ The table below is generated from each command's own option definitions. Flags n
 | `--run` | `niceeval exp rename` | string[] | Select one exact Run to adopt into the target Experiment; repeating it is rejected. |
 | `--dry` | `niceeval exp rename` | boolean | Preview an explicit Experiment rename. |
 | `--json` | `niceeval exp rename` | boolean | Write this command's machine document or event stream. |
-| `--teardown` | `niceeval exp --teardown` | boolean | Run explicit Experiment teardown recovery. |
-| `--json` | `niceeval exp --teardown` | boolean | Write this command's machine document or event stream. |
-| `--recover-shared-state` | `niceeval exp --teardown` | string | Name the shared state key to recover explicitly. |
-| `--owner-token` | `niceeval exp --teardown` | string | Provide the exact shared state owner token. |
-| `--confirm-owner-terminated` | `niceeval exp --teardown` | boolean | Confirm that the recorded owner has terminated. |
-| `--confirm-remote-quiesced` | `niceeval exp --teardown` | boolean | Confirm that the remote shared state is quiescent. |
+| `--after` | `niceeval exp --after` | boolean | Run explicit Experiment after recovery. |
+| `--json` | `niceeval exp --after` | boolean | Write this command's machine document or event stream. |
+| `--recover-shared-state` | `niceeval exp --after` | string | Name the shared state key to recover explicitly. |
+| `--owner-token` | `niceeval exp --after` | string | Provide the exact shared state owner token. |
+| `--confirm-owner-terminated` | `niceeval exp --after` | boolean | Confirm that the recorded owner has terminated. |
+| `--confirm-remote-quiesced` | `niceeval exp --after` | boolean | Confirm that the remote shared state is quiescent. |
 | `--json` | `niceeval debug` | boolean | Write this command's machine document or event stream. |
 | `--run` | `niceeval accept` | string[] | Adopt one published exact Run; repeating it is rejected. |
 | `--dry` | `niceeval accept` | boolean | Complete the whole-Run adoption preflight without publishing a new Run. |

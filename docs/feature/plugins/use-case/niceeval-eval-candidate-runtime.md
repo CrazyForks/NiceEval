@@ -36,11 +36,10 @@ export default defineExperiment({
     version: candidate.version,
     runtime: "node",
   }),
-  plugins: pluginStack()
-    .use(candidateRuntime({
+  plugins: [candidateRuntime({
       version: candidate.version,
       runtime: "node",
-    })),
+    })],
 });
 ```
 
@@ -48,13 +47,13 @@ Experiment 明确拥有 `candidateVersion` flag 与报告 label：前者是会�
 
 `candidateRuntime()` 可以成套贡献:
 
-- physical Sandbox lifecycle setup，把候选工作区写入实例并执行就绪检查；
-- 对应的 teardown，以及生命周期中的 progress / diagnostic；
+- 每条 Attempt 的 sandbox.before，把候选工作区写入 reset 后的实例并执行就绪检查；
+- 对应的 sandbox.after，以及生命周期中的 progress / diagnostic；
 - 由 `{ version, runtime }` 组成的稳定行为 identity，使同一 Plugin occurrence 只在同一候选条件下参与 reuse identity。
 
 Node / pnpm / Docker / Compose 的实际检查值、setup provenance 与 contribution refs 不是 Plugin 可自定义的持久数据。它们只有恰好符合 NiceEval 已发布 typed collector 或 Adapter 能力时，才能进入九个固定 family 中对应的 source、File Changes、Assertions、Sources 或 Artifacts；没有 collector 时不自动持久化或查询。
 
-这样同一个插件可用于 stable、previous 与 canary 三格；每个 Experiment link 出独立 instance，不会共享 setup 状态或取得 Record writer capability。
+这样同一个插件可用于 stable、previous 与 canary 三格；每个 Experiment link 出独立 instance，不会共享 before 状态或取得 Record writer capability。
 
 第三方 Plugin 只能组合 lifecycle / domain API。它不能取得 durable writer、读取面、family catalog、schema、blob、migration 或物理 Record 布局权限，也不能注册新的 Attachment family。新增值得持久化的事实必须先由 NiceEval 提供 Record 附件定义，并纳入 persistence revision 治理。
 
@@ -71,7 +70,7 @@ Node / pnpm / Docker / Compose 的实际检查值、setup provenance 与 contrib
 ```text
 候选查找 / 下载       → 独立资源工作流,返回精确 version
 Sandbox template      → candidateHarnessSandbox({ version, runtime })
-候选运行条件与验收   → plugins: pluginStack().use(candidateRuntime({ version, runtime }))
+候选运行条件与验收   → plugins: [candidateRuntime({ version, runtime })]
 ```
 
 插件可以检查 template 完成后的 Sandbox 实例，但不能反过来修改 template 让它“碰巧兼容”，也不能把检查细节作为自定义 Record 值写入。V1 不提供通用 planning requirement 求解器。

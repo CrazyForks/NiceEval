@@ -236,7 +236,7 @@ heartbeat 是随 owner 活动写入同一 ProjectDatabase 的非权威观察值�
 显式 sharedState recovery 只能附在一个唯一 Experiment 的 after 命令上：
 
 ```bash
-niceeval exp <selector> --teardown \
+niceeval exp <selector> --after \
   --recover-shared-state <key> \
   --owner-token <token> \
   --confirm-owner-terminated \

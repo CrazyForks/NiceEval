@@ -33,7 +33,7 @@ Experiment `maxConcurrency` 不跨 Invocation 协调，也不会形成并发名�
 先用公开命令检查 owner evidence，再带 exact token 和双确认执行恢复：
 
 ```bash
-niceeval exp compare/codex --teardown \
+niceeval exp compare/codex --after \
   --recover-shared-state mempal/codex/cohort-a \
   --owner-token <displayed-token> \
   --confirm-owner-terminated \

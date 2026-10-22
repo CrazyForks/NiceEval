@@ -105,7 +105,7 @@ Runner 在触发 `before` 前，把 after 所需的稳定输入写入 ProjectDat
 
 这项启动义务独立于 `ExperimentLifecycleCell`：即使本次所有结果都 carry、没有任何 Attempt，selected Experiment 也必须等到旧登记已在同 key authority 下完成，或等操作员显式恢复；它不会借零 Attempt 跳过安全边界。
 
-`niceeval exp <selector> --teardown` 只运行这条补偿路径。它不建立 Run、Member 或 Attempt。
+`niceeval exp <selector> --after` 只运行这条补偿路径。它不建立 Run、Member 或 Attempt。
 
 ## 并发 Invocation
 

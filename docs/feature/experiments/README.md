@@ -157,7 +157,7 @@ Provider finalizer，最后执行 Experiment `after`。
 
 sharedState 没有 heartbeat 过期接管或 PID 自动接管。owner token、exact process identity 与 generation 都不可变。
 heartbeat 是同一 ProjectDatabase 中 exact token/generation 专属的观察值，只作诊断。它不能改变 authority，也不会让旧 owner 影响新 generation。
-确认原 owner 已终止且远端状态已静默后，操作员才可用公开的 `niceeval exp <selector> --teardown` recovery flow 运行
+确认原 owner 已终止且远端状态已静默后，操作员才可用公开的 `niceeval exp <selector> --after` recovery flow 运行
 一次补偿 after；详见 [CLI · 协调等待与恢复](cli.md#协调等待与恢复)。这个字段只提供互斥，不代替 checkpoint
 存储、原子提交或强杀恢复。
 

@@ -103,7 +103,7 @@ export const EXP_RENAME_CLI_OPTIONS = Object.freeze({
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
 export const EXP_TEARDOWN_CLI_OPTIONS = Object.freeze({
-  after: option("boolean", "Run explicit Experiment teardown recovery."),
+  after: option("boolean", "Run explicit Experiment after recovery."),
   json: option("boolean", "Write machine output where the operation supports it."),
   "recover-shared-state": option("string", "Name a shared-state key for explicit recovery."),
   "owner-token": option("string", "Provide the exact shared-state owner token."),
@@ -175,7 +175,7 @@ Run options:
   --junit <path>                 write a required JUnit report
 
 Recovery options:
-  --after                     run only explicit Experiment teardown recovery
+  --after                     run only explicit Experiment after recovery
   --recover-shared-state <key>   inspect or recover this immutable shared-state owner
   --owner-token <token>          provide the exact owner token shown by inspection
   --confirm-owner-terminated     confirm the recorded owner has terminated
