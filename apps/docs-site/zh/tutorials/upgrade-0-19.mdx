@@ -1,0 +1,99 @@
+---
+title: "升级到 0.19"
+description: "替换模型用途名称，迁移撤销的作者配置。"
+---
+
+模型用途统一称为 **role**，请一起替换以下名称：
+
+| 旧名 | 0.19 |
+| --- | --- |
+| `defineModelSlots` | `defineModelRoles` |
+| `ModelSlotSelection` | `ModelRoleSelection` |
+| `recordUsage({ modelSlot })` | `recordUsage({ modelRole })` |
+| `cacheRead.modelSlots` | `cacheRead.roles` |
+| 分组字段 `modelSlot` | 分组字段 `modelRole` |
+| `slot-has-no-calls` | `role-has-no-calls` |
+
+`models`、`requires.models`、`ctx.models` 和 `t.usage.cacheRead.rate(role?)` 的行为不变。消费 `show --json`、Query 与 View 数据的代码也要同步替换字段。旧 API 名称不保留转发别名。
+
+## 替换撤销字段
+
+| 撤销项 | 替代方式 |
+| --- | --- |
+| `Config.workspace` | 从项目目录运行 |
+| `Eval.reporters` | `Config.reporters` |
+| `Experiment.classifyFailure` | 内建分类、`ExperimentFatalError` 或 `EvalFatalError` |
+| `run show <run-id>` | `show --run <run-id>` |
+
+撤销字段在定义加载时立即报错，显式写成 `undefined` 也会被拒绝。Codex 与 Claude Code 原生插件仍属于 Adapter 配置。Config reporters、Eval 的 `diff` 与 `metadata`、构建与准备并发控制，以及 Agent/Adapter 实现继续保留。
+
+已有结果保持可读。持久化用量和 config identity 编码不变，不使用撤销字段的实验可以继续 carry 已有结果。
+
+## t.note
+
+用 `t.note(label, value)` 保存只供审阅的数据，不增加 Assertion，也不影响 Verdict、score 或 coverage。
+值可以是 JSON 或带单位的 Quantity；`null` 显示为 unavailable。
+
+```ts
+import { ms } from "niceeval/expect";
+
+t.note("出手频率", result.activity);
+t.note("首个决策延迟", ms(result.firstDecisionMs));
+```
+
+同一 Attempt 的 label 必须唯一，最多 64 项，每项 JSON 不超过 64 KiB；违规时抛出 `TypeError`。
+`show @<locator>` 与 View 在 Assertions 后显示 Notes，JSON 与 Query 的 Attempt 结果新增 `notes`。
+`show --exp <experiment-id>` 按 label 和单位聚合数值 Note，列出 count、min、median、p90、max。
+历史结果没有 Note 时返回空列表。
+
+## 数值单位
+
+在把数值交给 NiceEval 的边界，使用 `niceeval/expect` 的 `ms`、`seconds`、`tokens`、`usd`、`ratio`、`count` 或 `bytes` 包装。构造函数返回冻结的 `Quantity`，通过 `.value` 和 `.unit` 读取；先做数值运算，再包装单位。非有限输入抛出 `RangeError`，`ratio` 还会拒绝 `[0, 1]` 以外的数值。
+
+```ts
+import { atLeast, atMost, measured, ms, ratio } from "niceeval/expect";
+
+const latency = measured(ms(512), { unavailable: "没有延迟观测" });
+t.check(latency, atMost(ms(600)));
+t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6)));
+```
+
+`measured` 和 `quantile` 保留单位。`atLeast`、`atMost`、`greaterThan`、`lessThan` 与包含两端的 `between` 要求材料和阈值使用相同单位；跨单位或未包装的阈值不能通过类型检查。绕过类型时，不兼容比较形成 unavailable。`cacheRead.rate()` 现在要求 `ratio(...)` 阈值。无单位材料继续使用普通 number 阈值，旧 Record 未提供单位时仍视为无单位。Show 与 View 按 `512 ms`、`61.2%`、`$0.031` 等形式显示。
+
+## Planned attempt
+
+Run 的计划执行位置现在称为 Planned attempt；已发布的执行事实仍称为 Attempt。
+`query` 使用 `niceeval.query/v2`，`/inspection` decoder 不再接受 v1。
+将 `slotId`、`expectedSlots` 和 `originSlotId` 分别替换为 `plannedAttemptId`、`plannedAttempts` 和 `originPlannedAttemptId`。
+Run 和当前结果的 `slots` 集合改为 `plannedAttempts`。Show 完整度统计显示 Planned / Recorded / Missing attempts。
+已有 Record 无需重写；持久字段在查询投影边界转换。
+
+Adapter 的 `createSessionSlot` / `SessionSlot` 改为 `createSessionKey` / `SessionKey`；
+并发等待文案改为 `waiting for capacity`。
+
+## 命名收敛
+
+旧名字不再提供别名；定义和 CLI 解析会提示替代名字。
+
+| 0.18 | 0.19 |
+| --- | --- |
+| `maxSetupPrefixConcurrency`、`--max-setup-prefix-concurrency` | `maxBeforeCacheConcurrency`、`--max-before-cache-concurrency` |
+| `sandboxCache.setup`、`SandboxSetupCache`、`--sandbox-setup-cache` | `sandboxCache.before`、`SandboxBeforeCache`、`--sandbox-before-cache` |
+| summary `setupPrefixes`、debug `setupPrefixPlan` | `beforeCaches`、`beforeCachePlan` |
+| `bubAgent({ apiBase })` | `bubAgent({ baseUrl })` |
+| `t.o11y`、`O11ySummary` | `t.observability`、`ObservabilitySummary` |
+| `turn.message` | `turn.reply` |
+| `Experiment.judgeRuntime`、`Config.judgeRuntime` | `Experiment.judge`、`Config.judgeProvider` |
+| `niceeval session list/show` | `niceeval invocation list/show` |
+| `niceeval sandbox --record` | `niceeval sandbox --record-root` |
+
+准备缓存现在称为 before cache，身份类型称为 `BeforeCacheKey`。timing 和 diagnostic 的生命周期名称使用 `*.before`、`*.after`。缓存目录、缓存键与 Record 编码保持原样，读取时映射名称，已有缓存与结果无需重写。
+
+Docker profile 解码和定义只保留 `decodeDockerExecutionProfile`、`defineDockerExecutionProfile`。
+索引和查找只保留 `indexDockerProfiles`、`resolveDockerProfile`。
+版本常量只保留 `DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION`。删除这些实现的其它别名。
+
+`/sandbox` 不再导出身份计算、Compose 编译、内部构建调度、capture normalization 与 profile 策略常量。
+`/loaders` 不再导出 `captureLoadedFiles`。
+`/inspection` 不再导出 `canonicalInspectionJson`、`canonicalJsonValue`、`closeInspectionJson`。
+这些内部能力没有替代作者 API。

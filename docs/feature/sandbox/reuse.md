@@ -4,7 +4,7 @@ Experiment 用 `sandboxReuse: true` 声明多条 Attempt 可以共用 Sandbox：
 
 ```ts
 export default defineExperiment({
-  agent: codexAgent(),
+  adapter: codexAgent(),
   sandbox: e2bSandbox({
     template: "niceeval-agents",
     lifetimeMs: 4 * 60 * 60_000,
@@ -47,7 +47,7 @@ export default defineExperiment({
 ![复用 Sandbox 的并行与生命周期](../../assets/sandbox-reuse-lanes.svg)
 
 每个 Sandbox 同时只承接一条 Attempt。
-不同 Sandbox 可以并行；同时执行数仍受全局并发位和 Experiment `maxConcurrency` 限制。
+不同 Sandbox 可以并行；同时执行数仍受全局并发名额和 Experiment `maxConcurrency` 限制。
 Runner 按需创建 Sandbox，不因为并发上限较大就提前创建不会使用的数量。
 
 ### 并行 Invocation
@@ -77,7 +77,7 @@ Sandbox 复用池归属单条 Invocation，不跨进程借用 Provider Case 或 
 - Attempt 的 Agent 与 cleanup 收尾完成后,Sandbox 才能 reset、轮换或停止。
 
 Runner 不按 API 名猜次数；当前 planning 固定编译 attempt occurrence。physical promotion 属于后续性能工作。
-稳定 Agent CLI 应进入预制实例；其余准备写成所属 owner 的 `before()`，由前缀缓存控制重复成本。
+稳定 Agent CLI 应进入预制实例；其余准备写成所属 owner 的 `before()`，由 before 缓存控制重复成本。
 
 Agent CLI 先由 ensure 重新 探测；缺失或 identity 不符时由配对 Installer 安装并复检。
 随后 runtime setup 的扩展步骤按声明收敛，不假设 Sandbox 空白：同名 marketplace 注册与 Plugin 安装被替换成按声明出处与 ref 的全新安装，规则见 [Coding Agent 扩展边界](../adapters/architecture/coding-agent-extensions.md#安装收敛不假设沙箱空白)。

@@ -36,4 +36,4 @@ const policy = g.material.referenceFile({
 
 作者若把 `JSON.stringify(turn.toolCalls)` 传给 `customText`，系统会照字面视为一次显式 overgrant，并在 manifest 标成 custom source。私有品牌 API 阻止的是隐式展开和误传对象，不承诺反驳可信作者主动复制的内容。
 
-`name` 只显示在作者审计面，不会成为 LLM heading 或 Agent filename；evaluator 收到的稳定标识来自 recipe slot 与 ordinal。
+`name` 只显示在作者审计面，不会成为 LLM heading 或 Agent filename；evaluator 收到的稳定标识来自 recipe input 与 ordinal。

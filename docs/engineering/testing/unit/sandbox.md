@@ -21,7 +21,7 @@
 
 ### Provision retry
 
-[Sandbox 重试契约](../../../feature/sandbox/architecture.md)要求歧义创建先 reconcile，reconcile 失败保留原错误，退避期间释放并发位。
+[Sandbox 重试契约](../../../feature/sandbox/architecture.md)要求歧义创建先 reconcile，reconcile 失败保留原错误，退避期间释放并发名额。
 真实限流与“远端其实已经创建成功”的状态无法可靠安排；fake timer 和 `ProvisionSlot` 是唯一可控入口。
 
 最小矩阵区分：没有 reconcile 通道时不盲重试、每次重试前先 reconcile、reconcile 失败终止、退避前后按序 release / reacquire。

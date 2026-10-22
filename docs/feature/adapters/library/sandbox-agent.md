@@ -61,7 +61,7 @@ CLI 非零、signal、transport 中断或无法辨认终态时 reject `SendFailu
 不要从 CLI stdout 的每个 frame 转发 progress,也不要直接写宿主进程的 stdout/stderr。
 完整语义见 [Adapter Library · 向运行反馈进度与诊断](../library.md#向运行反馈进度与诊断)。
 
-Sandbox 级二进制、预热和跨 attempt 资源属于 Experiment layer 的 `prepare()` 或预构建输出；eval 的任务 Fixture 属于 Eval layer 的 `prepare()` 或 `test(t)`。
+Sandbox 级二进制、预热和跨 attempt 资源属于 Experiment layer 的 `before()` 或预构建输出；eval 的任务 Fixture 属于 Eval layer 的 `before()` 或 `test(t)`。
 三类准备不交换职责。
 
 ## Transcript 采集
@@ -91,8 +91,8 @@ Sandbox 级二进制、预热和跨 attempt 资源属于 Experiment layer 的 `p
 ## 会话与 HITL
 
 CLI 原生 resume ID 写入 `ctx.session.capture()`，下一轮用 `ctx.session.id` 拼接 resume 参数。
-审批过程中尚未消费完的 cursor、parser 和 request ID 放进模块级 `createSessionSlot<T>()` 创建的 typed slot。
-暂停前调用 `ctx.session.set(slot, value)`，回答轮调用 `ctx.session.take(slot)` 一次性取回；需要重复读取的状态用 `get(slot)`。
+审批过程中尚未消费完的 cursor、parser 和 request ID 放进模块级 `createSessionKey<T>()` 创建的 typed key。
+暂停前调用 `ctx.session.set(key, value)`，回答轮调用 `ctx.session.take(key)` 一次性取回；需要重复读取的状态用 `get(key)`。
 
 ## Skills 与 Plugins
 

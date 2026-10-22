@@ -143,7 +143,7 @@ export default defineSandboxAgent({
 |---|---|---|
 | 收发消息 | 返回可信 Turn；执行异常 reject `SendFailure` | 单轮发送、输出断言 |
 | 标准事件流 | 完整映射消息与 operation，保持顺序和 operation ID | 工具、消息与事件断言 |
-| 多轮会话 | 使用 typed session slot 或 `id` / `capture()` | 多轮与 `newSession()` |
+| 多轮会话 | 使用 typed session key 或 `id` / `capture()` | 多轮与 `newSession()` |
 | HITL | 返回 `waiting`、`input.requested`，按 request ID 恢复 | `t.check(turn.status, equals("waiting"))`、`requireInputRequest`、`respond` |
 | tracing | 配置 exporter 与 span mapper | 结果 trace 和 view 瀑布图 |
 
@@ -153,9 +153,9 @@ export default defineSandboxAgent({
 
 | 存取器 | 后端形态 |
 |---|---|
-| `ctx.session.get(slot)` / `set(slot, value)` | 无状态服务；用 adapter 私有 typed slot 保存完整消息历史 |
+| `ctx.session.get(key)` / `set(key, value)` | 无状态服务；用 adapter 私有 typed key 保存完整消息历史 |
 | `ctx.session.id` / `capture(id)` | 服务端保存历史；请求携带 session/thread ID |
-| `ctx.session.take(slot)` | HITL 回答轮一次消费 adapter 私有 slot 中的暂停现场 |
+| `ctx.session.take(key)` | HITL 回答轮一次消费 adapter 私有 key 中的暂停现场 |
 
 会话状态只保存在 `ctx.session`。
 模块级 Map 会让并发 attempt 或 `t.newSession()` 之间串线。
@@ -579,12 +579,12 @@ elapsedMs使用runtime的Attempt单调时钟起点到调用处的墙钟毫秒，
 `AdapterCreateContext.models` 是当前 Attempt 的只读映射，每项为 `{ model: string | null; reasoningEffort: string | null }`。
 配置由 [Experiment](../experiments/library.md#普通-adapter-的命名模型用途) 冻结，Adapter 不另复制一份模型 flags。
 
-`recordUsage` 可带 `modelSlot?: string | null`。它引用当前配置的用途键，不要求实际 model 与配置相同。
+`recordUsage` 可带 `modelRole?: string | null`。它引用当前配置的用途键，不要求实际 model 与配置相同。
 省略或 null 表示用途未登记，不推断为 default；非法引用沿既有采集错误通道失败，不能捕获后当作完整调用账本封存。
 同模型的不同用途保留独立分组，retryOf 和 callId 仍标识物理请求。
 新普通 Adapter 即使没有调用也封存完整空账本，旧 Record 缺源仍未知。
 
-用量 revision 4 保存必有的 modelSlot 与显式采集完整性；revision 1 与 2 只读投影用途为 null，revision 3 保留原用途。
+用量 revision 4 保存必有的 modelRole 与显式采集完整性；revision 1 与 2 只读投影用途为 null，revision 3 保留原用途。
 旧版本原金额与应用 costUSD 保留，新整局和实验总费用对缺少生产者声明的旧账本保留 application 缺口，不重写旧字节。
 
 
@@ -611,24 +611,24 @@ type CacheReadSummary = {
 };
 type CacheReadReport = {
   readonly total: CacheReadSummary;
-  readonly modelSlots: readonly ({ readonly modelSlot: string | null } & CacheReadSummary)[];
+  readonly roles: readonly ({ readonly modelRole: string | null } & CacheReadSummary)[];
   readonly models: readonly ({
-    readonly modelSlot: string | null;
+    readonly modelRole: string | null;
     readonly provider: string | null;
     readonly model: string | null;
   } & CacheReadSummary)[];
 };
 ```
 
-`EvalUsage.cacheRead` 的作者类型为 `EvalCacheRead`，扩展上述报告并提供 `rate(modelSlot?: string): NumericMaterial`。
+`EvalUsage.cacheRead` 的作者类型为 `EvalCacheRead`，扩展上述报告并提供 `rate(modelRole?: string): NumericMaterial`。
 不传参数选择 total；传字符串精确选择 Experiment models 声明的用途。模型用途没有框架内置名单，单模型 model 简写对应 default。
 方法可解构调用，始终读取当前冻结快照，不随后续 recordUsage 或 sealUsage 改变。
 
 传入未声明用途会在调用处同步抛 TypeError，列出可选用途；拼写错误不会转成 unavailable。
-已声明用途在完整采集下没有调用返回 slot-has-no-calls，其余情况保留分组 rate 的原因，包括 collection-incomplete 和 zero-input-total。
-数组报告继续使用 no-calls；方法将空槽位原因具体化。无参数方法原样返回 total.rate。
+已声明用途在完整采集下没有调用返回 role-has-no-calls，其余情况保留分组 rate 的原因，包括 collection-incomplete 和 zero-input-total。
+数组报告继续使用 no-calls；方法将空计划 Attempt原因具体化。无参数方法原样返回 total.rate。
 作者无需 find、可选链或自行构造 unavailable。方法不重算比例、不修改数组，也不进入 Query JSON 或持久数据。
-Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导槽位类型。
+Eval 可跨 Experiment 复用，且参数在 test 回调执行时产生；此入口不承诺定义期静态校验或跨定义推导计划 Attempt类型。
 
 `rate` 只返回 exact 或 unavailable，不返回 lower-bound。公式是同组调用的 `Σ cacheReadTokens / Σ inputTotalTokens`。
 每次调用优先采用独立观测到的 `inputTotalTokens`；缺少总量时，只有 input、cacheRead、cacheWrite 三个互斥桶全部已知才求和。
@@ -641,8 +641,8 @@ unknown 状态计入 recordedCalls；token 齐全时也计入 coveredCalls，但
 任何缺项、空组、零分母或聚合超过安全整数都使 rate unavailable；reasons 保留全部适用原因，顺序按上述联合排列。
 rate.reason 使用 reasons 的首项。缺失不补零；完整且有正输入总量的零缓存读取率为 exact zero。
 
-modelSlots 包含全部配置用途以及已观测的 null 用途；没有调用的配置用途仍显示 no-calls。
-models 按 `[modelSlot, provider, model]` 精确分组；null 保持未知，不能冒充配置值。
+roles 包含全部配置用途以及已观测的 null 用途；没有调用的配置用途仍显示 no-calls。
+models 按 `[modelRole, provider, model]` 精确分组；null 保持未知，不能冒充配置值。
 排序逐字段采用 null 在前、字符串按 UTF-16 码元升序。用途最多 65 组，实际模型最多 4000 组，均不截断。
 这些上限来自现有配置与调用接纳预算，报告不再复制调用、附件或价格回执。
 
@@ -651,7 +651,7 @@ attempt.usage 使用专属 16 MiB 响应预算，容纳 4000 组各身份最大 
 没有 Adapter 账本时 total unavailable，两个分组数组为空；revision 1–3 缺少生产者明确 seal 声明，即使原 collection 为 complete，也保留 collection-incomplete。当前 revision 4 由读取边界传递完整性声明，Library collector 使用当前 seal 状态。
 
 ```ts
-t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
+t.check(t.usage.cacheRead.rate("mind"), atLeast(ratio(0.6))).gate();
 ```
 
 Show 与 View 展示总计、用途及实际模型的读取率、coveredCalls/recordedCalls、collectionComplete 和 reasons。
@@ -675,8 +675,8 @@ Adapter 先以 `ctx.attach` 接管已封存的原始证据，等待成功回执�
 
 ## 共享模型用途声明
 
-`defineModelSlots({ mind: { model: "provider/model" }, speech: { model: "provider/model" } })` 返回自身复制的深冻结声明，保留精确键联合；不增加类型品牌、运行时品牌或注册表，也不冻结作者传入的对象。
-键和值仍遵守 ModelSlotSelection 的现有校验、64 个槽位上限与模型配置约束；它没有全局注册表，不启动资源。
+`defineModelRoles({ mind: { model: "provider/model" }, speech: { model: "provider/model" } })` 返回自身复制的深冻结声明，保留精确键联合；不增加类型品牌、运行时品牌或注册表，也不冻结作者传入的对象。
+键和值仍遵守 ModelRoleSelection 的现有校验、64 个槽位上限与模型配置约束；它没有全局注册表，不启动资源。
 声明可直接传给多个 Experiment 的 models。每个 Experiment 仍决定模型选择，不要求与 Eval 的声明对象引用相同，也不要求模型值相等。
 
 Adapter 的 defineEval、defineScoreEval 绑定工厂接受 `requires: { models: slots }`。
@@ -684,41 +684,47 @@ Adapter 的 defineEval、defineScoreEval 绑定工厂接受 `requires: { models:
 不声明 requires 时保留宽 string 入口与调用期校验，作为一个 minor 版本的迁移期；默认不会把任意字符串强制缩窄为 never。
 
 ```ts
-const slots = defineModelSlots({
+const slots = defineModelRoles({
   mind: { model: "provider/reasoning-model" },
   speech: { model: "provider/speech-model" },
 });
 const criterion = adapter.defineScoreEval({
   requires: { models: slots },
   test(t) {
-    t.check(t.usage.cacheRead.rate("mind"), atLeast(0.6)).gate();
+    t.check(t.usage.cacheRead.rate("mind"), atLeast(ratio(0.6))).gate();
   },
 });
 // Experiment evals 仍使用路径前缀或 predicate，不改为定义对象数组。
 defineExperiment({ adapter, models: slots, evals: ["combat"] });
 ```
 
-自定义 Adapter 的 defineAdapter 同样接受 requires.models。create(ctx) 的 ctx.models 键和 ctx.recordUsage 的 modelSlot 都收窄为声明键。
-可空物理关联仍允许 null 或省略，表达确实无法归因的调用；它们不是一个额外声明槽位。已有 flags、应用方法和 Assertion sugar 的推导必须保留。
+自定义 Adapter 的 defineAdapter 同样接受 requires.models。create(ctx) 的 ctx.models 键和 ctx.recordUsage 的 modelRole 都收窄为声明键。
+可空物理关联仍允许 null 或省略，表达确实无法归因的调用；它们不是一个额外声明计划 Attempt。已有 flags、应用方法和 Assertion sugar 的推导必须保留。
 
 Adapter 声明的用途在 defineExperiment 归一化时校验。Eval 的用途在发现并求值 Experiment 的 evals 选择器后统一校验，发生在任何 Attempt、Adapter create 或数据库写入之前。
-校验的是完整 discovery 中 Experiment 选择的整个 Eval 集合，predicate 只求值一次，再应用 tag 与 CLI 临时前缀；错误包含 Experiment、Eval 和全部缺失键。额外声明的槽位合法。
+校验的是完整 discovery 中 Experiment 选择的整个 Eval 集合，predicate 只求值一次，再应用 tag 与 CLI 临时前缀；错误包含 Experiment、Eval 和全部缺失键。额外声明的计划 Attempt合法。
 
 要求只按排序后的键存入归一化定义，不保存对象引用品牌，也不把声明里的模型值当作 Eval 配置。
 声明源码沿用既有 source closure 追踪范围；项目内相对静态导入可被追踪，不扩展到动态导入或外部包。这项加载前置条件不新增 RunContext、configHash 或 Usage 持久化字段。
 两个共享同组用途的 Experiment 可以选不同模型并复用同一 Eval；这不是 Eval 与 Experiment 的一对一绑定。
 
-验收包括安装后正反类型用例、两个不同模型 Experiment 复用同一 Eval、缺失槽位在 dry 阶段拒绝且 create 未执行、旧宽字符串入口及可空物理关联。
+验收包括安装后正反类型用例、两个不同模型 Experiment 复用同一 Eval、缺失计划 Attempt在 dry 阶段拒绝且 create 未执行、旧宽字符串入口及可空物理关联。
 单位品牌不加入该契约：模型用途约束与数值单位独立；毫秒与比例的类型扩展需另有实际误用证据和完整算术边界。
 
 
 根 defineEval / defineScoreEval 继续拥有 Agent 路径，不增加 requires；自定义 Adapter 作者使用绑定工厂，也可先解构同名函数。
-requires 是最小前置集合与静态作者约束。Experiment 的额外槽位合法；JavaScript 或类型断言使用额外已配置槽位仍被接纳，未配置槽位仍被拒绝。
+requires 是最小前置集合与静态作者约束。Experiment 的额外计划 Attempt合法；JavaScript 或类型断言使用额外已配置计划 Attempt仍被接纳，未配置计划 Attempt仍被拒绝。
 requires 的未知字段、null、数组、缺少 models、非法键或超额声明都在定义边界报错，不能降级成省略配置。
 
 精确键只从 requires.models 推导；test/create 参数使用 NoInfer 阻止 callback 反向放宽。先移除宽 rate、models 索引签名或 recordUsage 后再提供窄类型，不交叉保留宽签名。
-新增泛型追加在现有参数后并保留默认值。省略 requires 保留宽入口；已被作者标注成 Record<string, ModelSlotSelection> 的声明无法恢复字面量键，这时只提供运行时配置检查。
+新增泛型追加在现有参数后并保留默认值。省略 requires 保留宽入口；已被作者标注成 Record<string, ModelRoleSelection> 的声明无法恢复字面量键，这时只提供运行时配置检查。
 带 parseFlags 与 assertions 的工厂同样保留 app、flags、sugar 和 score handle 的精确类型；这些组合都进入安装后正反编译验收。
 
 加载校验适用于 CLI 与 SDK 的 plan/check/run，以及 adoption 的当前定义准入。teardown 豁免用途前置要求，保持历史资源 teardown 可达；它仍遵守自身 adapter、安全与所有权检查。
 缺失用途的 dry 与 SDK plan 验收还需确认结果根没有新增数据库，或已有数据库未变化。不能仅以 create 未执行作为无写入证据。
+
+## 模型用途与历史编码
+
+作者使用 `defineModelRoles`、`ModelRoleSelection` 与 `recordUsage({ modelRole })`。Inspection 输出 `modelRole`，缓存读比例按 `cacheRead.roles` 分组。Record adapter-usage revision 与持久字段 `modelSlot` 保持不变，config identity 继续采用 `models: { version: 1, slots }`；公开投影负责字段映射。
+
+缓存读取比例 `rate(role?)` 返回 `NumericMaterial<"ratio">`。阈值使用 `/expect` 的 `ratio` 包装，单位不一致时不可判定。

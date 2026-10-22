@@ -8,6 +8,7 @@ kind: feature
 
 
 
+
 # Experiments —— 怎么跑这批 eval
 
 一个 eval 描述**测什么**(这轮对话该发生什么、怎么算对)。
@@ -52,9 +53,9 @@ experiments/smoke.ts                 -> Experiment smoke             -> singleto
 
 ## 与 Run publication 的边界
 
-Experiment 只提供运行配置；Runner 在一次 Invocation 中为每个选中的 Experiment 建立一个 Run。Run create transaction 冻结全部 expected slots，提交后立即可见。
+Experiment 只提供运行配置；Runner 在一次 Invocation 中为每个选中的 Experiment 建立一个 Run。Run create transaction 冻结全部 expected Planned attempts，提交后立即可见。
 
-每个 Attempt 在独立 publication transaction 中原子发布 immutable closure、publication identity 与 origin slot binding。Run 是 `active` 时已发布 Attempt 已经可查询，也可经当次 policy 复核后 carry 或 accept；Run close 只冻结终态与剩余 slot 的 absence reason，不决定 Attempt 可见性。
+每个 Attempt 在独立 publication transaction 中原子发布 immutable closure、publication identity 与 origin Planned attempt binding。Run 是 `active` 时已发布 Attempt 已经可查询，也可经当次 policy 复核后 carry 或 accept；Run close 只冻结终态与剩余 Planned attempt 的 absence reason，不决定 Attempt 可见性。
 
 Coordination（协调）拥有执行去重、`maxConcurrency`、同一 Experiment 的 dispatch claim（派发占用）以及 build / lease
 （构建 / 租约）。case lock、Invocation Session 与其 recovery 都是唯一 ProjectDatabase `.niceeval/record.sqlite` 的 rows；
@@ -64,7 +65,7 @@ Coordination（协调）拥有执行去重、`maxConcurrency`、同一 Experimen
 planner/scheduler 只接收 `execute` 集合；`--rerun all` 可以让可沿用的位置进入执行计划，不改变读取时的结果可用性。
 已发布只表示事实可读，不等于 reuse eligible；资格始终由当次 policy 从已发布事实重新判定。
 
-Run 的 expected membership 定义本次分母。Member 把每个 slot 连接到一个精确 Attempt；`origin | reference` 由关系派生，executed/carried/accepted 等原因属于 actions provenance。Attempt 永远保留实际执行它的 origin Run。
+Run 的 expected membership 定义本次分母。Member 把每个 Planned attempt 连接到一个精确 Attempt；`origin | reference` 由关系派生，executed/carried/accepted 等原因属于 actions provenance。Attempt 永远保留实际执行它的 origin Run。
 因此 locator 始终由同一个完整 `attemptId` 表达，不会因采用动作而改变。
 
 Invocation 有 `invocationId`，用于关联瞬时进度与最终 receipt。receipt 的 `createdRunIds` 穷尽列出本次已提交 create transaction 的 Run，并与 opaque `publicationCutoff` 一起构造固定 Inspection request；Run 不必已收口。
@@ -99,7 +100,7 @@ export default defineExperiment({
   model?: string;                            // 单个模型(agent 留空);省略=原生默认。跨模型对比写多个实验文件
   models?: Readonly<Record<string, { model: string; reasoningEffort?: string }>>; // 普通 Adapter 的命名模型用途;与 model、reasoningEffort 互斥
   reasoningEffort?: string;                  // 推理努力程度(agent 留空);省略=原生默认。经 ctx.reasoningEffort / t.reasoningEffort 透传
-  judgeRuntime?: JudgeSelection;                    // 本实验的裁判模型或完整 Provider；用于可签入的 Judge A/B
+  judge?: JudgeSelection;                    // 本实验的裁判模型或完整 Provider；用于可签入的 Judge A/B
   flags?: Record<string, string | number | boolean>; // 扁平实验条件，经 ctx.flags / t.flags 传递（见 Library）
                                             // number 必须有限；输入和 parseFlags 输出均在启动前校验、复制并冻结
   labels?: Record<string, string | number>; // 报告归类标注:实验在各对比轴上的坐标(如 { line: "codex", memory: "mempal" })。
@@ -110,13 +111,12 @@ export default defineExperiment({
   timeoutMs?: number;                        // 单次运行超时
   sandbox?: SandboxLayer;                    // 本实验向主 Sandbox 贡献的一层:template-bearing factory 产物,
                                             // 或 sandboxLayer() 的命令链;省略等价于空的 command-only layer
-  sandboxCache?: SandboxCacheConfig;         // Host 的执行缓存策略(sandboxCache.setup: "use" | "bypass");不参与身份计算
+  sandboxCache?: SandboxCacheConfig;         // Host 的执行缓存策略(sandboxCache.before: "use" | "bypass");不参与身份计算
   sandboxReuse?: true;                       // 多条 Attempt 可以共用 Sandbox；省略时每 Attempt 全新
   plugins?: PluginStack<"experiment">;       // 本实验挂载的 Plugin(见 Plugins Library)
   sharedState?: { readonly key: string };    // 共享 checkpoint / 数据库的跨 Invocation 独占身份
   budget?: number;                           // 整个实验估算成本上限($),超了停止派发
   maxConcurrency?: number;                   // 只限制本 Invocation 内该实验的 attempt
-  classifyFailure?: AttemptFailureClassifier; // 识别本实验共享基建的失败形态,为止损闸声明波及范围
   setup?: (ctx: ExperimentHookContext) => void | Promise<void>;     // 实验级生命周期:整场一次、宿主机侧(见下)
   teardown?: (ctx: ExperimentHookContext) => void | Promise<void>;  // 全部 attempt 收尾后执行;setup 时点走到过才触发
 });
@@ -173,23 +173,21 @@ key 是会进入 Run 条目的稳定非密字符串，必须匹配 `[a-z0-9][a-z
 未声明时，配置身份对象和 manifest 都不写 `sharedState` 键，保持既有 base config hash；声明、删除或改 key 分别在
 `--dry` 的具名差异中显示为 `config:sharedState.key` 的 added、removed 或 changed。
 
-`classifyFailure` 是实验作者识别共享基建死因的纯分类器。
-它只声明失败是否可重试、以及死因波及 attempt、eval 还是整个 experiment，不配置重试次数或退避策略，也不参与 fingerprint。
-输入形状、分类链和止损语义见[执行失败分类](../error-classification/architecture.md#类型)，真实写法见其[Library](../error-classification/library.md#实验--eval-作者声明死因的波及范围)。
+失败分类保留内建语义。明确影响范围的调用点使用 `ExperimentFatalError` 或 `EvalFatalError`；Experiment 不接受分类回调。
 
 `setup` / `teardown` 是**实验级生命周期 Hook 对**:整场至多一次、跑在宿主机上。
 `setup` 在本实验第一个真正要派发的 attempt 之前执行;`teardown` 在本实验全部 attempt 收尾后执行(失败、中断也执行),当且仅当 `setup` 的时点走到过——`setup` 抛错不豁免,半路失败的现场同样要扫尾;一个 attempt 都不派发时两者都不跑。
 它们管「每个实验一份、所有 attempt 共享」的宿主机侧资源:起一条到内网服务的隧道、拉起本实验专用的 mock server、租一个 license。
 
 `setup` 的定义值写模块级变量,`teardown` 与同文件的 agent 工厂 / prepare command 从闭包读——runner 不做值的中介。
-成对 `setup` / `teardown` 只属于 Experiment 与 Agent 两层;Sandbox 与 Eval 的准备走 layer 的 `prepare()`,闭包传状态对两类入口同样适用(统一语义见 [Runner · 预置顺序](../../runner.md))。
+成对 `setup` / `teardown` 只属于 Experiment 与 Agent 两层;Sandbox 与 Eval 的准备走 layer 的 `before()`,闭包传状态对两类入口同样适用(统一语义见 [Runner · 预置顺序](../../runner.md))。
 用法与失败语义见 [Library · 实验级共享服务](library.md#实验级共享服务setup-与-teardown)、执行语义见 [Architecture · 实验级生命周期](architecture.md#实验级生命周期setup-与-teardown)。
 
 生命周期各层各归各位,`setup` 不替代其它层:
 
-- 按实验变化的**沙箱内**准备(装二进制、预热、写实验配置)写 Experiment `sandbox` layer 的 `prepare()` 命令,每条 Attempt 在变更分类账标记前执行。
-- 这条 eval 自己的题目准备写 Eval layer 的 `prepare()` 或 `test(t)` 普通代码。
-- 装 Agent CLI 归 Agent layer(Adapter 的 ensure 声明 + 配对安装层),连 agent 归 `SandboxAgent.setup`。
+- 按实验变化的**沙箱内**准备(装二进制、预热、写实验配置)写 Experiment `sandbox` layer 的 `before()` 命令,每条 Attempt 在变更分类账标记前执行。
+- 这条 eval 自己的题目准备写 Eval layer 的 `before()` 或 `test(t)` 普通代码。
+- 装 Agent CLI 归 Agent layer(Adapter 的 ensure 声明 + 配对安装层),连 agent 归 `SandboxAgent.before`。
 - 跨 Attempt 的实际 Sandbox 目录、服务或快照由 callback before 恢复，并在成功后通过 `context.onCleanup()` 登记回存；planning 在 owner 对 sharing cohort 稳定时把它编译为 physical-instance occurrence。
 - 跨实验、这次 run 之前就该存在的资源仍用外部编排。
 
@@ -208,7 +206,7 @@ key 是会进入 Run 条目的稳定非密字符串，必须匹配 `[a-z0-9][a-z
 复用只改变 Case 创建次数:reset 到 Case 就绪点后,每条 Attempt 仍重新执行两层 layer 的 prepare 命令。
 省略时，每个 Attempt 使用全新 Sandbox。
 
-同时活跃的 Sandbox 数由现有并发限制决定：同一个 Sandbox 一次只执行一条 Attempt；Experiment 的 `maxConcurrency` 与全局并发位共同限制同时运行数。
+同时活跃的 Sandbox 数由现有并发限制决定：同一个 Sandbox 一次只执行一条 Attempt；Experiment 的 `maxConcurrency` 与全局并发名额共同限制同时运行数。
 需要严格串行时声明 `maxConcurrency: 1`。
 完整顺序、Provider 能力与 Attempt 采用边界见 [Sandbox 复用](../sandbox/reuse.md)。
 

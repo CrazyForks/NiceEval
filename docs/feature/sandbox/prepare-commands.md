@@ -100,7 +100,7 @@ template 预装只是让版本检查首测即成功的一种手段。
 
 ## `niceeval debug` 的可证明边界
 
-`niceeval debug <experiment> <eval>` 按配置的每条 Attempt 展示 before。复用 lane 另带每台实际实例各自套用的 physical lifecycle template；每个候选 dispatch slot 都列出自己的 before 与 agent.ensure。debug 不读取 carry 或 cache，固定显示 `cacheLookup: "not-probed"`。
+`niceeval debug <experiment> <eval>` 按配置的每条 Attempt 展示 before。复用 lane 另带每台实际实例各自套用的 physical lifecycle template；每个候选 dispatch Planned attempt 都列出自己的 before 与 agent.ensure。debug 不读取 carry 或 cache，固定显示 `cacheLookup: "not-probed"`。
 
 命令工厂把执行闭包已经消费的同一份规范化数据私绑到计划：
 

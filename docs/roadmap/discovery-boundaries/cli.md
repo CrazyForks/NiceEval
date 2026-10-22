@@ -54,7 +54,7 @@ dry 进行真实 discovery、模块 import、definition decode、source capture 
 
 ## 并发与审计
 
-discovery 不占 Attempt 并发位。根可以并行读取，但 entry module 按稳定 entry 顺序恰好装载一次；最终输出按稳定 Eval id 排列，绝不按 I/O 完成顺序排列。
+discovery 不占 Attempt 并发名额。根可以并行读取，但 entry module 按稳定 entry 顺序恰好装载一次；最终输出按稳定 Eval id 排列，绝不按 I/O 完成顺序排列。
 
 每次命令持有一个 frozen discovery snapshot。发现期间 root、entry、realpath 或已捕获 source 发生变化时，以 discovery.raced 失败，而不混合两个文件系统时刻的结果。
 

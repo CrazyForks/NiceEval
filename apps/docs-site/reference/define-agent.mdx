@@ -559,12 +559,12 @@ on a timeout failure; do not use it to carry user messages, tool input, or other
 
 {/* GENERATED:END agent-def */}
 
-`ctx.session` (`AgentSession`) is the state slot for one session line: every `send` on the same session line gets the same `ctx.session`, and a new session line (the Eval's first turn / after `t.newSession()`) gets a fresh one. Accessors:
+`ctx.session` (`AgentSession`) stores the state for one session line: every `send` on the same session line gets the same `ctx.session`, and a new session line (the Eval's first turn / after `t.newSession()`) gets a fresh one. Accessors:
 
 - `id?: string` / `capture(id): void` — for session continuation when the server keeps history: `id` is the session id this line has recorded (`undefined` on a new line), and `capture` records the returned id (it takes effect only if none has been recorded yet).
-- `createSessionSlot<T>(name)` — creates a typed slot at Adapter module scope. Slots are isolated by symbol identity.
-- `get(slot)` / `set(slot, value)` — store and read client-side history or Adapter-private state.
-- `take(slot)` — reads and deletes the HITL pause state, consumed once.
+- `createSessionKey<T>(name)` — creates a typed key at Adapter module scope. Keys are isolated by symbol identity.
+- `get(key)` / `set(key, value)` — store and read client-side history or Adapter-private state.
+- `take(key)` — reads and deletes the HITL pause state, consumed once.
 
 For the complete contract, see [Adapter concepts](/explanation/adapter#context-agentcontext).
 

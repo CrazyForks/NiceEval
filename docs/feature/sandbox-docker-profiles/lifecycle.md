@@ -1,6 +1,6 @@
 # Docker 执行配置 —— Lifecycle
 
-旧 profile 的 watchdog、loop attach、raw copy 与跨 Attempt slot 复用不是 DestroyOnly Incus 生命周期。
+旧 profile 的 watchdog、loop attach、raw copy 与跨 Attempt Planned attempt 复用不是 DestroyOnly Incus 生命周期。
 
 adopted 时序见 [Nested Docker Lifecycle](../sandbox-nested-docker/lifecycle.md)。
 V1 每条 Attempt 克隆一台一次性 VM，成功、失败与强杀后都销毁 instance、disk、network 与 lease。

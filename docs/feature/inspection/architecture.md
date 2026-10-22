@@ -36,15 +36,15 @@ Run 的列表 operation 只有 `run.list`，详情 operation 只有 `run.get`。
 
 | operation | selector | result | 缺失语义 |
 | --- | --- | --- | --- |
-| `run.list` | filters + opaque continuation | cutoff 内已创建且未删除的 Run 摘要、state 与 `published / expected` coverage | active 空 slot 是 pending；终态空 slot带 absence reason。 |
-| `run.get` | exact `runId` | identity、state、时间、expected/published/missing、slot bindings、Attempt locators、Verdict、score、coverage、usage、issues 与 limitations | ID 未命中是 selection missing；Run 命中但 slot 为空仍成功。 |
+| `run.list` | filters + opaque continuation | cutoff 内已创建且未删除的 Run 摘要、state 与 `published / expected` coverage | active 空 Planned attempt 是 pending；终态空 Planned attempt 带 absence reason。 |
+| `run.get` | exact `runId` | identity、state、时间、expected/published/missing、Planned attempt bindings、Attempt locators、Verdict、score、coverage、usage、issues 与 limitations | ID 未命中是 selection missing；Run 命中但 Planned attempt 为空仍成功。 |
 
 `run.get` 在同一 `PublicationCutoff` 一次形成：
 
 - Run identity、state、Experiment identity、`startedAt` 与可选 `completedAt`；
-- 创建时冻结的完整 expected slots，以及 expected／published／missing；
-- 每个 slot 的 binding、Attempt locator、`origin | reference | null` relation；
-- active 空 slot 的 pending，或终态空 slot 的 `absenceReason`；
+- 创建时冻结的完整 expected Planned attempts，以及 expected／published／missing；
+- 每个 Planned attempt 的 binding、Attempt locator、`origin | reference | null` relation；
+- active 空 Planned attempt 的 pending，或终态空 Planned attempt 的 `absenceReason`；
 - Verdict、score、coverage、usage，以及各指标自己的分母；
 - missing、partial、unavailable、truncation 与其它证据边界。
 
@@ -71,7 +71,7 @@ Host 不把已聚合的历史 Overview 过滤成当前结果，也不将任意 c
 历史 Results 由 `overview.get` 一次关闭 totals、Experiment aggregates、Eval cells、members、MetricValue、coverage、
 issues 与 locators。
 
-`overview.get` 在 canonical Record 中按 `experimentId + evalId + attemptOrdinal` 选择每个逻辑 Slot
+`overview.get` 在 canonical Record 中按 `experimentId + evalId + attemptOrdinal` 选择每个逻辑 Planned attempt
 的最新 sealed occurrence。当前工作树、当前安装的候选与 execution identity 不参与这个 Record selection；
 它们不影响历史读取。Node、machine query 与 browser View 在相同 operation 输入及
 `PublicationCutoff` 上得到同一个结果；当前 operation 还必须绑定相同 target identity。
@@ -150,18 +150,18 @@ offset 等于 byteLength 时返回空 base64 与 null；超过 byteLength、limi
 
 ## 模型用途与费用读取
 
-`attempt.usage` 在同一 PublicationCutoff 上读取 origin Run 配置及其账本。v3 的非空 modelSlot 必须引用该 origin 配置，错误引用返回 invalid。
+`attempt.usage` 在同一 PublicationCutoff 上读取 origin Run 配置及其账本。v3 的非空 modelRole 必须引用该 origin 配置，错误引用返回 invalid。
 物理贡献按 origin Run、origin Attempt、application、callId 识别，不以用途或模型去重。
 
-configuredModels 为 available bindings 或 not-recorded。bindings 按用途键排序，每项含 modelSlot、model、reasoningEffort、recordedCalls。
+configuredModels 为 available bindings 或 not-recorded。bindings 按用途键排序，每项含 modelRole、model、reasoningEffort、recordedCalls。
 计数读取全部合法封存调用；完整空账本为 0，缺源或 invalid 为 null，不依据预览缺席判断未调用。
 
 modelGroups 含 basis、state、groups、totalGroupCount、groupsTruncated、omittedGroupCount。
-普通 Adapter 的 basis 为 recorded-calls，各组按 modelSlot/provider/model 精确三元组区分，null 排在字符串前。
+普通 Adapter 的 basis 为 recorded-calls，各组按 modelRole/provider/model 精确三元组区分，null 排在字符串前。
 每组含 recordedCalls、tokens（inputTotalTokens/outputTokens/totalTokens）和官方 effective costs，完整性与已知小计分别保留。
 
 全部最多 4000 调用参与统计，最多预览 64 组；调用预览的 128 条上限不影响聚合。
-cacheRead 与 [Adapter Library](../adapters/library.md#缓存读取率) 使用相同纯投影，含 total、modelSlots 与 models。
+cacheRead 与 [Adapter Library](../adapters/library.md#缓存读取率) 使用相同纯投影，含 total、roles 与 models。
 该报告不受 64 组旧预览限制；完整性由生产者 seal 声明单独判断，旧版账本不推断完整。
 attempt.usage 的最终响应预算为 16 MiB，超限返回 evidence-budget-exceeded，不截断 cacheRead 分组。
 
@@ -186,18 +186,18 @@ experiment.get 的最终 JSON 响应上限为 4 MiB；完整 aggregate/cells 保
 
 ## 实验总费用与应用完整性
 
-`experiment.get.costSummary` 使用 `scope: "latest-recorded-slots"`，包含 `totalCosts` 与 `coverage`。
-每个 experimentId、evalId、attemptOrdinal 选择最新已发布槽位，排序使用 completedAt、startedAt、runId。
-未重跑槽位保留其最新结果，替代的旧执行不累计；该范围不表示一次 invocation 或全部历史支出，也不读取当前源码删除旧 Eval。
+`experiment.get.costSummary` 使用 `scope: "latest-recorded-attempts"`，包含 `totalCosts` 与 `coverage`。
+每个 experimentId、evalId、attemptOrdinal 选择最新已发布计划 Attempt，排序使用 completedAt、startedAt、runId。
+未重跑计划 Attempt 保留其最新结果，替代的旧执行不累计；该范围不表示一次 invocation 或全部历史支出，也不读取当前源码删除旧 Eval。
 
-coverage 包含 selectedSlotCount、resolvedSlotCount、originAttemptCount 与 unresolvedSlotCount。
+coverage 包含 plannedAttemptCount、recordedAttemptCount、originAttemptCount 与 missingAttemptCount。
 完整度分为 completeAttemptCount、partialAttemptCount、unavailableAttemptCount。
 后三种完整度计数以各 origin 的 totalCosts.state 为准，合计等于 originAttemptCount。
-resolvedSlotCount 与 unresolvedSlotCount 合计等于 selectedSlotCount。
+recordedAttemptCount 与 missingAttemptCount 合计等于 plannedAttemptCount。
 
-读取直接承接已选槽位的 originRunId 与 attemptId，在同一 PublicationCutoff 上定位原始账本，不经 locator 历史引用发现。
+读取直接承接已选计划 Attempt 的 originRunId 与 attemptId，在同一 PublicationCutoff 上定位原始账本，不经 locator 历史引用发现。
 按 originRunId 与 attemptId 去重，从全部所选原始账本汇总；失败、错误或复用结果不因 Verdict 被排除。
-无法定位的槽位保留 application 与 judge 缺口，不能将预算错误伪装为缺源。
+无法定位的计划 Attempt 保留 application 与 judge 缺口，不能将预算错误伪装为缺源。
 
 同币种使用精确十进制相加，不换汇。完整时为总费用，缺项时为已知小计，并保留有序 missingSources。
 聚合先于 modelUsage 的 64 项与字节裁剪；清空明细仍超出响应预算时返回 evidence-budget-exceeded，不删金额或币种。
@@ -206,3 +206,10 @@ Show 与 View 从同一 costSummary 展示范围、总额和完整度，各 Atte
 应用 usage family revision 4 的 complete 表示 Adapter 显式确认调用集合完整。
 v1、v2、v3 保留独立历史解码及原金额、原应用 costUSD；总费用对其保留 application 缺口。
 revision 3 仍检查用途引用属于 origin Run 的配置。未声明的新账本也保持缺口；已知零金额不等于未知。
+
+## Note 读取与聚合
+
+`attempt.get` 的 `notes` 返回所选 Attempt 的 Note 列表，保留调用顺序、label、value 与可选 unit。
+缺少 `attempt-note` family 的历史 Attempt 返回 `[]`。
+`experiment.get` 的 `notes` 按同一 label 与同一 unit 聚合当前选中 Attempt 的数值 Note，返回 count、min、median、p90、max。
+无单位与有单位分别统计；`null` 和非数值不进入聚合。Notes 不影响 Assertion、Verdict、score 与 coverage。

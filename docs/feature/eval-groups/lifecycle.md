@@ -23,7 +23,7 @@ Sandbox create、reset、健康检查或故障退休可能建立替代实例。�
 acquisition、release、after 与 finalizer 都是“每台实际实例一次”，不是“每个 Group
 文件恰好一次”。同一时刻仍只有一台实例服务 Group 的一条 Attempt。
 
-Group author 与 Plugin lifecycle 围住所选 slots，只执行 selected slice，不要求 CLI 选择自动扩回全组。`niceeval debug` 的 human 和 JSON 都在 `beforeSlots` / `afterSlots` 显示这层包裹；`physicalLifecycleTemplate` 则是每台实际实例一次，不能读成整个 Group lane 只 acquire / finalize 一次。
+Group author 与 Plugin lifecycle 围住所选 Planned attempts，只执行 selected slice，不要求 CLI 选择自动扩回全组。`niceeval debug` 的 human 和 JSON 都在 `beforeSlots` / `afterSlots` 显示这层包裹；`physicalLifecycleTemplate` 则是每台实际实例一次，不能读成整个 Group lane 只 acquire / finalize 一次。
 
 Group 的 Sandbox cleanup 保存 checkpoint 时使用独立的 30 秒收尾预算。成员耗尽执行 deadline 或收到中断后，cleanup 使用新的 signal，并从该收尾段开始计算预算。
 执行 deadline 的剩余量不得限制 checkpoint 命令；作者显式指定的命令 timeout 仍然生效。收尾失败保留原 Attempt 结果并写入诊断，随后继续释放实例。
@@ -39,10 +39,10 @@ Group 的 Sandbox cleanup 保存 checkpoint 时使用独立的 30 秒收尾预�
 
 ## 不可用策略
 
-`stop-group` 在物理不可用后停止该 Group 尚未开始的 slot。已经开始的 Attempt 保留真实
+`stop-group` 在物理不可用后停止该 Group 尚未开始的 Planned attempt。已经开始的 Attempt 保留真实
 errored 结果；其他 Group 继续运行。
 
-`replace-sandbox` 退休失败 lease，下一条 slot 才建立替代实例。同一失败阶段在替代实例上
+`replace-sandbox` 退休失败 lease，下一条 Planned attempt 才建立替代实例。同一失败阶段在替代实例上
 再次发生时停止 Group，避免无限创建资源。上一条 Attempt 完成后的 reset 失败不会改写上一条结果。
 
 Run 保留失败阶段、实例退休和停止原因的诊断，并以非零状态结束。`keepSandbox` 不得绕过

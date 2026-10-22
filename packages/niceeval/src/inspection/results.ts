@@ -1,6 +1,9 @@
+import { RunPluginIdentitySchema } from "../record/model/run-context.ts";
+import { projectLifecyclePhase } from "./lifecycle.ts";
 import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
+import { PlannedAttemptSchema, InspectionAttemptCoreSchema, InspectionRunCoreSchema, InspectionMemberSchema, InspectionPublishedPublicationSchema, PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
 import {
   AdapterCallPriceReceiptSchema,
   AdapterUsageCallSchema,
@@ -17,12 +20,6 @@ import { utf8ByteLength } from "./bytes.ts";
 import { CurrencyCodeSchema } from "../record/family/source-receipt/codec.ts";
 import { compareAdapterModelGroups } from "../o11y/adapter-usage-projection.ts";
 
-import {
-  AttemptDocumentSchema,
-  MemberDocumentSchema,
-  RecordSlotIdentitySchema,
-  RunDocumentSchema,
-} from "../record/codec/core.ts";
 import {
   ExperimentIdSchema,
   RunIdSchema,
@@ -61,9 +58,7 @@ import { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.t
 import {
   RunAbsentPublicationSchema,
   RunPendingPublicationSchema,
-  RunPublishedPublicationSchema,
   RunStateSchema,
-  RunSlotPublicationSchema,
   RunSummarySchema,
 } from "../run/index.ts";
 import {
@@ -97,7 +92,7 @@ const OverviewIssueSchema = Schema.Union([
   Schema.Struct({
     code: Schema.Literals(["attempt-origin-missing", "attempt-not-observed"]),
     runId: Schema.String,
-    slotId: Schema.String,
+    plannedAttemptId: Schema.String,
     evalId: Schema.String,
     attemptOrdinal: Schema.Number,
   }),
@@ -117,7 +112,7 @@ const MetricSchema = Schema.Struct({
   value: Schema.NullOr(Schema.Number),
   samples: Schema.Number,
   total: Schema.Number,
-  basis: Schema.Literals(["slot", "eval"]),
+  basis: Schema.Literals(["planned-attempt", "eval"]),
   issues: Schema.Array(OverviewIssueSchema),
   refs: Schema.Array(AttemptRefSchema),
   unit: Schema.optional(Schema.Literals(["points", "USD", "ms", "tokens"])),
@@ -166,7 +161,7 @@ const AggregateFields = {
   issues: Schema.Array(OverviewIssueSchema),
 } as const;
 const OverviewPublishedMemberSchema = Schema.Struct({
-  ...RunPublishedPublicationSchema.fields,
+  ...InspectionPublishedPublicationSchema.fields,
   verdict: Schema.NullOr(Schema.Literals(["passed", "failed", "errored", "skipped"])),
   score: MetricSchema,
   costUSD: CostMetricSchema,
@@ -184,7 +179,7 @@ const InspectionLabelsSchema = Schema.Record(
 );
 const OverviewMemberSchema = Schema.Struct({
   runId: Schema.String,
-  slotId: Schema.String,
+  plannedAttemptId: Schema.String,
   evalId: Schema.String,
   attemptOrdinal: Schema.Number,
   labels: InspectionLabelsSchema,
@@ -199,6 +194,7 @@ const OverviewGroupSchema = Schema.Struct({
   ...AggregateFields,
 });
 const OverviewExperimentSchema = Schema.Struct({
+  plugins: Schema.suspend(() => Schema.Array(RunPluginIdentitySchema)),
   experimentId: Schema.String,
   adapter: Schema.Union([
     Schema.Struct({ state: Schema.Literal("available"), value: AdapterIdentitySchema }),
@@ -261,7 +257,7 @@ export const InspectionRunValueSchema = Schema.Struct({
   context: Schema.optional(RunContextSchema),
   startedAt: UtcMillisSchema,
   completedAt: Schema.optional(UtcMillisSchema),
-  expectedSlots: Schema.Array(RecordSlotIdentitySchema),
+  plannedAttempts: Schema.Array(PlannedAttemptSchema),
 });
 export type InspectionRunValue = Schema.Schema.Type<typeof InspectionRunValueSchema>;
 
@@ -346,10 +342,10 @@ const AssertionEvidenceSchema = Schema.Union([
 ]);
 export const InspectionAttemptResultSchema = Schema.Struct({
   notes: AttemptNotesSchema,
-  core: AttemptDocumentSchema,
+  core: InspectionAttemptCoreSchema,
   locator: Schema.String,
-  originRun: RunDocumentSchema,
-  targets: Schema.Array(Schema.Struct({ runId: Schema.String, member: MemberDocumentSchema })),
+  originRun: InspectionRunCoreSchema,
+  targets: Schema.Array(Schema.Struct({ runId: Schema.String, member: InspectionMemberSchema })),
   evidence: AssertionEvidenceSchema,
   assertions: AssertionIndexSchema,
   sections: SectionsSchema,
@@ -506,7 +502,7 @@ const TraceDiagnosticsSchema = Schema.Struct({
     sequence: Schema.Number,
     turnId: Schema.NullOr(Schema.String),
     phase: Schema.Literals([
-      "attempt.setup",
+      "attempt.before",
       "sandbox.prepare",
       "agent.ensure",
       "eval.run",
@@ -514,7 +510,7 @@ const TraceDiagnosticsSchema = Schema.Struct({
       "sandbox.command",
       "assertion.evaluate",
       "verdict.fold",
-      "attempt.teardown",
+      "attempt.after",
     ]),
     kind: Schema.Literals(["advisory", "execution-error"]),
     code: Schema.String,
@@ -654,7 +650,7 @@ export const InspectionTraceResultSchema = Schema.Struct({
     omittedLimitationCount: Schema.Number,
     items: Schema.Array(Schema.Struct({
       commandId: CommandIdSchema,
-      phase: Schema.Literals(SANDBOX_COMMAND_PHASES),
+      phase: Schema.Literals(SANDBOX_COMMAND_PHASES.map(projectLifecyclePhase)),
       outcome: CommandOutcomeSchema,
     })),
     hasMore: Schema.Boolean,
@@ -755,7 +751,7 @@ export const InspectionTraceDetailResultSchema = Schema.Union([
     workingDirectory: WorkingDirectorySchema,
     outcome: CommandOutcomeSchema,
     turnId: Schema.NullOr(Schema.String),
-    phase: Schema.Literals(["attempt.setup", "sandbox.prepare", "agent.ensure", "eval.run", "sandbox.command", "attempt.teardown"]),
+    phase: Schema.Literals(["attempt.before", "sandbox.prepare", "agent.ensure", "eval.run", "sandbox.command", "attempt.after"]),
     sequence: Schema.Number,
     stdout: CommandStreamSchema,
     stderr: CommandStreamSchema,
@@ -809,8 +805,11 @@ const EffectiveCostSchema = Schema.Struct({
   }),
   state: Schema.Literals(["complete", "partial"]),
 });
+const { modelSlot: persistedModelSlot, ...publicAdapterCallFields } = AdapterUsageCallSchema.fields;
+
 const AdapterUsageInspectionCallSchema = Schema.Struct({
-  ...AdapterUsageCallSchema.fields,
+  ...publicAdapterCallFields,
+  modelRole: persistedModelSlot,
   effectiveCost: Schema.NullOr(EffectiveCostSchema),
 });
 const EffectiveCostTotalSchema = Schema.Struct({
@@ -837,16 +836,16 @@ const ConfiguredModelsSchema = Schema.Union([
   Schema.Struct({
     state: Schema.Literal("available"),
     bindings: Schema.Array(Schema.Struct({
-      modelSlot: AdapterUsageModelSlotSchema,
+      modelRole: AdapterUsageModelSlotSchema,
       model: Schema.NullOr(Schema.String.check(Schema.isPattern(/\S/u))),
       reasoningEffort: Schema.NullOr(Schema.String.check(Schema.isPattern(/\S/u))),
       recordedCalls: Schema.NullOr(RecordedCallCountSchema),
     })).check(Schema.makeFilter((bindings) => bindings.length <= 64 &&
-      bindings.every((entry, index) => index === 0 || bindings[index - 1]!.modelSlot < entry.modelSlot))),
+      bindings.every((entry, index) => index === 0 || bindings[index - 1]!.modelRole < entry.modelRole))),
   }),
 ]);
 const ModelGroupSchema = Schema.Struct({
-  modelSlot: Schema.NullOr(AdapterUsageModelSlotSchema),
+  modelRole: Schema.NullOr(AdapterUsageModelSlotSchema),
   provider: AdapterUsageCallSchema.fields.provider,
   model: AdapterUsageCallSchema.fields.model,
   recordedCalls: RecordedCallCountSchema.check(Schema.isGreaterThan(0)),
@@ -895,19 +894,19 @@ const TotalUsageCostsSchema = Schema.Struct({
 export type TotalUsageCosts = Schema.Schema.Type<typeof TotalUsageCostsSchema>;
 
 const ExperimentCostSummarySchema = Schema.Struct({
-  scope: Schema.Literal("latest-recorded-slots"),
+  scope: Schema.Literal("latest-recorded-attempts"),
   totalCosts: TotalUsageCostsSchema,
   coverage: Schema.Struct({
-    selectedSlotCount: NonNegativeSafeIntegerSchema,
-    resolvedSlotCount: NonNegativeSafeIntegerSchema,
+    plannedAttemptCount: NonNegativeSafeIntegerSchema,
+    recordedAttemptCount: NonNegativeSafeIntegerSchema,
     originAttemptCount: NonNegativeSafeIntegerSchema,
     completeAttemptCount: NonNegativeSafeIntegerSchema,
     partialAttemptCount: NonNegativeSafeIntegerSchema,
     unavailableAttemptCount: NonNegativeSafeIntegerSchema,
-    unresolvedSlotCount: NonNegativeSafeIntegerSchema,
+    missingAttemptCount: NonNegativeSafeIntegerSchema,
   }).check(Schema.makeFilter((value) =>
-    value.selectedSlotCount === value.resolvedSlotCount + value.unresolvedSlotCount &&
-    value.originAttemptCount <= value.resolvedSlotCount &&
+    value.plannedAttemptCount === value.recordedAttemptCount + value.missingAttemptCount &&
+    value.originAttemptCount <= value.recordedAttemptCount &&
     value.originAttemptCount === value.completeAttemptCount + value.partialAttemptCount + value.unavailableAttemptCount)),
 });
 
@@ -1041,8 +1040,8 @@ const RunOverviewMemberLimitationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("usage"), detail: UsageLimitationSchema }),
 ]);
 const RunOverviewMemberSchema = Schema.Struct({
-  ...RecordSlotIdentitySchema.fields,
-  publication: RunSlotPublicationSchema,
+  ...PlannedAttemptSchema.fields,
+  publication: PlannedAttemptPublicationSchema,
   state: Schema.Literals([
     "executed", "carried", "accepted", "not-dispatched", "interrupted", "pending",
   ]),
@@ -1056,16 +1055,16 @@ const RunOverviewMemberSchema = Schema.Struct({
   limitations: Schema.Array(RunOverviewMemberLimitationSchema),
 });
 const RunOverviewLocatedLimitationSchema = Schema.Struct({
-  slotId: Schema.String,
+  plannedAttemptId: Schema.String,
   locator: Schema.NullOr(Schema.String),
   limitation: RunOverviewMemberLimitationSchema,
 });
 export const InspectionRunResultSchema = Schema.Struct({
   value: InspectionRunValueSchema,
-  members: Schema.Array(MemberDocumentSchema),
-  attempts: Schema.Array(AttemptDocumentSchema),
+  members: Schema.Array(InspectionMemberSchema),
+  attempts: Schema.Array(InspectionAttemptCoreSchema),
   denominator: Schema.Struct({ expected: Schema.Number, published: Schema.Number, missing: Schema.Number }),
-  slots: Schema.Array(RunOverviewMemberSchema),
+  plannedAttempts: Schema.Array(RunOverviewMemberSchema),
   coverage: Schema.Struct({
     state: RunOverviewStateSchema,
     expectedMemberCount: Schema.Number,

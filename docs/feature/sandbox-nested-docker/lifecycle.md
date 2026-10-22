@@ -12,7 +12,7 @@ discover Eval and Experiment
   -> collect DockerExecutionRequirement
   -> Incus planner returns capability receipt
   -> compare requirement / capability
-  -> compute BuildKey, CaseKey and SetupPrefixKey
+  -> compute BuildKey, CaseKey and BeforeCacheKey
   -> judge/config precheck
   -> compile each occurrence's continuous eligible serializable action prefix
   -> Run-level prepare coordinator looks up or completes the artifact
@@ -20,7 +20,7 @@ discover Eval and Experiment
 ```
 
 judge/config precheck 后、模型 session、Agent、hidden input 与 Attempt 之前，Runner 按既有唯一
-`SetupPrefixKey` 编译连续 eligible serializable actions。callback、hook、plugin、`onCleanup()`、credential、
+`BeforeCacheKey` 编译连续 eligible serializable actions。callback、hook、plugin、`onCleanup()`、credential、
 lease、Agent layer 与 hidden input 都是硬 barrier：它们真实执行，且不让其后的 action 加入共享捕获。
 
 Run 级 prepare coordinator 查找或补齐 artifact；capacity 为 1 时必须先完成全部 prepare，再开始任一 Attempt。
@@ -77,7 +77,7 @@ committed Provider artifact 保持 immutable，可供新的 Invocation clone。
 
 ## Artifact capture, publication and reconcile
 
-prepare worker 取得独立 allocation 并执行 eligible SetupPrefix。
+prepare worker 取得独立 allocation 并执行 eligible Before cache。
 成功后进入 quiesce barrier；任何进程、secret、外部 lease 或 state-surface 证明失败都取消 publication 并销毁 prepare allocation。
 
 Provider 创建 stopped immutable template instance 及其 dependent custom block Docker data volume；两者先以

@@ -40,8 +40,8 @@ discovery 仍复核运行时品牌与实际 Layer 状态，拦住 JavaScript、�
 
 | 值 | 行为 |
 |---|---|
-| `stop-group` | 当前物理失败如实结束，停止该 Group 后续未开始 slot |
-| `replace-sandbox` | 退休失败实例，下一条 slot 建立一次替代实例；同阶段再次失败后停止 Group |
+| `stop-group` | 当前物理失败如实结束，停止该 Group 后续未开始 Planned attempt |
+| `replace-sandbox` | 退休失败实例，下一条 Planned attempt 建立一次替代实例；同阶段再次失败后停止 Group |
 
 该策略只处理 Sandbox create、reset 与 Sandbox Plugin setup 的不可用失败。
 Eval 断言失败、Agent 失败和普通业务结果不触发替换。

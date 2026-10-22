@@ -8,7 +8,7 @@ niceeval query explain --request <file|->
 niceeval query run --request <file|->
 ```
 
-`query` 是 machine 入口：它只以 `niceeval.query/v1` 输出结构化结果，不接受 human 输出模式。每份 stdout
+`query` 是 machine 入口：它只以 `niceeval.query/v2` 输出结构化结果，不接受 human 输出模式。每份 stdout
 document 都显式包含 `outcome: discovery | success | explanation | failure`。
 人在终端中审阅同一批固定 operation 时使用下文的 `niceeval show`；浏览器体验仍由
 [Insight](../insight/README.md) 的 `niceeval view` 提供。
@@ -27,7 +27,7 @@ comparison mode 与 fact kinds，避免调用方先取重 payload。后者以 `o
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": { "kind": "project.get" }
 }
 ```
@@ -43,11 +43,11 @@ Inspection 消费这个冻结输入并关闭当前指标；终端与浏览器不
 | --- | --- |
 | `targetIdentity` | 本次完整已求值目标的 opaque identity；不是 Run ID。 |
 | `coverage` | `expected`、`covered`、`gaps`，三个非负整数，`covered + gaps = expected`。 |
-| `slots` | 每个当前 `(experimentId, evalId, attemptOrdinal)` 恰好一项，按该元组稳定排序。 |
+| `plannedAttempts` | 每个当前 `(experimentId, evalId, attemptOrdinal)` 恰好一项，按该元组稳定排序。 |
 | `totals`、`experiments`、`cells` | 使用既有 aggregate 与 MetricValue 语义，只计当前可用成员；每层保留当前目标分母。 |
 | `history` | 未被当前目标选择的位置数组；每项含 `experimentId`、`evalId`、`attemptOrdinal`、`sourceRunId` 与可空的 `locator`，只取各位置最新 occurrence。 |
 
-每个 slot 包含 `experimentId`、`evalId`、`attemptOrdinal`，以及下列互斥内容：
+每个 Planned attempt 包含 `experimentId`、`evalId`、`attemptOrdinal`，以及下列互斥内容：
 
 | `state` | 字段 |
 | --- | --- |
@@ -83,17 +83,17 @@ AI 要回答“已发布 Record 里有哪些 Experiment、各 Eval 的通过率�
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": { "kind": "overview.get" }
 }
 ```
 
-`overview` 先按 `experimentId + evalId + attemptOrdinal` 对齐逻辑 slot，再在固定 publication cutoff 内选择
-每个 slot 的最新 published occurrence。publication revision、`completedAt`、`startedAt` 与 `runId` 依次打破平局。
+`overview` 先按 `experimentId + evalId + attemptOrdinal` 对齐逻辑 Planned attempt，再在固定 publication cutoff 内选择
+每个 Planned attempt 的最新 published occurrence。publication revision、`completedAt`、`startedAt` 与 `runId` 依次打破平局。
 origin Run 是否 active 不影响已经原子发布的 Attempt 可见性。
 
 旧 occurrence 仍可由 Run operation 读取，但不重复进入历史 Overview 分母。结果保留 experiment、Eval 路径 group、
-Eval、Attempt ordinal、selected Run、target Slot、membership action、origin/reference relation 与 locator。
+Eval、Attempt ordinal、selected Run、target Planned attempt、membership action、origin/reference relation 与 locator。
 
 每个 `experimentId + evalId` cell 交付 `pass | points` evaluation kind；历史 Record 中同一逻辑 cell 留有两种题型时，
 协议保留 `mixed` 以忠实读取既有事实。它还交付 expected／observed／classified／missing denominator、四态 Verdict tally、pass rate、points score、
@@ -108,7 +108,7 @@ earned／possible，不把分数换算成 Pass。
 pass rate 与 points 都使用闭合 `MetricValue`：`value`、`state`、`samples`、`total`、`basis`、`issues` 与
 Attempt `refs` 始终一起交付。状态穷尽为 `available | partial | unavailable | empty | unsupported | failed`。
 
-有值但样本范围不全是 `partial`；有合格 slot 却没有可形成的值是 `unavailable`；没有合格 slot 是 `empty`。
+有值但样本范围不全是 `partial`；有合格 Planned attempt 却没有可形成的值是 `unavailable`；没有合格 Planned attempt 是 `empty`。
 producer/固定事实族 无此能力是 `unsupported`；已选择事实无法解释是 `failed`。points 的 `value` 是 earned，
 `bounds.max` 是 possible；consumer 不从 Assertion 或其它 scalar 重算它。
 
@@ -120,7 +120,7 @@ producer/固定事实族 无此能力是 `unsupported`；已选择事实无法�
 `overview.cells[].score.value` 是同一 Experiment × Eval 中 eligible Attempt score 的 mean。
 
 `overview.experiments[].score.value` 是可见 per-Eval cell score 的 sum。路径 group 与顶层 totals 从 cell score
-折叠。member 与 cell score 的 `basis` 是 `slot`；Experiment、group 与 totals score 的 `basis` 是 `eval`，
+折叠。member 与 cell score 的 `basis` 是 `planned-attempt`；Experiment、group 与 totals score 的 `basis` 是 `eval`，
 其 `samples`／`total` 计 contributing／eligible per-Eval cell。所有值都保留 `MetricValue` state、issues 与 refs。
 
 历史 `mixed` cell 的 pass members 不进入 points 的 `samples` 或 `total`。`totalScore` 不存在，不能成为第二权威字段。
@@ -138,7 +138,7 @@ artifacts、timing、usage、commands 与 diagnostics，状态为 `available | n
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": {
     "kind": "attempt.assertion.detail",
     "locator": "@<locator>",
@@ -187,7 +187,7 @@ source/field state 也是结果事实，View 只把它们映射到 `data-source-
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": { "kind": "attempt.trace", "locator": "@<locator>" }
 }
 ```
@@ -221,7 +221,7 @@ envelope 字段（actor label、evidence label、unresolved reason）没有预�
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": {
     "kind": "attempt.trace.detail",
     "locator": "@<locator>",
@@ -244,7 +244,7 @@ command detail 交付 invocation、outcome 与已封存 stdout/stderr。identity
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": {
     "kind": "attempt.trace.detail",
     "locator": "@<locator>",
@@ -272,12 +272,12 @@ Attempt、精确 trace identity 或比较集合。命令不接受 SQL、`where`�
 
 分页只用 operation 自己声明的有界参数，例如 opaque continuation 或 `attempt.assertion.image` 的 `offset/limit`；上限由 operation 固定，调用方不能放宽。
 
-Run 详情只有一个 operation：`run.get`。machine consumer、`show --run`、`run show` 与 Insight 的 Run debugger 都消费它，
+Run 详情只有一个 operation：`run.get`。machine consumer、`show --run` 与 Insight 的 Run debugger 都消费它，
 不存在按粒度拆开的近义 Run operation。
 
 ```json
 {
-  "protocol": "niceeval.query/v1",
+  "protocol": "niceeval.query/v2",
   "operation": { "kind": "run.get", "runId": "run_01JSHOW" }
 }
 ```
@@ -285,7 +285,7 @@ Run 详情只有一个 operation：`run.get`。machine consumer、`show --run`�
 `run.get` 按 exact `runId` 一次交付：
 
 - Run/Experiment identity、state 与时间；
-- expected/published/missing denominator，以及每个 slot 的 binding、Member state、Attempt locator 与 origin relation；
+- expected/published/missing denominator，以及每个 Planned attempt 的 binding、Member state、Attempt locator 与 origin relation；
 - Verdict、score、coverage、usage 状态与摘要，以及 issues 与 limitations。
 
 Run 已命中但 expected Member 未观测时，result 保留 `missing` Member 与不相等的 denominator。
@@ -294,7 +294,7 @@ partial、not-recorded 或 unavailable 的 score、coverage、usage 不按失败
 
 ## machine 输出与错误面
 
-`query` 的 protocol 是 `niceeval.query/v1`。每次可形成协议输出的调用都恰好向 stdout 写一个 canonical
+`query` 的 protocol 是 `niceeval.query/v2`。每次可形成协议输出的调用都恰好向 stdout 写一个 canonical
 `InspectionDocument`。其 `outcome` 穷尽为 `discovery | success | explanation | failure`。
 success 编码 operation result，并带 `behaviorVersion`、source、`PublicationCutoff`、selection、limits、issues 与 Evidence。
 explanation 交付同一 operation 的读取范围与 fact kinds。failure 交付 code、reason 与 correction。
@@ -331,7 +331,7 @@ niceeval show @<locator> --usage
 niceeval show @<locator> --diff
 ```
 
-`show` 是英文 human text 入口。它不调用 `query` stdout 或解码 `niceeval.query/v1`，而是与
+`show` 是英文 human text 入口。它不调用 `query` stdout 或解码 `niceeval.query/v2`，而是与
 `query` 一样打开 Node facts adapter，调用具名 Inspection operation，再格式化其闭合 result。
 
 show 的每个投影只接受对应具名 operation 的 typed result；必填 shape 缺失时失败，只有契约
@@ -371,7 +371,7 @@ denominator、pass rate、score、coverage、usage、timing、diff 或 Evidence�
   完整形态见下文[当前 Results 示例](#当前-results-示例)。
 - 一个或多个 `--experiment` 逐个读取 exact `experiment.get`；任一 ID 未命中时整次失败。
   首先显示官方 costSummary 的实验总费用或已知小计、完整度和数量，再显示各评估结果与 Attempt 明细。
-  范围是各槽位最新已发布结果，明确标注 Latest recorded slots；不表示全部历史支出或当前源码中的目标集合。
+  范围是各计划 Attempt 最新已发布结果，明确标注 Latest recorded attempts；不表示全部历史支出或当前源码中的目标集合。
 - 显式 `--record <file>` 使用历史 `overview.get`，标题为 `Recorded results`；与 `--experiment` 搭配时使用 exact `experiment.get`。
   这些路径不发现或求值当前项目。`--run` 与 Attempt locator 也始终读取固定历史事实。
 - 一个或多个 `--run` 逐个调用 exact `run.get`，并且只消费这一份闭合 result。
@@ -538,7 +538,7 @@ Attempt @01JSHOWATTEMPT
   Experiment  main
   Eval        inspection
   Run         run_01JSHOW
-  Attempt     attempt_01JSHOW · slot-1
+  Attempt     attempt_01JSHOW · plannedAttempt-1
   Outcome     completed
   Verdict     passed
   Score       3/4
@@ -568,7 +568,7 @@ $ niceeval show --experiment main
 Experiment main
   Experiment total costs
   ……
-  Scope      Latest recorded slots; replaced executions excluded
+  Scope      Latest recorded attempts; replaced executions excluded
 
   Summary
 
@@ -589,7 +589,7 @@ Experiment main
   @ATTEMPT-PASS-2 passed   20.12 s
 ```
 
-`--experiment` 读取该 Experiment 各槽位最新已发布结果，不求值当前源码；当前缺口只在默认 `show` 中显示。
+`--experiment` 读取该 Experiment 各计划 Attempt 最新已发布结果，不求值当前源码；当前缺口只在默认 `show` 中显示。
 
 命令读取 project operational Store 的单一 `PublicationCutoff`。默认 `show` 在当前目标成功求值、Store 读取正常但没有历史结果时，正常返回 `Covered 0/N` 与 `Gaps N`。
 当前目标求值失败、source 读取失败、显式 Run / Experiment / locator 未命中、required result shape 不合法与 `--expand` 未命中，都以英文诊断写 stderr 并非零退出。
@@ -610,3 +610,12 @@ CLI 不探测 locale，只输出由 Inspection CLI presenter 直接拥有的英�
 `show --experiment <id>` 的 Models and usage 区按当前已选 origin Attempt 展示同一读面，标明 locator 和 origin Run。
 重复 origin 只展示一次，不合并不同局的配置；超出 64 个 Attempt 时说明省略数，未找到的成员另列。
 此区域不从调用或模型组预览重算实验总费用。旧应用 costUSD 口径不变，Judge 未登记与带缺口合计保持显式状态。
+
+## Notes
+
+`show @<locator>` 在 Assertions 后展示 Notes，按调用顺序呈现 label 与 value；`null` 显示为 unavailable。
+Quantity 使用其单位格式显示，例如 `512 ms`、`61.2%` 和 `$0.031`。
+`show @<locator> --json` 与 `query` 的 `attempt.get` 都在 Attempt 结果中返回 `notes`。
+
+`show --exp <experiment-id>` 按 label 和 unit 分组展示数值 Note 的 count、min、median、p90、max。
+JSON 对象、字符串、布尔值与 `null` 不参与这些数值统计。旧 Record 没有 Note 时返回空列表。

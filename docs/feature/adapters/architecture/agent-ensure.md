@@ -205,7 +205,7 @@ Node、npm prefix、包管理器与安装目录是具体安装层的前置要求
   Run 级只取得一次安装文件，多个同目标 attempt 通过 single-flight 共享。
 - 校验 digest 后进入本地 / 远端共享 cache。实际 payload digest 与实际平台只作为 runtime provenance channel event 落盘，
   不进入 eligibility identity；可比性由 installer 静态 identity domain 与 ProviderPlan target 分别承担。
-- 准备时间以 Run-scoped `agent.artifact.prepare` timing boundary channel event 写入，并由 timing decoder 读出（见 [Record · 两层时间模型](../../run/architecture.md)），不占 Attempt 并发位。
+- 准备时间以 Run-scoped `agent.artifact.prepare` timing boundary channel event 写入，并由 timing decoder 读出（见 [Record · 两层时间模型](../../run/architecture.md)），不占 Attempt 并发名额。
 - 安装时经主 Sandbox 的文件 API 上传已准备 payload;**payload 优先自带 Agent 所需运行时**。
   任务镜像由题目决定,不能假设它带 Node / Python 工具链——内置 Node CLI Agent 因此优先取该平台的
   自带运行时原生包(如 `@openai/codex@<ver>-linux-arm64` 里的 musl 静态二进制),安装退化成

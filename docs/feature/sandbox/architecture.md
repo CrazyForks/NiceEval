@@ -186,7 +186,7 @@ output poll 在 exit、stream error、terminate fallback 与 Scope cleanup 路�
 Verdict 定稿后按档位提交：`failed` 档是不带值的 flag 的默认值，提交 `failed` / `errored` Verdict 对应的现场，包括被硬超时打断后形成的 `errored` Verdict；`all` 档提交全部 Verdict 对应现场。
 此时其余收尾（Agent runtime teardown、已登记 cleanup、diff 采集）已经照常完成；若实例实际退休，已登记的 physical after 随后回存 checkpoint。
 
-attempt 的最终 `locator` 在调度前已经由当前 `RecordWriteSession` 分配完整 `attemptId`，再以 scheme 1 的 SHA-256 前 60 bit 短别名编码；session 的 writer lock 只与其它 writer 互斥，不阻塞 reader。已进入 running 后取消或失败的 attempt 因而仍保留 ID；从未派发的 slot 不制造 Attempt。
+attempt 的最终 `locator` 在调度前已经由当前 `RecordWriteSession` 分配完整 `attemptId`，再以 scheme 1 的 SHA-256 前 60 bit 短别名编码；session 的 writer lock 只与其它 writer 互斥，不阻塞 reader。已进入 running 后取消或失败的 attempt 因而仍保留 ID；从未派发的 Planned attempt 不制造 Attempt。
 因此登记项、run 收尾反馈与提交进 Record 的 Attempt 事实从第一次观察起就使用同一个 locator，没有留事后补写的时段。
 
 沙箱的 Effect Scope 持有一个只在本 attempt 内可变的 release disposition,初始为 `stop`。attempt deadline 只中断 Scope **里面的 verdict-producing 工作 fiber**,把超时转换成 Observability execution diagnostic 与待写的 `errored` Verdict;它不关闭外层 Scope。Runner 随后仍在同一个 Scope 内执行有界 teardown、收敛 lifecycle 与 diagnostics,再调用 `commitKeepOrStop()`。
@@ -356,7 +356,7 @@ provider 没认出的错误再过一遍与文件 IO 重试共用的保守瞬时�
 重试循环由各内置 `ProviderModule<Plan>` 自己拥有。
 `runtime.ts` 只调用 plan 私绑的闭包，不维护 adapter registry:
 
-- 退避睡眠期间临时归还并发槽位(`retry.ts` 的 `ProvisionSlot`),睡醒后再排队要回来。在退避的 attempt 只是在等,不该攥着 `sandboxSem` 的名额陪跑 `setTimeout`,不然一批 429 会把整批实际并发拖成远低于 `--max-concurrency` 声明值的个位数。
+- 退避睡眠期间临时归还并发名额(`retry.ts` 的 `ProvisionSlot`),睡醒后再排队要回来。在退避的 attempt 只是在等,不该攥着 `sandboxSem` 的名额陪跑 `setTimeout`,不然一批 429 会把整批实际并发拖成远低于 `--max-concurrency` 声明值的个位数。
 - 重试全部耗尽后仍按原语义形成 `errored` Verdict(基建问题,不是 agent 表现);对账中销毁的实例不额外报错,只留 Observability diagnostic。
 
 **对外的空间轴映射**:内部的两维分类不外泄,但确定性配置死因向 attempt 层浮出时附带[执行失败分类](../error-classification/README.md)的 `scope`,由失败熔断消费。判据仍是可证明性,按死因的配置声明位置定档。凭据缺失、权限不足来自实验级配置,附带 `scope: "experiment"`。模板不存在按 template owner 定档。Experiment 是 template owner 时,同一模板由它选中的全部 Eval 共享,附带 `scope: "experiment"`。Eval 是 template owner 时,同因必死只能证明到共享同一模板的范围,词表里可证明的档是 `scope: "eval"`——错杀健康模板的 eval 比多撞几次死模板更贵。
@@ -396,14 +396,14 @@ Provisioning 的分类只涵盖"创建沙箱"这一步。沙箱创建成功后�
 
 provider 原生 SDK 的其余未知方法不属于公共契约,不承诺透传——需要新能力时显式建模成接口成员或 case 能力句柄,不开 `sandbox.native` 逃生口(裁决见 [memory 条目](../../../memory/sandbox-native-escape-hatch-rejected.md))。
 
-## 准备前缀的身份与验证边界
+## before 缓存的身份与验证边界
 
 Base 之后每个 eligible before action 都产生链式内容身份：
 
 ```text
-SetupPrefixKey[i] = hash(
+BeforeCacheKey[i] = hash(
   provider + exact Base image identity,
-  SetupPrefixKey[i - 1],
+  BeforeCacheKey[i - 1],
   occurrence kind = attempt,
   owner kind + stable owner id + owner-local ordinal,
   linked topological order + normalized changeFrequency,
@@ -418,13 +418,13 @@ SetupPrefixKey[i] = hash(
 
 action fingerprint 固定为 `hash(auto, supplemental)`。`auto` 包含 family id、canonical input、规范化 `sandboxStep`、声明 state 与 immutable content identity；`cache.fingerprint` 只提供 `supplemental`。parent key 防止相同 action 从不同 Base 或祖先状态错误复用。
 
-SetupPrefixKey 不包含 cache lookup 结果、本地 image/container locator、Attempt UUID、调度额度或运行时 secret。Eval `test`、Assertion 和 Agent/test 阶段的输入变化也不进入未改变的 SetupPrefixKey。它们仍按各自 owner 改变 Attempt 与结果 identity；BuildKey 只由构建输入决定。
+BeforeCacheKey 不包含 cache lookup 结果、本地 image/container locator、Attempt UUID、调度额度或运行时 secret。Eval `test`、Assertion 和 Agent/test 阶段的输入变化也不进入未改变的 BeforeCacheKey。它们仍按各自 owner 改变 Attempt 与结果 identity；BuildKey 只由构建输入决定。
 
 `verified` 只有三项含义：
 
-1. 声明 identity、SetupPrefixKey、manifest 与 provider artifact identity 双向一致；artifact receipt 使用 provider-neutral id，不把 provider locator 当 portable identity。
+1. 声明 identity、BeforeCacheKey、manifest 与 provider artifact identity 双向一致；artifact receipt 使用 provider-neutral id，不把 provider locator 当 portable identity。
 2. Provider artifact 包含 action 声明 state 的全部结果；普通 Docker 是 outer writable rootfs，Incus 是完整、quiesced 的 prepared Sandbox artifact。
-3. 每个消费者从 immutable artifact 创建独立 writable state，不共享 writable layer 或 Docker data slot。
+3. 每个消费者从 immutable artifact 创建独立 writable state，不共享 writable layer 或 Docker data allocation。
 
 `verified` 不证明 action 业务语义正确，也不证明任意 shell、网络、时钟或随机读取具有确定性。`defineSandboxAction()` 是作者对确定性的承诺。普通 JSON 与文本由作者声明为非敏感；已知 `Secret`、credential handle 与 runtime binding 在 planning 拒绝。发布前对框架已知 secret bytes 的扫描只做纵深防御。
 
@@ -435,25 +435,25 @@ Provider 按能力而非名称进入准备路径。`PreparedArtifact` 是唯一�
 | Provider / case | capability | 前缀路径与边界 |
 |---|---|---|
 | 普通单容器 Docker，全部可变状态在 outer writable rootfs | `Persistent` | 每 Attempt 使用已验证 exact image 的私有 writable container；不成为 Run 级 DAG 节点。 |
-| Docker Profile，具备已验证的独立 fixed-image slot | `Persistent` | 只能保存 capability receipt 声明的状态面（例如 `dockerData`）；shared loop/project-quota slot 报 `Unsupported`。 |
+| Docker Profile，具备已验证的独立 fixed-image allocation | `Persistent` | 只能保存 capability receipt 声明的状态面（例如 `dockerData`）；shared loop/project-quota allocation 报 `Unsupported`。 |
 | `incusSandbox()` nested Docker | `PreparedArtifact` | 发布完整、quiesced 的 prepared artifact；每个 Attempt clone 私有 writable root 与 Docker data disk，参与 Run 级 DAG。 |
-| E2B | `InvocationLocal` | template 是 Base；本 Invocation 内的可用恢复能力不等同于可发布、跨 slot 共享的 prepared artifact，不进入 Run 级 DAG。 |
-| Vercel Sandbox | `Unsupported` | 当前不声明可验证的 setup-prefix capture/restore coverage，真实 replay。 |
+| E2B | `InvocationLocal` | template 是 Base；本 Invocation 内的可用恢复能力不等同于可发布、跨 Planned attempt 共享的 prepared artifact，不进入 Run 级 DAG。 |
+| Vercel Sandbox | `Unsupported` | 当前不声明可验证的 before-cache capture/restore coverage，真实 replay。 |
 | `defineSandbox()` custom provider | `Unsupported` | NiceEval 不以结构探测推断能力；未经显式、已验证 capability receipt 的实现真实 replay。 |
 
 bind mount、tmpfs、Compose sidecar、host socket、raw / managed DinD、privileged outer container与无法完整捕获的 inner data-root 都不能冒充上述 capability。secret、runtime overlay、workspace、Attempt locator 与外部会话不进入可发布 artifact。
 
-## 前缀缓存是可失败的优化
+## before 缓存是可失败的优化
 
 lookup 或 restore 在 action 执行前失败时，Runner 忽略不可验证的候选，并最多一次从更短的 verified prefix 或 Base 创建干净容器。该 Attempt 的剩余 action 真实 replay，运行反馈为 `degraded`。无法建立干净容器时，Attempt 失败。
 
 action 成功后 capture 失败时不得再执行该 action。当前容器仍完整时，它可以继续 uncached；已无法证明完整时，Attempt 失败。任何部分恢复或部分 capture 都不会冒充 hit，也不会形成循环 cache retry。
 
-取消只回收当前 private staging 与 Attempt 资源，不回滚已经完成验证并发布的 immutable SetupPrefix artifact。下一次 Invocation 仍从最深 verified prefix 继续：取消时正在执行或尚未发布的 action 必须重新执行；已经发布的祖先 action 不得因取消而从 Base 重新执行。某个中间 action 的 canonical input、fingerprint、依赖或顺序变化时，它之前未变化的最长 verified prefix 继续命中，从该 action 起的变化层与全部后缀重新执行和发布。
+取消只回收当前 private staging 与 Attempt 资源，不回滚已经完成验证并发布的 immutable Before cache artifact。下一次 Invocation 仍从最深 verified prefix 继续：取消时正在执行或尚未发布的 action 必须重新执行；已经发布的祖先 action 不得因取消而从 Base 重新执行。某个中间 action 的 canonical input、fingerprint、依赖或顺序变化时，它之前未变化的最长 verified prefix 继续命中，从该 action 起的变化层与全部后缀重新执行和发布。
 
 opaque callback、`defineSandboxCommand()`、runtime secret overlay、租约、外部会话与当前 Attempt locator 都是 barrier。barrier 之前的最长 verified prefix 仍可命中；barrier 之后的 action 真实执行，但不能发布共享前缀。
 
-每个 SetupPrefix artifact 还保存包含完整累积 action manifest 的 replacement lineage。不同 canonical input、fingerprint、steps、依赖、能力或顺序形成不同 lineage，因而对应 artifact 可同时命中。
+每个 Before cache artifact 还保存包含完整累积 action manifest 的 replacement lineage。不同 canonical input、fingerprint、steps、依赖、能力或顺序形成不同 lineage，因而对应 artifact 可同时命中。
 
 同一 canonical action lineage 的新运行时 generation 发布后，NiceEval 才立即淘汰已被替代的 Docker image 或 E2B snapshot。仍被 private clone、lease 或未完成 capture 使用的旧 generation 不会删除。最后一个 root 释放后再次尝试淘汰。
 
@@ -461,21 +461,21 @@ generation 是 cache repository 内全局递增的整数，含义保持「已分
 repository schema 为 generation 建立索引，分配只读索引端点，成本不随已保留或已 tombstone 的 entry 数增长。
 索引随 UserDatabase 的应用级相邻迁移进入，不在已存在的库上临时创建。
 
-删除失败保留登记并重试，不按年龄、名称或“不在当前 Run”猜测垃圾。用户声明的 image、template 与 snapshot 永不由 NiceEval 自动删除。作者可见的运行开关只有 `sandboxCache.setup: "use" | "bypass"` 和对应 CLI flag。
+删除失败保留登记并重试，不按年龄、名称或“不在当前 Run”猜测垃圾。用户声明的 image、template 与 snapshot 永不由 NiceEval 自动删除。作者可见的运行开关只有 `sandboxCache.before: "use" | "bypass"` 和对应 CLI flag。
 
 ## 运行事实的唯一归属
 
-`PreparedArtifact` 的 Run 级 prefix DAG 按完整 `SetupPrefixKey` 节点 single-flight。相同 key 的多个 Eval×Experiment 配对共享一次 preparation；节点的 activity、staging、publication 与 Scope 归 Run，不归任何 Attempt。
+`PreparedArtifact` 的 Run 级 prefix DAG 按完整 `BeforeCacheKey` 节点 single-flight。相同 key 的多个 Eval×Experiment 配对共享一次 preparation；节点的 activity、staging、publication 与 Scope 归 Run，不归任何 Attempt。
 
-不同 key 可在 `maxSetupPrefixConcurrency ∩ provider scheduling.lane.limit` 内并行。相同 `(executionDomainId, SetupPrefixKey)` 仍通过跨进程 publication lease 串行发布，等待者消费同一 committed `ArtifactIntent`。
+不同 key 可在 `maxBeforeCacheConcurrency ∩ provider scheduling.lane.limit` 内并行。相同 `(executionDomainId, BeforeCacheKey)` 仍通过跨进程 publication lease 串行发布，等待者消费同一 committed `ArtifactIntent`。
 
-Run 保留全局 pre-dispatch barrier：所有 prefix 节点结算后才派发 Attempt。一个失败节点只阻断其 descendants 和依赖该 terminal prefix 的 slots；其余分支照常结算。取消停止并回收未结算节点的 staging 与 publication，但不回滚已验证发布的 immutable artifact。
+Run 保留全局 pre-dispatch barrier：所有 prefix 节点结算后才派发 Attempt。一个失败节点只阻断其 descendants 和依赖该 terminal prefix 的 Planned attempts；其余分支照常结算。取消停止并回收未结算节点的 staging 与 publication，但不回滚已验证发布的 immutable artifact。
 
 `Persistent`、`InvocationLocal` 与 `Unsupported` 的 lookup、restore、replay、satisfaction 与 cleanup 仍归各自 Attempt，不因 key 相同共享 activity、locator 或可写状态。
 
-无论能力类别，持久 artifact receipt 都只保存 provider-neutral artifact id、SetupPrefixKey、manifest、execution domain 与必要的验证 revision。它不保存本地 image/container/snapshot locator、credential value、secret bytes 或 Attempt locator。
+无论能力类别，持久 artifact receipt 都只保存 provider-neutral artifact id、BeforeCacheKey、manifest、execution domain 与必要的验证 revision。它不保存本地 image/container/snapshot locator、credential value、secret bytes 或 Attempt locator。
 
-Attempt locator 只在全局 barrier 后实际 dispatch 时由当前 `RecordWriteSession` 分配；从调度、收尾反馈到 Record 提交始终使用同一个值。未派发 slot、queued prefix node 与 Run activity 都不制造 locator。
+Attempt locator 只在全局 barrier 后实际 dispatch 时由当前 `RecordWriteSession` 分配；从调度、收尾反馈到 Record 提交始终使用同一个值。未派发 Planned attempt、queued prefix node 与 Run activity 都不制造 locator。
 
 静态 `niceeval debug` 不读取 cache，固定输出 `cacheLookup: "not-probed"`。运行反馈的闭合结果只有 `hit`、`replay`、`unsupported` 与 `degraded`；`replay` 另带 `miss | bypass` reason。Record 不保存本地 image/container locator、credential value 或 secret bytes。
 
@@ -491,7 +491,7 @@ nested Docker 的 artifact、domain 与 fail-closed 边界见 [Nested Docker Arc
 
 - **Sandbox 预热** —— 按近期派发量提前创建 Sandbox,Attempt 到来时直接领取,把创建移出 Attempt 路径。
 - **Sandbox 复用** —— Experiment 的 `sandboxReuse: true` 让多条 Attempt 共用 Sandbox。
-  Case create / ready 每个实际实例满足一次；before、agent.ensure 循环与 Agent runtime 每 Attempt 满足一次。前缀缓存命中 restore verified state，miss 或 unsupported 才调用 action。
+  Case create / ready 每个实际实例满足一次；before、agent.ensure 循环与 Agent runtime 每 Attempt 满足一次。before 缓存命中 restore verified state，miss 或 unsupported 才调用 action。
   派发前确认 Sandbox 复用寿命,不足时续期或更换 Sandbox。
   完整契约见 [Sandbox 复用](reuse.md)。
 
@@ -507,6 +507,6 @@ Sandbox 预热与 Sandbox 复用是 [Runner](../../runner.md) 的调度职责。
 
 ## Docker-owned cache inventory projection
 
-Docker cache repository 以单个只读 inventory operation 在同一 transaction snapshot 中列出 task-build 与 setup-prefix entry 及其 active lease/root。该 operation 不做 startup reconcile、lease prune、provider mutation 或 GC planning。Docker administration 再复核 task-build image identity，并把两类 entry 投影为以 `kind` 判别的公开联合；Setup Prefix 只采用 registry 已有 state，不因 inventory 改变 generation 或索引。
+Docker cache repository 以单个只读 inventory operation 在同一 transaction snapshot 中列出 task-build 与 before-cache entry 及其 active lease/root。该 operation 不做 startup reconcile、lease prune、provider mutation 或 GC planning。Docker administration 再复核 task-build image identity，并把两类 entry 投影为以 `kind` 判别的公开联合；Before cache 只采用 registry 已有 state，不因 inventory 改变 generation 或索引。
 
-公开 identity 只包含定位 artifact 所需的 task build key/tag/image id，或 setup entry id/key/image/base image id；计数只聚合 entry-local lease/root。holder、operation lineage、声明正文和 GC lock 留在 repository 内部。Setup Prefix 的公开归属不扩大 GC：现有 task-build plan/apply 是唯一删除入口。
+公开 identity 只包含定位 artifact 所需的 task build key/tag/image id，或 setup entry id/key/image/base image id；计数只聚合 entry-local lease/root。holder、operation lineage、声明正文和 GC lock 留在 repository 内部。Before cache 的公开归属不扩大 GC：现有 task-build plan/apply 是唯一删除入口。

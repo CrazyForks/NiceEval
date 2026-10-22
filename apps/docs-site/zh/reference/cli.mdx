@@ -20,7 +20,7 @@ niceeval query explain [--record <file>] --request <file|->
 niceeval query run [--record <file>] --request <file|->
 ```
 
-`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v1`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
+`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v2`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
 
 - `discover` 列出当前版本支持的 operation ID。它不读运行记录，所以不接受 `--record`，也不返回请求的字段结构。
 - `explain` 校验完整请求，说明它会运行哪个 operation，以及接下来可以发哪些请求。
@@ -110,13 +110,13 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--help` | `niceeval` | boolean | 打印根命令索引。 |
 | `--version` | `niceeval` | boolean | 打印当前安装的 NiceEval 版本。 |
 | `--tag` | `niceeval check`、`niceeval exp`、`niceeval exp list` | string | 只选择带有该 tag 的评估用例。 |
-| `--help` | `niceeval check`、`niceeval exp`、`niceeval exp list`、`niceeval exp rename`、`niceeval exp --teardown`、`niceeval debug`、`niceeval accept`、`niceeval session` | boolean | 打印该命令的帮助。 |
+| `--help` | `niceeval check`、`niceeval exp`、`niceeval exp list`、`niceeval exp rename`、`niceeval exp --teardown`、`niceeval debug`、`niceeval accept`、`niceeval invocation` | boolean | 打印该命令的帮助。 |
 | `--experiment` | `niceeval exp` | string[] | 按 Experiment selector 缩小当前项目的结果。 |
 | `--attempts` | `niceeval exp` | number | 让每个选中的评估用例运行指定次数。 |
 | `--max-concurrency` | `niceeval exp` | number | 限制同时执行的 Attempt 数量。 |
 | `--max-build-concurrency` | `niceeval exp` | number | 限制同时准备 Sandbox build 的数量。 |
-| `--max-setup-prefix-concurrency` | `niceeval exp` | number | 限制同时准备 Sandbox setup prefix 的数量。 |
-| `--sandbox-setup-cache` | `niceeval exp` | string | Use or bypass the Sandbox setup cache. |
+| `--max-before-cache-concurrency` | `niceeval exp` | number | Limit concurrent Sandbox before-cache preparation. |
+| `--sandbox-before-cache` | `niceeval exp` | string | Use or bypass the Sandbox before cache. |
 | `--timeout` | `niceeval exp` | number | 以毫秒设置每个 Attempt 的超时时间。 |
 | `--budget` | `niceeval exp` | number | 以美元设置本次 Invocation 的预算。 |
 | `--junit` | `niceeval exp` | string | 写出必需的 JUnit 报告。 |
@@ -129,7 +129,7 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--run` | `niceeval exp rename` | string[] | 选择要采用到目标 Experiment 的一个精确 Run；重复传入会被拒绝。 |
 | `--dry` | `niceeval exp rename` | boolean | 预览显式 Experiment 重命名。 |
 | `--json` | `niceeval exp rename` | boolean | 写出该命令的机器文档或事件流。 |
-| `--teardown` | `niceeval exp --teardown` | boolean | 运行显式的 Experiment teardown 恢复。 |
+| `--after` | `niceeval exp --teardown` | boolean | Run explicit Experiment teardown recovery. |
 | `--json` | `niceeval exp --teardown` | boolean | 写出该命令的机器文档或事件流。 |
 | `--recover-shared-state` | `niceeval exp --teardown` | string | 指定要显式恢复的共享状态 key。 |
 | `--owner-token` | `niceeval exp --teardown` | string | 提供准确的共享状态 owner token。 |
@@ -138,11 +138,13 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--json` | `niceeval debug` | boolean | 写出该命令的机器文档或事件流。 |
 | `--run` | `niceeval accept` | string[] | 采用一个已发布的精确 Run；重复传入会被拒绝。 |
 | `--dry` | `niceeval accept` | boolean | 完成整 Run 采用预检，但不发布新 Run。 |
-| `--all` | `niceeval session` | boolean | 包含已经完成的 Invocation 状态条目。 |
-| `--json` | `niceeval session` | boolean | 写出该命令的机器文档或事件流。 |
-| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v1 request。 |
+| `--all` | `niceeval invocation` | boolean | 包含已经完成的 Invocation 状态条目。 |
+| `--json` | `niceeval invocation` | boolean | 写出该命令的机器文档或事件流。 |
+| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v2 request。 |
 | `--record` | `niceeval query`、`niceeval show` | string | 读取一个外部 canonical SQLite Record。 |
 | `--help` | `niceeval query` | boolean | 打印该命令的帮助。 |
+| `--json` | `niceeval show` | boolean | 写出该命令的机器文档或事件流。 |
+| `--exp` | `niceeval show` | string[] | Show one Experiment; repeat to show more. |
 | `--run` | `niceeval show` | string[] | 显示一个已封口的 Run；可重复传入。 |
 | `--experiment` | `niceeval show` | string[] | 显示一个精确的 Experiment；可重复传入。 |
 | `--all` | `niceeval show` | boolean | 显示紧凑 Results 视图中隐藏的 Attempt。 |
@@ -172,7 +174,7 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--window` | `niceeval sandbox diff` | string | 选择一个已记录的改动窗口。 |
 | `--path` | `niceeval sandbox diff` | string | 选择 Sandbox diff 中的一个路径。 |
 | `--leave-running` | `niceeval sandbox enter` | boolean | 离开 shell 后继续保留 Sandbox。 |
-| `--record` | `niceeval sandbox list`、`niceeval sandbox enter`、`niceeval sandbox history`、`niceeval sandbox diff`、`niceeval sandbox stop`、`niceeval sandbox prune` | string | 使用指定的 NiceEval Record root。 |
+| `--record-root` | `niceeval sandbox list`、`niceeval sandbox enter`、`niceeval sandbox history`、`niceeval sandbox diff`、`niceeval sandbox stop`、`niceeval sandbox prune` | string | Use a specific NiceEval record root. |
 | `--orphans` | `niceeval sandbox list` | boolean | 检查已终止运行遗留的未登记 Sandbox 实例。 |
 | `--force` | `niceeval sandbox prune` | boolean | 同时清理未验证的孤儿候选项。 |
 | `--development` | `niceeval sandbox` | boolean | Diagnose the isolated Incus development domain instead of reference. |

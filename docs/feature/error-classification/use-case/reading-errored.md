@@ -29,7 +29,7 @@ feature: docs/feature/error-classification/README.md
    ⠸ onboarding/greet#2  turn retry 2/4 (rate_limit) — waiting 8s
    ```
 
-退避中的 attempt 让出全局并发槽位给排队中的其它 attempt,整批吞吐不塌;大多数情况下第二三次尝试就过,**重试成功的 attempt 在结果里零痕迹**——你根本不会走到本篇。
+退避中的 attempt 让出全局并发名额给排队中的其它 attempt,整批吞吐不塌;大多数情况下第二三次尝试就过,**重试成功的 attempt 在结果里零痕迹**——你根本不会走到本篇。
 你看到的耗尽摘要(`… · retries exhausted (4 attempts, rate_limit)`)意味着限流持续压过了整个重试预算(单次 send 封顶 4 次尝试,attempt 另有加总上限)。
 并发本身超出配额,把 `--max-concurrency` 降下来才是对因下药,重试只兜抖动不兜超卖。
 
@@ -58,7 +58,7 @@ feature: docs/feature/error-classification/README.md
 ## 边界
 
 - **重试参数固定,不可调。**
-  两层预算与基数 5 秒是[非目标](../README.md#非目标)里定死的值(数值见 [Architecture · 退避与槽位](../architecture.md#退避与槽位))。
+  两层预算与基数 5 秒是[非目标](../README.md#非目标)里定死的值(数值见 [Architecture · 退避与计划 Attempt](../architecture.md#退避与计划 Attempt))。
 - **不要把 `attempts` 当重试预算。**
   `attempts` 是通过率的分母,拿它对冲基建抖动会污染分布;瞬时故障的自愈已在 send 层内建。
 - **「大概率能过」不等于「安全重试」。**
@@ -73,6 +73,6 @@ feature: docs/feature/error-classification/README.md
 ## 相关阅读
 
 - [README](../README.md) —— 两轴判据全文、自愈阶梯与止损阶梯。
-- [Architecture · 退避与槽位](../architecture.md#退避与槽位) —— 精确参数与槽位契约。
+- [Architecture · 退避与计划 Attempt](../architecture.md#退避与计划 Attempt) —— 精确参数与计划 Attempt契约。
 - [Runner](../../../runner.md) —— fail-fast、缓存与续跑语义。
 - [错误与警告反馈](../../../error-feedback.md) —— 报错必带下一步的总纪律。

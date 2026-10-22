@@ -96,7 +96,7 @@ Effect-native Library API 继续返回 Effect；只有 CLI / application 入口�
 | 层 | 长期承诺 | 允许怎样变化 | Effect 的角色 |
 |---|---|---|---|
 | Host composition SDK | `evalHost`、`experimentHost`、`coordinationHost`、`runHost` 与 `projectHost` 各拥有窄操作面；`niceeval/inspection` 只是协议入口，不是 Host | CLI 与深度应用集成只组合这些入口，不穿透到 Runner、reader、SQLite schema 或 browser transport | 在 Host 边界组合 Layer、`Scope.Scope`、typed error 与 interruption |
-| Run Core | Run identity/state、expected slots、Attempt origin/reference、Member action、publication revision 与 absence | 领域语义只在 Run Feature 演进；physical SQLite schema 独立演进 | 精确解码、publication transaction、writer fencing 与 Scope-bound I/O |
+| Run Core | Run identity/state、expected Planned attempts、Attempt origin/reference、Member action、publication revision 与 absence | 领域语义只在 Run Feature 演进；physical SQLite schema 独立演进 | 精确解码、publication transaction、writer fencing 与 Scope-bound I/O |
 | Producer / behavior | 产生所属固定事实，并维护 input/config/reuse identity | Assert-first evaluator、Plugin、matcher 与 Sandbox chain 可以独立变化 | 承接执行、并发与 interruption |
 | Inspection | 固定 typed registry、穷尽 request、四态 document、分母、limits、issues、Evidence 与三种 comparison | 当前 `project.get` 消费 Experiment Host 冻结的目标输入；历史 operation 只读已发布事实；用户不能注册公式或 SQL | `niceeval/inspection` 只导出 Schema、类型与 decoder；内部 selector 关闭 document |
 | Insight | machine query codec 与 runtime SPA delivery | 第一方 UI 可以变化，不形成 Page、component、theme、route 或 renderer ABI | Node query 与 View Host 执行同一 registry operation；当前 generation 同时固定目标输入与 cutoff |
@@ -259,15 +259,15 @@ Direct Agent 跳过 Sandbox 创建、变更分类账与 diff 采集：
 3. **由 Experiment Host 建立运行。**
    CLI 调用 `experimentHost.invocation.plan()` 或 `experimentHost.invocation.run()`。Host 计算带 domain 的
    input/config identity，并在其实现内通过内部 Run capability 提交 Invocation start transaction。
-   该事务同时创建 Invocation Session 与带 `startedAt`、完整 expected SlotId 的 `active` Run；Run 提交后立即可被发现。
+   该事务同时创建 Invocation Session 与带 `startedAt`、完整 Planned attempt 身份 的 `active` Run；Run 提交后立即可被发现。
    Run 可见不等于任何 Attempt 已发布，Attempt 逐个经第 12 步发布；完整生命周期见 [Run](feature/run/architecture.md)。
 4. **reuse planning。**
    `experimentHost` 在内部把当前 ProjectTarget、ExecutionTarget 和 Run capability 交给 Runner。
-   具名 policy 把每个 Slot 穷尽判为 reuse 或 gap。source barrier、禁止回扫、`reuseContract`、
+   具名 policy 把每个 Planned attempt 穷尽判为 reuse 或 gap。source barrier、禁止回扫、`reuseContract`、
    Verdict、fingerprint、timeout、`--rerun` 与 `--keep-sandbox` 都属于该 policy，不属于 Run Core。
    完整契约见 [Execution reuse planning](feature/experiments/cache.md)。
 
-   planner/scheduler 只接收 gaps；Host 保留完整 Slot decision。
+   planner/scheduler 只接收 gaps；Host 保留完整 Planned attempt decision。
 5. **有界并发调度。**
    全局至多 `maxConcurrency` 个 gap execution 在飞(全局信号量);设了 `maxConcurrency` 的实验另有一道实验级信号量,自己排队、不影响同批其它实验(见 [Runner](runner.md#调度有界并发))。
    重试不是 attempt 级耗时启发式：turn 重试只包 `agent.send` 且受受理证据门约束，Sandbox provisioning 与幂等文件 IO 各守自己的执行体；完整边界见[执行失败分类](feature/error-classification/architecture.md)与[Sandbox](feature/sandbox/architecture.md#provisioning-失败与重试)。

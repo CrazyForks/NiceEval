@@ -68,7 +68,7 @@ t.calledTool("get_weather").label("Called the weather tool");
 
 | Property | Content |
 |---|---|
-| `turn.message` | The assistant's text reply |
+| `turn.reply` | The assistant's text reply |
 | `turn.toolCalls` | This turn's tool calls |
 | `turn.data` | Structured output |
 | `turn.status` | `"completed"`, `"failed"`, or `"waiting"` |
@@ -111,7 +111,7 @@ const grounded = defineJudge({
 export default defineEval({
   async test(t) {
     const turn = await t.send("What's the weather in Beijing today?");
-    t.judge({ question: turn.input, answer: turn.message }, grounded).gate(0.7).label("Answer is grounded");
+    t.judge({ question: turn.input, answer: turn.reply }, grounded).gate(0.7).label("Answer is grounded");
   },
 });
 ```
@@ -231,7 +231,7 @@ The full order of these steps in one Attempt:
   note={<>The cleanup phase does not count toward this Attempt's duration. Use <code>niceeval show @&lt;attempt-locator&gt; --timing</code> to see how long each step actually took.</>}
   phases={[
     { name: "experiment.setup", what: "Start the experiment's shared services", times: "Once per experiment" },
-    { name: "sandbox.queue", what: "Wait for a concurrency slot", times: "Every Attempt" },
+    { name: "sandbox.queue", what: "Wait for concurrency capacity", times: "Every Attempt" },
     { name: "sandbox.create", what: "Provider creates the Sandbox", times: "Once per Sandbox" },
     { name: "sandbox.prepare", what: "Restore cache, run preparation steps", times: "Once per Sandbox" },
     { name: "workspace.baseline", what: "Record the file baseline", times: "Every Attempt" },

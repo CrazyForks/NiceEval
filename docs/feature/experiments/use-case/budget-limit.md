@@ -24,10 +24,10 @@ feature: docs/feature/experiments/README.md
 
 2. 运行器只按**已完成 attempt 的 `estimatedCostUSD`** 判断：这个估算由 model、上报的 token 用量与 Config/runtime price table 计算；Provider / Adapter 上报的 observed `usage.costUSD` 不驱动 budget。同一 budget 域(experimentId)的累计估算到顶就停止派发新 attempt;已经在飞的照常跑完,不中途打断。
    到顶之前不做任何预测性节流,并发完全由并发参数决定(契约见 [Runner · 调度](../../../runner.md#调度))。
-3. 到顶时 NiceEval 固定 Observability 的 diagnostic 说明 `budget_exhausted`。已完成 Attempt 各自发布；Run close 把剩余 expected slots 冻结为 `budget-exhausted`。
+3. 到顶时 NiceEval 固定 Observability 的 diagnostic 说明 `budget_exhausted`。已完成 Attempt 各自发布；Run close 把剩余 expected Planned attempts 冻结为 `budget-exhausted`。
    `--json` 发送当前进程的反馈与最终 `InvocationReceipt`，不另立 budget 的结果文档。
 
-4. 未派发 slot 不写 Member，而是以 `budget-exhausted` 解释 absence。整次 Invocation 可以是 `completion: "completed"`，但预算耗尽仍使退出码为 `1`——即使零 `failed` / `errored` 也不伪装全绿。
+4. 未派发 Planned attempt 不写 Member，而是以 `budget-exhausted` 解释 absence。整次 Invocation 可以是 `completion: "completed"`，但预算耗尽仍使退出码为 `1`——即使零 `failed` / `errored` 也不伪装全绿。
 5. 想补完分母时提高预算再次运行同一条命令：reuse planning 把合格的终态 Attempt 判为 reuse，本次只把 gaps 交给 planner（见 [Reuse planning](../cache.md#coordinatorplanner-与-writer)）：
 
    ```sh

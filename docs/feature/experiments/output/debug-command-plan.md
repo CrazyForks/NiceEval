@@ -53,7 +53,7 @@
 │ occurrence: attempt · required by fixture input                      │
 │ declaration order: eval:group/first · 1                              │
 │ dependencies: []                                                     │
-│ execution order: slot[group/first,attempt:0] · topological 1         │
+│ execution order: plannedAttempt[group/first,attempt:0] · topological 1         │
 │ guarantee: unordered-across-lanes                                   │
 │ change frequency: 40 · explicit                                      │
 │ scheduling reason: ready-lowest-change-frequency                     │
@@ -70,7 +70,7 @@
 │ occurrence: attempt · Agent default                                  │
 │ declaration order: adapter:codex · 2                                 │
 │ dependencies: eval:group/first#fixture · explicit                    │
-│ execution order: slot[group/first,attempt:0] · topological 2         │
+│ execution order: plannedAttempt[group/first,attempt:0] · topological 2         │
 │ guarantee: ordered-within-occurrence                                 │
 │ change frequency: 1000 · frequent · explicit                        │
 │ scheduling reason: dependency-released-then-lowest-frequency        │
@@ -114,7 +114,7 @@ Human 框与 JSON `commandPlan` 投影同一棵结构化树和同一组字段；
   },
   "dependencies": [],
   "executionOrder": {
-    "occurrencePath": ["lane:eval-group:group", "slot:group/first:attempt:0"],
+    "occurrencePath": ["lane:eval-group:group", "plannedAttempt:group/first:attempt:0"],
     "topologicalOrdinal": 1,
     "guarantee": "unordered-across-lanes"
   },

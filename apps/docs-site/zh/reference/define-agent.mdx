@@ -144,7 +144,7 @@ readonly signal: AbortSignal;
 #### `models`
 
 ```ts
-readonly models: Readonly<Record<Slots, ResolvedModelSlot>>;
+readonly models: Readonly<Record<Roles, ResolvedModelRole>>;
 ```
 
 Frozen application model selections for this Attempt.
@@ -152,7 +152,7 @@ Frozen application model selections for this Attempt.
 #### `recordUsage`
 
 ```ts
-recordUsage(input: Omit<import("./adapter-usage.ts").AdapterUsageInput, "modelSlot"> & { readonly modelSlot?: Slots | null }): void;
+recordUsage(input: Omit<import("./adapter-usage.ts").AdapterUsageInput, "modelRole"> & { readonly modelRole?: Roles | null }): void;
 ```
 
 #### `sealUsage`
@@ -284,10 +284,10 @@ evidenceCoverage: EvidenceCoverage;
 
 该 Adapter 的常态证据覆盖声明；完整采集可用 `completeEvidenceCoverage`。
 
-#### `setup`
+#### `before`
 
 ```ts
-setup?: DirectAgentSetup;
+before?: DirectAgentBefore;
 ```
 
 每个 attempt 一次。Direct Agent 不接收 Sandbox；常用于建立连接、鉴权等一次性准备。
@@ -324,10 +324,10 @@ classifySendFailure?: SendFailureClassifier;
 
 可选 send 执行失败分类器:见 `Agent.classifySendFailure`。
 
-#### `teardown`
+#### `after`
 
 ```ts
-teardown?: DirectAgentTeardown;
+after?: DirectAgentAfter;
 ```
 
 运行结束前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
@@ -376,10 +376,10 @@ installers?: readonly AgentInstaller[];
 配对安装层；省略表示这个 adapter 只提供 probe 协议，未命中时 Runner 在
 `agent.ensure` 点名缺失的精确 identity。工厂会把省略规范化成空数组。
 
-#### `setup`
+#### `before`
 
 ```ts
-setup?: AgentSetup;
+before?: AgentBefore;
 ```
 
 每条 Attempt 一次(不是每轮 send 一次):写 config.toml / 鉴权配置(model/base/auth 等
@@ -418,10 +418,10 @@ classifySendFailure?: SendFailureClassifier;
 
 可选 send 执行失败分类器:见 `Agent.classifySendFailure`。
 
-#### `teardown`
+#### `after`
 
 ```ts
-teardown?: AgentTeardown;
+after?: AgentAfter;
 ```
 
 Sandbox 销毁前的清理,当且仅当本 attempt 走到过 `setup` 时点才执行(`setup` 抛错不豁免),
@@ -559,12 +559,12 @@ log(msg: string): void;
 
 {/* GENERATED:END agent-def */}
 
-`ctx.session`(`AgentSession`)是一条会话线的状态槽:同一条会话线的每次 `send` 拿到同一个 `ctx.session`,新会话线(评估用例第一轮 / `t.newSession()` 之后)拿到一个全新的。存取器:
+`ctx.session`(`AgentSession`)是一条会话线的状态键:同一条会话线的每次 `send` 拿到同一个 `ctx.session`,新会话线(评估用例第一轮 / `t.newSession()` 之后)拿到一个全新的。存取器:
 
 - `id?: string` / `capture(id): void` —— 会话续接·服务端记历史时用:`id` 是本线记过的会话 id(新线是 `undefined`),`capture` 记回传的 id(只在还没记过时落地)。
-- `createSessionSlot<T>(name)` —— 在 Adapter 模块作用域创建一个 typed slot。slot 按 symbol 身份隔离。
-- `get(slot)` / `set(slot, value)` —— 存取客户端历史或 Adapter 私有状态。
-- `take(slot)` —— 读取并删除 HITL 停轮现场，一次消费。
+- `createSessionKey<T>(name)` —— 在 Adapter 模块作用域创建一个 typed key。key 按 symbol 身份隔离。
+- `get(key)` / `set(key, value)` —— 存取客户端历史或 Adapter 私有状态。
+- `take(key)` —— 读取并删除 HITL 停轮现场，一次消费。
 
 完整契约见[Adapter 概念](/zh/explanation/adapter#上下文：agentcontext)。
 

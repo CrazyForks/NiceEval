@@ -98,7 +98,7 @@ export default defineExperiment({
 });
 ```
 
-Do not write `sandboxReuse: true` here. `maxConcurrency: 4` is the cap for the whole Experiment and does not make the same group run four at once; the remaining concurrency slots go to other groups and ungrouped evals.
+Do not write `sandboxReuse: true` here. `maxConcurrency: 4` is the cap for the whole Experiment and does not make the same group run four at once; the remaining concurrency capacity goes to other groups and ungrouped evals.
 
 Eval groups only work with Agents that run in a Sandbox and Providers that support reuse. An Agent without a Sandbox cannot run eval groups.
 

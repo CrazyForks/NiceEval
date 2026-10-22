@@ -198,7 +198,7 @@ Rejection is a human decision, not a tool failure. This way `noFailedActions()` 
 interface AgentContext {
   // Feedback and runtime context present on every turn
   readonly signal: AbortSignal;    // Runner timeout and cancellation: pass it to every request you make
-  readonly session: AgentSession;  // State slots for this session line
+  readonly session: AgentSession;  // State keys for this session line
   progress(update: { message: string; current?: number; total?: number }): void;
   diagnostic(input: {
     code: string;
@@ -227,9 +227,9 @@ interface AgentSession {
   capture(id: string | undefined): void;     // Record a returned id. Only takes effect if none was recorded yet
 
   // Adapter-private state: client-side history, a paused HITL turn, and so on
-  get<T>(slot: SessionSlot<T>): T | undefined;
-  set<T>(slot: SessionSlot<T>, value: T): void;
-  take<T>(slot: SessionSlot<T>): T | undefined; // Clears on read, consumed once
+  get<T>(key: SessionKey<T>): T | undefined;
+  set<T>(key: SessionKey<T>, value: T): void;
+  take<T>(key: SessionKey<T>): T | undefined; // Clears on read, consumed once
 }
 ```
 
@@ -237,7 +237,7 @@ The Runner binds a separate lifecycle scope for the Agent's `setup`, each `send`
 
 `ctx` has no flags for you to check. The three tier fields are all pass-through: `model` and `flags` are declared by the Experiment and handed over unchanged by the Runner. The Adapter only forwards them to the application with the request and does not interpret their meaning. `telemetry` appears only when OTel integration is configured; in `send`, just spread `headers` into the request headers. The receiving endpoint is fixed in `defineConfig` and pointed to when the application starts, not passed from here. See [OTel integration](/tutorials/connect-otel). `experimentId` is a stable identifier derived from the path. You can use it in dynamic Sandbox callbacks to isolate cross-Attempt state per experiment. See [Sandbox · Prepare the Sandbox in a deterministic order](/tutorials/sandbox-providers#prepare-the-sandbox-in-order).
 
-`session` is the state owned by this session line. [NiceEval](https://niceeval.com/) promises only one thing about it: **every `send` on the same session line gets the same `ctx.session`, and a new session line (the eval case's first turn, or after `t.newSession()`) gets a brand new one.** Continue server-side history with `id` / `capture`. For client-side history and paused HITL turns, the Adapter creates a typed slot at module scope with `createSessionSlot<T>(name)`, then reads and writes it with `get` / `set` / `take`. `take` clears the value as it reads it. Slots are isolated by symbol identity, so they never collide even with the same name.
+`session` is the state owned by this session line. [NiceEval](https://niceeval.com/) promises only one thing about it: **every `send` on the same session line gets the same `ctx.session`, and a new session line (the eval case's first turn, or after `t.newSession()`) gets a brand new one.** Continue server-side history with `id` / `capture`. For client-side history and paused HITL turns, the Adapter creates a typed key at module scope with `createSessionKey<T>(name)`, then reads and writes it with `get` / `set` / `take`. `take` clears the value as it reads it. Keys are isolated by symbol identity, so they never collide even with the same name.
 
 ### Return: `Turn`
 
@@ -299,7 +299,7 @@ Sandbox Agent, and only its callbacks get a `SandboxAgentContext` with a real `s
 | What it unlocks on `t` | What proves it | What you write |
 |---|---|---|
 | `t.send`, `t.sendFile`, `t.check`… | Every Agent has them | Nothing |
-| Multiple `t.send()` calls, `t.reply`, `t.newSession()` | `send` uses the `ctx.session` continuation accessors (typed slot or `id` + `capture()`); without them every turn is a new conversation | Nothing; the accessors are already on `ctx` |
+| Multiple `t.send()` calls, `t.reply`, `t.newSession()` | `send` uses the `ctx.session` continuation accessors (typed key or `id` + `capture()`); without them every turn is a new conversation | Nothing; the accessors are already on `ctx` |
 | `t.respond()`, status checks, and other HITL | send has returned `"waiting"` + an `input.requested` event | Nothing; doing it means having it |
 | Positive assertions such as `turn.calledTool()` / `turn.toolOrder()` | events contain paired `operation.started` / `operation.finished` | Nothing; if the events exist, you can assert |
 | Negative assertions such as `t.notCalledTool()` / `t.usedNoTools()` being **trustworthy** | Events come from an official converter with a completeness proof | Nothing; the proof travels with the converter's return value |

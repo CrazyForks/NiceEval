@@ -1,6 +1,6 @@
 # Judge Material —— Library
 
-Judge 作者先从受管入口取得私有品牌的 Material View，再把 View 绑定到 recipe 的具名 slot。普通 JavaScript value 仍可供确定性 Assertion 使用，但不能满足 Judge slot。
+Judge 作者先从受管入口取得私有品牌的 Material View，再把 View 绑定到 recipe 的具名 input。普通 JavaScript value 仍可供确定性 Assertion 使用，但不能满足 Judge input。
 
 ```ts
 const check = judge.check({
@@ -18,7 +18,7 @@ t.check(check, judge.llm()).gate(0.8).label("回答质量");
 
 ## Recipe 与 Check
 
-以下形状是穷尽的；未列出的 slot 选项和 Check 字段不存在。
+以下形状是穷尽的；未列出的 input 选项和 Check 字段不存在。
 
 ```ts
 type MaterialSourceRole =
@@ -52,7 +52,7 @@ interface JudgeMaterialView<
   };
 }
 
-interface MaterialSlotSchema {
+interface MaterialInputSchema {
   readonly role: string;
   readonly accepts: readonly MaterialViewKind[];
   readonly sourceRoles: readonly MaterialSourceRole[];
@@ -61,24 +61,24 @@ interface MaterialSlotSchema {
   readonly maxBytes: number;
 }
 
-type SlotView<Slot extends MaterialSlotSchema> = JudgeMaterialView<
-  Slot["accepts"][number],
-  Slot["sourceRoles"][number]
+type InputView<Input extends MaterialInputSchema> = JudgeMaterialView<
+  Input["accepts"][number],
+  Input["sourceRoles"][number]
 >;
 
-type MaterialBindings<Slots extends Record<string, MaterialSlotSchema>> = {
-  readonly [Name in keyof Slots]:
-    Slots[Name]["multiplicity"] extends "one"
-      ? SlotView<Slots[Name]>
-      : readonly [SlotView<Slots[Name]>, ...SlotView<Slots[Name]>[]];
+type MaterialBindings<Inputs extends Record<string, MaterialInputSchema>> = {
+  readonly [Name in keyof Inputs]:
+    Inputs[Name]["multiplicity"] extends "one"
+      ? InputView<Inputs[Name]>
+      : readonly [InputView<Inputs[Name]>, ...InputView<Inputs[Name]>[]];
 };
 
 interface JudgeRecipe<
-  Slots extends Record<string, MaterialSlotSchema>,
+  Inputs extends Record<string, MaterialInputSchema>,
   Control,
 > {
   readonly identity: string;
-  readonly slots: Slots;
+  readonly inputs: Inputs;
   readonly maxRenderedBytes: number;
   readonly batchSafe: boolean;
   readonly control: Control;
@@ -86,16 +86,16 @@ interface JudgeRecipe<
 
 interface JudgeCheck<Recipe extends JudgeRecipe<any, unknown>> {
   readonly recipe: Recipe;
-  readonly material: MaterialBindings<Recipe["slots"]>;
+  readonly material: MaterialBindings<Recipe["inputs"]>;
 }
 ```
 
-`Control` 是 runtime-specific recipe control：LLM recipe 使用 rubric、anchors、Decision schema 与静态判分图，Agent recipe 使用 rubric、anchors 与调查指令。事实参考不属于 control；expected answer、source text、policy 或 reference implementation 必须占用 `definition-reference` slot。
+`Control` 是 runtime-specific recipe control：LLM recipe 使用 rubric、anchors、Decision schema 与静态判分图，Agent recipe 使用 rubric、anchors 与调查指令。事实参考不属于 control；expected answer、source text、policy 或 reference implementation 必须占用 `definition-reference` input。
 
-Recipe 的 slot 采用有序 tuple；tuple 顺序同时拥有 render order 与 canonical digest order。`identity` 是稳定引用，
+Recipe 的 input 采用有序 tuple；tuple 顺序同时拥有 render order 与 canonical digest order。`identity` 是稳定引用，
 全部 control 的 canonical digest 才是复用身份。同一评分定义中，相同 identity 对应不同 digest 时在 planning 阶段失败。
 
-所有 slot 都是 required。`one` 绑定一个 View；`many` 绑定非空 readonly array，并保留作者顺序。View kind、source role、MIME、数量或预算与 schema 不符时，`judge.check(...)` 同步拒绝，不创建 Assertion。
+所有 input 都是 required。`one` 绑定一个 View；`many` 绑定非空 readonly array，并保留作者顺序。View kind、source role、MIME、数量或预算与 schema 不符时，`judge.check(...)` 同步拒绝，不创建 Assertion。
 
 `judge.check(...)` 是唯一 Check 构造器。它不接受 `{ material: object }` 式无 schema 材料，也不自动加入 Turn input、reply、trace 或当前 workspace。
 
@@ -263,4 +263,4 @@ const definition = defineGrading({
 
 构造器只接受 string、bytes 或上述受管 file loader。它们拒绝 object、Turn、events、`toolCalls` 与 material-like object。作者可以先显式 `JSON.stringify(...)` 再创建 `customText`；这会成为 manifest 中可审计的显式 overgrant，而不是系统暗中扩张材料。
 
-`name` 只用于作者与审计读面，永不发送给 evaluator。Renderer 使用 recipe slot identity 和稳定 ordinal 形成 block heading 或 Agent file path。V1 没有 evaluator-visible filename、title 或 label；将来若新增，这些 bytes 必须进入 presented representation、visible digest 与 Judge Evaluation identity。
+`name` 只用于作者与审计读面，永不发送给 evaluator。Renderer 使用 recipe input identity 和稳定 ordinal 形成 block heading 或 Agent file path。V1 没有 evaluator-visible filename、title 或 label；将来若新增，这些 bytes 必须进入 presented representation、visible digest 与 Judge Evaluation identity。
