@@ -6,7 +6,7 @@ import { Effect, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { compileDiffCode } from "./diff-code-compiler.js";
-import { DocsFileError, type DocsDomainError, DocsProcessError, errorMessage } from "concord-sdlc/repository/docs/errors";
+import { DocsFileError, type DocsDomainError, DocsProcessError, errorMessage } from "./internal/errors.js";
 import type { CommandReceipt } from "./model.js";
 import {
   BUNDLED_INDEX_REGION,
@@ -20,7 +20,7 @@ import {
   regenerateEnglishReferenceDoc,
   regenerateReferenceDoc,
 } from "./reference-compiler.js";
-import { absolutePath, atomicWriteText, REPOSITORY_ROOT } from "concord-sdlc/repository/docs/runtime";
+import { absolutePath, atomicWriteText, REPOSITORY_ROOT } from "./internal/runtime.js";
 
 const REFERENCE_OUTPUTS = REFERENCE_FILES.flatMap(({ file }) => [
   `apps/docs-site/zh/reference/${file}`,

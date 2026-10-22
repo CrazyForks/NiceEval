@@ -5,8 +5,8 @@ import {
   deliverDomainResult,
   jsonDocument,
   type TerminalDeliverySink,
-} from "concord-sdlc/repository/docs/contribution";
-import { renderDocsDomainFailure } from "concord-sdlc/repository/docs/errors";
+} from "./internal/command.js";
+import { renderDocsDomainFailure } from "./internal/errors.js";
 import { generateReference } from "./generators.js";
 import type { CommandReceipt } from "./model.js";
 

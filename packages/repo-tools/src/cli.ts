@@ -1,5 +1,5 @@
-import { makeDocsCommand } from "concord-sdlc/repository/docs/command";
-import type { TerminalDelivery } from "concord-sdlc/repository/docs/contribution";
+import { makeDocsCommand } from "./docs/internal/command.js";
+import type { TerminalDelivery } from "./docs/internal/command.js";
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Argument as Args, Command, Flag as Options } from "effect/unstable/cli";
 import { Data, Effect, FileSystem, Layer, Option } from "effect";
