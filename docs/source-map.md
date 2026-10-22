@@ -37,7 +37,8 @@ Inspection selector。相应边界内部才取得 Scope、Layer、lease、reader
 | 当前 Issue owner、adoption、Memory relation 与远端 source | Concord 的 `concord repo feedback` |
 | 当前 Memory、promotion、supersession 与 E2E regression check | Concord 的 `concord repo memory` |
 
-这些命令属于仓库自身，不进入发布的 `niceeval` 产品 CLI。中立治理直接从全局 `concord` 进入，NiceEval 自有文档生成从 `pnpm run repo docs` 进入：Feature/Test 发现分别是 `concord repo docs feature` 与 `concord repo docs test`；
+这些命令属于仓库自身，不进入发布的 `niceeval` 产品 CLI。中立治理直接从全局 `concord` 进入，NiceEval 自有文档生成从 `pnpm run repo docs` 进入。
+Feature/Test 发现分别是 `concord repo docs feature` 与 `concord repo docs test`；
 Feedback 与 Memory 仍各自使用 `concord repo feedback` 与 `concord repo memory`。领域 handler 返回结构化 receipt，只有根 `cli.ts` 读取 argv、写 stdout/stderr 和设置退出码。
 
 ## 运行与持久事实

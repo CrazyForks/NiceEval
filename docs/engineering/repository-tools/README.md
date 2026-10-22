@@ -10,6 +10,7 @@ createdAtSource:
 kind: engineering
 ---
 
+
 # Repository Tools
 
 中立治理命令直接由全局 `concord` 提供。NiceEval 的 Feature、Test、Trace、Memory 与 Feedback 使用 `concord repo` repository profile，保留现有参数、关系与 formal evidence 语义。
@@ -24,11 +25,11 @@ NiceEval 自有文档生成与站点流程从字面入口 `pnpm run repo docs` �
 
 ## 安装与按需指引
 
-全局 CLI 安装固定的 [Concord 0.12.0 Release](https://github.com/CorrectRoadH/Concord/releases/tag/v0.12.0)。根包、repo-tools 与 e2e-runner 的库依赖直接使用该 Release 的 `concord-sdlc-0.12.0.tgz` URL；仓库不存放发行 tarball，pnpm lockfile 记录其 integrity。
+全局 CLI 安装固定的 [Concord 0.12.0 Release](https://github.com/CorrectRoadH/Concord/releases/tag/v0.12.0)。根包、repo-tools 与 e2e-runner 的库依赖直接使用该 Release 的 `concord-sdlc-0.12.0.tgz` URL；仓库不存放发行 tarball，pnpm lockfile 保存其 integrity。
 
-发行 SHA-256 为 `9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556`。CI 下载后校验摘要，将包解到仓库外，用包内 lockfile 安装生产依赖，再将全局 `concord` 加入 PATH。macOS 可使用 Concord 官方 Homebrew tap，但须用 `concord --version` 确认所需版本；后续 tap 升级不能自动改变本仓库依赖。
+发行 SHA-256 为 `9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556`。CI 下载后校验摘要，将包解到仓库外，用包内 lockfile 安装生产依赖，再将全局 `concord` 加入 PATH。全局 CLI 直接来自校验后解压的 Release 包。安装器若改写 JavaScript，repository host 会拒绝其实现身份，即使版本号相同。
 
-`pnpm install --frozen-lockfile` 安装库依赖。生产代码只保留解析、关系校验、host 与证据所需的库函数；CLI 调用直接使用 `concord`。pnpm 组合脚本内也直接写 `concord docs check`。
+`pnpm install --frozen-lockfile` 安装库依赖。生产代码只保留 JSON 解码、关系校验、host 与证据所需的库函数；CLI 调用直接使用 `concord`。pnpm 组合脚本内也直接写 `concord docs check`。
 
 ```sh
 concord --skill
@@ -48,7 +49,7 @@ concord repo docs test audit --json
 1. 从 Concord GitHub Release 取得新版本 tarball，核对发行 SHA-256，并同步安装该版本的全局 CLI；
 2. 更新根包、`packages/repo-tools` 与 `packages/e2e-runner` 三处 Release URL dependency，重新生成 lockfile，并确认 integrity 对应同一发行文件；
 3. 同步 CI 的固定版本 URL 与 SHA-256，按受管命令迁移 writing policy，评估新字段对实际消费者的影响；
-4. 用 `concord --version`、`concord check`、repository profile 的公开命令、host identity、`pnpm lint`、`pnpm typecheck` 与 `pnpm test` 验证。`concord repo docs test audit --json` 会打包候选并执行 inventory，只在获准运行正式 E2E 的环境执行。
+4. 用 `concord --version`、`concord check`、repository profile 的公开命令、host identity、`pnpm lint`、`pnpm typecheck` 与 `pnpm test` 验证。`concord repo docs test audit --json` 会打包候选并执行 inventory，只在获准运行正式 E2E 的 CI job 或宿主执行。
 
 0.12.0 的 writing policy 使用 `concord.writing/v3`；本次只迁移格式，不开启 controlled 检查。原生模式新增 stepGroups、analysis 与 `concord.native-evidence/v2`，现有 NiceEval formal host 仍消费 `concord.native-case-receipt/v1` 和 `concord.native-reliability/v1`。原生 observation 的 `observed`、存在关联或 analysis 结果都不代表 formal pass；采用步骤级证据时必须同时判断 current、complete 与 gaps。
 

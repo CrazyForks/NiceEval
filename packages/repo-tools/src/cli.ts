@@ -1,3 +1,5 @@
+import { makeDocsCommand } from "concord-sdlc/repository/docs/command";
+import type { TerminalDelivery } from "concord-sdlc/repository/docs/contribution";
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Argument as Args, Command, Flag as Options } from "effect/unstable/cli";
 import { Data, Effect, FileSystem, Layer, Option } from "effect";
@@ -6,10 +8,8 @@ import { linkDownstreamCandidate } from "./downstream/index.js";
 import {
   diffCodeCommandContribution,
   generateBundledIndex,
-  makeDocsCommand,
   referenceCommandContribution,
   siteCommandContribution,
-  type TerminalDelivery,
   workCommandContribution,
 } from "./docs/index.js";
 import { checkExamples, syncExamples } from "./examples/index.js";
