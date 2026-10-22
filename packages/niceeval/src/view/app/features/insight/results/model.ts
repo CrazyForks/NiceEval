@@ -86,7 +86,7 @@ type CurrentProject = InspectionSuccessDocumentFor<"project.get">["project"];
 /** Groups already closed project.get slots for presentation; no recorded member is reselected. */
 export function currentExperimentRows(project: CurrentProject) {
   return project.experiments.map((experiment) => {
-    const slots = project.slots.filter((slot) => slot.experimentId === experiment.experimentId);
+    const slots = project.plannedAttempts.filter((slot) => slot.experimentId === experiment.experimentId);
     const covered = slots.filter((slot) => slot.state === "reuse").length;
     return Object.freeze({ experiment, slots, covered, gaps: slots.length - covered });
   });
@@ -171,7 +171,7 @@ function projectMetric(metric: OverviewMetric): MetricValue<number> {
     state: metric.state,
     samples: metric.samples,
     total: metric.total,
-    basis: metric.basis,
+    basis: metric.basis === "planned-attempt" ? "slot" : metric.basis,
     issues: Object.freeze(metric.issues),
     refs: Object.freeze(metric.refs.map((ref) => Object.freeze({
       identity: Object.freeze({ kind: ref.identity.kind, locator: ref.identity.locator }),

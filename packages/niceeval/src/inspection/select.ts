@@ -1,3 +1,4 @@
+import { projectPlannedAttempt, projectAttemptCore, projectRunCore, projectMember } from "./planned-attempt.ts";
 import { readAttemptNotes, aggregateAttemptNotes } from "./notes.ts";
 // @concord-file ne-eval-inspection-selector
 // @concord-implements docs/feature/inspection/README.md
@@ -235,14 +236,14 @@ function selectOperation(
       const experimentCells = Object.freeze(overview.cells.filter(({ experimentId }) => experimentId === operation.experimentId));
       const usageAttempts = new Map<string, ResolvedInspectionAttempt>();
       let unresolvedAttemptCount = 0;
-      let selectedSlotCount = 0;
-      let resolvedSlotCount = 0;
+      let plannedAttemptCount = 0;
+      let recordedAttemptCount = 0;
       const origins = new Map<string, { readonly origin: LoadedInspectionRun; readonly attempts: ReadonlyMap<string, LoadedInspectionRun["attempts"][number]> }>(selected.map((origin) => [origin.run.runId, {
         origin, attempts: new Map(origin.attempts.map((attempt) => [attempt.attemptId, attempt])),
       }]));
       for (const cell of experimentCells) {
         for (const member of cell.members) {
-          selectedSlotCount++;
+          plannedAttemptCount++;
           if (member.publication.state !== "published") { unresolvedAttemptCount++; continue; }
           const identity = member.publication;
           const indexed = origins.get(identity.originRunId);
@@ -251,7 +252,7 @@ function selectOperation(
           if (origin === undefined || attempt === undefined) { unresolvedAttemptCount++; continue; }
           const resolved: ResolvedInspectionAttempt = Object.freeze({ origin, attempt,
             locator: encodeAttemptLocator(attempt.attemptId), targets: Object.freeze([]) });
-          resolvedSlotCount++;
+          recordedAttemptCount++;
           usageAttempts.set(`${resolved.attempt.originRunId}\u0000${resolved.attempt.attemptId}`, resolved);
         }
       }
@@ -269,12 +270,12 @@ function selectOperation(
       const costSummary = Object.freeze({
         scope: "latest-recorded-slots" as const,
         totalCosts: combineTotalUsageCosts(allAttempts.map(({ usage }) => usage.totalCosts), unresolvedAttemptCount > 0),
-        coverage: Object.freeze({ selectedSlotCount, resolvedSlotCount,
+        coverage: Object.freeze({ plannedAttemptCount, recordedAttemptCount,
           originAttemptCount: allAttempts.length,
           completeAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "complete").length,
           partialAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "partial").length,
           unavailableAttemptCount: allAttempts.filter(({ usage }) => usage.totalCosts.state === "unavailable").length,
-          unresolvedSlotCount: unresolvedAttemptCount }),
+          missingAttemptCount: unresolvedAttemptCount }),
       });
       let attempts = Object.freeze(allAttempts.slice(0, 64));
       const notes = aggregateAttemptNotes(orderedUsageAttempts);
@@ -747,12 +748,12 @@ function inspectionRunValue(run: LoadedInspectionRunResource): InspectionRunValu
     ...(resource.completedAt === undefined
       ? {}
       : { completedAt: Date.parse(resource.completedAt) }),
-    expectedSlots: published?.run.expectedSlots ?? resource.slots.map((slot) => Object.freeze({
+    plannedAttempts: (published?.run.expectedSlots ?? resource.slots.map((slot) => Object.freeze({
       slotId: slot.slotId,
       evalId: slot.evalId,
       attemptOrdinal: slot.attemptOrdinal,
       executionIdentityDigest: slot.executionIdentityDigest,
-    })),
+    }))).map(projectPlannedAttempt),
   }));
 }
 
@@ -970,10 +971,10 @@ function compactAssertionInspection(value: InspectionJson): InspectionJson {
 function attemptDetail(resolved: ResolvedInspectionAttempt): InspectionAttemptResult {
   const assertions = readInspectionAssertions(resolved);
   return Object.freeze({
-    core: resolved.attempt,
+    core: projectAttemptCore(resolved.attempt),
     locator: resolved.locator,
-    originRun: resolved.origin.run,
-    targets: resolved.targets.map(({ run, member }) => Object.freeze({ runId: run.run.runId, member })),
+    originRun: projectRunCore(resolved.origin.run),
+    targets: resolved.targets.map(({ run, member }) => Object.freeze({ runId: run.run.runId, member: projectMember(member) })),
     evidence: assertions.state === "available"
       ? Object.freeze({
           state: "available" as const,
@@ -1108,7 +1109,7 @@ function runDetail(
   _all: readonly LoadedInspectionRun[],
   selectedResource: LoadedInspectionRunResource,
 ): InspectionRunResult {
-  type Member = InspectionRunResult["slots"][number];
+  type Member = InspectionRunResult["plannedAttempts"][number];
   type Usage = ReturnType<typeof projectAttemptUsage>;
   const selected = selectedResource.published;
   const value = inspectionRunValue(selectedResource);
@@ -1127,24 +1128,24 @@ function runDetail(
     facts: Object.freeze([]),
     limitations: Object.freeze([]),
   });
-  const projected = value.expectedSlots.map((slot): {
+  const projected = value.plannedAttempts.map((slot): {
     readonly member: Member;
     readonly usage?: Usage;
   } => {
-    const binding = publications.get(slot.slotId);
-    if (binding === undefined) throw new Error(`Run ${value.runId} has no Slot ${slot.slotId}`);
+    const binding = publications.get(slot.plannedAttemptId);
+    if (binding === undefined) throw new Error(`Run ${value.runId} has no Planned attempt ${slot.plannedAttemptId}`);
     const publication: Member["publication"] = binding.state === "published"
       ? Object.freeze({
           state: "published", action: binding.action, attemptId: binding.attemptId,
-          attemptLocator: binding.attemptLocator, originRunId: binding.originRunId, originSlotId: binding.originSlotId,
+          attemptLocator: binding.attemptLocator, originRunId: binding.originRunId, originPlannedAttemptId: binding.originSlotId,
         })
       : binding.state === "absent"
         ? Object.freeze({ state: "absent", reason: binding.reason })
         : Object.freeze({ state: "pending" });
-    const targetMember = bindings.get(slot.slotId);
+    const targetMember = bindings.get(slot.plannedAttemptId);
     if (targetMember === undefined) {
       if (publication.state !== "pending" && publication.state !== "absent") {
-        throw new Error(`Terminal Run ${value.runId} has no binding or absence for Slot ${slot.slotId}`);
+        throw new Error(`Terminal Run ${value.runId} has no binding or absence for Planned attempt ${slot.plannedAttemptId}`);
       }
       const limitation = Object.freeze({
         kind: "member-not-observed" as const,
@@ -1268,7 +1269,7 @@ function runDetail(
   const members = Object.freeze(projected.map(({ member }) => member));
   const locatedLimitations = Object.freeze(members.flatMap((member) =>
     member.limitations.map((limitation) => Object.freeze({
-      slotId: member.slotId,
+      plannedAttemptId: member.plannedAttemptId,
       locator: member.locator,
       limitation,
     }))));
@@ -1282,14 +1283,14 @@ function runDetail(
     limitation.kind !== "coverage"));
   return Object.freeze({
     value,
-    members: selectedResource.members,
-    attempts: selected?.attempts ?? Object.freeze([]),
+    members: selectedResource.members.map(projectMember),
+    attempts: selected?.attempts.map(projectAttemptCore) ?? Object.freeze([]),
     denominator: Object.freeze({
       expected: selectedResource.resource.expected,
       published: selectedResource.resource.published,
       missing: selectedResource.resource.missing,
     }),
-    slots: members,
+    plannedAttempts: members,
     coverage: Object.freeze({
       state: aggregateRunOverviewState(members.map(({ coverage }) => coverage.state)),
       expectedMemberCount: members.length,
@@ -1554,8 +1555,8 @@ function comparisonDocument(
     ], issues),
     comparison: boundedJson(Object.freeze({
       mode: operation.mode,
-      left: Object.freeze({ runs: left.selected.map(({ run }) => run), members: leftMembers }),
-      right: Object.freeze({ runs: right.selected.map(({ run }) => run), members: rightMembers }),
+      left: Object.freeze({ runs: left.selected.map(({ run }) => projectRunCore(run)), members: leftMembers }),
+      right: Object.freeze({ runs: right.selected.map(({ run }) => projectRunCore(run)), members: rightMembers }),
       exactMemberSet: exact,
       pairs: operation.mode === "side-by-side" ? Object.freeze([]) : Object.freeze(pairs),
     })),
@@ -1573,7 +1574,7 @@ function comparisonMembers(
     if (slot === undefined || resolved === undefined) return [];
     return [Object.freeze({
       key: `${run.run.experimentId}\u0000${slot.evalId}\u0000${slot.attemptOrdinal}`,
-      runId: run.run.runId, slotId: slot.slotId, evalId: slot.evalId, attemptOrdinal: slot.attemptOrdinal,
+      runId: run.run.runId, plannedAttemptId: slot.slotId, evalId: slot.evalId, attemptOrdinal: slot.attemptOrdinal,
       locator: resolved.locator,
     })];
   }));

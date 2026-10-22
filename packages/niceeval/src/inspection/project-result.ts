@@ -21,7 +21,7 @@ export const InspectionProjectGapReasonSchema = Schema.Literals([
   "score-incomplete", "evidence-unavailable", "timeout-exceeded", "adoption-unproven",
 ]);
 
-export const InspectionProjectSlotSchema = Schema.Union([
+export const InspectionProjectPlannedAttemptSchema = Schema.Union([
   Schema.Struct({
     ...PositionFields,
     state: Schema.Literal("reuse"),
@@ -48,7 +48,7 @@ export const InspectionProjectResultSchema = Schema.Struct({
     covered: NonNegativeSafeIntegerSchema,
     gaps: NonNegativeSafeIntegerSchema,
   }),
-  slots: Schema.Array(InspectionProjectSlotSchema),
+  plannedAttempts: Schema.Array(InspectionProjectPlannedAttemptSchema),
   ...InspectionOverviewResultSchema.fields,
   history: Schema.Array(Schema.Struct({
     ...PositionFields,
@@ -57,9 +57,9 @@ export const InspectionProjectResultSchema = Schema.Struct({
   })),
 }).check(Schema.makeFilter((value) =>
   value.coverage.covered + value.coverage.gaps === value.coverage.expected
-  && value.slots.length === value.coverage.expected
-  && value.slots.filter((slot) => slot.state === "reuse").length === value.coverage.covered,
+  && value.plannedAttempts.length === value.coverage.expected
+  && value.plannedAttempts.filter((slot) => slot.state === "reuse").length === value.coverage.covered,
 ));
 
 export type InspectionProjectResult = Schema.Schema.Type<typeof InspectionProjectResultSchema>;
-export type InspectionProjectSlot = Schema.Schema.Type<typeof InspectionProjectSlotSchema>;
+export type InspectionProjectPlannedAttempt = Schema.Schema.Type<typeof InspectionProjectPlannedAttemptSchema>;

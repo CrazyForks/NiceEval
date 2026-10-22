@@ -72,7 +72,7 @@ export interface OverviewView {
             readonly attemptId: string;
             readonly attemptLocator: string;
             readonly originRunId: string;
-            readonly originSlotId: string;
+            readonly originPlannedAttemptId: string;
             readonly verdict: Verdict | null;
             readonly score: Metric;
             readonly durationMs: Metric;
@@ -102,7 +102,7 @@ export interface RunView {
   readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["usage"];
   readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["limitations"];
   readonly members: readonly {
-    readonly slotId: string;
+    readonly plannedAttemptId: string;
     readonly evalId: string;
     readonly attemptOrdinal: number;
     readonly locator: string | null;
@@ -111,9 +111,9 @@ export interface RunView {
     readonly outcome: AttemptOutcome | null;
     readonly verdict: Verdict | null;
     readonly score: ScoredValue | null;
-    readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["coverage"];
-    readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["usage"];
-    readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["slots"][number]["limitations"];
+    readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["coverage"];
+    readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["usage"];
+    readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["limitations"];
   }[];
 }
 export interface AttemptView {
@@ -123,7 +123,7 @@ export interface AttemptView {
   readonly verdict: Verdict | null;
   readonly attemptId: string;
   readonly evalId: string;
-  readonly slotId: string;
+  readonly plannedAttemptId: string;
   readonly outcome: AttemptOutcome;
   readonly originRunId: string;
   readonly experimentId: string;
@@ -284,8 +284,8 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): R
     coverage: detail.coverage,
     usage: detail.usage,
     limitations: detail.limitations,
-    members: detail.slots.map((member) => ({
-      slotId: member.slotId,
+    members: detail.plannedAttempts.map((member) => ({
+      plannedAttemptId: member.plannedAttemptId,
       evalId: member.evalId,
       attemptOrdinal: member.attemptOrdinal,
       locator: member.locator,
@@ -311,7 +311,7 @@ export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.g
     verdict: value.verdict,
     attemptId: value.core.attemptId,
     evalId: value.core.evalId,
-    slotId: value.core.slotId,
+    plannedAttemptId: value.core.plannedAttemptId,
     outcome: value.core.outcome,
     originRunId: value.core.originRunId,
     experimentId: value.originRun.experimentId,

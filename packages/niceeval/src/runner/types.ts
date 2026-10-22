@@ -1418,7 +1418,7 @@ export interface Attempt {
 export type OutputProfile = "human" | "json";
 
 // 反馈系统的 attempt 阶段与落盘 / envelope 用同一套 `LifecyclePhase` 闭集(见上),
-// 不再有独立的 dashboard 词表;`waiting for a slot` 是 attempt 开始前的调度态,不属于闭集;
+// 不再有独立的 dashboard 词表;`waiting for capacity` 是 attempt 开始前的调度态,不属于闭集;
 // `passed` / `failed` / `errored` / `reused` / `early-exit` / `budget-unstarted` 是 outcome,
 // 发生在阶段结束后,也不塞进 phase 闭集。
 

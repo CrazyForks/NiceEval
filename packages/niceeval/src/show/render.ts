@@ -319,7 +319,7 @@ export function renderOverview(
         title: `Attempts · ${group.name ?? group.experiments[0]!.experimentId}`,
         blocks: group.experiments.flatMap((experiment) => {
           const experimentCells = value.cells.filter((cell) => cell.experimentId === experiment.experimentId && cell.members.length > 0);
-          const gaps = current.slots.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
+          const gaps = current.plannedAttempts.filter((slot) => slot.experimentId === experiment.experimentId && slot.state === "gap");
           return [
             ...(group.name === null ? [] : [{ kind: "divider" as const, title: `Experiment ${experiment.experimentId}`, attachNext: true }]),
             ...gaps.flatMap((slot): TerminalPanelContentBlock[] => slot.state !== "gap" ? [] : [
@@ -393,14 +393,14 @@ export function renderExperiment(value: ExperimentView): string {
         { kind: "divider", title: totalCosts.state === "complete" ? "Experiment total costs" : "Experiment known subtotal" },
         ...totalCostBlocks(totalCosts).slice(1),
         { kind: "keyValue", entries: [
-          { key: "Scope", value: "Latest recorded slots; replaced executions excluded" },
-          { key: "Selected slots", value: String(coverage.selectedSlotCount) },
-          { key: "Resolved slots", value: String(coverage.resolvedSlotCount) },
+          { key: "Scope", value: "Latest recorded attempts; replaced executions excluded" },
+          { key: "Planned attempts", value: String(coverage.plannedAttemptCount) },
+          { key: "Recorded attempts", value: String(coverage.recordedAttemptCount) },
           { key: "Unique origin Attempts", value: String(coverage.originAttemptCount) },
           { key: "Attempts with complete costs", value: String(coverage.completeAttemptCount) },
           { key: "Attempts with partial costs", value: String(coverage.partialAttemptCount) },
           { key: "Attempts with unavailable costs", value: String(coverage.unavailableAttemptCount) },
-          { key: "Unresolved slots", value: String(coverage.unresolvedSlotCount) },
+          { key: "Missing attempts", value: String(coverage.missingAttemptCount) },
         ] },
         { kind: "divider", title: "Summary" },
         aggregateEntries(value.aggregate),
@@ -486,7 +486,7 @@ export function renderRun(value: RunView): string {
   for (const member of value.members) {
     blocks.push({
       kind: "panel",
-      title: `Member ${member.slotId}`,
+      title: `Member ${member.plannedAttemptId}`,
       meta: member.state,
       blocks: [
         {
@@ -588,12 +588,12 @@ function runLocatedLimitationTable(
   return {
     kind: "table",
     columns: [
-      { header: "Slot" },
+      { header: "Planned attempt" },
       { header: "Attempt" },
       { header: "Limitation" },
     ],
     rows: values.map((value) => [
-      value.slotId,
+      value.plannedAttemptId,
       value.locator ?? "not-recorded",
       formatRunMemberLimitation(value.limitation),
     ]),
@@ -643,7 +643,7 @@ export function renderAttempt(value: AttemptView): string {
             { key: "Eval", value: value.evalId },
             { key: "Run", value: value.originRunId },
             { key: "Attempt", value: value.attemptId },
-            { key: "Slot", value: value.slotId },
+            { key: "Planned attempt", value: value.plannedAttemptId },
             { key: "Outcome", value: value.outcome },
             { key: "Verdict", value: value.verdict ?? "not-available" },
             { key: "Score", value: score(value.score, value.verdict) },
@@ -883,7 +883,7 @@ function displayDetailBlocks(block: ExecutionDisplayDetailBlock, locator: string
   const lines = displayLines(block, eventId, TERMINAL_OPTIONS.width);
   const blocks: TerminalBlock[] = [{ kind: "code", text: lines.join("\n") }];
   if (block.kind === "image") {
-    const request = JSON.stringify({ protocol: "niceeval.query/v1", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
+    const request = JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
     blocks.push({ kind: "code", text: `niceeval query run --request - <<'NICEEVAL_REQUEST'\n${request}\nNICEEVAL_REQUEST` });
   }
   return blocks;
