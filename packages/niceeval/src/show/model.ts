@@ -82,6 +82,7 @@ export interface OverviewView {
   }[];
 }
 export interface ExperimentView {
+  readonly plugins: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["experiment"]["plugins"];
   readonly notes: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["notes"];
   readonly experimentId: string;
   readonly aggregate: Aggregate;
@@ -261,6 +262,7 @@ export function projectExperiment(document: InspectionSuccessDocumentFor<"experi
   return {
     experimentId: document.experiment.experiment.experimentId,
     notes: document.experiment.notes,
+    plugins: document.experiment.experiment.plugins,
     aggregate: aggregate(document.experiment.experiment),
     cells: cells(document.experiment.cells),
     costSummary: document.experiment.costSummary,

@@ -387,6 +387,9 @@ export function renderExperiment(value: ExperimentView): string {
       kind: "panel",
       title: `Experiment ${value.experimentId}`,
       blocks: [
+        { kind: "divider", title: "Plugins" },
+        { kind: "table", columns: ["Name", "Key", "Identity"].map((header) => ({ header })),
+          rows: value.plugins.map((plugin) => [plugin.name, plugin.key, JSON.stringify(plugin.identity)]) },
         { kind: "divider", title: "Notes" },
         { kind: "table", columns: ["Label", "Count", "Min", "Median", "P90", "Max"].map((header) => ({ header })),
           rows: value.notes.map((note) => [note.label, String(note.count), ...[note.min, note.median, note.p90, note.max].map((n) => formatNumericUnit(n, note.unit))]) },
@@ -1654,8 +1657,8 @@ function cacheReadBlocks(report: import("../o11y/cache-read.ts").CacheReadReport
   ];
   return [{ kind: "divider", title: "Cache read rate" }, { kind: "table",
     columns: [{ header: "Scope" }, { header: "Rate" }, { header: "Covered calls" }, { header: "Collection" }, { header: "Reasons" }],
-    rows: [row("Total", report.total), ...report.modelSlots.map((group) => row(`Slot: ${group.modelSlot ?? "not-recorded"}`, group)),
-      ...report.models.map((group) => row(`${group.modelSlot ?? "not-recorded"} / ${group.provider ?? "not-recorded"} / ${group.model ?? "not-recorded"}`, group))], overflow: "wrap" }];
+    rows: [row("Total", report.total), ...report.roles.map((group) => row(`Role: ${group.modelRole ?? "not-recorded"}`, group)),
+      ...report.models.map((group) => row(`${group.modelRole ?? "not-recorded"} / ${group.provider ?? "not-recorded"} / ${group.model ?? "not-recorded"}`, group))], overflow: "wrap" }];
 }
 
 function modelUsageBlocks(
@@ -1664,7 +1667,7 @@ function modelUsageBlocks(
   const configured = value.configuredModels;
   const groups = value.modelGroups;
   const recordedCalls = (count: number | null): string => count === null ? "—" : count === 0 ? "0 (no recorded calls)" : String(count);
-  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelSlot === "default" ? configured.bindings[0] : null;
+  const defaultBinding = configured.state === "available" && configured.bindings.length === 1 && configured.bindings[0].modelRole === "default" ? configured.bindings[0] : null;
   const configurationBlocks: readonly TerminalPanelContentBlock[] = configured.state !== "available"
     ? [{ kind: "keyValue", entries: [{ key: "Configuration", value: configured.state }] }]
     : defaultBinding !== null
@@ -1674,12 +1677,12 @@ function modelUsageBlocks(
       { key: "Recorded calls", value: recordedCalls(defaultBinding.recordedCalls) },
     ] }]
     : configured.bindings.length === 0
-    ? [{ kind: "keyValue", entries: [{ key: "Configured slots", value: "0" }] }]
-    : [{ kind: "table", columns: [{ header: "Slot" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
-      rows: configured.bindings.map((binding) => [binding.modelSlot, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
+    ? [{ kind: "keyValue", entries: [{ key: "Configured roles", value: "0" }] }]
+    : [{ kind: "table", columns: [{ header: "Role" }, { header: "Configured model" }, { header: "Effort" }, { header: "Recorded calls" }],
+      rows: configured.bindings.map((binding) => [binding.modelRole, binding.model ?? "—", binding.reasoningEffort ?? "—", recordedCalls(binding.recordedCalls)]), overflow: "wrap" }];
   return [
     ...cacheReadBlocks(value.cacheRead),
-    { kind: "divider", title: "Configured model slots" },
+    { kind: "divider", title: "Configured model roles" },
     ...configurationBlocks,
     { kind: "divider", title: "Actual model usage" },
     { kind: "keyValue", entries: [
@@ -1689,10 +1692,10 @@ function modelUsageBlocks(
       ...("reason" in groups && groups.reason !== undefined ? [{ key: "Reason", value: groups.reason }] : []),
     ] },
     { kind: "table", columns: [
-      { header: "Slot / provider / actual model", maxWidth: 30 },
+      { header: "Role / provider / actual model", maxWidth: 30 },
       { header: "Calls / tokens", maxWidth: 18 }, { header: "Application cost", maxWidth: 24 },
     ], rows: groups.groups.map((group) => [
-      `Slot: ${group.modelSlot ?? "not-recorded"}\nProvider: ${group.provider ?? "not-recorded"}\n${group.model ?? "not-recorded"}`,
+      `Role: ${group.modelRole ?? "not-recorded"}\nProvider: ${group.provider ?? "not-recorded"}\n${group.model ?? "not-recorded"}`,
       `${group.recordedCalls} calls\nInput incl. cache: ${metric(group.tokens.inputTotalTokens)}\nOutput: ${metric(group.tokens.outputTokens)}\nTotal: ${metric(group.tokens.totalTokens)}`,
       group.costs.values.length === 0 ? group.costs.state : group.costs.values.map((cost) =>
         `${cost.value} ${cost.currency} (${group.costs.state}${group.costs.state === "partial" ? "; known subtotal" : ""}; ${cost.coveredCalls}/${group.costs.totalCalls} covered; ${cost.source})`

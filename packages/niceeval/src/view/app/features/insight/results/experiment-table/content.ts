@@ -391,7 +391,8 @@ export function experimentRow(item: ExperimentListItem, view: HierarchyView): Ta
   const coveredEvalCount = item.evalRows.length;
   const totalEvalCount = coveredEvalCount + item.missingEvalIds.length;
   const bag: CellBag = {
-    entity: identityCell(item.experimentId, `${coveredEvalCount}/${totalEvalCount}`),
+    entity: stackCell(identityCell(item.experimentId, `${coveredEvalCount}/${totalEvalCount}`),
+      ...(item.plugins ?? []).map((plugin) => textCell(`${plugin.name} (${plugin.key})`, JSON.stringify(plugin.identity)))),
     model: executionCell(item.model),
     adapter: adapterCell(item.adapter),
     ...(item.durationMs === undefined ? {} : { durationMs: measureCell(item.durationMs, false) }),

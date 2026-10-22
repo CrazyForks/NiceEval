@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { registerSandboxContent } from "../sandbox/content.ts";
 import type { ExperimentHookContext } from "../runner/types.ts";
 import type { JsonValue, ScopedFeedback } from "../shared/types.ts";
-import { sandboxLayer, type SandboxLayer } from "../sandbox/layer.ts";
+import { sandboxLayerStateOf, sandboxLayer, type SandboxLayer } from "../sandbox/layer.ts";
 import type { SandboxAction, SandboxAfterAction } from "../sandbox/action.ts";
 import type { SandboxCommand, SandboxCommandContext, SandboxCommandTarget, SandboxCleanupCommand } from "../sandbox/commands.ts";
 import type { CodexConfig } from "../agents/codex.ts";
@@ -108,6 +108,8 @@ export interface LinkedPluginLifecycle {
   readonly shape: JsonValue;
   readonly agentProjection?: JsonValue;
   readonly arrayPosition: number;
+  readonly beforeCount: number;
+  readonly afterCount: number;
   readonly hasSetup: boolean;
   readonly hasTeardown: boolean;
   readonly hostDeclared: boolean;
@@ -115,6 +117,8 @@ export interface LinkedPluginLifecycle {
   readonly setup?: PluginHook<any>;
   readonly teardown?: PluginHook<any>;
 }
+const sandboxPluginSources = new WeakMap<object, string>();
+export function pluginSourceOf(declaration: object): string | undefined { return sandboxPluginSources.get(declaration); }
 const pluginInstances = new WeakMap<object, PluginInstanceData>();
 function assertNonEmptyString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim() === "") throw new TypeError(`${label} must be a non-empty string.`);
@@ -234,6 +238,10 @@ function createPlugin(spec: unknown): PluginInstance {
     ...(sandboxShape === undefined ? {} : { sandbox: sandboxShape }),
     ...(spec.agent === undefined ? {} : { agent: true }),
   });
+  if (sandbox !== undefined) {
+    const state = sandboxLayerStateOf(sandbox);
+    for (const declaration of [...state.before, ...state.after]) sandboxPluginSources.set(declaration, `${name}:${key}`);
+  }
   const data: PluginInstanceData = Object.freeze({ name, key, identity: identity as Readonly<globalThis.Record<string, JsonValue>>, requires, shape,
     ...(agentProjection === undefined ? {} : { agentProjection }),
     ...(experiment === undefined ? {} : { experiment }), ...(group === undefined ? {} : { group }),
@@ -281,6 +289,7 @@ export function linkPluginLifecycles<Scope extends PluginOwner>(plugins: readonl
     const lifecycle = data[field];
     return Object.freeze({ scope, name: data.name, key: data.key, identity: data.identity, requires: data.requires, shape: data.shape, arrayPosition,
       ...(data.agentProjection === undefined ? {} : { agentProjection: data.agentProjection }),
+      beforeCount: lifecycle?.before.length ?? 0, afterCount: lifecycle?.after.length ?? 0,
       hasSetup: (lifecycle?.before.length ?? 0) > 0, hasTeardown: (lifecycle?.after.length ?? 0) > 0,
       hostDeclared: lifecycle !== undefined,
       ...(data.sandbox === undefined ? {} : { sandboxLayer: data.sandbox }),

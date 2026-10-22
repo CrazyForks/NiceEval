@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Effect, Result, Schema } from "effect";
 
+import { pluginInstanceDataOf } from "../../plugin/contracts.ts";
 import { adapterIdentity } from "../../adapter.ts";
 import { slotExecutionIdentityDigestHex } from "../execution-identity.ts";
 import { cacheKey } from "../fingerprint.ts";
@@ -129,11 +130,17 @@ export function runnerRecordUtcMillis(
 function runContextFor(
   run: AgentRun,
   experimentId: ExperimentId,
+  evals: readonly DiscoveredEval[],
 ): Result.Result<RunContext, RunnerRecordTargetIdentityInvalid> {
+  const plugins = [...(run.plugins ?? []), ...selectedEvalsForRun(evals, run).flatMap((evalDef) => [
+    ...(evalDef.evalGroup?.plugins ?? []), ...evalDef.plugins,
+  ])].map(pluginInstanceDataOf).map(({ name, key, identity }) => ({ name, key, identity }));
+  const uniquePlugins = [...new Map(plugins.map((plugin) => [JSON.stringify(plugin), plugin])).values()];
   const context = canonicalizeRunContext({
     experimentId,
     execution: {
       adapter: adapterIdentity(run.adapter),
+      ...(uniquePlugins.length === 0 ? {} : { plugins: uniquePlugins }),
       ...(run.adapter.kind === "custom" ? { models: run.models ?? Object.freeze({}) } : {}),
       model: run.model ?? null,
       reasoningEffort: run.reasoningEffort ?? null,
@@ -235,7 +242,7 @@ export function planRunnerRecordRun(input: {
       kind: "experiment",
     });
     if (Result.isFailure(experimentId)) return Effect.fail(experimentId.failure);
-    const context = runContextFor(input.run, experimentId.success);
+    const context = runContextFor(input.run, experimentId.success, input.evals);
     if (Result.isFailure(context)) return Effect.fail(context.failure);
     const slots = new Map<string, PlannedRunnerRecordSlot>();
     const entries: PlannedRunnerRecordSlot[] = [];

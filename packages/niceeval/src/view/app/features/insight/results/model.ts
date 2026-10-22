@@ -52,6 +52,7 @@ interface OverviewGroup extends OverviewAggregate {
 }
 
 interface OverviewExperiment extends OverviewAggregate {
+  readonly plugins: NonNullable<ExperimentListItem["plugins"]>;
   readonly experimentId: string;
   readonly adapter: AdapterValue;
   readonly model: ExecutionValue;
@@ -127,6 +128,7 @@ export function closeOverview(document: InspectionSuccessDocumentFor<"overview.g
     durationMs: projectMetric(experiment.durationMs),
     tokens: projectMetric(experiment.tokens),
     adapter: experiment.adapter,
+    plugins: experiment.plugins,
     model: experiment.model,
     groups: Object.freeze(experiment.groups.map((group) => Object.freeze({
       groupPath: Object.freeze([...group.groupPath]),
@@ -205,6 +207,7 @@ export function overviewData(
     return [Object.freeze({
       experimentId,
       adapter: experiment.adapter,
+      plugins: experiment.plugins,
       model: experiment.model,
       flags: null,
       evaluationKind,

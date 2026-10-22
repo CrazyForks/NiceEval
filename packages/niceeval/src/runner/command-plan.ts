@@ -619,7 +619,7 @@ function scheduledBeforeSteps(
     ? providerDeclaredSetupPrefixReason(pair)
     : undefined;
   return Object.freeze(scheduled.map((entry): CommandPlanStep => {
-    const projected = stepForLinkedBefore(pair, entry);
+    const projected = { ...stepForLinkedBefore(pair, entry), ...(entry.pluginSource === undefined ? {} : { label: entry.pluginSource }) };
     const currentOpaque = containsOpaque(projected);
     const declaredState = entry.kind === "action" ? entry.data.plan.state : "opaque";
     if (entry.kind === "action" && !opaqueAncestor) {
@@ -712,6 +712,7 @@ function stepForAfter(entry: LinkedSandboxAfter): CommandPlanStep {
       phase: "sandbox.after",
       truth: "exact",
       owner,
+      ...(entry.pluginSource === undefined ? {} : { label: entry.pluginSource }),
       action: Object.freeze({ ...entry.data.plan, kind: "action" as const }),
     };
   }
@@ -719,7 +720,7 @@ function stepForAfter(entry: LinkedSandboxAfter): CommandPlanStep {
     "sandbox.after",
     "sandbox-cleanup-command",
     "cleanup command is registered for LIFO execution and is only known when it runs",
-    { owner },
+    { owner, ...(entry.pluginSource === undefined ? {} : { label: entry.pluginSource }) },
   );
 }
 
@@ -883,12 +884,12 @@ function pluginLifecycleSteps(
   const ordered = phase === "teardown" ? [...lifecycles].reverse() : lifecycles;
   return ordered
     .filter((entry) => phase === "setup" ? entry.hasSetup : entry.hasTeardown)
-    .map((entry) => opaque(
+    .flatMap((entry) => Array.from({ length: phase === "setup" ? entry.beforeCount : entry.afterCount }, (_, index) => opaque(
       `plugin.lifecycle.${phase}`,
       `plugin-lifecycle-${phase}-callback`,
-      `Plugin ${entry.name} (${entry.key}) ${phase} callback is opaque`,
+      `Plugin ${entry.name} (${entry.key}) ${phase === "setup" ? "before" : "after"}[${phase === "setup" ? index : entry.afterCount - index - 1}] callback is opaque`,
       { owner, label: `${entry.name}:${entry.key}`, ...(condition === undefined ? {} : { condition }) },
-    ));
+    )));
 }
 
 function sandboxPluginLifecycleSteps(
@@ -899,16 +900,16 @@ function sandboxPluginLifecycleSteps(
   const ordered = phase === "teardown" ? [...lifecycles].reverse() : lifecycles;
   return ordered
     .filter((entry) => phase === "setup" ? entry.lifecycle.hasSetup : entry.lifecycle.hasTeardown)
-    .map(({ lifecycle, owner }) => opaque(
+    .flatMap(({ lifecycle, owner }) => Array.from({ length: phase === "setup" ? lifecycle.beforeCount : lifecycle.afterCount }, (_, index) => opaque(
       `plugin.lifecycle.${phase}`,
       `plugin-lifecycle-${phase}-callback`,
-      `Plugin ${lifecycle.name} (${lifecycle.key}) ${phase} callback is opaque`,
+      `Plugin ${lifecycle.name} (${lifecycle.key}) ${phase === "setup" ? "before" : "after"}[${phase === "setup" ? index : lifecycle.afterCount - index - 1}] callback is opaque`,
       {
         owner,
         label: `${lifecycle.name}:${lifecycle.key}`,
         ...(condition === undefined ? {} : { condition }),
       },
-    ));
+    )));
 }
 
 function physicalBefore(pair: PreparedRunPair, shared: boolean): readonly CommandPlanStep[] {

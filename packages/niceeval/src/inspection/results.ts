@@ -1,9 +1,10 @@
+import { RunPluginIdentitySchema } from "../record/model/run-context.ts";
 import { projectLifecyclePhase } from "./lifecycle.ts";
 import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
-import {
 import { PlannedAttemptSchema, InspectionAttemptCoreSchema, InspectionRunCoreSchema, InspectionMemberSchema, InspectionPublishedPublicationSchema, PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
+import {
   AdapterCallPriceReceiptSchema,
   AdapterUsageCallSchema,
   AdapterUsageModelSlotSchema,
@@ -193,6 +194,7 @@ const OverviewGroupSchema = Schema.Struct({
   ...AggregateFields,
 });
 const OverviewExperimentSchema = Schema.Struct({
+  plugins: Schema.suspend(() => Schema.Array(RunPluginIdentitySchema)),
   experimentId: Schema.String,
   adapter: Schema.Union([
     Schema.Struct({ state: Schema.Literal("available"), value: AdapterIdentitySchema }),
@@ -803,8 +805,11 @@ const EffectiveCostSchema = Schema.Struct({
   }),
   state: Schema.Literals(["complete", "partial"]),
 });
+const { modelSlot: persistedModelSlot, ...publicAdapterCallFields } = AdapterUsageCallSchema.fields;
+
 const AdapterUsageInspectionCallSchema = Schema.Struct({
-  ...AdapterUsageCallSchema.fields,
+  ...publicAdapterCallFields,
+  modelRole: persistedModelSlot,
   effectiveCost: Schema.NullOr(EffectiveCostSchema),
 });
 const EffectiveCostTotalSchema = Schema.Struct({
@@ -831,16 +836,16 @@ const ConfiguredModelsSchema = Schema.Union([
   Schema.Struct({
     state: Schema.Literal("available"),
     bindings: Schema.Array(Schema.Struct({
-      modelSlot: AdapterUsageModelSlotSchema,
+      modelRole: AdapterUsageModelSlotSchema,
       model: Schema.NullOr(Schema.String.check(Schema.isPattern(/\S/u))),
       reasoningEffort: Schema.NullOr(Schema.String.check(Schema.isPattern(/\S/u))),
       recordedCalls: Schema.NullOr(RecordedCallCountSchema),
     })).check(Schema.makeFilter((bindings) => bindings.length <= 64 &&
-      bindings.every((entry, index) => index === 0 || bindings[index - 1]!.modelSlot < entry.modelSlot))),
+      bindings.every((entry, index) => index === 0 || bindings[index - 1]!.modelRole < entry.modelRole))),
   }),
 ]);
 const ModelGroupSchema = Schema.Struct({
-  modelSlot: Schema.NullOr(AdapterUsageModelSlotSchema),
+  modelRole: Schema.NullOr(AdapterUsageModelSlotSchema),
   provider: AdapterUsageCallSchema.fields.provider,
   model: AdapterUsageCallSchema.fields.model,
   recordedCalls: RecordedCallCountSchema.check(Schema.isGreaterThan(0)),
@@ -889,7 +894,7 @@ const TotalUsageCostsSchema = Schema.Struct({
 export type TotalUsageCosts = Schema.Schema.Type<typeof TotalUsageCostsSchema>;
 
 const ExperimentCostSummarySchema = Schema.Struct({
-  scope: Schema.Literal("latest-recorded-slots"),
+  scope: Schema.Literal("latest-recorded-attempts"),
   totalCosts: TotalUsageCostsSchema,
   coverage: Schema.Struct({
     plannedAttemptCount: NonNegativeSafeIntegerSchema,

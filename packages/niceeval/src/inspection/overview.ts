@@ -7,7 +7,7 @@ import { foldRecordedAttemptVerdict } from "../eval/record/verdict.ts";
 import type { VerdictState } from "../eval/record/verdict.ts";
 import { Predicate, Result, Schema } from "effect";
 import type { MemberDocument, RecordSlotIdentity } from "../record/model/core.ts";
-import type { AdapterIdentity } from "../record/model/run-context.ts";
+import type { RunPluginIdentity, AdapterIdentity } from "../record/model/run-context.ts";
 import {
   NiceEvalCurrentRecordAttachments,
   NiceEvalRecordAttachments,
@@ -127,6 +127,7 @@ export interface InspectionOverviewGroup extends InspectionOverviewAggregate {
 }
 
 export interface InspectionOverviewExperiment extends InspectionOverviewAggregate {
+  readonly plugins: readonly RunPluginIdentity[];
   readonly experimentId: string;
   readonly adapter: InspectionAdapterValue;
   readonly model: InspectionExecutionValue;
@@ -492,6 +493,7 @@ function makeExperiment(
     }));
   return Object.freeze({
     experimentId: first.experimentId,
+    plugins: Object.freeze([...new Map(slots.flatMap(({ target }) => target?.run.context.execution.plugins ?? []).map((plugin) => [JSON.stringify(plugin), plugin])).values()]),
     adapter: adapterValue(slots.map(({ adapter }) => adapter)),
     model: executionValue(slots.map(({ model }) => model)),
     labels: inspectionLabels(slots, labelKeys),
