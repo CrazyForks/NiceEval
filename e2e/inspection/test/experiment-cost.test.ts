@@ -41,7 +41,7 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     const summary = shown.stdout.match(/Experiment total costs[\s\S]*?(?=Summary|$)/u)?.[0];
     expect(summary, shown.diagnostic()).toBeDefined();
     expect(summary).toMatch(/USD\s+10\.500000105\b/u);
-    expect(summary).toMatch(/Scope[^\n]*Latest recorded slots/u);
+    expect(summary).toMatch(/Scope[^\n]*Latest recorded attempts/u);
     expect(summary).toMatch(/Planned attempts[^\n]*\b70\b/u);
     expect(summary).toMatch(/Unique origin Attempts[^\n]*\b70\b/u);
     expect(summary).toMatch(/Missing attempts[^\n]*\b0\b/u);
@@ -76,7 +76,7 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     const replacementSummary = reshown.stdout.match(/Experiment total costs[\s\S]*?(?=Summary|$)/u)?.[0];
     expect(replacementSummary, reshown.diagnostic()).toBeDefined();
     expect(replacementSummary).toMatch(/USD\s+17\.500000175\b/u);
-    expect(replacementSummary).toMatch(/Scope[^\n]*Latest recorded slots/u);
+    expect(replacementSummary).toMatch(/Scope[^\n]*Latest recorded attempts/u);
     expect(replacementSummary).toMatch(/Unique origin Attempts[^\n]*\b70\b/u);
   });
 });

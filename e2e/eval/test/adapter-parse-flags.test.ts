@@ -26,7 +26,7 @@ test.concurrent("Adapter flags 在资源启动前校验并交付一次解析的�
         Object.defineProperty({}, 'x', { enumerable: true, get() { throw new Error('accessor invoked'); } }),
       ];
       for (const flags of invalid) {
-        for (const selection of [{ adapter: plain }, { agent }, { adapter: parser }]) {
+        for (const selection of [{ adapter: plain }, { adapter: agent }, { adapter: parser }]) {
           assert.throws(() => defineExperiment({ ...selection, flags }), /flags/);
         }
       }
@@ -36,7 +36,7 @@ test.concurrent("Adapter flags 在资源启动前校验并交付一次解析的�
         assert.throws(() => defineExperiment({ adapter: badOutput }), /flags/);
       }
       const supplied = { mode: 'baseline', count: 0, enabled: false };
-      for (const selection of [{ adapter: plain }, { agent }, { adapter: parser }]) {
+      for (const selection of [{ adapter: plain }, { adapter: agent }, { adapter: parser }]) {
         const defined = defineExperiment({ ...selection, flags: supplied });
         assert.deepEqual(defined.flags, supplied);
         assert.notEqual(defined.flags, supplied);

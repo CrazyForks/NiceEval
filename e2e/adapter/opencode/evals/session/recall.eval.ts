@@ -10,6 +10,6 @@ export default defineEval({
     await first.succeeded().orStop();
     const recall = await t.send("我最喜欢的数字是多少?只回答数字。");
     await recall.succeeded().orStop();
-    t.check(recall.message, includes("47"));
+    t.check(recall.reply, includes("47"));
   },
 });

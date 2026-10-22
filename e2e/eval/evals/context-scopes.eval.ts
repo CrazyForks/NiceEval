@@ -30,9 +30,9 @@ export default defineEval({
         equals({ fixture: "context-main-second", ok: true }),
       );
       t.check(branchTurn.data, equals({ fixture: "context-branch", ok: true }));
-      t.check(mainFirst.message, includes("context-main-first"));
-      t.check(mainSecond.message, includes("context-main-second"));
-      t.check(branchTurn.message, includes("context-branch-only"));
+      t.check(mainFirst.reply, includes("context-main-first"));
+      t.check(mainSecond.reply, includes("context-main-second"));
+      t.check(branchTurn.reply, includes("context-branch-only"));
       mainFirst.maxTokens(5);
       branchTurn.maxCost(0);
     });

@@ -398,7 +398,7 @@ test.concurrent("缺少 teardown 的显式 recovery 不改变 active generation"
             "--confirm-owner-terminated", "--confirm-remote-quiesced",
           ]);
           expect(rejected.exitCode, rejected.diagnostic()).toBe(1);
-          expect(rejected.stderr).toContain("to declare teardown");
+          expect(rejected.stderr).toContain("to declare after");
 
           const after = await niceeval.run(inspectionArgs);
           expect(after.exitCode, after.diagnostic()).toBe(1);
@@ -743,7 +743,7 @@ export default defineExperiment({
             "--confirm-owner-terminated", "--confirm-remote-quiesced",
           ], { env: { NICEEVAL_SHARED_STATE_BARRIER: barrierRoot } });
           expect(rejected.exitCode, rejected.diagnostic()).toBe(1);
-          expect(rejected.stderr).toContain("Experiment teardown must be a function");
+          expect(rejected.stderr).toContain("Experiment after must be a function");
 
           await writeFile(experimentPath, originalExperiment);
           waiter = niceeval.start(["exp", "shared-state-crash-waiter", "--rerun", "all", "--json"], {

@@ -21,7 +21,7 @@ export default defineEval({
       `${secondUserSentinel}: 我叫什么名字？先执行 shell 命令 \"printf '%s\\n' ${secondCommandSentinel}; sleep 10\"，最后只回答名字。`,
     );
     await recall.succeeded().orStop();
-    t.check(recall.message, includes("Ada"));
+    t.check(recall.reply, includes("Ada"));
     t.check(recall.usage.totalTokens, greaterThan(0));
   },
 });

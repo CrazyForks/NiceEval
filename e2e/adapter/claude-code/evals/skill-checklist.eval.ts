@@ -23,7 +23,7 @@ export default defineEval({
         loadedSkill(events, "e2e-checklist"),
       ),
     );
-    t.check(turn1.message, includes("731"));
+    t.check(turn1.reply, includes("731"));
     t.check(
       turn1.events,
       satisfies<typeof turn1.events>(

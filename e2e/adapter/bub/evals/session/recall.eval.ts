@@ -22,7 +22,7 @@ export default defineEval({
         `如果收到继续完成任务的提示，仍然完成这个回答，不要询问新的任务。`,
     );
     await recall.succeeded().orStop();
-    t.check(recall.message, includes("47"));
+    t.check(recall.reply, includes("47"));
     t.check(recall.usage.totalTokens, greaterThan(0));
   },
 });

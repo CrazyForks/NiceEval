@@ -76,6 +76,9 @@ export const EXP_NORMAL_CLI_OPTIONS = Object.freeze({
   "max-build-concurrency": option("string", "Limit concurrent Sandbox build preparation."),
   "max-before-cache-concurrency": option("string", "Limit concurrent Sandbox before-cache preparation."),
   "sandbox-before-cache": option("string", "Use or bypass the Sandbox before cache."),
+  // Let the root parser route retired options to this owner's migration error.
+  "sandbox-setup-cache": Object.freeze({ type: "string", help: Object.freeze({ summary: "Use --sandbox-before-cache.", visibility: "hidden" }) }),
+  "max-setup-prefix-concurrency": Object.freeze({ type: "string", help: Object.freeze({ summary: "Use --max-before-cache-concurrency.", visibility: "hidden" }) }),
   timeout: option("string", "Set the per-Attempt timeout in milliseconds."),
   budget: option("string", "Set the Invocation budget in USD."),
   tag: option("string", "Select only Evals with this tag."),

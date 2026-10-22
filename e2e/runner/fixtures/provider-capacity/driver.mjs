@@ -14,7 +14,7 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import Docker from "dockerode";
 import {
-  createDockerExecutionProfileV1,
+  defineDockerExecutionProfile,
   dockerExecutionProfileV1Digest,
 } from "niceeval/sandbox";
 
@@ -615,7 +615,7 @@ async function createProfile(socketPath) {
     stat("/run/docker.sock"),
   ]);
   const machineIdentity = `niceeval-e2e-${runId}`;
-  return createDockerExecutionProfileV1({
+  return defineDockerExecutionProfile({
     schemaVersion: 1,
     profileId: `provider-capacity-${runId}`,
     securityLevel: "raw-dind-storage/v1",

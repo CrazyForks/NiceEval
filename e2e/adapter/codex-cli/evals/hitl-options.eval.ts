@@ -16,7 +16,7 @@ export default defineEval({
         : 'Reply with exactly "ordinary-content". Do not call any tool.',
     );
     if (!requestHitl) {
-      t.check(waiting.message, includes("ordinary-content"));
+      t.check(waiting.reply, includes("ordinary-content"));
     }
     t.check(waiting.status, equals("waiting"));
     // 普通内容路径在上一行留下 failed assertion 后正常收口；不用
@@ -30,6 +30,6 @@ export default defineEval({
 
     const resumed = await t.respond({ request, optionId: "Node.js" });
     await resumed.succeeded().orStop();
-    t.check(resumed.message, includes("selected:Node.js"));
+    t.check(resumed.reply, includes("selected:Node.js"));
   },
 });

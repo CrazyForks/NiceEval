@@ -76,7 +76,7 @@ export default defineEval({
     t.check(draft.usage.inputTotalTokens, atMost(13));
     const approved = await t.respond("approve");
     approved.succeeded();
-    t.check(approved.message, includes("ai-sdk-approved-marker"));
+    t.check(approved.reply, includes("ai-sdk-approved-marker"));
     t.check(
       approved.events,
       satisfies<typeof approved.events>(
@@ -104,7 +104,7 @@ export default defineEval({
     denied.requireInputRequest({ action: "approval_tool" });
     const rejection = await denied.respond("deny");
     rejection.succeeded();
-    t.check(rejection.message, includes("ai-sdk-rejected-marker"));
+    t.check(rejection.reply, includes("ai-sdk-rejected-marker"));
     t.check(
       denied.events,
       satisfies<typeof denied.events>(

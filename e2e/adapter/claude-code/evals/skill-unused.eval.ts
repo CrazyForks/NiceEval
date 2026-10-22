@@ -15,7 +15,7 @@ export default defineEval({
       `这是普通对话。不要使用任何工具或 Skill，只回复 ${MARKER}`,
     );
     await turn1.succeeded().orStop();
-    t.check(turn1.message, includes(MARKER));
+    t.check(turn1.reply, includes(MARKER));
     t.check(
       turn1.events,
       satisfies<typeof turn1.events>("no skill.loaded event", (events) =>

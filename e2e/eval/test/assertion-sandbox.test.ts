@@ -90,7 +90,7 @@ test("Sandbox Assertion Eval 以 passed 终态完成", async () => {
       });
       const workspaceDiffInterval = only(
         timingDocument.timing.activities,
-        (activity) => activity.phase === "attempt.teardown" && activity.label === "workspace.diff",
+        (activity) => activity.phase === "attempt.after" && activity.label === "workspace.diff",
         timing.receipt.diagnostic(),
       );
       expect(workspaceDiffInterval.durationMs, timing.receipt.diagnostic()).toBeLessThanOrEqual(9_000);

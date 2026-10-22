@@ -15,7 +15,7 @@ export default defineEval({
   async test(t) {
     const completed = await t.send("pi agent completed fixture");
     await completed.succeeded().orStop();
-    t.check(completed.message, includes("pi-agent-subscribe-success-marker"));
+    t.check(completed.reply, includes("pi-agent-subscribe-success-marker"));
     completed.check(completed.toolCalls, toolMatch("inventory_lookup", {
         input: jsonMatch({ sku: "pi-001" }),
         status: "completed",

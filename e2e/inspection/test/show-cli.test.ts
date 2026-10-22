@@ -403,7 +403,7 @@ test("用户从多个 Experiment 收据完整浏览 Show 总览、Run、Attempt 
         { argv: ["show", locator, "--execution", "--expand", "item_missing"], stderr: ["item_missing"] },
         { argv: ["show", locator, "--execution", "--expand", "t1.c1"], stderr: ["stable", "itemId"] },
         { argv: ["show", locator, "--execution", "--expand", "cmd1"], stderr: ["stable", "commandId"] },
-        { argv: ["show", locator, "--json"], stderr: ["--json"] },
+        { argv: ["show", locator, "--source", "--json"], stderr: ["--json"] },
         { argv: ["show", locator, "--report", "standard"], stderr: ["--report"] },
         { argv: ["show", "@does-not-exist"], stderr: ["does-not-exist"] },
       ];
@@ -482,7 +482,7 @@ const agent = defineAgent({
   },
 });
 export default defineExperiment({
-  agent, evals: ["current/"],
+  adapter: agent, evals: ["current/"],
   before: async () => { appendFileSync("hook-calls.txt", "setup\\n"); },
   after: async () => { appendFileSync("hook-calls.txt", "teardown\\n"); },
 });
@@ -493,7 +493,7 @@ import { defineEval } from "niceeval";
 import { equals } from "niceeval/expect";
 export default defineEval({ async test(t) {
   const reply = await t.send("current result");
-  t.check(reply.message, equals(${JSON.stringify(expected)}));
+  t.check(reply.reply, equals(${JSON.stringify(expected)}));
 } });
 `, "utf8");
       }
@@ -619,7 +619,7 @@ export default defineEval({ test(t) { t.check("accepted", equals("accepted")); }
       expect(historyOnly.stdout).toContain(changedLocator);
       const history = await niceeval.run(["query", "run", "--request", requestPath]);
       expect(history.exitCode, history.diagnostic()).toBe(0);
-      expect(history.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 0, covered: 0, gaps: 0 }, slots: [], cells: [], experiments: [] });
+      expect(history.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 0, covered: 0, gaps: 0 }, plannedAttempts: [], cells: [], experiments: [] });
       expect(history.querySuccess("project.get").project.history).toHaveLength(3);
       const runs = await niceeval.run(["run", "list", "--json"]);
       expect(runs.exitCode, runs.diagnostic()).toBe(0);
@@ -645,7 +645,7 @@ import { defineExperiment } from "niceeval";
 import { completeEvidenceCoverage, defineAgent } from "niceeval/adapter";
 const agent = defineAgent({ name: "current-score-fixture", evidenceCoverage: completeEvidenceCoverage,
   send: async () => ({ status: "completed", events: [] }) });
-export default defineExperiment({ agent, evals: ["score/"] });
+export default defineExperiment({ adapter: agent, evals: ["score/"] });
 `, "utf8");
       writeFileSync(join(projectRoot, "evals", "score", "zero.eval.ts"), `
 import { defineScoreEval } from "niceeval";
@@ -736,7 +736,7 @@ const agent = defineAgent({ name: "current-barrier-fixture", evidenceCoverage: c
     return { status: "completed", events: [{ type: "message", role: "assistant", text: "accepted" }] };
   },
 });
-export default defineExperiment({ agent, evals: ["position"], attempts: 2 });
+export default defineExperiment({ adapter: agent, evals: ["position"], attempts: 2 });
 `, "utf8");
       writeFileSync(join(projectRoot, "evals", "position.eval.ts"), `
 import { defineEval } from "niceeval";
@@ -848,7 +848,7 @@ const agent = defineAgent({ name: "current-late-adoption-fixture", evidenceCover
     return { status: "completed", events: [{ type: "message", role: "assistant", text: "accepted" }] };
   },
 });
-export default defineExperiment({ agent, evals: ["case"], attempts: 1, timeoutMs: 60_000 });
+export default defineExperiment({ adapter: agent, evals: ["case"], attempts: 1, timeoutMs: 60_000 });
 `, "utf8");
       writeFileSync(join(projectRoot, "evals", "case.eval.ts"), `
 import { defineEval } from "niceeval";
@@ -868,7 +868,7 @@ export default defineEval({ async test(t) { const turn = await t.send("current r
         expect(listed.runListDocument().runs.filter((run) => run.state === "active")).toHaveLength(2);
         const pending = await niceeval.run(["query", "run", "--request", requestPath]);
         expect(pending.exitCode, pending.diagnostic()).toBe(0);
-        expect(pending.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 1, covered: 0, gaps: 1 }, slots: [expect.objectContaining({ state: "gap", reason: "pending" })] });
+        expect(pending.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 1, covered: 0, gaps: 1 }, plannedAttempts: [expect.objectContaining({ state: "gap", reason: "pending" })] });
 
         writeFileSync(join(projectRoot, "release-agent"), "release", "utf8");
         const [source, carried] = await Promise.all([first.done, second.done]);
@@ -879,7 +879,7 @@ export default defineEval({ async test(t) { const turn = await t.send("current r
         const targetRunId = only(carried.expReceipt().createdRunIds, () => true, carried.diagnostic());
         const available = await niceeval.run(["query", "run", "--request", requestPath]);
         expect(available.exitCode, available.diagnostic()).toBe(0);
-        expect(available.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 1, covered: 1, gaps: 0 }, slots: [expect.objectContaining({ state: "reuse", sourceRunId: targetRunId, locator, action: "carried", relation: "reference" })] });
+        expect(available.querySuccess("project.get").project).toMatchObject({ coverage: { expected: 1, covered: 1, gaps: 0 }, plannedAttempts: [expect.objectContaining({ state: "reuse", sourceRunId: targetRunId, locator, action: "carried", relation: "reference" })] });
         const shown = await niceeval.run(["show"]);
         expect(shown.exitCode, shown.diagnostic()).toBe(0);
         expect(shown.stdout).toMatch(/Covered\s+1\/1/u);

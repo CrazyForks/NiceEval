@@ -144,9 +144,9 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
             (run) => run.experimentId === experiment.id,
             historicalListed.diagnostic(),
           );
-          const historicalShownReceipt = await niceeval.run([
-            "show", "--run", historicalSummary.runId, "--json",
-          ]);
+          const historicalShownRequest = join(projectRoot, "historicalShown.query.json");
+          await writeFile(historicalShownRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: historicalSummary.runId } }));
+          const historicalShownReceipt = await niceeval.run(["query", "run", "--request", historicalShownRequest]);
           expect(historicalShownReceipt.exitCode, historicalShownReceipt.diagnostic()).toBe(0);
           const historicalSlot = only(
             historicalShownReceipt.runGetDocument().run.plannedAttempts,
@@ -283,7 +283,9 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
           const origin = historicalRuns.get(experiment.id);
           if (origin === undefined) throw new Error(`historical Run missing for ${experiment.id}`);
 
-          const currentShownReceipt = await niceeval.run(["show", "--run", currentRunId, "--json"]);
+          const currentShownReceiptRequest = join(projectRoot, "currentShownReceipt.query.json");
+          await writeFile(currentShownReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: currentRunId } }));
+          const currentShownReceipt = await niceeval.run(["query", "run", "--request", currentShownReceiptRequest]);
           expect(currentShownReceipt.exitCode, currentShownReceipt.diagnostic()).toBe(0);
           const currentShown = currentShownReceipt.runGetDocument();
           const currentSlot = only(
@@ -410,7 +412,9 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
           if (acceptedRunId === undefined) throw new Error("accept did not publish its Run identity");
           expect(acceptedRunMatch?.[2]).toBe(origin.attemptLocator);
 
-          const acceptedShownReceipt = await niceeval.run(["show", "--run", acceptedRunId, "--json"]);
+          const acceptedShownReceiptRequest = join(projectRoot, "acceptedShownReceipt.query.json");
+          await writeFile(acceptedShownReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: acceptedRunId } }));
+          const acceptedShownReceipt = await niceeval.run(["query", "run", "--request", acceptedShownReceiptRequest]);
           expect(acceptedShownReceipt.exitCode, acceptedShownReceipt.diagnostic()).toBe(0);
           const acceptedSlot = only(
             acceptedShownReceipt.runGetDocument().run.plannedAttempts,

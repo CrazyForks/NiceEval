@@ -34,7 +34,7 @@ export default defineEval({
     );
     const approved = await t.respond("approve");
     await approved.succeeded().orStop();
-    t.check(approved.message, includes("local-approval-approved"));
+    t.check(approved.reply, includes("local-approval-approved"));
     t.check(
       approved.events,
       satisfies<typeof approved.events>(
@@ -62,7 +62,7 @@ export default defineEval({
     denied.requireInputRequest({ action: "calculate" });
     const rejected = await denied.respond("deny");
     await rejected.succeeded().orStop();
-    t.check(rejected.message, includes("local-approval-denied"));
+    t.check(rejected.reply, includes("local-approval-denied"));
     t.check(
       denied.events,
       satisfies<typeof denied.events>(

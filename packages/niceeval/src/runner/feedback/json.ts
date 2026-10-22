@@ -95,7 +95,7 @@ export interface ErrorEvent {
   locator: string;
   evalId: string;
   experimentId: string;
-  phase: LifecyclePhase;
+  phase: Exclude<LifecyclePhase, "agent.setup" | "agent.teardown"> | "agent.before" | "agent.after";
   reason: string;
 }
 
@@ -557,7 +557,9 @@ function writeFailureOrError(io: FeedbackIO, event: DurableFeedbackEvent & { typ
       locator: String(event.locator),
       evalId: event.identity.evalId,
       experimentId,
-      phase: event.phase ?? "eval.run",
+      phase: event.phase === "agent.setup" ? "agent.before"
+        : event.phase === "agent.teardown" ? "agent.after"
+        : event.phase ?? "eval.run",
       reason: event.reason,
     });
     return;

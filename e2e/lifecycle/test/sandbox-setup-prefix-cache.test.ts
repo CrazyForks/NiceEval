@@ -44,7 +44,7 @@ function setupPrefixSummary(receipt: ProcessReceipt): SetupPrefixSummary {
 }
 
 function humanSetupPrefixLine(summary: SetupPrefixSummary): string {
-  return `Setup prefixes: ${summary.hit} hit · ${summary.prepared} prepared · ${summary.failed} failed (${summary.total} total)`;
+  return `Before caches: ${summary.hit} hit · ${summary.prepared} prepared · ${summary.failed} failed (${summary.total} total)`;
 }
 
 const niceeval = command(["pnpm", "--silent", "exec", "niceeval"]);
@@ -819,7 +819,7 @@ const sandbox = incusSandbox({
 }).before(shell({ id: "prefix-one", command: "true # niceeval-e2e-prefix-one", changeFrequency: 10 }))
   .before(shell({ id: "prefix-two", command: "true # niceeval-e2e-prefix-two", changeFrequency: 20, dependsOn: [actionRef("prefix-one")] }));
 export default defineExperiment({
-  agent: quickAgent,
+  adapter: quickAgent,
   sandbox,
   evals: ["prefix-branch-three", "prefix-branch-four"],
   attempts: 1,

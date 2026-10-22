@@ -21,6 +21,6 @@ export default defineEval({
 
     const recall = await t.send(`我刚才说我叫什么名字?${suffix}`);
     await recall.succeeded().orStop();
-    t.check(recall.message, includes("niceeval-e2e-tester"));
+    t.check(recall.reply, includes("niceeval-e2e-tester"));
   },
 });

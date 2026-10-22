@@ -15,7 +15,7 @@ export default defineEval({
   async test(t) {
     const completed = await t.send("codex completed fixture");
     await completed.succeeded().orStop();
-    t.check(completed.message, includes("codex-sdk-message-marker"));
+    t.check(completed.reply, includes("codex-sdk-message-marker"));
     t.check(completed.events, satisfies<typeof completed.events>(
       "non-fatal Codex item remains observable without failing a completed turn",
       (events) => events.some((event) => event.type === "error" && event.message === "codex-sdk-nonfatal-diagnostic-marker"),

@@ -41,7 +41,7 @@ test.concurrent("实验已知零费用保留另一 Eval 的缺费来源，Query 
     expect(summary).toMatch(/USD\s+0\b/u);
     expect(summary).toContain("Incomplete");
     expect(summary).toMatch(/Missing sources[^\n]*application/u);
-    expect(summary).toMatch(/Scope[^\n]*Latest recorded slots/u);
+    expect(summary).toMatch(/Scope[^\n]*Latest recorded attempts/u);
     expect(summary).toMatch(/Attempts with complete costs[^\n]*\b1\b/u);
     expect(summary).toMatch(/Attempts with unavailable costs[^\n]*\b1\b/u);
     expect(shown.stdout).not.toContain("Experiment total costs");

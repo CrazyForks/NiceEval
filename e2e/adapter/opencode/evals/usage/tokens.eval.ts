@@ -26,6 +26,6 @@ export default defineEval({
         );
       }
     });
-    t.check(second.message, includes("63"));
+    t.check(second.reply, includes("63"));
   },
 });

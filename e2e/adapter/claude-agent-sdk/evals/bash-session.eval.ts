@@ -55,7 +55,7 @@ export default defineEval({
       `只回复上一轮要求你记住的会话哨兵。不要调用任何工具，不要读取或写入文件。`,
     );
     await resumed.succeeded().orStop();
-    t.check(resumed.message, includes(sentinel));
+    t.check(resumed.reply, includes(sentinel));
     resumed.notCalledTool("shell");
     t.check(
       resumed.usage.inputTotalTokens,

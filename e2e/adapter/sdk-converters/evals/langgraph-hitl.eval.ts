@@ -28,12 +28,12 @@ export default defineEval({
     );
     t.requireInputRequest({ action: "approve_change" });
     t.check(
-      draft.message,
+      draft.reply,
       includes("langgraph-hitl-runtime-initial:lifecycle"),
     );
     const approved = await t.respond("accept");
     await approved.succeeded().orStop();
-    t.check(approved.message, includes("langgraph-hitl-approved-marker"));
+    t.check(approved.reply, includes("langgraph-hitl-approved-marker"));
     t.check(
       approved.events,
       satisfies<typeof approved.events>(
@@ -59,7 +59,7 @@ export default defineEval({
     rejectedSession.requireInputRequest({ action: "approve_change" });
     const rejected = await rejectedSession.respond("ignore");
     await rejected.succeeded().orStop();
-    t.check(rejected.message, includes("langgraph-hitl-rejected-marker"));
+    t.check(rejected.reply, includes("langgraph-hitl-rejected-marker"));
     t.check(
       rejectedSession.events,
       satisfies<typeof rejectedSession.events>(

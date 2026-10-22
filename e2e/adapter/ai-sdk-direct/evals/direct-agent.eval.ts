@@ -31,7 +31,7 @@ export default defineEval({
       "只回复我上一轮要求你记住的哨兵，不要调用任何工具。",
     );
     await recall.succeeded().orStop();
-    t.check(recall.message, includes(DIRECT_MARKER));
+    t.check(recall.reply, includes(DIRECT_MARKER));
     t.check(recall.usage.inputTotalTokens, greaterThan(0));
     t.check(recall.usage.outputTokens, greaterThan(0));
   },

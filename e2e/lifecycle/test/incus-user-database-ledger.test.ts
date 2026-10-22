@@ -149,7 +149,7 @@ const sandbox = incusSandbox({
 }).before(shell({ id: "incus-ledger-prefix", command: "true", changeFrequency: 10 }));
 
 export default defineExperiment({
-  agent: quickAgent,
+  adapter: quickAgent,
   sandbox,
   evals: ["probe"],
   attempts: 1,
@@ -246,7 +246,7 @@ import { incusSandbox, shell } from "niceeval/sandbox";
 import { quickAgent } from "../agents/deterministic.ts";
 const sandbox = incusSandbox({ image: "niceeval/docker-execution-v1@sha256:${digest}", project: "${runtimeProject}", storagePool: "niceeval-sandbox-dev", acceptDevelopmentDomain: true, resources: { dockerDataBytes: ${1024 ** 3} } })
   .before(shell({ id: "incus-ledger-prefix-v2", command: "true", changeFrequency: 10 }));
-export default defineExperiment({ agent: quickAgent, sandbox, evals: ["probe"], attempts: 1, maxConcurrency: 1 });
+export default defineExperiment({ adapter: quickAgent, sandbox, evals: ["probe"], attempts: 1, maxConcurrency: 1 });
 `, "utf8");
       const evictionStart = (await journal(journalPath)).length;
       const eviction = await niceeval.run(["exp", "incus-ledger", "probe", "--rerun=all"], { cwd: projectRoot, env: baseEnv });
@@ -263,7 +263,7 @@ import { incusSandbox, shell } from "niceeval/sandbox";
 import { quickAgent } from "../agents/deterministic.ts";
 const sandbox = incusSandbox({ image: "niceeval/docker-execution-v1@sha256:${digest}", project: "${runtimeProject}", storagePool: "niceeval-sandbox-dev", acceptDevelopmentDomain: true, resources: { dockerDataBytes: ${1024 ** 3} } })
   .before(shell({ id: "incus-ledger-prefix", command: "true", changeFrequency: 10 }));
-export default defineExperiment({ agent: quickAgent, sandbox, evals: ["probe"], attempts: 1, maxConcurrency: 1 });
+export default defineExperiment({ adapter: quickAgent, sandbox, evals: ["probe"], attempts: 1, maxConcurrency: 1 });
 `, "utf8");
       await writeFile(`${state}.fail-next`, `POST /1.0/instances?project=${runtimeProject}\n`, "utf8");
       const failedMutation = await niceeval.run(["exp", "incus-ledger", "probe", "--rerun=all"], {

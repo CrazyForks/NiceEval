@@ -155,7 +155,7 @@ test.concurrent("外部调用用量保留失败重试未知值且重复上报不
       source: "mixed",
       samples: 1,
       total: 1,
-      basis: "slot",
+      basis: "planned-attempt",
       unit: "USD",
     });
     expect(shown.stdout).toContain("complete; mixed; 0.0000854 USD");

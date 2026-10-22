@@ -44,7 +44,7 @@ test.concurrent("SIGINT 排空共享 finish 的尾部采集并在 Run 终态前�
     const overview = run.querySuccess("run.get").run;
     expect(overview.value.state).toBe("interrupted");
     expect(overview.denominator).toEqual({ expected: 2, published: 1, missing: 1 });
-    const member = only(overview.slots, (entry) => entry.locator !== null, run.diagnostic());
+    const member = only(overview.plannedAttempts, (entry) => entry.locator !== null, run.diagnostic());
     expect(member).toMatchObject({ state: "executed", verdict: "errored", outcome: "errored", score: { earned: 7 } });
     const locator = defined(member.locator, "cancelled Attempt must be published");
 

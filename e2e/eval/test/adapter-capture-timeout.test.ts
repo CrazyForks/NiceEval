@@ -20,7 +20,7 @@ test.concurrent("cleanup 总预算耗尽后拒绝迟到采集并保留已得分�
     expect(run.exitCode, run.diagnostic()).toBe(0);
     const overview = run.querySuccess("run.get").run;
     expect(overview.value.state).toBe("completed");
-    const member = only(overview.slots, () => true, run.diagnostic());
+    const member = only(overview.plannedAttempts, () => true, run.diagnostic());
     expect(member).toMatchObject({ state: "executed", verdict: "errored", outcome: "errored", score: { earned: 7 } });
     const locator = defined(member.locator, "cleanup timeout must publish an errored Attempt");
     await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.get", locator } }));

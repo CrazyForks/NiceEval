@@ -27,7 +27,7 @@ export default defineEval({
         "Do not use network access, edit files, or run any other command.",
     );
     await first.succeeded().orStop();
-    t.check(first.message, includes(marker));
+    t.check(first.reply, includes(marker));
 
     // The public converter supplies the canonical shell identity and the paired
     // completed result from the unmodified command_execution ThreadItem. The

@@ -12,7 +12,7 @@ export default defineEval({
     await first.succeeded().orStop();
     const recall = await t.send("我刚才说我叫什么名字？");
     await recall.succeeded().orStop();
-    t.check(recall.message, includes("小明"));
+    t.check(recall.reply, includes("小明"));
 
     // The reverse half only means something once we've proven this turn actually ran —
     // an errored fresh turn would return an empty reply, against which excludes() is
