@@ -1,3 +1,4 @@
+import { formatNumericUnit } from "../assertions/quantity.ts";
 // @concord-file ne-surface-show-render
 // @concord-implements docs/feature/inspection/cli.md
 // @concord-implements docs/feature/run-inspection/README.md
@@ -386,6 +387,9 @@ export function renderExperiment(value: ExperimentView): string {
       kind: "panel",
       title: `Experiment ${value.experimentId}`,
       blocks: [
+        { kind: "divider", title: "Notes" },
+        { kind: "table", columns: ["Label", "Count", "Min", "Median", "P90", "Max"].map((header) => ({ header })),
+          rows: value.notes.map((note) => [note.label, String(note.count), ...[note.min, note.median, note.p90, note.max].map((n) => formatNumericUnit(n, note.unit))]) },
         { kind: "divider", title: totalCosts.state === "complete" ? "Experiment total costs" : "Experiment known subtotal" },
         ...totalCostBlocks(totalCosts).slice(1),
         { kind: "keyValue", entries: [
@@ -675,6 +679,11 @@ export function renderAttempt(value: AttemptView): string {
             entry.groupPath.length === 0 ? "root" : entry.groupPath.join(" / "),
           ]),
         },
+        { kind: "divider", title: "Notes" },
+        { kind: "keyValue", entries: value.notes.map((note) => ({
+          key: note.label,
+          value: note.value === null ? "unavailable" : typeof note.value === "number" ? formatNumericUnit(note.value, note.unit) : JSON.stringify(note.value),
+        })) },
         { kind: "divider", title: "Evidence" },
         {
           kind: "keyValue",

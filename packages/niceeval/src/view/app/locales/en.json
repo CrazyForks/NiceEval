@@ -1,5 +1,6 @@
 {
   "translation": {
+    "attempt.notes": "Notes",
     "app.failed": "NiceEval View failed to load",
     "executionTrace.title": "Execution events",
     "executionTrace.stableId": "Stable event or evidence ID",

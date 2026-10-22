@@ -1,5 +1,6 @@
 {
   "translation": {
+    "attempt.notes": "记录项",
     "app.failed": "NiceEval 视图载入失败",
     "executionTrace.title": "执行事件",
     "executionTrace.moreBytes": "…（还有 {{count}} 字节；打开事件查看全文）",

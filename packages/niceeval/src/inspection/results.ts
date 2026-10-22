@@ -1,3 +1,4 @@
+import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
 import {
@@ -223,6 +224,8 @@ export const InspectionOverviewResultSchema = Schema.Struct({
 export type InspectionOverviewResult = Schema.Schema.Type<typeof InspectionOverviewResultSchema>;
 
 export const InspectionExperimentResultSchema = Schema.Struct({
+  notes: Schema.Array(Schema.Struct({ label: Schema.String, unit: AttemptNoteSchema.fields.unit,
+    count: NonNegativeSafeIntegerSchema, min: Schema.Finite, median: Schema.Finite, p90: Schema.Finite, max: Schema.Finite })),
   costSummary: Schema.suspend(() => ExperimentCostSummarySchema),
   modelUsage: Schema.Struct({
     attempts: Schema.Array(Schema.Struct({
@@ -342,6 +345,7 @@ const AssertionEvidenceSchema = Schema.Union([
   }),
 ]);
 export const InspectionAttemptResultSchema = Schema.Struct({
+  notes: AttemptNotesSchema,
   core: AttemptDocumentSchema,
   locator: Schema.String,
   originRun: RunDocumentSchema,

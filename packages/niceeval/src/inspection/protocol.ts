@@ -97,10 +97,10 @@ const spec = <Request extends Schema.Constraint, ResultFields extends Schema.Str
 export const inspectionProtocolRegistry = Object.freeze({
   "project.get": spec({ request: operation("project.get", { experimentIds: Schema.optional(ProjectExperimentIdsSchema) }), result: { project: InspectionProjectResultSchema }, factKinds: ["current-project", "core", "assertions", "attempt-cost"] }),
   "overview.get": spec({ request: operation("overview.get", { runIds: Schema.optional(RunIdsSchema) }), result: { overview: InspectionOverviewResultSchema }, factKinds: ["core", "assertions", "attempt-cost"] }),
-  "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "assertions", "attempt-cost", "agent-turns", "adapter-usage", "judge-usage"] }),
+  "experiment.get": spec({ request: operation("experiment.get", { experimentId: ExperimentIdSchema }), result: { experiment: InspectionExperimentResultSchema }, factKinds: ["core", "attempt-note", "assertions", "attempt-cost", "agent-turns", "adapter-usage", "judge-usage"] }),
   "run.list": spec({ request: operation("run.list", { continuation: Schema.optional(Schema.String) }), result: { runs: InspectionRunListResultSchema, continuation: Schema.optional(Schema.String) }, factKinds: ["core"] }),
   "run.get": spec({ request: operation("run.get", { runId: RunIdSchema }), result: { run: InspectionRunResultSchema }, factKinds: ["core", "assertions", "agent-turns", "adapter-usage", "judge-usage"] }),
-  "attempt.get": spec({ request: operation("attempt.get", { locator: AttemptLocatorSchema }), result: { attempt: InspectionAttemptResultSchema }, factKinds: ["core", "assertions"] }),
+  "attempt.get": spec({ request: operation("attempt.get", { locator: AttemptLocatorSchema }), result: { attempt: InspectionAttemptResultSchema }, factKinds: ["core", "assertions", "attempt-note"] }),
   "attempt.assertion.detail": spec({ request: operation("attempt.assertion.detail", { locator: AttemptLocatorSchema, entryId: AssertionEntryIdSchema }), result: { assertion: AssertionDetailResultSchema }, factKinds: ["assertions", "agent-turns", "sources"] }),
   "attempt.assertion.image": spec({ request: operation("attempt.assertion.image", { locator: AttemptLocatorSchema,
     entryId: AssertionEntryIdSchema, imageId: Schema.String,

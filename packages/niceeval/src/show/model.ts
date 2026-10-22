@@ -82,6 +82,7 @@ export interface OverviewView {
   }[];
 }
 export interface ExperimentView {
+  readonly notes: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["notes"];
   readonly experimentId: string;
   readonly aggregate: Aggregate;
   readonly cells: OverviewView["cells"];
@@ -116,6 +117,7 @@ export interface RunView {
   }[];
 }
 export interface AttemptView {
+  readonly notes: InspectionSuccessDocumentFor<"attempt.get">["attempt"]["notes"];
   readonly totalCosts?: InspectionSuccessDocumentFor<"attempt.usage">["usage"]["totalCosts"];
   readonly locator: string;
   readonly verdict: Verdict | null;
@@ -258,6 +260,7 @@ export function projectOverview(document: InspectionSuccessDocumentFor<"overview
 export function projectExperiment(document: InspectionSuccessDocumentFor<"experiment.get">): ExperimentView {
   return {
     experimentId: document.experiment.experiment.experimentId,
+    notes: document.experiment.notes,
     aggregate: aggregate(document.experiment.experiment),
     cells: cells(document.experiment.cells),
     costSummary: document.experiment.costSummary,
@@ -303,6 +306,7 @@ export function projectAttempt(document: InspectionSuccessDocumentFor<"attempt.g
   const value = document.attempt;
   return {
     locator: value.locator,
+    notes: value.notes,
     totalCosts: usage?.usage.totalCosts,
     verdict: value.verdict,
     attemptId: value.core.attemptId,

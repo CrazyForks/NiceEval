@@ -1,3 +1,4 @@
+import { formatNumericUnit } from "../../../../../../assertions/quantity.ts";
 import type { ReactElement } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -161,7 +162,8 @@ export function AttemptDetails({ model, locale, className }: { readonly model: A
   const usageQuery = useInspectionQuery(operation("attempt.usage", { kind: "attempt.usage", locator: model.locator }));
   const sourcesQuery = useInspectionQuery(operation("attempt.sources", { kind: "attempt.sources", locator: model.locator }));
   const diffQuery = useInspectionQuery(operation("attempt.diff", { kind: "attempt.diff", locator: model.locator }), { select: projectDiff });
-  const allQueries = [...assertionQueries, ...traceDetailQueries, traceQuery, timingQuery, usageQuery, sourcesQuery, diffQuery];
+  const notesQuery = useInspectionQuery(operation("attempt.get", { kind: "attempt.get", locator: model.locator }));
+  const allQueries = [notesQuery, ...assertionQueries, ...traceDetailQueries, traceQuery, timingQuery, usageQuery, sourcesQuery, diffQuery];
   if (allQueries.some((query) => query.isPending)) return <p role="status">{t("report.loadingDetails")}</p>;
   if (allQueries.some((query) => query.isError)) return <div role="alert"><p>{t("report.unableToLoadDetails")}</p><button type="button" onClick={() => { for (const query of allQueries) if (query.isError) void query.refetch(); }}>{t("report.retry")}</button></div>;
 
@@ -194,6 +196,11 @@ export function AttemptDetails({ model, locale, className }: { readonly model: A
     {embedded.source !== null
       ? <SourceView data={embedded.source} locale={locale} />
       : <TableContentView data={attemptAssertionsContent(sliceData(assertions))} locale={locale} />}
+    <section aria-label={t("attempt.notes")}><h3>{t("attempt.notes")}</h3>
+      <dl>{notesQuery.data!.attempt.notes.map((note) => <div key={note.sequence}>
+        <dt>{note.label}</dt><dd style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{note.value === null ? t("cell.metricUnavailable") : typeof note.value === "number" ? formatNumericUnit(note.value, note.unit) : JSON.stringify(note.value)}</dd>
+      </div>)}</dl>
+    </section>
     <Waterfall nodes={sliceData(timingQuery.data!)} title={{ en: "Execution timeline", "zh-CN": "执行时间轴" }} locale={locale} />
     <AttemptUsage data={sliceData(projectUsage(usageQuery.data!, trace))} />
     <ExecutionTrace key={model.locator} locator={model.locator} initial={trace.trace.execution} />

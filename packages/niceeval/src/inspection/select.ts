@@ -1,3 +1,4 @@
+import { readAttemptNotes, aggregateAttemptNotes } from "./notes.ts";
 // @concord-file ne-eval-inspection-selector
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-check-completeness.md
@@ -276,8 +277,10 @@ function selectOperation(
           unresolvedSlotCount: unresolvedAttemptCount }),
       });
       let attempts = Object.freeze(allAttempts.slice(0, 64));
+      const notes = aggregateAttemptNotes(orderedUsageAttempts);
       const experimentResult = () => Object.freeze({
         experiment, cells: experimentCells, costSummary,
+        notes,
         modelUsage: Object.freeze({
           attempts, totalAttemptCount: orderedUsageAttempts.length,
           omittedAttemptCount: orderedUsageAttempts.length - attempts.length,
@@ -981,6 +984,7 @@ function attemptDetail(resolved: ResolvedInspectionAttempt): InspectionAttemptRe
           state: assertions.state,
           entryCount: 0 as const,
         }),
+    notes: readAttemptNotes(resolved),
     assertions: assertionIndex(assertions),
     sections: attemptSections(resolved),
     verdict: attemptVerdict(resolved, assertions),
