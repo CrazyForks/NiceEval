@@ -35,6 +35,14 @@ test("Setup cache 策略按默认与显式 flag 保持正向选择", async () =>
       ]);
     }
 
+    for (const [oldFlag, replacement] of [
+      ["--sandbox-setup-cache=use", "--sandbox-before-cache"],
+      ["--max-setup-prefix-concurrency=1", "--max-before-cache-concurrency"],
+    ]) {
+      const retired = await niceeval.run(["exp", "normal", "--dry", oldFlag]);
+      expect(retired.exitCode, retired.diagnostic()).not.toBe(0);
+      expect(retired.stderr).toContain(replacement);
+    }
     const invalid = await niceeval.run([
       "exp",
       "normal",

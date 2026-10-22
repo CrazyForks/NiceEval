@@ -10,7 +10,7 @@ import type {
 import type { AttemptOutcome as RecordAttemptOutcome, MembershipAction as RecordMembershipAction } from "../record/model/core.ts";
 import type { AdapterIdentity } from "../record/model/run-context.ts";
 import type { Verdict as PublicVerdict } from "../shared/types.ts";
-import type { AgentTurnOutcome as ReceiptAgentTurnOutcome, SANDBOX_COMMAND_PHASES } from "../record/family/protocol-values.ts";
+import type { AgentTurnOutcome as ReceiptAgentTurnOutcome } from "../record/family/protocol-values.ts";
 
 export type MetricState = "available" | "partial" | "unavailable" | "empty" | "unsupported" | "failed";
 export type Verdict = PublicVerdict;
@@ -27,7 +27,7 @@ export type SourceContent =
 export type AssertionSource =
   | { readonly state: "mapped"; readonly sourceItemId: string; readonly sha256: string }
   | { readonly state: "unmapped"; readonly reason: "source-snapshot-not-recorded" | "position-unrepresentable" };
-export type CommandPhase = (typeof SANDBOX_COMMAND_PHASES)[number];
+export type CommandPhase = InspectionSuccessDocumentFor<"attempt.trace">["trace"]["commands"]["items"][number]["phase"];
 export type CommandOutcome = "exited" | "terminated" | "not-started";
 export type Metric = { readonly state: MetricState; readonly value: number | null };
 export type ExecutionValue =

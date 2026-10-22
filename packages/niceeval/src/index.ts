@@ -72,6 +72,8 @@ export type {
   EvalDescriptor,
   ExperimentAuthorFields,
   SharedStateConfig,
+  SandboxBeforeCache,
+  SandboxCacheConfig,
   ExperimentInput,
   ExperimentDefinition,
   ExperimentHook,

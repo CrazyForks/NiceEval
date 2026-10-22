@@ -59,7 +59,7 @@ test("通用 Runner 公开 Agent setup、send、teardown 的完成与失败关�
       });
       const intervals = document.timing.activities;
       const evalRun = only(intervals, (interval) => interval.phase === "eval.run" && interval.label === "eval.run", queried.diagnostic());
-      const agentSetup = only(intervals, (interval) => interval.phase === "attempt.setup" && interval.label === "agent.setup", queried.diagnostic());
+      const agentSetup = only(intervals, (interval) => interval.phase === "attempt.before" && interval.label === "agent.before", queried.diagnostic());
       const agentSend = only(intervals, (interval) => interval.phase === "agent.send" && interval.label === "turn1", queried.diagnostic());
       expect(evalRun).toMatchObject({ parentActivityId: null, outcome: "completed" });
       expect(agentSetup).toMatchObject({ parentActivityId: null, outcome: "completed" });
@@ -84,7 +84,7 @@ test("通用 Runner 公开 Agent setup、send、teardown 的完成与失败关�
         (item) => item.event === "error" && item.experimentId === "timing-setup-failure",
         setupFailure.diagnostic(),
       );
-      expect(setupFailureError).toMatchObject({ phase: "agent.setup" });
+      expect(setupFailureError).toMatchObject({ phase: "agent.before" });
       expect(setupFailureError.reason).toContain("runner lifecycle setup primary failure");
       expect(await receiptLines(paths.projectRoot, "timing-setup-failure.ndjson")).toEqual([
         "setup",
@@ -110,7 +110,7 @@ test("通用 Runner 公开 Agent setup、send、teardown 的完成与失败关�
         {
           experimentId: "timing-setup-teardown-failure",
           receipt: "timing-setup-teardown-failure.ndjson",
-          primaryPhase: "agent.setup",
+          primaryPhase: "agent.before",
           primary: "runner lifecycle setup retained failure",
           events: ["setup", "teardown"],
         },
@@ -153,7 +153,7 @@ test("通用 Runner 公开 Agent setup、send、teardown 的完成与失败关�
         expect(traceDocument).toMatchObject({ operation: "attempt.trace", issues: [] });
         const teardownDiagnostic = only(
           traceDocument.trace.diagnostics.items,
-          (item) => item.phase === "attempt.teardown",
+          (item) => item.phase === "attempt.after",
           trace.diagnostic(),
         );
         expect(teardownDiagnostic.summary).toContain("runner lifecycle teardown secondary failure");

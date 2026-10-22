@@ -9,7 +9,7 @@ test.concurrent("旧 Judge 配置在执行前给出源码位置与离线英文�
     await writeFile(join(projectRoot, "niceeval.config.ts"), [
       'import { defineConfig } from "niceeval";',
       'export default defineConfig({',
-      '  judgeRuntime: { model: "old-model", apiKeyEnv: "OLD_JUDGE_KEY" },',
+      '  judgeProvider: { model: "old-model", apiKeyEnv: "OLD_JUDGE_KEY" },',
       '});',
     ].join("\n"));
     const result = await niceeval.run(["exp", "normal", "--json"]);

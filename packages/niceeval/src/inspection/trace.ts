@@ -1,3 +1,4 @@
+import { projectLifecyclePhase } from "./lifecycle.ts";
 // @concord-file ne-eval-inspection-trace
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
@@ -200,7 +201,7 @@ export function projectAttemptTrace(
   const commandItems = sandboxCommands.state === "available"
     ? sandboxCommands.value.segments.slice(0, MAX_COMMANDS).map((command) => Object.freeze({
         commandId: command.commandId,
-        phase: command.phase,
+        phase: projectLifecyclePhase(command.phase),
         outcome: command.outcome,
       }))
     : [];
@@ -765,7 +766,7 @@ function projectTraceCommandDetail(
     workingDirectory: command.workingDirectory,
     outcome: command.outcome,
     turnId: command.turnId,
-    phase: command.phase,
+    phase: projectLifecyclePhase(command.phase),
     sequence: command.sequence,
     stdout: stream(command.stdout),
     stderr: stream(command.stderr),
@@ -1736,7 +1737,7 @@ function projectCommands(
         commandId: command.commandId,
         sequence: command.sequence,
         turnId: command.turnId,
-        phase: command.phase,
+        phase: projectLifecyclePhase(command.phase),
         invocation: projectInvocation(command.invocation),
         workingDirectory: command.workingDirectory,
         outcome: command.outcome,
@@ -1859,8 +1860,8 @@ function projectTiming(
       sequence: activity.sequence,
       parentActivityId: activity.parentActivityId,
       turnId: activity.turnId,
-      phase: activity.phase,
-      label: activity.label,
+      phase: projectLifecyclePhase(activity.phase),
+      label: projectLifecyclePhase(activity.label),
       startOffsetMs: activity.startOffsetMs,
       durationMs: activity.durationMs,
       outcome: activity.outcome,
@@ -1911,7 +1912,7 @@ function projectDiagnostics(
       diagnosticId: diagnostic.diagnosticId,
       sequence: diagnostic.sequence,
       turnId: diagnostic.turnId,
-      phase: diagnostic.phase,
+      phase: projectLifecyclePhase(diagnostic.phase),
       kind: diagnostic.kind,
       code: diagnostic.code,
       summary: summary.value,

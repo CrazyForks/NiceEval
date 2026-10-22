@@ -1,3 +1,4 @@
+import { projectLifecyclePhase } from "./lifecycle.ts";
 import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
@@ -499,7 +500,7 @@ const TraceDiagnosticsSchema = Schema.Struct({
     sequence: Schema.Number,
     turnId: Schema.NullOr(Schema.String),
     phase: Schema.Literals([
-      "attempt.setup",
+      "attempt.before",
       "sandbox.prepare",
       "agent.ensure",
       "eval.run",
@@ -507,7 +508,7 @@ const TraceDiagnosticsSchema = Schema.Struct({
       "sandbox.command",
       "assertion.evaluate",
       "verdict.fold",
-      "attempt.teardown",
+      "attempt.after",
     ]),
     kind: Schema.Literals(["advisory", "execution-error"]),
     code: Schema.String,
@@ -647,7 +648,7 @@ export const InspectionTraceResultSchema = Schema.Struct({
     omittedLimitationCount: Schema.Number,
     items: Schema.Array(Schema.Struct({
       commandId: CommandIdSchema,
-      phase: Schema.Literals(SANDBOX_COMMAND_PHASES),
+      phase: Schema.Literals(SANDBOX_COMMAND_PHASES.map(projectLifecyclePhase)),
       outcome: CommandOutcomeSchema,
     })),
     hasMore: Schema.Boolean,
@@ -748,7 +749,7 @@ export const InspectionTraceDetailResultSchema = Schema.Union([
     workingDirectory: WorkingDirectorySchema,
     outcome: CommandOutcomeSchema,
     turnId: Schema.NullOr(Schema.String),
-    phase: Schema.Literals(["attempt.setup", "sandbox.prepare", "agent.ensure", "eval.run", "sandbox.command", "attempt.teardown"]),
+    phase: Schema.Literals(["attempt.before", "sandbox.prepare", "agent.ensure", "eval.run", "sandbox.command", "attempt.after"]),
     sequence: Schema.Number,
     stdout: CommandStreamSchema,
     stderr: CommandStreamSchema,
