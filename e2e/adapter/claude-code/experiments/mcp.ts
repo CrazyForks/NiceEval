@@ -16,7 +16,7 @@ const agent = claudeCodeAgent({
     { name: "e2e-stdio", command: "node", args: [MCP_FIXTURE_ENTRY] },
     { name: "e2e-http", url: `http://127.0.0.1:${MCP_HTTP_PORT}/mcp` },
   ],
-  postSetup: [
+  before: [
     async (sb, context) => {
       // 先登记收尾，再启动进程：启动后的 readiness 若失败，agent teardown 仍会杀掉它；
       // attempt 的 Sandbox resource-group finalizer 是 interruption / 强制销毁的最后兜底。

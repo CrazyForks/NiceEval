@@ -1027,14 +1027,14 @@ export interface ExperimentAuthorFields {
    * 函数体不进 fingerprint,改了钩子逻辑用 `--rerun all` 明确全部重跑。
    * 见 docs/feature/experiments/architecture.md「实验级生命周期」。
    */
-  setup?: ExperimentHook;
+  before?: ExperimentHook;
   /**
    * 实验级生命周期钩子对的 teardown 侧:本实验全部 attempt 收尾后执行(运行被中断也执行),
    * 当且仅当 setup 时点走到过——setup 抛错不豁免(半初始化现场同样要扫尾,teardown 对可能
    * 未赋值的闭包变量做防御),未声明 setup 不影响触发;一个 attempt 都不派发则跳过。
    * 抛错或超 30s 清理上限只记运行级 diagnostic(`experiment-teardown-failed`),不改判定。
    */
-  teardown?: ExperimentHook;
+  after?: ExperimentHook;
 }
 
 /** 作者输入：id 只能由发现阶段从文件路径推导。 */
@@ -1085,8 +1085,8 @@ export interface ExperimentDefinition<A extends Adapter = Adapter> {
   readonly budget?: number;
   readonly maxConcurrency?: number;
   readonly classifyFailure?: AttemptFailureClassifier;
-  readonly setup?: ExperimentHook;
-  readonly teardown?: ExperimentHook;
+  readonly before?: ExperimentHook;
+  readonly after?: ExperimentHook;
   readonly [EXPERIMENT_DEFINITION]: true;
 }
 

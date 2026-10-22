@@ -401,8 +401,8 @@ function runForExperiment(
     ...(experiment.maxConcurrency === undefined
       ? {}
       : { maxConcurrency: experiment.maxConcurrency }),
-    ...(experiment.setup === undefined ? {} : { setup: experiment.setup }),
-    ...(experiment.teardown === undefined ? {} : { teardown: experiment.teardown }),
+    ...(experiment.before === undefined ? {} : { setup: experiment.before }),
+    ...(experiment.after === undefined ? {} : { teardown: experiment.after }),
     ...(experiment.classifyFailure === undefined
       ? {}
       : { classifyFailure: experiment.classifyFailure }),

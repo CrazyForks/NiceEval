@@ -28,8 +28,8 @@ import {
   type ExperimentHostRenameReason,
   type ExperimentHostRenameResult,
   type ExperimentHostSharedStateEvidence,
-  type ExperimentHostTeardownEvent,
-  type ExperimentHostTeardownResult,
+  type ExperimentHostAfterEvent,
+  type ExperimentHostAfterResult,
 } from "../index.ts";
 import { ExperimentCliTerminal } from "./terminal.ts";
 export { decodeExpPlanDocument, ExpPlanDocumentSchema, type ExpPlanDocument } from "./plan-protocol.ts";
@@ -103,7 +103,7 @@ export const EXP_RENAME_CLI_OPTIONS = Object.freeze({
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
 export const EXP_TEARDOWN_CLI_OPTIONS = Object.freeze({
-  teardown: option("boolean", "Run explicit Experiment teardown recovery."),
+  after: option("boolean", "Run explicit Experiment teardown recovery."),
   json: option("boolean", "Write machine output where the operation supports it."),
   "recover-shared-state": option("string", "Name a shared-state key for explicit recovery."),
   "owner-token": option("string", "Provide the exact shared-state owner token."),
@@ -137,7 +137,7 @@ const EXP_CLI_OPTIONS = Object.freeze({
   ...EXP_TEARDOWN_CLI_OPTIONS,
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
-const SHARED_STATE_RECOVERY_USAGE = `  niceeval exp <selector> --teardown --recover-shared-state <key>
+const SHARED_STATE_RECOVERY_USAGE = `  niceeval exp <selector> --after --recover-shared-state <key>
     --owner-token <token> --confirm-owner-terminated --confirm-remote-quiesced`;
 
 const CHECK_HELP = `Check Experiment selection:
@@ -175,7 +175,7 @@ Run options:
   --junit <path>                 write a required JUnit report
 
 Recovery options:
-  --teardown                     run only explicit Experiment teardown recovery
+  --after                     run only explicit Experiment teardown recovery
   --recover-shared-state <key>   inspect or recover this immutable shared-state owner
   --owner-token <token>          provide the exact owner token shown by inspection
   --confirm-owner-terminated     confirm the recorded owner has terminated
@@ -341,12 +341,12 @@ function sharedStateEvidenceText(evidence: ExperimentHostSharedStateEvidence): s
 }
 
 function teardownInspectionEvidence(
-  inspection: ExperimentHostTeardownResult,
+  inspection: ExperimentHostAfterResult,
 ): ExperimentHostSharedStateEvidence | undefined {
   return "evidence" in inspection ? inspection.evidence : undefined;
 }
 
-function teardownInspectionProblemText(inspection: ExperimentHostTeardownResult): string | undefined {
+function teardownInspectionProblemText(inspection: ExperimentHostAfterResult): string | undefined {
   switch (inspection.status) {
     case "no-evidence":
       return `No recoverable sharedState ownership evidence exists for ${JSON.stringify(inspection.key)}.\n`;
@@ -354,11 +354,11 @@ function teardownInspectionProblemText(inspection: ExperimentHostTeardownResult)
       return "sharedState recovery requires an experiment selector that resolves to exactly one Experiment.\n";
     case "experiment-mismatch":
       return `sharedState key ${JSON.stringify(inspection.evidence.key)} belongs to experiment ${inspection.evidence.experimentId}, not ${inspection.selectedExperimentId}; refusing recovery.\n`;
-    case "teardown-required":
-      return `error: sharedState recovery requires the selected Experiment ${inspection.experimentId} to declare teardown as a function. The active generation was left unchanged.
+    case "after-required":
+      return `error: sharedState recovery requires the selected Experiment ${inspection.experimentId} to declare after as a function. The active generation was left unchanged.
 `;
     case "recovery-confirmation-required":
-      return `sharedState recovery requires \`--teardown --recover-shared-state <key> --owner-token <token> --confirm-owner-terminated --confirm-remote-quiesced\`.
+      return `sharedState recovery requires \`--after --recover-shared-state <key> --owner-token <token> --confirm-owner-terminated --confirm-remote-quiesced\`.
 `;
     default:
       return undefined;
@@ -587,8 +587,11 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
   run: (argv: readonly string[]) => Effect.gen(function* () {
     // First parse only determines the family branch. The second, branch-owned
     // schema rejects irrelevant flags before facts, config, or .env are read.
+    if (argv.some((arg) => arg === "--teardown" || arg.startsWith("--teardown="))) {
+      return yield* write("stderr", "--teardown is no longer supported; use --after.\n").pipe(Effect.as(1));
+    }
     const preliminary = yield* parsed(argv, EXP_CLI_OPTIONS);
-    const teardownMode = preliminary.values.teardown === true;
+    const teardownMode = preliminary.values.after === true;
     const preliminaryVerb = preliminary.values.experiment === undefined ? preliminary.positionals[0] : undefined;
     if (preliminaryVerb === "help" && preliminary.positionals.length === 1) {
       return yield* write("stdout", EXP_HELP).pipe(Effect.as(0));
@@ -617,13 +620,13 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
         return 1;
       }
       if (input.positionals.length > 1) {
-        return yield* write("stderr", "niceeval exp --teardown accepts at most one Experiment selector.\n").pipe(Effect.as(1));
+        return yield* write("stderr", "niceeval exp --after accepts at most one Experiment selector.\n").pipe(Effect.as(1));
       }
       const selector = input.positionals[0];
       const recoveryKey = typeof input.values["recover-shared-state"] === "string"
         ? input.values["recover-shared-state"]
         : undefined;
-      const inspection = yield* experimentHost.teardown.inspect({
+      const inspection = yield* experimentHost.after.inspect({
         cwd: invocation.cwd,
         currentHost: invocation.hostname,
         ...(selector === undefined ? {} : { experimentSelector: selector }),
@@ -651,17 +654,17 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
         input.values["confirm-owner-terminated"] !== true ||
         input.values["confirm-remote-quiesced"] !== true
       )) {
-        yield* write("stderr", `sharedState recovery requires \`--teardown --recover-shared-state <key> --owner-token <token> --confirm-owner-terminated --confirm-remote-quiesced\`.
+        yield* write("stderr", `sharedState recovery requires \`--after --recover-shared-state <key> --owner-token <token> --confirm-owner-terminated --confirm-remote-quiesced\`.
 `);
         return 1;
       }
-      if (inspection.status === "teardown-required") {
+      if (inspection.status === "after-required") {
         yield* write("stderr", teardownInspectionProblemText(inspection)!);
         return 1;
       }
       const interruption = yield* CliInterruption;
       const output = yield* CliOutput;
-      const result = yield* experimentHost.teardown.run({
+      const result = yield* experimentHost.after.run({
         cwd: invocation.cwd,
         currentHost: invocation.hostname,
         ...(selector === undefined ? {} : { experimentSelector: selector }),
@@ -671,7 +674,7 @@ const expCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCl
         ...(input.values["confirm-remote-quiesced"] === true ? { confirmRemoteQuiesced: true } : {}),
         signal: interruption.invocationSignal,
         observer: Object.freeze({
-          observe(event: ExperimentHostTeardownEvent) {
+          observe(event: ExperimentHostAfterEvent) {
             if (event.type === "diagnostic") output.writeStderrSync(`${event.message}\n`);
           },
         }),

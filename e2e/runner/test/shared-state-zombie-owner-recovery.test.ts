@@ -108,7 +108,7 @@ test.skipIf(process.platform !== "linux")(
           expect(await exists(join(barrierRoot, "zombie-owner-external-state"))).toBe(true);
 
           const inspectionArgs = [
-            "exp", "shared-state-zombie-owner-recovery", "--teardown",
+            "exp", "shared-state-zombie-owner-recovery", "--after",
             "--recover-shared-state", "runner/shared-state-zombie-owner",
           ];
           const inspection = await niceeval.run(inspectionArgs, { env });

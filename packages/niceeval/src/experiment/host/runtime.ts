@@ -180,8 +180,8 @@ function debugAgentRun(
     description: experiment.description,
     labels: experiment.labels,
     maxConcurrency: experiment.maxConcurrency,
-    setup: experiment.setup,
-    teardown: experiment.teardown,
+    setup: experiment.before,
+    teardown: experiment.after,
     classifyFailure: experiment.classifyFailure,
   };
 }
@@ -286,7 +286,7 @@ export const rawExperimentHost = Object.freeze({
   invocation: Object.freeze({ plan: planInvocation, run: runInvocation }),
   invocationStatus: Object.freeze({ list: listInvocationStatus, show: showInvocationStatus }),
   rename: Object.freeze({ plan: planRename, apply: applyRename }),
-  teardown: Object.freeze({ inspect: inspectTeardown, run: runTeardown }),
+  after: Object.freeze({ inspect: inspectTeardown, run: runTeardown }),
   debug,
   accept,
   acceptRun: Object.freeze({ plan: planRunAccept, apply: applyRunAccept }),

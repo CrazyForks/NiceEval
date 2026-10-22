@@ -324,8 +324,8 @@ function summaryOfExperiment(
     attempts: experiment.attempts ?? 1,
     evalIds: freezeArray(evalIds),
     labels: Object.freeze({ ...(experiment.labels ?? {}) }),
-    hasSetup: typeof experiment.setup === "function",
-    hasTeardown: typeof experiment.teardown === "function",
+    hasBefore: typeof experiment.before === "function",
+    hasAfter: typeof experiment.after === "function",
     ...(experiment.sharedState === undefined ? {} : { sharedStateKey: experiment.sharedState.key }),
   });
 }
@@ -382,8 +382,8 @@ function agentRunFromExperiment(
     description: experiment.description,
     labels: experiment.labels,
     maxConcurrency: experiment.maxConcurrency,
-    setup: experiment.setup,
-    teardown: experiment.teardown,
+    setup: experiment.before,
+    teardown: experiment.after,
     classifyFailure: experiment.classifyFailure,
   });
 }

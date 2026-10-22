@@ -319,16 +319,17 @@ export function defineExperiment(def: Omit<ExperimentInput, "flags"> & { readonl
       throw new Error(`Custom Adapter experiments do not support budget because Adapter usage is not collected.`);
     }
   }
-  // setup 是实验级生命周期钩子(整场一次,宿主机侧,见 runner/types.ts 的 ExperimentDef.setup);
+  assertAuthorLifecycleNames(def, "Experiment");
+  // before 是实验级生命周期钩子(整场一次,宿主机侧,见 runner/types.ts 的 ExperimentDef.before);
   // 传成非函数(如误把 sandbox 钩子对象塞进来)在解析时就报,不等到调度才炸。
-  if (def.setup !== undefined && typeof def.setup !== "function") {
-    throw new Error(`experiment.setup must be a function ((ctx) => void); use experiment.teardown for cleanup; to prepare the in-sandbox environment per experiment, chain .setup() hooks on the sandbox spec instead.`);
+  if (def.before !== undefined && typeof def.before !== "function") {
+    throw new Error(`experiment.before must be a function ((ctx) => void); use experiment.after for cleanup; to prepare the in-sandbox environment per experiment, chain .before() hooks on the sandbox spec instead.`);
   }
   // teardown 与 setup 是同一个 Experiment lifecycle 边界。非函数值绝不能
   // 伪装成已声明的 cleanup，否则 explicit sharedState recovery 可能在没有
   // 执行补偿的情况下释放 immutable owner generation。
-  if (def.teardown !== undefined && typeof def.teardown !== "function") {
-    throw new Error(`Experiment teardown must be a function ((ctx) => void); use a function-valued paired lifecycle hook so normal cleanup and explicit sharedState recovery can both execute it.`);
+  if (def.after !== undefined && typeof def.after !== "function") {
+    throw new Error(`Experiment after must be a function ((ctx) => void); use a function-valued paired lifecycle hook so normal cleanup and explicit sharedState recovery can both execute it.`);
   }
   // classifyFailure 是失败分类链上的实验通道(见 runner/types.ts 的 ExperimentDef.classifyFailure):
   // 传成非函数在解析时就报,不等到某条 attempt 撞死才发现这一路声明白写。

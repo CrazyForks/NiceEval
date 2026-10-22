@@ -190,14 +190,14 @@ test.concurrent("复用 Sandbox 的 Attempt after 失败也会保留 sharedState
           // Recovery inspection obtains the immutable owner token only through
           // the public CLI; this test never reads coordination files.
           const inspection = await niceeval.run([
-            "exp", "shared-state-pool-retire-fails", "--teardown",
+            "exp", "shared-state-pool-retire-fails", "--after",
             "--recover-shared-state", "runner/shared-state-pool-retire",
           ]);
           expect(inspection.exitCode, inspection.diagnostic()).toBe(1);
           const ownerToken = ownerTokenFromPublicRecoveryInspection(inspection.stderr);
 
           const recovered = await niceeval.run([
-            "exp", "shared-state-pool-retire-fails", "--teardown",
+            "exp", "shared-state-pool-retire-fails", "--after",
             "--recover-shared-state", "runner/shared-state-pool-retire",
             "--owner-token", ownerToken,
             "--confirm-owner-terminated", "--confirm-remote-quiesced",
@@ -250,14 +250,14 @@ test.concurrent("fresh Sandbox 的 Attempt after 失败也保留 sharedState，�
           expect(await exists(join(barrierRoot, "fresh-cleanup-waiter-setup-attempted"))).toBe(false);
 
           const inspection = await niceeval.run([
-            "exp", "shared-state-fresh-cleanup-fails", "--teardown",
+            "exp", "shared-state-fresh-cleanup-fails", "--after",
             "--recover-shared-state", "runner/shared-state-fresh-cleanup",
           ]);
           expect(inspection.exitCode, inspection.diagnostic()).toBe(1);
           const ownerToken = ownerTokenFromPublicRecoveryInspection(inspection.stderr);
 
           const recovered = await niceeval.run([
-            "exp", "shared-state-fresh-cleanup-fails", "--teardown",
+            "exp", "shared-state-fresh-cleanup-fails", "--after",
             "--recover-shared-state", "runner/shared-state-fresh-cleanup",
             "--owner-token", ownerToken,
             "--confirm-owner-terminated", "--confirm-remote-quiesced",

@@ -1193,7 +1193,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
   /**
    * Owner tokens are an explicit inspection capability, not ordinary Runner
    * feedback. Keep both the live feedback event and the durable Run diagnostic
-   * limited to the key and recovery obligation; `exp --teardown` is the only
+   * limited to the key and recovery obligation; `exp --after` is the only
    * public surface that renders immutable owner evidence.
    */
   const reportSharedStateRecoveryRequired = (input: {
@@ -1203,7 +1203,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     readonly phase: LifecyclePhase;
   }): void => {
     const key = input.run.sharedState?.key ?? "";
-    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --teardown --recover-shared-state <key>\`.
+    const message = `sharedState key ${key} requires explicit recovery before another Invocation can use it. Inspect immutable owner evidence with \`niceeval exp <selector> --after --recover-shared-state <key>\`.
 `.trimEnd();
     reportDiagnostic({
       key: `state-lease-recovery-required:${key || input.experimentId}`,
@@ -1675,7 +1675,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
               host: currentHost,
               startedAt: new Date().toISOString(),
             }).pipe(Effect.catch((error) => Effect.sync(() => {
-              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --teardown\` or the startup self-heal — check the canonical ProjectDatabase write failure.
+              const message = `writing the crash-recovery teardown registration for experiment ${experimentId} failed: ${error instanceof Error ? error.message : String(error)}. The run continues normally, but a SIGKILL during this run cannot be recovered via \`niceeval exp --after\` or the startup self-heal — check the canonical ProjectDatabase write failure.
 `.trimEnd();
               reportDiagnostic({
                 key: `teardown-registration-write-failed:${experimentId}`,

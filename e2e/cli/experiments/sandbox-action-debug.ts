@@ -41,10 +41,10 @@ export default defineExperiment({
   agent: sandboxActionDebugAgent,
   sandbox,
   evals: ["sandbox-action-debug/plan", "sandbox-action-debug/secondary"],
-  setup() {
+  before() {
     recordSandboxActionDebugSideEffect("experiment-setup");
   },
-  teardown() {
+  after() {
     recordSandboxActionDebugSideEffect("experiment-teardown");
   },
 });

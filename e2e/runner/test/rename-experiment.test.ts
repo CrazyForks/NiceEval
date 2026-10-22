@@ -97,7 +97,7 @@ test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持�
 
     const withHook = 'import { writeFile } from "node:fs/promises";\n' + definition.replace(
       "defineExperiment({",
-      'defineExperiment({ setup: async () => { await writeFile("hook-ran.txt", "yes"); },',
+      'defineExperiment({ before: async () => { await writeFile("hook-ran.txt", "yes"); },',
     );
     await writeFile(targetPath, withHook);
     const hooked = await niceeval.run(["exp", "renamed", "--rerun", "all", "--json"]);

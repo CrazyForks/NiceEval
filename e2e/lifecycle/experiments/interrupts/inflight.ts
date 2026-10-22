@@ -44,7 +44,7 @@ export default defineExperiment({
   // Suite files remain parallel; this experiment intentionally serializes its two consumers.
   maxConcurrency: 1,
   sandboxReuse: true,
-  setup: async (ctx) => {
+  before: async (ctx) => {
     const child = spawn(process.execPath, ["fixtures/backend.mjs", infoPath], {
       cwd: process.cwd(),
       stdio: "ignore",
@@ -52,7 +52,7 @@ export default defineExperiment({
     backendProcess = child;
     backend = await waitForInfo(infoPath);
   },
-  teardown: async () => {
+  after: async () => {
     const child = backendProcess;
     backend = undefined;
     backendProcess = undefined;

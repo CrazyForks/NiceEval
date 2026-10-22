@@ -18,7 +18,7 @@ const agent = bubAgent({
   apiBase: process.env.OPENAI_BASE_URL,
   skills: [{ kind: "local", path: "skills/review/SKILL.md" }],
   pythonPlugins: [{ package: "cowsay" }],
-  postSetup: [markFirst, markSecond],
+  before: [markFirst, markSecond],
 });
 
 // 单一实验:全部 4 条 Eval 共用同一个 agent 变体和同一份安装 checkpoint,只证明协议路径通

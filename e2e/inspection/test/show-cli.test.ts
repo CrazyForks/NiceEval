@@ -483,8 +483,8 @@ const agent = defineAgent({
 });
 export default defineExperiment({
   agent, evals: ["current/"],
-  setup: async () => { appendFileSync("hook-calls.txt", "setup\\n"); },
-  teardown: async () => { appendFileSync("hook-calls.txt", "teardown\\n"); },
+  before: async () => { appendFileSync("hook-calls.txt", "setup\\n"); },
+  after: async () => { appendFileSync("hook-calls.txt", "teardown\\n"); },
 });
 `, "utf8");
       for (const [name, expected] of [["first", "accepted"], ["changed", "accepted"], ["failed", "rejected"]]) {
