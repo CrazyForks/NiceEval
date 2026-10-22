@@ -6,10 +6,8 @@ runs:
     - shell: bash
       run: |
         set -euo pipefail
-        # Replace this release pin with the validated process-bridge release
-        # before enabling the 0.20 workflows. Never infer a new asset checksum.
-        concord_version="0.12.0"
-        concord_sha256="9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556"
+        concord_version="0.13.0"
+        concord_sha256="ed72b5964e71a03e12d349cdedd3ad86efad5c790ed55576d068cf52f48a5959"
         concord_root="$(mktemp -d "${RUNNER_TEMP}/concord-${concord_version}.XXXXXX")"
         curl --fail --location --retry 3 \
           "https://github.com/CorrectRoadH/Concord/releases/download/v${concord_version}/concord-sdlc-${concord_version}.tgz" \
