@@ -18,35 +18,28 @@ Python package 集合属于安装 checkpoint key，配置变化必须触发重�
 
 ## 装哪一版 Bub
 
-Bub 从 PyPI 装，版本是 `version` 字段，省略时用 NiceEval 钉的默认版本：
+Bub 从 PyPI 安装固定版本 `0.5.1`。`version` 可以省略或填写 `"0.5.1"`；其它值在定义期抛出 `TypeError`，错误指向支持版本。
 
 ```ts
-bubAgent({ version: "0.5.1" })                      // 默认就是它，写出来只为把版本记进实验
-bubAgent({                                          // 往回钉一代:插件要一起往回钉
-  version: "0.3.9",
-  otelPlugin:
-    "git+https://github.com/bubbuild/bub-contrib.git@7967e5e74c4b6cfc6f75981461691a2f8d863496#subdirectory=packages/bub-tapestore-otel",
-})
+bubAgent()
+bubAgent({ version: "0.5.1" })
 ```
 
-- **NiceEval 总是钉一个确定版本**，不装 latest：被测对象的版本必须能从实验配置读出来，否则两次跑分不可比。默认的 Bub 0.5.1 还复现其上游 lock 中的 `any-llm-sdk==1.22.1` 与 `openai==2.31.0`，避免相同 Bub 版本因安装日期不同而改变模型请求协议。
-- **`otelPlugin` 与 `version` 同代才有 tracing。**
-  行为轨来自 Bub tape，时间轨来自 `bub-tapestore-otel` 插件，插件按 tape 协议的形态读数据：新插件从 `bub.tape` 取类型（要求 Bub ≥ 0.3.10），旧插件按 republic 的类型校验（配 Bub ≤ 0.3.9）。
-  配错代不会安装失败，而是 span 全被拒、时间轨静默为空——所以往回钉 `version` 时必须同批钉配套的 `otelPlugin`（复盘见 [memory](../../../../../memory/bub-tapestore-otel-tapeentry-drift.md)）。
-- **插件靠 override 装。**
-  插件所在 workspace 把 `bub` 声明成 git 依赖，不写 override 的话每次安装都会去拉 Bub 主干——版本失控。
-  Adapter 因此总是先写一份 override 文件再安装：它把 `bub` 钉成 `bub==<version>`；默认版本还带上对应的模型客户端闭包。用户不需要知道这个细节。
-- **`version` 与 `otelPlugin` 都参与 ensure identity**：换任意一个都改变配置身份，也让预装 Sandbox 的 marker 对不上而触发配对 Installer 的完整安装。
+默认安装同时固定 `any-llm-sdk==1.22.1` 与 `openai==2.31.0`，避免相同 Bub 版本因安装日期不同而改变模型请求协议。
+`otelPlugin` 必须支持 Bub 0.5.1 的 tape 协议，并与 Python 插件集合共同参与安装身份。
+Adapter 用 override 固定 Bub 及模型客户端依赖，避免插件的 Git 依赖改变被测版本。
 
-行为轨来自 Bub tape JSONL；session 由 Adapter 管理。
-缺少显式 call ID 的旧事件只能按位配对，因此并发工具完整性取决于原始 tape 是否提供稳定关联字段。
-Usage 和 cost 从 run 事件读取。
+行为轨只读取固定版本的 `kind` 与 `payload` tape JSONL；session 由 Adapter 管理。
+工具结果与前一批 `tool_call.calls` 按位配对，Usage 和 cost 从 `event/run` 读取。
+未知事件不进入 `Turn.events`；Adapter 在 Attempt 收尾时追加一条 `agent-event-unrecognized` warning，汇总类型与次数。
+同一 session 的累计 tape 重读不重复计数，多个 session 的计数在同一 Attempt 汇总。`show @locator` 可查看该诊断。
+未知事件使该轮事件和动作证据标为 partial，不把未识别轨迹作为完整负断言依据。
 
 Bub 原生 OTLP 可以配置为时间轨，span mapper 只影响瀑布图。
 
 ## 上下文长度与 handoff
 
-上下文选择与压缩属于被测 Bub 的行为。Adapter 保持所选版本的原生策略，不在每次 `send` 前另行截断历史。Bub 0.4.0 遇到能识别的上下文长度异常时，原生循环会执行一次 `auto_handoff/context_overflow` 并重试；这不保证任意输入都能缩到模型允许的长度内。
+上下文选择与压缩属于被测 Bub 的行为。Adapter 保持所选版本的原生策略，不在每次 `send` 前另行截断历史。Bub 的 handoff 不保证任意输入都能缩到模型允许的长度内。
 
 `BUB_MAX_TOKENS` 限制输出 token，不是输入长度或压缩阈值。排查溢出时，应同时核对 Bub 版本、模型的上下文长度限制、代理返回的错误文本和 tape 中的 handoff；单次重跑成功不能证明压缩问题已解决。Adapter 仍负责正确传递模型与端点，并保留失败和可用的 tape 证据。
 

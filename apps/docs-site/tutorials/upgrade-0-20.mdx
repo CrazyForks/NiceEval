@@ -1,0 +1,12 @@
+---
+title: "Upgrade to 0.20"
+description: "Update configuration and fixed-version protocols."
+---
+
+## Fixed Bub and OpenCode protocols
+
+`bubAgent({ version })` accepts only `"0.5.1"`. Remove an old version setting or select this fixed version, and ensure any custom `otelPlugin` supports its tape protocol.
+Bub's old top-level `type` events and OpenCode field fallbacks no longer become behavioral evidence. OpenCode's protocol baseline is `1.18.5`.
+
+Unknown events are summarized in one `agent-event-unrecognized` warning per affected Attempt. Run `niceeval show @locator` to inspect event types and counts, then check the actual CLI version.
+Previously stored normalized events require no migration.

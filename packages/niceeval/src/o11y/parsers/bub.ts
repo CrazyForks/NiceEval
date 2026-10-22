@@ -76,9 +76,8 @@ function extractText(content: unknown): string {
   if (Array.isArray(content)) {
     const parts: string[] = [];
     for (const b of content) {
-      if (typeof b === "string") parts.push(b);
-      else {
-        const t = get(b, "text") ?? get(b, "content");
+      if (get(b, "type") === "text") {
+        const t = get(b, "text");
         if (typeof t === "string") parts.push(t);
       }
     }
@@ -107,11 +106,7 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
   }
 
   // tape 的 tool_result 与上一条 tool_call 按位对齐;记下上一批 callId。
-  let lastCallIds: string[] = [];
-  // 无显式 id 的兜底配对。
-  const pendingCallIds: string[] = [];
-  let synth = 0;
-  const nextSynthId = (): string => `bub_${++synth}`;
+  let lastCallIds: (string | undefined)[] = [];
 
   // 从 event/run 的 data.usage 累加用量。
   const addUsage = (usage: unknown): void => {
@@ -134,9 +129,7 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
     requests += 1;
   };
 
-  const emitCall = (originalName: string, input: JsonValue, explicitId: unknown): string => {
-    const callId = explicitId != null ? String(explicitId) : nextSynthId();
-    if (explicitId == null) pendingCallIds.push(callId);
+  const emitCall = (originalName: string, input: JsonValue, callId: string): string => {
     events.push({
       type: "operation.started",
       operationId: callId,
@@ -151,8 +144,7 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
     return callId;
   };
 
-  const emitResult = (output: unknown, success: boolean, explicitId: unknown): void => {
-    const callId = explicitId != null ? String(explicitId) : pendingCallIds.shift() ?? nextSynthId();
+  const emitResult = (output: unknown, success: boolean, callId: string): void => {
     events.push({
       type: "operation.finished",
       operationId: callId,
@@ -182,7 +174,11 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
       if (typeof kind === "string") {
         const payload = get(entry, "payload");
         if (kind === "message") {
-          const role = get(payload, "role") === "user" ? "user" : "assistant";
+          const role = get(payload, "role");
+          if (role !== "user" && role !== "assistant") {
+            parseSuccess = false;
+            continue;
+          }
           const text = extractText(get(payload, "content"));
           if (text) events.push({ type: "message", role, text });
         } else if (kind === "tool_call") {
@@ -193,20 +189,29 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
           if (accompanying) events.push({ type: "message", role: "assistant", text: accompanying });
           const calls = get(payload, "calls");
           const list = Array.isArray(calls) ? calls : [];
-          lastCallIds = [];
-          for (const call of list) {
+          if (!Array.isArray(calls)) parseSuccess = false;
+          lastCallIds = list.map((call) => {
             const fn = get(call, "function");
-            const name = String(get(fn, "name") ?? "unknown");
-            const id = emitCall(name, coerceArgs(get(fn, "arguments")), get(call, "id"));
-            lastCallIds.push(id);
-          }
+            const name = get(fn, "name");
+            const id = get(call, "id");
+            if (typeof name !== "string" || typeof id !== "string") {
+              parseSuccess = false;
+              return undefined;
+            }
+            return emitCall(name, coerceArgs(get(fn, "arguments")), id);
+          });
         } else if (kind === "tool_result") {
           const results = get(payload, "results");
           const list = Array.isArray(results) ? results : [];
+          if (!Array.isArray(results)) parseSuccess = false;
           // republic:results 与上一条 tool_call.calls 按位对齐。
           list.forEach((r, i) => {
             const isError = typeof r === "object" && r !== null && "error" in (r as globalThis.Record<string, unknown>);
             const explicitId = lastCallIds[i];
+            if (explicitId === undefined) {
+              parseSuccess = false;
+              return;
+            }
             emitResult(r, !isError, explicitId);
           });
         } else if (kind === "event") {
@@ -235,7 +240,9 @@ export function parseBubTranscript(raw: string | undefined): ParsedTranscript {
             events.push({ type: "compaction", reason: name });
           }
         } else if (kind === "error") {
-          events.push({ type: "error", message: String(get(payload, "message") ?? get(payload, "kind") ?? "error") });
+          const message = get(payload, "message");
+          if (typeof message === "string") events.push({ type: "error", message });
+          else parseSuccess = false;
         } else if (kind !== "system") {
           unrecognized(kind);
         }

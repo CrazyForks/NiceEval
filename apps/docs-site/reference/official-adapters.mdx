@@ -120,6 +120,8 @@ export default defineExperiment({
 
 ### bub
 
+Bub uses the fixed `0.5.1` protocol. Omit `version` or set it to `"0.5.1"`; other values fail at definition time. A custom `otelPlugin` must support this version's tape protocol.
+
 - **Authentication**: `BUB_API_KEY` plus `BUB_API_BASE` for an OpenAI-compatible proxy. The `apiKey` / `baseUrl` factory options can override them.
 - **Install a Skill**: use `skills: SkillSpec[]`, the same type as the other two Adapters. They are installed in `.agents/skills/<name>/`, with a discovery instruction in AGENTS.md.
 - **Install a Plugin**: use `pythonPlugins: PythonPluginSpec[]`. `{ package }` can be a PyPI package, version specifier, or git URL. During `setup`, it becomes `uv tool install … --with <package>`. This type belongs only to bub. The package set enters the installation checkpoint key, so two variants with different Plugins never reuse the same installation cache.
@@ -195,3 +197,8 @@ For the full parameters, capability tables, and example code for these Adapters,
 - [Built-in Agent Capabilities Reference](/reference/builtin-agents) — a capability-by-capability inventory of every Adapter and full example code for non-Sandbox Adapters.
 - [OTel integration](/tutorials/connect-otel) — send spans to [NiceEval](https://niceeval.com/) to get the call waterfall in `niceeval view`.
 - [Adapter Reference](/reference/define-agent) — complete parameters for `defineAgent` / `defineSandboxAgent`.
+
+## Bub and OpenCode event protocols
+
+Bub parses its fixed tape JSONL protocol. OpenCode parses JSONL and complete session exports from `1.18.5`. Unknown events are excluded from `Turn.events`.
+At cleanup, each affected Attempt receives one `agent-event-unrecognized` warning listing event types and counts. Read it with `niceeval show @locator`; event and action evidence for the affected turn is marked partial.

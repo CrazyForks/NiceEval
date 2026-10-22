@@ -1,0 +1,12 @@
+---
+title: "升级到 0.20"
+description: "更新配置与固定版本协议。"
+---
+
+## Bub 与 OpenCode 固定协议
+
+`bubAgent({ version })` 只接受 `"0.5.1"`。删除旧版本设置，或改用该固定版本；自定义 `otelPlugin` 需要支持对应 tape 协议。
+Bub 的旧顶层 `type` 事件和 OpenCode 的字段 fallback 不再解析为行为证据。OpenCode 的协议基线为 `1.18.5`。
+
+未知事件汇总为每条 Attempt 的一条 `agent-event-unrecognized` warning。运行 `niceeval show @locator` 查看类型与次数，并核对实际 CLI 版本。
+已落盘的标准事件不需要迁移。

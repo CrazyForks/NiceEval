@@ -120,6 +120,8 @@ export default defineExperiment({
 
 ### bub
 
+Bub 固定使用 `0.5.1`。省略 `version` 或填写 `"0.5.1"`；其它值在定义期报错。自定义 `otelPlugin` 必须支持该版本的 tape 协议。
+
 - **鉴权**：`BUB_API_KEY` + `BUB_API_BASE`（OpenAI 兼容代理），工厂参数 `apiKey` / `baseUrl` 可覆盖。
 - **装 Skill**：`skills: SkillSpec[]`，与另外两个 Adapter 同一个类型。装进 `.agents/skills/<name>/`，发现指引写进 AGENTS.md。
 - **装插件**：`pythonPlugins: PythonPluginSpec[]`（`{ package }`：PyPI 包、版本约束或 git URL），`setup` 阶段进 `uv tool install … --with <package>`。这个类型只属于 bub。package 集合进安装 checkpoint key，插件不同的两个变体不会复用同一份安装缓存。
@@ -195,3 +197,8 @@ export default defineExperiment({
 - [内置 Agent 能力参考](/zh/reference/builtin-agents) — 每个适配器逐能力盘点、非 Sandbox 适配器的完整代码示例。
 - [OTel 接入](/zh/tutorials/connect-otel) — 把 span 发给 [NiceEval](https://niceeval.com/)，换 `niceeval view` 的调用瀑布图。
 - [Adapter 参考](/zh/reference/define-agent) — `defineAgent` / `defineSandboxAgent` 完整参数。
+
+## Bub 与 OpenCode 的事件协议
+
+Bub 解析固定版本的 tape JSONL，OpenCode 解析 `1.18.5` 的 JSONL 与完整 session export。未知事件不进入 `Turn.events`。
+每条 Attempt 在收尾时生成一条 `agent-event-unrecognized` warning，列出未知事件类型和次数。运行 `niceeval show @locator` 查看诊断；该轮事件和动作证据会标为 partial。

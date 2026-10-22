@@ -31,9 +31,13 @@ const agent = openCodeAgent({
 ## 行为轨与会话
 
 行为轨优先来自 `run --format json` 的结构化 stdout。
-工具事件带稳定 call ID 时按 ID 配对；缺显式 ID 时只能按位配对，此时不声明并发工具负断言。
+parser 读取固定 CLI 版本 `1.18.5` 的 JSONL 事件和完整 `export` JSON。工具事件通过 `part.callID` 关联，不猜测其它字段中的 ID。
+Usage 读取 `tokens.input`、`tokens.output` 与 `tokens.cache.read/write`；输入与缓存桶相互独立。目录价格推导的 cost 不属于 observed usage。
 
-stdout 拿不到完整工具轨迹时，Adapter 用 `opencode export <sessionID>` 补读会话侧写；两者都缺则返回空事件并声明负断言不可信，不从最终文本猜测调用过程。
+stdout 没有工具或助手文本时，Adapter 用 `opencode export <sessionID>` 补读会话侧写；两者都缺则返回空事件并声明负断言不可信，不从最终文本猜测调用过程。
+
+未知事件不进入 `Turn.events`；每条 Attempt 在收尾时追加一条 `agent-event-unrecognized` warning，汇总类型与次数，`show @locator` 可查看。
+未知事件使该轮事件和动作证据标为 partial，不把未识别轨迹作为完整负断言依据。
 
 OpenCode 原生 `skill` 工具的 `name` 入参归一为单个 `skill.loaded`。该调用不再重复记为普通工具 operation；Skill 正选与反选断言只读标准事件流。
 

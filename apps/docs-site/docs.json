@@ -517,6 +517,7 @@
                   "tutorials/select-and-preview",
                   "tutorials/experiment-services",
                   "tutorials/control-run-cost",
+                  "tutorials/upgrade-0-20",
                   "tutorials/upgrade-0-19",
                   "tutorials/upgrade-0-18"
                 ]
@@ -706,6 +707,7 @@
                   "zh/tutorials/select-and-preview",
                   "zh/tutorials/experiment-services",
                   "zh/tutorials/control-run-cost",
+                  "zh/tutorials/upgrade-0-20",
                   "zh/tutorials/upgrade-0-19",
                   "zh/tutorials/upgrade-0-18"
                 ]

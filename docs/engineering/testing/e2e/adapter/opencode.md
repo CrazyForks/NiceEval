@@ -34,3 +34,9 @@ OpenCode Adapter 当前只公开 `skills` 扩展配置；契约明确不接受 C
 - `ci` Experiment 选中 coding、会话与 usage 通用 Eval；`skill` 与 `go` 各自只选一条专用 Eval。原生验收脚本分别执行三条配置线，防止少发现/少运行后假绿。
 - **CLI 读回**：固定 `attempt.trace` request 只验收 coding 工具调用及 input 事实可达。Skill 正反选择只由 Eval 内的 `skill.loaded` 断言判分。
 - **Timing / OTel 边界**：通用 Runner timing 由 [`runner-generic-timing`](../runner.md#runner-generic-timing) 唯一读回；当前公开读面不能归因 OpenCode 的 mapper-specific OTel，本 Repo 只拥有事件流 verdict 与代表 execution。
+
+## 固定版本样本回放
+
+`test/protocol.test.ts` 通过安装后公开 `openCodeAgent` 回放 `fixtures/` 中的 `1.18.5` JSONL 与完整 export。
+它只替换外部 Sandbox 命令和文件边界，验证文本、usage、未知事件排除、多轮计数与公开 `show` 读回。
+样本没有工具调用，回放不代替 live Journey 的工具兼容性验收。
