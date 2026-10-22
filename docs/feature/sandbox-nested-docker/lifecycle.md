@@ -77,7 +77,7 @@ committed Provider artifact 保持 immutable，可供新的 Invocation clone。
 
 ## Artifact capture, publication and reconcile
 
-prepare worker 取得独立 allocation 并执行 eligible SetupPrefix。
+prepare worker 取得独立 allocation 并执行 eligible Before cache。
 成功后进入 quiesce barrier；任何进程、secret、外部 lease 或 state-surface 证明失败都取消 publication 并销毁 prepare allocation。
 
 Provider 创建 stopped immutable template instance 及其 dependent custom block Docker data volume；两者先以

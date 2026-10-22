@@ -1,6 +1,6 @@
 # Experiments 架构
 
-Experiment 是可签入的运行配置。它选择 Eval、声明 Agent 和调度条件；[Run](../run/README.md) 保存 expected slots、slot bindings 与已发布 Attempt。
+Experiment 是可签入的运行配置。它选择 Eval、声明 Agent 和调度条件；[Run](../run/README.md) 保存 expected Planned attempts、Planned attempt bindings 与已发布 Attempt。
 
 ## 实体关系
 
@@ -8,18 +8,18 @@ Experiment 是可签入的运行配置。它选择 Eval、声明 Agent 和调度
 Invocation
   ├─ Session（ProjectDatabase）：active / recovering / terminal Invocation projection
   └─ Run（Core）：一个已求值的 Experiment
-      ├─ expected slot（Core）
-      │   └─ Member：slot → exact Attempt
+      ├─ expected plannedAttempt（Core）
+      │   └─ Member：plannedAttempt → exact Attempt
       │       ├─ relation：origin | reference（由关系推导）
       │       ├─ action：executed / carried / accepted
       │       └─ Attempt（Core outcome）
-      ├─ missing slot：active 时 pending，终态时为闭集 absence reason
+      ├─ missing plannedAttempt：active 时 pending，终态时为闭集 absence reason
       ├─ Attempt 固定事实：Assertions、五类 source receipt、File Changes、Artifacts
       └─ Run 固定事实：Observability、Sources、Artifacts
 ```
 
 Runner 在调用开始时取得 `invocationId`，并为每个选中的 Experiment 形成 `ExecutionTarget`。一次 start transaction
-共同冻结 active Session、`runId`、`startedAt`、`invocationId`、完整 expected slots 与 case-lock generation，提交后 Session 和 Run
+共同冻结 active Session、`runId`、`startedAt`、`invocationId`、完整 expected Planned attempts 与 case-lock generation，提交后 Session 和 Run
 立即可发现。reuse planning 在一个 `PublicationCutoff` 下只考察已发布 Attempt；不要求 origin Run 已经收口。
 
 Invocation receipt 以 `createdRunIds` 关联本次已提交创建的 Run。终态 Session 是 receipt 的 durable portable Invocation projection；
@@ -28,9 +28,9 @@ action、reference 与 outcome 由 Run Core 唯一保存。
 
 Assertions、五类 Observability source receipt、File Changes、Sources 与 Artifacts 按九项 Record catalog 的 owner 各自保存固定事实。source navigation 仅由 Turn Contexts、Runner Activities 与 Sources 在读侧形成。`points` 只在 Assertion 的 score facts 中出现，Inspection 只能从这些既有事实投影，不能另存 evaluation 或 verdict family。
 
-Run 的 expected membership 是本次分母。每个 slot 最多有一个 Member；任何 Member 都无条件表示该 slot 由一个精确 Attempt 完整占据。Member 不保存会持续扩张的业务 kind。
+Run 的 expected membership 是本次分母。每个 Planned attempt 最多有一个 Member；任何 Member 都无条件表示该 Planned attempt 由一个精确 Attempt 完整占据。Member 不保存会持续扩张的业务 kind。
 
-Attempt 的 `origin.runId` 永远指向实际执行它的 Run。当当前 Member 的 `(runId, slotId)` 与 Attempt.origin 完全相等时，relation 派生为 `origin`；否则为 `reference`。reference 只保存同一 Record 内的稳定 `{ originRunId, attemptId }`，不复制 Verdict、Usage、events 或 artifact。
+Attempt 的 `origin.runId` 永远指向实际执行它的 Run。当当前 Member 的 `(runId, plannedAttemptId)` 与 Attempt.origin 完全相等时，relation 派生为 `origin`；否则为 `reference`。reference 只保存同一 Record 内的稳定 `{ originRunId, attemptId }`，不复制 Verdict、Usage、events 或 artifact。
 
 源 Attempt 在自身 publication transaction 提交后 immutable，不等 origin Run 收口。后续读取
 reference 时沿精确 publication identity 取得同一份事实。自动沿用与显式采用分别由
@@ -72,7 +72,7 @@ Coordination 拥有 execution deduplication（执行去重）、同一 Experimen
 观察、续约、fence 与 release 都以短事务重验 identity/generation。
 
 Run Core 拥有预期位置、已发布 Attempt 与 Run 收口事实。多个 Invocation 可并发创建不同
-Run；每次 slot binding 是独立原子发布点。
+Run；每次 Planned attempt binding 是独立原子发布点。
 
 Eval 需要按需构建 Sandbox 时，BuildKey 构建、共享拉取与发布属于 Run 级活动，不属于任一 Attempt。
 
@@ -109,14 +109,14 @@ Runner 在触发 `setup` 前，把 teardown 所需的稳定输入写入 ProjectD
 
 ## 并发 Invocation
 
-多个 Invocation 可并发创建 Run 并发布不同 slot。`query`、`view` 与 `exp --dry` 固定一个
-`PublicationCutoff`：Run create、slot binding 和 Run close 按 commit revision 可见，不会拼出从未存在的状态。
+多个 Invocation 可并发创建 Run 并发布不同 Planned attempt。`query`、`view` 与 `exp --dry` 固定一个
+`PublicationCutoff`：Run create、Planned attempt binding 和 Run close 按 commit revision 可见，不会拼出从未存在的状态。
 物理 migration、snapshot 与回收只是内部实现，不形成用户 maintenance 命令。
 
 `sharedState.key` 保护跨 Invocation 的外部可变状态。其持有期从 Experiment setup 和 Sandbox setup 之前开始。
 最后一个 Attempt settle 后，同一 Experiment 的 reusable pool registry 先冻结，不能再创建 pool。
 
-等待 sharedState 的协调 fiber 不占有有限的 dispatch execution worker 或 Provider lane；Experiment gate、global 并发位和 Provider lane 仍约束实际 Sandbox / Agent body 的物理并发。因此同 key waiter 不会饿死当前 holder 的后继 Attempt。
+等待 sharedState 的协调 fiber 不占有有限的 dispatch execution worker 或 Provider lane；Experiment gate、global 并发名额和 Provider lane 仍约束实际 Sandbox / Agent body 的物理并发。因此同 key waiter 不会饿死当前 holder 的后继 Attempt。
 
 全部 pool 的 single-flight stop 完成 Sandbox teardown 与 Provider finalizer，之后才执行 Experiment teardown。只有所有实际
 cleanup 成功才释放 sharedState lease。setup 失败仍要等待停稳并执行后续 cleanup；不会仅因 setup 失败留下 lease。
@@ -163,7 +163,7 @@ owner evidence，并更换 recovery id 与 actor。free 的 `previous` 必须与
 
 具名 reuse planning（`project-target/v2`）接收当前目标、固定 cutoff 的已发布事实与本次 policy。它按
 [Reuse planning](cache.md#project-targetv2-的-source-barrier) 选择 source barrier，先判定每个位置的适用性，
-再形成 `reuse | execute` 动作。只读计划不分配 Invocation、Run 或 Slot ID。
+再形成 `reuse | execute` 动作。只读计划不分配 Invocation、Run 或 Planned attempt ID。
 
 invocation coordinator 持有完整的 `ExecutionReusePlan`。planner/scheduler 只接收 execute 子序列，不能访问
 Record 或重做资格判断。writer 最后接收 target、reuse intents 和 executed outcomes：reuse 与实际执行位置
@@ -171,11 +171,11 @@ Record 或重做资格判断。writer 最后接收 target、reuse intents 和 ex
 
 reference Member 的永久 Core 保存：
 
-- 当前 Run 与 slot identity；
+- 当前 Run 与 Planned attempt identity；
 - 被采用的 `{ originRunId, attemptId }`；
 - `carried` 或 `accepted` action。
 
-没有已发布 Attempt 的 slot 不创建 Member。active Run 中它是 pending。Run close 时只能从以下闭集选择
+没有已发布 Attempt 的 Planned attempt 不创建 Member。active Run 中它是 pending。Run close 时只能从以下闭集选择
 absence reason：`early-exit-satisfied | budget-exhausted | stopped-by-failure |
 interrupted-before-publication | dispatch-failed`。close 与全部 absence 在同一事务中提交。
 
@@ -206,7 +206,7 @@ receipt 不复制 locator、Verdict、Usage、cost 或 Attempt 计数。需要�
 
 `createdRunIds` 穷尽列出已成功提交 create transaction 的 Run，不以 Run close 成功为门。
 
-收到 `SIGINT` 时，Runner 停止新派发，保留所有已发布 Attempt，并把未发布 slot 以
+收到 `SIGINT` 时，Runner 停止新派发，保留所有已发布 Attempt，并把未发布 Planned attempt 以
 `interrupted-before-publication` 收口。若 close 失败，receipt 仍列出该 Run，Invocation completion 为
 `failed`；SIGKILL 无 receipt，之后由 `run list --invocation` 找回。
 

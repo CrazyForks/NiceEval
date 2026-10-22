@@ -59,3 +59,14 @@ t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6)));
 ```
 
 `measured` and `quantile` preserve units. Supply matching units to `atLeast`, `atMost`, `greaterThan`, `lessThan`, and inclusive `between`; mixed units or unwrapped thresholds are type errors. If types are bypassed, incompatible comparisons are unavailable. `cacheRead.rate()` now requires a `ratio(...)` threshold. Unitless materials still use plain number thresholds; old Records without a unit remain unitless. Show and View format units as `512 ms`, `61.2%`, and `$0.031`.
+
+## Planned attempt
+
+A Run's planned execution position is now called a Planned attempt. An Attempt remains a published execution fact.
+Use `niceeval.query/v2` for queries; the `/inspection` decoder no longer accepts v1.
+Replace `slotId`, `expectedSlots`, and `originSlotId` with `plannedAttemptId`, `plannedAttempts`, and `originPlannedAttemptId`.
+The Run and current-result `slots` collections are now `plannedAttempts`. Show reports Planned / Recorded / Missing attempts.
+Existing Records need no rewrite: persistent fields are mapped at the query boundary.
+
+For Adapter state, replace `createSessionSlot` / `SessionSlot` with `createSessionKey` / `SessionKey`.
+Concurrency waits now display `waiting for capacity`.

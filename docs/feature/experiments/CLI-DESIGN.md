@@ -4,7 +4,7 @@
 
 ## 结束反馈
 
-Human 输出使用 Experiment、Eval、Attempt、结果、安全错误摘要、run ID 和下一步。它不展示持久表、lease、Member、Slot、Relation、内部 selector 或数据库细节。
+Human 输出使用 Experiment、Eval、Attempt、结果、安全错误摘要、run ID 和下一步。它不展示持久表、lease、Member、Planned attempt、Relation、内部 selector 或数据库细节。
 
 每条已创建 Run 都可由人使用 `niceeval view --run <run-id>` 审阅。已发布的单个 Attempt 保留 locator 作为数据 identity；用户从
 该 Run 的页面 Run/Attempt 导航打开详情。自动化不读取 Human 文本，而是以 receipt 中的 `createdRunIds` 与 `publicationCutoff` 构造固定 `niceeval query` request。

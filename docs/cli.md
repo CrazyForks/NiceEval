@@ -109,8 +109,8 @@ Runner（Host 内部）→ canonical Record publication
 InvocationReceipt
 ```
 
-`exp` 为每个选中的 Experiment 建立 Run 和 expected slots。CLI 只调用 `experimentHost`；Host
-内部的 Runner 再使用 owner-scoped Run capability 原子发布 Attempt 的固定事实，并用 Member 把 slot 连接到精确
+`exp` 为每个选中的 Experiment 建立 Run 和 expected Planned attempts。CLI 只调用 `experimentHost`；Host
+内部的 Runner 再使用 owner-scoped Run capability 原子发布 Attempt 的固定事实，并用 Member 把 Planned attempt 连接到精确
 Attempt。
 
 reuse 与 explicit adoption 形成 reference Member，实际执行形成 origin Attempt。Member 的 action
@@ -163,7 +163,7 @@ revision 与 refresh；它不执行 Page、组件、静态目录或 Report 作�
 ### 恢复
 
 crash 不会把未 publication Attempt 写进 canonical database；遗留 private staging 在下次打开时删除，绝不恢复为事实。
-受控中断保留 `active` Run 已发布的 Attempt，并把剩余 slots 收口。旧 schema 与损坏 database fail closed，不做 compat read、
+受控中断保留 `active` Run 已发布的 Attempt，并把剩余 Planned attempts 收口。旧 schema 与损坏 database fail closed，不做 compat read、
 migration 或 repair；原项目必须用 current NiceEval 重新运行。
 
 ## 输出与反馈

@@ -28,7 +28,7 @@ Run facts at PublicationCutoff → shared fixed Inspection operation
 | 当前项目还缺哪些结果 | `project.get` 一次交付当前目标分母、covered、gap、旧结果入口及可用成员的质量指标；默认本机 Show 与 View 呈现同一结果。 |
 | 历史 Results 与 Experiment × Eval 结果 | `overview.get` 一次交付历史各 cell 的成员、分母、Verdict tally、pass rate、score、USD cost、coverage 和可下钻 Attempt locator。 |
 | 一个精确 Experiment 的概览 | `experiment.get` 在 Inspection 内按 exact `experimentId` 选择，交付该 Experiment 的 aggregate、Eval cells 与 Attempt locators。 |
-| 一个 Run 的概览 | `run.get` 按 exact `runId` 一次关闭 state、时间、expected/published/missing、pending/absence、slot binding、Verdict、score、coverage、usage 与 limitations；`run.list` 承接分页发现。 |
+| 一个 Run 的概览 | `run.get` 按 exact `runId` 一次关闭 state、时间、expected/published/missing、pending/absence、Planned attempt binding、Verdict、score、coverage、usage 与 limitations；`run.list` 承接分页发现。 |
 | 一个精确 Attempt 的依据与调试事实 | `attempt.get` 交付身份、outcome、Verdict、score、Assertion 摘要、Evidence coverage 与 section 状态。`attempt.sources`、`attempt.trace`、`attempt.timing`、`attempt.usage` 和 `attempt.diff` 交付各固定切片。 |
 | execution 中的一项已发布详情 | `attempt.trace.detail` 按 `itemId`、`toolOccurrenceId`、`commandId` 或通用轨迹的稳定 `eventId` / `evidenceId` 读取一项详情；原始 JSON Evidence 按已登记定位读取并有界续读。`attempt.assertion.detail` 按 `entryId` 交付一项 Assertion 调试依据。 |
 | 收窄查看范围 | 每个 operation 的穷尽 request 只接受其声明的 Experiment、Run、Attempt 或 comparison selection。 |

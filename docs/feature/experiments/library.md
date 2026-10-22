@@ -147,7 +147,7 @@ export default defineExperiment({
 `niceeval exp --dry` 与普通运行在 Agent、Sandbox、fingerprint 和 Record 写入前拒绝，并分别列出 Pass/Score Eval ID。
 两种题型需要复用同一 Agent 配置时仍写两个 Experiment 文件；CLI 前缀可以继续收窄一个本来更宽的选择，只要本次实际集合保持同型。
 
-Invocation builder 先把求值结果形成 `ExecutionTarget` 的 expected slots。reuse planning 完成后，writer 才原样写入 Run；固定 Inspection 只读取这份已落盘分母，不重新执行谓词，也不从当前源码猜历史范围。
+Invocation builder 先把求值结果形成 `ExecutionTarget` 的 expected Planned attempts。reuse planning 完成后，writer 才原样写入 Run；固定 Inspection 只读取这份已落盘分母，不重新执行谓词，也不从当前源码猜历史范围。
 
 ## labels 与运行时观测
 

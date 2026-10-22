@@ -59,3 +59,14 @@ t.check(t.usage.cacheRead.rate(), atLeast(ratio(0.6)));
 ```
 
 `measured` 和 `quantile` 保留单位。`atLeast`、`atMost`、`greaterThan`、`lessThan` 与包含两端的 `between` 要求材料和阈值使用相同单位；跨单位或未包装的阈值不能通过类型检查。绕过类型时，不兼容比较形成 unavailable。`cacheRead.rate()` 现在要求 `ratio(...)` 阈值。无单位材料继续使用普通 number 阈值，旧 Record 未提供单位时仍视为无单位。Show 与 View 按 `512 ms`、`61.2%`、`$0.031` 等形式显示。
+
+## Planned attempt
+
+Run 的计划执行位置现在称为 Planned attempt；已发布的执行事实仍称为 Attempt。
+`query` 使用 `niceeval.query/v2`，`/inspection` decoder 不再接受 v1。
+将 `slotId`、`expectedSlots` 和 `originSlotId` 分别替换为 `plannedAttemptId`、`plannedAttempts` 和 `originPlannedAttemptId`。
+Run 和当前结果的 `slots` 集合改为 `plannedAttempts`。Show 完整度统计显示 Planned / Recorded / Missing attempts。
+已有 Record 无需重写；持久字段在查询投影边界转换。
+
+Adapter 的 `createSessionSlot` / `SessionSlot` 改为 `createSessionKey` / `SessionKey`；
+并发等待文案改为 `waiting for capacity`。

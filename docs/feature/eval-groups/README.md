@@ -27,7 +27,7 @@ export default defineEvalGroup({
 * Sandbox template 与实例级 `setup()` / `teardown()` 由 Group 或 Experiment 持有。
 * Group 与 `sandboxReuse: true` 不能同时作用于同一 Experiment。
 * Group Plugin 提供 lane-scoped lifecycle；同一 occurrence 的 `sandbox` fragment 自动作用于该 lane 的物理 Sandbox。
-* carry、过滤与首过即停只移除 slot，不会补跑其它成员或制造前缀完成语义。
+* carry、过滤与首过即停只移除 Planned attempt，不会补跑其它成员或制造前缀完成语义。
 
 ## 正文入口
 

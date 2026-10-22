@@ -27,7 +27,7 @@ niceeval debug compare/codex memory/commit0
 niceeval debug compare/codex memory/commit0 --json
 ```
 
-它把 Experiment、lane、slot 和每条可检查 action 按实际计划顺序逐框显示；Shell 保留多行和末尾换行，不能检查的 callback 标为 `opaque`。它不创建 Invocation、Run、Sandbox 或 cache lookup。完整的 command-plan 排版见 [debug 输出案例](../output/debug-command-plan.md)。
+它把 Experiment、lane、Planned attempt 和每条可检查 action 按实际计划顺序逐框显示；Shell 保留多行和末尾换行，不能检查的 callback 标为 `opaque`。它不创建 Invocation、Run、Sandbox 或 cache lookup。完整的 command-plan 排版见 [debug 输出案例](../output/debug-command-plan.md)。
 
 两个 selector 都必须唯一，且 Eval 只能在该 Experiment 已选范围内匹配。无法唯一匹配时在 physical planning 前非零结束，列出排序后的精确候选；同样没有 Invocation 或 receipt：
 

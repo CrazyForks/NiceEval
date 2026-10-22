@@ -41,7 +41,7 @@
 - **Runner**：运行器。面向用户文档里避免写 “NiceEval core”；需要表达执行主体时写 NiceEval 或 runner。
 - **生命周期 Hook**：四层（实验级 / Sandbox 级 / eval 级 / agent 级）共用同一形态的成对 `setup` / `teardown` 回调。中文写”生命周期”（泛指机制）或”生命周期 Hook”（指具体回调），不写”钩子”。
 - **Inspection**：固定 operation 在读取结束前关闭 source、selector、sealed cutoff、partial、missing、issues、Evidence 与 comparison。它不提供 SQL、JSON path、公式或作者 callback。
-- **query**：AI、脚本和 CI 使用的 versioned `niceeval.query/v1` JSON operation protocol。先用 `discover` 取得 catalog，再以 `explain` / `run` 处理完整 request。
+- **query**：AI、脚本和 CI 使用的 versioned `niceeval.query/v2` JSON operation protocol。先用 `discover` 取得 catalog，再以 `explain` / `run` 处理完整 request。
 - **View**：`niceeval view` 提供给人的固定第一方本地界面。它只消费 Inspection result，不装载项目 Report、Page、组件、主题或 renderer。
 - **Severity**：断言的 gate / soft 两档。中文写“严重度”，不写“严重级”；能直接写 gate / soft 的句子不要提“严重度”这个上位词。
 - **值断言**：`expect` 匹配器经 `t.check` / `t.require` 的即时断言。不写“值级断言”。

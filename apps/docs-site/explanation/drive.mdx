@@ -62,7 +62,7 @@ await t.send("Okay, send it.");
 t.calledTool("send_email").label("Sent");
 ```
 
-Whether multi-turn `t.send()` calls truly continue their context depends on whether the Adapter's `send` uses `ctx.session` session-continuation storage, either a typed slot or `id` + `capture()`. Without it, every turn is a new conversation. See [Adapter](/explanation/adapter) and [Write Send](/tutorials/write-send).
+Whether multi-turn `t.send()` calls truly continue their context depends on whether the Adapter's `send` uses `ctx.session` session-continuation storage, either a typed key or `id` + `capture()`. Without it, every turn is a new conversation. See [Adapter](/explanation/adapter) and [Write Send](/tutorials/write-send).
 
 ## Independent sessions: `t.newSession()`
 

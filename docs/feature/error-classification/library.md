@@ -4,7 +4,7 @@
 
 ## Eval 与 Experiment 作者
 
-共享服务、凭据或 Fixture 缺失等可证明会影响兄弟 slot 的问题，可以直接抛出范围明确的错误：
+共享服务、凭据或 Fixture 缺失等可证明会影响兄弟 Planned attempt 的问题，可以直接抛出范围明确的错误：
 
 ~~~ts
 import { ExperimentFatalError } from "niceeval";
@@ -18,7 +18,7 @@ throw new ExperimentFatalError(
 
 错误 message 应包含现象和下一步。Runner 将终局错误写入相应 diagnostic channel；Run 或 Attempt 的详情页可以据此展示反馈。
 
-不要仅凭“像基础设施问题”扩大范围。拿不准时，让失败保持在单个 Attempt，避免错误地停止有效 slot。
+不要仅凭“像基础设施问题”扩大范围。拿不准时，让失败保持在单个 Attempt，避免错误地停止有效 Planned attempt。
 
 ## Experiment 分类器
 
@@ -42,7 +42,7 @@ Adapter 在 `classifySendFailure` 中补充协议信息。只有明确拒绝受�
 
 - 当前进程在重试时显示短暂进度；重试成功不会产生新的逻辑 Turn。
 - 重试耗尽后，Attempt 写入终局 diagnostic，Verdict 为 `errored`。
-- 停止派发时，Run 写入 `dispatch-halted`；后续 expected slots 保留为 `not-recorded`。
+- 停止派发时，Run 写入 `dispatch-halted`；后续 expected Planned attempts 保留为 `not-recorded`。
 - 修复后再次运行。carry planner 读取当前 Verdict、eligibility 和 identity，再决定是否执行。
 
 ## 相关阅读

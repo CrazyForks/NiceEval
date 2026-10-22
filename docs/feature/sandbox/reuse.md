@@ -47,7 +47,7 @@ export default defineExperiment({
 ![复用 Sandbox 的并行与生命周期](../../assets/sandbox-reuse-lanes.svg)
 
 每个 Sandbox 同时只承接一条 Attempt。
-不同 Sandbox 可以并行；同时执行数仍受全局并发位和 Experiment `maxConcurrency` 限制。
+不同 Sandbox 可以并行；同时执行数仍受全局并发名额和 Experiment `maxConcurrency` 限制。
 Runner 按需创建 Sandbox，不因为并发上限较大就提前创建不会使用的数量。
 
 ### 并行 Invocation

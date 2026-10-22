@@ -52,9 +52,9 @@ experiments/smoke.ts                 -> Experiment smoke             -> singleto
 
 ## 与 Run publication 的边界
 
-Experiment 只提供运行配置；Runner 在一次 Invocation 中为每个选中的 Experiment 建立一个 Run。Run create transaction 冻结全部 expected slots，提交后立即可见。
+Experiment 只提供运行配置；Runner 在一次 Invocation 中为每个选中的 Experiment 建立一个 Run。Run create transaction 冻结全部 expected Planned attempts，提交后立即可见。
 
-每个 Attempt 在独立 publication transaction 中原子发布 immutable closure、publication identity 与 origin slot binding。Run 是 `active` 时已发布 Attempt 已经可查询，也可经当次 policy 复核后 carry 或 accept；Run close 只冻结终态与剩余 slot 的 absence reason，不决定 Attempt 可见性。
+每个 Attempt 在独立 publication transaction 中原子发布 immutable closure、publication identity 与 origin Planned attempt binding。Run 是 `active` 时已发布 Attempt 已经可查询，也可经当次 policy 复核后 carry 或 accept；Run close 只冻结终态与剩余 Planned attempt 的 absence reason，不决定 Attempt 可见性。
 
 Coordination（协调）拥有执行去重、`maxConcurrency`、同一 Experiment 的 dispatch claim（派发占用）以及 build / lease
 （构建 / 租约）。case lock、Invocation Session 与其 recovery 都是唯一 ProjectDatabase `.niceeval/record.sqlite` 的 rows；
@@ -64,7 +64,7 @@ Coordination（协调）拥有执行去重、`maxConcurrency`、同一 Experimen
 planner/scheduler 只接收 `execute` 集合；`--rerun all` 可以让可沿用的位置进入执行计划，不改变读取时的结果可用性。
 已发布只表示事实可读，不等于 reuse eligible；资格始终由当次 policy 从已发布事实重新判定。
 
-Run 的 expected membership 定义本次分母。Member 把每个 slot 连接到一个精确 Attempt；`origin | reference` 由关系派生，executed/carried/accepted 等原因属于 actions provenance。Attempt 永远保留实际执行它的 origin Run。
+Run 的 expected membership 定义本次分母。Member 把每个 Planned attempt 连接到一个精确 Attempt；`origin | reference` 由关系派生，executed/carried/accepted 等原因属于 actions provenance。Attempt 永远保留实际执行它的 origin Run。
 因此 locator 始终由同一个完整 `attemptId` 表达，不会因采用动作而改变。
 
 Invocation 有 `invocationId`，用于关联瞬时进度与最终 receipt。receipt 的 `createdRunIds` 穷尽列出本次已提交 create transaction 的 Run，并与 opaque `publicationCutoff` 一起构造固定 Inspection request；Run 不必已收口。
@@ -208,7 +208,7 @@ key 是会进入 Run 条目的稳定非密字符串，必须匹配 `[a-z0-9][a-z
 复用只改变 Case 创建次数:reset 到 Case 就绪点后,每条 Attempt 仍重新执行两层 layer 的 prepare 命令。
 省略时，每个 Attempt 使用全新 Sandbox。
 
-同时活跃的 Sandbox 数由现有并发限制决定：同一个 Sandbox 一次只执行一条 Attempt；Experiment 的 `maxConcurrency` 与全局并发位共同限制同时运行数。
+同时活跃的 Sandbox 数由现有并发限制决定：同一个 Sandbox 一次只执行一条 Attempt；Experiment 的 `maxConcurrency` 与全局并发名额共同限制同时运行数。
 需要严格串行时声明 `maxConcurrency: 1`。
 完整顺序、Provider 能力与 Attempt 采用边界见 [Sandbox 复用](../sandbox/reuse.md)。
 

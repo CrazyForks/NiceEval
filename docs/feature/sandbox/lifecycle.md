@@ -135,7 +135,7 @@ BuildKey ready
                 -> replay -> quiesce -> verify -> publish PreparedArtifact
                 -> release that node's prepare Scope
   -> wait until every node is settled
-  -> dispatch only slots whose terminal prefix succeeded
+  -> dispatch only plannedAttempts whose terminal prefix succeeded
   -> each dispatched Attempt clones its final immutable artifact privately
   -> runtime secret overlay -> agent.ensure / Adapter runtime / Agent / Eval test
 ```
@@ -146,11 +146,11 @@ BuildKey ready
 
 `Persistent`、`InvocationLocal` 与 `Unsupported` 不加入这个 Run 级 DAG，继续按其能力在 Attempt 内 restore、复用或真实 replay。它们不会因为 key 相同取得共享 staging、共享可写状态或共享 Run activity。
 
-全局派发 barrier 等待全部 Run prefix DAG 节点结算，而非只等待某一 slot 的祖先。节点失败只阻断依赖它的 descendants 和最终需要该 prefix 的 slots；独立分支继续准备。成功节点发布后不会因其它节点失败回滚。取消会终止尚未结算的 prepare staging 与 publication，并有界回收它们；已验证发布的 immutable artifact 保留。
+全局派发 barrier 等待全部 Run prefix DAG 节点结算，而非只等待某一 Planned attempt 的祖先。节点失败只阻断依赖它的 descendants 和最终需要该 prefix 的 Planned attempts；独立分支继续准备。成功节点发布后不会因其它节点失败回滚。取消会终止尚未结算的 prepare staging 与 publication，并有界回收它们；已验证发布的 immutable artifact 保留。
 
-prepare 过程写独立 Run activity：cache lookup、当前 action `i/n`、prepare Sandbox 创建、artifact 发布和 Scope release。它不借用 Attempt running 计数，也不创建 Attempt locator；只有通过全局 barrier 后实际 dispatch 的 slot 才分配其永久 locator。已分配的 locator 从调度、收尾反馈到 Record 提交始终不变。
+prepare 过程写独立 Run activity：cache lookup、当前 action `i/n`、prepare Sandbox 创建、artifact 发布和 Scope release。它不借用 Attempt running 计数，也不创建 Attempt locator；只有通过全局 barrier 后实际 dispatch 的 Planned attempt 才分配其永久 locator。已分配的 locator 从调度、收尾反馈到 Record 提交始终不变。
 
-不同 `SetupPrefixKey` 可并行；同一 `(executionDomainId, SetupPrefixKey)` 的跨进程 publication lease 仍串行发布，等待者消费同一 committed `ArtifactIntent`。随后每条 Attempt 从最终 artifact clone 私有 VM，再真实执行 barrier 后缀、Agent 与 Eval test。
+不同 `BeforeCacheKey` 可并行；同一 `(executionDomainId, BeforeCacheKey)` 的跨进程 publication lease 仍串行发布，等待者消费同一 committed `ArtifactIntent`。随后每条 Attempt 从最终 artifact clone 私有 VM，再真实执行 barrier 后缀、Agent 与 Eval test。
 
 ## Fresh 与 Reuse
 
@@ -172,15 +172,15 @@ reset 语义、寿命确认与污染诊断见 [Sandbox 复用](reuse.md)。
 
 ## 命令计划怎样投影这条时序
 
-`niceeval debug <experiment> <eval>` 直接消费 link 与 physical planning 的完成态，把本页时序投影为 Experiment → lane → slot。它不读取 Record、reuse、carry 或 cache inventory。装配器拥有生命周期语义；human 的逐节点 `COMMAND PLAN` 区域框和 JSON 的 `commandPlan` 只投影同一棵树，不能各自重排节点。
+`niceeval debug <experiment> <eval>` 直接消费 link 与 physical planning 的完成态，把本页时序投影为 Experiment → lane → Planned attempt。它不读取 Record、reuse、carry 或 cache inventory。装配器拥有生命周期语义；human 的逐节点 `COMMAND PLAN` 区域框和 JSON 的 `commandPlan` 只投影同一棵树，不能各自重排节点。
 
 Provider capacity reservation 是 Provider 创建 Sandbox 的准入条件，不是已经开始创建 Sandbox 的事实。等待 reservation 的 Attempt 保持 queued，并携带 provider-capacity reason；reservation granted 后才进入 `sandbox.create`。等待者不占普通 sandbox semaphore；公平 admission 与可缓存 preparation 都服从本页同一条时序。
 
-它只声明运行器能保证的偏序：fresh Eval 与 `sandboxReuse` lane 都不保证 slot 顺序，也不生成全局序号。Eval Group lane 按规范化 Eval ID、再按 Attempt index 串行。Eval Group 选择只保留命中的成员；作者数组位置没有业务顺序语义。
+它只声明运行器能保证的偏序：fresh Eval 与 `sandboxReuse` lane 都不保证 Planned attempt 顺序，也不生成全局序号。Eval Group lane 按规范化 Eval ID、再按 Attempt index 串行。Eval Group 选择只保留命中的成员；作者数组位置没有业务顺序语义。
 
-fresh slot 把 Case create、逐 Attempt body 与 Provider finalizer 放在自己的 steps 内。reuse 与 Eval Group lane 仍可显示 Provider-owned instance boundary；SandboxLayer before/after 不进入该模板，全部按 attempt 执行。reset 失败、寿命不足或故障退休可能更换实例；这不把 author action 自动提升为 physical occurrence。
+fresh Planned attempt 把 Case create、逐 Attempt body 与 Provider finalizer 放在自己的 steps 内。reuse 与 Eval Group lane 仍可显示 Provider-owned instance boundary；SandboxLayer before/after 不进入该模板，全部按 attempt 执行。reset 失败、寿命不足或故障退休可能更换实例；这不把 author action 自动提升为 physical occurrence。
 
-debug 把配置的全部 attempts 列作候选 dispatch slot。正常运行的 activation 仍受 late carry、预算、early-exit、fail-fast、取消与运行期失败影响；静态列出不等于实际执行。
+debug 把配置的全部 attempts 列作候选 dispatch Planned attempt。正常运行的 activation 仍受 late carry、预算、early-exit、fail-fast、取消与运行期失败影响；静态列出不等于实际执行。
 
 Sandbox callback、test 与 Provider callback 保留其真实位置并标为 opaque。每个 action node 显示 declarationOrder、dependencies、changeFrequency、occurrence-local topological ordinal、schedulingReason、owner 与 attempt occurrence。
 
@@ -190,7 +190,7 @@ Sandbox callback、test 与 Provider callback 保留其真实位置并标为 opa
 
 这个 locator 来自 template 声明的私有 command-plan binding，不进入 Record、provider identity 或复用 fingerprint。Direct Agent 显示一个明确的 `known-no-command` create 节点。`preTeardown` 按执行契约逆序展开，并标明只有 setup 到达 postSetup 时点后才运行。
 
-Eval Group 的 `beforeSlots` / `afterSlots` 在 human 与 JSON 中都显式呈现 Eval Group Plugin before / after。Sandbox Plugin fragment 的 action 与 Experiment、Eval Group、Eval、Agent action 进入同一个 DAG；Eval Plugin lifecycle 留在各 dispatch slot 内。它们都按 attachment owner 保留身份，不能因 Plugin 恰好来自同一个 definition 就跨 owner 合并。
+Eval Group 的 `beforeSlots` / `afterSlots` 在 human 与 JSON 中都显式呈现 Eval Group Plugin before / after。Sandbox Plugin fragment 的 action 与 Experiment、Eval Group、Eval、Agent action 进入同一个 DAG；Eval Plugin lifecycle 留在各 dispatch Planned attempt 内。它们都按 attachment owner 保留身份，不能因 Plugin 恰好来自同一个 definition 就跨 owner 合并。
 
 把有外部副作用、secret 或会话的 callback 伪装成 eligible shell 只为让预览变 exact 会违反确定性资格,禁止这样改语义。
 
@@ -265,7 +265,7 @@ Sandbox 复用池的键只固定物理实例共享所需的输入:
 
 池键包含 Provider reset baseline identity。callback 函数体不进入 fingerprint；opaque marker 与 attachment owner 进入 identity 并截断共享捕获。before 仍在每条 Attempt 内满足。
 
-Sandbox Plugin 的 attachment owner、name、instance key、声明 fingerprint、顺序与 before/after 形状同时进入完整 Attempt fingerprint。任一声明身份变化都会让历史结果 carry 失配并产生 fresh slot；callback 函数体仍是 opaque，行为变化时必须同步修改声明 fingerprint 或使用 `--rerun all`。
+Sandbox Plugin 的 attachment owner、name、instance key、声明 fingerprint、顺序与 before/after 形状同时进入完整 Attempt fingerprint。任一声明身份变化都会让历史结果 carry 失配并产生 fresh Planned attempt；callback 函数体仍是 opaque，行为变化时必须同步修改声明 fingerprint 或使用 `--rerun all`。
 
 Sandbox Plugin fragment 与四类 owner 的 action 进入同一个 DAG，不创建物理生命周期。callback 语义变化后的复验由作者显式执行 `--rerun all`。reset 或 cleanup 无法恢复已知边界时退休物理实例。
 

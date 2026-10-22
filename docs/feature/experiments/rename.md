@@ -21,8 +21,8 @@ niceeval exp rename compare/new --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706 --jso
 ## 整批范围与资格
 
 把 source Run 的 Experiment ID 映射为目标 ID 后，两端 `(evalId, attemptOrdinal)` 必须双向全等。
-每个 source slot 必须有唯一且合格的已发布 Attempt，每个目标 slot 必须恰好对应一次。缺失、重复、多余、悬空或不合格的成员都阻断整批，预检失败零业务写入。
-不会通过排除成员、只取交集或补空 slot 来成功完成采用。source Run 可以仍为 active，只要 cutoff 下所选成员已完整发布。
+每个 source Planned attempt 必须有唯一且合格的已发布 Attempt，每个目标 Planned attempt 必须恰好对应一次。缺失、重复、多余、悬空或不合格的成员都阻断整批，预检失败零业务写入。
+不会通过排除成员、只取交集或补空 Planned attempt 来成功完成采用。source Run 可以仍为 active，只要 cutoff 下所选成员已完整发布。
 
 目标必须当前可发现并可求值。`errored`、`skipped`、不完整的评分或缺失的必要证据不能被采用；真实执行时长必须符合当前 timeout。
 完整资格由[缓存与采用](cache.md#显式采用的资格)拥有，rename 不提供强制通过开关。
@@ -45,7 +45,7 @@ Eval、ordinal、任务、flags、模型、Judge、判据、timeout 与其它运
 历史缺少声明时保留 unknown 并拒绝，不能从缺失活动推断；新 reference Run 也不能替 origin 补造证明。
 
 source Run 与 origin Run 分别校验：选中的 Member 可能引用更早的 Attempt，旧实验名不能代替真实 origin。
-跨 Run 按逻辑位置和受证明的 digest 判断，slot ID 只负责各自 Run 内的精确引用，不要求不同 Run 的 slot ID 相等。
+跨 Run 按逻辑位置和受证明的 digest 判断，Planned attempt ID 只负责各自 Run 内的精确引用，不要求不同 Run 的 Planned attempt ID 相等。
 
 ## 写入与持续沿用
 

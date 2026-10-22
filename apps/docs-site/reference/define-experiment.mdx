@@ -204,7 +204,7 @@ maxConcurrency?: number;
 This Experiment's own concurrency limit within this Invocation: the scheduler throttles only this Experiment's attempts; other Experiments in the batch are unaffected
 and still run under the global concurrency (CLI / env / config / Sandbox default). Use it to serialize Experiments with shared state
 (such as memory accumulated across evals: `maxConcurrency: 1` guarantees attempts run one by one in eval order),
-or to slow down an Experiment that hits provider limits. A slot shares the attempt's lifetime: it is held from before Sandbox creation until
+or to slow down an Experiment that hits provider limits. A concurrency permit shares the attempt's lifetime: it is held from before Sandbox creation until
 teardown and Sandbox destruction finish, and any wait along the way (including turn retry backoff) keeps holding it.
 `maxConcurrency: 1` is therefore a strict critical section that the next attempt of the same Experiment cannot enter early.
 It does not span Invocations; for shared external state across Invocations, declare `sharedState`.

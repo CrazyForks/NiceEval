@@ -47,7 +47,7 @@ error: accept-ineligible: @1K1P0VJAPVJ12 has changed evaluation inputs
 ```
 规范 locator 只授权列出的 Attempt；不会因为同一处 flags 差异而顺带接受其它评估用例。
 
-如果一次 source Run 的 expected slots 正好与当前 Experiment 的全部目标对应，先预览整批映射，再明确采用该授权范围：
+如果一次 source Run 的 expected Planned attempts 正好与当前 Experiment 的全部目标对应，先预览整批映射，再明确采用该授权范围：
 
 ```sh
 niceeval accept --run 8f3d6f62-1d34-4cf3-99c7-84ba3c483706 --dry
@@ -59,14 +59,14 @@ niceeval show
 正式执行复用同一计划，原子发布 `accepted` reference Members；这些位置计为当前可用结果。
 之前的历史结果始终可以通过 Run 或 locator 查看，但不用于补齐当前缺口。
 
-Run 中有已退役 Eval、缺失 Member，或当前 target 新增了 Run 没有对应成员的 slot 时，整批采用失败且零写入。命令不会把
+Run 中有已退役 Eval、缺失 Member，或当前 target 新增了 Run 没有对应成员的 Planned attempt 时，整批采用失败且零写入。命令不会把
 “采用这个 Run”静默缩成“采用其中还能用的部分”。用户审阅后确实只想采用子集时，显式列出对应 locators：
 
 ```sh
 niceeval accept @1K1P0VJAPVJ12 @1MEMY3VCQ6B5B
 ```
 
-目标 Run 的 expected slot 保存当前 Core combined execution identity；reference Member 保存原 Attempt ref，`accepted` action 保存采用事实。Invocation receipt 将本次命令与目标 Run 关联。
+目标 Run 的 expected Planned attempt 保存当前 Core combined execution identity；reference Member 保存原 Attempt ref，`accepted` action 保存采用事实。Invocation receipt 将本次命令与目标 Run 关联。
 Attempt 的 origin Run、Core outcome、Assertions 与 locator 都不变；Verdict 只在读取这些事实时折叠。
 
 ## 改名后承接已删除实验的结果

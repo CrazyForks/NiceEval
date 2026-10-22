@@ -1,6 +1,6 @@
 # Run 架构
 
-Run Core 拥有 Run、expected slot、slot binding、Attempt publication、Run state 与 deletion tombstone。
+Run Core 拥有 Run、expected Planned attempt、Planned attempt binding、Attempt publication、Run state 与 deletion tombstone。
 Experiment 拥有计划、absence reason 与复用资格；Inspection 拥有固定 cutoff 下的读取和聚合。SQLite adapter
 实现事务与持久化，但不进入公开领域 API。
 
@@ -27,7 +27,7 @@ operational state，不会因存在于 canonical database 就成为公开事实�
 `runId` 与 `attemptId` 是全局唯一且不可变的领域身份。`slotId` 只标识一个 Run 在创建时冻结的 expected
 位置，不能充当 Attempt identity。
 
-Invocation start transaction 同时提交 Invocation Session、完整 target Run、expected slots、`invocationId` 与初始 `active` state。
+Invocation start transaction 同时提交 Invocation Session、完整 target Run、expected Planned attempts、`invocationId` 与初始 `active` state。
 它也提交 writer generation、case-lock identity/generation 与 publication revision。未提交的候选 Session、Run 或锁不存在。
 
 Session 是 Invocation 的唯一 durable projection。终态 Session 与 `createdRunIds`、completion、cutoff 一起留在 portable Record，
@@ -50,15 +50,15 @@ Run Core 只保存声明；Experiment policy 决定它是否足以支持[改名�
 
 origin publication 是一个短事务。它必须同时：
 
-1. 验证 Run 仍为 `active`、writer generation 匹配且 slot 为空；
+1. 验证 Run 仍为 `active`、writer generation 匹配且 Planned attempt 为空；
 2. 提交 immutable Attempt closure 与 `AttemptPublicationIdentity`；
-3. 写入该 slot 的 origin binding；
+3. 写入该 Planned attempt 的 origin binding；
 4. 取得单调 publication revision。
 
 事务前先在短事务中增量写入 aggregate，并在事务外流式形成 closure manifest 与 digest。
 
 publication transaction 验证 Run 仍为 `active`、writer generation 匹配、Attempt 为 `sealing`、manifest 与引用闭包完整、
-slot 为空。随后一次 `BEGIN IMMEDIATE` 冻结 aggregate、提交 `AttemptPublicationIdentity` 与 origin binding，
+Planned attempt 为空。随后一次 `BEGIN IMMEDIATE` 冻结 aggregate、提交 `AttemptPublicationIdentity` 与 origin binding，
 并取得同一个 revision。
 该 revision 同时进入项目级 publication cutoff；Inspection 不需要等待 Run teardown，便可在固定 cutoff 下读取完整 closure。
 
@@ -66,16 +66,16 @@ slot 为空。随后一次 `BEGIN IMMEDIATE` 冻结 aggregate、提交 `AttemptP
 retry 都不能修改已发布 closure。
 
 carry 与 accept 不复制 Attempt。reference binding transaction 只允许引用已经发布、且通过当次 policy 资格检查的
-Attempt，并在目标空 slot 原子写入 `{ attemptId, originRunId, originSlotId, publicationIdentity, action }`。
-origin publication 与 reference binding 竞争同一个 slot CAS，恰有一个可以成功。origin Run 是否已经收口不改变
+Attempt，并在目标空 Planned attempt 原子写入 `{ attemptId, originRunId, originSlotId, publicationIdentity, action }`。
+origin publication 与 reference binding 竞争同一个 Planned attempt CAS，恰有一个可以成功。origin Run 是否已经收口不改变
 Attempt identity；即使 origin Run 仍为 `active`，已发布 Attempt 也可以被引用。
 
 ## Run 收口与 absence
 
 `expected` 始终是 Run create 时的完整逻辑计划，也是 coverage 分母。`published` 表示 cutoff 前已经绑定到可读
-Attempt 的 slot，origin 与 reference 都计入；`missing = expected - published`，永不补零或伪造失败 Attempt。
+Attempt 的 Planned attempt，origin 与 reference 都计入；`missing = expected - published`，永不补零或伪造失败 Attempt。
 
-`active` Run 的 missing slot 统一显示为 `pending`。Run close transaction 原子提交终态与所有剩余 slot 的
+`active` Run 的 missing Planned attempt 统一显示为 `pending`。Run close transaction 原子提交终态与所有剩余 Planned attempt 的
 `absenceReason`，两者取得同一 publication revision。终态永久拒绝任何新 binding。
 
 Experiment 定义的 absence reason 闭集为：
@@ -112,7 +112,7 @@ generation 都绑定同一 cutoff；无法在当前 generation 继续时返回 r
 
 ## 读取索引
 
-每条读取路径都由身份索引定位，成本随请求涉及的 Run、slot 与事实增长，不随无关 Run 数增长。
+每条读取路径都由身份索引定位，成本随请求涉及的 Run、Planned attempt 与事实增长，不随无关 Run 数增长。
 当前格式必须提供以下访问路径：
 
 | 读取 | 访问路径 | 使用者 |
@@ -122,7 +122,7 @@ generation 都绑定同一 cutoff；无法在当前 generation 继续时返回 r
 | exact locator | `(attempt_locator, origin_run_id, attempt_id)` | Attempt operation、显式采用 |
 | Experiment 的 Run | Run 行的 `(experiment_id, run_id)` | `experiment.get` |
 | Experiment 的 source 候选 | run resource 的 `(experiment_id, created_revision, run_id)` | reuse source barrier |
-| 逻辑位置的最近 Run | expected slot 的 `(eval_id, attempt_ordinal, run_id)`，与上一行联用 | reuse source barrier |
+| 逻辑位置的最近 Run | expected Planned attempt 的 `(eval_id, attempt_ordinal, run_id)`，与上一行联用 | reuse source barrier |
 | 全量 Run 列表 | `(created_revision, run_id)` | `run.list`、当前 Results |
 
 每个 Run 行都有 typed `experiment_id`；读取不按 Core JSON 回退筛选。没有 run resource 的历史 Run 只经 Run 行索引被发现。
@@ -239,7 +239,7 @@ Record 格式版本独立于 npm 包版本，不能用产品版本号推断数�
 - 从每个 Run 已验证的 Core 取出 `experimentId`，写入 Run 行自己的 typed `experiment_id` 列；已有 run resource 时两者必须相同，不同则拒绝迁移。
 - 建立下文[读取索引](#读取索引)。
 
-迁移不为缺少 run resource 的历史 Run 合成 resource、invocation、revision、expected slot 或 binding，也不推进 publication clock；这些 Run 的既有读取与 source barrier 语义保持不变。
+迁移不为缺少 run resource 的历史 Run 合成 resource、invocation、revision、expected Planned attempt 或 binding，也不推进 publication clock；这些 Run 的既有读取与 source barrier 语义保持不变。
 0.19 使用独立 `ne19_` 可写表。
 
 0.17 的 Core payload、digest 与 seal 保持原字节；0.18 使用独立 `ne18_` 可写表，移除旧 `ne_` 对象。

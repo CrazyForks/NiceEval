@@ -28,9 +28,9 @@ generation 准备结果，不建立另一套读取语义。组件、route loader
 也不得重算 denominator、score、coverage 与 usage。
 
 Run discovery 唯一调用 `run.list`；Run debugger 唯一调用 `run.get`。
-`run.get` 在同一 cutoff 一次交付 state、时间、expected/published/missing、slot binding 与 Attempt locator。
+`run.get` 在同一 cutoff 一次交付 state、时间、expected/published/missing、Planned attempt binding 与 Attempt locator。
 它也交付 active pending、terminal absence、coverage、各指标分母、issues 与 limitations。
-exact Run 存在但尚有空 slot 时仍成功，不把 missing 变成失败或零。
+exact Run 存在但尚有空 Planned attempt 时仍成功，不把 missing 变成失败或零。
 
 本机当前 Results 调用 `project.get`；当前 Experiment detail 通过同一 operation 的 `experimentIds` 精确选择。
 历史 Results 调用 `overview.get`，历史 Experiment detail 调用 `experiment.get`。

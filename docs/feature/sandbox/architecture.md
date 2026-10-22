@@ -186,7 +186,7 @@ output poll 在 exit、stream error、terminate fallback 与 Scope cleanup 路�
 Verdict 定稿后按档位提交：`failed` 档是不带值的 flag 的默认值，提交 `failed` / `errored` Verdict 对应的现场，包括被硬超时打断后形成的 `errored` Verdict；`all` 档提交全部 Verdict 对应现场。
 此时其余收尾（Agent runtime teardown、已登记 cleanup、diff 采集）已经照常完成；若实例实际退休，已登记的 physical after 随后回存 checkpoint。
 
-attempt 的最终 `locator` 在调度前已经由当前 `RecordWriteSession` 分配完整 `attemptId`，再以 scheme 1 的 SHA-256 前 60 bit 短别名编码；session 的 writer lock 只与其它 writer 互斥，不阻塞 reader。已进入 running 后取消或失败的 attempt 因而仍保留 ID；从未派发的 slot 不制造 Attempt。
+attempt 的最终 `locator` 在调度前已经由当前 `RecordWriteSession` 分配完整 `attemptId`，再以 scheme 1 的 SHA-256 前 60 bit 短别名编码；session 的 writer lock 只与其它 writer 互斥，不阻塞 reader。已进入 running 后取消或失败的 attempt 因而仍保留 ID；从未派发的 Planned attempt 不制造 Attempt。
 因此登记项、run 收尾反馈与提交进 Record 的 Attempt 事实从第一次观察起就使用同一个 locator，没有留事后补写的时段。
 
 沙箱的 Effect Scope 持有一个只在本 attempt 内可变的 release disposition,初始为 `stop`。attempt deadline 只中断 Scope **里面的 verdict-producing 工作 fiber**,把超时转换成 Observability execution diagnostic 与待写的 `errored` Verdict;它不关闭外层 Scope。Runner 随后仍在同一个 Scope 内执行有界 teardown、收敛 lifecycle 与 diagnostics,再调用 `commitKeepOrStop()`。
@@ -356,7 +356,7 @@ provider 没认出的错误再过一遍与文件 IO 重试共用的保守瞬时�
 重试循环由各内置 `ProviderModule<Plan>` 自己拥有。
 `runtime.ts` 只调用 plan 私绑的闭包，不维护 adapter registry:
 
-- 退避睡眠期间临时归还并发槽位(`retry.ts` 的 `ProvisionSlot`),睡醒后再排队要回来。在退避的 attempt 只是在等,不该攥着 `sandboxSem` 的名额陪跑 `setTimeout`,不然一批 429 会把整批实际并发拖成远低于 `--max-concurrency` 声明值的个位数。
+- 退避睡眠期间临时归还并发名额(`retry.ts` 的 `ProvisionSlot`),睡醒后再排队要回来。在退避的 attempt 只是在等,不该攥着 `sandboxSem` 的名额陪跑 `setTimeout`,不然一批 429 会把整批实际并发拖成远低于 `--max-concurrency` 声明值的个位数。
 - 重试全部耗尽后仍按原语义形成 `errored` Verdict(基建问题,不是 agent 表现);对账中销毁的实例不额外报错,只留 Observability diagnostic。
 
 **对外的空间轴映射**:内部的两维分类不外泄,但确定性配置死因向 attempt 层浮出时附带[执行失败分类](../error-classification/README.md)的 `scope`,由失败熔断消费。判据仍是可证明性,按死因的配置声明位置定档。凭据缺失、权限不足来自实验级配置,附带 `scope: "experiment"`。模板不存在按 template owner 定档。Experiment 是 template owner 时,同一模板由它选中的全部 Eval 共享,附带 `scope: "experiment"`。Eval 是 template owner 时,同因必死只能证明到共享同一模板的范围,词表里可证明的档是 `scope: "eval"`——错杀健康模板的 eval 比多撞几次死模板更贵。
@@ -424,7 +424,7 @@ SetupPrefixKey 不包含 cache lookup 结果、本地 image/container locator、
 
 1. 声明 identity、SetupPrefixKey、manifest 与 provider artifact identity 双向一致；artifact receipt 使用 provider-neutral id，不把 provider locator 当 portable identity。
 2. Provider artifact 包含 action 声明 state 的全部结果；普通 Docker 是 outer writable rootfs，Incus 是完整、quiesced 的 prepared Sandbox artifact。
-3. 每个消费者从 immutable artifact 创建独立 writable state，不共享 writable layer 或 Docker data slot。
+3. 每个消费者从 immutable artifact 创建独立 writable state，不共享 writable layer 或 Docker data allocation。
 
 `verified` 不证明 action 业务语义正确，也不证明任意 shell、网络、时钟或随机读取具有确定性。`defineSandboxAction()` 是作者对确定性的承诺。普通 JSON 与文本由作者声明为非敏感；已知 `Secret`、credential handle 与 runtime binding 在 planning 拒绝。发布前对框架已知 secret bytes 的扫描只做纵深防御。
 
@@ -435,10 +435,10 @@ Provider 按能力而非名称进入准备路径。`PreparedArtifact` 是唯一�
 | Provider / case | capability | 前缀路径与边界 |
 |---|---|---|
 | 普通单容器 Docker，全部可变状态在 outer writable rootfs | `Persistent` | 每 Attempt 使用已验证 exact image 的私有 writable container；不成为 Run 级 DAG 节点。 |
-| Docker Profile，具备已验证的独立 fixed-image slot | `Persistent` | 只能保存 capability receipt 声明的状态面（例如 `dockerData`）；shared loop/project-quota slot 报 `Unsupported`。 |
+| Docker Profile，具备已验证的独立 fixed-image allocation | `Persistent` | 只能保存 capability receipt 声明的状态面（例如 `dockerData`）；shared loop/project-quota allocation 报 `Unsupported`。 |
 | `incusSandbox()` nested Docker | `PreparedArtifact` | 发布完整、quiesced 的 prepared artifact；每个 Attempt clone 私有 writable root 与 Docker data disk，参与 Run 级 DAG。 |
-| E2B | `InvocationLocal` | template 是 Base；本 Invocation 内的可用恢复能力不等同于可发布、跨 slot 共享的 prepared artifact，不进入 Run 级 DAG。 |
-| Vercel Sandbox | `Unsupported` | 当前不声明可验证的 setup-prefix capture/restore coverage，真实 replay。 |
+| E2B | `InvocationLocal` | template 是 Base；本 Invocation 内的可用恢复能力不等同于可发布、跨 Planned attempt 共享的 prepared artifact，不进入 Run 级 DAG。 |
+| Vercel Sandbox | `Unsupported` | 当前不声明可验证的 before-cache capture/restore coverage，真实 replay。 |
 | `defineSandbox()` custom provider | `Unsupported` | NiceEval 不以结构探测推断能力；未经显式、已验证 capability receipt 的实现真实 replay。 |
 
 bind mount、tmpfs、Compose sidecar、host socket、raw / managed DinD、privileged outer container与无法完整捕获的 inner data-root 都不能冒充上述 capability。secret、runtime overlay、workspace、Attempt locator 与外部会话不进入可发布 artifact。
@@ -465,17 +465,17 @@ repository schema 为 generation 建立索引，分配只读索引端点，成�
 
 ## 运行事实的唯一归属
 
-`PreparedArtifact` 的 Run 级 prefix DAG 按完整 `SetupPrefixKey` 节点 single-flight。相同 key 的多个 Eval×Experiment 配对共享一次 preparation；节点的 activity、staging、publication 与 Scope 归 Run，不归任何 Attempt。
+`PreparedArtifact` 的 Run 级 prefix DAG 按完整 `BeforeCacheKey` 节点 single-flight。相同 key 的多个 Eval×Experiment 配对共享一次 preparation；节点的 activity、staging、publication 与 Scope 归 Run，不归任何 Attempt。
 
-不同 key 可在 `maxSetupPrefixConcurrency ∩ provider scheduling.lane.limit` 内并行。相同 `(executionDomainId, SetupPrefixKey)` 仍通过跨进程 publication lease 串行发布，等待者消费同一 committed `ArtifactIntent`。
+不同 key 可在 `maxBeforeCacheConcurrency ∩ provider scheduling.lane.limit` 内并行。相同 `(executionDomainId, BeforeCacheKey)` 仍通过跨进程 publication lease 串行发布，等待者消费同一 committed `ArtifactIntent`。
 
-Run 保留全局 pre-dispatch barrier：所有 prefix 节点结算后才派发 Attempt。一个失败节点只阻断其 descendants 和依赖该 terminal prefix 的 slots；其余分支照常结算。取消停止并回收未结算节点的 staging 与 publication，但不回滚已验证发布的 immutable artifact。
+Run 保留全局 pre-dispatch barrier：所有 prefix 节点结算后才派发 Attempt。一个失败节点只阻断其 descendants 和依赖该 terminal prefix 的 Planned attempts；其余分支照常结算。取消停止并回收未结算节点的 staging 与 publication，但不回滚已验证发布的 immutable artifact。
 
 `Persistent`、`InvocationLocal` 与 `Unsupported` 的 lookup、restore、replay、satisfaction 与 cleanup 仍归各自 Attempt，不因 key 相同共享 activity、locator 或可写状态。
 
-无论能力类别，持久 artifact receipt 都只保存 provider-neutral artifact id、SetupPrefixKey、manifest、execution domain 与必要的验证 revision。它不保存本地 image/container/snapshot locator、credential value、secret bytes 或 Attempt locator。
+无论能力类别，持久 artifact receipt 都只保存 provider-neutral artifact id、BeforeCacheKey、manifest、execution domain 与必要的验证 revision。它不保存本地 image/container/snapshot locator、credential value、secret bytes 或 Attempt locator。
 
-Attempt locator 只在全局 barrier 后实际 dispatch 时由当前 `RecordWriteSession` 分配；从调度、收尾反馈到 Record 提交始终使用同一个值。未派发 slot、queued prefix node 与 Run activity 都不制造 locator。
+Attempt locator 只在全局 barrier 后实际 dispatch 时由当前 `RecordWriteSession` 分配；从调度、收尾反馈到 Record 提交始终使用同一个值。未派发 Planned attempt、queued prefix node 与 Run activity 都不制造 locator。
 
 静态 `niceeval debug` 不读取 cache，固定输出 `cacheLookup: "not-probed"`。运行反馈的闭合结果只有 `hit`、`replay`、`unsupported` 与 `degraded`；`replay` 另带 `miss | bypass` reason。Record 不保存本地 image/container locator、credential value 或 secret bytes。
 
