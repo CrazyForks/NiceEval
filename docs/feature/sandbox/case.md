@@ -169,7 +169,7 @@ CaseKey
 
 **BuildKey 负责构建结果复用,CaseKey 负责完整 attempt 运行身份与 fingerprint。**
 
-当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 SetupPrefixKey。最终 CaseKey 再包含最终 SetupPrefixKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#准备前缀的身份与验证边界)。
+当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 SetupPrefixKey。最终 CaseKey 再包含最终 SetupPrefixKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#before-缓存的身份与验证边界)。
 
 cache policy、`sandboxCache.setup`、hit/replay 与本地 Docker image/container locator 不进入 CaseKey。`bypass` 也不进入 BuildKey、SetupPrefixKey、Attempt fingerprint 或 result identity。因此同一内容不会因本机缓存冷热或排障开关而失去可比性。
 
