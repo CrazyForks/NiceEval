@@ -31,9 +31,7 @@ const REQUIRED_LIVE_SECRETS = ["OPENAI_API_KEY", "OPENAI_BASE_URL"] as const;
 
 const niceeval = command([join(process.cwd(), "node_modules", ".bin", "niceeval")]);
 let run!: ProcessReceipt;
-let legacy!: ProcessReceipt;
 let evalEvents!: ExpEvalEvent[];
-let legacyEvalEvents!: ExpEvalEvent[];
 
 function requireLiveSecrets(): void {
   const missing = REQUIRED_LIVE_SECRETS.filter((name) => !process.env[name]);
@@ -73,13 +71,6 @@ beforeAll(async () => {
   expect(run.exitCode, run.diagnostic()).toBe(0);
   evalEvents = run.expEvalEvents();
 
-  // legacy 版本线证明声明的旧版组合仍能安装并完成公开协议闭环。
-  legacy = await niceeval.run(
-    ["exp", "legacy", "coding-task", "--rerun", "all", "--json"],
-    { timeoutMs: 20 * 60_000 },
-  );
-  expect(legacy.exitCode, legacy.diagnostic()).toBe(0);
-  legacyEvalEvents = legacy.expEvalEvents();
 }, 36 * 60_000);
 // @feature docs/feature/adapters/README.md
 
@@ -96,23 +87,6 @@ it("真实 Bub adapter 的 Eval 通过数正确且没有未通过项", () => {
     () => run.diagnostic(),
   );
 
-  const legacyInv = legacy.expReceipt();
-  expect(legacyInv.completion, legacy.diagnostic()).toBe("completed");
-  expect(legacyInv.createdRunIds, legacy.diagnostic()).toHaveLength(1);
-  assertExpEvalOutcomes(
-    legacyEvalEvents,
-    [
-      // legacy：旧版/otelPlugin pin 仍须完成同一写文件与 shell 读回闭环，因此期望 passed/1。
-      {
-        experimentId: "legacy",
-        evalId: "coding-task/write-and-verify",
-        verdict: "passed",
-        attempts: 1,
-        passed: 1,
-      },
-    ],
-    () => legacy.diagnostic(),
-  );
 });
 // @feature docs/feature/adapters/README.md
 

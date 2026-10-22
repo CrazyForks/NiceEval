@@ -1,0 +1,151 @@
+{
+  "info": {
+    "id": "ses_e9e81f231ffewPM6iCLLl2wkyw",
+    "slug": "hidden-knight",
+    "projectID": "global",
+    "directory": "/private/tmp/nice019-protocols/opencode",
+    "path": "private/tmp/nice019-protocols/opencode",
+    "title": "Protocol fixture complete.",
+    "agent": "build",
+    "model": {
+      "id": "fixture",
+      "providerID": "fixture",
+      "variant": "default"
+    },
+    "version": "1.18.5",
+    "summary": {
+      "additions": 0,
+      "deletions": 0,
+      "files": 0
+    },
+    "cost": 0,
+    "tokens": {
+      "input": 11,
+      "output": 5,
+      "reasoning": 0,
+      "cache": {
+        "read": 0,
+        "write": 0
+      }
+    },
+    "permission": [
+      {
+        "permission": "question",
+        "pattern": "*",
+        "action": "deny"
+      },
+      {
+        "permission": "plan_enter",
+        "pattern": "*",
+        "action": "deny"
+      },
+      {
+        "permission": "plan_exit",
+        "pattern": "*",
+        "action": "deny"
+      }
+    ],
+    "time": {
+      "created": 1792637013455,
+      "updated": 1792637014554
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "role": "user",
+        "time": {
+          "created": 1792637013487
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "fixture",
+          "modelID": "fixture"
+        },
+        "summary": {
+          "diffs": []
+        },
+        "id": "msg_1617e0def001lssHKEFd9NcoQ5",
+        "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw"
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "\"Reply with the fixture message.\"",
+          "id": "prt_1617e0df5001GKRPYXaBgDWv1n",
+          "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw",
+          "messageID": "msg_1617e0def001lssHKEFd9NcoQ5"
+        }
+      ]
+    },
+    {
+      "info": {
+        "parentID": "msg_1617e0def001lssHKEFd9NcoQ5",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/private/tmp/nice019-protocols/opencode",
+          "root": "/"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 16,
+          "input": 11,
+          "output": 5,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fixture",
+        "providerID": "fixture",
+        "time": {
+          "created": 1792637013783,
+          "completed": 1792637014542
+        },
+        "finish": "stop",
+        "id": "msg_1617e0f17001Z2KfmZ45fsd689",
+        "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw"
+      },
+      "parts": [
+        {
+          "type": "step-start",
+          "id": "prt_1617e1203001Og51GmN0ya368F",
+          "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw",
+          "messageID": "msg_1617e0f17001Z2KfmZ45fsd689"
+        },
+        {
+          "type": "text",
+          "text": "Protocol fixture complete.",
+          "time": {
+            "start": 1792637014533,
+            "end": 1792637014535
+          },
+          "id": "prt_1617e1205001dQCtFJKaggNPsq",
+          "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw",
+          "messageID": "msg_1617e0f17001Z2KfmZ45fsd689"
+        },
+        {
+          "reason": "stop",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_1617e120a001vERBgRatqNgY5M",
+          "sessionID": "ses_e9e81f231ffewPM6iCLLl2wkyw",
+          "messageID": "msg_1617e0f17001Z2KfmZ45fsd689"
+        }
+      ]
+    }
+  ]
+}
