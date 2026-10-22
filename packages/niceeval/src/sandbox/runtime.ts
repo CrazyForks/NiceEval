@@ -35,6 +35,7 @@ import {
   type SandboxProviderBackend,
 } from "./backend.ts";
 import { normalizeSandboxPaths } from "./paths.ts";
+import { applyCommandDeadline } from "./deadline.ts";
 import { registerSandbox, unregisterSandbox } from "./registry.ts";
 import { currentRunIdentity } from "./run-identity.ts";
 import {
@@ -1163,8 +1164,10 @@ function runTeardownHooks(
   return Effect.forEach(
     [...hooks].reverse(),
     (hook) => {
-      const cleanupContext = { ...context, signal: AbortSignal.timeout(CLEANUP_TIMEOUT_MS) };
-      return cleanupCallback(() => hook(sandbox, cleanupContext)).pipe(Effect.catch((cause) => Effect.sync(() => {
+      return cleanupCallback((signal) => {
+        applyCommandDeadline(sandbox, Date.now() + CLEANUP_TIMEOUT_MS);
+        return hook(sandbox, { ...context, signal });
+      }).pipe(Effect.catch((cause) => Effect.sync(() => {
         context.diagnostic({
           code: "sandbox-teardown-failed",
           level: "warning",
@@ -1207,8 +1210,12 @@ function runSandboxPluginTeardowns(
     (entry) => {
       const teardown = entry.lifecycle.teardown;
       if (teardown === undefined) return Effect.void;
-      const cleanupContext = { ...input.hookContext, signal: AbortSignal.timeout(CLEANUP_TIMEOUT_MS) };
-      return cleanupCallback(() => (teardown as (sandbox: Sandbox, context: SandboxHookContext) => void | Promise<void>)(owned.sandbox, cleanupContext)).pipe(
+      return cleanupCallback((signal) => {
+        applyCommandDeadline(owned.sandbox, Date.now() + CLEANUP_TIMEOUT_MS);
+        return (teardown as (sandbox: Sandbox, context: SandboxHookContext) => void | Promise<void>)(
+          owned.sandbox, { ...input.hookContext, signal },
+        );
+      }).pipe(
         Effect.catch((cause) => Effect.sync(() => input.feedback.diagnostic({
           code: "plugin-lifecycle-teardown-failed",
           level: "warning",

@@ -19,5 +19,8 @@ test.concurrent("Group 成员耗尽执行时限后仍能在 cleanup 保存 check
       expect.objectContaining({ evalId: "group-checkpoint/timeout", verdict: "errored" }),
     ]);
     expect(await readFile(join(root, "group-checkpoint-saved.txt"), "utf8"), result.diagnostic()).toBe("second");
+    expect(await readFile(join(root, "group-checkpoint-explicit-timeout.txt"), "utf8"), result.diagnostic())
+      .toContain("100ms");
+    expect(`${result.stdout}\n${result.stderr}`).not.toContain("sandbox-teardown-failed");
   });
 });
