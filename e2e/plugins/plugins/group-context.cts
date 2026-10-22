@@ -20,3 +20,10 @@ const group: PluginInstance<"group"> = experimentOnly;
 // @ts-expect-error Agent extensions are Experiment-only.
 const evalPlugin: PluginInstance<"eval"> = experimentOnly;
 void group; void evalPlugin;
+
+definePlugin((options: { version: string }) => ({ name: "optional-factory", identity: { version: options.version },
+  attempt: { before(ctx) {
+    // @ts-expect-error Optional factory context must guard evalGroup.
+    ctx.evalGroup.id;
+  } },
+}));

@@ -257,8 +257,7 @@ function createPlugin(spec: unknown): PluginInstance {
 }
 export function definePlugin<const Definition extends GroupRequiredPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
 export function definePlugin<const Definition extends OptionalGroupPluginDefinition>(spec: Definition): PluginInstance<OwnersOf<Definition>>;
-export function definePlugin<Options, const Definition extends GroupRequiredPluginDefinition>(factory: (options: Options) => Definition): (options: Options) => PluginInstance<OwnersOf<Definition>>;
-export function definePlugin<Options, const Definition extends OptionalGroupPluginDefinition>(factory: (options: Options) => Definition): (options: Options) => PluginInstance<OwnersOf<Definition>>;
+export function definePlugin<Options, const Required extends boolean = false, const Definition extends PluginIdentity = PluginIdentity>(factory: (options: Options) => Definition & { readonly requires?: { readonly evalGroup: Required } } & NonEmptyFields<Required>): (options: Options) => PluginInstance<OwnersOf<Definition>>;
 // @concord-code ne-surface-define-plugin
 // @concord-implements docs/feature/plugins/library.md
 export function definePlugin(spec: unknown): PluginInstance | ((options: unknown) => PluginInstance) {
