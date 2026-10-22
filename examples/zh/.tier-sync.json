@@ -46,41 +46,37 @@
       "from": "examples/zh/tier1/langgraph",
       "to": "examples/zh/tier2/langgraph",
       "contract": "overlay",
-      "baseTree": "d49774862454040c7b34a8abe72755714b62393c",
-      "pending": {
-        "upstreamTree": "ab22313bbb16294c91d7b31cbbd977d22a15894c",
-        "needsInstall": false
-      }
+      "baseTree": "ab22313bbb16294c91d7b31cbbd977d22a15894c"
     },
     {
       "from": "examples/zh/tier2/ai-sdk-v7",
       "to": "examples/zh/tier3/ai-sdk-v7",
       "contract": "overlay",
-      "baseTree": "0bc477d11864e55d9dcfb0228a5c390374c05021"
+      "baseTree": "fcdec904a5d0a98c7e0bcb0337fe8e8878da5c21"
     },
     {
       "from": "examples/zh/tier2/codex-sdk",
       "to": "examples/zh/tier3/codex-sdk",
       "contract": "overlay",
-      "baseTree": "0f8a6e30dcb8aa5d3457bb731d0ae41154f1d184"
+      "baseTree": "908a188fd9941e8ffe8654cb775eca189830b702"
     },
     {
       "from": "examples/zh/tier2/langgraph",
       "to": "examples/zh/tier3/langgraph",
       "contract": "overlay",
-      "baseTree": "b321b42d4ee444e31ff83fd7669232fea506a6b4"
+      "baseTree": "c93e43f92775dbf9c9aa0d9d9badec4c8ef76891"
     },
     {
       "from": "examples/zh/tier1/claude-sdk",
       "to": "examples/zh/tier3/claude-sdk",
       "contract": "overlay",
-      "baseTree": "7459255d3750899c5909860fbc7b95a42c20088e"
+      "baseTree": "1488aed7188d1eac64a41d1d38ae89776593e090"
     },
     {
       "from": "examples/zh/tier1/pi-sdk",
       "to": "examples/zh/tier3/pi-sdk",
       "contract": "overlay",
-      "baseTree": "e93104c22062fe4ae2ad8e8fa50569800db4d523"
+      "baseTree": "970c2f2370936323149b5443d235386e2001be18"
     }
   ]
 }
