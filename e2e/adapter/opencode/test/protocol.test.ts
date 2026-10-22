@@ -55,10 +55,11 @@ test.concurrent("OpenCode 固定版本样本保留文本和用量并汇总未知
       expect(warnings[0]?.summary).toContain("future-event (4)");
       expect(warnings[0]?.summary).toContain("message (2)");
       const locator = outcome.locator.startsWith("@") ? outcome.locator : `@${outcome.locator}`;
-      const shown = await niceeval.run(["show", locator]);
+      const shown = await niceeval.run(["show", locator, "--execution"]);
       expect(shown.exitCode, shown.diagnostic()).toBe(0);
-      expect(shown.stdout).toContain("agent-event-unrecognized");
-      expect(shown.stdout).toContain("future-event (4)");
+      expect(shown.stdout).toContain("Diagnostic outline");
+      expect(shown.stdout).toContain("advisory");
+      expect(shown.stdout).toContain("future-event");
     }
   });
   }));

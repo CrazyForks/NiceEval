@@ -43,7 +43,7 @@ import {
 } from "./attempt-resources.ts";
 import { bindAttemptResources } from "../context/attempt-resources.ts";
 import { resolveAttemptTimeout, type TimeoutSource } from "./timeout.ts";
-import { SandboxCommandTimeoutError } from "../sandbox/deadline.ts";
+import { applyCommandDeadline, SandboxCommandTimeoutError } from "../sandbox/deadline.ts";
 import { ExperimentFatalError } from "../shared/failure-class.ts";
 import type { ExternalCause } from "../shared/external-cause.ts";
 import { computeExpiresAt, nativeEnterCommand, suspendSandbox } from "../sandbox/keep.ts";
@@ -1120,9 +1120,8 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
       // forkIn() interrupts new children immediately even before the executor's own finalizer flips
       // its closed flag. Cleanup therefore uses the provider-owned resource facade; before/Agent/test
       // continue to use the interruptible author facade above.
-      const cleanupCommandTarget = createSandboxCommandTarget(
-        reusedSandbox?.resourceSandbox ?? materializedCase?.sandbox ?? sandbox,
-      );
+      const cleanupSandbox = reusedSandbox?.resourceSandbox ?? materializedCase?.sandbox ?? sandbox;
+      const cleanupCommandTarget = createSandboxCommandTarget(cleanupSandbox);
       // ── tracing ──────────────────────────────────────────────────────────────────
       // sandbox.otlpHost:
       //   string → provider 承诺该 hostname 可访问宿主 receiver
@@ -1341,10 +1340,15 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
                   startOffsetMs: startedAt,
                 }));
                 if (node) recorder.pushParent(node);
-                return cleanupCallback((cleanupSignal) => cleanup.command(cleanupCommandTarget, {
-                  ...cleanup.context,
-                  signal: cleanupSignal,
-                })).pipe(
+                return cleanupCallback((cleanupSignal) => {
+                  // The forward Attempt may have exhausted its deadline. Each cleanup
+                  // owns a fresh bounded command window, including on reused instances.
+                  applyCommandDeadline(cleanupSandbox, clock.currentTimeMillisUnsafe() + CLEANUP_TIMEOUT_MS);
+                  return cleanup.command(cleanupCommandTarget, {
+                    ...cleanup.context,
+                    signal: cleanupSignal,
+                  });
+                }).pipe(
                   Effect.catch((error) => Effect.sync(() => {
                     if (node) node.failed = true;
                     declareFailure("sandbox.cleanup", error);
