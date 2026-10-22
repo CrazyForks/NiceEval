@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { compileDiffCode } from "./diff-code-compiler.js";
@@ -10,12 +10,14 @@ import { DocsFileError, type DocsDomainError, DocsProcessError, errorMessage } f
 import type { CommandReceipt } from "./model.js";
 import {
   BUNDLED_INDEX_REGION,
+  ENGLISH_REFERENCE_TRANSLATIONS_PATH,
   REFERENCE_FILES,
   SOURCE_FILES,
   type SourceMap,
   type ZhPage,
   regenerateBundledIndex,
-  regenerateEnglishReferenceProvenance,
+  compileEnglishReferenceRegions,
+  regenerateEnglishReferenceDoc,
   regenerateReferenceDoc,
 } from "./reference-compiler.js";
 import { absolutePath, atomicWriteText, REPOSITORY_ROOT } from "concord-sdlc/repository/docs/runtime";
@@ -51,8 +53,15 @@ export function loadReferenceSources(): SourceMap {
   return sources;
 }
 
+export function loadEnglishReferenceTranslations() {
+  return Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Record(Schema.String, Schema.String)))(
+    readFileSync(absolutePath(ENGLISH_REFERENCE_TRANSLATIONS_PATH), "utf8"),
+  );
+}
+
 function compileReferenceOutputs(): readonly GeneratedOutput[] {
   const sources = loadReferenceSources();
+  const englishRegions = compileEnglishReferenceRegions(sources, loadEnglishReferenceTranslations());
   return REFERENCE_FILES.flatMap(({ file }) => {
     const zhPath = `apps/docs-site/zh/reference/${file}`;
     const zhOriginal = readFileSync(absolutePath(zhPath), "utf8");
@@ -60,7 +69,7 @@ function compileReferenceOutputs(): readonly GeneratedOutput[] {
     const enOriginal = readFileSync(absolutePath(enPath), "utf8");
     return [
       { path: zhPath, original: zhOriginal, content: regenerateReferenceDoc(file, zhOriginal, sources) },
-      { path: enPath, original: enOriginal, content: regenerateEnglishReferenceProvenance(enOriginal) },
+      { path: enPath, original: enOriginal, content: regenerateEnglishReferenceDoc(file, enOriginal, englishRegions) },
     ];
   });
 }

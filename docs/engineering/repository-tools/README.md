@@ -126,6 +126,22 @@ Roadmap 与 Engineering 的结构写入也使用 Concord 基础 CLI 的受管入
 
 追溯关系与各领域 mutation 的语义见[仓库文档追溯](../docs-traceability/README.md)。Design 与 Research 的闭环分别见[Design](../../design/README.md)和[Research](../../research/README.md)。
 
+## 双语 Reference 生成
+
+`pnpm run repo docs reference` 同时生成中英文 reference 的 `GENERATED` 区块。标题、签名代码块、类型、默认值和条目顺序来自同一份源码声明。中文说明来自紧邻 TSDoc 或 CLI option help。
+
+英文说明由 `apps/docs-site/reference/.generated-en.json` 拥有。它是条目键到英文说明的 JSON 对象，不保存签名或字段顺序：
+
+- 普通成员使用 `region/member`；具名分组使用 `region/group/member`，防止不同接口的同名字段共用译文。
+- CLI 行使用 `cli-flags/sorted,commands/--flag`；适用命令按字典序排序后用逗号连接，根命令为空串。
+- 同名联合类型变体共用说明。每个条目都必须有键；源码没有说明时可以用空字符串，源码有说明时译文不能为空。
+
+生成器在写入任何输出前校验完整译文表。缺少键、非字符串值、有源码说明却缺少有效译文或已不存在于源码的键都使命令失败，并指出需要修正的输入。`--dry-run` 使用同一校验和生成路径，只返回会变化的路径。
+
+增删或重命名源码条目时同步维护译文键；说明变化时更新对应英文译文，再生成两种语言的页面。生成区不能手工修改。`pnpm lint` 逐字节比对两种语言的生成结果，同时检查译文表完整性。
+
+验收从正式命令进入：先运行 `--dry-run`，生成后再次 dry-run 应返回空路径列表。在隔离副本中删除译文、增加失效键或写入非法值，dry-run 与写命令都应零写入失败。修改英文生成区应使 reference 漂移 lint 失败，重新生成后通过。
+
 ## 动态发现
 
 维护者按任务意图逐层进入：

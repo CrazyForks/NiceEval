@@ -705,12 +705,14 @@ function renderedOptionType(entry: CollectedCliFlag): string {
   return entry.multiple ? "string[]" : "string";
 }
 
-function renderedFlagSyntax(entry: CollectedCliFlag): string {
+function renderedFlagSyntax(entry: CollectedCliFlag, english = false): string {
   const flag = `--${entry.key}`;
   const optional = entry.optionalValue;
   if (optional === undefined) return `\`${flag}\``;
   const value = optional.values === undefined ? "<value>" : optional.values.join("|");
-  const bare = optional.default === true ? `\`${flag}\`` : `\`${flag}\`（单独使用为 \`${optional.default}\`）`;
+  const bare = optional.default === true ? `\`${flag}\`` : english
+    ? `\`${flag}\` (alone means \`${optional.default}\`)`
+    : `\`${flag}\`（单独使用为 \`${optional.default}\`）`;
   const inline = `\`${flag}=${value}\``;
   const separated = `\`${flag} ${value}\``;
   return optional.separated ? `${bare} / ${inline} / ${separated}` : `${bare} / ${inline}`;
@@ -722,7 +724,7 @@ function referenceSummary(entry: CollectedCliFlag): string {
     ?? entry.summary;
 }
 
-function buildCliFlagRows(sources: SourceMap): CliFlagRow[] {
+function buildCliFlagRows(sources: SourceMap, translate?: ReferenceTranslation): CliFlagRow[] {
   const entries = CLI_OPTION_SCHEMA_SOURCES.flatMap(({ source, schema, commands }) => {
     const numberKeys = extractNumberFlagKeys(sources[source], source);
     return extractFlagOptions(sources[source], source, schema).map((entry): CollectedCliFlag => {
@@ -773,10 +775,12 @@ function buildCliFlagRows(sources: SourceMap): CliFlagRow[] {
     );
     if (hasPositivePair) continue; // 只在同一命令确有正向 flag 时合并；独立 --no-* 仍需出现在参考表。
     if (!e.visible) continue;
-    const flags = [renderedFlagSyntax(e)];
+    const flags = [renderedFlagSyntax(e, translate !== undefined)];
     const negKey = `no-${e.key}`;
     if (entries.some((x) => x.key === negKey && x.commands.some((command) => e.commands.includes(command)))) flags.push(`\`--${negKey}\``);
-    rows.push({ flags, type: renderedOptionType(e), description: referenceSummary(e), commands: [...e.commands] });
+    const key = `cli-flags/${[...e.commands].sort().join(",")}/--${e.key}`;
+    const description = referenceSummary(e);
+    rows.push({ flags, type: renderedOptionType(e), description: translate?.(key, description) ?? description, commands: [...e.commands] });
   }
   return rows;
 }
@@ -791,7 +795,9 @@ function buildCliFlagRows(sources: SourceMap): CliFlagRow[] {
  * 这样 URL 里的原始字符不需要再转义(反引号内本来就不会被解析成 JSX)。
  */
 function protectBareUrls(text: string): string {
-  return text.replace(/https?:\/\/[^\s，。；;,、)）\]】]+/g, (url) => `\`${url}\``);
+  return text.replace(/`[^`]*`|https?:\/\/[^\s`，。；;,、)）\]】]+/g, (token) =>
+    token.startsWith("`") ? token : `\`${token}\``,
+  );
 }
 
 function escapeMdxProse(text: string): string {
@@ -833,11 +839,11 @@ export function renderMemberGroups(groups: MemberGroup[], groupHeadingLevel = 3,
     .join("\n\n");
 }
 
-function renderCliFlagsTable(rows: CliFlagRow[]): string {
-  const header = "| Flag | 命令 | 类型 | 说明 |\n|---|---|---|---|";
+function renderCliFlagsTable(rows: CliFlagRow[], english = false): string {
+  const header = `${english ? "| Flag | Command | Type | Description |" : "| Flag | 命令 | 类型 | 说明 |"}\n|---|---|---|---|`;
   const lines = rows.map((r) => {
     const flagCell = r.flags.join(" / ").replace(/\|/g, "\\|");
-    const commandCell = r.commands.map((command) => `\`niceeval${command === "" ? "" : ` ${command}`}\``).join("、");
+    const commandCell = r.commands.map((command) => `\`niceeval${command === "" ? "" : ` ${command}`}\``).join(english ? ", " : "、");
     return `| ${flagCell} | ${commandCell} | ${r.type.replace(/\|/g, "\\|")} | ${escapeMdxProse(r.description).replace(/\|/g, "\\|")} |`;
   });
   return [header, ...lines].join("\n");
@@ -972,20 +978,33 @@ const ASSERT_FIRST_REFERENCE = {
   turnHandle: "AssertFirstTurnHandle",
 } as const;
 
-function computeRegionBody(regionId: string, sources: SourceMap): string {
+type ReferenceTranslation = (key: string, sourceDescription: string) => string;
+export type EnglishReferenceTranslations = Readonly<Record<string, string>>;
+export const ENGLISH_REFERENCE_TRANSLATIONS_PATH = "apps/docs-site/reference/.generated-en.json";
+
+function computeRegionBody(regionId: string, sources: SourceMap, translate?: ReferenceTranslation): string {
+  const localize = (member: Member, group?: string): Member => ({
+    ...member,
+    doc: translate?.([regionId, group, member.name].filter(Boolean).join("/"), member.doc ?? "") ?? member.doc,
+  });
+  const renderList = (members: Member[]) => renderMemberList(members.map((member) => localize(member)));
+  const renderGroups = (groups: MemberGroup[]) => renderMemberGroups(groups.map((group) => ({
+    ...group,
+    members: group.members.map((member) => localize(member, group.heading)),
+  })));
   switch (regionId) {
     case "judge-image":
-      return renderMemberGroups([
+      return renderGroups([
         { members: extractExportedFunctions(sources["src/judge/image.ts"], "src/judge/image.ts").filter((member) => member.name === "judgeImage") },
         { heading: "JudgeImageInput", members: extractInterfaceMembers(sources["src/judge/image.ts"], "src/judge/image.ts", "JudgeImageInput") },
       ]);
     case "expect-matchers":
-      return renderMemberList(
+      return renderList(
         [...extractExportedFunctions(sources["src/assertions/match.ts"], "src/assertions/match.ts"), ...extractExportedFunctions(sources["src/assertions/context-match.ts"], "src/assertions/context-match.ts")]
           .filter((member) => EXPECT_FACTORY_NAMES.has(member.name)),
       );
     case "value-assertion":
-      return renderMemberGroups([
+      return renderGroups([
         {
           heading: "Match",
           members: extractInterfaceMembers(sources["src/assertions/match.ts"], "src/assertions/match.ts", "Match")
@@ -1009,7 +1028,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         },
       ]);
     case "defineeval-options":
-      return renderMemberList(
+      return renderList(
         [
           ...extractInterfaceMembers(
             sources["src/runner/types.ts"],
@@ -1024,7 +1043,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         ],
       );
     case "test-context":
-      return renderMemberList(
+      return renderList(
         authorFacingMembers(
           extractTypeLiteralMembers(
             sources[ASSERT_FIRST_REFERENCE.source],
@@ -1037,7 +1056,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         ),
       );
     case "turn-handle":
-      return renderMemberList(
+      return renderList(
         authorFacingMembers(
           extractInterfaceMembers(
             sources[ASSERT_FIRST_REFERENCE.source],
@@ -1050,11 +1069,11 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         ),
       );
     case "experiment-fields":
-      return renderMemberList(
+      return renderList(
         extractInterfaceMembers(sources["src/runner/types.ts"], "src/runner/types.ts", "ExperimentAuthorFields"),
       );
     case "config-fields":
-      return renderMemberList(
+      return renderList(
         extractInterfaceMembers(sources["src/runner/types.ts"], "src/runner/types.ts", "Config"),
       );
     case "agent-def":
@@ -1071,7 +1090,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
             }
           : member,
       );
-      return renderMemberGroups([
+      return renderGroups([
         {
           heading: "AdapterAssertionsFactoryContext",
           members: extractInterfaceMembers(
@@ -1110,7 +1129,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         },
       ]);
     case "sandbox-methods":
-      return renderMemberGroups([
+      return renderGroups([
         ...extractInterfaceMemberGroups(
           sources["src/sandbox/types.ts"],
           "src/sandbox/types.ts",
@@ -1126,15 +1145,15 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         },
       ]);
     case "stream-events":
-      return renderMemberList(
+      return renderList(
         extractUnionVariants(sources["src/o11y/types.ts"], "src/o11y/types.ts", "StreamEvent"),
       );
     case "usage-fields":
-      return renderMemberList(extractInterfaceMembers(sources["src/o11y/types.ts"], "src/o11y/types.ts", "Usage"));
+      return renderList(extractInterfaceMembers(sources["src/o11y/types.ts"], "src/o11y/types.ts", "Usage"));
     case "cli-flags":
-      return renderCliFlagsTable(buildCliFlagRows(sources));
+      return renderCliFlagsTable(buildCliFlagRows(sources, translate), translate !== undefined);
     case "builtin-agent-config":
-      return renderMemberGroups([
+      return renderGroups([
         {
           heading: "ClaudeCodeConfig",
           members: extractInterfaceMembers(
@@ -1153,7 +1172,7 @@ function computeRegionBody(regionId: string, sources: SourceMap): string {
         },
       ]);
     case "ui-message-stream-options":
-      return renderMemberList(
+      return renderList(
         extractInterfaceMembers(
           sources["src/agents/ui-message-stream.ts"],
           "src/agents/ui-message-stream.ts",
@@ -1181,10 +1200,8 @@ export const REFERENCE_FILES: { file: string; regions: string[] }[] = [
 // MDX 注释不渲染;作为区块内容的一部分随每次生成写入,不会漂移、不需要手工维护。
 const REGION_PROVENANCE =
   "{/* 本区块由 pnpm run repo docs reference 从源码注释生成,勿手改;要改文案,改对应源码的 TSDoc/JSDoc(映射见 packages/repo-tools/src/docs/reference-compiler.ts) */}";
-const LEGACY_EN_REGION_PROVENANCE =
-  "{/* This block is generated by pnpm docs:reference from source comments. Do not edit it by hand; to change the copy, edit the corresponding source TSDoc/JSDoc (see scripts/generate-reference.ts for the mapping). */}";
 const EN_REGION_PROVENANCE =
-  "{/* This block is generated by pnpm run repo docs reference from source comments. Do not edit it by hand; to change the copy, edit the corresponding source TSDoc/JSDoc (see packages/repo-tools/src/docs/reference-compiler.ts for the mapping). */}";
+  "{/* Generated by pnpm run repo docs reference. Do not edit this block: structure comes from source declarations; English descriptions come from apps/docs-site/reference/.generated-en.json. */}";
 
 /**
  * 纯函数:给定一个 reference mdx 文件当前内容 + 全部源文件内容,重新计算它全部 region 的内容
@@ -1201,9 +1218,54 @@ export function regenerateReferenceDoc(file: string, mdxContent: string, sources
   return content;
 }
 
-/** Keep the English mirror's generated-region owner pointer on the same public command. */
-export function regenerateEnglishReferenceProvenance(mdxContent: string): string {
-  return mdxContent.replaceAll(LEGACY_EN_REGION_PROVENANCE, EN_REGION_PROVENANCE);
+/** Validate the complete translation catalog before any output is written, including on dry-run. */
+export function compileEnglishReferenceRegions(
+  sources: SourceMap,
+  translations: EnglishReferenceTranslations,
+): ReadonlyMap<string, string> {
+  const used = new Set<string>();
+  const missing = new Set<string>();
+  const empty = new Set<string>();
+  const translate: ReferenceTranslation = (key, sourceDescription) => {
+    used.add(key);
+    if (!Object.hasOwn(translations, key)) {
+      missing.add(key);
+      return "";
+    }
+    const description = translations[key]!;
+    if (sourceDescription.trim() && !description.trim()) empty.add(key);
+    return description;
+  };
+  const regions = new Map(REFERENCE_FILES.flatMap(({ regions }) => regions.map((regionId) =>
+    [regionId, computeRegionBody(regionId, sources, translate)] as const,
+  )));
+  const stale = Object.keys(translations).filter((key) => !used.has(key));
+  if (missing.size || empty.size || stale.length) {
+    throw new Error([
+      `Invalid English reference translations in ${ENGLISH_REFERENCE_TRANSLATIONS_PATH}.`,
+      missing.size ? `Missing keys: ${[...missing].join(", ")}.` : "",
+      empty.size ? `Empty descriptions: ${[...empty].join(", ")}.` : "",
+      stale.length ? `Stale keys: ${stale.join(", ")}.` : "",
+      "Add missing English descriptions or remove stale keys, then rerun pnpm run repo docs reference.",
+    ].filter(Boolean).join("\n"));
+  }
+  return regions;
+}
+
+export function regenerateEnglishReferenceDoc(
+  file: string,
+  mdxContent: string,
+  regions: ReadonlyMap<string, string>,
+): string {
+  const entry = REFERENCE_FILES.find((entry) => entry.file === file);
+  if (!entry) throw new Error(`${file} is not a registered reference doc`);
+  let content = mdxContent;
+  for (const regionId of entry.regions) {
+    const body = regions.get(regionId);
+    if (body === undefined) throw new Error(`Missing compiled English reference region: ${regionId}`);
+    content = replaceRegion(content, regionId, `${EN_REGION_PROVENANCE}\n\n${body}`);
+  }
+  return content;
 }
 
 // ───────────────────────── 随包 AI 索引:INDEX.md(构建产物) ─────────────────────────
