@@ -1,5 +1,5 @@
 import { defineEval } from "niceeval";
-import { and, commandSucceeded, eventMatch, includes, or, toolMatch } from "niceeval/expect";
+import { and, commandSucceeded, eventMatch, includes, ms, or, toolMatch } from "niceeval/expect";
 
 function recallMatch() {
   return and(
@@ -15,6 +15,9 @@ function recallEval(topic: string, prompt: string) {
       const turn = await t.send(prompt);
       await turn.succeeded().orStop();
       t.check(t.reply, recallMatch());
+      t.note("Recall latency", ms(512));
+      t.note("Recall details", { topic });
+      t.note("Missing observation", null);
     },
   });
 }

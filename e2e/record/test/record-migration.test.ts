@@ -341,6 +341,7 @@ test.concurrent("历史公开 producer Record 首次只读即可自动迁移并�
             const attemptQuery = await niceeval.run(["query", "run", "--request", attemptRequest]);
             expect(attemptQuery.exitCode, attemptQuery.diagnostic()).toBe(0);
             const attemptDocument = attemptQuery.querySuccess("attempt.get");
+            expect(attemptDocument.attempt.notes).toEqual([]);
             expect(attemptDocument.attempt.assertions.state).toBe("available");
             const assertionEntry = only(
               attemptDocument.attempt.assertions.entries,
