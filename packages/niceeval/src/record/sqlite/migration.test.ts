@@ -174,7 +174,9 @@ it("rejects a corrupted but valid historical Run payload and rolls back schema c
     }
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0)).rejects.toThrow();
-    expect(await readFile(path)).toEqual(before);
+    // Native byte equality avoids deep-comparing hundreds of thousands of
+    // Buffer properties while retaining the exact no-mutation assertion.
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
     const preserved = new DatabaseSync(path, { readOnly: true });
     try {
       expect(preserved.prepare("SELECT format FROM record_metadata WHERE singleton=1").get()?.format)
@@ -199,7 +201,7 @@ it("preserves an old project while a remote lock owner cannot be proven inactive
     }
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0)).rejects.toThrow(/active or unknown owner/u);
-    expect(await readFile(path)).toEqual(before);
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
   });
 });
 
@@ -213,7 +215,7 @@ it("preserves an unknown ProjectDatabase version instead of guessing an upgrade"
     }
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0)).rejects.toThrow();
-    expect(await readFile(path)).toEqual(before);
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
   });
 });
 
@@ -224,7 +226,7 @@ it("refuses to replace an unrelated existing backup and leaves the project uncha
     await writeFile(backup, unrelated, { flag: "wx" });
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0)).rejects.toThrow();
-    expect(await readFile(path)).toEqual(before);
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
     expect(await readFile(backup)).toEqual(unrelated);
   });
 });
@@ -268,7 +270,7 @@ it.each([
     }
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0, sourceKind)).rejects.toThrow(/exact niceeval\.project-database\/0\.17 codec/u);
-    expect(await readFile(path)).toEqual(before);
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
     const preserved = new DatabaseSync(path, { readOnly: true });
     try {
       expect(preserved.prepare("SELECT format FROM ne_record_metadata WHERE singleton=1").get()?.format)
@@ -291,7 +293,7 @@ it("rejects a non-ready 0.17 migration in place with original-version recovery g
     }
     const before = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path, 0)).rejects.toThrow(/original NiceEval version.*finish recovery/u);
-    expect(await readFile(path)).toEqual(before);
+    expect((await readFile(path)).equals(before), "rejected migration leaves source bytes unchanged").toBe(true);
   });
 });
 
@@ -382,7 +384,7 @@ it("rejects a 0.18 resource whose Experiment differs from its validated Run Core
     original.close();
     const bytes = await readFile(path);
     await expect(migrateHostOwnedProjectDatabase(path)).rejects.toThrow("experimentId differs from its resource");
-    expect(await readFile(path)).toEqual(bytes);
+    expect((await readFile(path)).equals(bytes), "rejected migration leaves source bytes unchanged").toBe(true);
     const preserved = new DatabaseSync(path, { readOnly: true });
     try { expect(preserved.prepare("SELECT name FROM sqlite_schema WHERE name LIKE 'ne19_%'").all()).toEqual([]); }
     finally { preserved.close(); }

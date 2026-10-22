@@ -56,7 +56,7 @@ describe("ProjectDatabase bootstrap baseline", () => {
     const before = readFileSync(path);
 
     expect(() => openRecordWriter(path)).toThrow();
-    expect(readFileSync(path)).toEqual(before);
+    expect(readFileSync(path).equals(before), "rejected database bytes stay unchanged").toBe(true);
   });
 
   it.each([
@@ -72,7 +72,9 @@ describe("ProjectDatabase bootstrap baseline", () => {
     const before = readFileSync(path);
 
     expect(() => openRecordReader(path)).toThrow();
-    expect(readFileSync(path)).toEqual(before);
+    // Compare bytes natively: deep equality enumerates every Buffer index and
+    // can exhaust the test deadline under default parallel suite load.
+    expect(readFileSync(path).equals(before), "rejected database bytes stay unchanged").toBe(true);
   });
 });
 
