@@ -1,3 +1,4 @@
+import { formatNumericUnit } from "../../../../../../assertions/quantity.ts";
 // AssertionEvidence: neutral structured projection of one sealed assertion.
 
 import type { ReactElement } from "react";
@@ -198,12 +199,14 @@ function isToolCriterion(check: ClosedAssertionFactValue): boolean {
     stringValue(field(field(check, "data"), "occurrence")) === "tool";
 }
 
-type NumericComparator = "less-than" | "at-most" | "greater-than" | "at-least";
+type NumericComparator = "less-than" | "at-most" | "greater-than" | "at-least" | "between";
 type NumericMaterialState = "exact" | "lower-bound" | "unavailable";
 
 interface NumericComparisonView {
+  readonly unit?: string;
   readonly comparator: NumericComparator;
   readonly threshold: number;
+  readonly upperThreshold?: number;
   readonly subject: {
     readonly kind: "explicit-value" | "scope-metric" | "collection-cardinality";
     readonly metric?: "tokens" | "cost";
@@ -211,6 +214,7 @@ interface NumericComparisonView {
     readonly unit?: "tokens" | "usd";
   };
   readonly material: {
+    readonly unit?: string;
     readonly state: NumericMaterialState;
     readonly value?: number;
     readonly reason?: string;
@@ -234,7 +238,7 @@ interface PricingReceiptView {
 }
 
 function numericComparator(value: string | undefined): NumericComparator | undefined {
-  return value === "less-than" || value === "at-most" || value === "greater-than" || value === "at-least"
+  return value === "less-than" || value === "at-most" || value === "greater-than" || value === "at-least" || value === "between"
     ? value
     : undefined;
 }
@@ -265,6 +269,8 @@ function numericComparisonView(
   return {
     comparator,
     threshold,
+    upperThreshold: numberValue(field(data, "upperThreshold")),
+    unit: stringValue(field(data, "unit")),
     subject: {
       kind: subjectKind,
       ...(metric === "tokens" || metric === "cost" ? { metric } : {}),
@@ -273,6 +279,7 @@ function numericComparisonView(
     },
     material: {
       state: materialState,
+      unit: stringValue(field(input, "unit")),
       ...(numberValue(field(input, "value")) === undefined
         ? {}
         : { value: numberValue(field(input, "value"))! }),
@@ -515,14 +522,16 @@ function formatUSD(value: number): string {
   return `$${formatted}`;
 }
 
-function comparatorSymbol(comparator: NumericComparator): "<" | "≤" | ">" | "≥" {
+function comparatorSymbol(comparator: NumericComparator): string {
+  if (comparator === "between") return "∈";
   if (comparator === "less-than") return "<";
   if (comparator === "at-most") return "≤";
   if (comparator === "greater-than") return ">";
   return "≥";
 }
 
-function oppositeComparatorSymbol(comparator: NumericComparator): "≥" | ">" | "≤" | "<" {
+function oppositeComparatorSymbol(comparator: NumericComparator): string {
+  if (comparator === "between") return "∉";
   if (comparator === "less-than") return "≥";
   if (comparator === "at-most") return ">";
   if (comparator === "greater-than") return "≤";
@@ -551,6 +560,7 @@ function numericSubjectLabel(view: NumericComparisonView, locale: string): strin
 }
 
 function numericValueText(view: NumericComparisonView, value: number, locale: string): string {
+  if (view.unit !== undefined) return formatNumericUnit(value, view.unit);
   if (view.subject.metric === "cost") return formatUSD(value);
   const formatted = formatNumber(value, locale);
   return view.subject.metric === "tokens" ? `${formatted} tokens` : formatted;
@@ -558,6 +568,9 @@ function numericValueText(view: NumericComparisonView, value: number, locale: st
 
 function thresholdText(view: NumericComparisonView, locale: string): string {
   const value = numericValueText(view, view.threshold, locale);
+  if (view.comparator === "between" && view.upperThreshold !== undefined) {
+    return `[${value}, ${numericValueText(view, view.upperThreshold, locale)}]`;
+  }
   if (view.subject.metric === "tokens" || view.subject.metric === "cost") {
     return label(locale, `limit ${value}`, `上限 ${value}`);
   }
@@ -593,7 +606,10 @@ function numericConclusion(
   if (view.material.state === "unavailable" || value === undefined) {
     return unavailableReason(view.material.reason, locale);
   }
-  const actual = numericValueText(view, value, locale);
+  if (view.material.unit !== view.unit) {
+    return label(locale, "The observation and threshold use different units; they cannot be compared.", "观测值与阈值的单位不同，无法比较。");
+  }
+  const actual = numericValueText({ ...view, unit: view.material.unit }, value, locale);
   const expected = thresholdText(view, locale);
   if (view.material.state === "lower-bound" && state === "unavailable") {
     return view.subject.kind === "collection-cardinality"
@@ -687,14 +703,14 @@ function NumericEvidence({ view, state, locale }: {
   return (
     <section className="niceeval-numeric-evidence" data-state={state}>
       <span className="niceeval-numeric-evidence-label">{numericSubjectLabel(view, locale)}</span>
-      {value === undefined ? (
+      {value === undefined || view.material.unit !== view.unit ? (
         <p className="niceeval-numeric-evidence-unavailable">
           {label(locale, "No comparable value", "没有可比较的数值")}
         </p>
       ) : view.material.state === "lower-bound" && state === "unavailable" ? (
         <p className="niceeval-numeric-evidence-formula">
           <small>{label(locale, "Known minimum", "已知至少")}</small>
-          <strong>{numericValueText(view, value, locale)}</strong>
+          <strong>{numericValueText({ ...view, unit: view.material.unit }, value, locale)}</strong>
           <span aria-hidden="true">·</span>
           <small>{thresholdText(view, locale)}</small>
         </p>
@@ -703,7 +719,7 @@ function NumericEvidence({ view, state, locale }: {
           {view.material.state === "lower-bound" ? (
             <small>{label(locale, "Known minimum", "已知至少")}</small>
           ) : null}
-          <strong>{numericValueText(view, value, locale)}</strong>
+          <strong>{numericValueText({ ...view, unit: view.material.unit }, value, locale)}</strong>
           <span className="niceeval-numeric-evidence-operator">{formulaRelation}</span>
           <strong>{thresholdText(view, locale)}</strong>
         </p>

@@ -420,7 +420,9 @@ const NumericComparisonCriterionSchema = Schema.Struct({
         scope: Schema.Literals(["turn", "session", "attempt"]),
       }),
     ]),
-  }),
+  }).check(Schema.makeFilter((data) => data.comparator === "between"
+    ? data.upperThreshold !== undefined && data.upperThreshold >= data.threshold
+    : data.upperThreshold === undefined, { message: "Only between comparisons have an ordered upper threshold." })),
 });
 
 const ScopeStatusCriterionSchema = Schema.Struct({
