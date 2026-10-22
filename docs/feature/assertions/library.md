@@ -110,7 +110,7 @@ await t.group("输出", () => {
 statistics 包含 sampleCount、probability 和 method。默认 linear 采用排序副本上的 h=(n-1)*p，在 floor(h) 与 ceil(h) 之间线性插值。
 nearest-rank 采用 max(1,ceil(n*p)) 的一基秩。p 必须是 [0,1] 有限数值；端点返回最小值、最大值，单样本返回自身。
 
-不修改输入；不丢弃坏样本。空数组为 no-samples，任一非有限或非数值样本为 non-finite-sample；无效 p、method 或非数组输入同步抛 TypeError。
+不修改输入；不丢弃坏样本。空数组为 no-samples，任一非有限数值样本为 non-finite-sample；无效 p、method 或非数组输入同步抛 TypeError。
 算法元数据随返回材料进入既有 Assertion source snapshot，不引入新的 criterion 或持久化版本，也不保存完整样本数组。
 
 ```ts
@@ -124,3 +124,15 @@ t.score(measured(ratio, { unavailable: "no-samples" }), { weight: 20 });
 `defineScoreEval` 中的 t.score(ratio, { weight }) 接受 [0,1] 比例或 NumericMaterial，不需要自定义 fraction matcher。
 越界比例是作者错误，不隐式 clamp；领域确需饱和计分时，作者显式限定范围。unavailable 保留权重并标为不可判定，不按零分伪造观测。
 纯报告不登记恒真 Assertion。Adapter 可用既有 ctx.attach 保存 Markdown 或 JSON 统计附件；单行展示的独立 note 模型不在此数值构造契约内。
+
+## 数值单位
+
+`/expect` 导出 `ms`、`seconds`、`tokens`、`usd`、`ratio`、`count` 与 `bytes`，返回冻结的 `Quantity<U>` 对象，字段为 `value` 与 `unit`。构造只接受有限数；非法值及越界比例抛出 RangeError。Quantity 不参与算术，也不自动换算单位。
+
+`measured(Quantity, options)` 返回携带单位的 `NumericMaterial<U>`。`quantile` 接受普通数值数组或单位一致的 Quantity 数组；混合单位抛出 TypeError。数值 Match 的阈值必须与材料单位一致：`t.check(measured(ms(512), { unavailable: "missing" }), atMost(ms(600)))`。普通数值材料只接受普通数值阈值。编译期拒绝跨单位调用；绕过类型时返回 unavailable，不比较裸数值。
+
+NumericMaterial 的持久数据保存可选 `unit`，旧数据缺省为无单位。Show 与 View 使用单位呈现数值，例如 `512 ms`、`61.2%` 与 `$0.031`。
+
+`between(minimum, maximum)` 使用同单位、含端点的区间；反序或非有限上界抛出 RangeError，混合单位抛出 TypeError。lower-bound 材料只有超过区间上界时才能判定不匹配，其他情况为 unavailable。
+
+`t.usage.cacheRead.rate(role?)` 返回 `NumericMaterial<"ratio">`，阈值使用 `ratio(n)`。缺失观测保留原 unavailable 原因。
