@@ -88,3 +88,6 @@ export type { EvalUsage, EvalCacheRead } from "../o11y/eval-usage.ts";
 export type { CacheReadReport, CacheReadSummary } from "../o11y/cache-read.ts";
 
 export type { AgentMatchContext } from "../context/assert-first.ts";
+
+export { ms, seconds, tokens, usd, ratio, count, bytes } from "../assertions/quantity.ts";
+export type { Quantity, Unit } from "../assertions/quantity.ts";
