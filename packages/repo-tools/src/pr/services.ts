@@ -1,4 +1,5 @@
 import { Context, type Effect } from "effect";
+import type { ChildProcessSpawner } from "effect/unstable/process";
 
 import type { GitHubPullRequest } from "./model.js";
 import type { PrFileFailure, PrGitFailure, PrGitHubFailure } from "./errors.js";
@@ -43,4 +44,4 @@ export class PrGitHub extends Context.Service<PrGitHub, PrGitHubService>()(
   "@niceeval/repo-tools/pr/GitHub",
 ) {}
 
-export type PrBodyRequirements = PrFileSystem | PrGit | PrGitHub;
+export type PrBodyRequirements = PrFileSystem | PrGit | PrGitHub | ChildProcessSpawner.ChildProcessSpawner;

@@ -70,7 +70,7 @@ function acquireAt(path: string, announced: boolean): Effect.Effect<CandidatePac
         if (current === undefined) return acquireAt(path, announced);
         if (current.owner.kind === "present" && ownerDied(current.owner.owner)) return Effect.fail(new CandidatePackLockError({ operation: "acquire", detail: `candidate pack lock owner died without releasing: ${path} (owner=${current.owner.owner.host}:${current.owner.owner.pid})` }));
         if (current.owner.kind !== "present" && Date.now() - current.modifiedAtMs > OWNER_PUBLICATION_GRACE_MS) return Effect.fail(new CandidatePackLockError({ operation: "acquire", detail: `candidate pack lock has no trustworthy owner: ${path}` }));
-        return (announced ? Effect.void : Effect.sync(() => console.log(`[e2e] waiting for candidate pack lock: ${path}`))).pipe(Effect.andThen(Effect.sleep(RETRY_INTERVAL_MS)), Effect.andThen(acquireAt(path, true)));
+        return (announced ? Effect.void : Effect.sync(() => console.error(`[e2e] waiting for candidate pack lock: ${path}`))).pipe(Effect.andThen(Effect.sleep(RETRY_INTERVAL_MS)), Effect.andThen(acquireAt(path, true)));
       })),
     }),
   ));

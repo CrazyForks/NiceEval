@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
-import { Effect, Result, Schema } from "effect";
+import { Effect, Schema } from "effect";
 
-import { decodeAnnotatedCases, type AnnotatedCase } from "concord-sdlc/repository/docs/test-case/annotations";
+import { ConcordDeclarationsSchema, requestConcordEngine, type ConcordAnnotatedCase } from "../concord-engine.js";
 import { PrTestRelationInvalid } from "./errors.js";
 import { PrFileSystem, PrGit } from "./services.js";
 
@@ -27,7 +27,7 @@ export const readPrTestDeclarations = Effect.fn("readPrTestDeclarations")(functi
   const paths = yield* Schema.decodeUnknownEffect(Schema.Array(SourcePath))(candidates).pipe(
     Effect.mapError(() => new PrTestRelationInvalid({ selector, message: "test source inventory contains a noncanonical path" })),
   );
-  const declarations: AnnotatedCase[] = [];
+  const declarations: ConcordAnnotatedCase[] = [];
   const identities = new Map<string, string>();
   const inputFiles: string[] = [];
   for (const path of paths) {
@@ -35,14 +35,17 @@ export const readPrTestDeclarations = Effect.fn("readPrTestDeclarations")(functi
     const source = head === undefined
       ? yield* fileSystem.readText(resolve(root, path))
       : yield* git.readBlob(head, path);
-    const decoded = decodeAnnotatedCases(path, source);
-    if (Result.isFailure(decoded)) return yield* new PrTestRelationInvalid({ selector, message: `${decoded.failure.path}: ${decoded.failure.message}` });
-    for (const declaration of decoded.success) {
+    const decoded = yield* requestConcordEngine(root, "declarations", { file: path, source }).pipe(
+      Effect.flatMap(value => Schema.decodeUnknownEffect(ConcordDeclarationsSchema, { onExcessProperty: "error" })(value)),
+      Effect.mapError(error => new PrTestRelationInvalid({ selector, message: `${path}: ${String(error)}` })),
+    );
+    for (const declaration of decoded.annotated) {
+      if (declaration.declarationPath !== path) return yield* new PrTestRelationInvalid({ selector, message: `${path}: engine returned a different declaration path` });
       const previous = identities.get(declaration.caseId);
       if (previous !== undefined) return yield* new PrTestRelationInvalid({ selector, message: `${declaration.caseId} is declared by both ${previous} and ${path}` });
       identities.set(declaration.caseId, path);
     }
-    declarations.push(...decoded.success);
+    declarations.push(...decoded.annotated);
     inputFiles.push(path);
   }
   return { declarations, inputFiles };

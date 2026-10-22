@@ -19,39 +19,29 @@ kind: engineering
 
 当前测试关系使用源码注释，新正式证据使用 `concord.native-reliability/v1`，历史证据原样保留。
 
-`concord.repository.json` 指向 NiceEval 自己的 E2E host。真实 candidate、Testkit、inventory 与 formal evidence 仍由 `packages/e2e-runner` 执行；Concord 原生模式的命令收据不能替代 formal evidence。CLI 与库都固定为 0.12.0；repository host 还会验证实现身份。
+`concord.repository.json` 通过 `adapter` 声明 NiceEval 的原生能力进程，与旧 `host` 配置互斥。真实 candidate、Testkit、inventory 与 formal evidence 继续由 `packages/e2e-runner` 执行，Concord 负责源码身份、声明关系与最终证据裁决。普通原生 observation 不能替代 formal evidence。
 
-NiceEval 自有文档生成与站点流程从字面入口 `pnpm run repo docs` 进入。Concord 命令直接写作 `concord ...`，不保留 pnpm 别名、启动包装或额外版本检查包装。
+NiceEval 自有文档生成与站点流程从 `pnpm run repo docs` 进入。治理命令直接调用全局 `concord`，不安装或导入 Concord 库，也不保留领域转发包装。
 
-## 安装与按需指引
+## 进程协议与身份
 
-全局 CLI 安装固定的 [Concord 0.12.0 Release](https://github.com/CorrectRoadH/Concord/releases/tag/v0.12.0)。根包、repo-tools 与 e2e-runner 的库依赖直接使用该 Release 的 `concord-sdlc-0.12.0.tgz` URL；仓库不存放发行 tarball，pnpm lockfile 保存其 integrity。
+接入使用 `concord.repository-adapter/v1`，治理查询使用 `concord repo engine --json` 的 `concord.repository-engine/v1`。每次调用只交换一份严格 JSON 请求与响应，绑定 requestId、操作、消费者根和引擎实现摘要。被 Concord 启动的 adapter 使用请求给出的精确 engine argv；独立调用从 PATH 选择已安装的 CLI。
 
-发行 SHA-256 为 `9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556`。CI 下载后校验摘要，将包解到仓库外，用包内 lockfile 安装生产依赖，再将全局 `concord` 加入 PATH。全局 CLI 直接来自校验后解压的 Release 包。安装器若改写 JavaScript，repository host 会拒绝其实现身份，即使版本号相同。
+Concord 的 `source-validate` 与 `same-source` 负责完整源码身份，不能用代码投影摘要代替契约、配置和 adapter 绑定。声明接口返回 contract、regressions、issues 和测试声明文件路径；PR 不自行读取源码注释建立关系。Preview 通过公开 view export 与 engine preview 验证完整变更数据，本地只拥有实际消费的展示字段。
 
-`pnpm install --frozen-lockfile` 安装库依赖。生产代码只保留 JSON 解码、关系校验、host 与证据所需的库函数；CLI 调用直接使用 `concord`。pnpm 组合脚本内也直接写 `concord docs check`。
+实现摘要绑定递归 runner/Testkit 源码、入口、依赖声明与锁、运行配置、实际执行文件和 loader。新增实现文件必须纳入摘要计算；安装依赖仍由 frozen lock 与包管理器完整性负责。入口、配置或实现变化使旧 managed 结果不再 current，但不改写历史证据与可靠性下限。
 
-```sh
-concord --skill
-concord --skill repository
-concord repo docs test --help
-concord repo docs test regression refresh --help
-concord repo docs test audit --json
-```
+外层 Concord 独占 adapter 进程组。adapter 内部的引擎查询、安装和收集继承该组；独立 E2E CLI 保留自己的进程组。超时、取消、输出超限或终结无法确认均失败；进程组消失不能代替容器等外部资源的终结证据。
 
-`--skill` 只输出短入口，按 topic 读取具体命令，`--skill all` 才展开全文。它不加载 host 或执行 runner。
-通用模式的 `init/document/test/memory/trace/recovery` 指引不改变 NiceEval 的 formal 证据门。
+关系发布在锁外捕获 managed 证据及候选文件 guard，锁内只重验冻结输入、当前源码/实现、Memory epoch 与 publication 前像，不启动 adapter。现有 receipt、可靠性证书、七次观察及 invocation 防复用继续由 Concord 的唯一 validator 执行。
 
-### 升级 Concord
+## 安装与升级
 
-升级步骤只在本节维护：
+Concord CLI 的发行版本和 SHA-256 由 CI 安装步骤唯一固定。升级先校验发行摘要，再在仓库外安装；不以修改 JavaScript shebang 或放松实现身份绕过检查。NiceEval manifests 和 lock 不含 Concord 库依赖。
 
-1. 从 Concord GitHub Release 取得新版本 tarball，核对发行 SHA-256，并同步安装该版本的全局 CLI；
-2. 更新根包、`packages/repo-tools` 与 `packages/e2e-runner` 三处 Release URL dependency，重新生成 lockfile，并确认 integrity 对应同一发行文件；
-3. 同步 CI 的固定版本 URL 与 SHA-256，按受管命令迁移 writing policy，评估新字段对实际消费者的影响；
-4. 用 `concord --version`、`concord check`、repository profile 的公开命令、host identity、`pnpm lint`、`pnpm typecheck` 与 `pnpm test` 验证。`concord repo docs test audit --json` 会打包候选并执行 inventory，只在获准运行正式 E2E 的 CI job 或宿主执行。
+使用 `concord --skill repository` 及各命令 `--help` 发现精确参数。`concord repo docs test audit --json` 会打包并执行原生收集，只能在获准的正式 E2E 宿主或 CI 运行。
 
-0.12.0 的 writing policy 使用 `concord.writing/v3`；本次只迁移格式，不开启 controlled 检查。原生模式新增 stepGroups、analysis 与 `concord.native-evidence/v2`，现有 NiceEval formal host 仍消费 `concord.native-case-receipt/v1` 和 `concord.native-reliability/v1`。原生 observation 的 `observed`、存在关联或 analysis 结果都不代表 formal pass；采用步骤级证据时必须同时判断 current、complete 与 gaps。
+升级验收包含协议的真实隔离消费者、取消与进程终结、过期证据拒绝、完整类型/lint/Unit，以及经授权的最小 NiceEval 正式证据闭环。静态扫描无内部 imports 不能代替真实执行。
 
 ## 组合边界
 

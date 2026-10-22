@@ -1,14 +1,12 @@
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import { Data, Effect, Predicate, Result } from "effect";
-import { deriveTestReference } from "concord-sdlc/model";
-import { SOURCE_EXCLUDED_BASENAMES } from "concord-sdlc/repository/source-identity";
-import { decodeAnnotatedCases, locateSupportedTestDeclarations } from "concord-sdlc/repository/docs/test-case/annotations";
+import { Data, Effect, Predicate } from "effect";
+import { bridgeBoundary, deriveTestReference, readDeclarations, engineCall } from "./concord-engine.ts";
+import { InventorySchema } from "./bridge-wire.ts";
 
-import { OwnedProcess } from "./owned-process.js";
+import { hasSuccessfulOwnedProcessResult, OwnedProcess } from "./owned-process.js";
 
 export const CASE_ID_PATTERN = /^neref_[0-9a-f]{32}$/;
 
@@ -50,16 +48,8 @@ export interface RawCollectedCase {
   readonly titlePath: readonly string[];
 }
 
-const canonicalJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (Predicate.isObject(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
-
-const sha256 = (value: unknown): `sha256:${string}` =>
-  `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+const SOURCE_EXCLUDED_BASENAMES = new Set(["node_modules", ".git"]);
+const signInventory = (value: unknown) => engineCall("inventory", { kind: "case", action: "sign", value }, InventorySchema);
 
 const text = (value: unknown, key: string): string | undefined =>
   Predicate.isObject(value) && Predicate.isString(value[key]) ? value[key] : undefined;
@@ -157,31 +147,33 @@ const sourceFiles = (cwd: string): readonly string[] => {
   return output.sort();
 };
 
-const declarationsInCopy = (cwd: string, repo: string): readonly SourceDeclaration[] => sourceFiles(cwd).flatMap((path) => {
-  const workspacePath = `e2e/${repo}/${path}`;
-  const source = readFileSync(resolve(cwd, path), "utf8");
-  const declarations = locateSupportedTestDeclarations(workspacePath, source);
-  const decoded = decodeAnnotatedCases(workspacePath, source);
-  if (Result.isFailure(decoded)) throw new Error(`${workspacePath}: ${decoded.failure.message}`);
-  const annotatedByStart = new Map(decoded.success.map((entry) => [entry.declarationStart, entry]));
-  return declarations.map((entry) => {
-    const relation = annotatedByStart.get(entry.start);
-    return { title: entry.title, testFile: relation?.testFile ?? workspacePath, declarationPath: workspacePath, annotated: relation !== undefined };
-  });
-});
+const declarationsInCopy = Effect.fn("declarationsInCopy")(function* (cwd: string, repo: string) {
+  const declarations: SourceDeclaration[] = [];
+  for (const path of sourceFiles(cwd)) {
+    const workspacePath = `e2e/${repo}/${path}`;
+    const source = readFileSync(resolve(cwd, path), "utf8");
+    const decoded = yield* readDeclarations(workspacePath, source);
+    const annotatedByStart = new Map(decoded.annotated.map((entry) => [entry.declarationStart, entry]));
+    for (const entry of decoded.supported) {
+      const relation = annotatedByStart.get(entry.start);
+      declarations.push({ title: entry.title, testFile: relation?.testFile ?? workspacePath, declarationPath: workspacePath, annotated: relation !== undefined });
+    }
+  }
+  return declarations;
+}, bridgeBoundary);
 
-const validateCases = (
+const validateCases = Effect.fn("validateCases")(function* (
   executor: InventoryExecutor,
   repo: string,
   cwd: string,
   rawCases: readonly RawCollectedCase[],
-): { readonly cases: readonly CollectedCase[]; readonly unassignedCases: readonly RawCollectedCase[]; readonly findings: readonly string[]; readonly files: readonly string[] } => {
+) {
   const findings: string[] = [];
   const unassignedCases: RawCollectedCase[] = [];
   const seen = new Map<string, string>();
   const files = new Set<string>();
   const cases: CollectedCase[] = [];
-  const declarations = declarationsInCopy(cwd, repo);
+  const declarations = yield* declarationsInCopy(cwd, repo);
   for (const raw of rawCases) {
     const path = canonicalPath(cwd, raw.file);
     files.add(path);
@@ -198,7 +190,8 @@ const validateCases = (
       unassignedCases.push({ ...raw, file: path });
       continue;
     }
-    const caseId = deriveTestReference(workspacePath, declaration.declarationPath, title) as `neref_${string}`;
+    const caseId = yield* deriveTestReference(workspacePath, declaration.declarationPath, title);
+    if (!CASE_ID_PATTERN.test(caseId)) throw new Error("engine returned an invalid case ID");
     const prior = seen.get(caseId);
     if (prior !== undefined) {
       findings.push(`DuplicateCaseId: ${caseId} is collected by both ${prior} and ${path}`);
@@ -213,7 +206,7 @@ const validateCases = (
     findings: findings.sort(),
     files: [...files].sort(),
   };
-};
+}, bridgeBoundary);
 
 interface ResolvedExecutorCli {
   readonly cli: string;
@@ -277,7 +270,7 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
       files: [], cases: [], unassignedCases: [], bodyExecutions: 0 as const, forbiddenSetupExecutions: 0 as const,
       findings: [detail], exit: null, signal: null,
     };
-    const receipt: CaseInventoryReceipt = { ...unsigned, digest: sha256(unsigned) };
+    const receipt: CaseInventoryReceipt = yield* signInventory(unsigned);
     return yield* new InventoryError({ detail, receipt });
   }
   const argv = executorCommand(options.executor, resolved.cli, options.nativeArgs);
@@ -288,12 +281,12 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
   let version = "unknown";
   const findings: string[] = [];
   let rawCases: readonly RawCollectedCase[] = [];
-  if (versionResult.exitCode !== 0 || versionResult.signal !== null) findings.push(`${options.executor} version command failed`);
+  if (!hasSuccessfulOwnedProcessResult(versionResult)) findings.push(`${options.executor} version command failed`);
   else {
     try { version = versionFrom(options.executor, versionResult.stdout); }
     catch (cause) { findings.push(cause instanceof Error ? cause.message : String(cause)); }
   }
-  if (collection.exitCode !== 0 || collection.signal !== null) {
+  if (!hasSuccessfulOwnedProcessResult(collection)) {
     let diagnostic = collection.stderr.trim();
     if (diagnostic.length === 0 && options.executor === "playwright" && collection.stdout.trim().length > 0) {
       try {
@@ -314,9 +307,7 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
       findings.push(`collection receipt decode failed: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
   }
-  let validated: ReturnType<typeof validateCases> = { cases: [], unassignedCases: [], findings: [], files: [] };
-  try { validated = validateCases(options.executor, options.repo, cwd, rawCases); }
-  catch (cause) { findings.push(`CaseBindingInvalid: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  const validated = yield* validateCases(options.executor, options.repo, cwd, rawCases);
   findings.push(...validated.findings);
   const unsigned = {
     executor: { name: options.executor, version },
@@ -332,7 +323,7 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
     exit: collection.exitCode,
     signal: collection.signal,
   };
-  const receipt: CaseInventoryReceipt = { ...unsigned, digest: sha256(unsigned) };
+  const receipt: CaseInventoryReceipt = yield* signInventory(unsigned);
   if (receipt.findings.length > 0) return yield* new InventoryError({ detail: receipt.findings.join("; "), receipt });
   return receipt;
-});
+}, bridgeBoundary);

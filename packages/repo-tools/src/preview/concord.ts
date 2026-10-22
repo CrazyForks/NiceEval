@@ -1,11 +1,33 @@
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Effect, Schema } from "effect";
-import { decodeChangePreview, PREVIEW_DATA_LIMIT, type ChangePreview } from "concord-sdlc/change-preview";
-import { NICEEVAL_REPOSITORY_URL, PreviewHttpError, PreviewInputError, PreviewIoError, PreviewVerificationError, type PreviewPlatform } from "./model.js";
+import { parseConcordEngineJson, requestConcordEngine } from "../concord-engine.js";
+import { ConcordComparisonSchema, NICEEVAL_REPOSITORY_URL, PreviewHttpError, PreviewInputError, PreviewIoError, PreviewVerificationError, type ConcordComparison, type PreviewPlatform } from "./model.js";
 import { requirePreviewSuccess } from "./process.js";
 
-export type ConcordComparison = ChangePreview["comparison"];
+export type { ConcordComparison } from "./model.js";
+const PREVIEW_DATA_LIMIT = 8 * 1024 * 1024;
+
+/** Validate the entire captured public document before projecting consumed fields. */
+export const validateConcordChanges = Effect.fn("preview.validateConcordChanges")(function*(root: string, bytes: Uint8Array) {
+  const value = yield* Effect.try({
+    try: () => {
+      if (bytes.byteLength > PREVIEW_DATA_LIMIT) throw new Error("Concord data exceeds 8 MiB");
+      return parseConcordEngineJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    }, catch: error => new PreviewInputError({ message: `Invalid Concord data: ${String(error)}` }),
+  });
+  const validated = yield* requestConcordEngine(root, "preview", { value }).pipe(
+    Effect.mapError(error => new PreviewVerificationError({ subject: "Concord changes", message: String(error) })),
+  );
+  // Concord owns the full ChangePreview schema. Only comparison is consumed here.
+  const projected = yield* Schema.decodeUnknownEffect(Schema.Struct({ comparison: Schema.Unknown }), { onExcessProperty: "ignore" })(validated).pipe(
+    Effect.mapError(() => new PreviewInputError({ message: "Engine preview result has no comparison" })),
+  );
+  return yield* Schema.decodeUnknownEffect(ConcordComparisonSchema, { onExcessProperty: "error" })(projected.comparison).pipe(
+    Effect.mapError(() => new PreviewInputError({ message: "Engine preview result has an invalid comparison" })),
+  );
+});
+
 const Oid = Schema.String.check(Schema.isPattern(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u));
 const PullRequestProjection = Schema.Struct({
   number: Schema.Int,
@@ -60,18 +82,24 @@ export const exportConcordChanges = Effect.fn("preview.exportConcordChanges")(fu
   const comparison: ConcordComparison = { base, head, mergeBase, baseLabel: options.baseLabel ?? options.base };
   yield* requirePreviewSuccess("concord", ["--root", options.root, "--json", "view", "export", "--base", base, "--head", head, "--base-label", comparison.baseLabel, "--out", options.out], options.root, gitEnvironment());
   const file = join(options.out, "changes.json");
-  yield* Effect.tryPromise({
+  const bytes = yield* Effect.tryPromise({
     try: async () => {
       if ((await stat(file)).size > PREVIEW_DATA_LIMIT) throw new Error("Concord data exceeds 8 MiB");
-      const value = decodeChangePreview(JSON.parse(await readFile(file, "utf8")));
-      assertConcordComparison(value, comparison);
+      return await readFile(file);
     }, catch: error => new PreviewIoError({ operation: "verify-concord-export", path: file, message: String(error) }),
   });
+  const validated = yield* validateConcordChanges(options.root, bytes);
+  yield* Effect.try({ try: () => assertConcordComparison(validated, comparison), catch: error => new PreviewVerificationError({ subject: "Concord comparison", message: String(error) }) });
+  const current = yield* Effect.tryPromise({
+    try: () => readFile(file),
+    catch: error => new PreviewIoError({ operation: "recheck-concord-export", path: file, message: String(error) }),
+  });
+  if (!bytes.equals(current)) return yield* new PreviewVerificationError({ subject: "Concord changes", message: "Concord changes changed during engine validation" });
   return { operation: "preview-changes" as const, output: options.out, comparison };
 });
 
-export function assertConcordComparison(data: ChangePreview, expected: ConcordComparison): void {
+export function assertConcordComparison(data: ConcordComparison, expected: ConcordComparison): void {
   for (const key of ["base", "head", "mergeBase", "baseLabel"] as const) {
-    if (data.comparison[key] !== expected[key]) throw new Error(`Concord ${key} does not match the admitted PR comparison`);
+    if (data[key] !== expected[key]) throw new Error(`Concord ${key} does not match the admitted PR comparison`);
   }
 }

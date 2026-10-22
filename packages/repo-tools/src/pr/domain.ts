@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
+import type { ChildProcessSpawner } from "effect/unstable/process";
 import { stringify as stringifyYaml } from "yaml";
 import { readPrTestDeclarations } from "./test-relations.js";
 
@@ -650,7 +651,7 @@ function expandTestDirective(
   yaml: string,
   base: string,
   context: RenderContext,
-): Effect.Effect<Readonly<{ markdown: string; file: string }>, PrBodyError, PrFileSystem | PrGit> {
+): Effect.Effect<Readonly<{ markdown: string; file: string }>, PrBodyError, PrFileSystem | PrGit | ChildProcessSpawner.ChildProcessSpawner> {
   return Effect.gen(function* () {
     const fileSystem = yield* PrFileSystem;
     const git = yield* PrGit;
@@ -745,7 +746,7 @@ function expandTestDirectives(
   draft: string,
   base: string,
   context: RenderContext,
-): Effect.Effect<Readonly<{ markdown: string; files: readonly string[] }>, PrBodyError, PrFileSystem | PrGit> {
+): Effect.Effect<Readonly<{ markdown: string; files: readonly string[] }>, PrBodyError, PrFileSystem | PrGit | ChildProcessSpawner.ChildProcessSpawner> {
   return Effect.gen(function* () {
     const expression = /<!-- niceeval:test\s*\n([\s\S]*?)\n-->/g;
     const matches = [...draft.matchAll(expression)];
@@ -867,7 +868,7 @@ function renderBody(
   root: string,
   input: PrBodyInput,
   linkTarget?: RenderContext["linkTarget"],
-): Effect.Effect<RenderedBody, PrBodyError, PrFileSystem | PrGit> {
+): Effect.Effect<RenderedBody, PrBodyError, PrFileSystem | PrGit | ChildProcessSpawner.ChildProcessSpawner> {
   return Effect.gen(function* () {
     const fileSystem = yield* PrFileSystem;
     const git = yield* PrGit;

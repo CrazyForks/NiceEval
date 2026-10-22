@@ -107,8 +107,10 @@ describe("Repository Tools 动态发现", () => {
     for (const skill of toolSkills()) {
       expect(agents, `AGENTS.md 没有路由 ${skill.path}`).toContain(skill.path);
       if (skill.command.startsWith("concord ")) {
-        const dependencies = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).devDependencies;
-        expect(dependencies["concord-sdlc"], "Concord 库依赖必须来自固定的 Release").toMatch(/^https:\/\/github\.com\/CorrectRoadH\/Concord\/releases\/download\/v[0-9.]+\//u);
+        for (const path of ["package.json", "packages/repo-tools/package.json", "packages/e2e-runner/package.json"]) {
+          const manifest = JSON.parse(readFileSync(join(ROOT, path), "utf8"));
+          expect({ ...manifest.dependencies, ...manifest.devDependencies }, `${path} must consume the Concord CLI`).not.toHaveProperty("concord-sdlc");
+        }
       } else {
         const script = scriptName(skill.command);
         expect(scripts, `${skill.command} 不存在`).toHaveProperty(script);

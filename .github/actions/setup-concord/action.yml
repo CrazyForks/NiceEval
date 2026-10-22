@@ -1,0 +1,28 @@
+name: Install Concord CLI
+description: Install the pinned standalone Concord CLI and verify repository engine support.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        # Replace this release pin with the validated process-bridge release
+        # before enabling the 0.20 workflows. Never infer a new asset checksum.
+        concord_version="0.12.0"
+        concord_sha256="9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556"
+        concord_root="$(mktemp -d "${RUNNER_TEMP}/concord-${concord_version}.XXXXXX")"
+        curl --fail --location --retry 3 \
+          "https://github.com/CorrectRoadH/Concord/releases/download/v${concord_version}/concord-sdlc-${concord_version}.tgz" \
+          --output "${concord_root}/concord.tgz"
+        echo "${concord_sha256}  ${concord_root}/concord.tgz" | sha256sum --check
+        tar -xzf "${concord_root}/concord.tgz" -C "$concord_root"
+        pnpm --dir "${concord_root}/package" install --prod --frozen-lockfile --ignore-scripts --package-import-method=copy
+        mkdir "${concord_root}/bin"
+        chmod +x "${concord_root}/package/dist/entry.js"
+        ln -s "${concord_root}/package/dist/entry.js" "${concord_root}/bin/concord"
+        echo "${concord_root}/bin" >> "$GITHUB_PATH"
+        "${concord_root}/bin/concord" --version
+        if ! "${concord_root}/bin/concord" repo engine --help; then
+          echo "::error::NiceEval 0.20 requires the Concord repository process bridge. Update the verified release version and SHA-256 in setup-concord."
+          exit 1
+        fi

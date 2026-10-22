@@ -11,6 +11,8 @@ import {
   PreviewVerificationError,
 } from "./model.js";
 import { closureDigest } from "./build.js";
+import { validateConcordChanges } from "./concord.js";
+import { repositoryRoot } from "../root.js";
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
 import { QUERY_PROTOCOL } from "../../../niceeval/src/inspection/protocol-values.js";
@@ -155,6 +157,7 @@ function verifyRemoteFile(base: string, expected: PreviewFile) {
     };
     if (actual.byteLength !== expected.byteLength) return yield* fail(expected.path, `byte length ${actual.byteLength} does not match ${expected.byteLength}`);
     if (actual.sha256 !== expected.sha256) return yield* fail(expected.path, `sha256 ${actual.sha256} does not match ${expected.sha256}`);
+    if (expected.path === "concord/changes.json") yield* validateConcordChanges(repositoryRoot(), bytes);
     return actual;
   })));
 }
@@ -200,7 +203,7 @@ function verifyRemoteInspection(base: string) {
   });
 }
 
-export function acceptPreview(input: unknown): Effect.Effect<PreviewAcceptanceReceipt, import("./model.js").PreviewError> {
+export function acceptPreview(input: unknown): Effect.Effect<PreviewAcceptanceReceipt, import("./model.js").PreviewError, import("effect/unstable/process").ChildProcessSpawner.ChildProcessSpawner> {
   return Effect.gen(function*() {
     const decoded = yield* decodeInput(input);
     yield* validateMetadata(decoded);

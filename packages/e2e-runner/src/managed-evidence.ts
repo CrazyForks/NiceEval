@@ -1,9 +1,12 @@
-import { repositoryImplementationDigest } from "concord-sdlc/repository/identity";
+import { bridgeBoundary, managedImplementationDigest } from "./concord-engine.ts";
+import { ReadGuards } from "./bridge-guards.ts";
+import { parseBridgeJson } from "./bridge-json.ts";
+import { decodeWire } from "./bridge-wire.ts";
 import { createHash, randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { Predicate } from "effect";
+import { Effect, Schema } from "effect";
 
 import {
   validateFormalCaseReceipt,
@@ -17,14 +20,6 @@ import {
 const EVIDENCE_ROOT = ".repo-tools/test-evidence";
 const RED_ID = /^nered_[0-9A-HJKMNP-TV-Z]{16}$/;
 const TAKEOVER_ID = /^netake_[0-9A-HJKMNP-TV-Z]{16}$/;
-const IMPLEMENTATION_FILES = [
-  "packages/e2e-runner/src/case-evidence.ts",
-  "packages/e2e-runner/src/managed-evidence.ts",
-  "packages/e2e-runner/src/red-evidence.ts",
-  "packages/e2e-runner/src/takeover.ts",
-  "packages/e2e-runner/src/concord-host.ts",
-  "concord.repository.json",
-] as const;
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 interface ArtifactEntry { readonly key: string; readonly file: string; readonly sha256: string }
@@ -54,7 +49,7 @@ export interface ManagedTakeoverEvidence {
 }
 
 const sha256 = (bytes: string | Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
-const implementationDigest = (root: string): string => sha256([repositoryImplementationDigest(), ...IMPLEMENTATION_FILES.map((path) => readFileSync(resolve(root, path), "utf8"))].join("\0"));
+const implementationDigest = managedImplementationDigest;
 const evidenceRoot = (root: string): string => resolve(root, EVIDENCE_ROOT);
 const evidencePath = (root: string, id: string): string => resolve(evidenceRoot(root), id);
 
@@ -95,24 +90,24 @@ function artifact(key: string, file: string, value: unknown): { readonly entry: 
   return { entry: { key, file, sha256: sha256(bytes) }, bytes };
 }
 
-export function saveManagedRedEvidence(root: string, receipt: FormalCaseReceiptV2, candidatePath: string): string {
-  validateFormalCaseReceipt(receipt);
+export const saveManagedRedEvidence = Effect.fn("saveManagedRedEvidence")(function* (root: string, receipt: FormalCaseReceiptV2, candidatePath: string) {
+  yield* validateFormalCaseReceipt(receipt);
   if (receipt.observation !== "red" || receipt.result.disposition !== "regression") throw new Error("managed red evidence requires a formal regression receipt");
   const candidateBytes = readFileSync(candidatePath);
   if (sha256(candidateBytes) !== receipt.candidate.sha256) throw new Error("red evidence candidate bytes do not match the formal receipt");
   const id = newId("nered");
   const stored = artifact("red", "red.json", receipt);
   const manifest: ManagedEvidenceManifest = {
-    id, kind: "red", implementationDigest: implementationDigest(root), selector: receipt.selector,
+    id, kind: "red", implementationDigest: yield* implementationDigest(root), selector: receipt.selector,
     inventoryDigest: receipt.inventoryDigest, candidateSha256: receipt.candidate.sha256,
     candidateFile: "candidate.tgz", receiptArtifacts: [stored.entry],
   };
   publishBundle(root, manifest, new Map([[stored.entry.file, stored.bytes]]), candidatePath);
   return id;
-}
+}, bridgeBoundary);
 
-export function saveManagedTakeoverEvidence(root: string, certificate: TakeoverCertificateV2, receipts: ReadonlyMap<string, FormalCaseReceiptV2>, candidatePath: string): string {
-  validateTakeoverCertificate(certificate, receipts);
+export const saveManagedTakeoverEvidence = Effect.fn("saveManagedTakeoverEvidence")(function* (root: string, certificate: TakeoverCertificateV2, receipts: ReadonlyMap<string, FormalCaseReceiptV2>, candidatePath: string) {
+  yield* validateTakeoverCertificate(certificate, receipts);
   const candidateBytes = readFileSync(candidatePath);
   if (sha256(candidateBytes) !== certificate.candidateSha256) throw new Error("takeover candidate bytes do not match the certificate");
   const id = newId("netake");
@@ -127,54 +122,58 @@ export function saveManagedTakeoverEvidence(root: string, certificate: TakeoverC
   const firstReceipt = receipts.values().next().value as FormalCaseReceiptV2 | undefined;
   if (firstReceipt === undefined) throw new Error("takeover evidence has no formal receipts");
   const manifest: ManagedEvidenceManifest = {
-    id, kind: "takeover", implementationDigest: implementationDigest(root), selector: certificate.selector,
+    id, kind: "takeover", implementationDigest: yield* implementationDigest(root), selector: certificate.selector,
     inventoryDigest: firstReceipt.inventoryDigest, candidateSha256: certificate.candidateSha256,
     candidateFile: "candidate.tgz", receiptArtifacts: entries, certificateArtifact: storedCertificate.entry,
   };
   publishBundle(root, manifest, files, candidatePath);
   return id;
-}
+}, bridgeBoundary);
 
-function readManifest(root: string, id: string, kind: "red" | "takeover"): { readonly directory: string; readonly manifest: ManagedEvidenceManifest } {
+const ArtifactSchema = Schema.Struct({ key: Schema.String, file: Schema.String, sha256: Schema.String });
+const ManifestSchema = Schema.Struct({ id: Schema.String, kind: Schema.Literals(["red", "takeover"]), implementationDigest: Schema.String, selector: Schema.String, inventoryDigest: Schema.String, candidateSha256: Schema.String, candidateFile: Schema.String, receiptArtifacts: Schema.Array(ArtifactSchema), certificateArtifact: Schema.optionalKey(ArtifactSchema) });
+const readManifest = Effect.fn("readManagedManifest")(function* (root: string, id: string, kind: "red" | "takeover", guards: ReadGuards) {
   if (!(kind === "red" ? RED_ID : TAKEOVER_ID).test(id)) throw new Error(`${id} is not a managed ${kind} evidence ID`);
   const directory = evidencePath(root, id);
   const path = join(directory, "manifest.json");
   if (!existsSync(path)) throw new Error(`${id} is unavailable; generate fresh formal evidence`);
-  const value: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (!Predicate.isObject(value) || value.id !== id || value.kind !== kind || value.implementationDigest !== implementationDigest(root) || !Predicate.isString(value.selector) || !Predicate.isString(value.inventoryDigest) || !Predicate.isString(value.candidateSha256) || !Predicate.isString(value.candidateFile) || !Array.isArray(value.receiptArtifacts)) {
-    throw new Error(`${id} is stale or invalid; generate fresh formal evidence`);
-  }
-  return { directory, manifest: value as unknown as ManagedEvidenceManifest };
-}
+  const manifest = decodeWire(ManifestSchema, parseBridgeJson(guards.read(path)));
+  if (manifest.id !== id || manifest.kind !== kind || manifest.implementationDigest !== (yield* implementationDigest(root))) throw new Error(`${id} is stale or invalid; generate fresh formal evidence`);
+  if (new Set(manifest.receiptArtifacts.map(entry => entry.key)).size !== manifest.receiptArtifacts.length || new Set(manifest.receiptArtifacts.map(entry => entry.file)).size !== manifest.receiptArtifacts.length) throw new Error("managed evidence contains duplicate artifact keys or files");
+  return { directory, manifest };
+}, bridgeBoundary);
 
-function readArtifact(directory: string, entry: ArtifactEntry): unknown {
+function readArtifact(directory: string, entry: ArtifactEntry, guards: ReadGuards): unknown {
   const path = resolve(directory, entry.file);
   if (!path.startsWith(`${directory}/`)) throw new Error("managed evidence artifact escapes its bundle");
-  const bytes = readFileSync(path, "utf8");
+  const bytes = guards.read(path);
   if (sha256(bytes) !== entry.sha256) throw new Error(`managed evidence artifact failed integrity: ${entry.file}`);
-  return JSON.parse(bytes) as unknown;
+  return parseBridgeJson(bytes);
 }
 
-function candidatePath(directory: string, manifest: ManagedEvidenceManifest): string {
+function candidatePath(directory: string, manifest: ManagedEvidenceManifest, guards: ReadGuards): string {
   const path = resolve(directory, manifest.candidateFile);
-  if (!path.startsWith(`${directory}/`) || sha256(readFileSync(path)) !== manifest.candidateSha256) throw new Error("managed evidence candidate failed integrity");
+  if (!path.startsWith(`${directory}/`) || sha256(guards.read(path)) !== manifest.candidateSha256) throw new Error("managed evidence candidate failed integrity");
   return path;
 }
 
-export function readManagedRedEvidence(root: string, id: string): ManagedRedEvidence {
-  const { directory, manifest } = readManifest(root, id, "red");
+export const readManagedRedEvidence = Effect.fn("readManagedRedEvidence")(function* (root: string, id: string, guards = new ReadGuards(root)) {
+  const { directory, manifest } = yield* readManifest(root, id, "red", guards);
   if (manifest.receiptArtifacts.length !== 1) throw new Error("managed red evidence must contain one receipt");
-  const receipt = validateFormalCaseReceipt(readArtifact(directory, manifest.receiptArtifacts[0]!));
+  const receipt = yield* validateFormalCaseReceipt(readArtifact(directory, manifest.receiptArtifacts[0]!, guards));
   if (receipt.selector !== manifest.selector || receipt.inventoryDigest !== manifest.inventoryDigest || receipt.candidate.sha256 !== manifest.candidateSha256 || receipt.observation !== "red" || receipt.result.disposition !== "regression") throw new Error("managed red evidence manifest does not bind its receipt");
-  return { id, receipt, candidatePath: candidatePath(directory, manifest) };
-}
+  const candidate = candidatePath(directory, manifest, guards);
+  guards.finish();
+  return { id, receipt, candidatePath: candidate };
+}, bridgeBoundary);
 
-export function readManagedTakeoverEvidence(root: string, id: string): ManagedTakeoverEvidence {
-  const { directory, manifest } = readManifest(root, id, "takeover");
+export const readManagedTakeoverEvidence = Effect.fn("readManagedTakeoverEvidence")(function* (root: string, id: string, guards = new ReadGuards(root)) {
+  const { directory, manifest } = yield* readManifest(root, id, "takeover", guards);
   if (manifest.certificateArtifact === undefined) throw new Error("managed takeover evidence has no certificate");
-  const receipts = new Map(manifest.receiptArtifacts.map((entry) => [entry.key, validateFormalCaseReceipt(readArtifact(directory, entry))]));
-  const certificate = readArtifact(directory, manifest.certificateArtifact) as TakeoverCertificate;
-  validateTakeoverCertificate(certificate, receipts);
+  const receipts = new Map(yield* Effect.forEach(manifest.receiptArtifacts, entry => validateFormalCaseReceipt(readArtifact(directory, entry, guards)).pipe(Effect.map(receipt => [entry.key, receipt] as const))));
+  const certificate = yield* validateTakeoverCertificate(readArtifact(directory, manifest.certificateArtifact, guards), receipts);
   if (certificate.selector !== manifest.selector || certificate.candidateSha256 !== manifest.candidateSha256 || [...receipts.values()].some((receipt) => receipt.inventoryDigest !== manifest.inventoryDigest)) throw new Error("managed takeover evidence manifest does not bind its receipts");
-  return { id, certificate, receipts, candidatePath: candidatePath(directory, manifest) };
-}
+  const candidate = candidatePath(directory, manifest, guards);
+  guards.finish();
+  return { id, certificate, receipts, candidatePath: candidate };
+}, bridgeBoundary);

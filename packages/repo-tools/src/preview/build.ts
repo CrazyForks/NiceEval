@@ -18,7 +18,6 @@ import { basename, dirname, extname, join, relative, resolve, sep } from "node:p
 import { fileURLToPath } from "node:url";
 
 import { Effect } from "effect";
-import { decodeChangePreview } from "concord-sdlc/change-preview";
 
 import {
   NETLIFY_SITE_ID,
@@ -32,7 +31,7 @@ import {
   PreviewVerificationError,
 } from "./model.js";
 import { requirePreviewSuccess, runPreviewProcess } from "./process.js";
-import { assertConcordComparison, exportConcordChanges, preparePullRequestHistory, readPullRequestComparison, type ConcordComparison } from "./concord.js";
+import { assertConcordComparison, exportConcordChanges, preparePullRequestHistory, readPullRequestComparison, validateConcordChanges, type ConcordComparison } from "./concord.js";
 
 const ROOT = repositoryRoot();
 const PACKAGE_ROOT = join(ROOT, "packages/niceeval");
@@ -382,62 +381,66 @@ function installCandidateViewAssets(repositoryRoot: string) {
   });
 }
 
-async function collectSiteManifest(root: string, comparison?: ConcordComparison): Promise<readonly PreviewFile[]> {
+const collectSiteManifest = Effect.fn("preview.collectSiteManifest")(function*(root: string, comparison?: ConcordComparison) {
   const files: PreviewFile[] = [];
   let siteBytes = 0;
-  async function visit(directory: string): Promise<void> {
-    const entries = await readdir(directory, { withFileTypes: true });
+  const fail = (message: string) => Effect.fail(new PreviewVerificationError({ subject: "published site", message }));
+  const visit = Effect.fn("preview.collectSiteManifest.visit")(function*(directory: string): Effect.fn.Return<void, import("./model.js").PreviewError, BuildServices> {
+    const entries = yield* io("read-published-directory", directory, () => readdir(directory, { withFileTypes: true }));
     for (const entry of entries) {
       const target = join(directory, entry.name);
       const path = relative(root, target).split(sep).join("/");
       if (path === "" || path.startsWith("../") || path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")) {
-        throw new Error(`unsafe published path: ${path}`);
+        return yield* fail(`unsafe published path: ${path}`);
       }
       if (entry.isDirectory()) {
-        await visit(target);
+        yield* visit(target);
         continue;
       }
-      if (!entry.isFile()) throw new Error(`published site contains unsupported entry: ${path}`);
-      if (PROHIBITED_PATH.test(path)) throw new Error(`published site contains prohibited path: ${path}`);
+      if (!entry.isFile()) return yield* fail(`published site contains unsupported entry: ${path}`);
+      if (PROHIBITED_PATH.test(path)) return yield* fail(`published site contains prohibited path: ${path}`);
       const extension = extname(path).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.has(extension)) throw new Error(`published site contains non-allowlisted file: ${path}`);
-      if (path.startsWith("assets/") && !HASHED_ASSET_PATH.test(path)) throw new Error(`published site contains a non-hashed asset: ${path}`);
-      if (path.startsWith("concord/assets/") && !HASHED_ASSET_PATH.test(path.slice("concord/".length))) throw new Error(`published Concord asset is not hashed: ${path}`);
-      if ((await stat(target)).size > MAXIMUM_STATIC_ASSET_BYTES) throw new Error(`published static asset exceeds ${MAXIMUM_STATIC_ASSET_BYTES} bytes: ${path}`);
-      const bytes = await readFile(target);
+      if (!ALLOWED_EXTENSIONS.has(extension)) return yield* fail(`published site contains non-allowlisted file: ${path}`);
+      if (path.startsWith("assets/") && !HASHED_ASSET_PATH.test(path)) return yield* fail(`published site contains a non-hashed asset: ${path}`);
+      if (path.startsWith("concord/assets/") && !HASHED_ASSET_PATH.test(path.slice("concord/".length))) return yield* fail(`published Concord asset is not hashed: ${path}`);
+      if ((yield* io("stat-published-file", target, () => stat(target))).size > MAXIMUM_STATIC_ASSET_BYTES) return yield* fail(`published static asset exceeds ${MAXIMUM_STATIC_ASSET_BYTES} bytes: ${path}`);
+      const bytes = yield* io("read-published-file", target, () => readFile(target));
       if (bytes.byteLength > MAXIMUM_STATIC_ASSET_BYTES) {
-        throw new Error(`published static asset exceeds ${MAXIMUM_STATIC_ASSET_BYTES} bytes: ${path}`);
+        return yield* fail(`published static asset exceeds ${MAXIMUM_STATIC_ASSET_BYTES} bytes: ${path}`);
       }
       siteBytes += bytes.byteLength;
-      if (siteBytes > MAXIMUM_SITE_BYTES) throw new Error(`published site exceeds ${MAXIMUM_SITE_BYTES} bytes`);
+      if (siteBytes > MAXIMUM_SITE_BYTES) return yield* fail(`published site exceeds ${MAXIMUM_SITE_BYTES} bytes`);
       const sqlite = bytes.subarray(0, 16).equals(Buffer.from("SQLite format 3\0"));
-      if (sqlite) throw new Error(`published site contains SQLite data: ${path}`);
-      if (containsPrivateKeyMaterial(bytes)) throw new Error(`published site contains private-key material: ${path}`);
+      if (sqlite) return yield* fail(`published site contains SQLite data: ${path}`);
+      if (containsPrivateKeyMaterial(bytes)) return yield* fail(`published site contains private-key material: ${path}`);
       if (extension === ".json") {
-        const parsed = JSON.parse(bytes.toString("utf8")) as unknown;
         if (path === "concord/changes.json") {
-          if (comparison === undefined) throw new Error("Concord changes are present without an admitted PR comparison");
-          assertConcordComparison(decodeChangePreview(parsed), comparison);
+          if (comparison === undefined) return yield* fail("Concord changes are present without an admitted PR comparison");
+          const validated = yield* validateConcordChanges(ROOT, bytes);
+          yield* Effect.try({ try: () => assertConcordComparison(validated, comparison), catch: error => new PreviewVerificationError({ subject: path, message: String(error) }) });
+          const current = yield* io("recheck-concord-bytes", target, () => readFile(target));
+          if (!bytes.equals(current)) return yield* fail("Concord changes changed during engine validation");
         } else {
+          const parsed = yield* Effect.try({ try: () => JSON.parse(bytes.toString("utf8")) as unknown, catch: error => new PreviewIoError({ operation: "parse-published-json", path, message: String(error) }) });
           const record = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
           if (record === undefined || Object.keys(record).sort().join("\0") !== ["en", "format", "zh-CN"].join("\0") || record.format !== "niceeval.view-page/v1" || typeof record.en !== "string" || typeof record["zh-CN"] !== "string") {
-            throw new Error(`published site contains Inspection or unknown JSON: ${path}`);
+            return yield* fail(`published site contains Inspection or unknown JSON: ${path}`);
           }
         }
       }
       files.push({ path, byteLength: bytes.byteLength, sha256: sha256(bytes) });
-      if (files.length > MAXIMUM_FILES) throw new Error(`published site exceeds ${MAXIMUM_FILES} files`);
+      if (files.length > MAXIMUM_FILES) return yield* fail(`published site exceeds ${MAXIMUM_FILES} files`);
     }
-  }
-  await visit(root);
+  });
+  yield* visit(root);
   files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  if (!files.some((file) => file.path === "index.html")) throw new Error("published site is missing index.html");
-  if (comparison !== undefined && (!files.some(file => file.path === "concord/index.html") || !files.some(file => file.path === "concord/changes.json"))) throw new Error("published site is missing the admitted Concord review");
+  if (!files.some((file) => file.path === "index.html")) return yield* fail("published site is missing index.html");
+  if (comparison !== undefined && (!files.some(file => file.path === "concord/index.html") || !files.some(file => file.path === "concord/changes.json"))) return yield* fail("published site is missing the admitted Concord review");
   return files;
-}
+});
 
 function verifyPreviewClosure(root: string) {
-  return io("verify-preview-closure", root, () => collectSiteManifest(root));
+  return collectSiteManifest(root);
 }
 
 async function collectPrivateFunctionManifest(root: string): Promise<readonly PreviewFile[]> {
@@ -603,7 +606,7 @@ function publishSite(source: string, publish: string, comparison?: ConcordCompar
     const cleanup = io("remove-publish-staging", staging, () => rm(staging, { recursive: true, force: true })).pipe(Effect.orDie);
     return yield* Effect.gen(function*() {
       yield* io("copy-publish-staging", staging, () => cp(source, staging, { recursive: true }));
-      const files = yield* io("verify-publish-staging", staging, () => collectSiteManifest(staging, comparison));
+      const files = yield* collectSiteManifest(staging, comparison);
       const digest = closureDigest(files);
       yield* io("remove-old-publish", publish, () => rm(publish, { recursive: true, force: true }));
       yield* io("publish-atomic-rename", publish, () => rename(staging, publish));

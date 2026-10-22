@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { governanceSuiteForFile } from "concord-sdlc/governance-config";
-import { projectExecutionSources, resolveRepositorySourceIdentity, sameRepositorySourceIdentity } from "concord-sdlc/repository/source-identity";
+import { governanceSuiteForFile } from "./concord-engine.ts";
+import { projectExecutionSources, resolveRepositorySourceIdentity, sameRepositorySourceIdentity } from "./concord-engine.ts";
 
 import * as FileSystem from "effect/FileSystem";
 import { Data, Effect, Result } from "effect";
@@ -91,7 +91,7 @@ export const validateExpectedRegression = (receipt: RepoReceipt): { readonly tes
 export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEvidenceSummary, RedEvidenceError, FileSystem.FileSystem | OwnedProcess | import("effect").Scope.Scope> => Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(options.candidateGitSha)) return yield* Effect.fail(new RedEvidenceError({ detail: "candidateGitSha must be a full Git object id" }));
-  const inventory = yield* Effect.try({ try: () => readManagedInventoryReceipt(repoRootDir(), options.inventoryId, options.selector), catch: failure });
+  const inventory = yield* readManagedInventoryReceipt(repoRootDir(), options.inventoryId, options.selector).pipe(Effect.mapError(failure));
   const selected = yield* Effect.try({ try: () => selectInventoryCase(inventory, options.selector, options.repoId), catch: failure });
   const head = yield* checkoutHead(repoRootDir());
   if (head !== inventory.checkout) return yield* Effect.fail(new RedEvidenceError({ detail: "inventory checkout does not match current checkout HEAD" }));
@@ -101,7 +101,7 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   const repo = discovered.repos.find((entry) => entry.manifest.id === options.repoId);
   if (repo === undefined || discovered.errors.length > 0) return yield* Effect.fail(new RedEvidenceError({ detail: `cannot freeze source for ${options.repoId}: ${discovered.errors.join("; ")}` }));
   const root = repoRootDir();
-  const suite = yield* Effect.try({ try: () => governanceSuiteForFile(root, selected.path), catch: failure });
+  const suite = yield* governanceSuiteForFile(root, selected.path).pipe(Effect.mapError(failure));
   const declaredScratch = yield* Effect.acquireRelease(
     fileSystem.makeTempDirectory({ prefix: "niceeval-e2e-red-source-" }).pipe(Effect.mapError(failure)),
     (path) => fileSystem.remove(path, { recursive: true, force: true }).pipe(Effect.catch(() => Effect.void)),
@@ -109,8 +109,8 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   const scratch = yield* fileSystem.realPath(declaredScratch).pipe(Effect.mapError(failure));
   const sourceSnapshot = resolve(scratch, suite.root);
   yield* copyRepoIsolated(repo.dir, sourceSnapshot).pipe(Effect.mapError(failure));
-  const sourceIdentity = yield* Effect.try({ try: () => resolveRepositorySourceIdentity(root, options.selector), catch: failure });
-  const copiedProjection = yield* Effect.try({ try: () => projectExecutionSources(sourceSnapshot, suite.root), catch: failure });
+  const sourceIdentity = yield* resolveRepositorySourceIdentity(root, options.selector).pipe(Effect.mapError(failure));
+  const copiedProjection = yield* projectExecutionSources(sourceSnapshot, suite.root).pipe(Effect.mapError(failure));
   if (copiedProjection.digest !== sourceIdentity.projection.digest) return yield* Effect.fail(new RedEvidenceError({ detail: "red execution copy projection differs from the current source identity" }));
   const exactArgs = exactCaseNativeArgs(inventory.executor.name, runnerPath, selected.titlePath);
   const nativeArgs = [...options.nativeArgs, ...nativeReporterArgs(inventory.executor.name), ...exactArgs];
@@ -123,25 +123,25 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
     return yield* Effect.fail(new RedEvidenceError({ detail: repoReceipt.detail }));
   }
   const regression = yield* Effect.try({ try: () => validateExpectedRegression(repoReceipt), catch: failure });
-  const afterSourceIdentity = yield* Effect.try({ try: () => resolveRepositorySourceIdentity(root, options.selector), catch: failure });
-  if (!sameRepositorySourceIdentity(sourceIdentity, afterSourceIdentity)) return yield* Effect.fail(new RedEvidenceError({ detail: "fixed red source identity drifted during execution" }));
+  const afterSourceIdentity = yield* resolveRepositorySourceIdentity(root, options.selector).pipe(Effect.mapError(failure));
+  if (!(yield* sameRepositorySourceIdentity(sourceIdentity, afterSourceIdentity))) return yield* Effect.fail(new RedEvidenceError({ detail: "fixed red source identity drifted during execution" }));
   const testStage = repoReceipt.stages.find((stage) => stage.stage === "test")!;
   const cleanupStage = repoReceipt.stages.findLast((stage) => stage.stage === "cleanup");
   if (testStage.native === undefined) return yield* Effect.fail(new RedEvidenceError({ detail: `native red observation is unavailable: ${testStage.nativeObservationError ?? "missing native reporter result"}` }));
-  const receipt = signFormalCaseReceipt({
+  const receipt = yield* signFormalCaseReceipt({
     format: "concord.native-case-receipt/v1", mode: "formal", observation: "red", selector: options.selector, caseId: selected.caseId, inventoryDigest: inventory.digest,
     problem: options.problem,
     candidate: { gitSha: options.candidateGitSha, sha256: repoReceipt.candidate.sha256, sri: sha256Sri(repoReceipt.candidate.sha256) },
     source: sourceIdentity,
-    runner: { executor: inventory.executor.name, version: inventory.executor.version, implementationDigest: managedInventoryImplementationDigest(root), argv: testStage.command ?? [] },
+    runner: { executor: inventory.executor.name, version: inventory.executor.version, implementationDigest: yield* managedInventoryImplementationDigest(root), argv: testStage.command ?? [] },
     result: { disposition: "regression", stage: "test", exitCode: regression.test.exitCode, signal: regression.test.signal, timedOut: regression.test.timedOut, startupFailed: regression.test.error !== undefined },
     native: { copyId: repoReceipt.copyId ?? "red-single", copyPath: cleanupStage?.path ?? "unavailable", sequence: 1, mode: "single", ...testStage.native, parallelism: 1 },
     cleanup: { ok: true, resources: regression.resources }, invocationId: regression.invocationId,
   });
-  validateFormalCaseReceipt(receipt);
+  yield* validateFormalCaseReceipt(receipt);
   const receiptPath = resolve(summary.artifactRoot, "case-evidence", "red-receipt.json");
   yield* fileSystem.makeDirectory(resolve(summary.artifactRoot, "case-evidence"), { recursive: true }).pipe(Effect.mapError(failure));
   yield* fileSystem.writeFileString(receiptPath, JSON.stringify(receipt, null, 2) + "\n").pipe(Effect.mapError(failure));
-  const evidence = yield* Effect.try({ try: () => saveManagedRedEvidence(repoRootDir(), receipt, options.candidatePath), catch: failure });
+  const evidence = yield* saveManagedRedEvidence(repoRootDir(), receipt, options.candidatePath).pipe(Effect.mapError(failure));
   return { format: "niceeval.e2e-red-evidence-summary/v1" as const, evidence, receiptPath, receipt };
 }).pipe(Effect.mapError(failure));

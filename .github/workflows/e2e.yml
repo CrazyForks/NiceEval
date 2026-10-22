@@ -83,6 +83,9 @@ jobs:
         # builds dist/ and INDEX.md. Do not perform the same build during install.
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Install Concord CLI
+        uses: ./.github/actions/setup-concord
+
       - name: Resolve lane and environment
         id: lane
         env:
@@ -372,6 +375,9 @@ jobs:
         # prepare 已从同一 checkout 构建并封装 exact candidate；matrix 只需要根 CLI 的
         # JS 依赖，不能为每个 cell 重跑根 prepare 的 report/index 构建。
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install Concord CLI
+        uses: ./.github/actions/setup-concord
 
       - name: Derive safe artifact id
         id: safe

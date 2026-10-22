@@ -30,8 +30,7 @@
     "effect": "4.0.0-rc.112",
     "ignore": "7.0.10",
     "tar-stream": "^3.1.7",
-    "yaml": "^2.9.1",
-    "concord-sdlc": "https://github.com/CorrectRoadH/Concord/releases/download/v0.12.0/concord-sdlc-0.12.0.tgz"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

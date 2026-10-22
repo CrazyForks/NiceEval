@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { basename, join, relative, resolve } from "node:path";
 import * as FileSystem from "effect/FileSystem";
 import { Data, Effect, Result, Scope } from "effect";
-import { projectExecutionSources } from "concord-sdlc/repository/source-identity";
+import { projectExecutionSources } from "./concord-engine.ts";
 import { repoRootDir, type DiscoveredRepo } from "./discovery.ts";
 import { collectCaseInventory, type InventoryExecutor } from "./inventory.ts";
 import { formatCause } from "./format-cause.ts";
@@ -341,10 +341,7 @@ const verifyExecutionProjection = (
   expectedDigest: string,
   phase: string,
   prefix: string,
-): Effect.Effect<void, RepoRunError> => Effect.try({
-  try: () => projectExecutionSources(directory, prefix),
-  catch: (cause) => problem(repoId, "run", `SourceSnapshotProjectionInvalid (${phase}): ${cause instanceof Error ? cause.message : String(cause)}`),
-}).pipe(Effect.flatMap((projection) => projection.digest === expectedDigest
+): Effect.Effect<void, RepoRunError, OwnedProcess | Scope.Scope> => projectExecutionSources(directory, prefix).pipe(Effect.mapError((cause) => problem(repoId, "run", `SourceSnapshotProjectionInvalid (${phase}): ${cause.message}`)), Effect.flatMap((projection) => projection.digest === expectedDigest
   ? Effect.void
   : Effect.fail(problem(repoId, "run", `SourceSnapshotDrift (${phase}): expected ${expectedDigest}, got ${projection.digest}`))));
 const stage = (stages: StageReceipt[], value: StageReceipt): void => {

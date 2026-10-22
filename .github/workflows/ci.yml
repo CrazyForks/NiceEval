@@ -29,22 +29,8 @@ jobs:
         # publishable package and would add ~22s without being consumed here.
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Install Concord 0.12.0
-        shell: bash
-        run: |
-          set -euo pipefail
-          concord_root="$(mktemp -d "${RUNNER_TEMP}/concord-0.12.0.XXXXXX")"
-          curl --fail --location --retry 3 \
-            https://github.com/CorrectRoadH/Concord/releases/download/v0.12.0/concord-sdlc-0.12.0.tgz \
-            --output "${concord_root}/concord.tgz"
-          echo "9908f62911d35091e70b7307286a772f2bc05942e1c3e830d6e986e7050f7556  ${concord_root}/concord.tgz" | sha256sum --check
-          tar -xzf "${concord_root}/concord.tgz" -C "$concord_root"
-          pnpm --dir "${concord_root}/package" install --prod --frozen-lockfile --ignore-scripts --package-import-method=copy
-          mkdir "${concord_root}/bin"
-          chmod +x "${concord_root}/package/dist/entry.js"
-          ln -s "${concord_root}/package/dist/entry.js" "${concord_root}/bin/concord"
-          echo "${concord_root}/bin" >> "$GITHUB_PATH"
-          "${concord_root}/bin/concord" --version
+      - name: Install Concord CLI
+        uses: ./.github/actions/setup-concord
 
       - name: Typecheck
         run: pnpm run typecheck

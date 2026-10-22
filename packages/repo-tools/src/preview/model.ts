@@ -1,10 +1,16 @@
 import { Data, Schema } from "effect";
-import { ChangePreviewSchema } from "concord-sdlc/change-preview";
+
+const ComparisonOid = Schema.String.check(Schema.isPattern(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u));
+export const ConcordComparisonSchema = Schema.Struct({
+  base: ComparisonOid, head: ComparisonOid, mergeBase: ComparisonOid,
+  baseLabel: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(256)),
+});
+export type ConcordComparison = typeof ConcordComparisonSchema.Type;
 
 export const PreviewChangesReceiptSchema = Schema.Struct({
   operation: Schema.Literal("preview-changes"),
   output: Schema.String,
-  comparison: ChangePreviewSchema.fields.comparison,
+  comparison: ConcordComparisonSchema,
 });
 
 export const PREVIEW_REPOSITORY = "https://github.com/NiceEval/NiceEval-Preview.git";

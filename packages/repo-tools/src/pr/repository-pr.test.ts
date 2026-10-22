@@ -4,18 +4,23 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { NodeServices } from "@effect/platform-node";
-import { deriveTestReference } from "concord-sdlc/model";
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { test } from "vitest";
 
 import { runPrBodyAt } from "./domain.ts";
 import { makeNodePrLive } from "./node.ts";
 import { readPrTestDeclarations } from "./test-relations.ts";
+import { requestConcordEngine } from "../concord-engine.ts";
 
 const nativePath = "e2e/fixture/test/native.test.ts";
 const helperPath = "e2e/fixture/test/helper.scenarios.ts";
-const caseId = deriveTestReference(nativePath, helperPath, "fixture contract");
-const selector = `${nativePath}#${caseId}`;
+const fixtureSelector = (root: string) => requestConcordEngine(root, "case-id", {
+  nativePath, declarationPath: helperPath, title: "fixture contract",
+}).pipe(
+  Effect.flatMap(value => Schema.decodeUnknownEffect(Schema.String)(value)),
+  Effect.map(caseId => `${nativePath}#${caseId}`),
+  Effect.provide(NodeServices.layer),
+);
 const contract = "docs/feature/fixture/use-case/run.md";
 const write = (root: string, path: string, text: string): void => {
   mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -44,6 +49,7 @@ const fixture = () => Effect.acquireRelease(
 
 test.concurrent("PR source inventory reads the specified Git tree despite index and worktree changes", () => Effect.runPromise(Effect.scoped(Effect.gen(function*() {
   const root = yield* fixture();
+  const selector = yield* fixtureSelector(root);
   const head = yield* Effect.sync(() => {
     write(root, nativePath, 'import "./helper.scenarios.js";\n');
     write(root, helperPath, helperSource);
@@ -69,6 +75,7 @@ test.concurrent("PR source inventory reads the specified Git tree despite index 
 
 test.concurrent("local PR rendering includes untracked helper annotations and rejects ambiguous test declarations", () => Effect.runPromise(Effect.scoped(Effect.gen(function*() {
   const root = yield* fixture();
+  const selector = yield* fixtureSelector(root);
   yield* Effect.sync(() => {
     write(root, nativePath, 'import "./helper.scenarios.js";\n');
     write(root, helperPath, helperSource);

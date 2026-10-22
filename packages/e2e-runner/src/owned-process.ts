@@ -1,7 +1,7 @@
 // Scope-owned execution of commands used by the E2E runner.
 //
-// A POSIX command receives a detached process group. The group, rather than
-// merely its leader, is the resource this service owns and releases.
+// Standalone POSIX commands own detached process groups. Repository adapters
+// inject their outer Concord group: nested commands never detach or signal it.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
@@ -17,6 +17,10 @@ export interface OwnedProcessOptions {
   readonly stream?: boolean;
   readonly timeoutMs?: number;
   readonly streamPrefix?: string;
+  readonly stdin?: string;
+  readonly stdoutBytes?: number;
+  readonly stderrBytes?: number;
+  readonly strictUtf8?: boolean;
 }
 
 export interface OwnedProcessGroupCleanup {
@@ -106,6 +110,7 @@ interface Active {
   readonly command: readonly string[];
   readonly groupId?: number;
   readonly groupOwned: boolean;
+  readonly inheritedGroup?: number;
   readonly signals: NodeJS.Signals[];
   stdout: string;
   stderr: string;
@@ -142,6 +147,7 @@ function waitForGroup(groupId: number, duration: number): Effect.Effect<GroupPre
 }
 
 function cleanupGroup(active: Active, graceMs: number): Effect.Effect<OwnedProcessGroupCleanup> {
+  if (active.inheritedGroup !== undefined) return Effect.succeed({ ...noOwnedGroupCleanup("inherited process group cleanup belongs to outer Concord Scope"), groupId: active.inheritedGroup });
   if (!active.groupOwned || active.groupId === undefined) return Effect.succeed(noOwnedGroupCleanup("no detached POSIX process group was created on this host"));
   const initial = groupPresence(active.groupId);
   if (initial === "gone" || initial === "zombie-only") return Effect.succeed<OwnedProcessGroupCleanup>({ owned: true, checked: true, aliveAfterLeaderClose: false, groupId: active.groupId, signalsSent: active.signals, gone: true, detail: `owned process group ${active.groupId} has no running members after leader close` });
@@ -154,20 +160,45 @@ function cleanupGroup(active: Active, graceMs: number): Effect.Effect<OwnedProce
   }));
 }
 
-function acquireActive(command: readonly string[], options: OwnedProcessOptions, active: Set<Active>): Effect.Effect<Active, OwnedProcessError> {
+function acquireActive(command: readonly string[], options: OwnedProcessOptions, active: Set<Active>, inheritedGroup?: number, onFailure?: () => void): Effect.Effect<Active, OwnedProcessError> {
   return Effect.flatMap(Deferred.make<OwnedProcessResult>(), (shutdownResult) => Effect.try({ try: () => {
     if (command[0] === undefined) throw new Error("owned process command must contain an executable");
-    const groupOwned = process.platform !== "win32";
-    const child = spawn(command[0], command.slice(1), { cwd: options.cwd, env: options.env, detached: groupOwned, stdio: options.output === "capture" ? ["ignore", "pipe", "pipe"] : "inherit" });
-    const entry: Active = { child, command, groupOwned, ...(groupOwned && child.pid !== undefined && child.pid !== process.pid ? { groupId: child.pid } : {}), signals: [], stdout: "", stderr: "", closeListeners: new Set(), shutdownResult };
+    const groupOwned = inheritedGroup === undefined && process.platform !== "win32";
+    const child = spawn(command[0], command.slice(1), { cwd: options.cwd, env: options.env, detached: groupOwned, stdio: options.output === "capture" ? [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"] : "inherit" });
+    const entry: Active = { child, command, groupOwned, ...(inheritedGroup === undefined ? {} : { inheritedGroup }), ...(groupOwned && child.pid !== undefined && child.pid !== process.pid ? { groupId: child.pid } : {}), signals: [], stdout: "", stderr: "", closeListeners: new Set(), shutdownResult };
+    let finishOutput = () => {};
     if (options.output === "capture") {
-      const write = (channel: "stdout" | "stderr", chunk: Buffer | string) => { const text = String(chunk); entry[channel] += text; if (options.stream !== false) process[channel].write(options.streamPrefix === undefined ? text : text.split("\\n").map((line) => `${options.streamPrefix}${line}`).join("\\n")); };
-      child.stdout?.on("data", (chunk) => write("stdout", chunk)); child.stderr?.on("data", (chunk) => write("stderr", chunk));
+      const decoders = { stdout: new TextDecoder("utf-8", { fatal: options.strictUtf8 === true }), stderr: new TextDecoder("utf-8", { fatal: options.strictUtf8 === true }) };
+      const sizes = { stdout: 0, stderr: 0 };
+      const failOutput = (detail: string) => { entry.error ??= detail; onFailure?.(); signal(entry, "SIGKILL", "cancelled"); };
+      const append = (channel: "stdout" | "stderr", text: string) => {
+        entry[channel] += text;
+        if (options.stream !== false) process[channel].write(options.streamPrefix === undefined ? text : text.split("\n").map((line) => `${options.streamPrefix}${line}`).join("\n"));
+      };
+      const write = (channel: "stdout" | "stderr", chunk: Buffer | string) => {
+        const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+        sizes[channel] += bytes.length;
+        if (sizes[channel] > (channel === "stdout" ? options.stdoutBytes ?? Infinity : options.stderrBytes ?? Infinity)) { failOutput(`${channel} exceeds output budget`); return; }
+        try { append(channel, decoders[channel].decode(bytes, { stream: true })); }
+        catch { failOutput(`${channel} is not valid UTF-8`); }
+      };
+      finishOutput = () => {
+        for (const channel of ["stdout", "stderr"] as const) {
+          try { append(channel, decoders[channel].decode()); }
+          catch { entry.error ??= `${channel} is not valid UTF-8`; onFailure?.(); }
+        }
+      };
+      child.stdout?.on("data", (chunk) => write("stdout", chunk));
+      child.stderr?.on("data", (chunk) => write("stderr", chunk));
     }
-    child.once("error", (error) => { entry.error = error.message; });
-    child.once("close", (code, exitSignal) => { entry.closed = [code, exitSignal]; for (const listener of entry.closeListeners) listener(entry.closed); entry.closeListeners.clear(); });
-    active.add(entry); return entry;
-  }, catch: (cause) => new OwnedProcessError({ operation: "spawn", detail: cause instanceof Error ? cause.message : "could not spawn command" }) }));
+    child.once("error", (error) => { entry.error = error.message; onFailure?.(); });
+    child.stdin?.on("error", (error) => { entry.error = error.message; onFailure?.(); signal(entry, "SIGKILL", "cancelled"); });
+    child.once("exit", (code, exitSignal) => { if (code !== 0 || exitSignal !== null) onFailure?.(); });
+    child.once("close", (code, exitSignal) => { finishOutput(); entry.closed = [code, exitSignal]; if (code !== 0 || exitSignal !== null) onFailure?.(); for (const listener of entry.closeListeners) listener(entry.closed); entry.closeListeners.clear(); });
+    active.add(entry);
+    if (options.stdin !== undefined) child.stdin?.end(options.stdin);
+    return entry;
+  }, catch: (cause) => { onFailure?.(); return new OwnedProcessError({ operation: "spawn", detail: cause instanceof Error ? cause.message : "could not spawn command" }); } }));
 }
 
 function complete(active: Active, graceMs: number): Effect.Effect<OwnedProcessResult> {
@@ -191,7 +222,7 @@ function shutdownRaw(active: Active, graceMs: number, reason: OwnedTermination, 
     Effect.andThen(waitForClose(active).pipe(Effect.timeoutOption(graceMs))),
     Effect.flatMap((close) => Option.isSome(close)
       ? resultFromClose(active, close.value, graceMs)
-      : Effect.sync(() => signal(active, "SIGKILL")).pipe(Effect.andThen(waitForClose(active)), Effect.flatMap((afterKill) => resultFromClose(active, afterKill, graceMs)))),
+      : Effect.sync(() => signal(active, "SIGKILL")).pipe(Effect.andThen(active.inheritedGroup === undefined ? waitForClose(active) : Effect.sync(() => { active.child.stdout?.destroy(); active.child.stderr?.destroy(); return active.closed ?? [null, "SIGKILL"] as const; })), Effect.flatMap((afterKill) => resultFromClose(active, afterKill, graceMs)))),
   );
 }
 
@@ -206,7 +237,7 @@ function shutdown(active: Active, graceMs: number, reason: OwnedTermination, fir
   }).pipe(Effect.uninterruptible);
 }
 
-export function ownedProcessLayer(options: { readonly graceMs?: number } = {}): Layer.Layer<OwnedProcess, never, never> {
+export function ownedProcessLayer(options: { readonly graceMs?: number; readonly inheritedGroup?: number } = {}): Layer.Layer<OwnedProcess, never, never> {
   const graceMs = options.graceMs ?? 5_000;
   return Layer.effect(OwnedProcess, Effect.gen(function* () {
     const active = new Set<Active>(); let stoppingSignal: NodeJS.Signals | undefined;
@@ -218,10 +249,10 @@ export function ownedProcessLayer(options: { readonly graceMs?: number } = {}): 
     return {
       run: (command, processOptions) => Effect.suspend(() => {
         if (stoppingSignal !== undefined) return Effect.succeed({ command, exitCode: null, signal: stoppingSignal, timedOut: false, cancelled: true, stdout: "", stderr: "", processGroupOwned: false, groupCleanup: noOwnedGroupCleanup("command did not start because runner cancellation was already requested") });
-        return Effect.acquireRelease(acquireActive(command, processOptions, active), (entry) => shutdown(entry, graceMs, "cancelled").pipe(Effect.asVoid, Effect.ensuring(Effect.sync(() => active.delete(entry))))).pipe(Effect.flatMap((entry) => {
+        return Effect.acquireRelease(acquireActive(command, options.inheritedGroup === undefined ? processOptions : { ...processOptions, output: "capture", stream: false }, active, options.inheritedGroup, options.inheritedGroup === undefined ? undefined : () => { stoppingSignal ??= "SIGTERM"; }), (entry) => shutdown(entry, graceMs, "cancelled").pipe(Effect.asVoid, Effect.ensuring(Effect.sync(() => active.delete(entry))))).pipe(Effect.flatMap((entry) => {
           const done = complete(entry, graceMs);
           const timed = processOptions.timeoutMs === undefined ? done : Effect.raceFirst(done, Effect.sleep(processOptions.timeoutMs).pipe(Effect.andThen(shutdown(entry, graceMs, "timeout"))));
-          return timed.pipe(Effect.tap(() => Effect.sync(() => active.delete(entry))));
+          return timed.pipe(Effect.tap((result) => Effect.sync(() => { active.delete(entry); if (options.inheritedGroup !== undefined && !hasSuccessfulOwnedProcessResult(result)) stoppingSignal ??= "SIGTERM"; })));
         }));
       }),
       requestStop,
