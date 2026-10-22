@@ -2,13 +2,14 @@
 
 export { definePlugin } from "./contracts.ts";
 export type {
-  EvalPluginFragment,
-  EvalPluginContext,
+  AttemptPluginFragment,
+  AttemptPluginContext,
   ExperimentPluginFragment,
   ExperimentPluginContext,
   GroupPluginContext,
   GroupPluginFragment,
   PluginDefinition,
+  PluginAgentExtensions,
   PluginInstance,
   PluginLifecycleFragment,
   PluginOnUnavailable,

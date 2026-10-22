@@ -28,8 +28,7 @@ export interface PluginOccurrenceProvenance {
 
 export interface LinkedPluginOccurrence {
   readonly name: string;
-  readonly instanceKey: string;
-  readonly behaviorRevision: string;
+  readonly key: string;
   readonly provenance: PluginOccurrenceProvenance;
   readonly projection: JsonValue;
   readonly audit: JsonValue;
@@ -103,45 +102,11 @@ function sandboxDeclaration(lifecycle: LinkedPluginLifecycle): JsonValue | undef
 }
 
 function pluginLifecycleAttachmentIdentity(lifecycle: LinkedPluginLifecycle): JsonValue {
-  const sandbox = sandboxDeclaration(lifecycle);
-  if (sandbox === undefined) return pluginLifecycleIdentity(lifecycle);
-  return Object.freeze({
-    scope: lifecycle.scope,
-    name: lifecycle.name,
-    behaviorRevision: lifecycle.behaviorRevision,
-    instanceKey: lifecycle.instanceKey,
-    identity: lifecycle.identity,
-    arrayPosition: lifecycle.arrayPosition,
-    hasSetup: lifecycle.hasSetup,
-    hasTeardown: lifecycle.hasTeardown,
-    sandbox,
-  });
+  return { ...pluginLifecycleIdentity(lifecycle) as object, ...(sandboxDeclaration(lifecycle) === undefined ? {} : { sandbox: sandboxDeclaration(lifecycle)! }) } as JsonValue;
 }
-
-function pluginOccurrenceProjection(lifecycle: LinkedPluginLifecycle): JsonValue {
-  const sandbox = sandboxDeclaration(lifecycle);
-  return Object.freeze({
-    // Keep the established occurrence field order for attachments without a
-    // sandbox fragment; some persisted projections are byte-sensitive.
-    scope: lifecycle.scope,
-    name: lifecycle.name,
-    instanceKey: lifecycle.instanceKey,
-    behaviorRevision: lifecycle.behaviorRevision,
-    identity: lifecycle.identity,
-    arrayPosition: lifecycle.arrayPosition,
-    hasSetup: lifecycle.hasSetup,
-    hasTeardown: lifecycle.hasTeardown,
-    ...(sandbox === undefined ? {} : { sandbox }),
-  });
-}
-
+function pluginOccurrenceProjection(lifecycle: LinkedPluginLifecycle): JsonValue { return pluginLifecycleAttachmentIdentity(lifecycle); }
 function pluginAttachmentProjection(lifecycles: readonly LinkedPluginLifecycle[]): JsonValue {
-  if (lifecycles.every((lifecycle) => lifecycle.sandboxLayer === undefined)) {
-    return pluginLifecycleProjection(lifecycles);
-  }
-  const projection: JsonValue[] = lifecycles.map(pluginLifecycleAttachmentIdentity);
-  Object.freeze(projection);
-  return projection;
+  return lifecycles.map(pluginLifecycleAttachmentIdentity);
 }
 
 function occurrences(
@@ -163,16 +128,16 @@ function occurrences(
     ];
     return Object.freeze({
       name: lifecycle.name,
-      instanceKey: lifecycle.instanceKey,
-      behaviorRevision: lifecycle.behaviorRevision,
+      key: lifecycle.key,
       provenance,
       projection,
       audit: Object.freeze({
         scope,
         name: lifecycle.name,
-        instanceKey: lifecycle.instanceKey,
-        behaviorRevision: lifecycle.behaviorRevision,
+        key: lifecycle.key,
         identity: lifecycle.identity,
+        requires: lifecycle.requires,
+        shape: lifecycle.shape,
         arrayPosition: lifecycle.arrayPosition,
         hasSetup: lifecycle.hasSetup,
         hasTeardown: lifecycle.hasTeardown,
@@ -219,9 +184,7 @@ export function preparePluginRun(run: AgentRun): PreparedPluginRun {
   let lifecycles: readonly LinkedPluginLifecycle[];
   try {
     lifecycles = linkPluginLifecycles(run.plugins as readonly PluginInstance<"experiment">[], "experiment");
-    if (run.adapter.kind === "custom" && lifecycles.length > 0) {
-      throw new TypeError("Custom Adapter runs do not yet support Experiment lifecycle plugins.");
-    }
+
   } catch (error) {
     throw pluginError([{ code: "plugin-owner-unsupported", experimentId: run.experimentId, message: String(error), actions: ["Attach each plugin only to a scope it declares."] }]);
   }
@@ -229,7 +192,7 @@ export function preparePluginRun(run: AgentRun): PreparedPluginRun {
   const authorSetup = run.setup;
   const authorTeardown = run.teardown;
   let activated = 0;
-  const setup = authorSetup === undefined && lifecycles.every((entry) => entry.setup === undefined)
+  const setup = authorSetup === undefined && lifecycles.every((entry) => !entry.hostDeclared)
     ? undefined
     : async (context: ExperimentHookContext): Promise<void> => {
         if (authorSetup !== undefined) await authorSetup(context);
@@ -261,11 +224,6 @@ export function linkPluginPair(evalDef: DiscoveredEval, preparedRun: PreparedPlu
       ? Object.freeze([]) as readonly LinkedPluginLifecycle[]
       : linkPluginLifecycles(evalDef.evalGroup.plugins ?? [], "group");
     const allLifecycles = [...preparedRun.experimentLifecycles, ...groupLifecycles, ...evalLifecycles];
-    if (preparedRun.run.adapter.kind === "custom" && allLifecycles.length > 0) {
-      throw new TypeError(
-        "Custom Adapter runs do not yet support Experiment, Group, or Eval lifecycle plugins.",
-      );
-    }
     if (preparedRun.run.adapter.kind !== "sandbox" && allLifecycles.some((entry) => entry.sandboxLayer !== undefined)) {
       throw new TypeError("Plugin sandbox layer requires a Sandbox Agent and a physical Sandbox plan.");
     }

@@ -145,7 +145,7 @@ import {
   plannedSetupPrefixActions,
   setupPrefixOperation,
 } from "./setup-prefix-plan.ts";
-import { linkPluginLifecycles, type EvalPluginContext } from "../plugin/contracts.ts";
+import { linkPluginLifecycles, type AttemptPluginContext } from "../plugin/contracts.ts";
 import { createSourceRegistry, type SourceRegistry } from "../source-loc.ts";
 import {
   createRunnerAttemptSourceCapture,
@@ -2582,11 +2582,11 @@ async function runAttemptBody(
   let agentSetupReached = false;
   const evalPluginLifecycles = linkPluginLifecycles(evalDef.plugins, "eval");
   let activatedEvalPlugins = 0;
-  const evalPluginContext: EvalPluginContext = {
+  const evalPluginContext: AttemptPluginContext = {
     experimentId: run.experimentId,
     evalId: evalDef.id,
     attempt,
-    ...(evalDef.evalGroup === undefined ? {} : { evalGroupId: evalDef.evalGroup.id }),
+    ...(evalDef.evalGroup === undefined ? {} : { evalGroup: { id: evalDef.evalGroup.id, definitionHash: evalDef.evalGroup.definitionHash } }),
     signal,
     progress: feedback.progress,
     diagnostic: feedback.diagnostic,
@@ -3146,7 +3146,7 @@ async function runAttemptBody(
       for (const lifecycle of evalPluginLifecycles) {
         activatedEvalPlugins += 1;
         if (lifecycle.setup !== undefined) {
-          await (lifecycle.setup as (context: EvalPluginContext) => void | Promise<void>)(evalPluginContext);
+          await (lifecycle.setup as (context: AttemptPluginContext) => void | Promise<void>)(evalPluginContext);
         }
       }
 
@@ -3185,7 +3185,7 @@ async function runAttemptBody(
       for (const lifecycle of evalPluginLifecycles) {
         activatedEvalPlugins += 1;
         if (lifecycle.setup !== undefined) {
-          await (lifecycle.setup as (context: EvalPluginContext) => void | Promise<void>)(evalPluginContext);
+          await (lifecycle.setup as (context: AttemptPluginContext) => void | Promise<void>)(evalPluginContext);
         }
       }
     }
@@ -3724,7 +3724,7 @@ async function runAttemptBody(
           if (lifecycle.teardown === undefined) continue;
           try {
             await assertFirst.requestCleanup(cleanupCallback((signal) =>
-              (lifecycle.teardown as (context: EvalPluginContext) => void | Promise<void>)({
+              (lifecycle.teardown as (context: AttemptPluginContext) => void | Promise<void>)({
                 ...evalPluginContext,
                 signal,
               })

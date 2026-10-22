@@ -53,7 +53,7 @@ import {
   type InternalDirectAgentDefinition,
   type InternalSandboxAgentDefinition,
 } from "./agents/agent-effects.ts";
-import { isPluginInstance, pluginInstanceDataOf, type PluginInstance, type PluginOwner } from "./plugin/contracts.ts";
+import { isPluginInstance, assertPluginOwner, type PluginInstance, type PluginOwner } from "./plugin/contracts.ts";
 
 /** Recognize only the retired flat configuration, without evaluating getters. */
 function normalizeDefinitionJudge(value: unknown, label: string) {
@@ -451,9 +451,7 @@ function normalizePlugins<Owner extends PluginOwner>(
   if (!Array.isArray(value)) throw new TypeError(`${label} must be an array.`);
   return Object.freeze(value.map((plugin, index) => {
     if (!isPluginInstance(plugin)) throw new TypeError(`${label}[${index}] must be created by definePlugin().`);
-    if (pluginInstanceDataOf(plugin)[owner] === undefined) {
-      throw new TypeError(`${label}[${index}] does not support ${owner} attachment.`);
-    }
+    assertPluginOwner(plugin, owner, `${label}[${index}]`);
     return plugin;
   }));
 }

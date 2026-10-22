@@ -886,8 +886,8 @@ function pluginLifecycleSteps(
     .map((entry) => opaque(
       `plugin.lifecycle.${phase}`,
       `plugin-lifecycle-${phase}-callback`,
-      `Plugin ${entry.name} (${entry.instanceKey}) ${phase} callback is opaque`,
-      { owner, label: `${entry.name}:${entry.instanceKey}`, ...(condition === undefined ? {} : { condition }) },
+      `Plugin ${entry.name} (${entry.key}) ${phase} callback is opaque`,
+      { owner, label: `${entry.name}:${entry.key}`, ...(condition === undefined ? {} : { condition }) },
     ));
 }
 
@@ -902,10 +902,10 @@ function sandboxPluginLifecycleSteps(
     .map(({ lifecycle, owner }) => opaque(
       `plugin.lifecycle.${phase}`,
       `plugin-lifecycle-${phase}-callback`,
-      `Plugin ${lifecycle.name} (${lifecycle.instanceKey}) ${phase} callback is opaque`,
+      `Plugin ${lifecycle.name} (${lifecycle.key}) ${phase} callback is opaque`,
       {
         owner,
-        label: `${lifecycle.name}:${lifecycle.instanceKey}`,
+        label: `${lifecycle.name}:${lifecycle.key}`,
         ...(condition === undefined ? {} : { condition }),
       },
     ));
