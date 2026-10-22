@@ -7,12 +7,13 @@ kind: use-case
 feature: docs/feature/sandbox/README.md
 ---
 
+
 # 准备缓存损坏时回到干净起点
 
 场景：Docker image 或 E2B snapshot 的登记仍在，但 Provider 已删除对应对象、返回了不同 identity，或无法完成 restore。
 这类准备缓存只负责加速，不能决定 Eval 能否运行。
 
-普通 Docker 与 E2B 在每条 Attempt 内核对最长 `verified` SetupPrefix。候选无法双向验证时，Runner 隔离该候选，
+普通 Docker 与 E2B 在每条 Attempt 内核对最长 `verified` Before cache。候选无法双向验证时，Runner 隔离该候选，
 最多一次从更短的 verified prefix 或作者声明的 Base 创建私有 Sandbox，并真实执行剩余 before action。
 运行反馈把这次满足记为 `degraded`，同时产生指向被隔离 operation 的 `cache-degraded` diagnostic。
 
@@ -21,7 +22,7 @@ feature: docs/feature/sandbox/README.md
 并用所属 Run 的 `niceeval view --run <runId>` 下钻。
 
 ```text
-setup prefix: degraded · restore failed · replayed from base
+before cache: degraded · restore failed · replayed from base
 diagnostic: cache-degraded · operation setup-prefix/restore
 ```
 

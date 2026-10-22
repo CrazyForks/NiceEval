@@ -70,3 +70,24 @@ Run 和当前结果的 `slots` 集合改为 `plannedAttempts`。Show 完整度�
 
 Adapter 的 `createSessionSlot` / `SessionSlot` 改为 `createSessionKey` / `SessionKey`；
 并发等待文案改为 `waiting for capacity`。
+
+## 命名收敛
+
+旧名字不再提供别名；定义和 CLI 解析会提示替代名字。
+
+| 0.18 | 0.19 |
+| --- | --- |
+| `maxSetupPrefixConcurrency`、`--max-setup-prefix-concurrency` | `maxBeforeCacheConcurrency`、`--max-before-cache-concurrency` |
+| `sandboxCache.setup`、`SandboxSetupCache`、`--sandbox-setup-cache` | `sandboxCache.before`、`SandboxBeforeCache`、`--sandbox-before-cache` |
+| summary `setupPrefixes`、debug `setupPrefixPlan` | `beforeCaches`、`beforeCachePlan` |
+| `bubAgent({ apiBase })` | `bubAgent({ baseUrl })` |
+| `t.o11y`、`O11ySummary` | `t.observability`、`ObservabilitySummary` |
+| `turn.message` | `turn.reply` |
+| `Experiment.judgeRuntime`、`Config.judgeRuntime` | `Experiment.judge`、`Config.judgeProvider` |
+| `niceeval session list/show` | `niceeval invocation list/show` |
+| `niceeval sandbox --record` | `niceeval sandbox --record-root` |
+
+准备缓存现在称为 before cache，身份类型称为 `BeforeCacheKey`。timing 和 diagnostic 的生命周期名称使用 `*.before`、`*.after`。缓存目录、缓存键与 Record 编码保持原样，读取时映射名称，已有缓存与结果无需重写。
+
+Docker profile 只保留 `decodeDockerExecutionProfile`、`defineDockerExecutionProfile`、`indexDockerProfiles`、`resolveDockerProfile` 与 `DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION`。删除它们的解析、构造、registry 别名。
+`/sandbox` 的身份计算、Compose 编译、内部构建调度、capture normalization 与 profile 策略常量，`/loaders` 的 `captureLoadedFiles`，以及 `/inspection` 的 canonical JSON helpers 不再公开导出；这些内部能力没有替代作者 API。

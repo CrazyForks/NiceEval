@@ -396,14 +396,14 @@ Provisioning 的分类只涵盖"创建沙箱"这一步。沙箱创建成功后�
 
 provider 原生 SDK 的其余未知方法不属于公共契约,不承诺透传——需要新能力时显式建模成接口成员或 case 能力句柄,不开 `sandbox.native` 逃生口(裁决见 [memory 条目](../../../memory/sandbox-native-escape-hatch-rejected.md))。
 
-## 准备前缀的身份与验证边界
+## before 缓存的身份与验证边界
 
 Base 之后每个 eligible before action 都产生链式内容身份：
 
 ```text
-SetupPrefixKey[i] = hash(
+BeforeCacheKey[i] = hash(
   provider + exact Base image identity,
-  SetupPrefixKey[i - 1],
+  BeforeCacheKey[i - 1],
   occurrence kind = attempt,
   owner kind + stable owner id + owner-local ordinal,
   linked topological order + normalized changeFrequency,
@@ -418,11 +418,11 @@ SetupPrefixKey[i] = hash(
 
 action fingerprint 固定为 `hash(auto, supplemental)`。`auto` 包含 family id、canonical input、规范化 `sandboxStep`、声明 state 与 immutable content identity；`cache.fingerprint` 只提供 `supplemental`。parent key 防止相同 action 从不同 Base 或祖先状态错误复用。
 
-SetupPrefixKey 不包含 cache lookup 结果、本地 image/container locator、Attempt UUID、调度额度或运行时 secret。Eval `test`、Assertion 和 Agent/test 阶段的输入变化也不进入未改变的 SetupPrefixKey。它们仍按各自 owner 改变 Attempt 与结果 identity；BuildKey 只由构建输入决定。
+BeforeCacheKey 不包含 cache lookup 结果、本地 image/container locator、Attempt UUID、调度额度或运行时 secret。Eval `test`、Assertion 和 Agent/test 阶段的输入变化也不进入未改变的 BeforeCacheKey。它们仍按各自 owner 改变 Attempt 与结果 identity；BuildKey 只由构建输入决定。
 
 `verified` 只有三项含义：
 
-1. 声明 identity、SetupPrefixKey、manifest 与 provider artifact identity 双向一致；artifact receipt 使用 provider-neutral id，不把 provider locator 当 portable identity。
+1. 声明 identity、BeforeCacheKey、manifest 与 provider artifact identity 双向一致；artifact receipt 使用 provider-neutral id，不把 provider locator 当 portable identity。
 2. Provider artifact 包含 action 声明 state 的全部结果；普通 Docker 是 outer writable rootfs，Incus 是完整、quiesced 的 prepared Sandbox artifact。
 3. 每个消费者从 immutable artifact 创建独立 writable state，不共享 writable layer 或 Docker data allocation。
 
@@ -443,17 +443,17 @@ Provider 按能力而非名称进入准备路径。`PreparedArtifact` 是唯一�
 
 bind mount、tmpfs、Compose sidecar、host socket、raw / managed DinD、privileged outer container与无法完整捕获的 inner data-root 都不能冒充上述 capability。secret、runtime overlay、workspace、Attempt locator 与外部会话不进入可发布 artifact。
 
-## 前缀缓存是可失败的优化
+## before 缓存是可失败的优化
 
 lookup 或 restore 在 action 执行前失败时，Runner 忽略不可验证的候选，并最多一次从更短的 verified prefix 或 Base 创建干净容器。该 Attempt 的剩余 action 真实 replay，运行反馈为 `degraded`。无法建立干净容器时，Attempt 失败。
 
 action 成功后 capture 失败时不得再执行该 action。当前容器仍完整时，它可以继续 uncached；已无法证明完整时，Attempt 失败。任何部分恢复或部分 capture 都不会冒充 hit，也不会形成循环 cache retry。
 
-取消只回收当前 private staging 与 Attempt 资源，不回滚已经完成验证并发布的 immutable SetupPrefix artifact。下一次 Invocation 仍从最深 verified prefix 继续：取消时正在执行或尚未发布的 action 必须重新执行；已经发布的祖先 action 不得因取消而从 Base 重新执行。某个中间 action 的 canonical input、fingerprint、依赖或顺序变化时，它之前未变化的最长 verified prefix 继续命中，从该 action 起的变化层与全部后缀重新执行和发布。
+取消只回收当前 private staging 与 Attempt 资源，不回滚已经完成验证并发布的 immutable Before cache artifact。下一次 Invocation 仍从最深 verified prefix 继续：取消时正在执行或尚未发布的 action 必须重新执行；已经发布的祖先 action 不得因取消而从 Base 重新执行。某个中间 action 的 canonical input、fingerprint、依赖或顺序变化时，它之前未变化的最长 verified prefix 继续命中，从该 action 起的变化层与全部后缀重新执行和发布。
 
 opaque callback、`defineSandboxCommand()`、runtime secret overlay、租约、外部会话与当前 Attempt locator 都是 barrier。barrier 之前的最长 verified prefix 仍可命中；barrier 之后的 action 真实执行，但不能发布共享前缀。
 
-每个 SetupPrefix artifact 还保存包含完整累积 action manifest 的 replacement lineage。不同 canonical input、fingerprint、steps、依赖、能力或顺序形成不同 lineage，因而对应 artifact 可同时命中。
+每个 Before cache artifact 还保存包含完整累积 action manifest 的 replacement lineage。不同 canonical input、fingerprint、steps、依赖、能力或顺序形成不同 lineage，因而对应 artifact 可同时命中。
 
 同一 canonical action lineage 的新运行时 generation 发布后，NiceEval 才立即淘汰已被替代的 Docker image 或 E2B snapshot。仍被 private clone、lease 或未完成 capture 使用的旧 generation 不会删除。最后一个 root 释放后再次尝试淘汰。
 
@@ -461,7 +461,7 @@ generation 是 cache repository 内全局递增的整数，含义保持「已分
 repository schema 为 generation 建立索引，分配只读索引端点，成本不随已保留或已 tombstone 的 entry 数增长。
 索引随 UserDatabase 的应用级相邻迁移进入，不在已存在的库上临时创建。
 
-删除失败保留登记并重试，不按年龄、名称或“不在当前 Run”猜测垃圾。用户声明的 image、template 与 snapshot 永不由 NiceEval 自动删除。作者可见的运行开关只有 `sandboxCache.setup: "use" | "bypass"` 和对应 CLI flag。
+删除失败保留登记并重试，不按年龄、名称或“不在当前 Run”猜测垃圾。用户声明的 image、template 与 snapshot 永不由 NiceEval 自动删除。作者可见的运行开关只有 `sandboxCache.before: "use" | "bypass"` 和对应 CLI flag。
 
 ## 运行事实的唯一归属
 
@@ -491,7 +491,7 @@ nested Docker 的 artifact、domain 与 fail-closed 边界见 [Nested Docker Arc
 
 - **Sandbox 预热** —— 按近期派发量提前创建 Sandbox,Attempt 到来时直接领取,把创建移出 Attempt 路径。
 - **Sandbox 复用** —— Experiment 的 `sandboxReuse: true` 让多条 Attempt 共用 Sandbox。
-  Case create / ready 每个实际实例满足一次；before、agent.ensure 循环与 Agent runtime 每 Attempt 满足一次。前缀缓存命中 restore verified state，miss 或 unsupported 才调用 action。
+  Case create / ready 每个实际实例满足一次；before、agent.ensure 循环与 Agent runtime 每 Attempt 满足一次。before 缓存命中 restore verified state，miss 或 unsupported 才调用 action。
   派发前确认 Sandbox 复用寿命,不足时续期或更换 Sandbox。
   完整契约见 [Sandbox 复用](reuse.md)。
 
@@ -507,6 +507,6 @@ Sandbox 预热与 Sandbox 复用是 [Runner](../../runner.md) 的调度职责。
 
 ## Docker-owned cache inventory projection
 
-Docker cache repository 以单个只读 inventory operation 在同一 transaction snapshot 中列出 task-build 与 setup-prefix entry 及其 active lease/root。该 operation 不做 startup reconcile、lease prune、provider mutation 或 GC planning。Docker administration 再复核 task-build image identity，并把两类 entry 投影为以 `kind` 判别的公开联合；Setup Prefix 只采用 registry 已有 state，不因 inventory 改变 generation 或索引。
+Docker cache repository 以单个只读 inventory operation 在同一 transaction snapshot 中列出 task-build 与 before-cache entry 及其 active lease/root。该 operation 不做 startup reconcile、lease prune、provider mutation 或 GC planning。Docker administration 再复核 task-build image identity，并把两类 entry 投影为以 `kind` 判别的公开联合；Before cache 只采用 registry 已有 state，不因 inventory 改变 generation 或索引。
 
-公开 identity 只包含定位 artifact 所需的 task build key/tag/image id，或 setup entry id/key/image/base image id；计数只聚合 entry-local lease/root。holder、operation lineage、声明正文和 GC lock 留在 repository 内部。Setup Prefix 的公开归属不扩大 GC：现有 task-build plan/apply 是唯一删除入口。
+公开 identity 只包含定位 artifact 所需的 task build key/tag/image id，或 setup entry id/key/image/base image id；计数只聚合 entry-local lease/root。holder、operation lineage、声明正文和 GC lock 留在 repository 内部。Before cache 的公开归属不扩大 GC：现有 task-build plan/apply 是唯一删除入口。

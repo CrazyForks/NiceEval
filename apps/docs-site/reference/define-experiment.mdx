@@ -25,10 +25,10 @@ export default defineExperiment({
 #### `models`
 
 ```ts
-models?: Readonly<Record<string, ModelSlotSelection>>;
+models?: Readonly<Record<string, ModelRoleSelection>>;
 ```
 
-Selects a model for each named model slot of a custom Adapter; cannot be combined with the single-model shorthand.
+Selects a model for each named model role of a custom Adapter; cannot be combined with the single-model shorthand.
 
 #### `description`
 
@@ -70,10 +70,10 @@ reasoningEffort?: string;
 
 The model's reasoning effort (such as "low"/"medium"/"high"; valid values depend on the specific model/adapter); omitted = use the agent's native default. Passed to the adapter and eval through ctx.reasoningEffort.
 
-#### `judgeRuntime`
+#### `judge`
 
 ```ts
-judgeRuntime?: JudgeSelection;
+judge?: JudgeSelection;
 ```
 
 This Experiment's Judge execution configuration. It overrides only the model / endpoint / credential selector / call budget;
@@ -208,19 +208,6 @@ or to slow down an Experiment that hits provider limits. A concurrency permit sh
 teardown and Sandbox destruction finish, and any wait along the way (including turn retry backoff) keeps holding it.
 `maxConcurrency: 1` is therefore a strict critical section that the next attempt of the same Experiment cannot enter early.
 It does not span Invocations; for shared external state across Invocations, declare `sharedState`.
-
-#### `classifyFailure`
-
-```ts
-classifyFailure?: AttemptFailureClassifier;
-```
-
-This Experiment's failure classifier: it recognizes your own shared-infrastructure causes of death that surface in third-party error shapes (such as connections refused by your own tunnel host),
-and returns `undefined` for "unknown, hand off to the rest of the chain". Failures in any per-attempt phase of this Experiment
-are all routed to it; on the send failure chain it runs before the adapter's `classifySendFailure`, because filtering by your own coordinates
-is more specific than the protocol's generic shape, so the scope axis wins when both claim the failure. The classifier must be fast, pure, and must not throw (a throw falls back to
-`undefined` and is swallowed); it declares only the decision axis and the `reason` word, and retry and gating policy belong to the executor.
-See docs/feature/error-classification/library.md "Experiment / eval authors: declaring the blast radius of a cause of death".
 
 #### `setup`
 

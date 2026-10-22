@@ -11,7 +11,7 @@ The three built-in Sandbox Agents—`claude-code`, `codex`, and `bub`—do not a
 | Capability | Assertion / API that corresponds to it |
 |---|---|
 | Send and receive messages (base contract) | `t.send()` (can be called multiple times), `t.reply`, `t.check(turn.data, equals(...))` / `matches(...)`, and status-based `t.succeeded()` |
-| Event-stream completeness | Scoped assertions including `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event`; `toolOrder` / `eventOrder` accept matchers only on a Turn or Session. For messages, use `t.check(turn.message, includes(...))` or `t.check(turn.message, pattern(...))`. **A negative assertion such as `notCalledTool` is trustworthy only with a complete event stream.** |
+| Event-stream completeness | Scoped assertions including `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event`; `toolOrder` / `eventOrder` accept matchers only on a Turn or Session. For messages, use `t.check(turn.reply, includes(...))` or `t.check(turn.reply, pattern(...))`. **A negative assertion such as `notCalledTool` is trustworthy only with a complete event stream.** |
 | Session continuation | Cross-turn memory assertions and session isolation with `t.newSession()` |
 | HITL | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, `t.respond()` / `t.respondAll()` |
 | `tracing` | Trace decoding and the call waterfall in `niceeval view` |
@@ -228,10 +228,10 @@ apiKey?: string;
 
 API key for the OpenAI-compatible proxy. Falls back to the `BUB_API_KEY` env var if omitted.
 
-#### `apiBase`
+#### `baseUrl`
 
 ```ts
-apiBase?: string;
+baseUrl?: string;
 ```
 
 Base URL for the OpenAI-compatible proxy. Falls back to the `BUB_API_BASE` env var if omitted.
@@ -435,7 +435,7 @@ Only three pieces of a hand-written send are truly independent: transport (how t
 
 | Helper | What it solves |
 |---|---|
-| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | Feeds frames to a reducer one at a time, handles transport frames, and detects a HITL pause signal, collecting the loop into one function. On pause, `cursor` stays open. Use `ctx.session.set(slot, cursor)` in `onFrame` to retain it, then `ctx.session.take(slot)` on the response turn to continue reading rather than send another request. |
+| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | Feeds frames to a reducer one at a time, handles transport frames, and detects a HITL pause signal, collecting the loop into one function. On pause, `cursor` stays open. Use `ctx.session.set(key, cursor)` in `onFrame` to retain it, then `ctx.session.take(key)` on the response turn to continue reading rather than send another request. |
 | `deltaStream(spec)` | A general accumulator for token-by-token or argument-by-argument deltas. Use it for protocols with no complete frame, such as raw streaming OpenAI/Anthropic APIs or a hand-written token-by-token backend. Declare which operation a frame belongs to—text delta, tool-argument delta, or finishing—and it handles concatenation timing. |
 
 ```ts

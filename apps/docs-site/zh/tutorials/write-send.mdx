@@ -240,7 +240,7 @@ type StreamEvent =
 
 | 你返回的事件 | 能写的断言 |
 |---|---|
-| `message` | `t.reply`、`t.check(turn.message, includes(...))` / `pattern(...)`、Judge 的对话材料 |
+| `message` | `t.reply`、`t.check(turn.reply, includes(...))` / `pattern(...)`、Judge 的对话材料 |
 | tool `operation.started` / `operation.finished`（靠 `operationId` 配对） | `turn.calledTool()` / `turn.toolOrder()` / `turn.maxToolCalls()` / `turn.noFailedActions()`… |
 | `input.requested`（配合 status `"waiting"`） | `t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()`、`t.respond()`（第五步） |
 | `thinking` / `compaction` / `error` | 报告与诊断；也可把原始 `events` 交给普通 `check(events, match)` |

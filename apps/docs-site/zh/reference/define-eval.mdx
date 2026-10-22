@@ -71,14 +71,6 @@ judge?: JudgeSelection;
 
 模型字符串只替换项目 Judge Provider 的模型；Provider 实例整体替换。Experiment 设置优先。
 
-#### `reporters`
-
-```ts
-reporters?: Reporter[];
-```
-
-覆盖 / 追加项目级 Config.reporters,只对这一条评估用例生效。
-
 #### `timeoutMs`
 
 ```ts
@@ -299,10 +291,10 @@ readonly toolCalls: ManagedToolCalls<"attempt">;
 readonly sandbox: Sandbox<Kind>;
 ```
 
-#### `o11y`
+#### `observability`
 
 ```ts
-readonly o11y: import("../o11y/types.ts").O11ySummary;
+readonly observability: import("../o11y/types.ts").ObservabilitySummary;
 ```
 
 #### `usage`
@@ -396,14 +388,14 @@ const factualSummary = defineJudge({
 });
 
 const turn = await t.send("总结需求。");
-t.judge({ source: expected, summary: turn.message }, factualSummary)
+t.judge({ source: expected, summary: turn.reply }, factualSummary)
   .gate(0.8)
   .label("事实一致");
 ```
 
 Judge 材料可以是大小有上限的 JSON 值，也可以是 `judgeImage()` 生成的图片，登记时就会保存一份快照。
 
-Judge 用哪个模型按顺序决定：先取项目配置的 `judgeRuntime`，再应用评估用例的 `judge`，最后应用 Experiment 的 `judgeRuntime`。后一层给的是完整 Provider 时，会整体替换服务和执行配置；只给模型字符串时，只换掉已选 Provider 的模型。评估用例的 `judge` 只决定这道题用哪个模型或 Provider，不限制能用哪些匹配条件。
+Judge 用哪个模型按顺序决定：先取项目配置的 `judgeProvider`，再应用评估用例的 `judge`，最后应用 Experiment 的 `judge`。后一层给的是完整 Provider 时，会整体替换服务和执行配置；只给模型字符串时，只换掉已选 Provider 的模型。评估用例的 `judge` 只决定这道题用哪个模型或 Provider，不限制能用哪些匹配条件。
 
 通过制和计分制都可以调用 `.gate(minimum)`。计分制还可以调用 `.score(n)`，gate 失败时仍保留这一项的得分。
 
@@ -530,10 +522,10 @@ readonly eventOccurrences: ManagedEventOccurrences<"turn">;
 readonly status: "completed" | "failed" | "waiting";
 ```
 
-#### `message`
+#### `reply`
 
 ```ts
-readonly message: string;
+readonly reply: string;
 ```
 
 #### `data`

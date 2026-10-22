@@ -49,7 +49,7 @@ import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({
+  judgeProvider: OpenAIProvider({
     model: "gpt-5.4-mini",                // 必填：没有内置默认模型
     // 使用 OpenAI 兼容网关时显式加下列两项：
     // baseUrl: "https://api.deepseek.com/v1",
@@ -65,7 +65,7 @@ export default defineConfig({
 - **配错不会假装通过。** 读不到模型或 key、请求超时时，Judge 断言记为 `unavailable` 并带上原因；网关拒绝请求、返回格式不对时记为 `errored`。结果里不会把拿不到的分数显示成不通过或零分。
 - **配完先验一次。** 用 `defineJudge` 声明 rubric 和 anchors，再调用 `t.judge(material, definition).gate(0.8)`。跑完后用 `pnpm exec niceeval show --run <run-id>` 查看分数，步骤见[配置并验证 Judge](/zh/tutorials/verify-judge)。
 - **没有用户在场（自治接入）时不要直接跳过 Judge**：先看环境里是否已有与所选 Provider 对应的 key。有就验证；没有时先写精确 Match，并在收尾说明 Judge 没有配置。
-- Judge 模型要**与被测 Agent 分离**，避免同一个模型给自己的输出打分。执行配置从 Experiment 和项目配置的 `judgeRuntime` 求值；定义与材料见 [Judge](/zh/explanation/judge)。
+- Judge 模型要**与被测 Agent 分离**，避免同一个模型给自己的输出打分。执行配置从 Experiment 和项目配置的 `judgeProvider` 求值；定义与材料见 [Judge](/zh/explanation/judge)。
 
 ## 第 3 步：写 Adapter、Experiment 和评估用例
 

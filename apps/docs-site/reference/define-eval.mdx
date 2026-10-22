@@ -71,14 +71,6 @@ judge?: JudgeSelection;
 
 A model string replaces only the model of the project's Judge Provider; a Provider instance replaces it entirely. The Experiment setting takes priority.
 
-#### `reporters`
-
-```ts
-reporters?: Reporter[];
-```
-
-Overrides / appends to the project-level Config.reporters, only for this Eval.
-
 #### `timeoutMs`
 
 ```ts
@@ -302,7 +294,7 @@ readonly sandbox: Sandbox<Kind>;
 #### `o11y`
 
 ```ts
-readonly o11y: import("../o11y/types.ts").O11ySummary;
+readonly o11y: import("../o11y/types.ts").ObservabilitySummary;
 ```
 
 #### `usage`
@@ -396,14 +388,14 @@ const factualSummary = defineJudge({
 });
 
 const turn = await t.send("Summarize the requirements.");
-t.judge({ source: expected, summary: turn.message }, factualSummary)
+t.judge({ source: expected, summary: turn.reply }, factualSummary)
   .gate(0.8)
   .label("Factually consistent");
 ```
 
 Judge material can be a size-bounded JSON value or an image produced by `judgeImage()`; a snapshot is saved at registration.
 
-Which model the Judge uses is decided in order: first the project config's `judgeRuntime`, then the Eval's `judge`, and finally the Experiment's `judgeRuntime`. When a later layer gives a complete Provider, it replaces the service and execution configuration entirely; when it gives only a model string, it replaces just the model of the selected Provider. An Eval's `judge` only decides which model or Provider this Eval uses; it does not restrict which match conditions can be used.
+Which model the Judge uses is decided in order: first the project config's `judgeProvider`, then the Eval's `judge`, and finally the Experiment's `judge`. When a later layer gives a complete Provider, it replaces the service and execution configuration entirely; when it gives only a model string, it replaces just the model of the selected Provider. An Eval's `judge` only decides which model or Provider this Eval uses; it does not restrict which match conditions can be used.
 
 Both pass/fail and scored Evals can call `.gate(minimum)`. Scored Evals can also call `.score(n)`, and the item keeps its score when the gate fails.
 

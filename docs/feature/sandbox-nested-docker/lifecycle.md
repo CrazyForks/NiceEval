@@ -12,7 +12,7 @@ discover Eval and Experiment
   -> collect DockerExecutionRequirement
   -> Incus planner returns capability receipt
   -> compare requirement / capability
-  -> compute BuildKey, CaseKey and SetupPrefixKey
+  -> compute BuildKey, CaseKey and BeforeCacheKey
   -> judge/config precheck
   -> compile each occurrence's continuous eligible serializable action prefix
   -> Run-level prepare coordinator looks up or completes the artifact
@@ -20,7 +20,7 @@ discover Eval and Experiment
 ```
 
 judge/config precheck 后、模型 session、Agent、hidden input 与 Attempt 之前，Runner 按既有唯一
-`SetupPrefixKey` 编译连续 eligible serializable actions。callback、hook、plugin、`onCleanup()`、credential、
+`BeforeCacheKey` 编译连续 eligible serializable actions。callback、hook、plugin、`onCleanup()`、credential、
 lease、Agent layer 与 hidden input 都是硬 barrier：它们真实执行，且不让其后的 action 加入共享捕获。
 
 Run 级 prepare coordinator 查找或补齐 artifact；capacity 为 1 时必须先完成全部 prepare，再开始任一 Attempt。

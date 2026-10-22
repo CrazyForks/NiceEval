@@ -6,6 +6,7 @@ createdAt: 2026-08-25T23:04:51+08:00
 kind: feature
 ---
 
+
 # Nested Docker —— 在 Sandbox 里使用 Docker
 
 Coding Agent 经常要在评估现场里执行 `docker build`、`docker run` 与 `docker compose`。
@@ -95,7 +96,7 @@ incusSandbox({
 
 `image` 仍是 exact trusted base，不是业务 cache 的公开入口。NiceEval 不 build、import 或 pull 这个
 base；但在它之上，NiceEval 可以创建 Provider-native 的派生 preparation artifact，以复用已经验证的
-声明式 SetupPrefix。它不是 Incus image，也不增加 cache factory、cache handle 或 Agent adapter API。
+声明式 Before cache。它不是 Incus image，也不增加 cache factory、cache handle 或 Agent adapter API。
 
 ## 入口
 

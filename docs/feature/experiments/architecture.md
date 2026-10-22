@@ -55,9 +55,9 @@ Experiment Host 在当前声明和固定 cutoff 上形成一次适用性判断�
 | 字段 | 求值链 | 默认 |
 |---|---|---|
 | `timeoutMs` | `--timeout` → Experiment → Eval → config | 无上限 |
-| `judgeRuntime` | Experiment → Eval `judge` → config `judgeRuntime` → 内置默认 | 需要 Judge 时报告缺少配置 |
+| `judge` | Experiment → Eval `judge` → config `judgeProvider` → 内置默认 | 需要 Judge 时报告缺少配置 |
 
-`judgeRuntime` 按字段合并，`undefined` 继续继承。Experiment 与 Eval 只能配置 Judge 的执行条件；rubric、
+`judge` 按字段合并，`undefined` 继续继承。Experiment 与 Eval 只能配置 Judge 的执行条件；rubric、
 评分材料、Severity 与 threshold 仍由登记后的 Assertion 定义。
 
 `apiKeyEnv` 只声明凭据位置，不进入可比性身份，也不写入 Record。所有消费者使用同一份已求值配置；调度、fingerprint、Core execution identity 与反馈不能各算一份。每个 `Eval × Experiment` 的有效 Judge 配置进入 execution identity；Run 的原始配置 identity 不被某个 Eval 改写。

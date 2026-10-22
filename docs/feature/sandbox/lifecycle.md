@@ -113,7 +113,7 @@ Agent CLI 与 Adapter 配置可以依赖 template 提供的系统能力,也可�
 因此 agent.ensure 循环是 action schedule 后的一道强制屏障。
 Agent-owned before action 不固定最后；高频 `.env` 通常因数值较大自然靠后。循环完成探测、缺失时的 install 与复检后,Runner 才进入 Agent runtime；Adapter 不能暗中替换 template。
 
-## 准备前缀的运行时序
+## before 缓存的运行时序
 
 公开 API 统一声明 owner 的 before 与 after，不暴露 scope。link 把全部 attachment 编译为 attempt occurrence；`PreparedArtifact` Provider 还从这些 occurrence 投影出一个 Run 级的共享 prefix DAG。它不改变 author action 仍属于 Attempt 的事实，也不把其它 capability 伪装成共享准备。
 
@@ -124,11 +124,11 @@ reuse: reset baseline -> before -> Agent/test -> after
 
 每个 eligible before occurrence 都产生 satisfaction 事实。hit restore verified private state，action invocation 为零；miss 或 bypass replay；unsupported 真实执行。callback before 和全部 after 不被跳过。author action 固定是 attempt occurrence，不提升为 physical-instance occurrence。
 
-`PreparedArtifact` 路径在任何 Attempt 派发前执行。Run 先以完整 `SetupPrefixKey` 合并所有 eligible prefix 节点；相同 key 在本 Run 内是一个 single-flight 节点，不按 Eval、Experiment、lane 或将来的 Attempt locator 再拆分：
+`PreparedArtifact` 路径在任何 Attempt 派发前执行。Run 先以完整 `BeforeCacheKey` 合并所有 eligible prefix 节点；相同 key 在本 Run 内是一个 single-flight 节点，不按 Eval、Experiment、lane 或将来的 Attempt locator 再拆分：
 
 ```text
 BuildKey ready
-  -> compile all eligible SetupPrefixKey nodes
+  -> compile all eligible BeforeCacheKey nodes
   -> Run prefix DAG: Base -> 1 -> 2 -> 3
                               \-> 4
   -> each node: lookup, or create staging from its parent's verified artifact
@@ -140,7 +140,7 @@ BuildKey ready
   -> runtime secret overlay -> agent.ensure / Adapter runtime / Agent / Eval test
 ```
 
-节点可开始于最深 verified artifact 或 exact Base。只有父节点已发布且其 prepare Scope 完成回收，子节点才可开始；因此上图的 `1`、`2` 各只准备一次，`3` 与 `4` 可并行。实际并行数取 `maxSetupPrefixConcurrency`（或 `--max-setup-prefix-concurrency`）与 provider `scheduling.lane.limit` 的交集。这个 prepare permit 与 Attempt 的 `maxConcurrency` permit 分离。
+节点可开始于最深 verified artifact 或 exact Base。只有父节点已发布且其 prepare Scope 完成回收，子节点才可开始；因此上图的 `1`、`2` 各只准备一次，`3` 与 `4` 可并行。实际并行数取 `maxBeforeCacheConcurrency`（或 `--max-before-cache-concurrency`）与 provider `scheduling.lane.limit` 的交集。这个 prepare permit 与 Attempt 的 `maxConcurrency` permit 分离。
 
 `bypass` 跳过 lookup、capture 与 publication；它保留 occurrence-local DAG、identity 与 action replay，但不建立 Run 级共享节点。opaque barrier 之前仍可恢复最长前缀；barrier 之后不发布后缀。runtime secret overlay 必须在最终私有 clone 中执行，不能进入 staging 或 artifact。
 
@@ -198,7 +198,7 @@ Eval Group 的 `beforeSlots` / `afterSlots` 在 human 与 JSON 中都显式呈�
 
 静态计划只显示 `cacheLookup: "not-probed"`，不能声称 hit。运行时每个 eligible occurrence 的最终 cache 反馈固定为 `hit | replay | unsupported | degraded`。`replay` 的 reason 是 `miss | bypass`；`degraded` 必须同时产生 `cache-degraded` diagnostic，并指向被隔离的 operation id。
 
-只有 `PreparedArtifact` Provider 的准备前缀在派发前走 Run 级 DAG；其它 capability 不建立跨 Attempt physical promotion、跨进程 single-flight 或共享 operation。无论哪条路径，共享的只能是已验证 immutable artifact，永不共享 Attempt、VM、staging 或可写状态。
+只有 `PreparedArtifact` Provider 的 before 缓存在派发前走 Run 级 DAG；其它 capability 不建立跨 Attempt physical promotion、跨进程 single-flight 或共享 operation。无论哪条路径，共享的只能是已验证 immutable artifact，永不共享 Attempt、VM、staging 或可写状态。
 
 Attempt elapsed 只计算本次 queue、restore、action replay、Agent 与 Eval test。持久事实不包含本地 image/container locator、credential value 或 secret bytes。
 
@@ -206,10 +206,10 @@ Attempt elapsed 只计算本次 queue、restore、action replay、Agent 与 Eval
 
 | 切片 | 必须证明 |
 |---|---|
-| 旧 baseline | 不依赖 SetupPrefix cache 仍得到相同题目起点与判分语义 |
+| 旧 baseline | 不依赖 Before cache 仍得到相同题目起点与判分语义 |
 | 冷运行 | BuildKey 按构建输入求值；prefix 为 replay，并为每个 action 写入真实结果 |
-| 暖运行 | 相同 BuildKey 与 SetupPrefixKey 可命中；仍真实执行 barrier 之后的 action、Agent 与 Eval test |
-| 只改 Eval/test | BuildKey 与未改 before 的 SetupPrefixKey 保持相同并命中；Attempt/result identity 按 Eval 变化，secret overlay、Agent 与 test 仍真实执行 |
+| 暖运行 | 相同 BuildKey 与 BeforeCacheKey 可命中；仍真实执行 barrier 之后的 action、Agent 与 Eval test |
+| 只改 Eval/test | BuildKey 与未改 before 的 BeforeCacheKey 保持相同并命中；Attempt/result identity 按 Eval 变化，secret overlay、Agent 与 test 仍真实执行 |
 
 验收从安装后的 `niceeval exp`、`niceeval debug` 与公开结果读取这些事实，不直接读取 Docker 私有 cache image。secret overlay 用非敏感 marker 证明执行次数；真实 secret 不进入 fixture 收据、命令计划或 Record。
 

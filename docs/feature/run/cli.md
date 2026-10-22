@@ -4,11 +4,11 @@ Run 生命周期命令为：
 
 ```sh
 niceeval run list [--invocation <invocation-id>] [--json]
-niceeval run show <run-id> [--json]
+niceeval show --run <run-id> [--json]
 niceeval run delete <run-id> [--yes] [--json]
 niceeval run recover <run-id> [--yes] [--json]
-niceeval session list [--all] [<experiment-prefix>] [--json]
-niceeval session show <invocation-id> [--json]
+niceeval invocation list [--all] [<experiment-prefix>] [--json]
+niceeval invocation show <invocation-id> [--json]
 ```
 
 所有 Run ID 都要求 exact identity，不接受前缀、`latest` 或隐式当前 Run。

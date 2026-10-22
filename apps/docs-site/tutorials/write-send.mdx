@@ -240,7 +240,7 @@ After normalization, the events you emit determine the assertion families Eval a
 
 | Events you emit | Assertions unlocked |
 |---|---|
-| `message` | `t.reply`, `t.check(turn.message, includes(...))` / `pattern(...)`, Judge conversation material |
+| `message` | `t.reply`, `t.check(turn.reply, includes(...))` / `pattern(...)`, Judge conversation material |
 | Tool `operation.started` / `operation.finished`, paired by `operationId` | `turn.calledTool()` / `turn.toolOrder()` / `turn.maxToolCalls()` / `turn.noFailedActions()`… |
 | `input.requested`, with status `"waiting"` | `t.check(turn.status, equals("waiting"))`, `t.requireInputRequest()`, `t.respond()` (step five) |
 | `thinking` / `compaction` / `error` | Reports and diagnostics; you can also pass raw `events` to an ordinary `check(events, match)` |

@@ -9,9 +9,9 @@ const config = t.check(rawConfig, matches(ConfigSchema))
   .key("config-valid")
   .label("配置有效");
 
-t.check(turn.message, includes("完成"))
+t.check(turn.reply, includes("完成"))
   .label("说明完成");
-t.judge({ request, summary: turn.message }, summaryQuality)
+t.judge({ request, summary: turn.reply }, summaryQuality)
   .gate(0.8)
   .label("摘要质量");
 ```
@@ -30,7 +30,7 @@ const turn = await t.send("总结需求。");
 turn.succeeded().label("Turn 完成");
 turn.calledTool(toolMatch("search").atLeast(2)).label("至少搜索两次");
 turn.maxToolCalls(2).label("工具次数上限");
-t.judge({ request: "总结需求", summary: turn.message }, summaryQuality)
+t.judge({ request: "总结需求", summary: turn.reply }, summaryQuality)
   .gate(0.8)
   .label("摘要质量");
 ```
@@ -66,7 +66,7 @@ Boolean `.orStop()` 使用自身 condition。stop requirement 不能被 optional
 `defineEval` 创建 Pass Eval。Boolean condition 默认 required 且参与 Verdict，既有 `.optional()` 例外保持。未配置 gate 的 measurement 只保存 evaluation measurement；`.gate(minimum)` 才形成显式质量门。Pass context 不提供 `t.score` 或 handle `.score`。
 
 ```ts
-t.judge({ question, answer: turn.message }, answerQuality)
+t.judge({ question, answer: turn.reply }, answerQuality)
   .gate(0.8)
   .label("可执行性");
 ```
@@ -75,7 +75,7 @@ t.judge({ question, answer: turn.message }, answerQuality)
 
 ```ts
 turn.calledTool("search").gate().score(2).label("必须检索");
-t.judge({ task, answer: turn.message }, answerQuality)
+t.judge({ task, answer: turn.reply }, answerQuality)
   .score(5)
   .gate(0.8)
   .label("答案质量");
@@ -90,8 +90,8 @@ Score 没有 generic `.optional()`。post-run Sandbox Assertion 在 Score Eval �
 
 ```ts
 await t.group("输出", () => {
-  t.check(turn.message, includes("下一步")).label("给出下一步");
-  t.judge({ question, answer: turn.message }, answerQuality)
+  t.check(turn.reply, includes("下一步")).label("给出下一步");
+  t.judge({ question, answer: turn.reply }, answerQuality)
     .gate(0.8)
     .label("可执行性");
 });

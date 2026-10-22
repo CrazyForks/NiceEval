@@ -169,11 +169,11 @@ CaseKey
 
 **BuildKey 负责构建结果复用,CaseKey 负责完整 attempt 运行身份与 fingerprint。**
 
-当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 SetupPrefixKey。最终 CaseKey 再包含最终 SetupPrefixKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#before-缓存的身份与验证边界)。
+当声明包含可缓存 before action 时，identity 从 Base 开始，为 occurrence 与 owner 包裹顺序规范化的每个 action 链式计算 BeforeCacheKey。最终 CaseKey 再包含最终 BeforeCacheKey 与经过身份查找的 manifest digest。完整公式与验证边界见 [Architecture](architecture.md#before-缓存的身份与验证边界)。
 
-cache policy、`sandboxCache.setup`、hit/replay 与本地 Docker image/container locator 不进入 CaseKey。`bypass` 也不进入 BuildKey、SetupPrefixKey、Attempt fingerprint 或 result identity。因此同一内容不会因本机缓存冷热或排障开关而失去可比性。
+cache policy、`sandboxCache.before`、hit/replay 与本地 Docker image/container locator 不进入 CaseKey。`bypass` 也不进入 BuildKey、BeforeCacheKey、Attempt fingerprint 或 result identity。因此同一内容不会因本机缓存冷热或排障开关而失去可比性。
 
-Eval `test`、Assertion 与 Agent/test 阶段输入不进入未改变的 SetupPrefixKey。它们仍改变各自拥有的 Attempt 或 result identity，所以只改 Eval/test 时可以继续命中 BuildKey 与准备前缀，但 Agent 与 test 必须真实执行。
+Eval `test`、Assertion 与 Agent/test 阶段输入不进入未改变的 BeforeCacheKey。它们仍改变各自拥有的 Attempt 或 result identity，所以只改 Eval/test 时可以继续命中 BuildKey 与 before 缓存，但 Agent 与 test 必须真实执行。
 只挂进 sidecar 的脚本改动不触发 client 镜像重建,但改变 CaseKey、作废旧结果。
 逐 attempt 的容器名、临时目录和随机 project name 由 Provider 生成,不进 CaseKey，也不成为 portable Record identity。创建命令、计时与诊断需要可观察时，按其内容进入 Observability。
 

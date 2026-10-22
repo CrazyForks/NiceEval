@@ -6,7 +6,7 @@
 adopted 边界见 [Nested Docker Architecture](../sandbox-nested-docker/architecture.md)：
 NiceEval 拥有 ledger 与 capability；Provider 拥有 VM 与存储；guest init 拥有 mount 与普通 dockerd。
 
-## Setup Prefix 支持边界
+## Before cache 支持边界
 
 nested Docker 只对完整、可验证的 prepared Sandbox artifact 报告 coverage。
 `sandboxState.dockerData` 不是 public state surface。

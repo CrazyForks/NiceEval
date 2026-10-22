@@ -20,8 +20,8 @@ niceeval exp --experiment <exact-id> --experiment <exact-id> [<eval-prefix>...] 
 niceeval exp list [<experiment-prefix>] [--json]
 niceeval exp <experiment-prefix> --dry [--json]
 niceeval debug <experiment-selector> <eval-selector> [--json]
-niceeval session list [--all] [<experiment-prefix>] [--json]
-niceeval session show <invocation-id> [--json]
+niceeval invocation list [--all] [<experiment-prefix>] [--json]
+niceeval invocation show <invocation-id> [--json]
 ```
 
 `exp` 的位置参数先选择 Experiment ID 或路径前缀，再用后续 Eval ID 前缀收窄。它们只能缩小 Experiment 自己的 `evals` 选择，不能把未选中的 Eval 加回计划。
@@ -99,13 +99,13 @@ custom provider / case 也只显示 `Opaque`。build args、env value、credenti
 Human 的结构化字段在统一终端出口把 C0、C1、ESC 与 tab/carriage return 可见化为转义文本；这条规则作用于 panel 标题、metadata、template、owner、locator、label、condition 与 Shell 行。JSON 保留结构化原值，由 JSON string escaping 防止控制序列直接写入终端。
 `ACTIVE` 的自由文本采用更严格的短命边界：去掉 VT、ANSI、C0 与 C1，折叠空白，并在已知 secret 脱敏后截到 256 UTF-8 bytes。
 
-`--json` 输出单个 `{ experimentId, evalIds, setupPrefixPlan, commandPlan }` 计划对象；单 pair 继续带 `evalId`。它是当前 CLI 版本的即时调试结果，不声明 `format`、`schemaVersion` 或跨版本解码协议。`setupPrefixPlan` 按 prefix identity 去重所选 Eval 的消费者，所有节点固定写 `lookup: "not-probed"`，不把静态 planning 冒充库存探测。
+`--json` 输出单个 `{ experimentId, evalIds, beforeCachePlan, commandPlan }` 计划对象；单 pair 继续带 `evalId`。它是当前 CLI 版本的即时调试结果，不声明 `format`、`schemaVersion` 或跨版本解码协议。`beforeCachePlan` 按 prefix identity 去重所选 Eval 的消费者，所有节点固定写 `lookup: "not-probed"`，不把静态 planning 冒充库存探测。
 
 同一安装候选的调用方可通过 `niceeval/experiment/host` 的 `decodeDebugPlanDocument()` 严格解码，类型与 Schema 见 [Library](library.md#读取-debug-计划)。
 
 该文档不带 dry matrix、reuse、carry 或 Plugin audit 顶层字段。Locator 使用 `_tag: "Exact" | "Redacted" | "Opaque"`。前两种带非空、字段名唯一的 `fields`；`Redacted` 另带只指向已有字段的 `redactions`，`Opaque` 带结构化 `reason`。
 
-真实 `exp` 结束页与机器 terminal envelope 的 `summary.setupPrefixes` 从同一份稳定结算读取准备结果。它按本次 Invocation 的唯一 setup-prefix node 计数 `total / hit / prepared / failed`；多个 Eval 或 Attempt 消费同一 node 不重复计数，也不与 result reuse、`sandboxReuse` 或 task-build cache 合并。运行中的 activity 仍只是 live 反馈，不承担最终结算。
+真实 `exp` 结束页与机器 terminal envelope 的 `summary.beforeCaches` 从同一份稳定结算读取准备结果。它按本次 Invocation 的唯一 before-cache node 计数 `total / hit / prepared / failed`；多个 Eval 或 Attempt 消费同一 node 不重复计数，也不与 result reuse、`sandboxReuse` 或 task-build cache 合并。运行中的 activity 仍只是 live 反馈，不承担最终结算。
 
 `debug` 不执行 Experiment、Plugin、Sandbox 或 Agent 的 before、after、cleanup、test、ensure 或 finalizer,也不 lookup cache、不创建 Invocation、Run、持久事实、锁、Sandbox 或 build。它会加载 `.env`、求值受信任定义与 Experiment 的 `evals` predicate；Provider planner 也可以读文件、调用只读 CLI、查询 Docker control plane 或远端 API。NiceEval 保证自己不发起资源变更，但不能保证受信任模块求值或远端服务不产生自身副作用、审计日志或缓存。
 

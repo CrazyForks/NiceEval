@@ -103,7 +103,7 @@ Hook 往 codex 全局配置里登记的 hook 不需要交互式信任确认即�
 
 ## 与 Sandbox 复用组合
 
-声明 `plugins` 的 Experiment 可以同时声明 `sandboxReuse: true`。固定 Plugin 安装通过准备前缀 restore 或 replay；动态 overlay 每条 Attempt 重做。Adapter 仍验证最终 provenance，不能把 `$HOME` 里恰好存在的同名目录当作命中。
+声明 `plugins` 的 Experiment 可以同时声明 `sandboxReuse: true`。固定 Plugin 安装通过 before 缓存 restore 或 replay；动态 overlay 每条 Attempt 重做。Adapter 仍验证最终 provenance，不能把 `$HOME` 里恰好存在的同名目录当作命中。
 
 两件事仍归作者：`postSetup` 脚本每条 attempt 都在残留的 `$HOME` 上重跑，必须可重复执行；Plugin 运行期要跨 attempt 留下的数据必须存在安装目录之外，安装目录每条 attempt 被重装覆写。
 用例叙事见[插件实验开复用](../../sandbox/use-case/sandbox-reuse-plugin-experiment.md)。

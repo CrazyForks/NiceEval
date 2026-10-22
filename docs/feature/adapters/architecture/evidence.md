@@ -6,7 +6,7 @@ Adapter 不实现断言，但其数据出处决定判定能否成立。
 | 证据 | 支撑的判定 | 缺失风险 |
 |---|---|---|
 | 真实 Turn status | `succeeded()`、`t.check(turn.status, equals("waiting"))` | 恒 completed 会静默假通过 |
-| assistant message | `t.check(turn.message, includes(...) / pattern(...))` | 正断言失败 |
+| assistant message | `t.check(turn.reply, includes(...) / pattern(...))` | 正断言失败 |
 | Turn data | `t.check(turn.data, equals(...) / matches(...))` | 正断言失败 |
 | 完整 action 生命周期 | 工具正负断言、顺序、失败 | 未声明缺口时负断言假通过；声明后记 unavailable |
 | skill.loaded | 只保留为原始事件与报告事实，当前没有专用作者断言 | 不能伪称工具调用 |
@@ -43,7 +43,7 @@ interface EvidenceCoverage {
   readonly events: EvidenceCoverageEntry;
   /** action 生命周期（工具正负断言、顺序、失败的依据）。 */
   readonly actions: EvidenceCoverageEntry;
-  /** assistant / user message（turn.message / t.reply 的值 Match 与 eventMatch(message) 的依据）。 */
+  /** assistant / user message（turn.reply / t.reply 的值 Match 与 eventMatch(message) 的依据）。 */
   readonly messages: EvidenceCoverageEntry;
   /** usage（token / cost 上限断言的依据）。 */
   readonly usage: EvidenceCoverageEntry;

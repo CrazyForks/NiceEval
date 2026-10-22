@@ -11,7 +11,7 @@ description: "NiceEval 内置的 claude-code、codex、bub 适配器分别做到
 | 能力 | 对应的断言 / API |
 |---|---|
 | 收发消息（基础契约） | `t.send()`（可多次调用）、`t.reply`、`t.check(turn.data, equals(...))` / `matches(...)`、按状态判断的 `t.succeeded()` |
-| 事件流完整性 | `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event` 等作用域断言；`toolOrder` / `eventOrder` 只在 Turn 或 Session 上接收 matcher。消息用 `t.check(turn.message, includes(...))` 或 `t.check(turn.message, pattern(...))`。**负断言（`notCalledTool` 等）有完整事件流才可信** |
+| 事件流完整性 | `calledTool` / `usedNoTools` / `maxToolCalls` / `noFailedActions` / `event` 等作用域断言；`toolOrder` / `eventOrder` 只在 Turn 或 Session 上接收 matcher。消息用 `t.check(turn.reply, includes(...))` 或 `t.check(turn.reply, pattern(...))`。**负断言（`notCalledTool` 等）有完整事件流才可信** |
 | 会话续接 | 跨轮记忆断言、`t.newSession()` 会话隔离 |
 | HITL（人工介入） | `t.check(turn.status, equals("waiting"))`、`t.requireInputRequest()`、`t.respond()` / `t.respondAll()` |
 | `tracing` | trace decoding、`niceeval view` 的调用瀑布图 |
@@ -137,10 +137,10 @@ niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox �
 (不继承宿主机配置、不拼接、不重新序列化);保留键 `model` 与 `env` 出现在文件里
 setup 报错。manifest 只记项目相对路径与字节 SHA-256,不落正文。
 
-#### `postSetup`
+#### `before`
 
 ```ts
-postSetup?: readonly SandboxCommand[];
+before?: readonly SandboxCommand[];
 ```
 
 安装后按数组顺序运行的用户 Hook(复用 SandboxCommand 的窄上下文):在写 settings、挂 MCP、
@@ -148,15 +148,15 @@ postSetup?: readonly SandboxCommand[];
 「安装产物就位后才能跑」的过程动作。抛错按基础设施错误计(attempt errored)。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
-#### `preTeardown`
+#### `after`
 
 ```ts
-preTeardown?: readonly SandboxCommand[];
+after?: readonly SandboxCommand[];
 ```
 
-与 `postSetup` 成对的收尾 Hook:按 `postSetup` 的逆序语义,在 agent 自己的 teardown 步骤
-之前执行(LIFO 镜像 —— `postSetup` 跑在 agent 安装之后,`preTeardown` 就跑在 agent 收尾
-之前),当且仅当 `postSetup` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
+之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
 按 teardown-failed 诊断收束。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
@@ -236,10 +236,10 @@ niceeval 的项目根(含 `niceeval.config.ts` 的目录)解析,不是 Sandbox �
 `model_reasoning_effort`、`mcp_servers`、`otel` 出现在文件里 setup 报错。manifest 只记
 项目相对路径与字节 SHA-256,不落正文。
 
-#### `postSetup`
+#### `before`
 
 ```ts
-postSetup?: readonly SandboxCommand[];
+before?: readonly SandboxCommand[];
 ```
 
 安装后按数组顺序运行的用户 Hook(复用 SandboxCommand 的窄上下文):在写主配置、挂 MCP、
@@ -247,15 +247,15 @@ postSetup?: readonly SandboxCommand[];
 「安装产物就位后才能跑」的过程动作。抛错按基础设施错误计(attempt errored)。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
-#### `preTeardown`
+#### `after`
 
 ```ts
-preTeardown?: readonly SandboxCommand[];
+after?: readonly SandboxCommand[];
 ```
 
-与 `postSetup` 成对的收尾 Hook:按 `postSetup` 的逆序语义,在 agent 自己的 teardown 步骤
-之前执行(LIFO 镜像 —— `postSetup` 跑在 agent 安装之后,`preTeardown` 就跑在 agent 收尾
-之前),当且仅当 `postSetup` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
+之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
 按 teardown-failed 诊断收束。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
@@ -269,10 +269,10 @@ apiKey?: string;
 
 OpenAI 兼容代理的 API key。省略时读 BUB_API_KEY env。
 
-#### `apiBase`
+#### `baseUrl`
 
 ```ts
-apiBase?: string;
+baseUrl?: string;
 ```
 
 OpenAI 兼容代理的 base URL。省略时读 BUB_API_BASE env。
@@ -317,25 +317,25 @@ pythonPlugins?: PythonPluginSpec[];
 规范化后的 package 列表进安装 checkpoint key:plugin 集合不同的两个 agent 变体不会复用同一个
 安装 checkpoint(否则第二个变体会静默拿到第一个变体的环境)。
 
-#### `postSetup`
+#### `before`
 
 ```ts
-postSetup?: SandboxCommand[];
+before?: SandboxCommand[];
 ```
 
 安装后按数组顺序运行的用户 Hook(复用 SandboxCommand 的窄上下文):在装 bub、装 Skills /
 Python package、写 manifest 全部完成后执行。抛错按基础设施错误计(attempt errored)。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
-#### `preTeardown`
+#### `after`
 
 ```ts
-preTeardown?: SandboxCommand[];
+after?: SandboxCommand[];
 ```
 
-与 `postSetup` 成对的收尾 Hook:按 `postSetup` 的逆序语义,在 agent 自己的 teardown 步骤
-之前执行(LIFO 镜像 —— `postSetup` 跑在 agent 安装之后,`preTeardown` 就跑在 agent 收尾
-之前),当且仅当 `postSetup` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
+与 `before` 成对的收尾 Hook:按 `before` 的逆序语义,在 agent 自己的 teardown 步骤
+之前执行(LIFO 镜像 —— `before` 跑在 agent 安装之后,`after` 就跑在 agent 收尾
+之前),当且仅当 `before` 的时点走到过才触发。抛错按基础设施错误计,由 teardown 段
 按 teardown-failed 诊断收束。
 见 docs/feature/adapters/library/coding-agent-extensions.md「安装后运行脚本」。
 
@@ -490,7 +490,7 @@ return driveFrameStream(frames, stream, ctx);         // 逐帧喂 stream.add()�
 
 | 件 | 解决什么 |
 |---|---|
-| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | 逐帧喂 reducer、处理传输帧、检测 HITL 暂停信号——循环本身收成一个函数。暂停时 `cursor` 不关闭，`onFrame` 里用 `ctx.session.set(slot, cursor)` 存住它，回答轮 `ctx.session.take(slot)` 取回接着读，不重新发起请求 |
+| `driveFrameStream(cursor, reducer, ctx, onFrame?)` | 逐帧喂 reducer、处理传输帧、检测 HITL 暂停信号——循环本身收成一个函数。暂停时 `cursor` 不关闭，`onFrame` 里用 `ctx.session.set(key, cursor)` 存住它，回答轮 `ctx.session.take(key)` 取回接着读，不重新发起请求 |
 | `deltaStream(spec)` | 逐 token / 逐参数增量的通用累加器——原始 OpenAI/Anthropic 流式 API、自己手写的 token-by-token 后端这类"没有整段落地帧"的协议用它。声明"这一帧对应哪个操作"（文本增量/工具参数增量/收尾），拼接时机它自己管 |
 
 ```ts

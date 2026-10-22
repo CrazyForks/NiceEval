@@ -70,3 +70,24 @@ Existing Records need no rewrite: persistent fields are mapped at the query boun
 
 For Adapter state, replace `createSessionSlot` / `SessionSlot` with `createSessionKey` / `SessionKey`.
 Concurrency waits now display `waiting for capacity`.
+
+## 命名收敛
+
+Retired names have no aliases. Definition and CLI parsing errors point to their replacements.
+
+| 0.18 | 0.19 |
+| --- | --- |
+| `maxSetupPrefixConcurrency`, `--max-setup-prefix-concurrency` | `maxBeforeCacheConcurrency`, `--max-before-cache-concurrency` |
+| `sandboxCache.setup`, `SandboxSetupCache`, `--sandbox-setup-cache` | `sandboxCache.before`, `SandboxBeforeCache`, `--sandbox-before-cache` |
+| summary `setupPrefixes`, debug `setupPrefixPlan` | `beforeCaches`, `beforeCachePlan` |
+| `bubAgent({ apiBase })` | `bubAgent({ baseUrl })` |
+| `t.o11y`, `O11ySummary` | `t.observability`, `ObservabilitySummary` |
+| `turn.message` | `turn.reply` |
+| `Experiment.judgeRuntime`, `Config.judgeRuntime` | `Experiment.judge`, `Config.judgeProvider` |
+| `niceeval session list/show` | `niceeval invocation list/show` |
+| `niceeval sandbox --record` | `niceeval sandbox --record-root` |
+
+Preparation caches are now called before caches, with `BeforeCacheKey` identifying them. Timing and diagnostic lifecycle names use `*.before` and `*.after`. Cache directories, cache keys, and Record encodings stay unchanged; readers project the new names, so existing caches and results need no rewrite.
+
+Docker profiles retain only `decodeDockerExecutionProfile`, `defineDockerExecutionProfile`, `indexDockerProfiles`, `resolveDockerProfile`, and `DOCKER_EXECUTION_PROFILE_SCHEMA_VERSION`. Replace their parser, constructor, and registry aliases.
+Internal identity helpers, Compose compilation, build scheduling, capture normalization, and profile policy constants are no longer exported from `/sandbox`. `/loaders` no longer exports `captureLoadedFiles`; `/inspection` no longer exports canonical JSON helpers. These internal functions have no replacement author API.

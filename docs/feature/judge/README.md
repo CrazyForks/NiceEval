@@ -6,6 +6,7 @@ createdAt: 2026-07-27T18:06:14+08:00
 kind: feature
 ---
 
+
 # Judge
 
 Judge 是使用受管模型能力的 `ScoreMatch`。`defineJudge` 与五个现成裁判都走公开 `defineScoreMatch`；
@@ -21,7 +22,7 @@ import { defineJudge } from "niceeval/expect";
 import { OpenAIProvider } from "niceeval/judge";
 
 export default defineConfig({
-  judgeRuntime: OpenAIProvider({ model: "judge-model" }),
+  judgeProvider: OpenAIProvider({ model: "judge-model" }),
 });
 
 const followsIntent = defineJudge({
