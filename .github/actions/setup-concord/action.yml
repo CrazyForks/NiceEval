@@ -6,6 +6,10 @@ runs:
     - shell: bash
       run: |
         set -euo pipefail
+        # Concord checks Git with GIT_* overrides removed. Container jobs need
+        # the current checkout trusted outside checkout's temporary HOME too.
+        git config --global --add safe.directory "$(pwd -P)"
+        git rev-parse --show-toplevel
         concord_version="0.13.0"
         concord_sha256="ed72b5964e71a03e12d349cdedd3ad86efad5c790ed55576d068cf52f48a5959"
         concord_root="$(mktemp -d "${RUNNER_TEMP}/concord-${concord_version}.XXXXXX")"
