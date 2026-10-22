@@ -1,9 +1,9 @@
 import { QueryClientProvider, queryOptions, skipToken, useQuery, type QueryObserverResult } from "@tanstack/react-query";
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import { Result } from "effect";
+import { canonicalJsonValue } from "../../../../../inspection/canonical.ts";
 
 import {
-  canonicalJsonValue,
   type InspectionOperationFor,
   type InspectionOperationId,
   type InspectionSuccessDocumentFor,
