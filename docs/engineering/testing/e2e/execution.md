@@ -289,7 +289,7 @@ Repo project metadata 声明了白名单外的名称时，在注入前失败，�
 
 入网前为完整模型地址、origin、hostname 和密钥注册日志掩码。连接步骤不接受子网路由、
 不设置 exit node、不修改 DNS。非收费连通性探针只报告受控结果，不打印 URL、响应或原始异常。
-结束时显式检查 logout，官方 action post 继续清理 daemon；强制终止时依赖临时节点后续回收。
+结束时显式检查 logout，官方 action post 终止 daemon；强制终止时依赖临时节点后续回收。
 宿主探针不能代替 Docker 沙箱中的实际 adapter 验收。
 
 被 affected 图选中的确定性与 live owner 在可信 PR 中都运行；main 与 nightly 运行完整 portfolio。provider 故障可以使该次 CI
