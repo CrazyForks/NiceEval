@@ -287,7 +287,8 @@ Repo project metadata 声明了白名单外的名称时，在注入前失败，�
 无密钥 lane 不接入 Tailnet。现有模型场景使用 host executor；若改为 browser container，
 须先补充网络方案，workflow 不自动增加容器权限。
 
-入网前为完整模型地址、origin、hostname 和密钥注册日志掩码。连接步骤不接受子网路由、
+入网前为完整模型地址、origin、hostname 和密钥注册日志掩码。官方 action 入网后立即用
+`tailscale set --accept-routes=false` 关闭子网路由，再执行探针；不能在 action args 重复它自带的参数。
 不设置 exit node、不修改 DNS。非收费连通性探针只报告受控结果，不打印 URL、响应或原始异常。
 结束时显式检查 logout，官方 action post 终止 daemon；强制终止时依赖临时节点后续回收。
 宿主探针不能代替 Docker 沙箱中的实际 adapter 验收。
