@@ -30,6 +30,36 @@ niceeval query run [--record <file>] --request <file|->
 
 结果分页时会带一个续读 token。这个 token 记住了 operation、请求内容、读取的记录文件和这次读取的可见边界。任何一项变了，`query` 都不会接着读，而是返回 restart correction，表示调用方要从 `discover` 或重新发请求开始。
 
+### 常用 operation 的请求与结果字段
+
+下面只列读取运行结果时常用的字段。请求顶层必须包含 `protocol: "niceeval.query/v2"` 和 `operation`，表中的参数放在 `operation` 内，与 `kind` 并列。成功响应的顶层 `outcome` 为 `"success"`。
+
+| `operation.kind` | 必填参数 | 关键结果字段（从响应顶层开始） |
+| --- | --- | --- |
+| `run.list` | 无 | `runs[]` 中的 `runId`、`experimentId`、`state`、`startedAt`、`invocationId`、`coverage` |
+| `run.get` | `runId`：Run ID | `run.plannedAttempts[]` 中的 `evalId`、`locator`、`outcome`、`verdict`、`publication.action`、`publication.attemptLocator` |
+| `experiment.get` | `experimentId`：实验 ID | `experiment.cells[]` 中的 `evalId`，以及 `members[].publication` 中的 `verdict`、`attemptLocator`、`action` |
+| `attempt.get` | `locator`：包含 `@` 的 Attempt 定位符 | `attempt.verdict`、`attempt.core.evalId`、`attempt.originRun.experimentId` |
+
+`run.get` 读取指定 Run 的计划与发布结果，`experiment.get` 读取每条评估用例当前采用的结果。局部重跑后，实验当前结果可以包含不同 Run 的 Attempt。发布结果的 `action` 为 `executed`、`carried` 或 `accepted`，分别表示本次执行、沿用已有结果或显式采用结果。
+
+判定的位置随 operation 不同：`run.get` 在 `run.plannedAttempts[].verdict`，`experiment.get` 在 `experiment.cells[].members[].publication.verdict`。先检查条目是否已经发布，再读取其 Attempt 定位符和判定；尚未发布的条目可能没有这些字段。
+
+用 `--request -` 从标准输入传入完整请求：
+
+```sh
+pnpm --silent exec niceeval query run --request - <<'JSON'
+{
+  "protocol": "niceeval.query/v2",
+  "operation": { "kind": "run.list" }
+}
+JSON
+```
+
+响应的 `runs[]` 会列出 Run ID。读取其中一个 Run 时，把请求的 `operation` 换为 `{ "kind": "run.get", "runId": "<run-id>" }`。请求只能通过 `--request <file|->` 传入，不能直接作为位置参数。
+
+选择的 Run、实验或 Attempt 不存在时，响应顶层为 `outcome: "failure"`，`failure.code` 为 `"inspection-selection-missing"`，退出码为 `2`。这表示选择对象缺失，不是评估判定为 `failed`；先用 `run.list` 核对 ID，并确认读取的是对应项目的运行记录。
+
 ## `niceeval show`
 
 ```sh

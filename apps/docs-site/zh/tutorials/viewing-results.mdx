@@ -187,6 +187,39 @@ pnpm --silent exec niceeval query discover
 
 `discover` 列出当前版本支持的全部请求类型，例如列出 Run、读取 Run 摘要、读取 Attempt 详情、trace、diff，以及比较两个 Run。按[CLI 参考](/zh/reference/cli)写好请求后，先用 `query explain --request <file>` 检查，再用 `query run --request <file>` 执行。
 
-在 pnpm 项目里加 `--silent`，否则 pnpm 自己的输出会混进 JSON。
+### 本次运行的结果
+
+下面的脚本需要 `jq`，在评估项目根目录执行。把 `my-agent` 换成你的实验 ID。`exp --json` 输出多行 JSON，最后一行的 `receipt.createdRunIds` 列出本次创建的 Run。先保存输出，再读取每个 Run：
+
+```sh
+pnpm --silent exec niceeval exp my-agent --json > exp.ndjson
+
+tail -n 1 exp.ndjson | jq -r '.receipt.createdRunIds[]' |
+while IFS= read -r run_id; do
+  jq -n --arg runId "$run_id" '{
+    protocol: "niceeval.query/v2",
+    operation: { kind: "run.get", runId: $runId }
+  }' | pnpm --silent exec niceeval query run --request -
+done
+```
+
+每个响应的 `run.plannedAttempts[]` 给出这次 Run 中各条评估用例的判定与 Attempt 定位符。评估未通过时，`exp` 也可能写出 receipt 并返回非零退出码；CI 要先保留退出码并读取结果，再决定任务是否失败。没有 receipt 时，先检查命令错误，不要把空列表当成全部通过。
+
+### 每条评估当前的结果
+
+需要包含局部重跑后采用的结果时，用实验 ID 读取当前结果：
+
+```sh
+pnpm --silent exec niceeval query run --request - <<'JSON'
+{
+  "protocol": "niceeval.query/v2",
+  "operation": { "kind": "experiment.get", "experimentId": "my-agent" }
+}
+JSON
+```
+
+响应的 `experiment.cells[]` 按评估用例列出结果；各次 Attempt 的判定在 `members[].publication.verdict`。例如只重跑一条评估用例时，这里会把它的新结果与其它评估用例已采用的结果放在一起。
+
+请求参数和字段位置见 [CLI 的常用 operation 表](/zh/reference/cli#常用-operation-的请求与结果字段)。在 pnpm 项目里加 `--silent`，避免 pnpm 自己的输出混进 JSON。
 
 比较两次运行见[比较两次运行](/zh/tutorials/compare-runs)。
