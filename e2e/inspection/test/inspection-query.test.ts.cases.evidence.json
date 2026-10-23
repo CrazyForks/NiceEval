@@ -1,6 +1,27 @@
 {
   "format": "concord.case-evidence-index/v1",
-  "current": {},
+  "current": {
+    "neref_bed902a18f5f371e36ec24256ebb6af7": {
+      "memory/inspection-source-detail-reuses-assertion-string-limit.md": {
+        "red": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_inspection-source-detail-reuses-assertion-string-limit.md/nered_YN7Y5HV9R4BMBT6S-netake_4WCGEHNG7403T66N/red.json",
+          "digest": "sha256:77289ce6b99a6919363b80085a4c08ecdbd414e83867ecd80ba5b62d75a7b61b"
+        },
+        "green": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_inspection-source-detail-reuses-assertion-string-limit.md/nered_YN7Y5HV9R4BMBT6S-netake_4WCGEHNG7403T66N/green.json",
+          "digest": "sha256:ae97dcd1fb21687fe0d512ceef8a9428d677a9134dd17e76baeb0d9df1ebe31b"
+        },
+        "certificate": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_inspection-source-detail-reuses-assertion-string-limit.md/nered_YN7Y5HV9R4BMBT6S-netake_4WCGEHNG7403T66N/certificate.json",
+          "digest": "sha256:a9116a714dd36b96171cd6573d45ddbbe44ec561a69eb8c89821911ae15fa686"
+        },
+        "inventory": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_inspection-source-detail-reuses-assertion-string-limit.md/nered_YN7Y5HV9R4BMBT6S-netake_4WCGEHNG7403T66N/inventory.json",
+          "digest": "sha256:deb4ac37d9bc2016770ef1f8cf108d7aae96684670918a81b28e73ff2e3abef0"
+        }
+      }
+    }
+  },
   "history": [
     {
       "caseId": "necase_79TQ9VGG316D8FK0",

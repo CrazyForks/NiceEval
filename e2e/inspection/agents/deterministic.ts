@@ -66,14 +66,24 @@ export function deterministicAgent(): Agent {
             operation: {
               kind: "tool",
               name: "inspection_fixture",
-              input: { marker: "inspection-tool-input" },
+              input: {
+                marker: "inspection-tool-input",
+                ...(ctx.experimentId === "main" && ctx.evalId === "inspection"
+                  ? { content: `${"工具输入".repeat(900)}input-tail` }
+                  : {}),
+              },
             },
           },
           {
             type: "operation.finished",
             operationId: "inspection-tool-1",
             kind: "tool",
-            output: { marker: "inspection-tool-result" },
+            output: {
+              marker: "inspection-tool-result",
+              ...(ctx.experimentId === "main" && ctx.evalId === "inspection"
+                ? { content: `${"工具输出".repeat(900)}output-tail` }
+                : {}),
+            },
             status: "completed",
           },
           {

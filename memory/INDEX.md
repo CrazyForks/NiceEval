@@ -326,6 +326,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 ### 台账
 
 - 已修 [operational-record-read-amplification](operational-record-read-amplification.md) — 项目读取重复校验全部历史，Host-owned reader 改为信任 publication/Seal，并按目标惰性加载；外部输入保留完整验证。
+- 已修 [inspection-source-detail-reuses-assertion-string-limit](inspection-source-detail-reuses-assertion-string-limit.md) — 工具长文本使断言详情查询失败；来源行已分离读取校验策略，持久化断言预算保持不变。
 
 - [inspection-query-missing-overview-and-trace-detail](inspection-query-missing-overview-and-trace-detail.md) — Inspection Query 缺少 Experiment × Eval Overview 与稳定 trace detail；恢复固定 overview/detail operation，并禁止位置 handle
 - 已修 [analysis-usage-projection-conflates-conversation-limitations](analysis-usage-projection-conflates-conversation-limitations.md) — Preview 的完整 token buckets 因同一 agent-turns source 含 conversation-only `turn-item` limitation 被误报 usage incomplete；Analysis 改为按 retention target 投影各子通道状态

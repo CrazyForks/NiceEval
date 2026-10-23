@@ -6,6 +6,7 @@ import {
   AssertionDisplaySchema,
   AssertionEntryIdSchema,
   AssertionFactValueSchema,
+  createAssertionFactValueSchema,
   createAssertionsRecordSchemas,
   MatcherOrderedSequenceResultSchema,
   MatcherQueryStepSchema,
@@ -189,10 +190,13 @@ const ProjectedLocatorSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("tool-occurrence"), toolOccurrenceId: Schema.String }),
   Schema.Struct({ kind: Schema.Literal("event"), eventId: Schema.String }),
 ]);
+// Agent Turns source text is already captured under its own limits. It is not a
+// persisted assertion fact; the Inspection operation owns the response budget.
+const SourceRowFactValueSchema = createAssertionFactValueSchema(Schema.String);
 const MatcherRowSchema = Schema.Struct({
   kind: Schema.Literals(["tool", "event", "legacy-source-row"]), rowId: Schema.String,
   number: Schema.String, phase: Schema.Literals(["at-evaluation", "outside-evaluation-snapshot", "historical"]),
-  summary: Schema.String, detail: AssertionFactValueSchema,
+  summary: Schema.String, detail: SourceRowFactValueSchema,
   locator: Schema.optional(ProjectedLocatorSchema),
   evaluation: Schema.Struct({
     result: Schema.Literals(["matched", "mismatched", "unavailable", "not-evaluated", "not-retained", "outside-snapshot", "legacy"]),

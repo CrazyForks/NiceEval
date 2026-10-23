@@ -662,21 +662,29 @@ export const AssertionCollectionReceiptSchema = Schema.Struct({
   }),
 );
 
-export const AssertionFactValueSchema: Schema.Schema<AssertionFactValue> = Schema.suspend(
-  (): Schema.Schema<AssertionFactValue> => Schema.Union([
-    Schema.Struct({
-      kind: Schema.Literal("unavailable"),
-      reason: Schema.Literals(["not-recorded", "not-declared", "source-unavailable"]),
-    }),
-    Schema.Struct({ kind: Schema.Literal("value"), value: Schema.Union([Schema.Null, Schema.Boolean, Schema.Finite, BoundedJsonStringSchema]) }),
-    Schema.Struct({ kind: Schema.Literal("text"), text: BoundedJsonStringSchema }),
-    Schema.Struct({ kind: Schema.Literal("list"), items: Schema.Array(AssertionFactValueSchema) }),
-    Schema.Struct({
-      kind: Schema.Literal("fields"),
-      fields: Schema.Array(Schema.Struct({ label: BoundedJsonStringSchema, value: AssertionFactValueSchema })),
-    }),
-  ]),
-);
+/** Share the fact shape while letting each evidence owner apply its string budget. */
+export function createAssertionFactValueSchema(
+  text: Schema.Schema<string>,
+): Schema.Schema<AssertionFactValue> {
+  const fact: Schema.Schema<AssertionFactValue> = Schema.suspend(
+    (): Schema.Schema<AssertionFactValue> => Schema.Union([
+      Schema.Struct({
+        kind: Schema.Literal("unavailable"),
+        reason: Schema.Literals(["not-recorded", "not-declared", "source-unavailable"]),
+      }),
+      Schema.Struct({ kind: Schema.Literal("value"), value: Schema.Union([Schema.Null, Schema.Boolean, Schema.Finite, text]) }),
+      Schema.Struct({ kind: Schema.Literal("text"), text }),
+      Schema.Struct({ kind: Schema.Literal("list"), items: Schema.Array(fact) }),
+      Schema.Struct({
+        kind: Schema.Literal("fields"),
+        fields: Schema.Array(Schema.Struct({ label: text, value: fact })),
+      }),
+    ]),
+  );
+  return fact;
+}
+
+export const AssertionFactValueSchema = createAssertionFactValueSchema(BoundedJsonStringSchema);
 
 export const MatcherRelationStatusSchema = Schema.Union([
   Schema.Struct({ state: Schema.Literal("exact") }),
