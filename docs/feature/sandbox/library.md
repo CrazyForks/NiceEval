@@ -490,13 +490,12 @@ Scope release 统一执行 stop 或已经提交的 keep disposition。
 
 服务与 execd 使用配套的 `release-1.1.1`，SDK 使用 `1.1.1`。旧 `execd:v1.1.0` 不支持本 Provider 所需的原生 argv。
 
-安装可选依赖 `@alibaba-group/opensandbox`，并在运行 NiceEval 的宿主配置 `OPEN_SANDBOX_DOMAIN` 与 `OPEN_SANDBOX_API_KEY`。地址使用完整 HTTPS URL；本机开发可显式使用 HTTP。凭据不注入被测 Sandbox。服务必须配置 Docker runtime，且入口只对可信宿主开放，或为 HTTP/WebSocket 的全部路径提供前置鉴权。上游 Docker proxy 不受控制 API key 保护，不能直接暴露到公网。
+安装可选依赖 `@alibaba-group/opensandbox`，并在运行 NiceEval 的宿主配置 `OPEN_SANDBOX_DOMAIN` 与 `OPEN_SANDBOX_API_KEY`。地址使用完整 HTTPS URL；本机开发可显式使用 HTTP。凭据不注入被测 Sandbox。底层 runtime 由 OpenSandbox 服务端选择；NiceEval 不要求声明。入口只对可信宿主开放，或为 HTTP/WebSocket 的全部路径提供前置鉴权。上游 Docker proxy 不受控制 API key 保护，不能直接暴露到公网。
 
 ```typescript
 import { openSandbox } from "niceeval/sandbox";
 
 const sandbox = openSandbox({
-  runtime: "docker",
   lifetimeMs: 60 * 60 * 1000,
   image: "node:24-bookworm",
   targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
@@ -504,10 +503,10 @@ const sandbox = openSandbox({
 });
 ```
 
-`OpenSandboxOptions` 接受必填 `runtime: "docker"`、`image: string`、有限的 `lifetimeMs: number` 与 Linux `targetPlatform`，以及可选 `resources: { cpu?: string; memory?: string }`、`user: string`、`pathPrepend: readonly string[]`。正式实验使用 digest-pinned 镜像。工作目录为 `/home/sandbox/workspace`；默认以 execd 的 root 用户运行，`user` 接受 `/etc/passwd` 中的用户名或数字 uid，单条命令可另选身份。
+`OpenSandboxOptions` 接受必填 `image: string`、有限的 `lifetimeMs: number` 与 Linux `targetPlatform`，以及可选 `resources: { cpu?: string; memory?: string }`、`user: string`、`pathPrepend: readonly string[]`。正式实验使用 digest-pinned 镜像。工作目录为 `/home/sandbox/workspace`；默认以 execd 的 root 用户运行，`user` 接受 `/etc/passwd` 中的用户名或数字 uid，单条命令可另选身份。
 
 lifetimeMs 是作者显式选择的实例寿命，由服务校验，不能短于有界 Attempt 的剩余时限加 30 秒收尾预留。正常结束和取消均提前销毁，不等待寿命耗尽。命令超时或取消会销毁整个 Sandbox。保留、Sandbox 复用和 before artifact cache 不受支持，before 正常执行。普通容器不提供专用 kernel 或内部 Docker daemon，不能满足 Nested Docker requirement。
 
 镜像必须以 root 启动 execd，并提供 Bash 和 Git。`user` 控制命令与 Agent 的身份，HOME、USER、LOGNAME 从该用户的 `/etc/passwd` entry 取得；调用方可显式替换这些变量。
 
-`codexAgent` 与 `claudeCodeAgent` 使用双向受管进程；镜像必须提供 Node.js 24。Kubernetes 后端不在此 provider 的支持范围内：上游删除响应不能证明 Pod 已终止，声明该 runtime 会在创建前失败。
+`codexAgent` 与 `claudeCodeAgent` 使用双向受管进程；镜像必须提供 Node.js 24。服务接入验收必须证明销毁成功响应代表实例及其进程已经终止；仅受理异步删除不能作为回收确认。该要求按服务行为验证，不按 runtime 名称判断。

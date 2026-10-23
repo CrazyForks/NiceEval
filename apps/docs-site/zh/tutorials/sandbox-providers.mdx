@@ -6,7 +6,7 @@ description: "给 Coding Agent 选一个隔离运行环境：本地 Docker、Ver
 
 Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而且不能碰到你的机器。这个隔离环境就是 Sandbox，由 Provider 负责创建和销毁。
 
-本地调试可以用 Docker；需要云端环境时可以用 Vercel 或 E2B；已有 OpenSandbox 服务时可以连接它的 Docker runtime。
+本地调试可以用 Docker；需要云端环境时可以用 Vercel 或 E2B；已有 OpenSandbox 服务时可以直接连接服务 API。
 
 不管用哪种 Provider，评估用例和 Adapter 看到的都是同一个 `Sandbox` 接口。换 Provider 只改 Experiment 里的一行，评估用例不用动。
 
@@ -19,7 +19,7 @@ Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而�
 | Docker | 本地开发和标准 CI。简单、可控，不依赖云端 | 本机 Docker。机器资源有限，冷启动和装依赖可能较慢 |
 | Vercel Sandbox | 需要云端隔离、更多资源或更稳定的环境 | Vercel token 或 OIDC 配置 |
 | E2B | 需要大量并行，或者想直接用现成的 Agent template | E2B 账号和 `e2b auth login` |
-| OpenSandbox | 通过已有服务管理远端容器 | Docker runtime 的私有服务入口、API key 和镜像 |
+| OpenSandbox | 通过已有服务管理远端容器 | OpenSandbox 服务入口、API key 和镜像 |
 
 在 Experiment 的 `sandbox` 字段里选一个：
 
@@ -44,7 +44,7 @@ Provider 的 SDK 不随 NiceEval 一起安装。用哪个就装哪个，用不�
 | `dockerSandbox({ source: { type: "image", image: "node:24-slim" } })` | `pnpm add dockerode @types/dockerode` |
 | `vercelSandbox({ snapshotId })` | `pnpm add @vercel/sandbox` |
 | `e2bSandbox({ template })` | `pnpm add e2b` |
-| `openSandbox({ runtime, image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox` |
+| `openSandbox({ image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox` |
 
 漏装时，创建 Sandbox 的那一刻会报错并给出安装命令，例如 `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`。照着装好再运行即可。
 
@@ -58,7 +58,6 @@ Provider 的 SDK 不随 NiceEval 一起安装。用哪个就装哪个，用不�
 import { openSandbox } from "niceeval/sandbox";
 
 const sandbox = openSandbox({
-  runtime: "docker",
   image: "node:24-bookworm",
   targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
   lifetimeMs: 60 * 60_000,
@@ -68,11 +67,13 @@ const sandbox = openSandbox({
 
 目标平台填写远端镜像的平台，正式实验将镜像固定到 digest。`lifetimeMs` 必须覆盖 Attempt 剩余时限并预留 30 秒收尾；正常完成会立即销毁实例。可用 `user` 选择执行身份，用 `pathPrepend` 添加可执行文件目录。
 
-服务必须使用 Docker runtime，入口只允许可信宿主访问，或在所有 HTTP 和 WebSocket 路径前置鉴权。OpenSandbox 的 Docker proxy 路由不受控制 API key 保护，不能直接暴露到公网。
+Docker、Kubernetes 等 runtime 由 OpenSandbox 服务端选择，NiceEval 无需填写。服务入口只允许可信宿主访问，或在所有 HTTP 和 WebSocket 路径前置鉴权。OpenSandbox 的 Docker proxy 路由不受控制 API key 保护，不能直接暴露到公网。
 
 镜像必须以 root 启动 execd，并提供 Bash 和 Git；用 `user` 让 Agent 以非 root 身份执行。交互 Coding Agent 还需要 Node.js 24。
 
-命令取消或超时会销毁整个实例。此 Provider 不支持 Kubernetes、保留现场、跨 Attempt 复用或准备缓存；容器内也不会自动获得 Docker daemon。
+命令取消或超时会销毁整个实例。此 Provider 不支持保留现场、跨 Attempt 复用或准备缓存；运行中的 Sandbox 也不会自动获得 Docker daemon。
+
+接入服务时，需要验证销毁成功响应代表实例及其进程已停止。仅受理异步删除的服务不能满足这项要求；填写 runtime 名称无法替代验证。
 
 ### Docker Compose：`workspaceService` 指定主 Sandbox
 

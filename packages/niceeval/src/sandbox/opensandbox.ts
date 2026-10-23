@@ -9,8 +9,6 @@ import { providerBoundaryEffect } from "./backend.ts";
 import { SandboxRuntimeMaterializationError } from "./runtime.ts";
 
 export interface OpenSandboxOptions {
-  /** The configured OpenSandbox service must use its Docker runtime. */
-  readonly runtime: "docker";
   readonly image: string;
   readonly targetPlatform: Extract<SandboxTargetPlatform, { readonly _tag: "Linux" }>;
   readonly resources?: { readonly cpu?: string; readonly memory?: string };
@@ -49,14 +47,13 @@ const providerModule: SandboxProviderModule<OpenSandboxOptions> = {
 /** Use an image on an explicitly configured OpenSandbox service. */
 export function openSandbox(options: OpenSandboxOptions): SandboxLayer<"template-bearing"> {
   if (options === null || typeof options !== "object") throw new TypeError("OpenSandbox options must be an object");
-  const allowed = new Set(["runtime", "image", "targetPlatform", "resources", "user", "lifetimeMs", "pathPrepend"]);
+  const allowed = new Set(["image", "targetPlatform", "resources", "user", "lifetimeMs", "pathPrepend"]);
   for (const key of Object.keys(options)) if (!allowed.has(key)) throw new TypeError(`Unknown OpenSandbox option: ${key}`);
   const nonempty = (value: string, field: string): string => {
     if (typeof value !== "string" || value.trim() === "" || value.includes("\0")) throw new TypeError(`OpenSandbox ${field} must be a nonempty string`);
     return value;
   };
   const image = nonempty(options.image, "image");
-  if (options.runtime !== "docker") throw new TypeError("OpenSandbox requires runtime: 'docker'; Kubernetes deletion does not confirm workload termination");
   const platform = options.targetPlatform;
   if (platform?._tag !== "Linux" || platform.os !== "linux" || !["x64", "arm64"].includes(platform.arch) || !["gnu", "musl"].includes(platform.libc)) {
     throw new TypeError("OpenSandbox targetPlatform must specify Linux x64/arm64 and gnu/musl");
@@ -71,10 +68,10 @@ export function openSandbox(options: OpenSandboxOptions): SandboxLayer<"template
     if (options.resources.cpu !== undefined) resources.cpu = nonempty(options.resources.cpu, "resources.cpu");
     if (options.resources.memory !== undefined) resources.memory = nonempty(options.resources.memory, "resources.memory");
   }
-  const plan: OpenSandboxOptions = Object.freeze({ runtime: "docker", image, lifetimeMs: options.lifetimeMs, targetPlatform: Object.freeze({ ...platform }), resources: Object.freeze(resources), pathPrepend: Object.freeze(pathPrepend),
+  const plan: OpenSandboxOptions = Object.freeze({ image, lifetimeMs: options.lifetimeMs, targetPlatform: Object.freeze({ ...platform }), resources: Object.freeze(resources), pathPrepend: Object.freeze(pathPrepend),
     ...(options.user === undefined ? {} : { user: nonempty(options.user, "user") }),
   });
-  const identity: JsonValue = { runtime: "docker", image, lifetimeMs: plan.lifetimeMs, targetPlatform: { os: platform.os, arch: platform.arch, libc: platform.libc }, resources, pathPrepend,
+  const identity: JsonValue = { image, lifetimeMs: plan.lifetimeMs, targetPlatform: { os: platform.os, arch: platform.arch, libc: platform.libc }, resources, pathPrepend,
     ...(plan.user === undefined ? {} : { user: plan.user }),
   };
   return defineSandboxTemplate({

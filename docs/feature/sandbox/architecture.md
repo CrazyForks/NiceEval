@@ -513,15 +513,17 @@ Docker cache repository 以单个只读 inventory operation 在同一 transactio
 
 ## OpenSandbox provider
 
-OpenSandbox provider 只接入显式声明 `runtime: "docker"` 的服务，将一个远端 Sandbox 绑定到现有 Attempt resource group；创建、命令、文件与销毁均由 provider 持有，Runner 不按名称分支。公开声明见 [Library](library.md#opensandbox)。服务配置必须与声明的 Docker runtime 一致；provider 不把 Kubernetes 的异步删除解释为完成，也不接受 `runtime: "kubernetes"`。服务部署和容器隔离策略归基础设施；普通容器不满足 `dedicated-kernel/v1`，provider 不声明 DockerExecution。
+OpenSandbox provider 通过服务 API 将一个远端 Sandbox 绑定到现有 Attempt resource group；创建、命令、文件与销毁均由 provider 持有，Runner 不按名称分支。公开声明见 [Library](library.md#opensandbox)。Docker、Kubernetes 等 runtime 由 OpenSandbox 服务端选择，不进入 NiceEval 的选项、计划 identity 或准入判断。服务部署和隔离策略归基础设施；provider 不从 runtime 名称推断专用 kernel 或 DockerExecution。
 
 `openSandbox` 使用官方 `@alibaba-group/opensandbox` SDK，依赖延迟加载。连接地址和 API key 从 `OPEN_SANDBOX_DOMAIN`、`OPEN_SANDBOX_API_KEY` 读取，API key 只进宿主 transport，不进入 identity、镜像变量集合或命令。
 
-所有请求使用 server proxy 并保留 SDK 返回的 endpoint 路由与认证 header。Docker runtime 不支持 secureAccess；服务必须使用仅可信宿主可访问的私有入口，或在 HTTP/WebSocket 全路径前置鉴权。控制 API key 本身不能保护上游免鉴权的 proxy 路由。禁用 SDK create telemetry。目标平台由声明显式给出，不能从宿主架构推断远端镜像。
+所有请求使用 server proxy 并保留 SDK 返回的 endpoint 路由与认证 header。当前接入使用服务代理，不要求 execd 的 secureAccess；服务必须使用仅可信宿主可访问的私有入口，或在 HTTP/WebSocket 全路径前置鉴权。控制 API key 本身不能保护上游免鉴权的 proxy 路由。禁用 SDK create telemetry。目标平台由声明显式给出，不能从宿主架构推断远端镜像。
 
-起点是 image，工作目录为 `/home/sandbox/workspace`。发布 identity 包含 runtime、image、目标平台、资源限制、user、pathPrepend 与 lifetimeMs；连接与凭据不构成可分享内容。单实例只有一个销毁 owner。创建不自动重试歧义结果；获取实例后立即登记 Scope finalizer，ready 或工作目录初始化失败也销毁。作者必须显式声明有限的 lifetimeMs，实例仍随 Scope 关闭；该寿命不得短于 Attempt 剩余时限与 30 秒收尾预留。有限寿命负责客户端崩溃后的最终回收，不替代取消确认。服务拒绝该寿命时保留真实失败，不静默缩短。
+起点是 image，工作目录为 `/home/sandbox/workspace`。发布 identity 包含 image、目标平台、资源限制、user、pathPrepend 与 lifetimeMs；连接与凭据不构成可分享内容。单实例只有一个销毁 owner。创建不自动重试歧义结果；获取实例后立即登记 Scope finalizer，ready 或工作目录初始化失败也销毁。作者必须显式声明有限的 lifetimeMs，实例仍随 Scope 关闭；该寿命不得短于 Attempt 剩余时限与 30 秒收尾预留。有限寿命负责客户端崩溃后的最终回收，不替代取消确认。服务拒绝该寿命时保留真实失败，不静默缩短。
 
 每次创建携带随机 provision token。创建失败后按该 token 查询并销毁已分配的实例，不接管其它请求。服务仍在处理但尚未返回的分配无法由一次查询排除，有限寿命约束这种未知状态；查询或销毁失败与原始创建失败一并报告。
+
+服务必须在销毁成功响应前终止实例及其进程，provider 才能将该响应作为回收确认。只返回异步删除受理或控制对象消失的服务不满足该契约，须在服务接入验收时验证；调用方声明 runtime 字符串不能替代这项证据。
 
 命令经原生 argv 执行，shell 明确为 `bash -lc`；cwd、env、身份与 PATH 由 provider 归一化。非零退出返回实际 exitCode，缺失终态不能伪装成功。超时、取消或命令流中断时销毁整个实例，并等待销毁确认后结束命令；这使跨命令后台任务无法在失联后继续执行。正常命令结束保留后台服务。文件接口复用统一 transfer 语义，文本与字节不混用。
 
