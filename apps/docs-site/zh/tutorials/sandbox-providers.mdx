@@ -1,12 +1,12 @@
 ---
-title: "选择并配置 Sandbox：Docker、Vercel 或 E2B"
+title: "选择并配置 Sandbox Provider"
 sidebarTitle: "Sandbox"
 description: "给 Coding Agent 选一个隔离运行环境：本地 Docker、Vercel 或 E2B。按顺序准备环境，并用预制镜像和缓存让每次评估更快开始。"
 ---
 
 Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而且不能碰到你的机器。这个隔离环境就是 Sandbox，由 Provider 负责创建和销毁。
 
-NiceEval 提供三种官方 Provider：本地 Docker、Vercel 和 E2B。本地调试用 Docker 最方便；需要大量并行，或者本机跑不动时，换成云端的 Vercel 或 E2B。
+本地调试可以用 Docker；需要云端环境时可以用 Vercel 或 E2B；已有 OpenSandbox 服务时可以连接它的 Docker runtime。
 
 不管用哪种 Provider，评估用例和 Adapter 看到的都是同一个 `Sandbox` 接口。换 Provider 只改 Experiment 里的一行，评估用例不用动。
 
@@ -19,6 +19,7 @@ NiceEval 提供三种官方 Provider：本地 Docker、Vercel 和 E2B。本地�
 | Docker | 本地开发和标准 CI。简单、可控，不依赖云端 | 本机 Docker。机器资源有限，冷启动和装依赖可能较慢 |
 | Vercel Sandbox | 需要云端隔离、更多资源或更稳定的环境 | Vercel token 或 OIDC 配置 |
 | E2B | 需要大量并行，或者想直接用现成的 Agent template | E2B 账号和 `e2b auth login` |
+| OpenSandbox | 通过已有服务管理远端容器 | Docker runtime 的私有服务入口、API key 和镜像 |
 
 在 Experiment 的 `sandbox` 字段里选一个：
 
@@ -36,15 +37,42 @@ export default defineExperiment({
 
 评估用例和 Experiment 都没有选择 Sandbox 时，运行会在创建任何 Sandbox 之前报错，NiceEval 不会替你猜一个 Provider。
 
-三个内置 Provider 的 SDK 不随 NiceEval 一起安装。用哪个就装哪个，用不到的依赖（以及它们的原生构建脚本）不会进入你的项目：
+Provider 的 SDK 不随 NiceEval 一起安装。用哪个就装哪个，用不到的依赖（以及它们的原生构建脚本）不会进入你的项目：
 
 | Provider | 安装命令 |
 |---|---|
 | `dockerSandbox({ source: { type: "image", image: "node:24-slim" } })` | `pnpm add dockerode @types/dockerode` |
 | `vercelSandbox({ snapshotId })` | `pnpm add @vercel/sandbox` |
 | `e2bSandbox({ template })` | `pnpm add e2b` |
+| `openSandbox({ runtime, image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox` |
 
 漏装时，创建 Sandbox 的那一刻会报错并给出安装命令，例如 `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`。照着装好再运行即可。
+
+### 连接 OpenSandbox
+
+服务与 execd 使用配套的 `release-1.1.1`，SDK 使用 `1.1.1`。旧 `execd:v1.1.0` 不支持此 Provider 所需的原生 argv。
+
+在运行 NiceEval 的机器上配置 `OPEN_SANDBOX_DOMAIN` 和 `OPEN_SANDBOX_API_KEY`。地址是完整的 HTTPS URL；本机开发可使用 HTTP。凭据只用于宿主连接，不写入 Sandbox。
+
+```ts
+import { openSandbox } from "niceeval/sandbox";
+
+const sandbox = openSandbox({
+  runtime: "docker",
+  image: "node:24-bookworm",
+  targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
+  lifetimeMs: 60 * 60_000,
+  resources: { cpu: "1", memory: "2Gi" },
+});
+```
+
+目标平台填写远端镜像的平台，正式实验将镜像固定到 digest。`lifetimeMs` 必须覆盖 Attempt 剩余时限并预留 30 秒收尾；正常完成会立即销毁实例。可用 `user` 选择执行身份，用 `pathPrepend` 添加可执行文件目录。
+
+服务必须使用 Docker runtime，入口只允许可信宿主访问，或在所有 HTTP 和 WebSocket 路径前置鉴权。OpenSandbox 的 Docker proxy 路由不受控制 API key 保护，不能直接暴露到公网。
+
+镜像必须以 root 启动 execd，并提供 Bash 和 Git；用 `user` 让 Agent 以非 root 身份执行。交互 Coding Agent 还需要 Node.js 24。
+
+命令取消或超时会销毁整个实例。此 Provider 不支持 Kubernetes、保留现场、跨 Attempt 复用或准备缓存；容器内也不会自动获得 Docker daemon。
 
 ### Docker Compose：`workspaceService` 指定主 Sandbox
 
@@ -152,7 +180,7 @@ Experiment、评估组、评估用例和 Sandbox Agent 的准备步骤排进同�
 | 本地单容器 Docker，所有改动都在外层容器的可写文件系统里 | `all` | 从头开始最长的一段没变的步骤直接沿用 |
 | Docker profile 配置了独立、预先分配好、固定大小的存储位和种子数据 | `dockerData` | 只沿用从头开始、连续声明了 `dockerData` 的那一段 |
 | 共享 loop 或 project-quota 的 Docker profile | 无 | 显示 `Unsupported`，步骤真实执行 |
-| Docker Compose、E2B、Vercel 或自定义 Provider | 无 | 显示 `Unsupported`，步骤真实执行 |
+| Docker Compose、E2B、Vercel、OpenSandbox 或自定义 Provider | 无 | 显示 `Unsupported`，步骤真实执行 |
 
 沿用只能从第一步开始连续往下。遇到第一个无法保存的步骤，比如默认 `all` 但 Provider 不支持、写了 `opaque` 的回调，或者 Provider 不支持的范围，这一步和它后面的所有步骤都会真实执行。后面的步骤即使声明了 `dockerData`，也不能跳过，因为它依赖的前面状态没有被保存。
 
@@ -263,6 +291,8 @@ e2bSandbox({ template: "my-evals" })
 怎样从官方基线派生镜像、快照和 template，以及怎样用运行时 checkpoint 在 Attempt 之间延续缓存，见[预制 Sandbox 环境](/zh/tutorials/prebuilt-sandbox)。
 
 ## 瞬时错误重试
+
+OpenSandbox 创建请求不自动重试，因为连接中断时，服务可能已经分配了实例。以下创建重试适用于 Docker、Vercel 和 E2B。
 
 内置 Provider 创建 Sandbox 时，遇到限流、`fetch failed`、连接重置、5xx、临时网络不可达这类临时失败，会自动按指数退避重试。模板不存在、凭据缺失这类配置错误第一次就报错。重试用完后，这个 Attempt 记为 `errored`。`defineSandbox` 自定义 Provider 的 `create` 是你自己的函数，NiceEval 不替它重试。
 

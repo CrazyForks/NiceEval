@@ -350,7 +350,7 @@ function dockerProfileAdmission(
   };
 }
 
-function wrapSingleSandbox(
+export function wrapSingleSandbox(
   backend: SandboxProviderBackend,
   context: SandboxRuntimeMaterializeContext,
   facts: JsonValue,

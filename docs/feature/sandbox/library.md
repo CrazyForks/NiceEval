@@ -13,6 +13,7 @@
 | incus | `/home/sandbox/workspace` |
 | E2B | `/home/user/workspace` |
 | Vercel Sandbox | `/vercel/sandbox` |
+| OpenSandbox | `/home/sandbox/workspace` |
 
 契约一句话:**API 里任何沙箱侧相对路径,一律定位到 `workdir`;省略的 `targetDir` / `cwd` 默认就是 `workdir`;绝对路径原样使用。**
 本地侧(宿主机)的相对路径则定位到 eval 定义文件所在目录。
@@ -89,6 +90,8 @@ await t.send(`参考 ${t.sandbox.workdir}/docs/CONVENTIONS.md 里的约定实现
 
 **默认沿用起点声明的身份** ——命令与 agent 以起点声明的用户跑:Docker 镜像的 `USER`(未声明时按 Docker 语义是 root)、Compose service 的 `user:` 或其镜像的 `USER`、E2B template 的默认用户。
 起点由题目作者写:Dockerfile 里的 `USER` 就是题目对执行身份的声明。
+OpenSandbox 的执行身份由 factory 的 `user` 声明，未填写时使用服务的 root 身份；它不会读取镜像的 `USER`。
+
 runner 静默换用户不产生任何报错,只表现为一片 `Permission denied`,所以 NiceEval 不替换起点声明的身份。
 
 要别的身份,用两个显式入口,粒度不同:
@@ -482,3 +485,29 @@ Scope release 统一执行 stop 或已经提交的 keep disposition。
 - [操作 Sandbox](library/operations.md) —— `t.sandbox` 的文件与命令 API。
 - [断言 Sandbox 结果](library/asserting-results.md) —— diff、文件和 shell 行为怎么评分。
 - [Architecture](architecture.md) —— provider 内部实现、生命周期时序、性能与重试。
+
+## OpenSandbox
+
+服务与 execd 使用配套的 `release-1.1.1`，SDK 使用 `1.1.1`。旧 `execd:v1.1.0` 不支持本 Provider 所需的原生 argv。
+
+安装可选依赖 `@alibaba-group/opensandbox`，并在运行 NiceEval 的宿主配置 `OPEN_SANDBOX_DOMAIN` 与 `OPEN_SANDBOX_API_KEY`。地址使用完整 HTTPS URL；本机开发可显式使用 HTTP。凭据不注入被测 Sandbox。服务必须配置 Docker runtime，且入口只对可信宿主开放，或为 HTTP/WebSocket 的全部路径提供前置鉴权。上游 Docker proxy 不受控制 API key 保护，不能直接暴露到公网。
+
+```typescript
+import { openSandbox } from "niceeval/sandbox";
+
+const sandbox = openSandbox({
+  runtime: "docker",
+  lifetimeMs: 60 * 60 * 1000,
+  image: "node:24-bookworm",
+  targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
+  resources: { cpu: "1", memory: "2Gi" },
+});
+```
+
+`OpenSandboxOptions` 接受必填 `runtime: "docker"`、`image: string`、有限的 `lifetimeMs: number` 与 Linux `targetPlatform`，以及可选 `resources: { cpu?: string; memory?: string }`、`user: string`、`pathPrepend: readonly string[]`。正式实验使用 digest-pinned 镜像。工作目录为 `/home/sandbox/workspace`；默认以 execd 的 root 用户运行，`user` 接受 `/etc/passwd` 中的用户名或数字 uid，单条命令可另选身份。
+
+lifetimeMs 是作者显式选择的实例寿命，由服务校验，不能短于有界 Attempt 的剩余时限加 30 秒收尾预留。正常结束和取消均提前销毁，不等待寿命耗尽。命令超时或取消会销毁整个 Sandbox。保留、Sandbox 复用和 before artifact cache 不受支持，before 正常执行。普通容器不提供专用 kernel 或内部 Docker daemon，不能满足 Nested Docker requirement。
+
+镜像必须以 root 启动 execd，并提供 Bash 和 Git。`user` 控制命令与 Agent 的身份，HOME、USER、LOGNAME 从该用户的 `/etc/passwd` entry 取得；调用方可显式替换这些变量。
+
+`codexAgent` 与 `claudeCodeAgent` 使用双向受管进程；镜像必须提供 Node.js 24。Kubernetes 后端不在此 provider 的支持范围内：上游删除响应不能证明 Pod 已终止，声明该 runtime 会在创建前失败。
