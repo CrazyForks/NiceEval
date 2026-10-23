@@ -539,6 +539,41 @@ jobs:
           console.log(`[e2e] injected ${injected}/${declared.length} declared secret(s)`);
           NODE_EOF
 
+      - name: Prepare model network
+        id: model-network
+        if: needs.prepare.outputs.inject-secrets == 'true'
+        env:
+          MANIFESTS_FILE: ${{ steps.cell.outputs.manifests-file }}
+          JOB_CONTAINER: ${{ toJSON(matrix.container) }}
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/model-privacy.mjs mask
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cells = JSON.parse(fs.readFileSync(process.env.MANIFESTS_FILE, 'utf8'));
+          const names = cells.flatMap(({ manifest }) => JSON.parse(fs.readFileSync(manifest, 'utf8')).targets.e2e.metadata.niceeval.secrets);
+          const required = names.some((name) => name === 'OPENAI_BASE_URL' || name === 'ANTHROPIC_BASE_URL');
+          if (required && (!process.env.TS_AUTHKEY || process.env.JOB_CONTAINER !== 'null')) {
+            console.error('Model network requires TS_AUTHKEY and a host executor.');
+            process.exit(1);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `required=${required}\n`);
+          NODE
+
+      - name: Connect model network
+        id: tailnet
+        if: steps.model-network.outputs.required == 'true'
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          args: --accept-dns=false --accept-routes=false
+          log-mode: quiet
+
+      - name: Check model connectivity
+        if: steps.model-network.outputs.required == 'true'
+        run: node .github/scripts/model-connectivity.mjs
+
       - name: Run e2e for ${{ matrix.id }}
         env:
           CANDIDATE: ${{ steps.candidate.outputs.candidate }}
@@ -554,66 +589,33 @@ jobs:
             --cell "$CELL_ID" \
             --artifact-root "$ARTIFACT_ROOT"
 
-      - name: Redact secrets in artifactRoot
-        if: always() && steps.safe.outcome == 'success' && steps.cell.outcome == 'success' && needs.prepare.outputs.inject-secrets == 'true'
+      - name: Prepare sanitized cell artifacts
+        id: redact
+        if: always() && steps.safe.outcome == 'success' && steps.cell.outcome == 'success'
         env:
-          ARTIFACT_ROOT: ${{ steps.safe.outputs.artifact-root }}
-          MANIFESTS_FILE: ${{ steps.cell.outputs.manifests-file }}
-        run: |
-          set -euo pipefail
-          if [ ! -d "$ARTIFACT_ROOT" ]; then
-            echo "[e2e] no artifactRoot to redact"
-            exit 0
-          fi
-          node <<'NODE_EOF'
-          const fs = require("fs");
-          const path = require("path");
-          const root = process.env.ARTIFACT_ROOT;
-          const cells = JSON.parse(fs.readFileSync(process.env.MANIFESTS_FILE, "utf8"));
-          const declared = [...new Set(cells.flatMap(({ manifest }) =>
-            JSON.parse(fs.readFileSync(manifest, "utf8")).targets.e2e.metadata.niceeval.secrets
-          ))];
-          const replacements = declared
-            .map((name) => ({ name, value: process.env[name] }))
-            .filter(({ value }) => typeof value === "string" && value.length > 0);
-          function walk(dir, files = []) {
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-              const abs = path.join(dir, entry.name);
-              if (entry.isDirectory()) walk(abs, files);
-              else if (entry.isFile()) files.push(abs);
-            }
-            return files;
-          }
-          const files = walk(root);
-          let hits = 0;
-          for (const abs of files) {
-            let text;
-            try {
-              text = fs.readFileSync(abs, "utf8");
-            } catch {
-              continue;
-            }
-            let next = text;
-            for (const { name, value } of replacements) {
-              if (next.includes(value)) {
-                hits += next.split(value).length - 1;
-                next = next.split(value).join(`<redacted:${name}>`);
-              }
-            }
-            if (next !== text) fs.writeFileSync(abs, next, "utf8");
-          }
-          console.log(`[e2e] redaction: ${hits} occurrence(s) across ${files.length} file(s)`);
-          NODE_EOF
+          ARTIFACT_SOURCE: ${{ steps.safe.outputs.artifact-root }}
+          ARTIFACT_SAFE: ${{ steps.safe.outputs.artifact-root }}-safe
+          TS_AUTHKEY: ${{ needs.prepare.outputs.inject-secrets == 'true' && secrets.TS_AUTHKEY || '' }}
+        run: node .github/scripts/model-privacy.mjs artifacts
 
       - name: Upload cell artifacts
-        if: always() && steps.safe.outcome == 'success'
+        if: always() && steps.redact.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: e2e-${{ steps.safe.outputs.id }}
-          path: ${{ steps.safe.outputs.artifact-root }}
+          path: ${{ steps.safe.outputs.artifact-root }}-safe
           retention-days: 14
           if-no-files-found: warn
           include-hidden-files: true
+
+      - name: Disconnect model network
+        if: always() && steps.tailnet.outcome == 'success'
+        run: |
+          if ! sudo tailscale logout > /dev/null 2>&1; then
+            echo '::error::Model network logout failed.'
+            exit 1
+          fi
+          echo 'Model network logged out.'
 
   gate:
     name: e2e gate

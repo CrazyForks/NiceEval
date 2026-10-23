@@ -281,6 +281,17 @@ backend、container 与 browser 都必须登记 owned handle；`finally` 做有�
 可信 lane 的 workflow 只能显式引用已登记的 secret 白名单；禁止 `toJSON(secrets)` 或其它全量枚举。
 Repo project metadata 声明了白名单外的名称时，在注入前失败，不动态读取其它仓库 secret。
 
+可信 cell 声明模型 Base URL 时，通过独立的 `TS_AUTHKEY` Secret 加入 Tailscale。
+该凭据仅用于网络接入与脱敏，不注入场景进程；模型地址继续由既有 Base URL Secrets 提供。
+使用用户配置的 `tag:ci` 身份，继承其现有权限；基础设施额外允许该身份访问 Studio HTTPS。
+无密钥 lane 不接入 Tailnet。现有模型场景使用 host executor；若改为 browser container，
+须先补充网络方案，workflow 不自动增加容器权限。
+
+入网前为完整模型地址、origin、hostname 和密钥注册日志掩码。连接步骤不接受子网路由、
+不设置 exit node、不修改 DNS。非收费连通性探针只报告受控结果，不打印 URL、响应或原始异常。
+结束时显式检查 logout，官方 action post 继续清理 daemon；强制终止时依赖临时节点后续回收。
+宿主探针不能代替 Docker 沙箱中的实际 adapter 验收。
+
 被 affected 图选中的确定性与 live owner 在可信 PR 中都运行；main 与 nightly 运行完整 portfolio。provider 故障可以使该次 CI
 失败，不能用探测、skip 或 AI 真实验收把未运行的 live owner 记成 pass。人工 dispatch 仍可用开关选择只跑确定性 Repo。
 
@@ -415,6 +426,11 @@ Testkit directory resolution、包身份或实际安装路径不符合当前 che
 - live adapter 上游版本、模型 / CLI 身份和结构化错误。
 
 收集后先按 runner 注入的 secret 值精确脱敏，再上传。Artifact 不能包含工作区通用 `.env`、认证目录或未筛选的 home。
+
+CI 上传独立生成的脱敏文本副本，不改写 runner 原始结果。文本副本额外替换模型域名、origin、
+URL 编码和 JSON 转义形式；包含敏感值的路径、符号链接、非 UTF-8 和二进制文件不上传。
+截图及压缩 trace 保留在 runner 本地，不包含在上传副本中。只有脱敏步骤成功后才允许上传，
+处理失败不能回退上传原始目录。Actions 日志掩码不能代替 artifact 脱敏。
 
 从 project root 推导的 Repo ID 是 canonical 相对路径，允许 `adapter/ai-sdk`，拒绝绝对路径、dot traversal、反斜杠与控制符。
 artifact 只接受 canonical `dir/**` 或顶层文件 glob。collector 在每次读写时做 containment 检查。

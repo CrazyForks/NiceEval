@@ -32,6 +32,9 @@ jobs:
       - name: Install Concord CLI
         uses: ./.github/actions/setup-concord
 
+      - name: Check CI model artifact privacy
+        run: node --test .github/scripts/model-privacy.test.mjs
+
       - name: Typecheck
         run: pnpm run typecheck
 
