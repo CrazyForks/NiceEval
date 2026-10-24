@@ -214,6 +214,7 @@ function walkFiles(
   dir: string,
   root: string,
   match: (name: string) => boolean,
+  stopAtCase = false,
 ): Effect.Effect<readonly string[], DiscoveryError> {
   const readDirectory = (current: string, allowAbsent: boolean) => Effect.tryPromise({
     try: async () => {
@@ -236,10 +237,11 @@ function walkFiles(
     Effect.suspend(() => readDirectory(current, allowAbsent).pipe(
       Effect.flatMap((entries) => {
         if (entries === undefined) return Effect.succeed(Object.freeze([]));
+        const isCase = stopAtCase && entries.some((entry) => entry.isFile() && isFolderEntryName(entry.name));
         return Effect.forEach(entries, (entry) => {
           const full = join(current, entry.name);
           if (entry.isDirectory()) {
-            return SKIP_DIRS.has(entry.name)
+            return isCase || SKIP_DIRS.has(entry.name)
               ? Effect.succeed([])
               : walk(full, false);
           }
@@ -271,7 +273,7 @@ function isFileEntryName(name: string): boolean {
 }
 
 function collectEvalEntries(evalsDir: string, root: string): Effect.Effect<readonly EvalEntry[], DiscoveryError> {
-  return walkFiles(evalsDir, root, (name) => isFileEntryName(name) || isFolderEntryName(name)).pipe(
+  return walkFiles(evalsDir, root, (name) => isFileEntryName(name) || isFolderEntryName(name), true).pipe(
     Effect.flatMap((files) => {
       const entries = files.map((file): EvalEntry => {
         const name = basename(file);
@@ -694,7 +696,7 @@ export function discoverEvals(
       privatePaths: evalDef.privatePaths,
     }), { concurrency: 1 });
     if (leakErrors.length > 0) return yield* Effect.fail(discoveryError(leakErrors.flatMap((error) => error.issues)));
-    const files = yield* walkFiles(dir, root, (name) => name === "eval-group.ts");
+    const files = yield* walkFiles(dir, root, (name) => name === "eval-group.ts", true);
     const groupEntries = files.map((file) => {
       const id = relative(dir, dirname(file)).split(sep).join("/");
       return { file, id };

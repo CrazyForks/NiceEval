@@ -52,6 +52,10 @@ npx niceeval exp local weather/brooklyn
 
 ID 跟着目录结构走，稳定又好读。过滤按字符串前缀匹配：`terminal-swe-bench` 也会命中 `terminal-swe-bench-astropy-1`，不要求后一个字符是 `/`。
 
+也可以用 `evals/weather/brooklyn/eval.ts` 声明同一个 ID。含 `eval.ts` 的目录是一道题的 case 目录，发现器在这里停止扫描子目录。子目录中的 `eval.ts`、`.eval.ts` 和 `.eval.tsx` 都作为资产保留，不会被导入为其它评估用例，因此可以直接放入完整的起始仓库。
+
+普通 `.eval.ts` 文件旁边的子目录仍会被扫描。共享资产放在没有 `eval.ts` 入口的目录中，各道题使用兄弟 case 目录或兄弟 `.eval.ts` 文件。
+
 ## 生命周期
 
 <Steps>

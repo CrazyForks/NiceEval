@@ -427,6 +427,8 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## 写 eval · scoring · 断言 · judge
 
+- [case-directory-descendant-discovery](case-directory-descendant-discovery.md) — case 目录中的嵌套仓库曾被递归发现，触发重复 ID 或资产顶层代码；Eval 与 Eval Group 扫描在目录入口处停止递归，普通文件入口旁的子目录仍可发现。
+
 - [retry-reacquire-delays-interruption](retry-reacquire-delays-interruption.md) — turn 重试退避被中断后仍须重新取得释放的 permit，当前以并发记账守恒优先于中断及时性
 - 已修 [assertion-diagnostic-tree-overflows-record](assertion-diagnostic-tree-overflows-record.md) — 上百个 occurrence × 组合 matcher 的完整诊断树撑破递归/4 MiB 边界，使已完成 Run 无法发布；collection 改存 witness + 8 个样本，runtime/document 双层有界化，大材料自动进 Assertions blob
 - 已修 [assertion-snapshot-shape-needs-blob-fallback](assertion-snapshot-shape-needs-blob-fallback.md) — 小型深层 subject 仍可能超出 durable inline shape；Record bridge 现按 byte size 或 schema shape 自动选择 Assertions-own blob
