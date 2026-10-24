@@ -473,6 +473,7 @@
               {
                 "group": "Get Started",
                 "pages": [
+                  "index",
                   "introduction",
                   "tutorials/quickstart",
                   "tutorials/agent-onboarding",
@@ -663,6 +664,7 @@
               {
                 "group": "开始使用",
                 "pages": [
+                  "zh/index",
                   "zh/introduction",
                   "zh/tutorials/quickstart",
                   "zh/tutorials/agent-onboarding",
