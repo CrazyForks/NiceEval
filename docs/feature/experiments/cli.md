@@ -312,8 +312,9 @@ Attempt 创建前的共享失败另列 `ERRORS`，包括共享任务构建与[�
 
 `not-dispatched` 仍是机器 membership，不能替代错误原因；后续 `niceeval show --run <runId>` 与
 `niceeval view --run <runId>` 以用户可理解的 Attempt 和错误说明呈现完整上下文。
-这组事实复用现有 Run-owned `niceeval.runner-diagnostics` source，不改变 Record 或 attachment schema；历史 Run 没有采集时
-继续只显示 membership，不能补造错误原因。
+这组事实复用现有 Run-owned `niceeval.runner-diagnostics` source，在其 attachment 中追加可选的
+`affectedSlotIds` 关联，由 Inspection 投影为 `affectedPlannedAttemptIds`。历史 Run 未采集错误或关联时不补造；
+没有错误事实时继续只显示 membership。
 
 shared failure identity 只供内部关联同一次物理失败，不是错误码或用户概念。Human 不展示 `n1`、BuildKey、
 timing node、failureId 或共享机制名称。Attempt 创建前不存在 locator，不能伪造 Attempt 详情；只有 Run

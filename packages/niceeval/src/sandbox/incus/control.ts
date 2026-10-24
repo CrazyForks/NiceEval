@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { request as httpRequest } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { boundedErrorText } from "../../shared/bounded-error-text.ts";
 import { classifyProvisionErrorFallback, type SandboxProvisionErrorKind } from "../errors.ts";
 import { DEVELOPMENT_HOST_PATH } from "./descriptor.ts";
 import { incusError, type IncusProviderError } from "./errors.ts";
@@ -179,8 +180,7 @@ function cliDiagnosticExcerpt(text: string): string {
     )
     .replace(/\s+/gu, " ")
     .trim();
-  if (redacted.length <= CLI_DIAGNOSTIC_LIMIT) return redacted;
-  return `${redacted.slice(0, CLI_DIAGNOSTIC_LIMIT)}…`;
+  return boundedErrorText(redacted, CLI_DIAGNOSTIC_LIMIT);
 }
 
 function cliFailure(path: string, exitCode: number, text: string, cause?: unknown): IncusProviderError {
@@ -469,6 +469,26 @@ export class IncusControl {
       source,
       backingDevice,
     });
+  }
+
+  async getStoragePoolResources(project: string, pool: string): Promise<{ readonly total: number; readonly used: number; readonly free: number }> {
+    const metadata = await this.get(this.projectPath(`/1.0/storage-pools/${encodeURIComponent(pool)}/resources`, project));
+    const space = isRecord(metadata) ? metadata.space : undefined;
+    const total = isRecord(space) ? space.total : undefined;
+    const used = isRecord(space) ? (space.used ?? 0) : undefined;
+    if (typeof total !== "number" || typeof used !== "number" || !Number.isSafeInteger(total) || !Number.isSafeInteger(used) || total <= 0 || used < 0 || used > total) {
+      throw shapeError(`GET storage pool ${pool} resources (storage bytes unknown)`);
+    }
+    return Object.freeze({ total, used, free: total - used });
+  }
+
+  async getServerIdentity(): Promise<{ readonly fingerprint: string; readonly name: string; readonly pid: number }> {
+    const metadata = await this.get("/1.0");
+    const environment = isRecord(metadata) ? metadata.environment : undefined;
+    if (!isRecord(environment) || typeof environment.certificate_fingerprint !== "string" || environment.certificate_fingerprint.length === 0 || typeof environment.server_name !== "string" || typeof environment.server_pid !== "number" || !Number.isSafeInteger(environment.server_pid) || environment.server_pid <= 0) {
+      throw shapeError("GET server identity");
+    }
+    return Object.freeze({ fingerprint: environment.certificate_fingerprint, name: environment.server_name, pid: environment.server_pid });
   }
 
   async attestReferenceStorage(

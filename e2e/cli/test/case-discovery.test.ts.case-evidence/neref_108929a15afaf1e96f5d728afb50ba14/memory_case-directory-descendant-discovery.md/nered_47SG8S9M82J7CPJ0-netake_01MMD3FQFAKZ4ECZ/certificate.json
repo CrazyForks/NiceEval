@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/cli/test/case-discovery.test.ts#neref_108929a15afaf1e96f5d728afb50ba14",
+  "caseId": "neref_108929a15afaf1e96f5d728afb50ba14",
+  "candidateSha256": "51ec09ed246c8478cad4eecb8b5a9f7cfefde02043dab722c9c6b3a2b9988bc9",
+  "sourceDigest": "sha256:c64d6a4d3ce91931ff4fbd942e69e9a167a2fdc2746755e1dee6f45ee99122f7",
+  "greenReceipt": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-1.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-2.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-4.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-6.json",
+    "singleCase": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/green.json",
+    "cleanup": [
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/green.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-1.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-2.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-3.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-4.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-5.json",
+      "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "678fb70a8deea9b83fd20fef4072e594de82dd3623b9ee93b59224993dbe4176"
+}

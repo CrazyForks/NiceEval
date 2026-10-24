@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "niceeval.incus-provider/v2",
+  "domains": [{
+    "name": "development",
+    "status": "configured",
+    "executionDomainId": "cli-prefix-diagnostics",
+    "project": "niceeval-eval-dev",
+    "storagePool": "niceeval-sandbox-dev",
+    "network": "niceeval-dev",
+    "storage": "development-dir",
+    "quota": "unattested",
+    "maxInstances": 4,
+    "artifactProject": "niceeval-artifacts-dev",
+    "artifactMaxInstances": 4,
+    "artifactStorageReserveBytes": 1073741824,
+    "artifactEstimatedBytes": 1073741824,
+    "dockerDataBytes": 1073741824,
+    "workdir": "/home/sandbox/workspace",
+    "user": "node",
+    "hostGateway": "10.0.0.1",
+    "trustedBaseImages": ["niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+  }]
+}

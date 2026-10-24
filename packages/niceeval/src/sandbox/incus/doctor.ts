@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { INCUS_METADATA, IncusControl } from "./control.ts";
+import { IncusControl } from "./control.ts";
 import {
   domainByName,
   incusDescriptorPath,
@@ -13,9 +13,11 @@ import {
   parseIncusImageLocator,
 } from "./image.ts";
 import { countActiveAllocations, listAllocationIntents } from "./ledger.ts";
-import { listArtifactIntents } from "./artifact-ledger.ts";
+import { readArtifactInventory } from "./inventory.ts";
 import { dockerExecutionCapability } from "./plan.ts";
 import { incusRepositoryHost, type IncusRepository } from "./repository.ts";
+import { artifactByteEstimate, inspectArtifactStorage } from "./storage.ts";
+import { artifactBelongsToDomain } from "./inventory.ts";
 
 export type IncusDoctorStatus = "PASS" | "FAIL";
 
@@ -28,6 +30,7 @@ export type IncusDoctorCheckId =
   | "trusted-image"
   | "capacity"
   | "artifact-inventory"
+  | "artifact-storage"
   | "artifact-capacity";
 
 export interface IncusDoctorCheck {
@@ -87,7 +90,7 @@ async function doctorIncusProviderWithRepository(
   const checks: IncusDoctorCheck[] = [];
   const remaining = (after: IncusDoctorCheckId): IncusDoctorReport => {
     const rest: IncusDoctorCheckId[] = [
-      "descriptor", "control", "project", "storage-pool", "domain", "trusted-image", "capacity", "artifact-inventory", "artifact-capacity",
+      "descriptor", "control", "project", "storage-pool", "domain", "trusted-image", "capacity", "artifact-inventory", "artifact-capacity", "artifact-storage",
     ].filter((id) => !checks.some((entry) => entry.id === id) && id !== after) as IncusDoctorCheckId[];
     checks.push(...failRest(rest, "PREREQUISITE_FAILED", "the preceding diagnostic stage failed closed"));
     return Object.freeze({
@@ -276,42 +279,36 @@ async function doctorIncusProviderWithRepository(
   }
 
   try {
-    const artifacts = (await listArtifactIntents(repository)).filter((entry) =>
-      entry.executionDomainId === domain.executionDomainId && entry.project === domain.artifactProject &&
-      entry.state !== "released"
-    );
-    const instances = await control.listInstances(domain.artifactProject);
-    const volumes = await control.listVolumes(domain.artifactProject, domain.storagePool);
-    const orphanInstance = instances.find((instance) =>
-      instance.config[INCUS_METADATA.artifactState] !== undefined &&
-      !artifacts.some((artifact) => artifact.instance === instance.name)
-    );
-    const orphanVolume = volumes.find((volume) =>
-      volume.config[INCUS_METADATA.artifactState] !== undefined &&
-      !artifacts.some((artifact) => artifact.dockerDataVolume === volume.name)
-    );
-    if (orphanInstance !== undefined || orphanVolume !== undefined) {
-      const locator = orphanInstance === undefined
-        ? `project=${domain.artifactProject} pool=${domain.storagePool} volume=${orphanVolume!.name}`
-        : `project=${domain.artifactProject} instance=${orphanInstance.name}`;
-      checks.push(check(
-        "artifact-inventory",
-        "FAIL",
-        `${locator} has NiceEval prepared-artifact metadata but no exact IncusRepository intent; quarantine this exact provider object before admission`,
-        "sandbox-artifact-unverified",
-      ));
+    const inventory = await readArtifactInventory(repository, control, domain);
+    const artifacts = inventory.entries.filter((entry) => entry.intent.state !== "released");
+    const committed = artifacts.filter((entry) => entry.intent.state === "committed");
+    const drifted = artifacts.filter((entry) => entry.verification !== "verified" || entry.intent.state !== "committed");
+    if (inventory.orphans.length !== 0 || drifted.length !== 0) {
+      const details = [
+        ...drifted.map((entry) => `${entry.intent.artifactId.slice(0, 12)} ${entry.intent.state !== "committed" ? entry.intent.state : entry.verification}`),
+        ...inventory.orphans.map((entry) => `orphan project=${domain.artifactProject} ${entry.kind === "instance" ? `instance=${entry.name}` : `pool=${domain.storagePool} volume=${entry.name}`}`),
+      ];
+      checks.push(check("artifact-inventory", "FAIL", `${details.join("; ")}. Inspect with niceeval sandbox provider inventory incus; preview exact reclamation with niceeval sandbox provider gc incus.`, "sandbox-artifact-unverified"));
     } else {
-      checks.push(check("artifact-inventory", "PASS", `project=${domain.artifactProject} pool=${domain.storagePool} matches ${artifacts.length} active intents`));
+      checks.push(check("artifact-inventory", "PASS", `${committed.length} committed intents, ${committed.filter((entry) => entry.verification === "verified").length} verified object pairs; project=${domain.artifactProject} pool=${domain.storagePool}`));
     }
     const free = Math.max(0, domain.artifactMaxInstances - artifacts.length);
     if (free === 0) {
-      checks.push(check("artifact-capacity", "FAIL", `no free prepared artifact slots (${artifacts.length}/${domain.artifactMaxInstances})`, "sandbox-capacity-unavailable"));
+      checks.push(check("artifact-capacity", "FAIL", `no free prepared artifact slots (${artifacts.length}/${domain.artifactMaxInstances}); inspect niceeval sandbox provider inventory incus and preview niceeval sandbox provider gc incus --unused-for <duration>`, "sandbox-capacity-unavailable"));
     } else {
       checks.push(check("artifact-capacity", "PASS", `${free} free of ${domain.artifactMaxInstances}`));
     }
   } catch (cause) {
     checks.push(check("artifact-capacity", "FAIL", errorDetail(cause), errorCode(cause)));
     return remaining("artifact-capacity");
+  }
+
+  try {
+    const estimate = artifactByteEstimate((await repository.listArtifacts()).filter((entry) => artifactBelongsToDomain(entry, domain)), domain.artifactEstimatedBytes);
+    const storage = await inspectArtifactStorage(control, domain.artifactProject, domain.storagePool, domain.artifactStorageReserveBytes, estimate);
+    checks.push(check("artifact-storage", "PASS", `pool=${domain.storagePool} free=${storage.free} required=${storage.required} inFlightReservedBytes=${storage.inFlightReservedBytes}; ${storage.estimatedArtifactBytes} bytes estimate, not additive`));
+  } catch (cause) {
+    checks.push(check("artifact-storage", "FAIL", `${errorDetail(cause)} Inspect niceeval sandbox provider inventory incus and niceeval sandbox provider gc incus --unused-for <duration>.`, errorCode(cause)));
   }
 
   const failed = checks.some((entry) => entry.status === "FAIL");

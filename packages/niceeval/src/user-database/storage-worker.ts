@@ -13,7 +13,8 @@ import {
 } from "../sqlite-migration-kernel.ts";
 import { isDockerCacheRepositoryRequest } from "../sandbox/docker-cache-repository.ts";
 import { E2B_CACHE_GENERATION_INDEX_SQL, E2B_CACHE_REPOSITORY, installE2BCacheSchemaV1, isE2BCacheRequest } from "../sandbox/e2b-cache-repository.ts";
-import { isIncusRepositoryRequest } from "../sandbox/incus/repository.ts";
+import { INCUS_REPOSITORY, installIncusSchemaV3, isIncusRepositoryRequest } from "../sandbox/incus/repository.ts";
+import { INCUS_GC_SCHEMA_SQL } from "../sandbox/incus/gc-store.ts";
 import {
   UserDatabaseInvalid,
   UserDatabaseLegacyFound,
@@ -42,7 +43,7 @@ const HostFormatIdentity = "niceeval-user-database/0.14.0";
 const UnsupportedPrereleaseIdentities = new Set(["niceeval-user-database/v2"]);
 const MigrationBaseline = "0.14.0";
 const CreateHostFormat = `CREATE TABLE ${HostFormatTable} (format_id TEXT PRIMARY KEY CHECK(format_id = '${HostFormatIdentity}')) STRICT`;
-const CurrentVersion = 2;
+const CurrentVersion = 3;
 
 function schemaObjectKey([type, name, table]: readonly string[]): string {
   return `${type}\u0000${name}\u0000${table}`;
@@ -77,6 +78,7 @@ const AllowedSchemaObjects = new Set<string>([
   ["table", "incus_artifact_consumer_leases", "incus_artifact_consumer_leases"],
   ["table", "incus_artifact_destroy_receipts", "incus_artifact_destroy_receipts"],
   ["table", "incus_artifact_release_receipts", "incus_artifact_release_receipts"],
+  ["table", "incus_artifact_gc_plans", "incus_artifact_gc_plans"],
   ["index", "docker_setup_prefix_writer", "docker_setup_prefix_entries"],
   ["index", "docker_setup_prefix_replacement_scope", "docker_setup_prefix_replacement_scopes"],
   ["index", "e2b_cache_entries_cleanup", "e2b_cache_entries"],
@@ -112,6 +114,7 @@ const AllowedSchemaObjects = new Set<string>([
   ["index", "sqlite_autoindex_incus_artifact_consumer_leases_1", "incus_artifact_consumer_leases"],
   ["index", "sqlite_autoindex_incus_artifact_destroy_receipts_1", "incus_artifact_destroy_receipts"],
   ["index", "sqlite_autoindex_incus_artifact_release_receipts_1", "incus_artifact_release_receipts"],
+  ["index", "sqlite_autoindex_incus_artifact_gc_plans_1", "incus_artifact_gc_plans"],
 ].map(schemaObjectKey));
 
 type SchemaRow = { readonly type: string; readonly name: string; readonly tbl_name: string; readonly sql: string | null };
@@ -220,6 +223,7 @@ const UserDatabaseMigrationCatalog = defineSqliteMigrationCatalog([
     apply: (database: DatabaseSync): void => {
       for (const handler of userDatabaseRepositoryCatalog) {
         if (handler.id === E2B_CACHE_REPOSITORY) installE2BCacheSchemaV1(database);
+        else if (handler.id === INCUS_REPOSITORY) installIncusSchemaV3(database);
         else handler.installCurrentSchema(database);
       }
       database.exec(CreateHostFormat);
@@ -230,6 +234,11 @@ const UserDatabaseMigrationCatalog = defineSqliteMigrationCatalog([
     version: 2,
     digest: createHash("sha256").update(`niceeval.user-database/${MigrationBaseline}/migration/2\0`).update(E2B_CACHE_GENERATION_INDEX_SQL).digest("hex"),
     apply: (database: DatabaseSync): void => { database.exec(E2B_CACHE_GENERATION_INDEX_SQL); },
+  }),
+  Object.freeze({
+    version: 3,
+    digest: createHash("sha256").update(`niceeval.user-database/${MigrationBaseline}/migration/3\0`).update(INCUS_GC_SCHEMA_SQL).digest("hex"),
+    apply: (database: DatabaseSync): void => { database.exec(INCUS_GC_SCHEMA_SQL); },
   }),
 ], CurrentVersion);
 

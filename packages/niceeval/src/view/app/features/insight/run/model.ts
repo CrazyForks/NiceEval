@@ -5,6 +5,7 @@ export interface RunPageModel {
   readonly runId: string;
   readonly experimentId: string;
   readonly adapter: AdapterIdentity | null;
+  readonly diagnostics: InspectionSuccessDocumentFor<"run.get">["run"]["diagnostics"];
   readonly members: readonly RunMemberModel[];
 }
 
@@ -27,6 +28,7 @@ export function closeRun(
     runId: run.run.value.runId,
     experimentId: run.run.value.experimentId,
     adapter: run.run.value.context?.execution.adapter ?? null,
+    diagnostics: run.run.diagnostics,
     members: Object.freeze(run.run.plannedAttempts.map((member, index) => Object.freeze({
       key: `${member.plannedAttemptId}:${index}`,
       plannedAttemptId: member.plannedAttemptId,

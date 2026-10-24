@@ -11,10 +11,19 @@ import { useCurrentGeneration } from "../data/index.ts";
 import { runQueryOptions } from "./load.ts";
 import { localizedMessage } from "../components/locale.ts";
 
+const runPhaseMessages = {
+  "run.before": "run.phase.before",
+  "run.discovery": "run.phase.discovery",
+  "run.plan": "run.phase.plan",
+  "run.dispatch": "run.phase.dispatch",
+  "run.after": "run.phase.after",
+} as const;
+
 export function RunPage({ model, locale }: {
   readonly model: RunPageModel;
   readonly locale: Locale;
 }): ReactElement {
+  const { t } = useTranslation();
   const rows = model.members.map((member) => {
     const cells: Record<string, Cell> = {
       experiment: { kind: "text", text: model.experimentId },
@@ -69,6 +78,22 @@ export function RunPage({ model, locale }: {
       <h2 className="niceeval-section-title">
         {locale === "zh-CN" ? `Run 成员 · ${model.runId}` : `Run membership · ${model.runId}`}
       </h2>
+      {model.diagnostics.length === 0 ? null : (
+        <section aria-label={t("run.errors")}>
+          <h3>{t("run.errors")}</h3>
+          {model.diagnostics.map((diagnostic) => {
+            const affected = new Set(diagnostic.affectedPlannedAttemptIds);
+            const evals = [...new Set(model.members.filter((member) => affected.has(member.plannedAttemptId))
+              .map((member) => member.evalId))];
+            return <article key={diagnostic.diagnosticId}>
+              <p>{t(runPhaseMessages[diagnostic.phase])}</p>
+              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{diagnostic.summary}</pre>
+              {affected.size === 0 ? null : <p>{t("run.affectedAttempts", { count: affected.size })}</p>}
+              <ul>{evals.map((evalId) => <li key={evalId}>{evalId}</li>)}</ul>
+            </article>;
+          })}
+        </section>
+      )}
       <TableContentView data={table} searchable locale={locale} />
     </section>
   );

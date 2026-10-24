@@ -11,6 +11,7 @@ While smoke-testing a batch of evals locally, you notice most of the time goes t
 Declare `sandboxReuse: true` in the Experiment, and several Attempts share the same Sandbox in turn. Each Sandbox is created only once, and between evals NiceEval restores the working directory to its starting state. Each Attempt still really executes, and still has its own `.before()` / `.after()` preparation and cleanup. Unchanged Docker preparation steps are reused directly instead of executing again.
 
 <Note>
+  Incus and OpenSandbox use a separate instance for each Attempt and do not support `sandboxReuse` or Sandbox reuse within eval groups.
   This page covers Experiment-level `sandboxReuse`. When only a few groups of compatible evals each need their own reuse boundary, use
   [eval groups](/tutorials/eval-groups): reuse runs serially within a group, while different groups keep running in parallel. An
   Experiment that selects eval groups cannot also declare `sandboxReuse: true`.

@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { cliE2E } from "./context.ts";
 
 // @feature docs/feature/eval/README.md
+// @regression memory/case-directory-descendant-discovery.md
 test.concurrent("Case 目录的嵌套仓库是资产，普通文件入口旁的子目录仍被发现", async () => {
   await cliE2E.case("case-discovery", async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const definition = 'import { defineEval } from "niceeval"; export default defineEval({ test() {} });\n';

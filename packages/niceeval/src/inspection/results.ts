@@ -1,5 +1,6 @@
 import { RunPluginIdentitySchema } from "../record/model/run-context.ts";
 import { projectLifecyclePhase } from "./lifecycle.ts";
+import { RUN_ACTIVITY_PHASES } from "../record/family/protocol-values.ts";
 import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
@@ -1056,6 +1057,13 @@ const RunOverviewLocatedLimitationSchema = Schema.Struct({
 });
 export const InspectionRunResultSchema = Schema.Struct({
   value: InspectionRunValueSchema,
+  diagnostics: Schema.Array(Schema.Struct({
+    diagnosticId: Schema.String,
+    code: Schema.String,
+    phase: Schema.Literals(RUN_ACTIVITY_PHASES.map(projectLifecyclePhase)),
+    summary: Schema.String,
+    affectedPlannedAttemptIds: Schema.Array(Schema.String),
+  })),
   members: Schema.Array(InspectionMemberSchema),
   attempts: Schema.Array(InspectionAttemptCoreSchema),
   denominator: Schema.Struct({ expected: Schema.Number, published: Schema.Number, missing: Schema.Number }),

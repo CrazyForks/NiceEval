@@ -30,11 +30,21 @@ export function ResultsPage({ model, locale, unavailableReason }: {
     </section>;
   }
   const experiments = overviewData(model.overview, model.selectedExperiments);
+  const historicalRuns = model.overview.catalog.runExperiments.filter(({ experimentId }) =>
+    experiments.some((experiment) => experiment.experimentId === experimentId));
   return (
     <>
       <header className="niceeval-report niceeval-hero">
         <h1 className="niceeval-hero-title">{t("insight.title")}</h1>
         <p>{t("current.historicalResults")}</p>
+        {historicalRuns.length === 0 ? null : (
+          <ul>{historicalRuns.map(({ runId, experimentId }) => (
+            <li key={runId}>
+              <a href={`#/run/${encodeURIComponent(runId)}`}>{t("current.historicalRun")}</a>
+              {" · "}{experimentId}{" · "}<code>{runId}</code>
+            </li>
+          ))}</ul>
+        )}
       </header>
       <div className="niceeval-view-report-slot">
         {model.costSummary === undefined ? null : <ExperimentCosts summary={model.costSummary} />}

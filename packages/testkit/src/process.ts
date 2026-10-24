@@ -19,6 +19,7 @@ import {
 } from "./run-protocol.js";
 import {
   decodeExpTerminalEvent,
+  ExpDiagnosticEventSchema,
   type ExpTerminalEvent,
   type InvocationReceipt,
 } from "./exp-protocol.js";
@@ -119,6 +120,7 @@ export const ExpEventSchema = Schema.Union([
   ExpStartEventSchema, ExpProgressEventSchema, ExpFailureEventSchema,
   ExpErrorEventSchema, ExpEvalEventSchema, ExpKeptEventSchema,
   ExpNoticeEventSchema, ExpWarningEventSchema, ExpBudgetExhaustedEventSchema,
+  ExpDiagnosticEventSchema,
   ExpReporterErrorEventSchema, ExpInterruptedEventSchema,
   ExpJudgePrecheckEventSchema, ExpExperimentHookEventSchema,
   ExpLockWaitEventSchema,

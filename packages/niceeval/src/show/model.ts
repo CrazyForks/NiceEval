@@ -91,6 +91,7 @@ export interface ExperimentView {
   readonly modelUsage: InspectionSuccessDocumentFor<"experiment.get">["experiment"]["modelUsage"];
 }
 export interface RunView {
+  readonly diagnostics: InspectionSuccessDocumentFor<"run.get">["run"]["diagnostics"];
   readonly runId: string;
   readonly experimentId: string;
   readonly adapter: AdapterIdentity | null;
@@ -276,6 +277,7 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): R
   const detail = document.run;
   const value = detail.value;
   return {
+    diagnostics: detail.diagnostics,
     runId: value.runId,
     experimentId: value.experimentId,
     adapter: value.context?.execution.adapter ?? null,

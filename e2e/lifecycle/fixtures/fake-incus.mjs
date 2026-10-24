@@ -152,8 +152,14 @@ function query(args) {
 
   if (method === "GET") {
     const read = () => withLock((state) => {
-      if (pathname === "/1.0") return { kind: "value", value: { api_version: "1.0" } };
+      if (pathname === "/1.0") return { kind: "value", value: { api_version: "1.0", environment: {
+        server_name: "fake-incus", server_pid: 4242, certificate_fingerprint: digest,
+      } } };
       if (pathname.startsWith("/1.0/projects/")) return { kind: "value", value: { name: decodeURIComponent(pathname.split("/").at(-1)) } };
+      if (/^\/1\.0\/storage-pools\/[^/]+\/resources$/u.test(pathname)) {
+        const instances = Object.values(state.instances).reduce((count, project) => count + Object.keys(project).length, 0);
+        return { kind: "value", value: state.storageResources ?? { space: { total: 1024 ** 4, used: instances * 4096 } } };
+      }
       if (pathname.includes("/storage-pools/") && !pathname.includes("/volumes/")) {
         const pool = decodeURIComponent(pathname.split("/").at(-1));
         return { kind: "value", value: { name: pool, driver: "dir", config: { source: "/data/niceeval-sandbox-dev" } } };

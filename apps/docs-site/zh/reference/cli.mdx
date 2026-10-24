@@ -219,6 +219,9 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--orphans` | `niceeval sandbox list` | boolean | 检查已终止运行遗留的未登记 Sandbox 实例。 |
 | `--force` | `niceeval sandbox prune` | boolean | 同时清理未验证的孤儿候选项。 |
 | `--development` | `niceeval sandbox` | boolean | Diagnose the isolated Incus development domain instead of reference. |
+| `--json` | `niceeval sandbox` | boolean | 以 JSON 输出 Incus artifact 库存或回收结果。 |
+| `--apply` | `niceeval sandbox` | string | 按计划 ID 执行已预览的 Incus artifact 回收。 |
+| `--unused-for` | `niceeval sandbox` | string | 预览超过指定时长未使用的 Incus artifact，例如 30d。 |
 | `--help` | `niceeval sandbox` | boolean | 打印该命令的帮助。 |
 | `--tag` | `niceeval list` | string | 只选择带有该 tag 的评估用例。 |
 | `--help` | `niceeval list` | boolean | 打印该命令的帮助。 |

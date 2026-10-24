@@ -193,6 +193,7 @@ function incusExecCount(records: readonly IncusJournalRecord[], marker: string):
 
 
 interface InvokeOptions {
+  readonly experimentId?: string;
   readonly image?: string;
   readonly baseVersion?: string;
   readonly mode?:
@@ -252,7 +253,7 @@ async function invokeDetailed(
   readonly beforeCaches: SetupPrefixSummary;
 }> {
   const invocationEnv = invocationEnvironment(root, publicEnv, options);
-  const run = await niceeval.run(["exp", "setup-prefix-cache", "--rerun", "all", "--json"], {
+  const run = await niceeval.run(["exp", options.experimentId ?? "setup-prefix-cache", "--rerun", "all", "--json"], {
     cwd: root,
     env: invocationEnv,
     timeoutMs: 360_000,
@@ -342,7 +343,7 @@ async function inspectCompletedInvocation(
     run.diagnostic(),
   );
   expect(evaluation, run.diagnostic()).toMatchObject({
-    experimentId: "setup-prefix-cache",
+    experimentId: options.experimentId ?? "setup-prefix-cache",
     verdict: "passed",
     attempts: 1,
     passed: 1,
@@ -354,7 +355,7 @@ async function inspectCompletedInvocation(
   expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);
   const traceDocument = inspected.receipt.attemptTrace();
   expect(traceDocument).toMatchObject({
-    protocol: "niceeval.query/v2",
+    protocol: "niceeval.query/v3",
     operation: "attempt.trace",
   });
   const evidence = decodeEvidence(traceDocument.trace);
@@ -443,6 +444,7 @@ async function retryAndReleaseLayerGate(
 // Vitest to overlap these otherwise independent provider journeys.
 
 // @feature docs/feature/sandbox/README.md
+// @regression memory/before-cache-declaration-attribution.md
 
 test.concurrent("独立 Invocation 只重新执行变化的 Sandbox setup 后缀，并为每个 Attempt 提供私有 writable clone", async () => {
   await withTempDir("niceeval-e2e-setup-prefix-owner-home-", async (niceevalHome) =>
@@ -461,11 +463,25 @@ test.concurrent("独立 Invocation 只重新执行变化的 Sandbox setup 后缀
 
       const evalPath = join(root, "evals/setup-prefix-cache.eval.ts");
       const originalEval = await readFile(evalPath, "utf8");
-      const changedEval = originalEval.replace('const DEMAND = "v1";', 'const DEMAND = "v2";');
+      const changedEval = originalEval
+        .replace('const DEMAND = "v1";', 'const DEMAND = "v2";')
+        .replace("changeFrequency.frequent + 10", "changeFrequency.frequent + 11");
       expect(changedEval, "the private project copy must change the Eval result demand").not.toBe(originalEval);
       await writeFile(evalPath, changedEval, "utf8");
 
-      const changedDemandRun = await invokeDetailed(root, "v2", "PUBLIC_MODE=alpha\n", { niceevalHome });
+      // A different Experiment owns the same ordered action content. Scheduling
+      // metadata changes without changing that order must also retain the cache.
+      const experimentSource = await readFile(join(root, "experiments/setup-prefix-cache.ts"), "utf8");
+      const movedDeclaration = experimentSource
+        .replace("changeFrequency: 20,", "changeFrequency: 21,")
+        .replace("changeFrequency: 25,", "changeFrequency: 26,")
+        .replace('dependsOn: [actionRef("fixture-execution-probe")],', "");
+      expect(movedDeclaration).not.toBe(experimentSource);
+      await writeFile(join(root, "experiments/setup-prefix-shared.ts"), movedDeclaration, "utf8");
+      const changedDemandRun = await invokeDetailed(root, "v2", "PUBLIC_MODE=alpha\n", {
+        niceevalHome,
+        experimentId: "setup-prefix-shared",
+      });
       const changedDemand = changedDemandRun.evidence;
       expect(changedDemandRun.beforeCaches.hit).toBe(changedDemandRun.beforeCaches.total);
       expect(changedDemandRun.beforeCaches.prepared).toBe(0);
@@ -799,6 +815,8 @@ test.concurrent("共享准备前缀只发布一次，并在全局派发屏障前
           maxInstances: 8,
           artifactProject: "niceeval-artifacts-dev",
           artifactMaxInstances: 8,
+          artifactStorageReserveBytes: 1024 ** 3,
+          artifactEstimatedBytes: 1024 ** 3,
           dockerDataBytes: 1024 ** 3,
           workdir: "/home/sandbox/workspace",
           user: "node",

@@ -1,0 +1,331 @@
+{
+  "format": "concord.native-case-receipt/v1",
+  "mode": "formal",
+  "observation": "reliability",
+  "selector": "e2e/insight/test/view-run-diagnostics.browser.spec.ts#neref_5c9f8d2dc0b94f0e538555f50e8fa44e",
+  "caseId": "neref_5c9f8d2dc0b94f0e538555f50e8fa44e",
+  "inventoryDigest": "sha256:e8ecb1ef21b6475d9c0e66c7b4507a96bc8cbe27b49c1fb0830822cbe5c75dc0",
+  "problem": {
+    "path": "memory/pre-dispatch-run-diagnostics.md",
+    "epoch": 0
+  },
+  "candidate": {
+    "gitSha": "b1875255ef08f881816b2ddda3a48d5a0d278701",
+    "sha256": "51ec09ed246c8478cad4eecb8b5a9f7cfefde02043dab722c9c6b3a2b9988bc9",
+    "sri": "sha256-UewJ7SRshHjK1O7Li1qffP794CBD2rciycazormYi8k="
+  },
+  "source": {
+    "format": "concord.repository-source-identity/v4",
+    "projection": {
+      "algorithm": "concord.repository-source-projection/v3",
+      "digest": "sha256:d562e2ede0fb9cddaaed4fc4c3ec952d6cdcd89081dbc8daac00bea1cf4158bb",
+      "files": [
+        {
+          "path": "e2e/insight/adapters/execution-trace.ts",
+          "bytes": 1125,
+          "rawSha256": "bdcfa7b10cb2f9a86afd1bb6454fc79ee63005d8e1769de94dcfde776f180445",
+          "codeSha256": "bdcfa7b10cb2f9a86afd1bb6454fc79ee63005d8e1769de94dcfde776f180445"
+        },
+        {
+          "path": "e2e/insight/adapters/usage-cost.ts",
+          "bytes": 331,
+          "rawSha256": "05c98bbbfc419b442c16dd3e0d422b3ddef17053c34a170e9a0cee208505c682",
+          "codeSha256": "05c98bbbfc419b442c16dd3e0d422b3ddef17053c34a170e9a0cee208505c682"
+        },
+        {
+          "path": "e2e/insight/agents/classic.ts",
+          "bytes": 4005,
+          "rawSha256": "fad96454f7a130500cd126980493b4f9748d3aa0f939cb50a4580698a464e5e4",
+          "codeSha256": "fad96454f7a130500cd126980493b4f9748d3aa0f939cb50a4580698a464e5e4"
+        },
+        {
+          "path": "e2e/insight/agents/deterministic.ts",
+          "bytes": 2711,
+          "rawSha256": "a22632e2bfc038851de57eda2e751a5d868d60aa2e531000d655652f690da6c2",
+          "codeSha256": "a22632e2bfc038851de57eda2e751a5d868d60aa2e531000d655652f690da6c2"
+        },
+        {
+          "path": "e2e/insight/agents/process-sandbox.ts",
+          "bytes": 4674,
+          "rawSha256": "e22a9cf95bf3ac1fd3cc21b03367b77a57230f3cac6477470f14be7fe5723b3a",
+          "codeSha256": "e22a9cf95bf3ac1fd3cc21b03367b77a57230f3cac6477470f14be7fe5723b3a"
+        },
+        {
+          "path": "e2e/insight/evals/classic.eval.ts",
+          "bytes": 2070,
+          "rawSha256": "524aeba4f4449e3cf59d0a260c75775adadb35b82665c0106b5f389ce9b45697",
+          "codeSha256": "524aeba4f4449e3cf59d0a260c75775adadb35b82665c0106b5f389ce9b45697"
+        },
+        {
+          "path": "e2e/insight/evals/execution-trace.eval.ts",
+          "bytes": 218,
+          "rawSha256": "af785e1775182548e4646e726431cb5f6da48b0e6814c475cb305accd1f2d6f9",
+          "codeSha256": "af785e1775182548e4646e726431cb5f6da48b0e6814c475cb305accd1f2d6f9"
+        },
+        {
+          "path": "e2e/insight/evals/inspection.eval.ts",
+          "bytes": 1506,
+          "rawSha256": "fa9ac101d32a8aeb7f36b7a2fb1371fa74db876028b76bc1dc105e6f42ad455e",
+          "codeSha256": "fa9ac101d32a8aeb7f36b7a2fb1371fa74db876028b76bc1dc105e6f42ad455e"
+        },
+        {
+          "path": "e2e/insight/evals/overview-secondary.eval.ts",
+          "bytes": 351,
+          "rawSha256": "e2b5a5ca7afa41a02b74157634194858379063465ac55f7f17ab470de9b6fc18",
+          "codeSha256": "e2b5a5ca7afa41a02b74157634194858379063465ac55f7f17ab470de9b6fc18"
+        },
+        {
+          "path": "e2e/insight/evals/score.eval.ts",
+          "bytes": 489,
+          "rawSha256": "3209c6d0a8ced53c26e0379e19fd7afaf692b34159b1bbe973b92a049e86d9d8",
+          "codeSha256": "3209c6d0a8ced53c26e0379e19fd7afaf692b34159b1bbe973b92a049e86d9d8"
+        },
+        {
+          "path": "e2e/insight/evals/source-snapshot.eval.ts",
+          "bytes": 435,
+          "rawSha256": "9433d1a41cec6eaaaf176cdee92a8084bd4e526a96f4400651a0884fb94e324d",
+          "codeSha256": "9433d1a41cec6eaaaf176cdee92a8084bd4e526a96f4400651a0884fb94e324d"
+        },
+        {
+          "path": "e2e/insight/evals/source-snapshot/assertions.ts",
+          "bytes": 457,
+          "rawSha256": "ce247d4b0c1a01da27851099fa5426a5e998622c4a7afc21729e493edc0dda68",
+          "codeSha256": "ce247d4b0c1a01da27851099fa5426a5e998622c4a7afc21729e493edc0dda68"
+        },
+        {
+          "path": "e2e/insight/evals/usage-cost.eval.ts",
+          "bytes": 1230,
+          "rawSha256": "8e39fb9345e9e8ec6aa49ab38b7929ad397176e0ec3b6579ac3fc1e741be54e4",
+          "codeSha256": "8e39fb9345e9e8ec6aa49ab38b7929ad397176e0ec3b6579ac3fc1e741be54e4"
+        },
+        {
+          "path": "e2e/insight/evals/verdict-scores.eval.ts",
+          "bytes": 1302,
+          "rawSha256": "ce7ffa58586053b53ac0eb1443aa79642d5b08a41a652b44cf66cc3178f46c14",
+          "codeSha256": "ce7ffa58586053b53ac0eb1443aa79642d5b08a41a652b44cf66cc3178f46c14"
+        },
+        {
+          "path": "e2e/insight/experiments/alternate.ts",
+          "bytes": 371,
+          "rawSha256": "f3c62a7577cbc67950db9c99db1ba62cae1d254400e9b042ba360aee1849ed43",
+          "codeSha256": "f3c62a7577cbc67950db9c99db1ba62cae1d254400e9b042ba360aee1849ed43"
+        },
+        {
+          "path": "e2e/insight/experiments/classic/baseline.ts",
+          "bytes": 436,
+          "rawSha256": "4545a93a064d385e562742b61df9375059cfbf730ec779b9732c0b831bb96a31",
+          "codeSha256": "4545a93a064d385e562742b61df9375059cfbf730ec779b9732c0b831bb96a31"
+        },
+        {
+          "path": "e2e/insight/experiments/classic/incompatible.ts",
+          "bytes": 513,
+          "rawSha256": "c43f58fe2b4e77d5429dc8ceecd4bad65dfc69202c8c146e14e3a7febcefb609",
+          "codeSha256": "c43f58fe2b4e77d5429dc8ceecd4bad65dfc69202c8c146e14e3a7febcefb609"
+        },
+        {
+          "path": "e2e/insight/experiments/classic/memory-a.ts",
+          "bytes": 437,
+          "rawSha256": "b0471535c92782e9ea32facce209c564c0ea140cc631e7679b31a1297435a181",
+          "codeSha256": "b0471535c92782e9ea32facce209c564c0ea140cc631e7679b31a1297435a181"
+        },
+        {
+          "path": "e2e/insight/experiments/execution-trace.ts",
+          "bytes": 201,
+          "rawSha256": "83509f9a75c77c389957d4f041327e660eb9ad7123d244bd496c719d762cc30e",
+          "codeSha256": "83509f9a75c77c389957d4f041327e660eb9ad7123d244bd496c719d762cc30e"
+        },
+        {
+          "path": "e2e/insight/experiments/harness/alternate.ts",
+          "bytes": 392,
+          "rawSha256": "741faf82196dc5ca005a624ff5c29ca85972585930d5e84087fbbc5ed34258b9",
+          "codeSha256": "741faf82196dc5ca005a624ff5c29ca85972585930d5e84087fbbc5ed34258b9"
+        },
+        {
+          "path": "e2e/insight/experiments/harness/canary.ts",
+          "bytes": 377,
+          "rawSha256": "b3e4c933540db976c3f6d54eea79820e53fd39626fef9ffcf1f03386a88a57bf",
+          "codeSha256": "b3e4c933540db976c3f6d54eea79820e53fd39626fef9ffcf1f03386a88a57bf"
+        },
+        {
+          "path": "e2e/insight/experiments/inspection-multi.ts",
+          "bytes": 437,
+          "rawSha256": "a641bfe2646bac02e11688582464279551a37c9a3007bfc8be834d8037ca5391",
+          "codeSha256": "a641bfe2646bac02e11688582464279551a37c9a3007bfc8be834d8037ca5391"
+        },
+        {
+          "path": "e2e/insight/experiments/install/canary.ts",
+          "bytes": 377,
+          "rawSha256": "8210027c743477ccfb45762363f98262389f2fbe562eb54114f752d908b7c5cb",
+          "codeSha256": "8210027c743477ccfb45762363f98262389f2fbe562eb54114f752d908b7c5cb"
+        },
+        {
+          "path": "e2e/insight/experiments/main.ts",
+          "bytes": 373,
+          "rawSha256": "7b21b7aad6d0f3da818a48e1c9be04fa1759b8a6cdca0feeba9727a5401c63e5",
+          "codeSha256": "7b21b7aad6d0f3da818a48e1c9be04fa1759b8a6cdca0feeba9727a5401c63e5"
+        },
+        {
+          "path": "e2e/insight/experiments/partial-usage.ts",
+          "bytes": 431,
+          "rawSha256": "e34632c9f71d6de77e93438109412a528d83515bc1fea7db96627a4e85397754",
+          "codeSha256": "e34632c9f71d6de77e93438109412a528d83515bc1fea7db96627a4e85397754"
+        },
+        {
+          "path": "e2e/insight/experiments/verdict-scores.ts",
+          "bytes": 382,
+          "rawSha256": "08477ea8e1e4fa390a896fccd7a7ad6c3575ddcca127bdae9d804112f60ed1be",
+          "codeSha256": "08477ea8e1e4fa390a896fccd7a7ad6c3575ddcca127bdae9d804112f60ed1be"
+        },
+        {
+          "path": "e2e/insight/niceeval.config.ts",
+          "bytes": 496,
+          "rawSha256": "c15fe8eb92d240c6e81b8e88635ddab6ecc43c4c7a25f6e89468c7cde26cde72",
+          "codeSha256": "c15fe8eb92d240c6e81b8e88635ddab6ecc43c4c7a25f6e89468c7cde26cde72"
+        },
+        {
+          "path": "e2e/insight/playwright.config.ts",
+          "bytes": 548,
+          "rawSha256": "57756db802ae9b40fd01020cd7920bbf0803743a3d29474e51a4854c22db0e7e",
+          "codeSha256": "57756db802ae9b40fd01020cd7920bbf0803743a3d29474e51a4854c22db0e7e"
+        },
+        {
+          "path": "e2e/insight/scripts/run-native.mjs",
+          "bytes": 1376,
+          "rawSha256": "2e563464c514700fd74b6325738195672dec219de0b99ee261f3e7b7ff15aaa6",
+          "codeSha256": "2e563464c514700fd74b6325738195672dec219de0b99ee261f3e7b7ff15aaa6"
+        },
+        {
+          "path": "e2e/insight/test/attempt-notes.browser.spec.ts",
+          "bytes": 2615,
+          "rawSha256": "cc5557d39b9027309624ef32ec1490d4dc103097c2c95e2675ddcc164f8a02cb",
+          "codeSha256": "bacd23378c0de3991c7824d914596ac0176559ec6a0bd9ec8b361afc7d7d4d4d"
+        },
+        {
+          "path": "e2e/insight/test/support.ts",
+          "bytes": 2431,
+          "rawSha256": "c0e27da776efd19d5b5550cd204bcfc7cb8ebead976e74bd0738e410189ce4fa",
+          "codeSha256": "c0e27da776efd19d5b5550cd204bcfc7cb8ebead976e74bd0738e410189ce4fa"
+        },
+        {
+          "path": "e2e/insight/test/view-authorization.browser.spec.ts",
+          "bytes": 10094,
+          "rawSha256": "4d33f68b3e985ca7087c28c49e97ac10fe6b88aeac99d82d5aa781c4e9a15806",
+          "codeSha256": "1b313fc447784a3079bdeba3a2ee5b85420cf0a34706d3b5889d3974bf339bb7"
+        },
+        {
+          "path": "e2e/insight/test/view-lifecycle.test.ts",
+          "bytes": 6579,
+          "rawSha256": "ab80ebd9617957458a49dc317a160c7d137e344379dfc4f3c5f41c6e2f9b5057",
+          "codeSha256": "1b4101d53c52a90637b643491c5bba0582ca0a8dc6929617d980ae8b6ae1b76d"
+        },
+        {
+          "path": "e2e/insight/test/view-operational-refresh.browser.spec.ts",
+          "bytes": 17009,
+          "rawSha256": "2b009dda30840c702b74b36f8a57bf30ec1e9f0dff76cdce35b83a50a400d711",
+          "codeSha256": "c2b034a6235924df0250820f32f62ba9ac6c4c953b6fc1ddc66fff2e423395bc"
+        },
+        {
+          "path": "e2e/insight/test/view-run-diagnostics.browser.spec.ts",
+          "bytes": 3377,
+          "rawSha256": "50680e919d4c38a02faf9cf55b4f562b9d2e4fdf0f4ae49b613c62e931dd206e",
+          "codeSha256": "d0aac0afcace6c6335126077d57f05ad1eaba69bad3614593c240e2f37a1bd6b"
+        },
+        {
+          "path": "e2e/insight/test/view-snapshot.browser.spec.ts",
+          "bytes": 42634,
+          "rawSha256": "43af870bf24d6c5122a05a96a6a6e911463f36c08b87a8b2ebd569a3f547b36e",
+          "codeSha256": "71dc1699e18d55b2d2101e9f2572d76c4459a7fb18d96c7824697a3453efa824"
+        },
+        {
+          "path": "e2e/insight/vitest.config.ts",
+          "bytes": 183,
+          "rawSha256": "b50526a0c63a310adf91568cc5cbe88b12d51f0d2f52126c234192b2e3d2916b",
+          "codeSha256": "b50526a0c63a310adf91568cc5cbe88b12d51f0d2f52126c234192b2e3d2916b"
+        }
+      ]
+    },
+    "caseId": "neref_5c9f8d2dc0b94f0e538555f50e8fa44e",
+    "nativeTestFile": "e2e/insight/test/view-run-diagnostics.browser.spec.ts",
+    "declarationFile": "e2e/insight/test/view-run-diagnostics.browser.spec.ts",
+    "binding": {
+      "kind": "direct-contract",
+      "suiteId": "insight",
+      "contractRef": "docs/feature/insight/use-case/insight-review-run-adoption.md",
+      "contractSha256": "46de0d31998ec31ebc72ac731f6fe750a19dde26b09efcb5bc4183f11cd21baf",
+      "policy": "concord.native-reliability/v1",
+      "configurationDigest": "sha256:05bb0e99260af058087389c6a13886bb97ffed8548d27c96959560ffe4c27c83",
+      "adapterSourceDigest": "sha256:e83e67d538804fd16615ba73747d60afddf84cd6e0ba577e5fbc02e01458086e"
+    }
+  },
+  "runner": {
+    "executor": "playwright",
+    "version": "1.63.0",
+    "implementationDigest": "sha256:1e6e1e6254f71850f7dad43162789939af502cd404aa3205c9598eb757438b81",
+    "argv": [
+      "node",
+      "scripts/run-native.mjs",
+      "--config",
+      "playwright.config.ts",
+      "--reporter=json",
+      "test/view-run-diagnostics.browser.spec.ts",
+      "--grep",
+      "(?:^| )view-run-diagnostics\\.browser\\.spec\\.ts reader sees why a Run failed before its Attempts started$"
+    ]
+  },
+  "result": {
+    "disposition": "pass",
+    "stage": "test",
+    "exitCode": 0,
+    "signal": null,
+    "timedOut": false,
+    "startupFailed": false
+  },
+  "native": {
+    "copyId": "isolated-copy-1",
+    "copyPath": "/tmp/niceeval-e2e-takeover-scratch-wKebqI/runs/takeover/isolated-copy-1/insight",
+    "sequence": 1,
+    "mode": "isolated",
+    "caseCount": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "parallelism": 1
+  },
+  "cleanup": {
+    "ok": true,
+    "resources": [
+      {
+        "kind": "workdir",
+        "path": "/tmp/niceeval-e2e-takeover-scratch-wKebqI/runs/takeover/isolated-copy-1/insight",
+        "ok": true
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 993924 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "install",
+        "gone": true,
+        "detail": "owned process group 994941 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "browser",
+        "gone": true,
+        "detail": "owned process group 995395 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "test",
+        "gone": true,
+        "detail": "owned process group 999084 has no running members after leader close"
+      }
+    ]
+  },
+  "invocationId": "44eb0a4a-4444-4ed8-bee4-970f3f90e1c1",
+  "receiptSha256": "13dccafb39271d1150abbad8d1b2bf68dd23f1e85f1b4a6b67e26174f035689a"
+}

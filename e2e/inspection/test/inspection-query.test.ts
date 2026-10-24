@@ -31,6 +31,7 @@ const OPERATION_CATALOG = [
 // @regression memory/inspection-overview-partial-cost-drops-known-samples.md
 // @regression memory/inspection-query-missing-overview-and-trace-detail.md
 // @regression memory/inspection-source-detail-reuses-assertion-string-limit.md
+// @regression memory/query-request-json-and-member-shape.md
 
 test("machine consumer 发现固定 catalog，再从 project Run 读取 origin Attempt 的闭合事实", async () => {
   await inspectionE2E.case(

@@ -23,6 +23,7 @@
 
 import { formatCost } from "../../shared/format.ts";
 import { compactAssertionSummary, fitCompactAssertionSummary, stripControl } from "../../assertions/display.ts";
+import { boundedErrorText } from "../../shared/bounded-error-text.ts";
 import { COORDINATION_RECOVERED_CODE, encodeAttemptKey, HALT_DIAGNOSTIC_CODE } from "../types.ts";
 import {
   panelCapabilityOf as panelCapability,
@@ -518,7 +519,7 @@ function buildDiagnosticLines(event: DurableFeedbackEvent & { type: "diagnostic"
   // Judge precheck already has a live lifecycle row and a terminal pre-Attempt
   // error block. Repeating its machine code in Human output adds no fact and
   // exposes machine vocabulary in the default profile.
-  if (code === "judge-precheck-failed") return [];
+  if (code === "judge-precheck-failed" || event.data?.preAttempt === true) return [];
   const count = state.diagnostics.find((d) => d.key === event.key)?.count ?? 1;
   const sym = event.severity === "error" ? "✗" : event.severity === "warning" ? "!" : "i";
   const assistance = readErrorAssistanceData(event.data);
@@ -676,7 +677,8 @@ function buildSummaryLines(
   ));
   const warningsRows = buildWarningsPanelRows(
     state.diagnostics.filter((diagnostic) =>
-      diagnostic.severity !== "error" || !preAttemptCodes.has(diagnostic.code ?? diagnostic.key)
+      diagnostic.data?.preAttempt !== true &&
+      (diagnostic.severity !== "error" || !preAttemptCodes.has(diagnostic.code ?? diagnostic.key))
     ),
   );
   if (warningsRows) {
@@ -901,41 +903,11 @@ function boundedHumanError(message: string): string {
   // signal; the full structured error remains available through details.
   const focused = signalIndexes.length === 0 ? safe : safe.slice(Math.min(...signalIndexes));
   if (utf8Bytes(focused) <= HUMAN_ERROR_TEXT_MAX_BYTES) return focused;
-  const separator = " … ";
-  const available = HUMAN_ERROR_TEXT_MAX_BYTES - utf8Bytes(separator);
-  const head = Math.ceil(available / 2);
-  const tail = available - head;
-  return `${utf8Prefix(focused, head)}${separator}${utf8Suffix(focused, tail)}`;
+  return boundedErrorText(focused, HUMAN_ERROR_TEXT_MAX_BYTES);
 }
 
 function utf8Bytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
-}
-
-function utf8Prefix(value: string, maximumBytes: number): string {
-  let bytes = 0;
-  let result = "";
-  for (const character of value) {
-    const nextBytes = utf8Bytes(character);
-    if (bytes + nextBytes > maximumBytes) break;
-    result += character;
-    bytes += nextBytes;
-  }
-  return result;
-}
-
-function utf8Suffix(value: string, maximumBytes: number): string {
-  let bytes = 0;
-  const result: string[] = [];
-  const characters = Array.from(value);
-  for (let index = characters.length - 1; index >= 0; index -= 1) {
-    const character = characters[index]!;
-    const nextBytes = utf8Bytes(character);
-    if (bytes + nextBytes > maximumBytes) break;
-    result.push(character);
-    bytes += nextBytes;
-  }
-  return result.reverse().join("");
 }
 
 function labelledWrappedRows(label: string, text: string, contentWidth: number): PanelRow[] {

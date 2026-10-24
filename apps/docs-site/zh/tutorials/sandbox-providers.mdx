@@ -1,12 +1,12 @@
 ---
 title: "选择并配置 Sandbox Provider"
 sidebarTitle: "Sandbox"
-description: "给 Coding Agent 选一个隔离运行环境：本地 Docker、Vercel 或 E2B。按顺序准备环境，并用预制镜像和缓存让每次评估更快开始。"
+description: "给 Coding Agent 选一个隔离运行环境：Docker、Incus、Vercel、E2B 与 OpenSandbox 的选择、准备与缓存。"
 ---
 
 Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而且不能碰到你的机器。这个隔离环境就是 Sandbox，由 Provider 负责创建和销毁。
 
-本地调试可以用 Docker；需要云端环境时可以用 Vercel 或 E2B；已有 OpenSandbox 服务时可以直接连接服务 API。
+本地调试可以用 Docker；Agent 需要自己运行 Docker 时用 Incus VM。需要云端环境时可以用 Vercel 或 E2B；已有 OpenSandbox 服务时可以直接连接服务 API。
 
 不管用哪种 Provider，评估用例和 Adapter 看到的都是同一个 `Sandbox` 接口。换 Provider 只改 Experiment 里的一行，评估用例不用动。
 
@@ -17,6 +17,7 @@ Coding Agent 要在一个能随意改文件、跑命令的环境里工作，而�
 | Provider | 适合 | 需要准备 |
 | --- | --- | --- |
 | Docker | 本地开发和标准 CI。简单、可控，不依赖云端 | 本机 Docker。机器资源有限，冷启动和装依赖可能较慢 |
+| Incus VM | Agent 需要运行 Docker 或 Compose，并拥有独立内核 | 管理员部署的 Incus 环境、可信镜像与 Provider 描述文件 |
 | Vercel Sandbox | 需要云端隔离、更多资源或更稳定的环境 | Vercel token 或 OIDC 配置 |
 | E2B | 需要大量并行，或者想直接用现成的 Agent template | E2B 账号和 `e2b auth login` |
 | OpenSandbox | 通过已有服务管理远端容器 | OpenSandbox 服务入口、API key 和镜像 |
@@ -42,11 +43,18 @@ Provider 的 SDK 不随 NiceEval 一起安装。用哪个就装哪个，用不�
 | Provider | 安装命令 |
 |---|---|
 | `dockerSandbox({ source: { type: "image", image: "node:24-slim" } })` | `pnpm add dockerode @types/dockerode` |
+| `incusSandbox({ image, project, storagePool })` | 无额外 npm SDK；宿主需部署 Incus CLI 与 Provider 环境 |
 | `vercelSandbox({ snapshotId })` | `pnpm add @vercel/sandbox` |
 | `e2bSandbox({ template })` | `pnpm add e2b` |
-| `openSandbox({ image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox` |
+| `openSandbox({ image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox@1.1.1` |
 
 漏装时，创建 Sandbox 的那一刻会报错并给出安装命令，例如 `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`。照着装好再运行即可。
+
+### 使用 Incus VM
+
+在评估用例里用 `sandboxRequirements()` 声明 Docker、Compose 和最低数据容量，在 Experiment 里用 `incusSandbox()` 选择环境。每个 Attempt 使用独立 VM，结束后销毁；不支持 `--keep-sandbox` 或 `sandboxReuse`。
+
+运行前先执行 `pnpm exec niceeval sandbox provider doctor incus`。开发环境使用单独的 `--development` 检查，并在 Experiment 显式设置 `acceptDevelopmentDomain: true`。完整配置和缓存维护命令见[让 Agent 在 Sandbox 中运行 Docker](/zh/tutorials/docker-in-docker)。
 
 ### 连接 OpenSandbox
 
@@ -94,7 +102,7 @@ sandbox: dockerComposeSandbox({
 
 ### 让 Agent 自己运行 Docker
 
-Agent 需要执行 `docker build`、`docker run` 或 `docker compose` 时，可以挂载宿主机已有的 Unix socket，也可以选择 raw privileged 或 managed rootless Docker-in-Docker。三种模式的适用场景、Dockerfile 和完整配置见[让 Sandbox 使用 Docker](/zh/tutorials/docker-in-docker)。
+Agent 需要执行 `docker build`、`docker run` 或 `docker compose` 时，用 Incus VM 提供独立内核和 VM 内的 Docker daemon。配置步骤见[让 Agent 在 Sandbox 中运行 Docker](/zh/tutorials/docker-in-docker)。OpenSandbox 的服务端使用 Docker，并不代表 Agent 可以在容器里运行 Docker。
 
 ## 在 Adapter 和评估用例里操作 Sandbox
 
@@ -168,22 +176,21 @@ Experiment、评估组、评估用例和 Sandbox Agent 的准备步骤排进同�
 在支持的 Provider 上，没变的准备步骤下次运行可以直接沿用，不重新执行。为此，每个 `.before(action)` 都要如实说明它会改动 Sandbox 的哪些部分：
 
 - 不写 `cache.state` 等于 `sandboxState.all`：这个步骤的全部改动都要能被保存和恢复。它不是让 Provider 自己挑一部分目录缓存的开关。
-- 只有步骤的全部改动都限于 Sandbox 里已经停止写入的 `/var/lib/docker` 时，才写 `sandboxState.dockerData`。完整的 Docker profile 示例见[让 Sandbox 使用 Docker](/zh/tutorials/docker-in-docker#managed-rootless-dind)。
+- Incus 使用 `sandboxState.all` 保存完整准备状态，包括 VM 根盘与 Docker 数据盘。无需单独声明 Docker 数据目录。
 
 `cache.state` 写在步骤定义处或单次调用处都可以，但只能写一处，调用处也不能覆盖定义处。
 
-步骤的 ID、输入、展开后的命令、声明的范围和内容摘要都会被自动比较，任何一项变了，这一步就重新执行。`cache.fingerprint` 只用来补充 NiceEval 看不到的版本信息，不能代替自动比较。
+步骤的 ID、输入、展开后的命令、声明的范围和内容摘要都会被自动比较。执行内容变了，这一步就重新执行；执行顺序不变时，仅改变所属实验或声明位置不会使相同内容失去缓存。`cache.fingerprint` 只用来补充 NiceEval 看不到的版本信息，不能代替自动比较。
 
 各 Provider 能保存的范围不同：
 
 | Provider 情况 | 能保存的范围 | 结果 |
 | --- | --- | --- |
 | 本地单容器 Docker，所有改动都在外层容器的可写文件系统里 | `all` | 从头开始最长的一段没变的步骤直接沿用 |
-| Docker profile 配置了独立、预先分配好、固定大小的存储位和种子数据 | `dockerData` | 只沿用从头开始、连续声明了 `dockerData` 的那一段 |
-| 共享 loop 或 project-quota 的 Docker profile | 无 | 显示 `Unsupported`，步骤真实执行 |
+| Incus VM，完整准备状态通过核对 | `all` | 从头开始最长的一段没变的步骤直接沿用，包含根盘和 Docker 数据盘 |
 | Docker Compose、E2B、Vercel、OpenSandbox 或自定义 Provider | 无 | 显示 `Unsupported`，步骤真实执行 |
 
-沿用只能从第一步开始连续往下。遇到第一个无法保存的步骤，比如默认 `all` 但 Provider 不支持、写了 `opaque` 的回调，或者 Provider 不支持的范围，这一步和它后面的所有步骤都会真实执行。后面的步骤即使声明了 `dockerData`，也不能跳过，因为它依赖的前面状态没有被保存。
+沿用只能从第一步开始连续往下。遇到第一个无法保存的步骤，比如默认 `all` 但 Provider 不支持、写了 `opaque` 的回调，或者 Provider 不支持的范围，这一步和它后面的所有步骤都会真实执行。后面的步骤也不能跳过，因为它依赖的前面状态没有被保存。
 
 在本地单容器 Docker 上，只改了最后的 `.env` 步骤时，前面固定的 Git checkout、目录上传和工具安装都不会重跑。每个 Attempt 都从缓存结果的一份独立副本启动，不会继承上一个 Agent 留下的改动。
 
@@ -349,7 +356,7 @@ export default defineSandbox({
 
 ### 在 Attempt 之间复用 Provider 启动
 
-Sandbox 启动时间占了大头时，在 Experiment 里声明 `sandboxReuse: true`。多个 Attempt 会依次共用一台 Sandbox：每台只创建一次，每个 Attempt 仍然执行自己的 `.before()` / `.after()`，题与题之间工作目录会被重置。Docker 上没变的准备步骤还可以直接沿用。
+在支持复用的 Provider 上，Sandbox 启动时间占了大头时，可以在 Experiment 里声明 `sandboxReuse: true`。Incus 和 OpenSandbox 不支持这项配置。多个 Attempt 会依次共用一台 Sandbox：每台只创建一次，每个 Attempt 仍然执行自己的 `.before()` / `.after()`，题与题之间工作目录会被重置。Docker 上没变的准备步骤还可以直接沿用。
 
 ```ts
 export default defineExperiment({

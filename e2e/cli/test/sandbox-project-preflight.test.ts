@@ -63,7 +63,7 @@ test("Sandbox 管理命令准备项目凭据但不求值项目配置", async () 
     for (const receipt of receipts) {
       expect(receipt.exitCode, receipt.diagnostic()).not.toBe(0);
       expect(receipt.stdout).toBe("");
-      expect(receipt.stderr).toContain("Unknown option '--json'");
+      expect(receipt.stderr).toContain("niceeval sandbox list does not accept --json.");
       expect(receipt.stderr).not.toMatch(/ProjectCredentialsError|EISDIR|read-dotenv/);
       expect(receipt.stderr).not.toContain("sandbox config must stay unloaded");
     }

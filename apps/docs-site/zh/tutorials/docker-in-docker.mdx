@@ -1,364 +1,147 @@
 ---
-title: "让 Sandbox 使用 Docker"
-sidebarTitle: "Docker 与 DinD"
-description: "根据任务信任边界选择 Docker socket、raw privileged DinD 或受管 rootless DinD，并为 Agent 准备 Docker CLI 与 daemon。"
+title: "让 Agent 在 Sandbox 中运行 Docker"
+sidebarTitle: "在 Sandbox 中运行 Docker"
+description: "用 Incus VM 为每个 Attempt 提供独立内核、Docker daemon 和数据盘，并检查环境与缓存容量。"
 ---
 
-当评估任务要求 Agent 执行 `docker build`、`docker run` 或 `docker compose` 时，先按任务的信任边界
-选择 Docker access：
+Agent 需要运行 `docker build`、`docker run` 或 `docker compose` 时，使用 `incusSandbox()`。每个 Attempt 都有独立 VM，Docker daemon 运行在 VM 内，Docker 数据放在单独的数据盘上。Attempt 结束后，NiceEval 销毁这台 VM。
 
-| 模式 | 什么时候用 | 启动成本 | 安全边界 |
-| --- | --- | --- | --- |
-| Docker socket | 可信 Agent、个人开发机、已有 daemon，优先启动速度 | 最低，共用已有 daemon | Agent 拥有该 daemon 的完整控制权。rootful socket 通常等价宿主 root |
-| Raw privileged DinD | 一次性 VM 或专用 runner，需要独立 image、network 和 cache | 每个 Sandbox 单独启动一个 Docker daemon | 外层容器以 raw privileged 运行，不是安全隔离方案 |
-| Managed rootless DinD | 不可信 Agent、共享宿主、并发评估，需要限制资源并在强杀后回收 | 最高，需要宿主机先部署 profile | privileged 只在受管的 rootless user namespace 或专用 VM 里生效，宿主服务负责容量限制和回收 |
+评估用例声明需要什么能力，Experiment 选择满足要求的环境。宿主 Docker socket、privileged 容器和 rootless DinD 不能满足这里要求的独立内核隔离。
 
-拿不准时按这个顺序判断：Agent 可信、只在自己机器上跑，选 Docker socket；一次性 VM 或专用 runner，选 raw privileged DinD；共享宿主或不可信 Agent，选 managed rootless DinD。
+## 准备宿主环境
 
-managed rootless DinD 需要宿主机先装好 Docker profile。它依赖 Linux cgroup v2、systemd 和支持 project quota 的文件系统。NixOS 可以用 NiceEval module 部署；Ubuntu、Debian 和其它 systemd Linux 需要自己装等价的宿主服务。
+先请管理员部署 Incus、可信基础镜像与 `/etc/niceeval/incus-provider.json`。描述文件使用 `niceeval.incus-provider/v2`，记录运行环境、镜像和容量。日常运行 NiceEval 的用户需要能够读取描述文件并调用 Incus CLI。
 
-macOS 上的实际选择是 OrbStack 或 Apple `container`：
+NiceEval 不负责在宿主上安装服务、挂载存储或导入基础镜像。基础镜像必须已存在，并包含 Docker CLI、Compose 与 Docker daemon。管理员应提供完整的镜像 digest、project 和 storage pool 名称。
 
-- OrbStack 的 Docker engine 可以用于可信任务的 Docker socket 模式。需要完整 profile 时，在 OrbStack
-  Linux machine 内运行 NiceEval，并按该发行版的 Linux 安装方式部署宿主服务。
-- Apple 官方 [`container`](https://github.com/apple/container) 在 Apple silicon 和 macOS 26 上把 Linux
-  container 作为轻量 VM 运行。当前 NiceEval Docker Provider 不操作它的 CLI 或 API，因此不能直接选择
-  `container`；这需要独立 Provider。
-
-Apple `container` 使用 Containerization framework，不是 containerd。直接安装 containerd 也不会让 Darwin
-获得 Linux cgroup 或 project quota；它仍需要 Linux VM。
-
-不管选哪种模式，镜像里都要预装 Docker CLI，NiceEval 不会在运行时帮你装 Docker。
-
-两种 DinD 模式还要求镜像从官方 `docker:<version>-dind` 派生，并装好 Node 和评估要用的工具。你不需要写自己的 `ENTRYPOINT`：Sandbox 里 Docker daemon 的启动和监督、Sandbox 保活、容器内 TTL 和 `docker info` 检查都由 NiceEval 负责。
-
-不要直接把 `docker:<version>-dind` 写成 `source.image`。这个镜像没有 NiceEval 需要的 Node，也没有被测 Agent 的工具，创建 Sandbox 时会报 `dind-image-incompatible: missing node`。用下面的 Dockerfile 派生一个镜像，或者先发布一个等价的派生镜像，再在 `source` 里引用它。
-
-## 方案一：直接挂 Docker socket
-
-Agent 可信、你只想让它用上机器上已有的 Docker 时，选这个模式。它启动最快，因为不用再起一个 daemon。
-
-先准备一个只装 Docker CLI、Node 和评估工具的镜像：
-
-```dockerfile title="sandbox/Dockerfile"
-FROM docker:29-cli
-
-RUN apk add --no-cache ca-certificates git nodejs npm python3 \
-  && addgroup -g 1000 node \
-  && adduser -D -u 1000 -G node node
-```
-
-然后在 Experiment 里写明宿主机的 Unix socket 路径。NiceEval 不会从环境变量或 Docker context 猜这个路径：
-
-```ts title="experiments/docker-socket.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import {
-  changeFrequency,
-  dockerSandbox,
-  shell,
-} from "niceeval/sandbox";
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "socket",
-      socketPath: "/var/run/docker.sock",
-    },
-  }),
-});
-```
-
-运行时，NiceEval 会：
-
-- 解析 symlink，确认路径最终指向一个 Unix socket；
-- 把它挂到 Sandbox 里固定的 `/var/run/docker.sock`；
-- 按 socket 所属的数值 GID，把 `node` 用户加进对应的组。
-
-Agent 启动前，NiceEval 还会确认镜像没有预设 Docker endpoint 或 context，而且直接运行 `docker info` 连到的就是这个 socket 背后的 daemon。镜像缺少 Docker CLI、用户访问不了 socket，或者镜像把默认 endpoint 改到了别处时，Sandbox 创建失败。
-
-这项检查只保证 Agent 默认用的是这个 daemon，不是安全边界。Agent 之后仍可以用 `docker --host` 连到别处。不可信任务要靠 managed 模式的网络限制，而不是 Docker CLI 的默认值。
-
-<Warning>
-  这不是隔离方案。Agent 可以通过 socket 创建 privileged 容器、挂宿主目录，并操作同一 daemon 上的
-  其它容器、image、volume 和 network。不要给不可信 Agent 挂 rootful 宿主 socket。
-</Warning>
-
-## 方案二：Docker-in-Docker
-
-需要每个 Sandbox 有自己独立的 Docker 时，选 Docker-in-Docker（DinD）。每个 Sandbox 里单独起一个 Docker daemon，image、network 和缓存都不和别的 Sandbox 共享。
-
-先创建镜像：
-
-```dockerfile title="sandbox/Dockerfile"
-FROM docker:29-dind
-
-RUN apk add --no-cache ca-certificates git nodejs npm python3 \
-  && addgroup -g 1000 node \
-  && adduser -D -u 1000 -G node node \
-  && addgroup node docker
-```
-
-正式评估时，把 `FROM` 固定到审核过的 digest，并把被测 Agent 要用的 CLI 提前装进镜像。
-
-### NiceEval 怎样启动 DinD
-
-写了 `dockerAccess: { mode: "dind", ... }` 后，镜像怎么启动由 NiceEval 接管：
-
-1. 忽略镜像原有的 `ENTRYPOINT` 和 `CMD`。
-2. 检查镜像里有没有 `docker-init`、`node`、`docker`、`dockerd-entrypoint.sh`、`timeout` 和 `tail`。
-3. 启动一个监督进程，由它同时看管官方的 `dockerd-entrypoint.sh dockerd` 和 Sandbox 保活进程。
-
-其中任何一个进程提前退出，整个外层容器都会停止。你不会拿到一台看起来还活着、却用不了 Docker 的 Sandbox。
-
-Sandbox 里的 Docker daemon 只监听 `/var/run/docker.sock`，不开放 2375/2376 TCP 端口。Agent 仍以 `user: "node"` 运行。上面的 Dockerfile 在构建时把 `node` 加进了 `docker` 组，所以不需要对 socket 做 `chown root:node` 或 `chmod 666`。
-
-派生镜像不要设置 `DOCKER_HOST` 或 `DOCKER_CONTEXT`。NiceEval 会先确认用的是默认 context，再核对直接运行 `docker info` 和显式访问 `/var/run/docker.sock` 连到的是同一个 daemon。这项检查通过后，才会运行你在 `readiness` 里写的命令。
-
-镜像缺工具、用户不在 `docker` 组、daemon 提前退出或 `readiness` 超时时，NiceEval 会在删除这个容器前收集一段日志尾部，并在错误里写明原因。排查方法见下面的「定位 DinD 创建失败」。
-
-镜像原有的启动方式不会保留。要评测一组必须用自己 `ENTRYPOINT` / `CMD` 启动的服务，改用 Docker Compose Sandbox，由 Compose 文件声明怎么启动这些服务。
-
-### 在 Agent 开始前准备 Docker 环境
-
-Dockerfile 只放固定的工具和项目初始文件。需要用到 Sandbox 里 Docker daemon 的操作，写进 Sandbox 的 `.before()` 准备步骤，不要写进镜像的 `ENTRYPOINT`。
-
-下面这个准备步骤创建一个可写的 workspace，并确认 Docker daemon 可用。镜像里确实放了对应的归档或文件时，再在这里加 `docker load`、文件复制或项目自检命令：
-
-```ts title="lib/dind-sandbox.ts"
-import { changeFrequency, dockerSandbox, shell } from "niceeval/sandbox";
-
-export const dindSandbox = dockerSandbox({
-  source: {
-    type: "dockerfile",
-    context: new URL("../sandbox/", import.meta.url),
-  },
-  user: "node",
-  dockerAccess: {
-    mode: "dind",
-    isolation: "raw-privileged",
-  },
-  readiness: {
-    command: ["docker", "info"],
-    user: "node",
-    timeoutMs: 30_000,
-  },
-}).before(shell({
-  id: "inner-docker-runtime",
-  command: [
-    "set -eu",
-    "mkdir -p /workspace",
-    "docker info >/dev/null",
-  ].join("\n"),
-  user: "root",
-  changeFrequency: changeFrequency.rare,
-}));
-```
-
-运行顺序是：先启动并检查 Sandbox 里的 Docker daemon，再执行这个准备步骤，最后运行 Agent。命令非零退出时，这个 Attempt 在 `sandbox.create` 阶段记为 `errored`，Agent 不会拿到准备了一半的 Sandbox。
-
-固定内容留在镜像里，每个 Attempt 只复制或导入必须写进 tmpfs 或 Sandbox 内 Docker 数据目录的东西。这样能少装几次依赖，也不容易因为网络变化让每次运行的环境不一样。
-
-<Warning>
-  使用 Docker profile 时，准备步骤的结果默认不能缓存，因为默认的 `sandboxState.all` 无法保存。写了 `cache.state: sandboxState.dockerData` 的步骤，要同时满足两个条件才能下次直接沿用：这个步骤只改动 Sandbox 里已经停止写入的 `/var/lib/docker`；profile 配置了独立、预先分配好、固定大小的存储位和种子数据。
-  共享 loop 或 project-quota 的 profile 会显示 `Unsupported`，这个步骤和它后面的步骤每次都真实执行。
-</Warning>
-
-### Raw privileged DinD
-
-在用完就丢的 VM 或专用 runner 上，可以选 raw privileged。外层容器以 privileged 运行，所以它不是隔离方案，只适合机器本身就是一次性的场景：
-
-```ts title="experiments/dind-raw.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import { dockerSandbox } from "niceeval/sandbox";
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "dind",
-      isolation: "raw-privileged",
-      storageProfile: "default",
-    },
-    resources: {
-      dockerDataBytes: 6 * 1024 ** 3,
-    },
-  }),
-});
-```
-
-`isolation: "raw-privileged"` 必须写明，它代表你确认接受这个风险。失败时 NiceEval 也不会自动改用 managed 模式。
-
-`storageProfile` 给 Sandbox 里的 `/var/lib/docker` 分配有上限的磁盘空间，不要把这个路径放进 `tmpfs`。它只负责磁盘额度和进程被强杀后的清理，不会让 raw privileged 变得安全。
-
-### 在 macOS 上使用 OrbStack
-
-在 macOS 上跑可信的本地评估时，可以用 OrbStack 的 Docker。先让 OrbStack 创建 Docker context，再查出实际的 Unix socket：
+进入评估项目，检查正式环境：
 
 ```bash
-docker context inspect orbstack --format '{{.Endpoints.docker.Host}}'
+pnpm exec niceeval sandbox provider doctor incus
 ```
 
-去掉输出开头的 `unix://`，把剩下的路径填进 `dockerAccess.socketPath`。这仍是 Docker socket 模式，Agent 可以完全控制 OrbStack 的 Docker，不适合不可信任务。
+`doctor` 只读检查环境、可信镜像、对象对应关系和容量，不创建评估 VM，也不执行清理。所有项目通过后，再运行实验。
 
-需要 managed rootless DinD 时，在 OrbStack 里建一台完整的 Ubuntu machine，而不是把宿主服务装进 macOS：
+如果管理员提供的是开发环境，使用：
 
 ```bash
-orb create ubuntu niceeval-runner
-orb -m niceeval-runner
+pnpm exec niceeval sandbox provider doctor incus --development
 ```
 
-进入 machine 后，按 Ubuntu 的方式准备 systemd、cgroup v2 和支持 project quota 的文件系统，并在这台 machine 里运行 NiceEval。Ubuntu 安装包发布前，这条路需要你自己装宿主服务，不能开箱即用。不要把 OrbStack 的 Docker 当成 managed profile 用。
+开发环境通过不代表正式环境通过。开发结果不具有正式环境的容量保证，不能与正式环境结果直接比较。
 
-### Managed rootless DinD
+## 在评估用例里声明 Docker 能力
 
-在共享宿主上运行，或者 Agent 不可信时，选 managed 模式。和 raw 模式相比，它多了这些保护：
+把能力要求放进评估用例的 `sandbox` 字段。下面要求 Compose v2、独立内核和至少 4 GiB Docker 数据空间：
 
-- 运行前检查宿主机的 profile 是否按要求部署；
-- 限制每个 Sandbox 的 CPU、内存、进程数和磁盘；
-- 所有 NiceEval 进程共用同一份容量预算，超出时排队；
-- 每个 Sandbox 有独立的外层网络；
-- 进程被强杀后由宿主服务回收资源。
-
-NixOS 宿主先按[在 NixOS 上配置 Managed DinD](/zh/tutorials/nixos-managed-dind)部署并验证 profile，再写下面的 Experiment。
-
-下面的例子假设 Dockerfile 已经把固定的 runtime 归档复制到 `/opt/images/runtime.tar`。`load-fixed-runtime` 只改动 Sandbox 里的 `/var/lib/docker`，所以可以声明 `sandboxState.dockerData`。如果准备步骤还会写 workspace、home、tmpfs、挂载目录或外部系统，就不能这样声明。
-
-```ts title="experiments/dind-managed.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import {
-  changeFrequency,
-  dockerSandbox,
-  sandboxState,
-  shell,
-} from "niceeval/sandbox";
-
-const GiB = 1024 ** 3;
-const MiB = 1024 ** 2;
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  maxConcurrency: 4,
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "dind",
-      isolation: "managed-rootless",
-      profile: "default",
-    },
-    resources: {
-      cpus: 4,
-      memoryBytes: 6 * GiB,
-      pidsLimit: 2048,
-      dockerDataBytes: 6 * GiB,
-      readOnlyRootfs: true,
-      tmpfs: {
-        "/home/sandbox/workspace": {
-          sizeBytes: 2 * GiB,
-          mode: 0o755,
-          uid: 1000,
-          gid: 1000,
-          executable: true,
-        },
-        "/home/node": { sizeBytes: 512 * MiB, mode: 0o700, uid: 1000, gid: 1000 },
-        "/tmp": { sizeBytes: 1024 * MiB, mode: 0o1777 },
-        "/run": { sizeBytes: 128 * MiB, mode: 0o755 },
-      },
-    },
-  }).before(shell({
-    id: "load-fixed-runtime",
-    command: "docker load --input /opt/images/runtime.tar",
-    changeFrequency: changeFrequency.rare,
-    cache: { state: sandboxState.dockerData },
-  })),
-});
-```
-
-`dockerDataBytes` 是每个 Attempt 里 Docker 数据的磁盘上限。宿主服务从磁盘配额里划出一份专用空间，挂到 Sandbox 的 `/var/lib/docker`。所以 Docker image 和 BuildKit 缓存占的是磁盘，不计入宿主机的 `Shmem`；workspace、`/tmp` 这类确实要放在内存里的路径，仍可以用有上限的 `tmpfs`。
-
-profile 不存在、名字拼错、检查不通过或容量不够时，运行会在调用模型之前失败，不会退回 raw privileged 模式。
-
-宿主部署完成后，先检查 profile，再运行：
-
-```bash
-pnpm exec niceeval docker profile list
-pnpm exec niceeval docker profile doctor default
-pnpm exec niceeval exp dind-managed
-```
-
-`list` 应该列出 `default`。`doctor` 会用这个 profile 启动一次 DinD 容器，并在里面实际运行 `docker run --rm alpine:3.20 true`。它证明 profile 能跑嵌套 Docker，但不检查你项目的 Dockerfile；项目镜像能不能用，由运行时的 `docker info` 检查确认。
-
-跑完后用 `pnpm exec niceeval show` 在终端查看结果，或用 `pnpm exec niceeval view` 在浏览器里查看。
-
-### 为 DinD 设置运行并发
-
-`resources.memoryBytes` 限制一台 Sandbox 的内存，`dockerDataBytes` 限制它的 Docker 数据。profile 的容量由同一宿主机上所有 NiceEval 进程共用；内存或磁盘不够时，新的 Attempt 会排队等待。先用较小的并发跑一轮冒烟：
-
-```bash
-pnpm exec niceeval exp dind-managed --max-concurrency 2
-```
-
-再根据宿主机的空闲内存、CPU 和磁盘速度逐步调高。profile 的总容量防止几个 Experiment 加起来压垮宿主机，`maxConcurrency` 限制一次运行同时跑几个，两者不能互相替代。
-
-### 定位 DinD 创建失败
-
-Sandbox 创建失败时，这个 Attempt 记为 `errored`。用终端给出的 Attempt locator 查看错误正文，不要直接翻 `.niceeval/` 下的文件：
-
-```bash
-pnpm exec niceeval show @1ABC234DEF
-```
-
-常见错误与处理方式：
-
-| 公开错误 | 处理方式 |
-| --- | --- |
-| `DOCKER_HOST must be unset` 或 `DOCKER_CONTEXT must be unset` | 删除镜像里的 endpoint/context 环境变量，让默认 endpoint 指向 `/var/run/docker.sock` |
-| `dind-image-incompatible: missing ...` | 从固定版本 `docker:<version>-dind` 派生，并补齐错误列出的工具 |
-| `permission denied` | 在构建期把 `user` 对应的 Agent 用户加入镜像内 `docker` 组 |
-| Docker access compatibility timeout | 在 `show @<locator>` 或 `query` 给出的 `dockerd.log` 尾部里，检查 daemon 启动、socket 和 storage driver |
-| 启动前提示有遗留的 Sandbox | 先用 `pnpm exec niceeval sandbox list --orphans` 查看（只读），确认后再运行 `pnpm exec niceeval sandbox prune` |
-
-## 在评估用例里验证 Docker 任务
-
-三种模式下，评估用例里用 Docker 的写法都一样。下面的评估让 Agent 修复并启动一个 Compose 项目，再确认 Sandbox 里能正常运行容器：
-
-```ts title="evals/docker-compose.eval.ts"
+```ts
 import { defineEval } from "niceeval";
-import { commandSucceeded } from "niceeval/expect";
+import { sandboxRequirements } from "niceeval/sandbox";
 
 export default defineEval({
-  description: "Agent can repair and start a Docker Compose project",
+  sandbox: sandboxRequirements({
+    docker: {
+      api: "docker/v1",
+      compose: "v2",
+      isolation: "dedicated-kernel/v1",
+      minimumDataBytes: 4 * 1024 ** 3,
+    },
+  }),
   async test(t) {
-    await t.send("修复 Compose 项目，然后启动服务并确认健康检查通过。");
-
-    t.check(
-      await t.sandbox.runCommand("docker", ["run", "--rm", "alpine:3.20", "true"]),
-      commandSucceeded(),
-    );
+    await t.send("请用 Docker Compose 启动项目并验证服务可用。");
   },
 });
 ```
 
-Socket 模式下，这些命令操作的是你指定的宿主机 Docker；两种 DinD 模式下，操作的是 Sandbox 里自己的 Docker。
+不需要 Compose 时，将 `compose` 写为 `"not-required"`。评估用例不选择镜像、project 或 storage pool。
 
-`sandbox` 也可以直接写在 `defineEval({ sandbox: ... })` 里。多个评估用例共用同一套配置时，写在 Experiment 上。
+## 在 Experiment 里选择 Incus
+
+用管理员提供的真实 digest 替换下面的示例值：
+
+```ts
+import { incusSandbox } from "niceeval/sandbox";
+
+const sandbox = incusSandbox({
+  image: "niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  project: "niceeval-eval",
+  storagePool: "niceeval-evals",
+  resources: {
+    cpus: 4,
+    memoryBytes: 6 * 1024 ** 3,
+    dockerDataBytes: 4 * 1024 ** 3,
+  },
+});
+```
+
+把 `sandbox` 传给 `defineExperiment()`。VM 内的工作目录是 `/home/sandbox/workspace`，命令以 `node` 用户执行。Agent 使用 VM 内的 Docker socket，不能访问宿主 Docker daemon。
+
+开发环境需要明确选择对应的 project、pool 和许可：
+
+```ts
+const sandbox = incusSandbox({
+  image: "niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  project: "niceeval-eval-dev",
+  storagePool: "niceeval-sandbox-dev",
+  acceptDevelopmentDomain: true,
+});
+```
+
+省略 `acceptDevelopmentDomain` 时，只接受正式环境。把它设为 `true` 后，也不能配正式环境的 project 和 pool。
+
+运行前查看计划：
+
+```bash
+pnpm exec niceeval exp my-experiment --dry
+```
+
+计划会显示能力要求、Provider 提供的能力和所选环境。要求不满足时，NiceEval 在创建 VM 前报错，不会自动换成其它 Provider。
+
+## 复用准备结果
+
+把稳定的安装、文件上传和 Docker 镜像准备写成声明式 `.before()` 步骤，使用默认的 `sandboxState.all`。Incus 会保存并核对完整的准备结果，包括 VM 根盘和 Docker 数据盘；每个 Attempt 从独立副本启动。
+
+执行顺序不变时，只调整步骤的声明位置不会使相同执行内容失去缓存。改了命令、输入或文件内容时，从发生变化的步骤开始重新准备。动态回调每次执行，它后面的步骤也真实执行。步骤写法见[按顺序准备 Sandbox](/zh/tutorials/sandbox-providers#按顺序准备-sandbox)。
+
+缓存准备结果不等于复用运行中的 VM。Incus 不支持 `sandboxReuse: true` 或 `--keep-sandbox`，这两种配置会在创建资源前报错。
+
+## 查看与回收准备缓存
+
+准备缓存会占用磁盘。`doctor` 同时检查数量余量与字节余量；数量没满不代表磁盘够用。先查看对象和空间：
+
+```bash
+pnpm exec niceeval sandbox provider inventory incus --json
+```
+
+开发环境的所有维护命令都要加 `--development`。命令不加载项目配置、评估用例或 Experiment。
+
+回收分为预览和执行两步。下面先选择七天未使用的准备缓存：
+
+```bash
+pnpm exec niceeval sandbox provider gc incus --unused-for 7d --json
+```
+
+检查预览中的候选和预计回收字节，再使用返回的 plan ID：
+
+```bash
+pnpm exec niceeval sandbox provider gc incus --apply <plan-id> --json
+```
+
+plan 有效期为 15 分钟。执行时会重新检查资源是否仍符合条件；被使用或对象信息变化的候选不会删除。有效缓存被回收后，下次运行会重新准备。
+
+不写 `--unused-for` 时，只预览符合条件的失效或被替代记录，以及可继续处理的中断回收。NiceEval 不会自行按年龄删除有效缓存。没有登记的对象或对象信息不匹配的记录只会展示，需先查明归属。
+
+不要直接删除 NiceEval 管理的 Incus 实例。若已有记录对应的实例和数据卷都被手动删除，用 `inventory` 检查，再通过 `gc` 预览和执行收回记录。回收中断时生成新预览；新计划会重新检查资源并继续符合条件的回收。
+
+## 排查失败
+
+| 看到的结果 | 下一步 |
+| --- | --- |
+| 找不到 Provider 描述文件或可信镜像 | 请管理员检查部署、文件权限和完整镜像 digest |
+| `sandbox-capability-unsatisfied` | 检查评估要求、Experiment 的 Provider 与开发环境许可 |
+| `artifact-capacity` 失败 | 查看准备缓存数量和正在使用的记录，预览可回收项 |
+| `artifact-storage` 失败或 `unknown` | 检查 pool 实际可用空间和读取权限；不要仅提高数量上限 |
+| `dangling` | 对象已缺失；用 `gc` 预览并收回对应记录 |
+| `orphan` 或 `metadata-drift` | 查明对象归属与配置差异；GC 不会删除这些对象 |
+
+NixOS 用户还应核对[宿主部署边界](/zh/tutorials/nixos-managed-dind)。已有 OpenSandbox 服务的连接方式见[选择并配置 Sandbox Provider](/zh/tutorials/sandbox-providers#连接-opensandbox)；服务端使用 Docker 不代表它满足本页的 Docker 能力要求。

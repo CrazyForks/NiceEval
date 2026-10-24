@@ -109,6 +109,11 @@ instance 与 custom storage volume 的双向 metadata 精确匹配时才进入 `
 对象的 absence receipt 分别落库，都确认 absent 后才写 `released`。中断恢复只继续同一个已登记
 prepared artifact。
 
+显式 GC 在 claim 后中断或删除失败时，新的合法 preview 可以接管该
+`invalid` / `retiring` intent；旧 plan 过期或已有失败 outcome 不会永久占住容量。接管沿用已登记的
+回收依据，重新确认 lease 为零、现存对象的双向 metadata 和逐对象 absence，不清除 metadata 或采纳
+未知对象。新 plan 原子替换 retirement owner，旧 preview 不能夺回删除权，旧 outcome 仍只返回原结果。
+
 若满容量时没有 superseded 且无 lease 的候选，说明有效 working set 确实超出容量。
 NiceEval 保留全部缓存并报告容量不足，不做 LRU 猜测；错误同时给出
 `niceeval sandbox provider inventory incus` 与 `gc incus --unused-for <duration>` 作为下一步，由用户决定
@@ -133,6 +138,16 @@ admit    = poolFreeBytes - inFlightReservedBytes >= required
   development domain 都必填。
 - `inFlightReservedBytes` 是本 control process 已准入但尚未 settle 的 capture / copy 估算之和，计入
   builder、consumer 与旧 head 尚未退役时的并发峰值。settle 后释放，不跨进程持久化。
+
+descriptor 的每个 domain 都声明非负安全整数字节值 `artifactStorageReserveBytes`。首次 capture 没有
+持久化样本时，还需正安全整数 `artifactEstimatedBytes`；缺少估算时按 unknown 拒绝准入。例如：
+
+```json
+{
+  "artifactStorageReserveBytes": 10737418240,
+  "artifactEstimatedBytes": 21474836480
+}
+```
 
 不满足时以 `sandbox-capacity-unavailable`、reason `storage-bytes` 拒绝该 prepare 或 Attempt，诊断包含
 pool 名、空闲字节、所需字节与上述两条下一步命令，不进入 Provider copy，也不隐式触发 GC。估算是 admission

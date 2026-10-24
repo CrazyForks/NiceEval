@@ -1,4 +1,5 @@
 export {
+  ExpDiagnosticEventSchema,
   decodeExpTerminalEvent,
   type ExpInvocationReceipt as InvocationReceipt,
   type ExpTerminalEvent,

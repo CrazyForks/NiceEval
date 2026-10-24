@@ -128,6 +128,8 @@ test("Incus repository fences admission, recovers crashes, and reuses only commi
           maxInstances: 4,
           artifactProject,
           artifactMaxInstances: 1,
+          artifactStorageReserveBytes: 1024 ** 3,
+          artifactEstimatedBytes: 1024 ** 3,
           dockerDataBytes: 1024 ** 3,
           workdir: "/home/sandbox/workspace",
           user: "node",

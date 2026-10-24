@@ -44,6 +44,7 @@ export function bindRunnerRunObservabilityDiagnostics(input: {
         { collection: normalization.collection, stage: "runner-diagnostic-sink" },
       ]),
       segments: Object.freeze(normalization.diagnostics.map((diagnostic, index) => Object.freeze({
+        ...(diagnostic.affectedSlotIds === undefined ? {} : { affectedSlotIds: diagnostic.affectedSlotIds }),
         segmentId: segmentIdByDiagnosticId.get(diagnostic.diagnosticId),
         diagnosticId: diagnostic.diagnosticId,
         sequence: index + 1,

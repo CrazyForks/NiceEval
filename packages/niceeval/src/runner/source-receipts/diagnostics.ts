@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { boundedErrorText } from "../../shared/bounded-error-text.ts";
 
 import type { DiagnosticRecord, EvalResult, TimingOrigin } from "../types.ts";
 import {
@@ -187,7 +188,7 @@ export function normalizeRunDiagnostics(input: {
         limitations.addUnsupported("diagnostic");
         continue;
       }
-      const summary = makeBoundedSafeText(source.detail, MAX_DIAGNOSTIC_SUMMARY_BYTES);
+      const summary = makeBoundedSafeText(boundedErrorText(source.detail, MAX_DIAGNOSTIC_SUMMARY_BYTES), MAX_DIAGNOSTIC_SUMMARY_BYTES);
       if (summary === undefined) limitations.addUnsupported("diagnostic");
       if (diagnostics.length >= MAX_DIAGNOSTICS) {
         limitations.addCap("diagnostic", diagnostics.length);
@@ -195,6 +196,7 @@ export function normalizeRunDiagnostics(input: {
       }
       const diagnosticId = yield* input.mint("diagnostic");
       diagnostics.push(Object.freeze({
+        ...(source.affectedSlotIds === undefined ? {} : { affectedSlotIds: source.affectedSlotIds }),
         diagnosticId: diagnosticId as DiagnosticId,
         kind: source.level === "error" ? "execution-error" as const : "advisory" as const,
         code,

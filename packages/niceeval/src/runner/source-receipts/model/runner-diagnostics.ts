@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { SlotIdSchema } from "../../../record/codec/identifiers.ts";
 import { ATTEMPT_DIAGNOSTIC_PHASES, RUN_DIAGNOSTIC_PHASES } from "../../../record/family/protocol-values.ts";
 
 import {
@@ -114,6 +115,7 @@ export const AttemptDiagnosticSchema = Schema.Struct({
 });
 
 export const RunDiagnosticSchema = Schema.Struct({
+  affectedSlotIds: Schema.optional(Schema.Array(SlotIdSchema)),
   diagnosticId: DiagnosticIdSchema,
   kind: Schema.Literals(["advisory", "execution-error"]),
   code: SafeIdentifierSchema,

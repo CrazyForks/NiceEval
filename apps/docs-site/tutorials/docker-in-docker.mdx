@@ -1,358 +1,147 @@
 ---
-title: "Let the Sandbox Use Docker"
-sidebarTitle: "Docker and DinD"
-description: "Choose a Docker socket, raw privileged DinD, or managed rootless DinD based on the task's trust boundary, and prepare the Docker CLI and daemon for the Agent."
+title: "Run Docker Inside a Sandbox"
+sidebarTitle: "Docker Inside a Sandbox"
+description: "Give each Attempt an Incus VM with a dedicated kernel, Docker daemon, and data disk, and check environment and cache capacity."
 ---
 
-When an eval task requires the Agent to run `docker build`, `docker run`, or `docker compose`, first choose Docker access based on the task's trust boundary:
+Use `incusSandbox()` when the Agent needs `docker build`, `docker run`, or `docker compose`. Each Attempt gets its own VM. The Docker daemon runs inside the VM, and Docker data lives on a separate disk. NiceEval destroys the VM when the Attempt finishes.
 
-| Mode | When to use it | Startup cost | Security boundary |
-| --- | --- | --- | --- |
-| Docker socket | Trusted Agent, personal dev machine, existing daemon, startup speed first | Lowest; shares the existing daemon | The Agent has full control of that daemon. A rootful socket is usually equivalent to host root |
-| Raw privileged DinD | Disposable VM or dedicated runner that needs separate images, networks, and cache | Starts one Docker daemon per Sandbox | The outer container runs raw privileged; this is not a security isolation solution |
-| Managed rootless DinD | Untrusted Agents, shared hosts, concurrent evals that need resource limits and reclamation after forced kills | Highest; the host must deploy a profile first | privileged takes effect only inside a managed rootless user namespace or a dedicated VM, and a host service handles capacity limits and reclamation |
+The eval declares its required capabilities, and the Experiment selects an environment that meets them. A host Docker socket, privileged container, or rootless DinD cannot provide the dedicated kernel required here.
 
-When unsure, decide in this order: if the Agent is trusted and runs only on your own machine, choose Docker socket; for a disposable VM or dedicated runner, choose raw privileged DinD; for a shared host or an untrusted Agent, choose managed rootless DinD.
+## Prepare the host
 
-Managed rootless DinD needs a Docker profile installed on the host first. It depends on Linux cgroup v2, systemd, and a filesystem that supports project quota. NixOS can deploy it with the NiceEval module; Ubuntu, Debian, and other systemd Linux distributions need an equivalent host service installed yourself.
+Ask an administrator to provision Incus, a trusted base image, and `/etc/niceeval/incus-provider.json`. The descriptor uses `niceeval.incus-provider/v2` and records the environment, images, and capacity. The user running NiceEval must be able to read the descriptor and invoke the Incus CLI.
 
-On macOS, the practical choices are OrbStack or Apple `container`:
+NiceEval does not install host services, mount storage, or import base images. The base image must already exist and include the Docker CLI, Compose, and Docker daemon. Obtain the full image digest, project, and storage pool name from the administrator.
 
-- OrbStack's Docker engine can be used for the Docker socket mode with trusted tasks. When you need a full profile, run NiceEval inside an OrbStack Linux machine and deploy the host service the way that distribution's Linux installation does.
-- Apple's official [`container`](https://github.com/apple/container) runs Linux containers as lightweight VMs on Apple silicon and macOS 26. The current NiceEval Docker Provider does not drive its CLI or API, so you cannot select `container` directly; that needs a separate Provider.
-
-Apple `container` uses the Containerization framework, not containerd. Installing containerd directly does not give Darwin Linux cgroups or project quota either; it still needs a Linux VM.
-
-Whichever mode you choose, the image must have the Docker CLI preinstalled. NiceEval does not install Docker for you at run time.
-
-Both DinD modes also require the image to derive from the official `docker:<version>-dind`, with Node and the tools the eval needs installed. You do not need to write your own `ENTRYPOINT`: NiceEval handles starting and supervising the Docker daemon in the Sandbox, keeping the Sandbox alive, the in-container TTL, and the `docker info` check.
-
-Do not use `docker:<version>-dind` directly as `source.image`. That image has neither the Node NiceEval needs nor the tools of the Agent under test, and creating the Sandbox fails with `dind-image-incompatible: missing node`. Derive an image with the Dockerfile below, or publish an equivalent derived image first, and reference it in `source`.
-
-## Option 1: Mount the Docker socket directly
-
-Choose this mode when the Agent is trusted and you just want it to use the Docker already on the machine. It starts fastest, because no extra daemon is needed.
-
-First prepare an image with only the Docker CLI, Node, and eval tools:
-
-```dockerfile title="sandbox/Dockerfile"
-FROM docker:29-cli
-
-RUN apk add --no-cache ca-certificates git nodejs npm python3 \
-  && addgroup -g 1000 node \
-  && adduser -D -u 1000 -G node node
-```
-
-Then spell out the host's Unix socket path in the Experiment. NiceEval does not guess this path from environment variables or the Docker context:
-
-```ts title="experiments/docker-socket.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import {
-  changeFrequency,
-  dockerSandbox,
-  shell,
-} from "niceeval/sandbox";
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "socket",
-      socketPath: "/var/run/docker.sock",
-    },
-  }),
-});
-```
-
-At run time, NiceEval:
-
-- resolves symlinks and confirms the path finally points to a Unix socket;
-- mounts it at the fixed `/var/run/docker.sock` in the Sandbox;
-- adds the `node` user to the group matching the socket's numeric GID.
-
-Before the Agent starts, NiceEval also confirms that the image does not preset a Docker endpoint or context, and that running `docker info` directly connects to the daemon behind this socket. When the image lacks the Docker CLI, the user cannot access the socket, or the image moves the default endpoint elsewhere, Sandbox creation fails.
-
-This check only guarantees that the Agent uses this daemon by default; it is not a security boundary. The Agent can still connect elsewhere later with `docker --host`. Untrusted tasks rely on the network limits of managed mode, not on Docker CLI defaults.
-
-<Warning>
-  This is not an isolation solution. Through the socket, the Agent can create privileged containers, mount host directories, and operate other containers, images, volumes, and networks on the same daemon. Do not mount a rootful host socket for an untrusted Agent.
-</Warning>
-
-## Option 2: Docker-in-Docker
-
-Choose Docker-in-Docker (DinD) when each Sandbox needs its own separate Docker. Each Sandbox starts its own Docker daemon, and images, networks, and cache are not shared with other Sandboxes.
-
-First create the image:
-
-```dockerfile title="sandbox/Dockerfile"
-FROM docker:29-dind
-
-RUN apk add --no-cache ca-certificates git nodejs npm python3 \
-  && addgroup -g 1000 node \
-  && adduser -D -u 1000 -G node node \
-  && addgroup node docker
-```
-
-For formal evals, pin `FROM` to a reviewed digest and install the CLIs the Agent under test needs into the image ahead of time.
-
-### How NiceEval starts DinD
-
-Once you write `dockerAccess: { mode: "dind", ... }`, NiceEval takes over how the image starts:
-
-1. It ignores the image's original `ENTRYPOINT` and `CMD`.
-2. It checks that the image has `docker-init`, `node`, `docker`, `dockerd-entrypoint.sh`, `timeout`, and `tail`.
-3. It starts a supervisor process that watches both the official `dockerd-entrypoint.sh dockerd` and the Sandbox keep-alive process.
-
-If either process exits early, the whole outer container stops. You never get a Sandbox that looks alive but cannot use Docker.
-
-The Docker daemon in the Sandbox listens only on `/var/run/docker.sock` and does not open TCP ports 2375/2376. The Agent still runs as `user: "node"`. The Dockerfile above adds `node` to the `docker` group at build time, so you do not need `chown root:node` or `chmod 666` on the socket.
-
-Do not set `DOCKER_HOST` or `DOCKER_CONTEXT` in the derived image. NiceEval first confirms the default context is used, then checks that running `docker info` directly and explicitly accessing `/var/run/docker.sock` reach the same daemon. Only after this check passes does it run the command you wrote in `readiness`.
-
-When the image lacks tools, the user is not in the `docker` group, the daemon exits early, or `readiness` times out, NiceEval collects a log tail before deleting the container and states the reason in the error. For troubleshooting, see "Locate DinD creation failures" below.
-
-The image's original startup is not kept. To evaluate a set of services that must start with their own `ENTRYPOINT` / `CMD`, use the Docker Compose Sandbox instead, and let the Compose file declare how those services start.
-
-### Prepare the Docker environment before the Agent starts
-
-The Dockerfile holds only fixed tools and the project's initial files. Operations that need the Docker daemon in the Sandbox go in the Sandbox's `.before()` preparation step, not in the image's `ENTRYPOINT`.
-
-The preparation step below creates a writable workspace and confirms the Docker daemon is available. When the image really contains the matching archive or files, add `docker load`, file copies, or project self-check commands here:
-
-```ts title="lib/dind-sandbox.ts"
-import { changeFrequency, dockerSandbox, shell } from "niceeval/sandbox";
-
-export const dindSandbox = dockerSandbox({
-  source: {
-    type: "dockerfile",
-    context: new URL("../sandbox/", import.meta.url),
-  },
-  user: "node",
-  dockerAccess: {
-    mode: "dind",
-    isolation: "raw-privileged",
-  },
-  readiness: {
-    command: ["docker", "info"],
-    user: "node",
-    timeoutMs: 30_000,
-  },
-}).before(shell({
-  id: "inner-docker-runtime",
-  command: [
-    "set -eu",
-    "mkdir -p /workspace",
-    "docker info >/dev/null",
-  ].join("\n"),
-  user: "root",
-  changeFrequency: changeFrequency.rare,
-}));
-```
-
-The order is: start and check the Docker daemon in the Sandbox, then run this preparation step, and finally run the Agent. When the command exits non-zero, this Attempt is recorded as `errored` in the `sandbox.create` phase, and the Agent never gets a half-prepared Sandbox.
-
-Keep fixed content in the image, and for each Attempt copy or import only what must be written to tmpfs or the Docker data directory inside the Sandbox. That way dependencies are installed fewer times, and network changes are less likely to make each run's environment different.
-
-<Warning>
-  With a Docker profile, the results of preparation steps cannot be cached by default, because the default `sandboxState.all` cannot be saved. A step that declares `cache.state: sandboxState.dockerData` can be reused directly next time only when both conditions hold: the step changes only `/var/lib/docker` in the Sandbox, which has stopped being written; and the profile is configured with a separate, pre-allocated, fixed-size storage slot and seed data.
-  Profiles with shared loop or project-quota storage show `Unsupported`, and this step and the steps after it really execute every time.
-</Warning>
-
-### Raw privileged DinD
-
-On a VM that is thrown away after use or on a dedicated runner, you can choose raw privileged. The outer container runs privileged, so it is not an isolation solution and only suits cases where the machine itself is disposable:
-
-```ts title="experiments/dind-raw.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import { dockerSandbox } from "niceeval/sandbox";
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "dind",
-      isolation: "raw-privileged",
-      storageProfile: "default",
-    },
-    resources: {
-      dockerDataBytes: 6 * 1024 ** 3,
-    },
-  }),
-});
-```
-
-`isolation: "raw-privileged"` must be written explicitly; it means you confirm you accept the risk. On failure, NiceEval never switches to managed mode automatically.
-
-`storageProfile` allocates bounded disk space for `/var/lib/docker` in the Sandbox; do not put this path in `tmpfs`. It only handles disk quota and cleanup after the process is force-killed; it does not make raw privileged safe.
-
-### Use OrbStack on macOS
-
-For trusted local evals on macOS, you can use OrbStack's Docker. First let OrbStack create the Docker context, then find the actual Unix socket:
+In the eval project, check the reference environment:
 
 ```bash
-docker context inspect orbstack --format '{{.Endpoints.docker.Host}}'
+pnpm exec niceeval sandbox provider doctor incus
 ```
 
-Remove the leading `unix://` from the output and put the remaining path in `dockerAccess.socketPath`. This is still the Docker socket mode; the Agent can fully control OrbStack's Docker, so it does not suit untrusted tasks.
+`doctor` checks the environment, trusted image, object correspondence, and capacity without making changes. It does not create eval VMs or clean up resources. Run the experiment after all checks pass.
 
-When you need managed rootless DinD, create a full Ubuntu machine in OrbStack instead of installing the host service on macOS:
+If the administrator provided a development environment, use:
 
 ```bash
-orb create ubuntu niceeval-runner
-orb -m niceeval-runner
+pnpm exec niceeval sandbox provider doctor incus --development
 ```
 
-Inside the machine, prepare systemd, cgroup v2, and a filesystem that supports project quota the Ubuntu way, and run NiceEval in this machine. Until the Ubuntu installation package is released, this path requires installing the host service yourself and does not work out of the box. Do not use OrbStack's Docker as a managed profile.
+A passing development check does not imply the reference environment passes. Development results lack the reference environment's capacity guarantees and cannot be compared directly with reference results.
 
-### Managed rootless DinD
+## Declare Docker capabilities in the eval
 
-On a shared host, or when the Agent is untrusted, choose managed mode. Compared with raw mode, it adds these protections:
+Put the capability requirements in the eval's `sandbox` field. This example requires Compose v2, a dedicated kernel, and at least 4 GiB of Docker data space:
 
-- checks before the run that the host profile is deployed as required;
-- limits each Sandbox's CPU, memory, process count, and disk;
-- all NiceEval processes share one capacity budget and queue when it is exceeded;
-- each Sandbox has its own outer network;
-- the host service reclaims resources after a process is force-killed.
-
-For a NixOS host, first deploy and verify the profile following [Configure Managed DinD on NixOS](/tutorials/nixos-managed-dind), then write the Experiment below.
-
-The example below assumes the Dockerfile has already copied a fixed runtime archive to `/opt/images/runtime.tar`. `load-fixed-runtime` only changes `/var/lib/docker` in the Sandbox, so it can declare `sandboxState.dockerData`. If a preparation step also writes the workspace, home, tmpfs, mounted directories, or external systems, it cannot declare this.
-
-```ts title="experiments/dind-managed.ts"
-import { defineExperiment } from "niceeval";
-import { codexAgent } from "niceeval/adapter";
-import {
-  changeFrequency,
-  dockerSandbox,
-  sandboxState,
-  shell,
-} from "niceeval/sandbox";
-
-const GiB = 1024 ** 3;
-const MiB = 1024 ** 2;
-
-export default defineExperiment({
-  agent: codexAgent(),
-  model: "gpt-5.4",
-  maxConcurrency: 4,
-  sandbox: dockerSandbox({
-    source: {
-      type: "dockerfile",
-      context: new URL("../sandbox/", import.meta.url),
-    },
-    user: "node",
-    dockerAccess: {
-      mode: "dind",
-      isolation: "managed-rootless",
-      profile: "default",
-    },
-    resources: {
-      cpus: 4,
-      memoryBytes: 6 * GiB,
-      pidsLimit: 2048,
-      dockerDataBytes: 6 * GiB,
-      readOnlyRootfs: true,
-      tmpfs: {
-        "/home/sandbox/workspace": {
-          sizeBytes: 2 * GiB,
-          mode: 0o755,
-          uid: 1000,
-          gid: 1000,
-          executable: true,
-        },
-        "/home/node": { sizeBytes: 512 * MiB, mode: 0o700, uid: 1000, gid: 1000 },
-        "/tmp": { sizeBytes: 1024 * MiB, mode: 0o1777 },
-        "/run": { sizeBytes: 128 * MiB, mode: 0o755 },
-      },
-    },
-  }).before(shell({
-    id: "load-fixed-runtime",
-    command: "docker load --input /opt/images/runtime.tar",
-    changeFrequency: changeFrequency.rare,
-    cache: { state: sandboxState.dockerData },
-  })),
-});
-```
-
-`dockerDataBytes` is the disk cap for Docker data in each Attempt. The host service carves a dedicated space out of the disk quota and mounts it at the Sandbox's `/var/lib/docker`. So Docker images and BuildKit cache use disk and do not count toward the host's `Shmem`; paths that really need to be in memory, such as the workspace and `/tmp`, can still use bounded `tmpfs`.
-
-When the profile does not exist, its name is misspelled, the check fails, or capacity is insufficient, the run fails before calling the model and never falls back to raw privileged mode.
-
-After host deployment, check the profile first, then run:
-
-```bash
-pnpm exec niceeval docker profile list
-pnpm exec niceeval docker profile doctor default
-pnpm exec niceeval exp dind-managed
-```
-
-`list` should list `default`. `doctor` starts one DinD container with this profile and actually runs `docker run --rm alpine:3.20 true` inside it. It proves the profile can run nested Docker, but does not check your project's Dockerfile; whether the project image works is confirmed by the run-time `docker info` check.
-
-After the run, view results in the terminal with `pnpm exec niceeval show`, or in the browser with `pnpm exec niceeval view`.
-
-### Set run concurrency for DinD
-
-`resources.memoryBytes` limits one Sandbox's memory, and `dockerDataBytes` limits its Docker data. The profile's capacity is shared by all NiceEval processes on the same host; when memory or disk is insufficient, new Attempts queue. Start with a smoke run at low concurrency:
-
-```bash
-pnpm exec niceeval exp dind-managed --max-concurrency 2
-```
-
-Then raise it gradually based on the host's free memory, CPU, and disk speed. The profile's total capacity keeps several Experiments together from overwhelming the host, and `maxConcurrency` limits how many one run executes at once; neither replaces the other.
-
-### Locate DinD creation failures
-
-When Sandbox creation fails, the Attempt is recorded as `errored`. View the error text with the Attempt locator the terminal gives you; do not dig through files under `.niceeval/` directly:
-
-```bash
-pnpm exec niceeval show @1ABC234DEF
-```
-
-Common errors and how to handle them:
-
-| Public error | How to handle it |
-| --- | --- |
-| `DOCKER_HOST must be unset` or `DOCKER_CONTEXT must be unset` | Remove the endpoint/context environment variables from the image so the default endpoint points to `/var/run/docker.sock` |
-| `dind-image-incompatible: missing ...` | Derive from a pinned `docker:<version>-dind` and add the tools listed in the error |
-| `permission denied` | At build time, add the Agent user matching `user` to the image's `docker` group |
-| Docker access compatibility timeout | In the `dockerd.log` tail given by `show @<locator>` or `query`, check daemon startup, the socket, and the storage driver |
-| Leftover Sandboxes reported before startup | First inspect with `pnpm exec niceeval sandbox list --orphans` (read-only), then run `pnpm exec niceeval sandbox prune` after confirming |
-
-## Verify Docker tasks in evals
-
-In all three modes, using Docker in an eval is written the same way. The eval below has the Agent repair and start a Compose project, then confirms that containers run normally in the Sandbox:
-
-```ts title="evals/docker-compose.eval.ts"
+```ts
 import { defineEval } from "niceeval";
-import { commandSucceeded } from "niceeval/expect";
+import { sandboxRequirements } from "niceeval/sandbox";
 
 export default defineEval({
-  description: "Agent can repair and start a Docker Compose project",
+  sandbox: sandboxRequirements({
+    docker: {
+      api: "docker/v1",
+      compose: "v2",
+      isolation: "dedicated-kernel/v1",
+      minimumDataBytes: 4 * 1024 ** 3,
+    },
+  }),
   async test(t) {
-    await t.send("Repair the Compose project, then start the services and confirm the health checks pass.");
-
-    t.check(
-      await t.sandbox.runCommand("docker", ["run", "--rm", "alpine:3.20", "true"]),
-      commandSucceeded(),
-    );
+    await t.send("Start the project with Docker Compose and verify that the service is available.");
   },
 });
 ```
 
-In socket mode, these commands operate the host Docker you specified; in both DinD modes, they operate the Sandbox's own Docker.
+Set `compose` to `"not-required"` when Compose is unnecessary. The eval does not choose an image, project, or storage pool.
 
-`sandbox` can also be written directly in `defineEval({ sandbox: ... })`. When several evals share the same configuration, put it on the Experiment.
+## Select Incus in the Experiment
+
+Replace the example digest below with the real digest supplied by the administrator:
+
+```ts
+import { incusSandbox } from "niceeval/sandbox";
+
+const sandbox = incusSandbox({
+  image: "niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  project: "niceeval-eval",
+  storagePool: "niceeval-evals",
+  resources: {
+    cpus: 4,
+    memoryBytes: 6 * 1024 ** 3,
+    dockerDataBytes: 4 * 1024 ** 3,
+  },
+});
+```
+
+Pass `sandbox` to `defineExperiment()`. Commands run as `node`, with `/home/sandbox/workspace` as the working directory. The Agent uses the Docker socket inside the VM and cannot access the host Docker daemon.
+
+For development, explicitly choose the corresponding project, pool, and permission:
+
+```ts
+const sandbox = incusSandbox({
+  image: "niceeval/docker-execution-v1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  project: "niceeval-eval-dev",
+  storagePool: "niceeval-sandbox-dev",
+  acceptDevelopmentDomain: true,
+});
+```
+
+Omitting `acceptDevelopmentDomain` accepts only the reference environment. Setting it to `true` cannot be combined with the reference project's name and pool.
+
+Inspect the plan before running:
+
+```bash
+pnpm exec niceeval exp my-experiment --dry
+```
+
+The plan shows the required capabilities, the Provider's capabilities, and the selected environment. If the requirements are not met, NiceEval fails before creating a VM and does not automatically switch to another Provider.
+
+## Reuse preparation results
+
+Write stable installations, file uploads, and Docker image preparation as declarative `.before()` steps with the default `sandboxState.all`. Incus saves and verifies the complete preparation result, including the VM root disk and Docker data disk. Each Attempt starts from its own copy.
+
+When execution order stays the same, moving a step's declaration alone does not invalidate identical execution content. Changes to a command, input, or file content rebuild from the changed step onward. Dynamic callbacks always execute, as do the steps after them. See [Prepare the Sandbox in order](/tutorials/sandbox-providers#prepare-the-sandbox-in-order).
+
+Caching preparation results does not reuse a running VM. Incus does not support `sandboxReuse: true` or `--keep-sandbox`; both settings fail before resource creation.
+
+## Inspect and reclaim preparation caches
+
+Preparation caches occupy disk space. `doctor` checks both object count and available bytes; spare object slots do not prove enough disk space is available. Inspect objects and storage first:
+
+```bash
+pnpm exec niceeval sandbox provider inventory incus --json
+```
+
+Add `--development` to every maintenance command for the development environment. These commands do not load project configuration, evals, or Experiments.
+
+Garbage collection has separate preview and apply steps. This command selects preparation caches unused for seven days:
+
+```bash
+pnpm exec niceeval sandbox provider gc incus --unused-for 7d --json
+```
+
+Review the candidates and estimated reclaimable bytes, then use the returned plan ID:
+
+```bash
+pnpm exec niceeval sandbox provider gc incus --apply <plan-id> --json
+```
+
+A plan expires after 15 minutes. Apply checks eligibility again; candidates that are now in use or whose object metadata has changed are not deleted. After a valid cache is reclaimed, a later run prepares it again.
+
+Without `--unused-for`, preview includes only eligible invalid or superseded records and interrupted retirements that can continue. NiceEval does not choose an age threshold for valid caches. Unregistered objects and records with mismatched object metadata are displayed for investigation.
+
+Do not directly delete Incus instances managed by NiceEval. If both an instance and its data volume have already been deleted manually, inspect the record with `inventory`, then preview and apply `gc` to reclaim it. After interrupted reclamation, create a fresh preview; the new plan checks resources again and continues eligible work.
+
+## Troubleshoot failures
+
+| Result | Next step |
+| --- | --- |
+| Missing Provider descriptor or trusted image | Ask the administrator to check deployment, permissions, and the full image digest |
+| `sandbox-capability-unsatisfied` | Check eval requirements, the Experiment's Provider, and development permission |
+| `artifact-capacity` fails | Inspect preparation cache counts and records in use, then preview reclaimable entries |
+| `artifact-storage` fails or is `unknown` | Check actual pool free space and read permissions; raising the object limit alone does not solve it |
+| `dangling` | Objects are missing; preview and reclaim the record with `gc` |
+| `orphan` or `metadata-drift` | Investigate ownership and configuration differences; GC does not delete these objects |
+
+For NixOS, also check the [host deployment boundary](/tutorials/nixos-managed-dind). To connect an existing OpenSandbox service, see [Choose and Configure a Sandbox Provider](/tutorials/sandbox-providers#connect-to-opensandbox). A service running on Docker does not imply that it meets this page's Docker capability requirements.

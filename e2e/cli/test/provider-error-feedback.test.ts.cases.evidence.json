@@ -1,6 +1,27 @@
 {
   "format": "concord.case-evidence-index/v1",
-  "current": {},
+  "current": {
+    "neref_4021142eb40cc28cb6d7b07cf4854390": {
+      "memory/pre-dispatch-run-diagnostics.md": {
+        "red": {
+          "path": "e2e/cli/test/provider-error-feedback.test.ts.case-evidence/neref_4021142eb40cc28cb6d7b07cf4854390/memory_pre-dispatch-run-diagnostics.md/nered_7R3R6D7AFGQWFCDX-netake_9WYCPD7648R5F256/red.json",
+          "digest": "sha256:579ce49322d7d037c8dd6eb36785a18eda3bd187ef075da110bb60fc3e4305cc"
+        },
+        "green": {
+          "path": "e2e/cli/test/provider-error-feedback.test.ts.case-evidence/neref_4021142eb40cc28cb6d7b07cf4854390/memory_pre-dispatch-run-diagnostics.md/nered_7R3R6D7AFGQWFCDX-netake_9WYCPD7648R5F256/green.json",
+          "digest": "sha256:6610008f9980380c845bebaeda5fc86e354b7007e29b0205b10b99e6d272c2ea"
+        },
+        "certificate": {
+          "path": "e2e/cli/test/provider-error-feedback.test.ts.case-evidence/neref_4021142eb40cc28cb6d7b07cf4854390/memory_pre-dispatch-run-diagnostics.md/nered_7R3R6D7AFGQWFCDX-netake_9WYCPD7648R5F256/certificate.json",
+          "digest": "sha256:6a127d32be5b0dd134d4891a37c3efec3ffcc8ad6d12597a9791eee4e6250d02"
+        },
+        "inventory": {
+          "path": "e2e/cli/test/provider-error-feedback.test.ts.case-evidence/neref_4021142eb40cc28cb6d7b07cf4854390/memory_pre-dispatch-run-diagnostics.md/nered_7R3R6D7AFGQWFCDX-netake_9WYCPD7648R5F256/inventory.json",
+          "digest": "sha256:04a6231fba87647c34aa8b457454cb5ab1a7bf757c88e793f29349b24e4e4979"
+        }
+      }
+    }
+  },
   "history": [
     {
       "caseId": "necase_7HXVADGZABWJQXEC",

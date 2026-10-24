@@ -1,12 +1,12 @@
 ---
-title: "Choose and Configure a Sandbox: Docker, Vercel, or E2B"
+title: "Choose and Configure a Sandbox Provider"
 sidebarTitle: "Sandbox"
-description: "Choose an isolated runtime for a Coding Agent: local Docker, Vercel, or E2B. Prepare the environment in order, and use prebuilt images and caches so each eval starts faster."
+description: "Choose, prepare, and cache environments with Docker, Incus, Vercel, E2B, or OpenSandbox."
 ---
 
 A Coding Agent needs an environment where it can freely change files and run commands without touching your machine. That isolated environment is the Sandbox, created and destroyed by a Provider.
 
-NiceEval provides three official Providers: local Docker, Vercel, and E2B. Docker is the most convenient for local debugging; when you need heavy parallelism, or your machine cannot keep up, switch to Vercel or E2B in the cloud.
+Use Docker for local debugging, or an Incus VM when the Agent needs to run Docker itself. Use Vercel or E2B for cloud environments. If you already have an OpenSandbox service, connect directly to its API.
 
 Whichever Provider you use, evals and Adapters see the same `Sandbox` interface. Switching Providers changes one line in the Experiment, and the evals stay unchanged.
 
@@ -17,8 +17,10 @@ Start by choosing based on where you run evals:
 | Provider | Suits | What you need |
 | --- | --- | --- |
 | Docker | Local development and standard CI. Simple, controllable, no cloud dependency | Local Docker. Machine resources are limited, and cold starts and dependency installs can be slow |
+| Incus VM | Agents that need Docker or Compose with a dedicated kernel | An administrator-provisioned Incus environment, trusted image, and Provider descriptor |
 | Vercel Sandbox | When you need cloud isolation, more resources, or a more stable environment | A Vercel token or OIDC configuration |
 | E2B | When you need heavy parallelism, or want to use a ready-made Agent template directly | An E2B account and `e2b auth login` |
+| OpenSandbox | Remote containers managed by an existing service | An OpenSandbox endpoint, API key, and image |
 
 Choose one in the Experiment's `sandbox` field:
 
@@ -36,15 +38,50 @@ export default defineExperiment({
 
 When neither the eval nor the Experiment chooses a Sandbox, the run reports an error before creating any Sandbox; NiceEval never guesses a Provider for you.
 
-The SDKs of the three built-in Providers are not installed with NiceEval. Install only the one you use, so unused dependencies (and their native build scripts) never enter your project:
+Provider SDKs are not installed with NiceEval. Install only the one you use, so unused dependencies (and their native build scripts) never enter your project:
 
 | Provider | Install command |
 |---|---|
 | `dockerSandbox({ source: { type: "image", image: "node:24-slim" } })` | `pnpm add dockerode @types/dockerode` |
+| `incusSandbox({ image, project, storagePool })` | No additional npm SDK; provision the Incus CLI and Provider environment on the host |
 | `vercelSandbox({ snapshotId })` | `pnpm add @vercel/sandbox` |
 | `e2bSandbox({ template })` | `pnpm add e2b` |
+| `openSandbox({ image, targetPlatform, lifetimeMs })` | `pnpm add @alibaba-group/opensandbox@1.1.1` |
 
 If it is missing, creating the Sandbox reports an error with the install command, for example `Docker sandbox requires 'dockerode'. Install it with: pnpm add dockerode @types/dockerode`. Install it as shown and run again.
+
+### Use an Incus VM
+
+Declare Docker, Compose, and minimum data capacity with `sandboxRequirements()` in the eval, and select the environment with `incusSandbox()` in the Experiment. Each Attempt gets its own VM, which is destroyed when it finishes. Incus does not support `--keep-sandbox` or `sandboxReuse`.
+
+Run `pnpm exec niceeval sandbox provider doctor incus` before starting. Development environments use a separate `--development` check and require `acceptDevelopmentDomain: true` in the Experiment. For configuration and cache maintenance, see [Run Docker Inside a Sandbox](/tutorials/docker-in-docker).
+
+### Connect to OpenSandbox
+
+Use the matching `release-1.1.1` service and execd, with SDK `1.1.1`. The older `execd:v1.1.0` does not support the native argv this Provider requires.
+
+Set `OPEN_SANDBOX_DOMAIN` and `OPEN_SANDBOX_API_KEY` on the machine running NiceEval. The endpoint is a complete HTTPS URL; local development can use HTTP. Credentials stay on the host and are not written into the Sandbox.
+
+```ts
+import { openSandbox } from "niceeval/sandbox";
+
+const sandbox = openSandbox({
+  image: "node:24-bookworm",
+  targetPlatform: { _tag: "Linux", os: "linux", arch: "x64", libc: "gnu" },
+  lifetimeMs: 60 * 60_000,
+  resources: { cpu: "1", memory: "2Gi" },
+});
+```
+
+Set the target platform to the remote image's platform, and pin the image to a digest for formal experiments. `lifetimeMs` must cover the remaining Attempt deadline plus 30 seconds for cleanup. Normal completion destroys the instance immediately. Use `user` to select the execution identity and `pathPrepend` to add executable directories.
+
+The OpenSandbox service chooses the runtime, such as Docker or Kubernetes; NiceEval does not need that setting. Restrict the endpoint to trusted hosts, or authenticate every HTTP and WebSocket route at a gateway. OpenSandbox's Docker proxy routes are not protected by the control API key and must not be exposed directly to the public internet.
+
+The image must start execd as root and provide Bash and Git. Use `user` to run the Agent as a non-root identity. Interactive Coding Agents also require Node.js 24.
+
+Cancelling or timing out a command destroys the entire instance. This Provider does not support retention, reuse across Attempts, or preparation caching. A running Sandbox does not automatically have a Docker daemon.
+
+When connecting a service, verify that a successful destruction response means the instance and its processes have stopped. A service that only acknowledges asynchronous deletion cannot meet this requirement; naming the runtime does not replace verification.
 
 ### Docker Compose: `workspaceService` names the main Sandbox
 
@@ -65,7 +102,7 @@ Other services (databases, mock servers, and so on) are only supporting resource
 
 ### Let the Agent run Docker itself
 
-When the Agent needs to run `docker build`, `docker run`, or `docker compose`, you can mount an existing Unix socket from the host, or choose raw privileged or managed rootless Docker-in-Docker. For when each mode fits, the Dockerfile, and the full configuration, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker).
+When the Agent needs to run `docker build`, `docker run`, or `docker compose`, use an Incus VM with a dedicated kernel and a Docker daemon inside the VM. See [Run Docker Inside a Sandbox](/tutorials/docker-in-docker). An OpenSandbox service running on Docker does not mean the Agent can run Docker inside its container.
 
 ## Work with the Sandbox in Adapters and evals
 
@@ -139,22 +176,21 @@ Very short progress updates may be merged in the display. To reliably see fine-g
 On supported Providers, unchanged preparation steps can be reused on the next run without executing again. For this, each `.before(action)` must truthfully state which parts of the Sandbox it changes:
 
 - Omitting `cache.state` equals `sandboxState.all`: all of this step's changes must be saveable and restorable. It is not a switch that lets the Provider pick some directories to cache.
-- Write `sandboxState.dockerData` only when all of the step's changes are limited to `/var/lib/docker` in the Sandbox, which has stopped being written. For a complete Docker profile example, see [Let the Sandbox Use Docker](/tutorials/docker-in-docker#managed-rootless-dind).
+- Incus uses `sandboxState.all` to save the complete preparation state, including the VM root disk and Docker data disk. There is no need to declare the Docker data directory separately.
 
 `cache.state` can be written at the step definition or at a single call site, but only in one place, and a call site cannot override the definition.
 
-The step's ID, inputs, expanded command, declared scope, and content digest are all compared automatically, and when any of them changes, the step runs again. `cache.fingerprint` only supplements version information NiceEval cannot see; it does not replace the automatic comparison.
+The step's ID, inputs, expanded command, declared scope, and content digest are compared automatically. Changes to execution content rerun the step. When execution order stays the same, changing the owning Experiment or declaration location alone does not invalidate identical cached content. `cache.fingerprint` only supplements version information NiceEval cannot see; it does not replace the automatic comparison.
 
 Providers can save different scopes:
 
 | Provider situation | Scope it can save | Result |
 | --- | --- | --- |
 | Local single-container Docker, with all changes in the outer container's writable filesystem | `all` | The longest unchanged run of steps from the start is reused directly |
-| A Docker profile configured with a separate, pre-allocated, fixed-size storage slot and seed data | `dockerData` | Only the run of steps from the start that consecutively declare `dockerData` is reused |
-| A Docker profile with shared loop or project-quota storage | None | Shows `Unsupported`; steps really execute |
-| Docker Compose, E2B, Vercel, or a custom Provider | None | Shows `Unsupported`; steps really execute |
+| Incus VM with verified complete preparation state | `all` | Reuses the longest unchanged prefix, including the root disk and Docker data disk |
+| Docker Compose, E2B, Vercel, OpenSandbox, or a custom Provider | None | Shows `Unsupported`; steps really execute |
 
-Reuse can only continue consecutively from the first step. At the first step that cannot be saved, such as a default `all` the Provider does not support, an `opaque` callback, or a scope the Provider does not support, this step and every step after it really execute. Later steps cannot be skipped even if they declare `dockerData`, because the earlier state they depend on was not saved.
+Reuse can only continue consecutively from the first step. At the first step that cannot be saved, such as a default `all` the Provider does not support, an `opaque` callback, or a scope the Provider does not support, this step and every step after it really execute. Later steps cannot be skipped because the earlier state they depend on was not saved.
 
 On local single-container Docker, when only the final `.env` step changes, the fixed Git checkout, directory upload, and tool installation before it do not rerun. Each Attempt starts from its own independent copy of the cached result and does not inherit changes left by the previous Agent.
 
@@ -264,6 +300,8 @@ For how to derive images, snapshots, and templates from official baselines, and 
 
 ## Retries for transient errors
 
+OpenSandbox creation requests are not retried automatically: a connection failure may occur after the service has allocated an instance. The creation retries below apply to Docker, Vercel, and E2B.
+
 When the built-in Providers create a Sandbox and hit transient failures such as rate limits, `fetch failed`, connection resets, 5xx, or temporary network unreachability, they retry automatically with exponential backoff. Configuration errors such as a missing template or missing credentials fail on the first try. When retries run out, the Attempt is recorded as `errored`. The `create` of a custom `defineSandbox` Provider is your own function, and NiceEval does not retry it for you.
 
 `readText`, `readBytes`, `downloadFile`, `uploadFile`, file writes, and directory uploads retry a limited number of times on transient transport errors such as 429, 5xx, `fetch failed`, and connection resets. Missing files, permission errors, cancellation, and a terminated Sandbox are not retried.
@@ -318,7 +356,7 @@ Providers differ in their limits on the executing user, network, filesystem, and
 
 ### Reuse Provider startup across Attempts
 
-When Sandbox startup time dominates, declare `sandboxReuse: true` in the Experiment. Several Attempts share one Sandbox in turn: each Sandbox is created only once, each Attempt still runs its own `.before()` / `.after()`, and the working directory is reset between evals. On Docker, unchanged preparation steps can also be reused directly.
+On Providers that support reuse, declare `sandboxReuse: true` in the Experiment when startup time dominates. Incus and OpenSandbox do not support this setting. Several Attempts share one Sandbox in turn: each Sandbox is created only once, each Attempt still runs its own `.before()` / `.after()`, and the working directory is reset between evals. On Docker, unchanged preparation steps can also be reused directly.
 
 ```ts
 export default defineExperiment({

@@ -8,6 +8,7 @@ import {
 import { TurnIdSchema } from "../source-receipt/codec.ts";
 import {
   Sha256DigestSchema,
+  SlotIdSchema,
   SourceItemIdSchema,
 } from "../../codec/identifiers.ts";
 import { sourcesRecordAttachment } from "../sources/definition.ts";
@@ -72,6 +73,7 @@ export const AttemptRunnerDiagnosticReceiptSchema = Schema.Struct({
 
 export const RunRunnerDiagnosticReceiptSchema = Schema.Struct({
   ...DiagnosticBase,
+  affectedSlotIds: Schema.optional(Schema.Array(SlotIdSchema)),
   phase: Schema.Literals(RUN_ACTIVITY_PHASES),
 });
 

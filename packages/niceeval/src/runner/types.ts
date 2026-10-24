@@ -1,4 +1,5 @@
 import type { ModelRoleSelection, ResolvedModelRoles } from "../model-roles.ts";
+import type { SlotId } from "../record/model/identifiers.ts";
 import type { AdapterFlagsParser, AdapterFlagsOutput, AdapterFlagsValue } from "../adapter-flags.ts";
 // runner 域类型:结果 / 汇总 / reporter 契约,eval / experiment / config 定义,
 // 以及调度器的编排类型(AgentRun / RunOptions / Attempt)。
@@ -297,6 +298,8 @@ export interface TimeoutAttribution {
  * 与运行级的 `DiagnosticNotice` 不同,这条挂在单个 attempt 结果或 RunMeta 上落盘。
  */
 export interface DiagnosticRecord {
+  /** Planned slots blocked by this Run-owned failure; no Attempt is fabricated. */
+  affectedSlotIds?: readonly SlotId[];
   code: string;
   level: "warning" | "error";
   /**

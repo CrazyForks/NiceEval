@@ -7,6 +7,8 @@ import { UserDatabaseInvalid, type UserDatabaseFailure } from "../../user-databa
 import { userDatabaseHost, type UserDatabase, type UserDatabaseOpenOptions } from "../../user-database/index.ts";
 import { incusError, type IncusProviderError } from "./errors.ts";
 import { isFiniteValue, sqlIn, type FiniteValue } from "../finite-domain.ts";
+import { dispatchGcStore, isGcStoreRequest, isGcStoreResult, readStoredGcPlan, INCUS_GC_SCHEMA_SQL, INCUS_GC_TABLE, type GcStoreRequest, type GcStoreResult, type StoredGcPlan } from "./gc-store.ts";
+import { GcPlanSchema, artifactEvidenceDigest, artifactResourceIdentity, gcDigest, gcParseOptions, type GcPlan, type GcItemOutcome } from "./gc-protocol.ts";
 
 export const INCUS_REPOSITORY = "incus" as const;
 
@@ -75,6 +77,12 @@ export interface ArtifactIntent extends IncusArtifactLocator {
   readonly replacementScopeDigest?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly lastSuccessfulLeaseAt?: string;
+  readonly lastSuccessfulLeaseId?: string;
+  readonly retirementPlanId?: string;
+  readonly estimatedArtifactBytes?: number;
+  readonly capturePoolUsedBefore?: number;
+  readonly capturePoolUsedAfter?: number;
 }
 
 export interface IncusAdmissionLease {
@@ -93,6 +101,8 @@ export interface IncusArtifactConsumerLease {
 }
 
 export type IncusRepositoryRequest =
+  | GcStoreRequest
+  | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "gc.claim"; readonly planId: string; readonly artifactId: string }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.reserve"; readonly intent: AllocationIntent }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.get"; readonly allocationId: string }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.list" }
@@ -144,6 +154,8 @@ export type IncusRepositoryRequest =
     };
 
 export type IncusRepositoryResult =
+  | GcStoreResult
+  | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "gc.claim"; readonly status: "claimed" | "lease-acquired" | "entry-state-changed"; readonly intent: ArtifactIntent | null }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.reserve"; readonly intent: AllocationIntent }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.get"; readonly intent: AllocationIntent | null }
   | { readonly repository: typeof INCUS_REPOSITORY; readonly operation: "allocation.list"; readonly intents: readonly AllocationIntent[] }
@@ -212,6 +224,12 @@ const ArtifactIntentSchema = Schema.Struct({
   replacementScopeDigest: Schema.optional(Schema.String),
   createdAt: Schema.String,
   updatedAt: Schema.String,
+  lastSuccessfulLeaseAt: Schema.optional(Schema.String),
+  lastSuccessfulLeaseId: Schema.optional(Schema.String),
+  retirementPlanId: Schema.optional(Schema.String),
+  estimatedArtifactBytes: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  capturePoolUsedBefore: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  capturePoolUsedAfter: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 
 const AllocationTable = "incus_allocation_intents";
@@ -390,9 +408,9 @@ const ArtifactTransitions: Readonly<Record<ArtifactState, ReadonlySet<ArtifactSt
 
 function assertCurrentSchema(database: DatabaseSync): void {
   const rows = database.prepare(
-    "SELECT type, name, tbl_name, sql FROM main.sqlite_schema WHERE tbl_name IN (?, ?, ?, ?, ?, ?) OR name IN (?, ?, ?, ?, ?, ?) ORDER BY type, name",
-  ).all(AllocationTable, ArtifactTable, AdmissionTable, ArtifactHeadTable, ArtifactLeaseTable, ArtifactReleaseTable,
-    AllocationTable, ArtifactTable, AdmissionTable, ArtifactHeadTable, ArtifactLeaseTable, ArtifactReleaseTable) as SchemaRow[];
+    "SELECT type, name, tbl_name, sql FROM main.sqlite_schema WHERE tbl_name IN (?, ?, ?, ?, ?, ?, ?) OR name IN (?, ?, ?, ?, ?, ?, ?) ORDER BY type, name",
+  ).all(AllocationTable, ArtifactTable, AdmissionTable, ArtifactHeadTable, ArtifactLeaseTable, ArtifactReleaseTable, INCUS_GC_TABLE,
+    AllocationTable, ArtifactTable, AdmissionTable, ArtifactHeadTable, ArtifactLeaseTable, ArtifactReleaseTable, INCUS_GC_TABLE) as SchemaRow[];
   const expected = new Map([
     [AllocationTable, CreateAllocations],
     [ArtifactTable, CreateArtifacts],
@@ -400,17 +418,22 @@ function assertCurrentSchema(database: DatabaseSync): void {
     [ArtifactHeadTable, CreateArtifactHeads],
     [ArtifactLeaseTable, CreateArtifactLeases],
     [ArtifactReleaseTable, CreateArtifactRelease],
+    [INCUS_GC_TABLE, INCUS_GC_SCHEMA_SQL],
   ]);
   const tables = rows.filter((row) => row.type === "table" && row.name === row.tbl_name && expected.has(row.name));
   const automaticIndexes = rows.filter((row) => row.type === "index" && expected.has(row.tbl_name) && row.sql === null);
-  if (rows.length !== 12 || tables.length !== 6 || automaticIndexes.length !== 6 ||
+  if (rows.length !== 14 || tables.length !== 7 || automaticIndexes.length !== 7 ||
     tables.some((row) => exactSql(row.sql ?? "") !== exactSql(expected.get(row.name) ?? ""))) {
-    throw invalid("Incus repository schema does not match revision 3");
+    throw invalid("Incus repository schema does not match revision 4");
   }
 }
 
-function installCurrentSchema(database: DatabaseSync): void {
+export function installIncusSchemaV3(database: DatabaseSync): void {
   database.exec(`${CreateAllocations}; ${CreateArtifacts}; ${CreateAdmission}; ${CreateArtifactHeads}; ${CreateArtifactLeases}; ${CreateArtifactRelease};`);
+}
+function installCurrentSchema(database: DatabaseSync): void {
+  installIncusSchemaV3(database);
+  database.exec(INCUS_GC_SCHEMA_SQL);
   assertCurrentSchema(database);
 }
 
@@ -425,6 +448,28 @@ function getArtifact(database: DatabaseSync, artifactId: string): ArtifactIntent
 }
 
 function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): IncusRepositoryResult {
+  if (isGcStoreRequest(request)) return transaction(database, () => dispatchGcStore(database, request));
+  if (request.operation === "gc.claim") {
+    return transaction(database, () => {
+      const stored = readStoredGcPlan(database, request.planId);
+      if (stored === null) throw invalid("Incus GC claim has no durable plan");
+      const plan = Schema.decodeUnknownSync(GcPlanSchema, gcParseOptions)(JSON.parse(stored.payload));
+      if (gcDigest(plan) !== stored.digest || Date.parse(plan.expiresAt) <= Date.now()) throw invalid("Incus GC claim has a corrupt or expired plan");
+      const candidate = plan.candidates.find((item) => item.entryId === request.artifactId);
+      const current = getArtifact(database, request.artifactId);
+      const result = (status: "claimed" | "lease-acquired" | "entry-state-changed", intent: ArtifactIntent | null = current): IncusRepositoryResult => ({ repository: INCUS_REPOSITORY, operation: "gc.claim", status, intent });
+      if (candidate === undefined || current === null || current.state === "quarantined" || artifactResourceIdentity(current) !== candidate.immutableResourceIdentity || current.manifestDigest !== candidate.manifestDigest) return result("entry-state-changed");
+      const leases = database.prepare(`SELECT COUNT(*) AS count FROM ${ArtifactLeaseTable} WHERE artifact_id = ? AND generation = ?`).get(current.artifactId, current.generation);
+      if (leases === undefined || leases.count !== 0) return result("lease-acquired");
+      if (current.retirementPlanId === plan.planId && ["invalid", "retiring", "released"].includes(current.state)) return result("claimed");
+      if (current.state === "released" || (current.retirementPlanId !== undefined && current.state !== "invalid" && current.state !== "retiring") || artifactEvidenceDigest(current) !== candidate.evidenceDigest) return result("entry-state-changed");
+      // The evidence digest binds the former retirement owner. Replacing it is
+      // atomic with the lease check, and existing absence receipts stay intact.
+      const next = freezeArtifact({ ...current, state: current.state === "retiring" ? "retiring" : "invalid", retirementPlanId: plan.planId, updatedAt: new Date().toISOString() });
+      database.prepare(`UPDATE ${ArtifactTable} SET state = ?, payload = ? WHERE artifact_id = ? AND generation = ? AND state = ?`).run(next.state, JSON.stringify(next), current.artifactId, current.generation, current.state);
+      return result("claimed", next);
+    });
+  }
   if (request.operation === "allocation.reserve") {
     const intent = freezeAllocation(request.intent);
     if (intent.state !== "reserved") throw invalid("Incus allocation reservation must begin in reserved state");
@@ -471,8 +516,8 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
       ).get(intent.executionDomainId, intent.setupPrefixKey, intent.manifestDigest);
       if (exact !== undefined) throw invalid("Incus artifact exact-prefix reservation is already owned");
       const count = database.prepare(
-        `SELECT COUNT(*) AS count FROM ${ArtifactTable} WHERE execution_domain_id = ? AND project = ? AND state <> 'released'`,
-      ).get(intent.executionDomainId, intent.project) as { readonly count?: unknown } | undefined;
+        `SELECT COUNT(*) AS count FROM ${ArtifactTable} WHERE project = ? AND json_extract(payload, '$.pool') = ? AND json_extract(payload, '$.runtimeProject') = ? AND state <> 'released'`,
+      ).get(intent.project, intent.pool, intent.runtimeProject) as { readonly count?: unknown } | undefined;
       if (count === undefined || !Number.isSafeInteger(count.count) || Number(count.count) >= request.maximumActive) {
         throw invalid("Incus artifact repository has no free reservation capacity");
       }
@@ -492,7 +537,7 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
     return Object.freeze({ repository: INCUS_REPOSITORY, operation: request.operation, intents: Object.freeze(intents) });
   }
   if (request.operation === "artifact.transition") {
-    const next = freezeArtifact(request.intent);
+    let next = freezeArtifact(request.intent);
     return transaction(database, () => {
       const current = getArtifact(database, request.artifactId);
       if (current === null || current.generation !== request.expectedGeneration || current.state !== request.expectedState) {
@@ -501,6 +546,9 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
       if (!sameArtifactIdentity(current, next) || !ArtifactTransitions[current.state].has(next.state)) {
         throw invalid(`Incus artifact ${request.artifactId} attempted an invalid ${current.state} -> ${next.state} transition`);
       }
+      if (current.lastSuccessfulLeaseAt !== undefined) next = freezeArtifact({ ...next, lastSuccessfulLeaseAt: current.lastSuccessfulLeaseAt });
+      if (current.lastSuccessfulLeaseId !== undefined) next = freezeArtifact({ ...next, lastSuccessfulLeaseId: current.lastSuccessfulLeaseId });
+      if (next.retirementPlanId !== current.retirementPlanId) throw invalid("Incus GC ownership can only change through a fenced plan claim");
       if (next.state === "committed") {
         const duplicate = database.prepare(
           `SELECT artifact_id FROM ${ArtifactTable} WHERE execution_domain_id = ? AND setup_prefix_key = ? AND manifest_digest = ? AND state = 'committed' AND artifact_id <> ? LIMIT 1`,
@@ -552,6 +600,8 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
       const receipt = database.prepare(`INSERT INTO ${ArtifactLeaseTable}(lease_id, artifact_id, generation, owner_host, owner_pid, owner_started_at, acquired_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
         .run(lease.leaseId, lease.artifactId, lease.generation, lease.owner.host, lease.owner.pid, lease.owner.startedAt, lease.acquiredAt);
       if (receipt.changes !== 1) throw invalid("Incus consumer lease was not inserted");
+      const touched = freezeArtifact({ ...intent, lastSuccessfulLeaseAt: lease.acquiredAt, lastSuccessfulLeaseId: lease.leaseId });
+      database.prepare(`UPDATE ${ArtifactTable} SET payload = ? WHERE artifact_id = ? AND generation = ?`).run(JSON.stringify(touched), intent.artifactId, intent.generation);
       return Object.freeze({ repository: INCUS_REPOSITORY, operation: request.operation, lease });
     });
   }
@@ -568,7 +618,8 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
   if (request.operation === "artifact.release.request") {
     return transaction(database, () => {
       const current = getArtifact(database, request.artifactId);
-      if (current === null || current.generation !== request.generation || (current.state !== "committed" && current.state !== "retiring")) throw invalid("Incus prepared artifact release request lost its exact generation/state fence");
+      if (current === null || current.generation !== request.generation || !["committed", "invalid", "retiring"].includes(current.state)) throw invalid("Incus prepared artifact release request lost its exact generation/state fence");
+      if (current.retirementPlanId === undefined) {
       if (current.replacementScopeDigest === undefined) throw invalid("Incus prepared artifact release requires a replacement scope");
       const head = database.prepare(`SELECT artifact_id, generation FROM ${ArtifactHeadTable} WHERE replacement_scope_digest = ?`).get(current.replacementScopeDigest) as { readonly artifact_id?: unknown; readonly generation?: unknown } | undefined;
       if (head === undefined || (head.artifact_id === current.artifactId && head.generation === current.generation)) throw invalid("Incus prepared artifact release requires proof that a different generation is the replacement head");
@@ -577,11 +628,12 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
       if (replacement === null || replacement.generation !== head.generation || replacement.state !== "committed" || replacement.replacementScopeDigest !== current.replacementScopeDigest) {
         throw invalid("Incus prepared artifact release requires an exact committed replacement head in the same scope");
       }
+      } else if (current.state !== "invalid" && current.state !== "retiring") throw invalid("Incus explicit GC release lost its invalidation fence");
       const leases = database.prepare(`SELECT COUNT(*) AS count FROM ${ArtifactLeaseTable} WHERE artifact_id = ? AND generation = ?`).get(current.artifactId, current.generation) as { readonly count?: unknown } | undefined;
       if (leases === undefined || leases.count !== 0) throw invalid("Incus prepared artifact release is blocked by a consumer lease");
       const intent = current.state === "retiring" ? current : freezeArtifact({ ...current, state: "retiring", updatedAt: request.updatedAt });
       if (current.state !== "retiring") {
-        const transition = database.prepare(`UPDATE ${ArtifactTable} SET state = ?, payload = ? WHERE artifact_id = ? AND generation = ? AND state = 'committed'`).run(intent.state, JSON.stringify(intent), intent.artifactId, intent.generation);
+        const transition = database.prepare(`UPDATE ${ArtifactTable} SET state = ?, payload = ? WHERE artifact_id = ? AND generation = ? AND state = ?`).run(intent.state, JSON.stringify(intent), intent.artifactId, intent.generation, current.state);
         if (transition.changes !== 1) throw invalid("Incus prepared artifact release request failed its compare-and-swap");
       }
       database.prepare(`INSERT INTO ${ArtifactReleaseTable}(artifact_id, generation, instance_absent, custom_storage_volume_absent, updated_at) VALUES (?, ?, 0, 0, ?) ON CONFLICT(artifact_id) DO NOTHING`).run(intent.artifactId, intent.generation, request.updatedAt);
@@ -604,6 +656,7 @@ function dispatch(database: DatabaseSync, request: IncusRepositoryRequest): Incu
       if (intent.state === "released") {
         const transition = database.prepare(`UPDATE ${ArtifactTable} SET state = ?, payload = ? WHERE artifact_id = ? AND generation = ? AND state = 'retiring'`).run(intent.state, JSON.stringify(intent), intent.artifactId, intent.generation);
         if (transition.changes !== 1) throw invalid("Incus artifact release failed its compare-and-swap");
+        database.prepare(`DELETE FROM ${ArtifactHeadTable} WHERE artifact_id = ? AND generation = ?`).run(intent.artifactId, intent.generation);
       }
       return Object.freeze({ repository: INCUS_REPOSITORY, operation: request.operation, intent, instanceAbsent, customStorageVolumeAbsent });
     });
@@ -697,7 +750,9 @@ function isConsumerLease(value: unknown): value is IncusArtifactConsumerLease {
 
 /** Worker-side hostile-message decoder. It accepts no SQL, table, or dynamic operation. */
 export function isIncusRepositoryRequest(value: unknown): value is IncusRepositoryRequest {
+  if (isGcStoreRequest(value)) return true;
   if (!record(value) || value.repository !== INCUS_REPOSITORY || typeof value.operation !== "string") return false;
+  if (value.operation === "gc.claim") return keysAre(value, ["repository", "operation", "planId", "artifactId"]) && typeof value.planId === "string" && typeof value.artifactId === "string";
   if (value.operation === "allocation.list" || value.operation === "artifact.list") {
     return keysAre(value, ["repository", "operation"]);
   }
@@ -758,7 +813,9 @@ export function isIncusRepositoryRequest(value: unknown): value is IncusReposito
 }
 
 export function isIncusRepositoryResult(value: unknown): value is IncusRepositoryResult {
+  if (isGcStoreResult(value)) return true;
   if (!record(value) || value.repository !== INCUS_REPOSITORY || typeof value.operation !== "string") return false;
+  if (value.operation === "gc.claim") return keysAre(value, ["repository", "operation", "status", "intent"]) && ["claimed", "lease-acquired", "entry-state-changed"].includes(String(value.status)) && (value.intent === null || isArtifactIntent(value.intent));
   if (value.operation === "allocation.reserve" || value.operation === "allocation.transition") {
     return keysAre(value, ["repository", "operation", "intent"]) && isAllocationIntent(value.intent);
   }
@@ -808,6 +865,12 @@ export function isIncusRepositoryResult(value: unknown): value is IncusRepositor
 }
 
 export interface IncusRepository {
+  readonly ownerId: string;
+  readonly saveGcPlan: (plan: GcPlan) => Promise<void>;
+  readonly getGcPlan: (planId: string) => Promise<StoredGcPlan | null>;
+  readonly appendGcOutcome: (planId: string, item: GcItemOutcome) => Promise<void>;
+  readonly finishGcPlan: (planId: string, envelope: string) => Promise<void>;
+  readonly claimGcArtifact: (planId: string, artifactId: string) => Promise<Extract<IncusRepositoryResult, { readonly operation: "gc.claim" }>>;
   readonly reserveAllocation: (intent: AllocationIntent) => Promise<AllocationIntent>;
   readonly getAllocation: (allocationId: string) => Promise<AllocationIntent | undefined>;
   readonly listAllocations: () => Promise<readonly AllocationIntent[]>;
@@ -842,6 +905,12 @@ function makeIncusRepository(database: UserDatabase, run: RunRepositoryEffect): 
     return result as IncusRepositoryResultFor<Request>;
   };
   const facade: IncusRepository = {
+    ownerId: gcDigest({ path: database.path, uid: process.getuid?.() ?? null }),
+    saveGcPlan: async (plan) => { await call({ repository: INCUS_REPOSITORY, operation: "gc.save", payload: JSON.stringify(plan), digest: gcDigest(plan) }); },
+    getGcPlan: async (planId) => (await call({ repository: INCUS_REPOSITORY, operation: "gc.get", planId })).stored,
+    appendGcOutcome: async (planId, item) => { await call({ repository: INCUS_REPOSITORY, operation: "gc.append", planId, payload: JSON.stringify(item) }); },
+    finishGcPlan: async (planId, payload) => { await call({ repository: INCUS_REPOSITORY, operation: "gc.finish", planId, payload }); },
+    claimGcArtifact: async (planId, artifactId) => call({ repository: INCUS_REPOSITORY, operation: "gc.claim", planId, artifactId }),
     reserveAllocation: async (intent: AllocationIntent) => (await call({ repository: INCUS_REPOSITORY, operation: "allocation.reserve", intent })).intent,
     getAllocation: async (allocationId: string) => (await call({ repository: INCUS_REPOSITORY, operation: "allocation.get", allocationId })).intent ?? undefined,
     listAllocations: async () => (await call({ repository: INCUS_REPOSITORY, operation: "allocation.list" })).intents,

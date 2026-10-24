@@ -19,6 +19,24 @@
           "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_inspection-source-detail-reuses-assertion-string-limit.md/nered_YN7Y5HV9R4BMBT6S-netake_4WCGEHNG7403T66N/inventory.json",
           "digest": "sha256:deb4ac37d9bc2016770ef1f8cf108d7aae96684670918a81b28e73ff2e3abef0"
         }
+      },
+      "memory/query-request-json-and-member-shape.md": {
+        "red": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_query-request-json-and-member-shape.md/nered_4W8S6J4H6KAXRPAX-netake_D0YAFG7QCCDAKVM9/red.json",
+          "digest": "sha256:3b24c44a2b10391f744188302a3d728fb5be5b6d44e3efaddb8c60c942fbd9e7"
+        },
+        "green": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_query-request-json-and-member-shape.md/nered_4W8S6J4H6KAXRPAX-netake_D0YAFG7QCCDAKVM9/green.json",
+          "digest": "sha256:fd5eca7355a47bbfaa27a581b6f198c9c08eb94cd0829d1633ad603ad6ba4f77"
+        },
+        "certificate": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_query-request-json-and-member-shape.md/nered_4W8S6J4H6KAXRPAX-netake_D0YAFG7QCCDAKVM9/certificate.json",
+          "digest": "sha256:2e3900cec7798cce66ad1195e25cf1511b4f6b4a813b8acfdbb2ea31ac6e3077"
+        },
+        "inventory": {
+          "path": "e2e/inspection/test/inspection-query.test.ts.case-evidence/neref_bed902a18f5f371e36ec24256ebb6af7/memory_query-request-json-and-member-shape.md/nered_4W8S6J4H6KAXRPAX-netake_D0YAFG7QCCDAKVM9/inventory.json",
+          "digest": "sha256:c44dc4ddfb81ca11690f9a46a664f7b6394efbfc23e288adc1cb9de29fb7b7ee"
+        }
       }
     }
   },

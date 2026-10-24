@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_76fd3f9c854d3e09048232d0c2774443": {
+      "memory/before-cache-declaration-attribution.md": {
+        "red": {
+          "path": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/red.json",
+          "digest": "sha256:9acc5752e2c461f13ec9d8e8f17b44db5a5c0d78500ce3645cf9962b80effac5"
+        },
+        "green": {
+          "path": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/green.json",
+          "digest": "sha256:318484c6e4895d1518ded5c1727e1ce1aca2615b142fe9599f62a0da304b69aa"
+        },
+        "certificate": {
+          "path": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/certificate.json",
+          "digest": "sha256:bb3ae2d54405524e26c5f02126e63d76892b39dfdd642925520a86d297adfd77"
+        },
+        "inventory": {
+          "path": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/inventory.json",
+          "digest": "sha256:04a6231fba87647c34aa8b457454cb5ab1a7bf757c88e793f29349b24e4e4979"
+        }
+      }
+    }
+  }
+}

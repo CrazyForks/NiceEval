@@ -20,6 +20,7 @@ export class IncusProviderError extends Data.TaggedError("IncusProviderError")<{
   readonly summary: string;
   readonly actions: readonly string[];
   readonly cause?: unknown;
+  readonly reason?: "storage-bytes";
 }> {
   get message(): string {
     return this.summary;

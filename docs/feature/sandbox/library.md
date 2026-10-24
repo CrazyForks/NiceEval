@@ -420,7 +420,7 @@ provider 的 retry/backoff 与 SDK 原始日志也走这条反馈管线,不能�
 | 要准备的东西 | 放哪 | 怎么收尾 |
 |---|---|---|
 | 所有 attempt 都相同、无需运行中 daemon 的重依赖(系统包、CLI、二进制、大模型 cache) | provider 原生 image/template/snapshot 构建脚本;template factory 只引用构建结果 | provider 的 image/template/snapshot 生命周期管理 |
-| 必须等 Provider ready 后生成的确定性状态 | [可缓存 before](architecture.md#before-缓存的身份与验证边界)；typed inputs、owner 与数值顺序决定 BeforeCacheKey | 普通 Docker 恢复 exact image；Incus 恢复完整 verified Provider artifact；其它 Provider 如实 replay |
+| 必须等 Provider ready 后生成的确定性状态 | [可缓存 before](architecture.md#before-缓存的身份与验证边界)；typed inputs、执行内容与前缀顺序决定 BeforeCacheKey；声明 owner 只负责归属 | 普通 Docker 恢复 exact image；Incus 恢复完整 verified Provider artifact；其它 Provider 如实 replay |
 | **这个实验**整场一份、宿主机侧的共享服务(隧道、每实验专用 mock server、license 租约) | [`ExperimentDefinition.setup`](../experiments/library.md#实验级共享服务setup-与-teardown):整场一次,第一个要派发的 attempt 前跑 | `ExperimentDefinition.teardown`,全部 attempt 收尾后执行(中断也执行;setup 时点走到过才触发) |
 | **这次实验**才知道的沙箱内内容(工具检查与安装、小配置、预检) | Experiment layer 的 [`before()`](layers.md);每次 occurrence 可以 restore 或 replay | 成功取得的外部资源用 `context.onCleanup()` 登记释放;沙箱内文件随销毁自动没了 |
 | **这条 eval** 的题目准备(checkout、依赖)与任务 Fixture | Eval layer 的 [`before()`](layers.md),或 `test(t)` 里的普通代码(`t.sandbox.writeText` / `writeBytes` / `runCommand`) | 随沙箱销毁或题间 reset;无条件收尾用 `after()`,条件释放用 `context.onCleanup()` |

@@ -20,6 +20,7 @@ import {
   doctorIncusProvider,
   renderIncusDoctorReport,
 } from "../incus.ts";
+import { runIncusMaintenance } from "../incus/maintenance.ts";
 
 /** Sandbox owns this schema: its flags never enter the core CLI parser. */
 export const SANDBOX_CLI_OPTIONS = Object.freeze({
@@ -31,6 +32,9 @@ export const SANDBOX_CLI_OPTIONS = Object.freeze({
   orphans: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Inspect unregistered sandbox instances left by terminated runs.", visibility: "public" }) }),
   force: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Prune unverified orphan candidates too.", visibility: "public" }) }),
   development: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Diagnose the isolated Incus development domain instead of reference.", visibility: "public" }) }),
+  json: Object.freeze({ type: "boolean", help: Object.freeze({ summary: "Print Incus artifact inventory or GC as JSON.", visibility: "public" }) }),
+  apply: Object.freeze({ type: "string", help: Object.freeze({ summary: "Apply an immutable Incus GC preview by plan id.", visibility: "public" }) }),
+  "unused-for": Object.freeze({ type: "string", help: Object.freeze({ summary: "Preview Incus artifacts unused for a duration such as 30d.", visibility: "public" }) }),
   help: Object.freeze({ type: "boolean", short: "h", help: Object.freeze({ summary: "Show Sandbox command help.", visibility: "public" }) }),
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
 
@@ -44,6 +48,9 @@ Usage:
   niceeval sandbox stop <id...> [--all] [--record-root <record-root>]
   niceeval sandbox prune [--force] [--record-root <record-root>]
   niceeval sandbox provider doctor incus [--development]
+  niceeval sandbox provider inventory incus [--development] [--json]
+  niceeval sandbox provider gc incus [--development] [--unused-for <duration>] [--json]
+  niceeval sandbox provider gc incus [--development] --apply <plan-id> [--json]
 
 Commands:
   list       list kept sandboxes or inspect orphan candidates
@@ -59,6 +66,9 @@ const PROVIDER_DOCTOR_HELP = `niceeval sandbox provider doctor — diagnose a sa
 
 Usage:
   niceeval sandbox provider doctor incus [--development]
+  niceeval sandbox provider inventory incus [--development] [--json]
+  niceeval sandbox provider gc incus [--development] [--unused-for <duration>] [--json]
+  niceeval sandbox provider gc incus [--development] --apply <plan-id> [--json]
 
 Default reports the Incus reference domain. --development reports the isolated
 development domain separately. Doctor is fail closed and read-only; it never
@@ -74,6 +84,9 @@ interface ParsedSandboxArgs {
   readonly flags: SandboxCommandFlags;
   readonly help: boolean;
   readonly development: boolean;
+  readonly json: boolean;
+  readonly apply?: string;
+  readonly unusedFor?: string;
 }
 
 type SandboxCliError = CliFeatureError;
@@ -101,6 +114,9 @@ function parseSandboxArgs(
       .map((token) => token.name)),
     help: parsed.values.help === true,
     development: parsed.values.development === true,
+    json: parsed.values.json === true,
+    ...(typeof parsed.values.apply === "string" ? { apply: parsed.values.apply } : {}),
+    ...(typeof parsed.values["unused-for"] === "string" ? { unusedFor: parsed.values["unused-for"] } : {}),
     flags: Object.freeze({
       all: parsed.values.all === true,
       ...(typeof parsed.values.window === "string" ? { window: parsed.values.window } : {}),
@@ -120,7 +136,7 @@ const SANDBOX_SUBCOMMAND_OPTIONS: Readonly<Record<SandboxSubcommand, readonly st
   diff: Object.freeze(["window", "path", "record-root", "help"]),
   stop: Object.freeze(["all", "record-root", "help"]),
   prune: Object.freeze(["force", "record-root", "help"]),
-  provider: Object.freeze(["development", "help"]),
+  provider: Object.freeze(["development", "help", "json", "apply", "unused-for"]),
 });
 
 function write(
@@ -143,6 +159,21 @@ function runProviderDoctor(
 ): Effect.Effect<number, SandboxCliError, CliOutput> {
   return Effect.gen(function* () {
     const [, action, provider] = parsed.positionals;
+    if (action === "inventory" || action === "gc") {
+      if (provider !== "incus" || parsed.positionals.length !== 3 || (action === "inventory" && (parsed.apply !== undefined || parsed.unusedFor !== undefined)) || (parsed.apply !== undefined && (parsed.apply.trim() === "" || parsed.unusedFor !== undefined))) {
+        yield* write("stderr", `Invalid Incus maintenance arguments.\n${PROVIDER_DOCTOR_HELP}`);
+        return 2;
+      }
+      const result = yield* runIncusMaintenance({ action, domain: parsed.development ? "development" : "reference", json: parsed.json,
+        ...(parsed.apply === undefined ? {} : { apply: parsed.apply }), ...(parsed.unusedFor === undefined ? {} : { unusedFor: parsed.unusedFor }) });
+      if (result.stdout !== "") yield* write("stdout", result.stdout);
+      if (result.stderr !== "") yield* write("stderr", result.stderr);
+      return result.exitCode;
+    }
+    if (parsed.json || parsed.apply !== undefined || parsed.unusedFor !== undefined) {
+      yield* write("stderr", `Incus maintenance flags require inventory or gc.\n`);
+      return 2;
+    }
     if (action === undefined || action === "help") {
       yield* write("stdout", PROVIDER_DOCTOR_HELP);
       return action === undefined ? 1 : 0;
@@ -196,7 +227,7 @@ export const sandboxCliCommand: CliCommandContribution<
     const argumentsService = yield* CliArguments;
     const parsed = yield* Effect.try({
       try: () => parseSandboxArgs(argv, argumentsService.parse),
-      catch: (cause) => sandboxFailure("parse sandbox command", cause, 1),
+      catch: (cause) => sandboxFailure("parse sandbox command", cause, argv[0] === "provider" && (argv[1] === "inventory" || argv[1] === "gc") ? 2 : 1),
     });
 
     const subcommand = parsed.positionals[0];
@@ -216,7 +247,7 @@ export const sandboxCliCommand: CliCommandContribution<
         "stderr",
         `niceeval sandbox ${subcommand} does not accept --${unsupportedOption}.\n`,
       );
-      return 1;
+      return subcommand === "provider" ? 2 : 1;
     }
     if (parsed.help) {
       yield* write("stdout", subcommand === "provider" ? PROVIDER_DOCTOR_HELP : SANDBOX_HELP);

@@ -612,7 +612,7 @@ function manifestMatches(row: DockerSetupPrefixEntryRow, manifest: DockerSetupPr
   return row.setupPrefixKey === manifest.setupPrefixKey && row.baseImageId === manifest.baseImageId &&
     row.declarationJson === manifest.declarationJson && row.declarationDigest === manifest.declarationDigest &&
     row.setupManifestDigest === manifest.setupManifestDigest && row.storageSchemaRevision === manifest.storageSchemaRevision &&
-    row.artifactFormatRevision === manifest.artifactFormatRevision && row.changeFrequency === manifest.changeFrequency &&
+    row.artifactFormatRevision === manifest.artifactFormatRevision &&
     row.dependency === DOCKER_CACHE_DOMAIN.setupDependency;
 }
 

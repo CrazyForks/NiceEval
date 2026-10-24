@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_108929a15afaf1e96f5d728afb50ba14": {
+      "memory/case-directory-descendant-discovery.md": {
+        "red": {
+          "path": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/red.json",
+          "digest": "sha256:884d58cb7a2de1ccf577a792514ea28ca1ae77a7e005b5d926c9289c9755f471"
+        },
+        "green": {
+          "path": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/green.json",
+          "digest": "sha256:b338da8b5797d4bcdae0fa550667dd3dbd28f69d7d7338bb254e2c7016d79978"
+        },
+        "certificate": {
+          "path": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/certificate.json",
+          "digest": "sha256:483a37f414e0ae2af603d9ed111b3287aa860528266b0696c811dcdcff816886"
+        },
+        "inventory": {
+          "path": "e2e/cli/test/case-discovery.test.ts.case-evidence/neref_108929a15afaf1e96f5d728afb50ba14/memory_case-directory-descendant-discovery.md/nered_47SG8S9M82J7CPJ0-netake_01MMD3FQFAKZ4ECZ/inventory.json",
+          "digest": "sha256:04a6231fba87647c34aa8b457454cb5ab1a7bf757c88e793f29349b24e4e4979"
+        }
+      }
+    }
+  }
+}

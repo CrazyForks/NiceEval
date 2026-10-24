@@ -35,7 +35,7 @@ import type {
   RunFeedbackState,
 } from "../types.ts";
 import type { JsonValue, Verdict } from "../../shared/types.ts";
-import type { ExpTerminalSummary } from "../../experiment/host/cli/output-protocol.ts";
+import type { ExpTerminalSummary, ExpDiagnosticEvent } from "../../experiment/host/cli/output-protocol.ts";
 import { evalConclusionRows, type EvalConclusionRow } from "./eval-conclusions.ts";
 
 /** `ExpEvent`/`ExpPlanDocument` 的 `format`/`schemaVersion` —— 只在破坏性形状变更时递增
@@ -215,6 +215,7 @@ export type ExpEvent =
   | KeptEvent
   | NoticeEvent
   | WarningEvent
+  | ExpDiagnosticEvent
   | BudgetExhaustedEvent
   | ReporterErrorEvent
   | InterruptedEvent
@@ -316,7 +317,9 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
             ...(planned !== undefined ? { planned } : {}),
             ...(errored !== undefined ? { errored } : {}),
           };
-          if (event.severity === "info") {
+          if (event.data?.preAttempt === true && event.severity === "error" && experimentId !== undefined) {
+            writeEvent(io, { event: "diagnostic", level: "error", ...common, experimentId });
+          } else if (event.severity === "info") {
             const resource = coordinationResourceField(event.data?.resource);
             const previousPid = numberField(event.data?.previousPid);
             const previousHost = stringField(event.data?.previousHost);

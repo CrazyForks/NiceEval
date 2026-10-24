@@ -1,237 +1,37 @@
 ---
-title: "在 NixOS 上配置 Managed DinD"
-sidebarTitle: "NixOS Managed DinD"
-description: "使用 NiceEval 的 NixOS module 部署 managed rootless Docker profile，并通过 doctor 验证宿主环境。"
+title: "在 NixOS 上准备 Incus 评估环境"
+sidebarTitle: "NixOS 宿主环境"
+description: "确认 Incus 宿主部署与 NiceEval 的职责边界，并用 doctor 检查正式或开发环境。"
 ---
 
-Managed rootless DinD 适合在共享 NixOS 宿主上运行不可信 Agent。NiceEval 的 NixOS module 会创建专用
-系统用户、rootless Docker daemon、容量受限的数据盘、资源 slice 和 watchdog。日常运行 NiceEval
-不需要 `sudo`，但首次部署和更新系统配置需要管理员权限。
+在 NixOS 上运行需要 Docker 的评估任务时，使用 Incus VM。评估配置与其它 Linux 宿主相同，见[让 Agent 在 Sandbox 中运行 Docker](/zh/tutorials/docker-in-docker)。
 
-本页只介绍 NixOS 的部署入口。Docker profile 本身是 Linux 宿主能力，不是 NixOS 专属能力。Ubuntu、
-Debian 与其它 systemd Linux 需要安装等价的宿主服务。macOS 用户可以在 OrbStack Linux machine 内运行
-NiceEval 和对应的 Linux 宿主服务；Apple `container` 当前需要独立 NiceEval Provider。具体边界与命令见
-[让 Sandbox 使用 Docker](/zh/tutorials/docker-in-docker#在-macos-上使用-orbstack)。
+## 交给管理员准备的内容
 
-如果任务可以信任 Agent，或者只在一次性 VM 中运行，先阅读[让 Sandbox 使用 Docker](/zh/tutorials/docker-in-docker)
-选择 Docker socket 或 raw privileged DinD。它们不需要本页的宿主 profile。
+管理员需要部署 Incus、运行 project、storage pool、可信基础镜像和 `/etc/niceeval/incus-provider.json`，并授予日常用户所需的访问权限。正式环境需要专用存储和可核验的容量；开发环境需要独立配置。
 
-## 前置条件
+NiceEval 仓库中的 `nixosModules.default` 和 `nixosModules.docker-profiles` 提供 Docker Profile 配置，不能部署本页需要的 Incus 环境。不要把 `services.niceeval.dockerProfiles` 的服务启动成功当成 Incus 已准备完成。
 
-开始前确认：
+本页不提供 Incus 的一键部署 module。宿主变更应由系统配置负责，评估项目里的 npm 依赖不会安装或更新这些服务。
 
-- NixOS 使用 flake 管理系统配置；
-- 宿主使用 systemd 和 cgroup v2；
-- 你知道日常运行 NiceEval 的 NixOS 用户名；
-- 宿主有足够的 CPU、内存和磁盘留给评估容器。
+## 用日常用户检查环境
 
-下面假设系统配置仓库已经有 `flake.nix`，配置名是 `my-host`，日常用户名是 `alice`。请把它们替换成
-自己的值。
-
-## 引入 NiceEval module
-
-在系统配置的 `flake.nix` 中加入 NiceEval input，并把 module 放进主机的 `modules`：
-
-```nix title="flake.nix"
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    niceeval.url = "github:NiceEval/NiceEval";
-  };
-
-  outputs = { self, nixpkgs, niceeval, ... }: {
-    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        niceeval.nixosModules.default
-        ./configuration.nix
-      ];
-    };
-  };
-}
-```
-
-第一次运行 Nix 命令后，Nix 会把 NiceEval 的具体 commit 写进你的 `flake.lock`。提交这份锁文件，避免
-不同机器在未确认的时间使用不同 module 版本。
-
-## 声明 profile
-
-在 NixOS 配置中声明一个名为 `default` 的 profile：
-
-```nix title="configuration.nix"
-{ ... }:
-{
-  services.niceeval.dockerProfiles.default = {
-    enable = true;
-    accessUsers = [ "alice" ];
-
-    capacity = {
-      cpus = 4;
-      memory = "8G";
-      pids = 4096;
-      maxContainers = 2;
-      maxBuilds = 1;
-      ephemeralDiskBytes = "6G";
-      dockerDataAllocationCount = 2;
-    };
-
-    aggregate = {
-      cpus = 6;
-      memory = "12G";
-      pids = 6144;
-    };
-
-    storage = {
-      size = "30G";
-      backing = "loop-ext4";
-    };
-  };
-}
-```
-
-几组数字各管一件事：
-
-- `capacity`：NiceEval 可以分给评估任务的总量。
-- `ephemeralDiskBytes`：每个 Sandbox 的 Docker 数据最多占多少磁盘。
-- `dockerDataAllocationCount`：最多同时有几个 Sandbox 拿到 Docker 数据空间。
-- `aggregate`：Docker daemon、构建进程、宿主服务和评估容器加起来的硬上限，每一项都不能小于 `capacity`。两者之间的差额留给宿主侧的开销。
-
-`backing = "loop-ext4"` 会在 `/var/lib/niceeval/docker-profiles/default.img` 创建一个独立的 ext4 文件系统，并按目录限制磁盘用量。宿主服务从里面给每个 Sandbox 分一个专用目录，挂到 Sandbox 的 `/var/lib/docker`。不要再给这个路径声明 `tmpfs`：Sandbox 里的 Docker image 和 BuildKit 缓存应该占磁盘，不应计入宿主机的 `Shmem`。
-
-这种共享 loop 文件系统只负责运行时的磁盘限额和隔离，不能保存准备步骤的结果。写了 `sandboxState.dockerData` 的准备步骤，在 `niceeval debug` 里会显示 `Unsupported`，每次都真实执行。想让这类步骤下次直接沿用，需要下一节的固定存储配置；准备步骤的缓存规则见[选择并配置 Sandbox](/zh/tutorials/sandbox-providers)。
-
-## 让 Docker 准备步骤下次直接沿用
-
-`docker load` 这类准备步骤很慢时，你可能希望 Sandbox 里的 Docker image 和 volume 下次直接沿用。这需要另建一个 raw profile，并改用固定大小的存储：
-
-```nix title="configuration.nix"
-services.niceeval.dockerProfiles.harness-raw = {
-  enable = true;
-  securityLevel = "raw-dind-storage/v1";
-  rawDockerSocket = "/run/docker.sock";
-  rawDockerRootDir = "/var/lib/docker";
-  capacity = {
-    cpus = 8; memory = "16G"; pids = 4096;
-    maxContainers = 2; maxBuilds = 1;
-    ephemeralDiskBytes = "4G";
-    dockerDataAllocationCount = 2;
-  };
-  aggregate = { cpus = 10; memory = "20G"; pids = 6144; };
-  storage = {
-    size = "80G";
-    backing = "fixed-image-ext4";
-    rootDir = "/data/niceeval/docker-profiles/harness-raw";
-  };
-  setupPrefix = { enable = true; seedCount = 10; };
-};
-```
-
-### 估算磁盘空间
-
-这份配置预先分配：
-
-- 2 个 4 GiB 的运行空间（对应 `dockerDataAllocationCount = 2`）；
-- 10 份 4 GiB 的只读种子数据（`seedCount = 10`），用来保存准备好的 Docker 状态；
-- 2 份最坏情况下的临时副本。
-
-合计 56 GiB。`storage.size = "80G"` 在扣除 ext4 元数据和保留块后，剩余可用空间（`f_bavail`）还要够故障恢复使用。
-
-种子数据不会自动清理。10 份用完后，profile 拒绝保存新的准备结果，也不会覆盖旧的种子。
-
-`fixed-image-ext4` 只能用于 raw profile。它继续使用现有 daemon 的 `DockerRootDir`，但把固定存储、宿主配置和日志放在单独的 `fixed-image-v1` 路径下。`rootDir` 必须是非根目录的绝对路径，挂载依赖、清单和可写路径都从它推出。
-
-### 切换到固定存储
-
-切换前，先让这个 profile 完全空闲：
-
-- 没有正在运行或排队的 Attempt、构建和容器；
-- 默认 daemon 上没有 NiceEval 的代理容器和 Attempt 网络。
-
-部署不会改写旧的 `loop-ext4` 镜像文件。旧镜像、配置和日志都会保留，需要时可以停机回退。
-
-启用固定存储是一次单独的部署操作，不会随 `nixos-rebuild switch` 或开机自动完成。按顺序启动两个服务：
+在已经安装 NiceEval 的评估项目中运行：
 
 ```bash
-sudo systemctl start niceeval-docker-profile-fixed-activation-harness-raw.service
-sudo systemctl restart niceeval-docker-profile-fixed-watchdog-harness-raw.service
+pnpm exec niceeval sandbox provider doctor incus
 ```
 
-第一个服务成功后，再启动或重启第二个。每次成功启用都会保存一个只读的版本快照，`current` 指针原子地切换到新版本。
-
-正常开机时，宿主服务会根据 `current` 指针找到当前版本，核对 `rootDir` 所在挂载、外层 ext4、种子登记和校验值，再恢复数据挂载。任何一项对不上时，宿主服务不会开始接收 Attempt。数据盘不存在时，它也不会在根盘上建一个同名目录继续运行。
-
-### 种子用完之前
-
-种子快用完时，先查看启用服务的状态，里面列出当前可用、保留中、可退役和可回收的容量。更换种子需要手动操作：先停止接收新 Attempt、等现有任务跑完，并在独占锁下发布新版本。
-
-旧版本要先显式退役，才能回收它占的空间。只有既不是当前版本、也不是上一个版本的才能退役。回收之后，这个版本就不能再用来回退。
-
-## 应用系统配置
-
-先检查配置能够求值，再切换系统：
+使用开发环境时运行：
 
 ```bash
-nix flake check
-sudo nixos-rebuild switch --flake .#my-host
+pnpm exec niceeval sandbox provider doctor incus --development
 ```
 
-module 会把 `alice` 加入 profile 的 access group。rebuild 完成后退出当前登录会话并重新登录，让新组
-成员身份生效。只在旧 shell 中重新运行命令不会刷新 supplementary groups。
+`doctor` 只读核对配置、可信镜像、对象和容量。权限错误应由管理员修正，不要通过 `sudo pnpm exec niceeval ...` 绕过日常用户的权限检查。
 
-重新登录后检查服务：
+## 连接 Experiment
 
-```bash
-systemctl status niceeval-docker-profile-default.service
-systemctl status niceeval-docker-profile-watchdog-default.service
-```
+从管理员取得完整镜像 digest、project 和 storage pool，并按 [Incus 配置步骤](/zh/tutorials/docker-in-docker#在-experiment-里选择-incus)填入 `incusSandbox()`。开发环境必须显式设置 `acceptDevelopmentDomain: true`。
 
-两个服务都应显示 `active (running)`。失败时读取对应 unit 的日志：
-
-```bash
-journalctl -u niceeval-docker-profile-default.service -b
-journalctl -u niceeval-docker-profile-watchdog-default.service -b
-```
-
-## 验证 profile
-
-进入已经安装 NiceEval 的评估项目，以日常用户运行：
-
-```bash
-pnpm exec niceeval docker profile list
-pnpm exec niceeval docker profile doctor default
-```
-
-`list` 应该列出 `default`。`doctor` 依次检查 profile 描述文件、Unix socket、cgroup、容量、宿主服务、离线资源和一次冷构建，然后启动一个受限的外层容器，并在里面再跑一个 Alpine 容器。全部通过后，这个 profile 才能用于正式评估。
-
-某一项失败时，`doctor` 会指出是哪一项。先按上一节查看对应服务的日志。
-
-不要用 `sudo pnpm exec niceeval ...` 绕过权限错误。日常用户无法访问 profile 时，先确认用户名已经写入
-`accessUsers`，再重新登录并重跑 doctor。
-
-## 在 Experiment 中使用
-
-宿主通过验收后，在 Experiment 的 Docker Sandbox 中引用同一个别名：
-
-```ts
-dockerAccess: {
-  mode: "dind",
-  isolation: "managed-rootless",
-  profile: "default",
-},
-```
-
-Experiment 还必须声明每个 Sandbox 的 CPU、内存、进程数、`dockerDataBytes`、只读根文件系统，以及其余可写路径的 tmpfs。完整配置见[让 Sandbox 使用 Docker](/zh/tutorials/docker-in-docker#managed-rootless-dind)。
-
-先用较小的 `maxConcurrency` 跑一次，再根据 profile 的 `capacity` 调高并发。跑完后用 `pnpm exec niceeval show` 在终端查看结果，或用 `pnpm exec niceeval view` 在浏览器里查看。
-
-## 更新 module
-
-需要更新 NiceEval module 时，在系统配置仓库更新对应 input，检查 diff 后重新构建：
-
-```bash
-nix flake update niceeval
-nix flake check
-sudo nixos-rebuild switch --flake .#my-host
-```
-
-更新会改变宿主服务，只更新评估项目里的 npm 依赖是不够的。保留旧的 NixOS generation，确认 `doctor` 和实际评估都通过后，再清理旧 generation。
+先运行实验的 `--dry` 检查能力和环境选择，再进行实际评估。宿主服务通过检查与实际评估成功是两项独立验证。

@@ -17,6 +17,8 @@ e2bSandbox({ template: "my-evals" })
 
 NiceEval 只读取构建结果的 ID，不提供跨 Provider 的构建命令。Docker 镜像、Vercel 快照和 E2B template 的凭据、构建方式、发布和过期规则各不相同，构建脚本用 Provider 自己的官方工具维护，最后把 ID 或名字写进 Experiment。
 
+Incus 使用管理员已导入的可信基础镜像，`image` 必须包含完整 digest；它的 Docker daemon 和独立数据盘要求见[在 Sandbox 中运行 Docker](/zh/tutorials/docker-in-docker)。OpenSandbox 引用服务端可访问的容器镜像，镜像必须以 root 启动 execd，并提供 Bash、Git；交互 Coding Agent 还需要 Node.js 24。连接配置见[连接 OpenSandbox](/zh/tutorials/sandbox-providers#连接-opensandbox)。
+
 ## 不预制也能跑
 
 预制只是为了更快。Adapter 和 Sandbox 各管一边：Sandbox 配置决定用哪个 Provider、从哪个预制环境启动；Adapter 检查需要的 CLI 在不在。Claude Code 和 Codex 缺少 CLI 时会在运行时安装：安装包在评估网络之外准备好，再通过文件接口送进 Sandbox。

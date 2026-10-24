@@ -8,6 +8,8 @@
 
 import { Effect, Cause, Data, Deferred, Result, Exit, Option, Semaphore, Latch } from "effect";
 import { adapterIdentity } from "../adapter.ts";
+import { boundedErrorText } from "../shared/bounded-error-text.ts";
+import { MAX_DIAGNOSTIC_SUMMARY_BYTES } from "../record/family/source-receipt/limits.ts";
 import { ProjectStateDatabase } from "../record/sqlite/project-state-database.ts";
 import type { SealedAttemptAssertions } from "../assertions/api.ts";
 import { cacheKey, planProjectTarget } from "./fingerprint.ts";
@@ -148,42 +150,6 @@ function feedbackWho(a: Attempt): string {
   return runWho({ agentName: a.run.adapter.name, model: a.run.model, experimentId: a.run.experimentId });
 }
 
-const SHARED_BUILD_FAILURE_DIAGNOSTIC = "sandbox-build-failed";
-
-function sharedBuildFailureRoot(error: AttemptError): { readonly code: string; readonly message: string } {
-  const codeMatch = /\bERR_[A-Z0-9_]+\b/u.exec(error.message);
-  const code = codeMatch?.[0] ?? error.code;
-  const focused = codeMatch === null
-    ? error.message.slice(-600)
-    : error.message.slice(codeMatch.index, codeMatch.index + 600);
-  return { code, message: focused.trim() || error.message.slice(-600).trim() || error.code };
-}
-
-function sharedBuildFailureDetail(a: Attempt, error: AttemptError): string {
-  const failureId = error.origin.scope === "run"
-    ? error.origin.timingNodeId
-    : `${error.code}:${a.evalDef.id}`;
-  const root = sharedBuildFailureRoot(error);
-  let message = root.message;
-  const encode = () => JSON.stringify({
-      schema: "niceeval.shared-build-failure/v1",
-      failureId,
-      evalId: a.evalDef.id,
-      attemptOrdinal: a.attempt,
-      phase: "sandbox.image.build",
-      errorCode: root.code,
-      message,
-      ...(root.code === "ERR_PNPM_IGNORED_BUILDS"
-        ? { remediation: "pnpm-allow-builds" }
-        : {}),
-    });
-  let encoded = encode();
-  while (new TextEncoder().encode(encoded).byteLength > 1_000 && message.length > 0) {
-    message = message.slice(0, Math.floor(message.length * 0.75));
-    encoded = encode();
-  }
-  return encoded;
-}
 function attemptIdentityKey(
   experimentId: string | undefined,
   agentName: string,
@@ -1077,6 +1043,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     data?: Readonly<globalThis.Record<string, JsonValue>>;
     command?: string;
     dedupeKey?: string;
+    affectedSlotIds?: DiagnosticRecord["affectedSlotIds"];
   }): void => {
     if (!input.experimentId) return;
     const dedupeIndex = experimentDedupeIndex.get(input.experimentId) ?? new Map<string, DiagnosticRecord>();
@@ -1085,6 +1052,9 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
       const existing = dedupeIndex.get(input.dedupeKey);
       if (existing) {
         existing.count = (existing.count ?? 1) + 1;
+        if (input.affectedSlotIds !== undefined) {
+          existing.affectedSlotIds = [...new Set([...(existing.affectedSlotIds ?? []), ...input.affectedSlotIds])];
+        }
         // 同一运行级事实会随着未派发槽位增加而得到更精确的上下文。反馈 reducer
         // 已经采用最新 data；持久 Run 诊断也必须同样更新，不能把最初的 0 永久写死。
         if (input.data !== undefined || input.command !== undefined) {
@@ -1097,6 +1067,7 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
       }
     }
     const record: DiagnosticRecord = {
+      ...(input.affectedSlotIds === undefined ? {} : { affectedSlotIds: input.affectedSlotIds }),
       code: input.code,
       level: input.level,
       detail: input.message,
@@ -1114,6 +1085,29 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
     const list = experimentDiagnostics.get(input.experimentId) ?? [];
     list.push(record);
     experimentDiagnostics.set(input.experimentId, list);
+  };
+
+  const plannedSlotIds = new Map(recordCoordinator.reusePlan.slots.map((slot) => [
+    JSON.stringify([slot.experimentId, slot.evalId, slot.attempt]), slot.slotId,
+  ]));
+  const prefixFailureIds = new Map<Error, number>();
+  const emittedPreDispatchFailures = new Set<string>();
+  const recordPreDispatchFailure = (
+    attempt: Attempt, error: AttemptError, code: string, phase: LifecyclePhase, failureId: string,
+  ): void => {
+    const experimentId = attempt.run.experimentId;
+    const slotId = plannedSlotIds.get(JSON.stringify([experimentId, attempt.evalDef.id, attempt.attempt]));
+    if (slotId === undefined) throw new Error("Pre-dispatch failure has no planned slot.");
+    const key = JSON.stringify([experimentId, code, failureId]);
+    const message = boundedErrorText(error.message, MAX_DIAGNOSTIC_SUMMARY_BYTES);
+    recordExperimentDiagnostic({
+      experimentId, code, level: "error", message, phase,
+      dedupeKey: key, affectedSlotIds: [slotId],
+    });
+    if (!emittedPreDispatchFailures.has(key)) {
+      emittedPreDispatchFailures.add(key);
+      reportDiagnostic({ key, code, severity: "error", message, data: { experimentId, phase, preAttempt: true } });
+    }
   };
 
   const settleGroupLaneAttempt = (attempt: Attempt): Effect.Effect<void> => {
@@ -2630,14 +2624,18 @@ export function runEvals<AttachmentError, AttachmentRequirements>(
                   ? buildFailure
                   : undefined;
             if (blockedError !== undefined) cancelReuseAttempt(a, true);
-            if (buildFailure !== undefined) {
-              recordExperimentDiagnostic({
-                experimentId: a.run.experimentId,
-                code: SHARED_BUILD_FAILURE_DIAGNOSTIC,
-                level: "error",
-                message: sharedBuildFailureDetail(a, buildFailure),
-                phase: "sandbox.queue",
-              });
+            if (Option.isSome(setupFailure)) {
+              recordPreDispatchFailure(a, setupFailure.value, "experiment-setup-failed", "experiment.setup", "before");
+            } else if (setupPrefixFailure !== undefined) {
+              let failureId = prefixFailureIds.get(setupPrefixFailure);
+              if (failureId === undefined) {
+                failureId = prefixFailureIds.size;
+                prefixFailureIds.set(setupPrefixFailure, failureId);
+              }
+              recordPreDispatchFailure(a, errorFromThrown(setupPrefixFailure, "sandbox.prepare"), "sandbox-setup-prefix-failed", "sandbox.queue", String(failureId));
+            } else if (buildFailure !== undefined) {
+              recordPreDispatchFailure(a, buildFailure, "sandbox-build-failed", "sandbox.queue",
+                buildFailure.origin.scope === "run" ? buildFailure.origin.timingNodeId : a.evalDef.id);
             }
 
             // A scheduler-admitted Attempt owns a durable identity before any

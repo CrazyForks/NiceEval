@@ -94,7 +94,12 @@ outcome 文档和退出码全部沿用 [Docker 两阶段回收](../../roadmap/sa
 
 所有规则都要求 lease 为零。`unused` 允许回收仍是 head 的 artifact：这是用户以显式时长换空间的决定，
 下次运行只会 miss 并重新 prepare，不影响正确性。没有 `--unused-for` 时不产生 `unused` 候选，NiceEval 不替
-用户猜 LRU 阈值。orphan、`metadata-drift` 和 quarantine 对象只在 inventory 中展示，永远不是候选。
+用户猜 LRU 阈值。
+
+已按某一 plan invalidated 的中断 retirement 可以由新 preview 沿用原 rule 和保护时点
+继续，不属于重新选择 committed `unused` 候选，也不要求再次指定时长。新 plan 仍有自己的 15 分钟有效期，
+并重新核对 lease、generation 与所有现存对象的 metadata；原 plan 过期或已有失败 outcome 不阻断接管。
+orphan、`metadata-drift` 和 quarantine 对象只在 inventory 中展示，永远不是候选。
 
 apply 对每个候选重新核对 intent state、generation、lease 与双向 metadata，然后走既有状态机：
 `committed → invalid → retiring`，两类对象分别落 absence receipt 后写 `released`。`dangling-intent` 不调用

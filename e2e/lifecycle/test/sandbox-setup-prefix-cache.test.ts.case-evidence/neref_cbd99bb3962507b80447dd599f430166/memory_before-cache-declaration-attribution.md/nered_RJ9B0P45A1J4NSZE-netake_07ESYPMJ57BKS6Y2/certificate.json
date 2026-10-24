@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts#neref_cbd99bb3962507b80447dd599f430166",
+  "caseId": "neref_cbd99bb3962507b80447dd599f430166",
+  "candidateSha256": "51ec09ed246c8478cad4eecb8b5a9f7cfefde02043dab722c9c6b3a2b9988bc9",
+  "sourceDigest": "sha256:83c1d932130cb9dd05f21292e6dc935b126062455edafbc4c0e8b9714c668a3e",
+  "greenReceipt": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-1.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-2.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-4.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-6.json",
+    "singleCase": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/green.json",
+    "cleanup": [
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/green.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-1.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-2.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-3.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-4.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-5.json",
+      "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "73cb3bd12bcb0e4a81bfd17ec09e19ab752d3e43c1c11dcfa85e8854f2f5343d"
+}

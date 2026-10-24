@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/cli/test/sandbox-action-debug.test.ts#neref_76fd3f9c854d3e09048232d0c2774443",
+  "caseId": "neref_76fd3f9c854d3e09048232d0c2774443",
+  "candidateSha256": "51ec09ed246c8478cad4eecb8b5a9f7cfefde02043dab722c9c6b3a2b9988bc9",
+  "sourceDigest": "sha256:c64d6a4d3ce91931ff4fbd942e69e9a167a2fdc2746755e1dee6f45ee99122f7",
+  "greenReceipt": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-1.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-2.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-4.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-6.json",
+    "singleCase": "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/green.json",
+    "cleanup": [
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/green.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-1.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-2.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-3.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-4.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-5.json",
+      "e2e/cli/test/sandbox-action-debug.test.ts.case-evidence/neref_76fd3f9c854d3e09048232d0c2774443/memory_before-cache-declaration-attribution.md/nered_ZMQVRRCSZA5ZCKE8-netake_DFCX972VEJQR2TZH/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "e790e8a09fdbc16357ff18c4d321f39977ae58a0848e57eeebddf4c6df1b8e3a"
+}

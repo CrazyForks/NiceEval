@@ -179,6 +179,9 @@ The table below is generated from each command's own option definitions. Flags n
 | `--orphans` | `niceeval sandbox list` | boolean | Check for unregistered Sandbox instances left by terminated runs. |
 | `--force` | `niceeval sandbox prune` | boolean | Also clean up unverified orphan candidates. |
 | `--development` | `niceeval sandbox` | boolean | Diagnose the isolated Incus development domain instead of reference. |
+| `--json` | `niceeval sandbox` | boolean | Print Incus artifact inventory or GC as JSON. |
+| `--apply` | `niceeval sandbox` | string | Apply an immutable Incus GC preview by plan id. |
+| `--unused-for` | `niceeval sandbox` | string | Preview Incus artifacts unused for a duration such as 30d. |
 | `--help` | `niceeval sandbox` | boolean | Print help for this command. |
 | `--tag` | `niceeval list` | string | Select only Evals with this tag. |
 | `--help` | `niceeval list` | boolean | Print help for this command. |

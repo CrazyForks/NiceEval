@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import { inspectionE2E } from "./support.ts";
 
 // @feature docs/feature/inspection/README.md
+// @regression memory/query-request-json-and-member-shape.md
 test.concurrent("machine caller sends the same complete request through argv or file", async () => {
   await inspectionE2E.case("query-request-json", {}, async ({ paths: { projectRoot }, commands: { niceeval } }) => {
     const request = JSON.stringify({ protocol: QUERY_PROTOCOL, operation: { kind: "run.list" } });

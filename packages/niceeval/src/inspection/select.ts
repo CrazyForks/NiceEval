@@ -4,6 +4,7 @@
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
 // @concord-implements docs/feature/insight/README.md
 import { projectPlannedAttempt, projectAttemptCore, projectRunCore, projectMember } from "./planned-attempt.ts";
+import { projectLifecyclePhase } from "./lifecycle.ts";
 import { readAttemptNotes, aggregateAttemptNotes } from "./notes.ts";
 import { Data, Result, Schema } from "effect";
 import { projectAttemptArtifact } from "./artifacts.ts";
@@ -62,6 +63,7 @@ import {
   combineInspectionUsageTotals,
   projectAttemptTiming,
   readInspectionAgentTurns,
+  readCurrentAttachment,
   projectAttemptTrace,
   projectAttemptTraceDetail,
   projectAttemptUsage,
@@ -1109,6 +1111,26 @@ function runDetail(
   type Member = InspectionRunResult["plannedAttempts"][number];
   type Usage = ReturnType<typeof projectAttemptUsage>;
   const selected = selectedResource.published;
+  const diagnosticRead = readCurrentAttachment(
+    NiceEvalCurrentRecordAttachments.runnerDiagnostics.run,
+    selected === undefined ? undefined : runAttachment(selected, NiceEvalRecordAttachments.runnerDiagnostics.run.family),
+  );
+  if (diagnosticRead.state === "invalid") {
+    throw new InspectionOperationError({
+      code: "inspection-result-invalid",
+      operation: "run.get",
+      reason: diagnosticRead.issues.join(", "),
+    });
+  }
+  const diagnostics = diagnosticRead.state === "available"
+    ? diagnosticRead.value.segments.map((diagnostic) => Object.freeze({
+        diagnosticId: diagnostic.diagnosticId,
+        code: diagnostic.code,
+        phase: projectLifecyclePhase(diagnostic.phase),
+        summary: diagnostic.summary,
+        affectedPlannedAttemptIds: diagnostic.affectedSlotIds ?? Object.freeze([]),
+      }))
+    : Object.freeze([]);
   const value = inspectionRunValue(selectedResource);
   const publications = new Map(selectedResource.resource.slots.map((slot) => [slot.slotId, slot.publication]));
   const bindings = new Map(selectedResource.members.map((member) => [member.slotId, member]));
@@ -1281,6 +1303,7 @@ function runDetail(
   return Object.freeze({
     value,
     members: selectedResource.members.map(projectMember),
+    diagnostics,
     attempts: selected?.attempts.map(projectAttemptCore) ?? Object.freeze([]),
     denominator: Object.freeze({
       expected: selectedResource.resource.expected,

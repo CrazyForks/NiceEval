@@ -16,6 +16,8 @@ e2bSandbox({ template: "my-evals" })
 
 NiceEval only reads the ID of the build result and does not provide a cross-Provider build command. Docker images, Vercel snapshots, and E2B templates differ in credentials, build method, publishing, and expiry rules. Maintain build scripts with each Provider's own official tools, and finally write the ID or name into the Experiment.
 
+Incus uses a trusted base image already imported by an administrator, and `image` must include its full digest. See [Run Docker Inside a Sandbox](/tutorials/docker-in-docker) for the Docker daemon and separate data disk requirements. OpenSandbox references an image accessible to the service. The image must start execd as root and provide Bash and Git; interactive Coding Agents also require Node.js 24. See [Connect to OpenSandbox](/tutorials/sandbox-providers#connect-to-opensandbox).
+
 ## It runs without prebuilding too
 
 Prebuilding is only for speed. The Adapter and the Sandbox each handle their own side: the Sandbox configuration decides which Provider to use and which prebuilt environment to start from; the Adapter checks whether the CLI it needs is present. When Claude Code or Codex is missing its CLI, it is installed at run time: the installation package is prepared outside the eval network, then sent into the Sandbox through the file interface.

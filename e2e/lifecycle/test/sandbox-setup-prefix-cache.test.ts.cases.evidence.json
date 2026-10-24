@@ -1,6 +1,27 @@
 {
   "format": "concord.case-evidence-index/v1",
-  "current": {},
+  "current": {
+    "neref_cbd99bb3962507b80447dd599f430166": {
+      "memory/before-cache-declaration-attribution.md": {
+        "red": {
+          "path": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/red.json",
+          "digest": "sha256:acf057fb8c0cc8d3005b6e78b34f706ecdc1b5adb9aaedcf643a6f9a03cbdf24"
+        },
+        "green": {
+          "path": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/green.json",
+          "digest": "sha256:d59bcdc38dc38ae411ae30c62f8664481b9162930408adf1e54342734f4aa3b0"
+        },
+        "certificate": {
+          "path": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/certificate.json",
+          "digest": "sha256:b02bac9d44ecf02b9dc22cbebba68d38938f1306dfab1c13833dc4b97eac5d79"
+        },
+        "inventory": {
+          "path": "e2e/lifecycle/test/sandbox-setup-prefix-cache.test.ts.case-evidence/neref_cbd99bb3962507b80447dd599f430166/memory_before-cache-declaration-attribution.md/nered_RJ9B0P45A1J4NSZE-netake_07ESYPMJ57BKS6Y2/inventory.json",
+          "digest": "sha256:21bffe7d000b8a3d9934d95b92fec97eb7f6b6755cbe85e9a6bdfd9b8bb7220b"
+        }
+      }
+    }
+  },
   "history": [
     {
       "caseId": "necase_APN2MNBEXSN1G18T",

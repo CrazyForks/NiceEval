@@ -486,6 +486,33 @@ export function renderRun(value: RunView): string {
       ],
     },
   ];
+  for (const diagnostic of value.diagnostics) {
+    const affected = value.members.filter((member) =>
+      diagnostic.affectedPlannedAttemptIds.includes(member.plannedAttemptId));
+    const stage = {
+      "run.before": "Experiment before",
+      "run.discovery": "Discovery",
+      "run.plan": "Planning",
+      "run.dispatch": "Before dispatch",
+      "run.after": "Experiment after",
+    }[diagnostic.phase];
+    blocks.push({
+      kind: "panel",
+      title: "Run error",
+      blocks: [{
+        kind: "keyValue",
+        entries: [
+          { key: "Stage", value: stage },
+          { key: "Error", value: diagnostic.summary },
+          { key: "Affected attempt count", value: String(affected.length) },
+        ],
+      }, {
+        kind: "table",
+        columns: [{ header: "Eval" }, { header: "Attempt ordinal" }],
+        rows: affected.map((member) => [member.evalId, String(member.attemptOrdinal)]),
+      }],
+    });
+  }
   for (const member of value.members) {
     blocks.push({
       kind: "panel",

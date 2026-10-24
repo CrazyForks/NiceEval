@@ -42,6 +42,17 @@ export const ExpTerminalEventSchema = Schema.Struct({
   summary: ExpTerminalSummarySchema,
 });
 
+/** One Run-owned failure observed before any affected Attempt is dispatched. */
+export const ExpDiagnosticEventSchema = Schema.Struct({
+  event: Schema.Literal("diagnostic"),
+  code: Schema.String,
+  level: Schema.Literal("error"),
+  message: Schema.String,
+  experimentId: Schema.String,
+  phase: Schema.optional(Schema.String),
+});
+export type ExpDiagnosticEvent = Schema.Schema.Type<typeof ExpDiagnosticEventSchema>;
+
 export type ExpInvocationReceipt = Schema.Schema.Type<typeof ExpInvocationReceiptSchema>;
 export type ExpTerminalSummary = Schema.Schema.Type<typeof ExpTerminalSummarySchema>;
 export type ExpTerminalEvent = Schema.Schema.Type<typeof ExpTerminalEventSchema>;

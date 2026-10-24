@@ -1,6 +1,6 @@
 // rerun: pnpm e2e test --repo cli -- --run test/sandbox-action-debug.test.ts
 
-import { access, copyFile } from "node:fs/promises";
+import { access, copyFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
@@ -97,9 +97,21 @@ function expectScheduledAction(node: CommandPlanStep, id: string, frequency: num
 }
 
 // @feature docs/feature/experiments/README.md
+// @regression memory/before-cache-declaration-attribution.md
 
 test("debug 交付统一且无副作用的 Sandbox action 计划", async () => {
   await cliE2E.case("sandbox-action-debug", async ({ commands: { niceeval }, paths }) => {
+    // Discovery imports all Experiment modules. This plan owner needs only its
+    // own declaration so unrelated CLI fixtures cannot affect this plan.
+    await rename(
+      join(paths.projectRoot, "experiments"),
+      join(paths.projectRoot, "fixtures", "debug-experiments"),
+    );
+    await mkdir(join(paths.projectRoot, "experiments"));
+    await copyFile(
+      join(paths.projectRoot, "fixtures", "debug-experiments", "sandbox-action-debug.ts"),
+      join(paths.projectRoot, "experiments", "sandbox-action-debug.ts"),
+    );
     const sideEffects = join(paths.projectRoot, "sandbox-action-debug-side-effects.ndjson");
     const receipt = await niceeval.run([
       "debug",
@@ -346,6 +358,20 @@ test("debug 交付统一且无副作用的 Sandbox action 计划", async () => {
     expect(human.stdout).toContain("stdin: sha256:");
     expect(human.stdout).not.toContain(PRIVATE_ENV_VALUE);
     expect(human.stdout).not.toContain(PRIVATE_STDIN.trim());
+
+    await copyFile(
+      join(paths.projectRoot, "experiments", "sandbox-action-debug.ts"),
+      join(paths.projectRoot, "experiments", "sandbox-action-shared.ts"),
+    );
+    const shared = await niceeval.run([
+      "debug", "sandbox-action-shared", "sandbox-action-debug/plan", "--json",
+    ]);
+    expect(shared.exitCode, shared.diagnostic()).toBe(0);
+    const sharedPlan = decodeDebugPlanDocument(shared.json<unknown>());
+    const sharedNodes = actionNodes(sharedPlan.commandPlan);
+    expectOwner(requireAction(sharedNodes, "tie-experiment-first"), "experiment", "sandbox-action-shared");
+    expect(sharedPlan.beforeCachePlan.nodes.map((node) => node.prefixIdentity))
+      .toEqual(document.beforeCachePlan.nodes.map((node) => node.prefixIdentity));
 
     await copyFile(
       join(paths.projectRoot, "fixtures", "sandbox-action-debug-invalid.ts"),

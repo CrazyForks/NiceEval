@@ -63,6 +63,8 @@ export interface IncusRuntimePlan {
   readonly maxInstances: number;
   readonly artifactProject: string;
   readonly artifactMaxInstances: number;
+  readonly artifactStorageReserveBytes: number;
+  readonly artifactEstimatedBytes?: number;
 }
 
 export interface IncusPlannedSandbox {
@@ -267,6 +269,8 @@ async function planIncusSandboxWithRepository(
     maxInstances: domain.maxInstances,
     artifactProject: domain.artifactProject,
     artifactMaxInstances: domain.artifactMaxInstances,
+    artifactStorageReserveBytes: domain.artifactStorageReserveBytes,
+    ...(domain.artifactEstimatedBytes === undefined ? {} : { artifactEstimatedBytes: domain.artifactEstimatedBytes }),
   });
   return Object.freeze({ descriptor, domain, image, runtime, dockerExecution });
 }

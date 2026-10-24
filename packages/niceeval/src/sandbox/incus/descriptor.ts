@@ -40,6 +40,8 @@ const DomainSchema = Schema.Struct({
   maxInstances: positiveSafeInteger("IncusMaxInstances"),
   artifactProject: nonEmptyString("IncusArtifactProject"),
   artifactMaxInstances: positiveSafeInteger("IncusArtifactMaxInstances"),
+  artifactStorageReserveBytes: Schema.Number.pipe(Schema.check(Schema.makeFilter((value) => Number.isSafeInteger(value) && value >= 0, { description: "a non-negative safe integer" }))),
+  artifactEstimatedBytes: Schema.optional(positiveSafeInteger("IncusArtifactEstimatedBytes")),
   dockerDataBytes: Schema.optional(positiveSafeInteger("IncusDockerDataBytes")),
   workdir: Schema.Literal(INCUS_WORKDIR),
   user: Schema.Literal(INCUS_USER),
@@ -73,6 +75,8 @@ export interface IncusDomainDescriptor {
   readonly maxInstances: number;
   readonly artifactProject: string;
   readonly artifactMaxInstances: number;
+  readonly artifactStorageReserveBytes: number;
+  readonly artifactEstimatedBytes?: number;
   readonly dockerDataBytes?: number;
   readonly workdir: typeof INCUS_WORKDIR;
   readonly user: typeof INCUS_USER;
@@ -104,6 +108,8 @@ function freezeDomain(domain: IncusDomainDescriptor): IncusDomainDescriptor {
     maxInstances: domain.maxInstances,
     artifactProject: domain.artifactProject,
     artifactMaxInstances: domain.artifactMaxInstances,
+    artifactStorageReserveBytes: domain.artifactStorageReserveBytes,
+    ...(domain.artifactEstimatedBytes === undefined ? {} : { artifactEstimatedBytes: domain.artifactEstimatedBytes }),
     ...(domain.dockerDataBytes === undefined ? {} : { dockerDataBytes: domain.dockerDataBytes }),
     workdir: INCUS_WORKDIR,
     user: INCUS_USER,

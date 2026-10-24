@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/insight/test/view-run-diagnostics.browser.spec.ts#neref_5c9f8d2dc0b94f0e538555f50e8fa44e",
+  "caseId": "neref_5c9f8d2dc0b94f0e538555f50e8fa44e",
+  "candidateSha256": "51ec09ed246c8478cad4eecb8b5a9f7cfefde02043dab722c9c6b3a2b9988bc9",
+  "sourceDigest": "sha256:d562e2ede0fb9cddaaed4fc4c3ec952d6cdcd89081dbc8daac00bea1cf4158bb",
+  "greenReceipt": "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-1.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-2.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-4.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-6.json",
+    "singleCase": "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/green.json",
+    "cleanup": [
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/green.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-1.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-2.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-3.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-4.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-5.json",
+      "e2e/insight/test/view-run-diagnostics.browser.spec.ts.case-evidence/neref_5c9f8d2dc0b94f0e538555f50e8fa44e/memory_pre-dispatch-run-diagnostics.md/nered_YY5B3P01428ECZ9K-netake_7772PXVWFDAZ7RS3/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "ae95db6ff581e63b2a3236a5f7d6b7c087b5bea6bbe021316927b1edfe1a7ea8"
+}

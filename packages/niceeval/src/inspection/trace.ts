@@ -839,7 +839,7 @@ function projectFullConversationItem(
   }
 }
 
-function readCurrentAttachment<
+export function readCurrentAttachment<
   Owner extends RecordAttachmentOwner,
   Family extends string,
   ValueSchema extends Schema.Top,

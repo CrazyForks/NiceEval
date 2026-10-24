@@ -40,6 +40,7 @@ import {
   type SandboxReusePoolDescriptor,
 } from "./sandbox-reuse.ts";
 import type { LinkedPluginLifecycle } from "../plugin/contracts.ts";
+import { setupPrefixActionManifest, setupPrefixAttribution } from "./setup-prefix-plan.ts";
 
 export interface CommandPlanOwner {
   readonly kind: "eval" | "eval-group" | "experiment" | "adapter" | "agent" | "provider";
@@ -535,7 +536,7 @@ function linkedSetupPrefixBaseIdentity(pair: PreparedRunPair): string {
   if (pair.plan._tag !== "Sandbox") return "linked-base:unsupported";
   const provider = pair.plan.providerPlan;
   const identity = {
-    protocol: "niceeval.setup-prefix-linked-plan/v1",
+    protocol: "niceeval.setup-prefix-linked-plan/v2",
     provider: {
       id: provider.provider,
       plannerRevision: provider.plannerRevision,
@@ -548,14 +549,6 @@ function linkedSetupPrefixBaseIdentity(pair: PreparedRunPair): string {
       source: provider.target.source,
       platform: { ...provider.target.platform },
     },
-    occurrence: {
-      kind: "attempt",
-      cohort: {
-        experimentId: pair.plan.pair.experimentId,
-        evalId: pair.plan.pair.evalId,
-        agentName: pair.plan.pair.agentName,
-      },
-    },
   } as unknown as JsonValue;
   return `linked-base:${digestOf(identity)}`;
 }
@@ -566,35 +559,9 @@ function linkedSetupPrefixActionIdentity(
   cumulativeState: SandboxActionState,
 ): string {
   const identity = {
-    protocol: "niceeval.setup-prefix-linked-plan/v1",
+    protocol: "niceeval.setup-prefix-linked-plan/v2",
     parentIdentity,
-    owner: {
-      kind: entry.owner.kind,
-      id: entry.owner.id,
-      ordinal: entry.ordinal,
-    },
-    order: entry.executionOrder.topologicalOrdinal,
-    changeFrequency: {
-      value: entry.metadata.changeFrequency.value,
-      source: entry.metadata.changeFrequency.source,
-      ...(entry.metadata.changeFrequency.preset === undefined
-        ? {}
-        : { preset: entry.metadata.changeFrequency.preset }),
-    },
-    dependencyEdges: entry.dependencies.map((dependency) => ({ ...dependency })),
-    capabilities: {
-      requires: [...entry.metadata.requires],
-      provides: [...entry.metadata.provides],
-    },
-    action: {
-      id: entry.data.plan.id,
-      family: entry.data.plan.family,
-      declaredState: entry.data.plan.state,
-      cumulativeState,
-      input: entry.data.plan.input,
-      fingerprint: entry.data.plan.fingerprint,
-      steps: entry.data.plan.steps,
-    },
+    ...setupPrefixActionManifest(entry, cumulativeState),
   } as unknown as JsonValue;
   return `linked-prefix:${digestOf(identity)}`;
 }
@@ -652,21 +619,15 @@ function scheduledBeforeSteps(
         : barrier === "unsupported-state-ancestor"
           ? unsupportedStateBarrierActionId
           : undefined;
-    const owner = Object.freeze({ kind: entry.owner.kind, id: entry.owner.id });
     const step: CommandPlanStep = Object.freeze({
       ...projected,
-      owner,
+      ...setupPrefixAttribution(entry),
       action: entry.kind === "action"
         ? projected.action
         : Object.freeze({
             id: entry.id,
             kind: entry.kind === "hook" ? "callback" as const : "command" as const,
           }),
-      declarationOrder: Object.freeze({ owner, ordinal: entry.ordinal }),
-      executionOrder: entry.executionOrder,
-      changeFrequency: entry.metadata.changeFrequency,
-      schedulingReason: entry.schedulingReason,
-      dependencies: entry.dependencies,
       occurrence: Object.freeze({ kind: "attempt" as const }),
       cache: Object.freeze({
         lookup: "not-probed" as const,
