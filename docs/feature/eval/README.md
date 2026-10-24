@@ -107,6 +107,14 @@ evals/foo/eval.ts       → eval id "foo"
 `eval.ts` 只是文件夹入口约定,仍默认导出 `defineEval` / `defineScoreEval` 结果,不引入第二套评分或 Experiment 模型。
 目录里可以平铺 Dockerfile、Compose、题面数据、起始文件与测试文件,也可以分子目录;没有入口的目录(如 `_lib/`)是普通共享代码,不会被发现成 eval。
 
+含 `eval.ts` 的目录是一道题的 case 目录,它的整棵子树都是这道题的资产。发现器在 case 目录处停止下钻,
+子树里的 `eval.ts`、`.eval.ts` 与 `.eval.tsx` 都不会被发现成 eval。完整的起始仓库因此可以原样放在
+`evals/foo/repo/` 下,即使它自带 `evals/**/*.eval.ts`,也不会被宿主导入,作者不需要为 fixture 改名。
+
+这条边界只由入口文件决定,不保留 `repo`、`fixture` 等目录名,也不提供另一套 include / exclude 配置。
+同一目录下的 `.eval.ts` 不是 case 目录:`evals/weather/brooklyn.eval.ts` 旁边的子目录照常被扫描。
+需要多道题共用资产时,把题拆成兄弟 case 目录或兄弟 `.eval.ts`,共享代码放在无入口目录中。
+
 共址不等于同一身份域或同一可见时点,三类文件各有归属:
 
 | 文件 | 何时可见 | 身份 |

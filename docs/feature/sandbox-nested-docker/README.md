@@ -83,6 +83,7 @@ incusSandbox({
 - reference 与 development 两个 execution domain；
 - `niceeval sandbox provider doctor incus [--development]` 的只读 fail-closed 诊断；
 - prepared artifact 满容量时的安全自动淘汰生命周期；
+- prepared artifact 的数量与字节容量准入，以及 `inventory incus` / `gc incus` 两阶段维护入口；
 - image trust、capability 绑定与安全边界。
 
 本主题不包含：

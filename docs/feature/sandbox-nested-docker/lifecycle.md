@@ -95,7 +95,9 @@ Provider 只对完整、可验证的 prepared Sandbox artifact 声明缓存资�
 
 ## doctor 与 fail-closed
 
-`niceeval sandbox provider doctor incus [--development]` 只读。
+`niceeval sandbox provider doctor incus [--development]` 只读。它分别报告数量余量（`artifact-capacity`）、
+字节余量（`artifact-storage`）与 intent / 对象一一核对（`artifact-inventory`），检查项含义见
+[CLI](cli.md#doctor-incus)。
 
 prepared artifact 是有界资源。`committed` artifact 持续占用 descriptor 的
 `artifactMaxInstances`。每个 artifact 持久化 replacement scope；repository 以 scope head
@@ -108,7 +110,33 @@ instance 与 custom storage volume 的双向 metadata 精确匹配时才进入 `
 prepared artifact。
 
 若满容量时没有 superseded 且无 lease 的候选，说明有效 working set 确实超出容量。
-NiceEval 保留全部缓存并报告容量不足，不做 LRU 猜测。
+NiceEval 保留全部缓存并报告容量不足，不做 LRU 猜测；错误同时给出
+`niceeval sandbox provider inventory incus` 与 `gc incus --unused-for <duration>` 作为下一步，由用户决定
+用哪些旧缓存换空间。
+
+consumer lease 成功取得时，repository 更新该 artifact 的 `lastSuccessfulLeaseAt`。这是 `gc incus` 的
+`unused` 规则唯一的时间依据；lookup、inventory、doctor 与 `--dry` 不刷新它。
+
+### 字节容量准入
+
+数量配额不能证明空间。prepare capture 与 consumer copy 在调用 Incus 之前都做字节准入：
+
+```text
+required = estimatedArtifactBytes + artifactStorageReserveBytes
+admit    = poolFreeBytes - inFlightReservedBytes >= required
+```
+
+- `poolFreeBytes` 读取 Incus storage pool resources；读取失败按不可准入处理，不按数量配额放行。
+- `estimatedArtifactBytes`：consumer copy 用源 artifact 在 capture 时持久化的 pool 字节增量；首次 capture 没有
+  样本时用 descriptor 的 `artifactEstimatedBytes`。dir driver 下 `volume info` 的 `Usage` 不可信，不作为样本。
+- `artifactStorageReserveBytes` 是 host descriptor 字段，表示任何准入后都必须保留的空闲字节；reference 与
+  development domain 都必填。
+- `inFlightReservedBytes` 是本 control process 已准入但尚未 settle 的 capture / copy 估算之和，计入
+  builder、consumer 与旧 head 尚未退役时的并发峰值。settle 后释放，不跨进程持久化。
+
+不满足时以 `sandbox-capacity-unavailable`、reason `storage-bytes` 拒绝该 prepare 或 Attempt，诊断包含
+pool 名、空闲字节、所需字节与上述两条下一步命令，不进入 Provider copy，也不隐式触发 GC。估算是 admission
+的保守下界，不是 attested 容量，不改变 reference comparable 判定。
 
 旧 revision 中没有 replacement scope 的 committed artifact 仍可按精确 identity 取得 consumer lease。
 repository 不猜测或回填其 scope，也不把它纳入自动回收候选。

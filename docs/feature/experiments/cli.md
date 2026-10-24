@@ -304,8 +304,11 @@ Human 最多显示五个 run configuration block；其余项显示准确省略�
 给出命令，被省略的 Run 不会因此失去下钻入口。
 合法零分必须显示成 `0 score · complete`，不能省略或当成 unavailable。
 
-Attempt 创建前的共享构建失败另列 `ERRORS`。Human 显示所属 run configuration、没有启动的 Attempt 数量、
+Attempt 创建前的共享失败另列 `ERRORS`，包括共享任务构建与[派发前 Sandbox 准备](#派发前-sandbox-准备)。Human 显示所属 run configuration、没有启动的 Attempt 数量、
 安全有界的真实错误正文与精确下钻命令，不展示 phase key、NiceEval 内部错误码、failure ID 或共享机制名称。
+
+有界正文同时保留开头与结尾，中间以省略字节数相连；Provider 错误的真正原因通常在长路径之后，只保留前缀会把它截掉。
+`exp --json` 在同一时刻输出一条带 run configuration 与同一安全正文的 `diagnostic` 事件。
 
 `not-dispatched` 仍是机器 membership，不能替代错误原因；后续 `niceeval show --run <runId>` 与
 `niceeval view --run <runId>` 以用户可理解的 Attempt 和错误说明呈现完整上下文。

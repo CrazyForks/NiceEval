@@ -582,8 +582,16 @@ Provider canonical preparation identity 至少包括：
 - pool / driver、network 与 resources / device config；
 - guest-init、Provider 与 capture revision。
 
-action manifest 保留每个 action 的 owner、ordinal、action id、频率、依赖、capability 与完整 action fingerprint，
-并按实际 schedule 排序。
+action manifest 只保留决定捕获状态的事实：按实际 schedule 排序的 action id、family、declared / cumulative
+state、canonical input、规范化 steps、capability 与完整 action fingerprint。schedule 已经线性化执行顺序，
+因此 owner kind / id、owner 内 ordinal、`changeFrequency` 及其声明位置和依赖边都不进入 `BeforeCacheKey` 与
+replacement scope。它们是声明出处，只进入 consumer 侧的 attribution manifest，用于 `--dry`、debug 与失败归因。
+
+这条边界成立的前提是：可捕获前缀只由声明式 family action 组成，`steps` 拿不到 owner。opaque callback 与
+`defineSandboxCommand()` 的 `context.owner` 可以改变行为，所以它们始终是 cache barrier，不进入任何可共享前缀。
+于是两个 Experiment 声明了相同 base、相同 Provider preparation identity 和相同的有序 action 内容时，
+它们命中同一份 prepared artifact，不按 owner 再存一份。共享的边界仍然是 execution domain 与
+preparation identity，不跨 domain、不跨 trust boundary 共享。
 
 `BeforeCacheKey` 不纳入 `CaseKey`、`BuildKey` 或 occurrence cohort 隔离代理；它们仍保有各自原本的职责，不能被
 拿来分裂同一业务 prefix。旧 key 只能 miss，不能被 adopt。Eval `test` 函数、Assertion 与只发生在 Agent/test

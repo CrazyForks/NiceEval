@@ -23,7 +23,7 @@ Attempt locator、coverage 与每项指标自己的分母。Run 仍为 `active` 
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "run.get", "runId": "run_example_next" }
 }
 ```

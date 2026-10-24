@@ -130,8 +130,13 @@ NiceEval repository 负责 prepared artifact、head、lease、`retiring` 与 abs
 clean publication failure 可以回到最深的已提交 ancestor 或 exact base，重新执行后续 prefix。
 unknown acceptance、identity 漂移、metadata 不一致或无法删除 orphan 时一律 fail closed。
 
-公开 GC 与 inventory API 另行定义；当前只要求 reconcile exact intent/object。quota 满时返回结构化 fallback 或
-失败，而不删除未知对象或把 cache 当成 base。
+公开维护入口是 [`inventory incus` 与 `gc incus`](cli.md#inventory-incus-与-gc-incus)。
+GC 复用 Docker cache 的两阶段 GcPlan，plan 与 outcome 落在 Incus repository。它只回收 repository 拥有
+committed 或 dangling intent 的 artifact，执行仍经过 `invalid → retiring → released` 与双对象 absence
+receipt。quota 或字节准入失败时返回结构化失败，而不删除未知对象、不隐式 GC，也不把 cache 当成 base。
+
+execution domain revision 变化后，旧 revision 的 artifact 对 lookup 是 foreign；但它们的 intent 仍由同一
+repository 拥有，因此是 `superseded-domain-revision` 候选，而不是永久占用配额的 legacy。
 
 ## 安全边界
 

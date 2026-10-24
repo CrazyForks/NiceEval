@@ -46,6 +46,8 @@ Run 的列表 operation 只有 `run.list`，详情 operation 只有 `run.get`。
 - 每个 Planned attempt 的 binding、Attempt locator、`origin | reference | null` relation；
 - active 空 Planned attempt 的 pending，或终态空 Planned attempt 的 `absenceReason`；
 - Verdict、score、coverage、usage，以及各指标自己的分母；
+- Run diagnostics：派发前共享失败（任务构建、Sandbox 准备、Experiment before）各一项，含安全错误正文与受影响的
+  Planned attempts。以 `dispatch-failed` 收口的 Planned attempt 指向对应一项，不在每个 Planned attempt 上复制正文；
 - missing、partial、unavailable、truncation 与其它证据边界。
 
 `state` 使用 Run 的 `active | completed | interrupted | failed` 生命周期。`completedAt` 只在 cutoff 已包含 Run 收口事实时提供，不取阶段性 Attempt publication 的时间。

@@ -20,9 +20,21 @@ niceeval sandbox provider doctor incus --development
 Doctor 同时报告 runtime allocation 与 prepared artifact 两种容量；artifact `0 free`
 必须使整体结果为 `FAIL`，即使已有 warm artifact 仍可命中。
 
-容量回收是 provider 的内部职责，不增加日常运维命令。NiceEval 只自动回收已被同一
-replacement lineage 的新 generation 取代、consumer lease 已归零且 provider 对象双向
-metadata 仍精确匹配的 artifact。
+Doctor 的 artifact 容量分成两项，任何一项不足都使整体 `FAIL`：
+
+- `artifact-capacity`：非 released intent 数相对 `artifactMaxInstances` 的余量；
+- `artifact-storage`：artifact pool 当前空闲字节相对 `artifactStorageReserveBytes` 与一份新副本的
+  估算字节（见 [Lifecycle · 字节容量准入](lifecycle.md#字节容量准入)）。读不到 pool 字节时显示 `unknown` 并
+  `FAIL`，不把数量余量当成空间余量。
+
+`artifact-inventory` 逐项核对 committed intent 与 Provider 对象，而不是只比较数量。intent 存在但
+virtual-machine type instance 或 custom storage volume 缺失时报告 `dangling`，并给出
+`sandbox provider gc incus` 作为下一步；对象存在但无 committed intent 时报告 `orphan`。只有一一对应时才
+`PASS`，PASS 的保证范围写在输出里：`N committed intents, N verified object pairs`。
+
+自动回收的范围只有已被同一 replacement lineage 的新 generation 取代、consumer lease 已归零且 provider 对象双向
+metadata 仍精确匹配的 artifact。内容变化产生新 lineage，不会让旧 lineage 被自动替代；其余回收全部走下面的
+显式两阶段 GC，不做后台删除。
 
 provider 对象使用 Incus 官方命名：virtual-machine type instance 与 custom storage volume。
 replacement head、consumer lease 与 absence receipt 由 NiceEval repository 拥有。
@@ -41,6 +53,53 @@ development 通过不能遮住 reference 失败；reference 通过也不暗示 d
 doctor 发现损坏时只登记 exact quarantine 建议。
 只有 reconciler 能根据 durable ownership 执行 destroy。
 doctor 自身不通过顺手 cleanup 改变被诊断现场。
+
+## `inventory incus` 与 `gc incus`
+
+prepared artifact 的公开维护入口与 doctor 同在 `sandbox provider` 下，按 domain 分开：
+
+```bash
+niceeval sandbox provider inventory incus [--development] [--json]
+niceeval sandbox provider gc incus [--development] [--unused-for <duration>] [--json]
+niceeval sandbox provider gc incus [--development] --apply <plan-id> [--json]
+```
+
+两条命令都不加载项目 config、Eval 或 Experiment，只读 descriptor、Incus repository 与 Provider inventory。
+用户不需要、也不应该直接 `incus delete` 托管实例；手删之后的悬空 intent 也由 `gc incus` 收回。
+
+### inventory
+
+只读列出该 domain 的每份 prepared artifact。每项显示短 artifact digest、execution domain revision、state、
+generation、是否当前 head 与 consumer lease 数。每项另显示创建时间、最后成功 lease 时间、估算字节与对象核对结果
+（`verified` / `dangling` / `metadata-drift`）。另列 orphan 对象与 pool 字节摘要。
+
+JSON 使用
+[Docker cache inventory](../../roadmap/sandbox-cache/cache-lifecycle/cli.md#domain-库存) 的同一
+`niceeval.cache-inventory` 顶层，`backendKind: "incus-artifacts"`；估算字节标 `estimate`，不能相加的数字标
+`not additive`。
+
+### 两阶段 GC
+
+`gc incus` 不带 `--apply` 只生成预览，并把 immutable GcPlan 持久化到 Incus repository；`--apply <plan-id>`
+只执行该 plan 列出的候选，只会因事实漂移缩减集合，不重新规划。plan 形状、15 分钟有效期、整单拒绝条件、
+outcome 文档和退出码全部沿用 [Docker 两阶段回收](../../roadmap/sandbox-cache/cache-lifecycle/cli.md#两阶段回收)，
+这里只定义 Incus 的候选规则：
+
+| ruleId | 条件 | 是否需要 flag |
+| --- | --- | --- |
+| `dangling-intent` | intent 非 released，但 instance 与 volume 都已确认 absent | 否 |
+| `superseded-domain-revision` | intent 属于同一 repository 的旧 execution domain revision，当前 lookup 不可能再命中 | 否 |
+| `superseded-generation` | 已被同 lineage 新 head 取代，但自动回收被中断 | 否 |
+| `unused` | 当前 domain revision 的 committed artifact，最后成功 lease 早于 `--unused-for`；从未 lease 的按创建时间 | `--unused-for` |
+
+所有规则都要求 lease 为零。`unused` 允许回收仍是 head 的 artifact：这是用户以显式时长换空间的决定，
+下次运行只会 miss 并重新 prepare，不影响正确性。没有 `--unused-for` 时不产生 `unused` 候选，NiceEval 不替
+用户猜 LRU 阈值。orphan、`metadata-drift` 和 quarantine 对象只在 inventory 中展示，永远不是候选。
+
+apply 对每个候选重新核对 intent state、generation、lease 与双向 metadata，然后走既有状态机：
+`committed → invalid → retiring`，两类对象分别落 absence receipt 后写 `released`。`dangling-intent` 不调用
+delete，直接以已确认的 absence receipt 走同一条 `retiring → released`，不绕过 fenced 状态机。
+preview 摘要给出估算可回收字节；apply 结束后重新读取 pool 字节并输出前后对比。
 
 ## 默认 reference
 
@@ -72,6 +131,8 @@ nested Docker V1 不提供：
 - `niceeval docker profile list|doctor|exec` 作为 adopted nested-Docker 诊断；
 - 用 development doctor 替代 reference doctor；
 - doctor 的 create / destroy allocation；
+- 跳过 lease、metadata 或 orphan 门的 `gc incus --force`；
+- 后台或运行中自动按年龄删除有效 artifact；
 - `--keep-sandbox` 与 `incusSandbox()` 的组合；
 - 让 CLI 在宿主上 mount、loop、nft、sudo、build、import 或 pull image。
 

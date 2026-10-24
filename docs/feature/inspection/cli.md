@@ -4,11 +4,17 @@
 
 ```sh
 niceeval query discover
-niceeval query explain --request <file|->
-niceeval query run --request <file|->
+niceeval query explain (--request <file|-> | --request-json <document>)
+niceeval query run (--request <file|-> | --request-json <document>)
 ```
 
-`query` 是 machine 入口：它只以 `niceeval.query/v2` 输出结构化结果，不接受 human 输出模式。每份 stdout
+request 有两种等价传输。`--request` 读取文件或 stdin；`--request-json` 把完整 request 文档作为一个 argv
+值传入。它服务不能写 stdin、也不应在被测工作区写临时文件的调用方。
+例如 Eval 内的 `t.sandbox.runCommand("niceeval", ["query", "run", "--request-json", JSON.stringify(request)])`。
+两者恰好择一，同时给出或都缺席是用法错误。两条路径得到同一份 request 后走完全相同的解码与校验，
+`--request-json` 不接受 operation 简写、位置参数或部分字段，也不另设一套 flag 化的 selector。
+
+`query` 是 machine 入口：它只以 `niceeval.query/v3` 输出结构化结果，不接受 human 输出模式。每份 stdout
 document 都显式包含 `outcome: discovery | success | explanation | failure`。
 人在终端中审阅同一批固定 operation 时使用下文的 `niceeval show`；浏览器体验仍由
 [Insight](../insight/README.md) 的 `niceeval view` 提供。
@@ -27,7 +33,7 @@ comparison mode 与 fact kinds，避免调用方先取重 payload。后者以 `o
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "project.get" }
 }
 ```
@@ -83,7 +89,7 @@ AI 要回答“已发布 Record 里有哪些 Experiment、各 Eval 的通过率�
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "overview.get" }
 }
 ```
@@ -138,7 +144,7 @@ artifacts、timing、usage、commands 与 diagnostics，状态为 `available | n
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": {
     "kind": "attempt.assertion.detail",
     "locator": "@<locator>",
@@ -187,7 +193,7 @@ source/field state 也是结果事实，View 只把它们映射到 `data-source-
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "attempt.trace", "locator": "@<locator>" }
 }
 ```
@@ -221,7 +227,7 @@ envelope 字段（actor label、evidence label、unresolved reason）没有预�
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": {
     "kind": "attempt.trace.detail",
     "locator": "@<locator>",
@@ -244,7 +250,7 @@ command detail 交付 invocation、outcome 与已封存 stdout/stderr。identity
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": {
     "kind": "attempt.trace.detail",
     "locator": "@<locator>",
@@ -277,7 +283,7 @@ Run 详情只有一个 operation：`run.get`。machine consumer、`show --run` �
 
 ```json
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "run.get", "runId": "run_01JSHOW" }
 }
 ```
@@ -288,13 +294,43 @@ Run 详情只有一个 operation：`run.get`。machine consumer、`show --run` �
 - expected/published/missing denominator，以及每个 Planned attempt 的 binding、Member state、Attempt locator 与 origin relation；
 - Verdict、score、coverage、usage 状态与摘要，以及 issues 与 limitations。
 
+### Planned attempt member
+
+`run.get` 的 `plannedAttempts[]` 与 `experiment.get` / `overview.get` 的 `cells[].members[]` 使用同一个
+`PlannedAttemptMember` 形状，读取同一个 Attempt 的代码在两处取到同一路径：
+
+```ts
+interface PlannedAttemptMember {
+  readonly plannedAttemptId: string;
+  readonly evalId: string;
+  readonly attemptOrdinal: number;
+  /** 只描述 binding：pending、absent（带 absenceReason）或 published。 */
+  readonly publication: PlannedAttemptPublication;
+  /** 以下结果字段与 publication 同级；未发布时为 null 或 unavailable MetricValue。 */
+  readonly verdict: "passed" | "failed" | "errored" | "skipped" | null;
+  readonly score: MetricValue;
+  readonly costUSD: MetricValue;
+  readonly durationMs: MetricValue;
+  readonly tokens: MetricValue;
+}
+```
+
+`publication` 只保留 binding 事实：`state`、`action`、`attemptId`、`attemptLocator`、`originRunId`、
+`originPlannedAttemptId`，或 pending / absent 的 reason，不再嵌入 verdict 或指标。Attempt locator 只在
+`publication.attemptLocator` 出现一次，member 上不再另放 `locator`。`run.get` 在同一 member 上追加
+`relation`、`outcome`、`coverage`、`usage` 与 `limitations`；`experiment.get` 追加 `runId` 与 `labels`。
+追加字段只增不改共享字段的位置。
+
+这是 response 结构变化，因此 protocol 从 `niceeval.query/v2` 升为 `niceeval.query/v3`；decoder 只接受 v3。
+v2 consumer 读到 v3 文档时以 protocol 不匹配失败，而不是在旧路径上静默得到 `undefined`。
+
 Run 已命中但 expected Member 未观测时，result 保留 `missing` Member 与不相等的 denominator。
 partial、not-recorded 或 unavailable 的 score、coverage、usage 不按失败或零补齐。
 这个 result 从 pinned facts 即时形成，不会作为 SQLite 派生表、缓存、Show DTO 或其它 artifact 持久化。
 
 ## machine 输出与错误面
 
-`query` 的 protocol 是 `niceeval.query/v2`。每次可形成协议输出的调用都恰好向 stdout 写一个 canonical
+`query` 的 protocol 是 `niceeval.query/v3`。每次可形成协议输出的调用都恰好向 stdout 写一个 canonical
 `InspectionDocument`。其 `outcome` 穷尽为 `discovery | success | explanation | failure`。
 success 编码 operation result，并带 `behaviorVersion`、source、`PublicationCutoff`、selection、limits、issues 与 Evidence。
 explanation 交付同一 operation 的读取范围与 fact kinds。failure 交付 code、reason 与 correction。
@@ -331,7 +367,7 @@ niceeval show @<locator> --usage
 niceeval show @<locator> --diff
 ```
 
-`show` 是英文 human text 入口。它不调用 `query` stdout 或解码 `niceeval.query/v2`，而是与
+`show` 是英文 human text 入口。它不调用 `query` stdout 或解码 `niceeval.query/v3`，而是与
 `query` 一样打开 Node facts adapter，调用具名 Inspection operation，再格式化其闭合 result。
 
 show 的每个投影只接受对应具名 operation 的 typed result；必填 shape 缺失时失败，只有契约
