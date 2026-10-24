@@ -56,10 +56,10 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       const failedSummary = await niceeval.run(["query", "run", "--request", failedRequest]);
       expect(failedSummary.exitCode, failedSummary.diagnostic()).toBe(0);
       const failedDocument = failedSummary.run();
-      expect(failedDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get", issues: [] });
+      expect(failedDocument).toMatchObject({ protocol: "niceeval.query/v3", operation: "run.get", issues: [] });
       expect(failedDocument.run.denominator).toEqual({ expected: 1, published: 1, missing: 0 });
       expect(failedDocument.run.plannedAttempts).toEqual([expect.objectContaining({
-        locator: failedEval.locator,
+        publication: expect.objectContaining({ state: "published", attemptLocator: failedEval.locator }),
         state: "executed",
         verdict: "failed",
       })]);
@@ -89,7 +89,7 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       const failedHumanSummary = await niceeval.run(["query", "run", "--request", failedHumanRequest]);
       expect(failedHumanSummary.exitCode, failedHumanSummary.diagnostic()).toBe(0);
       expect(failedHumanSummary.run().run.plannedAttempts).toEqual([expect.objectContaining({
-        locator: failedHumanLocator, verdict: "failed",
+        publication: expect.objectContaining({ state: "published", attemptLocator: failedHumanLocator }), verdict: "failed",
       })]);
 
       const sessions = await niceeval.run(["invocation", "list", "--all"]);
@@ -134,10 +134,10 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       const erroredSummary = await niceeval.run(["query", "run", "--request", erroredSummaryRequest]);
       expect(erroredSummary.exitCode, erroredSummary.diagnostic()).toBe(0);
       const erroredDocument = erroredSummary.run();
-      expect(erroredDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get", issues: [] });
+      expect(erroredDocument).toMatchObject({ protocol: "niceeval.query/v3", operation: "run.get", issues: [] });
       expect(erroredDocument.run.denominator).toEqual({ expected: 1, published: 1, missing: 0 });
       expect(erroredDocument.run.plannedAttempts).toEqual([expect.objectContaining({
-        locator: erroredEval.locator,
+        publication: expect.objectContaining({ state: "published", attemptLocator: erroredEval.locator }),
         state: "executed",
         verdict: "errored",
       })]);
@@ -149,7 +149,7 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       expect(erroredAttempt.exitCode, erroredAttempt.diagnostic()).toBe(0);
       const attemptDocument = erroredAttempt.attempt();
       expect(attemptDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "attempt.get",
         issues: [],
         attempt: {
@@ -166,7 +166,7 @@ test.concurrent("failed 与 errored 在 NDJSON、JUnit 和退出码上保持可�
       expect(erroredTrace.exitCode, erroredTrace.diagnostic()).toBe(0);
       const traceDocument = erroredTrace.attemptTrace();
       expect(traceDocument).toMatchObject({
-        protocol: "niceeval.query/v2", operation: "attempt.trace", issues: [],
+        protocol: "niceeval.query/v3", operation: "attempt.trace", issues: [],
       });
       const prepareCommand = only(
         traceDocument.trace.commands.items,
@@ -217,8 +217,8 @@ test.concurrent("Judge 调用错误可从 CLI 汇总追溯每次 Attempt", async
       expect(query.exitCode, query.diagnostic()).toBe(0);
       const members = query.run().run.plannedAttempts;
       expect(members).toHaveLength(2);
-      for (const member of members) expect(member).toMatchObject({ state: "executed", verdict: "errored", locator: expect.any(String) });
-      expect(new Set(members.map(({ locator }) => locator)).size).toBe(2);
+      for (const member of members) expect(member).toMatchObject({ state: "executed", verdict: "errored", publication: { state: "published", attemptLocator: expect.any(String) } });
+      expect(new Set(members.flatMap(({ publication }) => publication.state === "published" ? [publication.attemptLocator] : [])).size).toBe(2);
     },
   );
 });
@@ -315,7 +315,7 @@ test.concurrent("计分制与通过制 Human 结束摘要显示各自主读数",
       const carriedSummary = await niceeval.run(["query", "run", "--request", carriedRequest]);
       expect(carriedSummary.exitCode, carriedSummary.diagnostic()).toBe(0);
       expect(carriedSummary.run().run.plannedAttempts).toEqual([expect.objectContaining({
-        locator: freshForCarryEval.locator,
+        publication: expect.objectContaining({ state: "published", attemptLocator: freshForCarryEval.locator }),
         state: "carried",
         verdict: "passed",
       })]);

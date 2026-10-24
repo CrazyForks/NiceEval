@@ -109,7 +109,7 @@ export default defineExperiment({ adapter, evals: ["locator-background"] });
     expect(acceptedDocument.run.plannedAttempts).toEqual([
       expect.objectContaining({
         evalId: "accept/accept-target",
-        locator: oldLocator,
+        publication: expect.objectContaining({ state: "published", attemptLocator: oldLocator }),
         state: "accepted",
         verdict: "passed",
       }),

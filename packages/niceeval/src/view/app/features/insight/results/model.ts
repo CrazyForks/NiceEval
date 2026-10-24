@@ -111,10 +111,10 @@ export function closeOverview(document: InspectionSuccessDocumentFor<"overview.g
         ? Object.freeze({
             state: "published" as const,
             locator: member.publication.attemptLocator,
-            score: projectMetric(member.publication.score),
-            costUSD: projectMetric(member.publication.costUSD),
-            durationMs: projectMetric(member.publication.durationMs),
-            tokens: projectMetric(member.publication.tokens),
+            score: projectMetric(member.score),
+            costUSD: projectMetric(member.costUSD),
+            durationMs: projectMetric(member.durationMs),
+            tokens: projectMetric(member.tokens),
           })
         : member.publication,
     }))),

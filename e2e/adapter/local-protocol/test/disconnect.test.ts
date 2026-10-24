@@ -83,7 +83,7 @@ test("uiMessageStreamAgent 只接受在协议终点前完整形成的 Turn", asy
           }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
           expect(queried.exitCode, queried.diagnostic()).toBe(0);
           const document = queried.attemptTrace();
-          expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+          expect(document).toMatchObject({ protocol: "niceeval.query/v3", operation: "attempt.trace" });
           const trace = JSON.stringify(document.trace);
           expect(trace).toContain('"code":"agent-send-failed"');
           expect(trace).toContain('"kind":"execution-error"');

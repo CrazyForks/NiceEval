@@ -15,7 +15,7 @@ test.concurrent("读者从事件展示块读懂应用结果并展开外部轨迹
     expect(result.verdict).toBe("passed");
     const locator = result.locator.startsWith("@") ? result.locator : `@${result.locator}`;
     const request = join(projectRoot, "display.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace", locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.trace", locator } }));
     const query = await niceeval.run(["query", "run", "--request", request]);
     expect(query.exitCode, query.diagnostic()).toBe(0);
     const execution = query.querySuccess("attempt.trace").trace.execution;
@@ -74,7 +74,7 @@ test.concurrent("读者从事件展示块读懂应用结果并展开外部轨迹
     expect(full.stdout.replace(/\s+/gu, "")).toContain("界".repeat(400));
     expect(full.stdout.split("\n")).toContain(`printf '${"x".repeat(100)}'`);
     expect(full.stdout.split("\n")).toContain("\tprintf 'tail-sentinel'  ");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-event", eventId: long.eventId } } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.trace.detail", locator, selector: { kind: "execution-event", eventId: long.eventId } } }));
     const detail = await niceeval.run(["query", "run", "--request", request]);
     expect(detail.exitCode, detail.diagnostic()).toBe(0);
     expect(detail.querySuccess("attempt.trace.detail").detail).toMatchObject({ kind: "execution-event", event: { display: [
@@ -86,7 +86,7 @@ test.concurrent("读者从事件展示块读懂应用结果并展开外部轨迹
     const imageDetail = await niceeval.run(["show", locator, "--execution", "--expand", imageEvent.eventId]);
     expect(imageDetail.exitCode, imageDetail.diagnostic()).toBe(0);
     expect(imageDetail.stdout).toContain("niceeval query run --request -");
-    const requestLine = only(imageDetail.stdout.split("\n"), (line) => line.startsWith('{"protocol":"niceeval.query/v2","operation":{"kind":"attempt.artifact"'), imageDetail.diagnostic());
+    const requestLine = only(imageDetail.stdout.split("\n"), (line) => line.startsWith('{"protocol":"niceeval.query/v3","operation":{"kind":"attempt.artifact"'), imageDetail.diagnostic());
     await writeFile(request, requestLine);
     const bytes = await niceeval.run(["query", "run", "--request", request]);
     expect(bytes.exitCode, bytes.diagnostic()).toBe(0);

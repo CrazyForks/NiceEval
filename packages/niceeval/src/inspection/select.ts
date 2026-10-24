@@ -14,10 +14,7 @@ import { projectArtifactsListing } from "./artifact-list.ts";
 import { combineTotalUsageCosts, summarizeJudgeUsage, takeJudgeUsagePreview } from "../o11y/judge-usage-projection.ts";
 
 import { encodeAttemptLocator } from "../attempt-locator.ts";
-import {
-  foldRecordedAttemptVerdict,
-  type VerdictState,
-} from "../eval/record/verdict.ts";
+import { attemptVerdict } from "./verdict.ts";
 import type {
   AssertionCoverage,
   AssertionLimitation,
@@ -57,7 +54,7 @@ import {
   type LoadedInspectionRunResource,
   type ResolvedInspectionAttempt,
 } from "./facts.ts";
-import { selectInspectionOverview } from "./overview.ts";
+import { projectPlannedAttemptMetrics, selectInspectionOverview } from "./overview.ts";
 import type { InspectionFactSource } from "./source.ts";
 import { projectAttemptSources } from "./sources.ts";
 import { projectAttemptDiff } from "./diff.ts";
@@ -1143,6 +1140,15 @@ function runDetail(
         ? Object.freeze({ state: "absent", reason: binding.reason })
         : Object.freeze({ state: "pending" });
     const targetMember = bindings.get(slot.plannedAttemptId);
+    const resolved = targetMember?.attempt == null
+      ? undefined
+      : resolveInspectionResourceMemberAttempt(selectedResource, targetMember);
+    const metrics = projectPlannedAttemptMetrics(
+      value.runId,
+      { ...slot, slotId: slot.plannedAttemptId },
+      targetMember,
+      resolved,
+    );
     if (targetMember === undefined) {
       if (publication.state !== "pending" && publication.state !== "absent") {
         throw new Error(`Terminal Run ${value.runId} has no binding or absence for Planned attempt ${slot.plannedAttemptId}`);
@@ -1157,12 +1163,10 @@ function runDetail(
         member: Object.freeze({
           ...slot,
           publication,
+          ...metrics,
           state: limitation.state,
-          locator: null,
           relation: null,
           outcome: null,
-          verdict: null,
-          score: null,
           coverage: unavailableCoverage(),
           usage: unavailableUsage(),
           limitations: Object.freeze([limitation]),
@@ -1178,19 +1182,16 @@ function runDetail(
         member: Object.freeze({
           ...slot,
           publication,
+          ...metrics,
           state: targetMember.action,
-          locator: null,
           relation: null,
           outcome: null,
-          verdict: null,
-          score: null,
           coverage: unavailableCoverage(),
           usage: unavailableUsage(),
           limitations: Object.freeze([limitation]),
         }),
       });
     }
-    const resolved = resolveInspectionResourceMemberAttempt(selectedResource, targetMember);
     if (resolved === undefined) {
       const limitation = Object.freeze({
         kind: "attempt-unresolved" as const,
@@ -1201,12 +1202,10 @@ function runDetail(
         member: Object.freeze({
           ...slot,
           publication,
+          ...metrics,
           state: targetMember.action,
-          locator: null,
           relation: null,
           outcome: null,
-          verdict: null,
-          score: null,
           coverage: unavailableCoverage(),
           usage: unavailableUsage(),
           limitations: Object.freeze([limitation]),
@@ -1238,12 +1237,10 @@ function runDetail(
       member: Object.freeze({
         ...slot,
         publication,
+        ...metrics,
         state: targetMember.action,
-        locator: resolved.locator,
         relation: resolved.attempt.originRunId === value.runId ? "origin" : "reference",
         outcome: resolved.attempt.outcome,
-        verdict: attemptVerdict(resolved, assertions),
-        score: assertionScore(assertions.state === "available" ? assertions.value.entries : []),
         coverage: Object.freeze({
           state: coverageState,
           facts: coverageFacts,
@@ -1270,11 +1267,11 @@ function runDetail(
   const locatedLimitations = Object.freeze(members.flatMap((member) =>
     member.limitations.map((limitation) => Object.freeze({
       plannedAttemptId: member.plannedAttemptId,
-      locator: member.locator,
+      locator: member.publication.state === "published" ? member.publication.attemptLocator : null,
       limitation,
     }))));
   const usageResults = projected.flatMap(({ usage }) => usage === undefined ? [] : [usage]);
-  const observed = members.filter(({ locator }) => locator !== null).length;
+  const observed = members.filter(({ relation }) => relation !== null).length;
   const incompleteUsage = observed !== members.length ||
     usageResults.some(({ state }) => state !== "complete");
   const coverageLimitations = Object.freeze(locatedLimitations.filter(({ limitation }) =>
@@ -1320,24 +1317,6 @@ function aggregateRunOverviewState(
   if (states.every((state) => state === "not-recorded")) return "not-recorded";
   if (states.every((state) => state === "invalid")) return "invalid";
   return "partial";
-}
-
-function attemptVerdict(
-  resolved: ResolvedInspectionAttempt,
-  assertions = readInspectionAssertions(resolved),
-): VerdictState | null {
-  if (assertions.state === "available") {
-    return foldRecordedAttemptVerdict({
-      outcome: resolved.attempt.outcome,
-      assertions: assertions.value,
-    });
-  }
-  if (assertions.state !== "failed" || assertions.attachment === undefined) {
-    return null;
-  }
-  if (resolved.attempt.outcome === "errored" || resolved.attempt.outcome === "interrupted") return "errored";
-  if (containsRequiredAssertionError(assertions.attachment.value)) return "errored";
-  return containsFailedDecision(assertions.attachment.value) ? "failed" : null;
 }
 
 function assertionScore(entries: readonly {
@@ -1468,46 +1447,6 @@ function isAttemptCoverageChannel(
   return value === "events" || value === "actions" || value === "messages" ||
     value === "usage" || value === "status" || value === "data";
 }
-
-function containsFailedDecision(value: InspectionJson): boolean {
-  const entries = assertionWireEntries(value);
-  return entries?.some((entry) => {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
-    const decision = (entry as Readonly<Record<string, InspectionJson>>).decision;
-    if (typeof decision !== "object" || decision === null || Array.isArray(decision)) return false;
-    const record = decision as Readonly<Record<string, InspectionJson>>;
-    return record.result === "mismatched" && record.gate === "failed";
-  }) ?? false;
-}
-
-function containsRequiredAssertionError(value: InspectionJson): boolean {
-  const entries = assertionWireEntries(value);
-  return entries?.some((entry) => {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return false;
-    const record = entry as Readonly<Record<string, InspectionJson>>;
-    const decision = record.decision;
-    const policy = record.policy;
-    const requirement = typeof policy === "object" && policy !== null && !Array.isArray(policy)
-      ? (policy as Readonly<Record<string, InspectionJson>>).requirement
-      : undefined;
-    if (
-      typeof decision !== "object" || decision === null || Array.isArray(decision) ||
-      typeof requirement !== "object" || requirement === null || Array.isArray(requirement)
-    ) return false;
-    const decisionRecord = decision as Readonly<Record<string, InspectionJson>>;
-    const requirementRecord = requirement as Readonly<Record<string, InspectionJson>>;
-    return (decisionRecord.result === "unavailable" || decisionRecord.result === "errored") &&
-      decisionRecord.gate === "unavailable" &&
-      requirementRecord.state === "available" && requirementRecord.value === "required";
-  }) ?? false;
-}
-
-function assertionWireEntries(value: InspectionJson): readonly InspectionJson[] | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const entries = (value as Readonly<Record<string, InspectionJson>>)["entries-data"];
-  return Array.isArray(entries) ? entries : undefined;
-}
-
 function attemptUsage(resolved: ResolvedInspectionAttempt) {
   let inputTokens = 0;
   let outputTokens = 0;

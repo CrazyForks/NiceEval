@@ -30,7 +30,7 @@ test.concurrent("实验按标签和单位聚合数值 Note，忽略空值与非�
     expect(run.exitCode, run.diagnostic()).toBe(0);
     expect(run.expEvalEvents()).toHaveLength(5);
     const request = join(projectRoot, "notes.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "notes" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "experiment.get", experimentId: "notes" } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const notes = read.querySuccess("experiment.get").experiment.notes;

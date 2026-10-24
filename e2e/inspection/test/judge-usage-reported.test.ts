@@ -31,7 +31,7 @@ test.concurrent("OpenRouter 已报告费用与明确零覆盖两次传输，整�
         expect(sent).toMatchObject({ method: "POST", path: "/v1/chat/completions" });
       }
       const request = join(paths.projectRoot, "judge-usage.request.json");
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.usage", locator: event.locator } }));
       const read = await niceeval.run(["query", "run", "--request", request]);
       expect(read.exitCode, read.diagnostic()).toBe(0);
       const usage = read.querySuccess("attempt.usage").usage;
@@ -78,20 +78,20 @@ test.concurrent("OpenRouter 已报告费用与明确零覆盖两次传输，整�
       expect(usage.totalCosts).toEqual({ state: "complete", values: [{ currency: "USD", value: "0.252", source: "reported" }], missingSources: [] });
 
       // The ledger's formal entryId is consumed by the public detail operation.
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.get", locator: event.locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.get", locator: event.locator } }));
       const attemptRead = await niceeval.run(["query", "run", "--request", request]);
       expect(attemptRead.exitCode, attemptRead.diagnostic()).toBe(0);
       const entry = only(attemptRead.querySuccess("attempt.get").attempt.assertions.entries, (item) => item.display.label === "Answer QA", attemptRead.diagnostic());
       for (const call of judge.calls) {
         expect(call.entryId).toBe(entry.entryId);
-        await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.assertion.detail", locator: event.locator, entryId: call.entryId } }));
+        await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.assertion.detail", locator: event.locator, entryId: call.entryId } }));
         const detailRead = await niceeval.run(["query", "run", "--request", request]);
         expect(detailRead.exitCode, detailRead.diagnostic()).toBe(0);
         expect(detailRead.querySuccess("attempt.assertion.detail").assertion).toMatchObject({
           entryId: entry.entryId, display: { label: "Answer QA" }, check: { state: "matched" },
         });
       }
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "judge-usage-reported" } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "experiment.get", experimentId: "judge-usage-reported" } }));
       const experimentRead = await niceeval.run(["query", "run", "--request", request]);
       expect(experimentRead.exitCode, experimentRead.diagnostic()).toBe(0);
       const experiment = experimentRead.querySuccess("experiment.get").experiment;

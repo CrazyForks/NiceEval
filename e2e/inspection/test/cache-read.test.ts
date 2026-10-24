@@ -14,7 +14,7 @@ test.concurrent("按用途与真实模型判定缓存读取率并解释覆盖缺
       expect(run.exitCode, run.diagnostic()).toBe(0);
       const event = only(run.expEvalEvents(), (item) => item.evalId === "cache-read", run.diagnostic());
       expect(event.verdict).toBe("passed");
-      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+      await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.usage", locator: event.locator } }));
       const read = await niceeval.run(["query", "run", "--request", request]);
       expect(read.exitCode, read.diagnostic()).toBe(0);
       const report = read.querySuccess("attempt.usage").usage.cacheRead;

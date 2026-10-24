@@ -158,7 +158,7 @@ test("用户从多个 Experiment 收据完整浏览 Show 总览、Run、Attempt 
       writeFileSync(
         overviewRequestPath,
         JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "overview.get" },
         }),
         "utf8",
@@ -498,7 +498,7 @@ export default defineEval({ async test(t) {
 `, "utf8");
       }
       const requestPath = join(projectRoot, "project.request.json");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get" } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get" } }), "utf8");
       const beforeRun = await niceeval.run(["show"]);
       expect(beforeRun.exitCode, beforeRun.diagnostic()).toBe(0);
       expect(beforeRun.stdout).toMatch(/Covered\s+0\/3/u);
@@ -586,11 +586,11 @@ export default defineEval({ test(t) { t.check("accepted", equals("accepted")); }
       const externalCurrent = await niceeval.run(["query", "run", "--request", requestPath, "--record", portable]);
       expect(externalCurrent.exitCode, externalCurrent.diagnostic()).not.toBe(0);
       expect(externalCurrent.queryFailure().failure.code).toBe("current-target-unavailable");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get", experimentIds: ["current", "missing"] } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get", experimentIds: ["current", "missing"] } }), "utf8");
       const missing = await niceeval.run(["query", "run", "--request", requestPath]);
       expect(missing.exitCode, missing.diagnostic()).not.toBe(0);
       expect(missing.queryFailure().failure.code).toBe("inspection-selection-missing");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get" } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get" } }), "utf8");
 
       writeFileSync(changedPath, 'throw new Error("current target fixture cannot evaluate");\n', "utf8");
       expectShowFailure(await niceeval.run(["show"]), ["current-target-unavailable", "niceeval show --run <run-id>"]);
@@ -665,7 +665,7 @@ export default defineScoreEval({ test(t) {
       const runId = only(produced.expReceipt().createdRunIds, () => true, produced.diagnostic());
       const partialLocator = only(produced.expEvalEvents(), (event) => event.evalId === "score/partial", produced.diagnostic()).locator;
       const partialRequestPath = join(projectRoot, "partial.request.json");
-      writeFileSync(partialRequestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.get", locator: partialLocator } }), "utf8");
+      writeFileSync(partialRequestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.get", locator: partialLocator } }), "utf8");
       const partial = await niceeval.run(["query", "run", "--request", partialRequestPath]);
       expect(partial.exitCode, partial.diagnostic()).toBe(0);
       expect(partial.querySuccess("attempt.get").attempt).toMatchObject({ core: { outcome: "errored" }, score: { state: "unavailable", earned: 2, unavailable: 1 } });
@@ -676,7 +676,7 @@ export default defineScoreEval({ test(t) { t.score(4); } });
 `, "utf8");
       }
       const requestPath = join(projectRoot, "project.request.json");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get" } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get" } }), "utf8");
       const queried = await niceeval.run(["query", "run", "--request", requestPath]);
       expect(queried.exitCode, queried.diagnostic()).toBe(0);
       const project = queried.querySuccess("project.get").project;
@@ -747,7 +747,7 @@ export default defineEval({ async test(t) {
 } });
 `, "utf8");
       const requestPath = join(projectRoot, "project.request.json");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get" } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get" } }), "utf8");
       const initial = await niceeval.run(["exp", "current", "--json"]);
       expect(initial.exitCode, initial.diagnostic()).toBe(0);
       const initialRunId = only(initial.expReceipt().createdRunIds, () => true, initial.diagnostic());
@@ -856,7 +856,7 @@ import { equals } from "niceeval/expect";
 export default defineEval({ async test(t) { const turn = await t.send("current result"); t.check(turn.reply, equals("accepted")); } });
 `, "utf8");
       const requestPath = join(projectRoot, "project-request.json");
-      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "project.get" } }), "utf8");
+      writeFileSync(requestPath, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "project.get" } }), "utf8");
       const first = niceeval.start(["exp", "current", "--json"], { timeoutMs: 120_000 });
       let second: ReturnType<typeof niceeval.start> | undefined;
       try {

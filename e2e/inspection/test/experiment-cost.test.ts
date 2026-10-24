@@ -20,7 +20,7 @@ test.concurrent("实验总费用包含预览之外的失败 Attempt，部分 Eva
     expect(run.expEvalEvents()).toHaveLength(2);
     const originalRunId = only(run.expReceipt().createdRunIds, () => true, run.diagnostic());
     const request = join(paths.projectRoot, "experiment-cost.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "experiment-cost" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "experiment.get", experimentId: "experiment-cost" } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const experiment = read.querySuccess("experiment.get").experiment;

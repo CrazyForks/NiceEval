@@ -23,16 +23,17 @@ test.concurrent("并发多次 Attempt 全部结束后，四种结果均可从 Ru
         const slot = only(run.plannedAttempts, (slot) =>
           slot.evalId === `mixed-outcomes/${verdict}` && slot.attemptOrdinal === attemptOrdinal,
         readback.diagnostic());
-        expect(slot).toMatchObject({ state: "executed", verdict, locator: expect.stringMatching(/^@1/) });
+        expect(slot).toMatchObject({ state: "executed", verdict, publication: { state: "published", attemptLocator: expect.stringMatching(/^@1/) } });
+        if (slot.publication.state !== "published") throw new Error("Expected a published Attempt");
         const attemptRequest = await writeInspectionRequest(paths.projectRoot, `mixed-${verdict}-${attemptOrdinal}`, {
-          kind: "attempt.get", locator: slot.locator,
+          kind: "attempt.get", locator: slot.publication.attemptLocator,
         });
         const attempt = await niceeval.run(["query", "run", "--request", attemptRequest]);
         expect(attempt.exitCode, attempt.diagnostic()).toBe(0);
-        expect(attempt.attempt().attempt).toMatchObject({ locator: slot.locator });
+        expect(attempt.attempt().attempt).toMatchObject({ locator: slot.publication.attemptLocator });
         if (verdict === "errored") {
           const traceRequest = await writeInspectionRequest(paths.projectRoot, `mixed-error-trace-${attemptOrdinal}`, {
-            kind: "attempt.trace", locator: slot.locator,
+            kind: "attempt.trace", locator: slot.publication.attemptLocator,
           });
           const trace = await niceeval.run(["query", "run", "--request", traceRequest]);
           expect(trace.exitCode, trace.diagnostic()).toBe(0);

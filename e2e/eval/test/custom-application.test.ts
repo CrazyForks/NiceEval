@@ -46,7 +46,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
         const runId = only(receipt.createdRunIds, () => true, run.diagnostic());
         const runRequest = join(projectRoot, `custom-run-${implementation}.request.json`);
         await writeFile(runRequest, `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "run.get", runId },
         })}\n`, "utf8");
         const inspectedRun = await niceeval.run(["query", "run", "--request", runRequest]);
@@ -109,7 +109,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
             state: "executed",
             outcome: "completed",
           });
-          const locator = member.locator;
+          const locator = member.publication.state === "published" ? member.publication.attemptLocator : null;
           expect(locator, inspectedRun.diagnostic()).toEqual(expect.any(String));
           if (locator === null) throw new Error("custom Attempt did not expose its public locator");
 
@@ -165,7 +165,7 @@ test.concurrent("同一 Adapter 契约的不同实现执行原生动作并公开
 
           const usageRequest = join(projectRoot, `custom-usage-${locator.slice(1)}.request.json`);
           await writeFile(usageRequest, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v3",
             operation: { kind: "attempt.usage", locator },
           })}\n`, "utf8");
           const usageReceipt = await niceeval.run(["query", "run", "--request", usageRequest]);

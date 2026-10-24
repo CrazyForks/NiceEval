@@ -101,6 +101,6 @@ it("attempt.trace 读回 Bub 的代表性工具证据", async () => {
   }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
   expect(queried.exitCode, queried.diagnostic()).toBe(0);
   const document = queried.attemptTrace();
-  expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+  expect(document).toMatchObject({ protocol: "niceeval.query/v3", operation: "attempt.trace" });
   expect(JSON.stringify(document.trace)).toContain("notes.txt");
 });

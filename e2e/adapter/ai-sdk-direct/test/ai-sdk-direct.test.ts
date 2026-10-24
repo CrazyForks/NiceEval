@@ -97,7 +97,7 @@ it("attempt.trace 读回 aiSdkAgent 的代表性工具证据", async () => {
   );
   expect(queried.exitCode, queried.diagnostic()).toBe(0);
   const document = queried.attemptTrace();
-  expect(document).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+  expect(document).toMatchObject({ protocol: "niceeval.query/v3", operation: "attempt.trace" });
   const trace = JSON.stringify(document.trace);
   expect(trace).toContain("remember_marker");
   expect(trace).toContain(DIRECT_MARKER);

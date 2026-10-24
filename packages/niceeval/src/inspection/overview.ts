@@ -2,8 +2,8 @@
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/inspection/use-case/inspection-compare-quality-cost.md
 // @concord-implements docs/feature/insight/README.md
-import { PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
-import { foldRecordedAttemptVerdict } from "../eval/record/verdict.ts";
+import { PlannedAttemptMetricsSchema, type PlannedAttemptMember } from "./results.ts";
+import { attemptVerdict } from "./verdict.ts";
 import type { VerdictState } from "../eval/record/verdict.ts";
 import { Predicate, Result, Schema } from "effect";
 import type { MemberDocument, RecordSlotIdentity } from "../record/model/core.ts";
@@ -98,21 +98,9 @@ export interface InspectionOverviewAggregate {
   readonly issues: readonly InspectionJson[];
 }
 
-export interface InspectionOverviewMember {
+export interface InspectionOverviewMember extends PlannedAttemptMember {
   readonly runId: string;
-  readonly plannedAttemptId: string;
-  readonly evalId: string;
-  readonly attemptOrdinal: number;
   readonly labels: InspectionLabels;
-  readonly publication:
-    | Exclude<Schema.Schema.Type<typeof PlannedAttemptPublicationSchema>, { readonly state: "published" }>
-    | (Extract<Schema.Schema.Type<typeof PlannedAttemptPublicationSchema>, { readonly state: "published" }> & {
-        readonly verdict: VerdictState | null;
-        readonly score: InspectionMetricValue;
-        readonly costUSD: InspectionCostMetricValue;
-        readonly durationMs: InspectionMetricValue;
-        readonly tokens: InspectionMetricValue;
-      });
 }
 
 export interface InspectionOverviewCell extends InspectionOverviewAggregate {
@@ -269,7 +257,7 @@ export function aggregateInspectionCurrentSlots(inputs: readonly InspectionCurre
         coverage: Object.freeze([]),
         issues: Object.freeze([]),
         ref: null,
-      }) : analyzeAttempt(recorded.resolved, recorded.target, recorded.member, recorded.slot),
+      }) : analyzeAttempt(recorded.resolved, recorded.target.run.runId, recorded.member, recorded.slot),
     });
   }));
 }
@@ -318,7 +306,7 @@ function selectLatestSlots(
         slot,
         member,
         resolved,
-        analysis: analyzeAttempt(resolved, target, member, slot),
+        analysis: analyzeAttempt(resolved, target.run.runId, member, slot),
       });
     }));
 }
@@ -334,7 +322,7 @@ function compareOccurrence(
 
 function analyzeAttempt(
   resolved: ResolvedInspectionAttempt | undefined,
-  target: LoadedInspectionRun,
+  runId: string,
   member: MemberDocument | undefined,
   slot: RecordSlotIdentity,
 ): AttemptAnalysis {
@@ -351,7 +339,7 @@ function analyzeAttempt(
       coverage: Object.freeze([]),
       issues: Object.freeze([overviewIssue(
         hasReference ? "attempt-origin-missing" : "attempt-not-observed",
-        target.run.runId,
+        runId,
         slot,
       )]),
       ref: null,
@@ -365,7 +353,7 @@ function analyzeAttempt(
     return Object.freeze({
       assertionsState: assertions.state,
       evaluationKind: null,
-      verdict: null,
+      verdict: attemptVerdict(resolved, assertions),
       score: emptyAttemptScore(),
       costUSD: costUSDOf(resolved),
       ...operational,
@@ -418,10 +406,7 @@ function analyzeAttempt(
   return Object.freeze({
     assertionsState: "available" as const,
     evaluationKind: hasPoints ? "points" as const : "pass" as const,
-    verdict: foldRecordedAttemptVerdict({
-      outcome: resolved.attempt.outcome,
-      assertions: assertions.value,
-    }),
+    verdict: attemptVerdict(resolved, assertions),
     score: Object.freeze({
       hasPoints,
       earned,
@@ -450,7 +435,6 @@ function makeCell(
     ...aggregate(slots, scoreForCell(slots)),
     members: Object.freeze(slots.flatMap((selected): readonly InspectionOverviewMember[] => {
       if (selected.target === undefined || selected.slot === undefined) return [];
-      const resolved = selected.resolved;
       return [Object.freeze({
         runId: selected.target.run.runId,
         plannedAttemptId: selected.slot.slotId,
@@ -458,6 +442,7 @@ function makeCell(
         attemptOrdinal: selected.slot.attemptOrdinal,
         labels: inspectionLabels([selected], labelKeys),
         publication: overviewPublication(selected),
+        ...memberMetrics(selected),
       })];
     })),
   });
@@ -596,7 +581,7 @@ function unavailableOperationalMetric(): OperationalMetric {
 }
 
 function metricForSlots(
-  slots: readonly SelectedSlot[],
+  slots: readonly AnalyzedMember[],
   key: "durationMs" | "tokens",
   unit: "ms" | "tokens",
   fold: "average" | "sum",
@@ -640,12 +625,31 @@ function overviewPublication(
     attemptLocator: resolved.locator,
     originRunId: member.attempt.originRunId,
     originPlannedAttemptId: resolved.attempt.slotId,
+  });
+}
+
+/** Shared metrics for one planned position, including missing and unresolved publications. */
+export function projectPlannedAttemptMetrics(
+  runId: string,
+  slot: RecordSlotIdentity,
+  member: MemberDocument | undefined,
+  resolved: ResolvedInspectionAttempt | undefined,
+) {
+  return memberMetrics({ analysis: analyzeAttempt(resolved, runId, member, slot) });
+}
+
+type AnalyzedMember = Pick<SelectedSlot, "analysis">;
+
+const decodeMemberMetrics = Schema.decodeUnknownSync(PlannedAttemptMetricsSchema);
+
+function memberMetrics(selected: AnalyzedMember) {
+  return Object.freeze(decodeMemberMetrics({
     verdict: selected.analysis.verdict,
     score: scoreForMember(selected),
-    costUSD: costForSlots([selected]),
+    costUSD: costForAnalyses([selected]),
     durationMs: metricForSlots([selected], "durationMs", "ms", "average"),
     tokens: metricForSlots([selected], "tokens", "tokens", "sum"),
-  });
+  }));
 }
 
 function executionValue(
@@ -735,7 +739,10 @@ function costForSlots(slots: readonly SelectedSlot[]): InspectionCostMetricValue
     const key = slot.resolved?.locator ?? (slot.target === undefined ? `current:${slot.experimentId}:${slot.evalId}:${slot.attemptOrdinal}` : `slot:${slot.target.run.runId}:${slot.slot!.slotId}`);
     if (!unique.has(key)) unique.set(key, slot);
   }
-  const subjects = [...unique.values()];
+  return costForAnalyses([...unique.values()]);
+}
+
+function costForAnalyses(subjects: readonly AnalyzedMember[]): InspectionCostMetricValue {
   const valued = subjects.filter(({ analysis }) => analysis.costUSD.value !== null);
   const sources = new Set(valued.flatMap(({ analysis }) =>
     analysis.costUSD.source === null ? [] : [analysis.costUSD.source]));
@@ -820,7 +827,7 @@ function passRateOf(
   });
 }
 
-function scoreForMember(selected: SelectedSlot): InspectionMetricValue {
+function scoreForMember(selected: AnalyzedMember): InspectionMetricValue {
   const { analysis } = selected;
   if (analysis.evaluationKind === "pass") {
     return Object.freeze({
@@ -1019,7 +1026,7 @@ function evaluationKindOf(
     : "points";
 }
 
-function refsOf(slots: readonly SelectedSlot[]): readonly InspectionAttemptRef[] {
+function refsOf(slots: readonly AnalyzedMember[]): readonly InspectionAttemptRef[] {
   const refs = new Map<string, InspectionAttemptRef>();
   for (const { analysis } of slots) {
     if (analysis.ref !== null) refs.set(analysis.ref.identity.locator, analysis.ref);

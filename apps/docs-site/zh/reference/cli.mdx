@@ -16,11 +16,11 @@ description: "用 query、show 和 view 读取运行记录。"
 
 ```sh
 niceeval query discover
-niceeval query explain [--record <file>] --request <file|->
-niceeval query run [--record <file>] --request <file|->
+niceeval query explain [--record <file>] (--request <file|-> | --request-json <document>)
+niceeval query run [--record <file>] (--request <file|-> | --request-json <document>)
 ```
 
-`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v2`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数写错，或者进程出错到无法生成文档时，错误只写到 stderr。
+`query` 使用带版本号的 JSON 请求协议 `niceeval.query/v3`，每一种固定的读取问题叫一个 operation。成功的结果和协议里定义的失败，都会向 stdout 写出恰好一个 JSON 文档。参数无效时返回 failure 文档，退出码为 `2`。进程出错到无法生成文档时，错误只写到 stderr。
 
 - `discover` 列出当前版本支持的 operation ID。它不读运行记录，所以不接受 `--record`，也不返回请求的字段结构。
 - `explain` 校验完整请求，说明它会运行哪个 operation，以及接下来可以发哪些请求。
@@ -32,31 +32,41 @@ niceeval query run [--record <file>] --request <file|->
 
 ### 常用 operation 的请求与结果字段
 
-下面只列读取运行结果时常用的字段。请求顶层必须包含 `protocol: "niceeval.query/v2"` 和 `operation`，表中的参数放在 `operation` 内，与 `kind` 并列。成功响应的顶层 `outcome` 为 `"success"`。
+下面只列读取运行结果时常用的字段。请求顶层必须包含 `protocol: "niceeval.query/v3"` 和 `operation`，表中的参数放在 `operation` 内，与 `kind` 并列。成功响应的顶层 `outcome` 为 `"success"`。
 
 | `operation.kind` | 必填参数 | 关键结果字段（从响应顶层开始） |
 | --- | --- | --- |
 | `run.list` | 无 | `runs[]` 中的 `runId`、`experimentId`、`state`、`startedAt`、`invocationId`、`coverage` |
-| `run.get` | `runId`：Run ID | `run.plannedAttempts[]` 中的 `evalId`、`locator`、`outcome`、`verdict`、`publication.action`、`publication.attemptLocator` |
-| `experiment.get` | `experimentId`：实验 ID | `experiment.cells[]` 中的 `evalId`，以及 `members[].publication` 中的 `verdict`、`attemptLocator`、`action` |
+| `run.get` | `runId`：Run ID | `run.plannedAttempts[]` 中的 `evalId`、`outcome`、`verdict`、`publication.action`、`publication.attemptLocator` |
+| `experiment.get` | `experimentId`：实验 ID | `experiment.cells[]` 中的 `evalId`，以及 `members[]` 中的 `verdict`、`publication.attemptLocator`、`publication.action` |
 | `attempt.get` | `locator`：包含 `@` 的 Attempt 定位符 | `attempt.verdict`、`attempt.core.evalId`、`attempt.originRun.experimentId` |
 
 `run.get` 读取指定 Run 的计划与发布结果，`experiment.get` 读取每条评估用例当前采用的结果。局部重跑后，实验当前结果可以包含不同 Run 的 Attempt。发布结果的 `action` 为 `executed`、`carried` 或 `accepted`，分别表示本次执行、沿用已有结果或显式采用结果。
 
-判定的位置随 operation 不同：`run.get` 在 `run.plannedAttempts[].verdict`，`experiment.get` 在 `experiment.cells[].members[].publication.verdict`。先检查条目是否已经发布，再读取其 Attempt 定位符和判定；尚未发布的条目可能没有这些字段。
+`run.plannedAttempts[]` 与 `experiment.cells[].members[]` 使用相同成员字段。`verdict`、`score`、`costUSD`、`durationMs` 和 `tokens` 与 `publication` 同级；未发布时，判定为 `null`，指标为 unavailable。
+
+`publication` 只描述发布绑定。先检查 `publication.state` 是否为 `published`，再从 `publication.attemptLocator` 读取 Attempt 定位符。
 
 用 `--request -` 从标准输入传入完整请求：
 
 ```sh
 pnpm --silent exec niceeval query run --request - <<'JSON'
 {
-  "protocol": "niceeval.query/v2",
+  "protocol": "niceeval.query/v3",
   "operation": { "kind": "run.list" }
 }
 JSON
 ```
 
-响应的 `runs[]` 会列出 Run ID。读取其中一个 Run 时，把请求的 `operation` 换为 `{ "kind": "run.get", "runId": "<run-id>" }`。请求只能通过 `--request <file|->` 传入，不能直接作为位置参数。
+不能写标准输入的调用方可以把完整请求作为一个 argv 值传入：
+
+```sh
+niceeval query run --request-json '{"protocol":"niceeval.query/v3","operation":{"kind":"run.list"}}'
+```
+
+两种传输使用同一套校验，不接受 operation 简写或部分字段。缺少传输选项，或同时传入两种选项，均为用法错误。
+
+响应的 `runs[]` 会列出 Run ID。读取其中一个 Run 时，把请求的 `operation` 换为 `{ "kind": "run.get", "runId": "<run-id>" }`。请求必须通过 `--request <file|->` 或 `--request-json <document>` 传入，恰好选择一种。
 
 选择的 Run、实验或 Attempt 不存在时，响应顶层为 `outcome: "failure"`，`failure.code` 为 `"inspection-selection-missing"`，退出码为 `2`。这表示选择对象缺失，不是评估判定为 `failed`；先用 `run.list` 核对 ID，并确认读取的是对应项目的运行记录。
 
@@ -170,7 +180,8 @@ niceeval view [--run <run-id>...] [--no-open] [--port <port>] [--json]
 | `--dry` | `niceeval accept` | boolean | 完成整 Run 采用预检，但不发布新 Run。 |
 | `--all` | `niceeval invocation` | boolean | 包含已经完成的 Invocation 状态条目。 |
 | `--json` | `niceeval invocation` | boolean | 写出该命令的机器文档或事件流。 |
-| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v2 request。 |
+| `--request` | `niceeval query` | string | 从文件或标准输入读取一个 niceeval.query/v3 request。 |
+| `--request-json` | `niceeval query` | string | 从一个 argv 值读取完整的 niceeval.query/v3 request。 |
 | `--record` | `niceeval query`、`niceeval show` | string | 读取一个外部 canonical SQLite Record。 |
 | `--help` | `niceeval query` | boolean | 打印该命令的帮助。 |
 | `--json` | `niceeval show` | boolean | 写出该命令的机器文档或事件流。 |

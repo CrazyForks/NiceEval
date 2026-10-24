@@ -46,7 +46,7 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
       expect(active.invocationId).toEqual(expect.any(String));
 
       const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-      await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+      await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
       const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
       expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
       const shown = receipt.runGetDocument();
@@ -62,7 +62,7 @@ test.concurrent("运行创建后立即可发现，并冻结完整 expected slots
 
       const request = join(paths.projectRoot, "created-run.query.json");
       await writeFile(request, `${JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "run.get", runId: active.runId },
       })}\n`, "utf8");
       const queriedReceipt = await niceeval.run(["query", "run", "--request", request]);
@@ -150,7 +150,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
     }
     const historicalRequest = join(paths.projectRoot, "historical-run-summary.query.json");
     await writeFile(historicalRequest, `${JSON.stringify({
-      protocol: "niceeval.query/v2",
+      protocol: "niceeval.query/v3",
       operation: { kind: "run.get", runId: historicalRunId },
     })}\n`, "utf8");
 
@@ -199,7 +199,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
         return receipt.runListDocument().runs.find((run) => run.state === "active" && run.coverage.expected === 2);
       }, { timeoutMs: 20_000, intervalMs: 50, label: "the active Run to be listed" }), process, "the active Run became visible");
       const beforePublicationReceiptRequest = join(paths.projectRoot, "beforePublicationReceipt.query.json");
-      await writeFile(beforePublicationReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+      await writeFile(beforePublicationReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
       const beforePublicationReceipt = await niceeval.run(["query", "run", "--request", beforePublicationReceiptRequest]);
       expect(beforePublicationReceipt.exitCode, beforePublicationReceipt.diagnostic()).toBe(0);
       const beforePublication = beforePublicationReceipt.runGetDocument();
@@ -216,7 +216,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       await whileRunning(backend.waitForAttempt(1), process, "the second Attempt reached its backend");
       const shown = await whileRunning(pollUntil(async () => {
         const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
         const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
@@ -243,7 +243,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
 
       const activeRunRequest = join(paths.projectRoot, "active-run.query.json");
       await writeFile(activeRunRequest, `${JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "run.get", runId: active.runId },
       })}\n`, "utf8");
       const activeRunReceipt = await niceeval.run(["query", "run", "--request", activeRunRequest]);
@@ -281,13 +281,13 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
 
       const request = join(paths.projectRoot, "published-attempt.query.json");
       await writeFile(request, `${JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "attempt.get", locator: published.publication.attemptLocator },
       })}\n`, "utf8");
       const attemptReceipt = await niceeval.run(["query", "run", "--request", request]);
       expect(attemptReceipt.exitCode, attemptReceipt.diagnostic()).toBe(0);
       expect(attemptReceipt.attempt()).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "attempt.get",
         issues: [],
         attempt: {
@@ -356,7 +356,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
         expect(carriedList.exitCode, carriedList.diagnostic()).toBe(0);
         const carried = only(carriedList.runListDocument().runs, (run) => run.state === "active", carriedList.diagnostic());
         const carriedShowRequest = join(paths.projectRoot, "carriedShow.query.json");
-        await writeFile(carriedShowRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: carried.runId } }));
+        await writeFile(carriedShowRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: carried.runId } }));
         const carriedShow = await niceeval.run(["query", "run", "--request", carriedShowRequest]);
         expect(carriedShow.exitCode, carriedShow.diagnostic()).toBe(0);
         expect(carriedShow.runGetDocument().run).toMatchObject({
@@ -372,7 +372,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
         });
         const carriedRequest = join(paths.projectRoot, "carried-active-run.query.json");
         await writeFile(carriedRequest, `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "run.get", runId: carried.runId },
         })}\n`, "utf8");
         const carriedQuery = await niceeval.run(["query", "run", "--request", carriedRequest]);
@@ -386,10 +386,10 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
         expect(carriedRun.plannedAttempts).toEqual(expect.arrayContaining([
           expect.objectContaining({
             attemptOrdinal: 0, state: "carried", relation: "reference",
-            locator: published.publication.attemptLocator, outcome: "completed", verdict: "passed",
+            publication: expect.objectContaining({ state: "published", attemptLocator: published.publication.attemptLocator }), outcome: "completed", verdict: "passed",
           }),
           expect.objectContaining({
-            attemptOrdinal: 1, state: "pending", relation: null, locator: null,
+            attemptOrdinal: 1, state: "pending", relation: null,
             publication: { state: "pending" },
           }),
         ]));
@@ -419,7 +419,7 @@ test.concurrent("Attempt 原子发布后，active Run 与 portable Record 均完
       ]);
       expect(externalAttemptReceipt.exitCode, externalAttemptReceipt.diagnostic()).toBe(0);
       expect(externalAttemptReceipt.attempt()).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "attempt.get",
         issues: [],
         attempt: {
@@ -456,7 +456,7 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
       await whileRunning(backend.waitForAttempt(1), process, "the second Attempt reached its backend");
       const before = await whileRunning(pollUntil(async () => {
         const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
         const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
@@ -473,7 +473,7 @@ test.concurrent("用户 SIGINT 中断时保留已发布 Attempt 并解释未发�
         createdRunIds: [active.runId],
       });
       const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-      await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+      await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
       const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
       expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
       const interrupted = receipt.runGetDocument();
@@ -520,7 +520,7 @@ test.concurrent("存在引用时拒绝删除 origin，删除依赖后可安全�
       await whileRunning(backend.waitForAttempt(1), process, "the second Attempt reached its backend");
       const originShown = await whileRunning(pollUntil(async () => {
         const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: origin.runId } }));
+        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: origin.runId } }));
         const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
@@ -542,7 +542,7 @@ test.concurrent("存在引用时拒绝删除 origin，删除依赖后可安全�
       const dependency = only(afterReceipt.runListDocument().runs, (run) => !known.has(run.runId), afterReceipt.diagnostic());
       expect(dependency).toMatchObject({ state: "completed", coverage: { expected: 1, published: 1, missing: 0 } });
       const dependencyReceiptRequest = join(paths.projectRoot, "dependencyReceipt.query.json");
-      await writeFile(dependencyReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: dependency.runId } }));
+      await writeFile(dependencyReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: dependency.runId } }));
       const dependencyReceipt = await niceeval.run(["query", "run", "--request", dependencyReceiptRequest]);
       expect(dependencyReceipt.exitCode, dependencyReceipt.diagnostic()).toBe(0);
       expect(only(dependencyReceipt.runGetDocument().run.plannedAttempts, (slot) => slot.publication.state === "published", dependencyReceipt.diagnostic())).toMatchObject({
@@ -594,7 +594,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       await whileRunning(backend.waitForAttempt(1), process, "the second Attempt reached its backend");
       const beforeKill = await whileRunning(pollUntil(async () => {
         const receiptRequest = join(paths.projectRoot, "receipt.query.json");
-        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+        await writeFile(receiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
         const receipt = await niceeval.run(["query", "run", "--request", receiptRequest]);
         expect(receipt.exitCode, receipt.diagnostic()).toBe(0);
         const document = receipt.runGetDocument();
@@ -607,7 +607,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       const killed = await process.done;
       expect(killed.signal, killed.diagnostic()).toBe("SIGKILL");
       const activeReceiptRequest = join(paths.projectRoot, "activeReceipt.query.json");
-      await writeFile(activeReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+      await writeFile(activeReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
       const activeReceipt = await niceeval.run(["query", "run", "--request", activeReceiptRequest]);
       expect(activeReceipt.exitCode, activeReceipt.diagnostic()).toBe(0);
       const stillActive = activeReceipt.runGetDocument();
@@ -640,7 +640,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
 
       const resumedRunId = resumedReceipt.expReceipt().createdRunIds[0]!;
       const resumedRunReceiptRequest = join(paths.projectRoot, "resumedRunReceipt.query.json");
-      await writeFile(resumedRunReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: resumedRunId } }));
+      await writeFile(resumedRunReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: resumedRunId } }));
       const resumedRunReceipt = await niceeval.run(["query", "run", "--request", resumedRunReceiptRequest]);
       expect(resumedRunReceipt.exitCode, resumedRunReceipt.diagnostic()).toBe(0);
       const resumedRun = resumedRunReceipt.runGetDocument();
@@ -658,7 +658,7 @@ test.concurrent("SIGKILL 后自动沿用已发布 Attempt，只执行缺失 slot
       const recovered = await niceeval.run(["run", "recover", active.runId, "--yes", "--json"]);
       expect(recovered.exitCode, recovered.diagnostic()).toBe(0);
       const recoveredReceiptRequest = join(paths.projectRoot, "recoveredReceipt.query.json");
-      await writeFile(recoveredReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "run.get", runId: active.runId } }));
+      await writeFile(recoveredReceiptRequest, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "run.get", runId: active.runId } }));
       const recoveredReceipt = await niceeval.run(["query", "run", "--request", recoveredReceiptRequest]);
       expect(recoveredReceipt.exitCode, recoveredReceipt.diagnostic()).toBe(0);
       const recoveredRun = recoveredReceipt.runGetDocument();

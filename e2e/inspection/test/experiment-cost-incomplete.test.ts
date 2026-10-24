@@ -16,7 +16,7 @@ test.concurrent("实验已知零费用保留另一 Eval 的缺费来源，Query 
     ]));
     expect(run.expEvalEvents()).toHaveLength(2);
     const request = join(paths.projectRoot, "experiment-cost-incomplete.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "experiment.get", experimentId: "experiment-cost-incomplete" } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "experiment.get", experimentId: "experiment-cost-incomplete" } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const experiment = read.querySuccess("experiment.get").experiment;

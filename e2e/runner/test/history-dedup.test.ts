@@ -154,7 +154,7 @@ test("两次同时运行同一实验时，后开始的那次不重复跑已经�
         expect(document).toMatchObject({ operation: "run.get", issues: [] });
         expect(document.run.value).toMatchObject({ runId: secondRunId });
         expect(document.run.plannedAttempts).toEqual([
-          expect.objectContaining({ locator: firstLocator, state: "carried" }),
+          expect.objectContaining({ publication: expect.objectContaining({ state: "published", attemptLocator: firstLocator }), state: "carried" }),
         ]);
       });
     },

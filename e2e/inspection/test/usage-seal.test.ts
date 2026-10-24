@@ -12,7 +12,7 @@ test.concurrent("显式完整空应用账本交付完整零费用，默认 Show 
     const event = only(run.expEvalEvents(), (item) => item.evalId === "usage-seal-empty" && item.experimentId === "usage-seal-empty", run.diagnostic());
     expect(event.verdict).toBe("passed");
     const request = join(projectRoot, "usage-seal-empty.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
@@ -36,7 +36,7 @@ test.concurrent("显式 partial 应用账本保留已知费用，默认 Show 仍
     const event = only(run.expEvalEvents(), (item) => item.evalId === "usage-seal-partial" && item.experimentId === "usage-seal-partial", run.diagnostic());
     expect(event.verdict).toBe("passed");
     const request = join(projectRoot, "usage-seal-partial.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;
@@ -62,11 +62,11 @@ test.concurrent("封存后写入被 catch 仍发布 errored Attempt，保留已�
     const event = only(run.expEvalEvents(), (item) => item.evalId === "usage-seal-caught-write" && item.experimentId === "usage-seal-caught-write", run.diagnostic());
     expect(event.verdict).toBe("errored");
     const request = join(projectRoot, "usage-seal-caught-write.request.json");
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.get", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.get", locator: event.locator } }));
     const attempt = await niceeval.run(["query", "run", "--request", request]);
     expect(attempt.exitCode, attempt.diagnostic()).toBe(0);
     expect(attempt.querySuccess("attempt.get").attempt).toMatchObject({ core: { outcome: "errored" }, verdict: "errored" });
-    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.usage", locator: event.locator } }));
+    await writeFile(request, JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.usage", locator: event.locator } }));
     const read = await niceeval.run(["query", "run", "--request", request]);
     expect(read.exitCode, read.diagnostic()).toBe(0);
     const usage = read.querySuccess("attempt.usage").usage;

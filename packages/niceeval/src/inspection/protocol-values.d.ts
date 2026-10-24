@@ -1,1 +1,1 @@
-export declare const QUERY_PROTOCOL: "niceeval.query/v2";
+export declare const QUERY_PROTOCOL: "niceeval.query/v3";

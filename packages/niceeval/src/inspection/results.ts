@@ -3,7 +3,7 @@ import { projectLifecyclePhase } from "./lifecycle.ts";
 import { AttemptNotesSchema, AttemptNoteSchema } from "../record/family/attempt-note/schema.ts";
 import { CacheReadReportSchema } from "../o11y/cache-read.ts";
 import { Schema } from "effect";
-import { PlannedAttemptSchema, InspectionAttemptCoreSchema, InspectionRunCoreSchema, InspectionMemberSchema, InspectionPublishedPublicationSchema, PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
+import { PlannedAttemptSchema, InspectionAttemptCoreSchema, InspectionRunCoreSchema, InspectionMemberSchema, PlannedAttemptPublicationSchema } from "./planned-attempt.ts";
 import {
   AdapterCallPriceReceiptSchema,
   AdapterUsageCallSchema,
@@ -56,8 +56,6 @@ import {
 } from "../record/family/source-receipt/model.ts";
 import { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.ts";
 import {
-  RunAbsentPublicationSchema,
-  RunPendingPublicationSchema,
   RunStateSchema,
   RunSummarySchema,
 } from "../run/index.ts";
@@ -160,14 +158,21 @@ const AggregateFields = {
   coverage: Schema.Array(OverviewCoverageSchema),
   issues: Schema.Array(OverviewIssueSchema),
 } as const;
-const OverviewPublishedMemberSchema = Schema.Struct({
-  ...InspectionPublishedPublicationSchema.fields,
+export const PlannedAttemptMetricsSchema = Schema.Struct({
   verdict: Schema.NullOr(Schema.Literals(["passed", "failed", "errored", "skipped"])),
   score: MetricSchema,
   costUSD: CostMetricSchema,
   durationMs: MetricSchema,
   tokens: MetricSchema,
 });
+export const PlannedAttemptMemberSchema = Schema.Struct({
+  plannedAttemptId: PlannedAttemptSchema.fields.plannedAttemptId,
+  evalId: PlannedAttemptSchema.fields.evalId,
+  attemptOrdinal: PlannedAttemptSchema.fields.attemptOrdinal,
+  publication: PlannedAttemptPublicationSchema,
+  ...PlannedAttemptMetricsSchema.fields,
+});
+export type PlannedAttemptMember = Schema.Schema.Type<typeof PlannedAttemptMemberSchema>;
 const InspectionExecutionValueSchema = Schema.Union([
   Schema.Struct({ state: Schema.Literal("available"), value: Schema.String }),
   Schema.Struct({ state: Schema.Literal("mixed") }),
@@ -178,16 +183,9 @@ const InspectionLabelsSchema = Schema.Record(
   InspectionExecutionValueSchema,
 );
 const OverviewMemberSchema = Schema.Struct({
+  ...PlannedAttemptMemberSchema.fields,
   runId: Schema.String,
-  plannedAttemptId: Schema.String,
-  evalId: Schema.String,
-  attemptOrdinal: Schema.Number,
   labels: InspectionLabelsSchema,
-  publication: Schema.Union([
-    RunPendingPublicationSchema,
-    OverviewPublishedMemberSchema,
-    RunAbsentPublicationSchema,
-  ]),
 });
 const OverviewGroupSchema = Schema.Struct({
   groupPath: Schema.Array(Schema.String),
@@ -1041,15 +1039,12 @@ const RunOverviewMemberLimitationSchema = Schema.Union([
 ]);
 const RunOverviewMemberSchema = Schema.Struct({
   ...PlannedAttemptSchema.fields,
-  publication: PlannedAttemptPublicationSchema,
+  ...PlannedAttemptMemberSchema.fields,
   state: Schema.Literals([
     "executed", "carried", "accepted", "not-dispatched", "interrupted", "pending",
   ]),
-  locator: Schema.NullOr(Schema.String),
   relation: Schema.NullOr(Schema.Literals(["origin", "reference"])),
   outcome: Schema.NullOr(Schema.Literals(["completed", "errored", "cancelled", "interrupted"])),
-  verdict: VerdictSchema,
-  score: Schema.NullOr(InspectionScoredValueSchema),
   coverage: RunOverviewCoverageSchema,
   usage: RunOverviewUsageSchema,
   limitations: Schema.Array(RunOverviewMemberLimitationSchema),

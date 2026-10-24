@@ -111,7 +111,7 @@ export interface RunView {
     readonly relation: "origin" | "reference" | null;
     readonly outcome: AttemptOutcome | null;
     readonly verdict: Verdict | null;
-    readonly score: ScoredValue | null;
+    readonly score: Metric;
     readonly coverage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["coverage"];
     readonly usage: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["usage"];
     readonly limitations: InspectionSuccessDocumentFor<"run.get">["run"]["plannedAttempts"][number]["limitations"];
@@ -238,9 +238,10 @@ const cells = (values: InspectionOverviewResult["cells"]): OverviewView["cells"]
     publication: member.publication.state === "published"
       ? {
           ...member.publication,
-          score: metric(member.publication.score),
-          durationMs: metric(member.publication.durationMs),
-          tokens: metric(member.publication.tokens),
+          verdict: member.verdict,
+          score: metric(member.score),
+          durationMs: metric(member.durationMs),
+          tokens: metric(member.tokens),
         }
       : member.publication,
   })),
@@ -290,12 +291,12 @@ export function projectRun(document: InspectionSuccessDocumentFor<"run.get">): R
       plannedAttemptId: member.plannedAttemptId,
       evalId: member.evalId,
       attemptOrdinal: member.attemptOrdinal,
-      locator: member.locator,
+      locator: member.publication.state === "published" ? member.publication.attemptLocator : null,
       state: member.state,
       relation: member.relation,
       outcome: member.outcome,
       verdict: member.verdict,
-      score: member.score,
+      score: metric(member.score),
       coverage: member.coverage,
       usage: member.usage,
       limitations: member.limitations,

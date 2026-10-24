@@ -102,7 +102,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       expect(discovery.exitCode, discovery.diagnostic()).toBe(0);
       const discoveryDocument = discovery.queryDiscovery();
       expect(discovery.stdout).toBe(`${JSON.stringify(discoveryDocument)}\n`);
-      expect(discoveryDocument.protocol).toBe("niceeval.query/v2");
+      expect(discoveryDocument.protocol).toBe("niceeval.query/v3");
       expect(discoveryDocument.operations.map(({ id }) => id).toSorted()).toEqual(
         [...OPERATION_CATALOG].sort(),
       );
@@ -115,7 +115,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       ]);
       expect(sourceBoundDiscovery.exitCode, sourceBoundDiscovery.diagnostic()).toBe(2);
       expect(sourceBoundDiscovery.queryFailure()).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         outcome: "failure",
         operation: null,
         failure: {
@@ -128,7 +128,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       await writeFile(
         overviewRequestPath,
         `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "overview.get" },
         })}\n`,
         "utf8",
@@ -143,7 +143,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const overviewDocument = overview.querySuccess("overview.get");
       expect(overview.stdout).toBe(`${JSON.stringify(overviewDocument)}\n`);
       expect(overviewDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "overview.get",
         source: {
           kind: "project-record",
@@ -310,17 +310,17 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
             action: "executed",
             attemptLocator: memberLocator,
             originRunId: multiRunId,
-            score: {
-              state: "available",
-              value: 37.111111111111114,
-              samples: 1,
-              total: 1,
-              basis: "planned-attempt",
-              issues: [],
-              refs: [{ identity: { kind: "attempt", locator: memberLocator } }],
-              unit: "points",
-              bounds: { min: 0, max: 43.111111111111114 },
-            },
+          },
+          score: {
+            state: "available",
+            value: 37.111111111111114,
+            samples: 1,
+            total: 1,
+            basis: "planned-attempt",
+            issues: [],
+            refs: [{ identity: { kind: "attempt", locator: memberLocator } }],
+            unit: "points",
+            bounds: { min: 0, max: 43.111111111111114 },
           },
         });
       }
@@ -364,14 +364,14 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
           publication: {
             state: "published",
             attemptLocator: memberLocator,
-            score: {
-              state: "available",
-              value: 2,
-              samples: 1,
-              total: 1,
-              basis: "planned-attempt",
-              bounds: { min: 0, max: 2 },
-            },
+          },
+          score: {
+            state: "available",
+            value: 2,
+            samples: 1,
+            total: 1,
+            basis: "planned-attempt",
+            bounds: { min: 0, max: 2 },
           },
         });
       }
@@ -421,7 +421,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       await writeFile(
         requestPath,
         `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "run.get", runId },
         })}\n`,
         "utf8",
@@ -436,7 +436,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const explanation = explained.queryExplanation("run.get");
       expect(explained.stdout).toBe(`${JSON.stringify(explanation)}\n`);
       expect(explanation).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "run.get",
         source: {
           kind: "project-record",
@@ -457,7 +457,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const document = queried.querySuccess("run.get");
       expect(queried.stdout).toBe(`${JSON.stringify(document)}\n`);
       expect(document).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "run.get",
         source: {
           kind: "project-record",
@@ -470,6 +470,18 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         run: expect.anything(),
       });
       const publicSummary = JSON.stringify(document.run);
+      const runMember = only(document.run.plannedAttempts, (member) => member.evalId === "inspection", queried.diagnostic());
+      expect(runMember).toMatchObject({
+        publication: { state: "published", attemptLocator: locator },
+        verdict: "passed",
+        score: { state: "available", value: 37.111111111111114 },
+        costUSD: { state: "available", value: 0.00003 },
+        durationMs: { state: "available" },
+        tokens: { state: "available" },
+      });
+      expect(runMember).not.toHaveProperty("locator");
+      expect(runMember.publication).not.toHaveProperty("verdict");
+      expect(runMember.publication).not.toHaveProperty("score");
       expect(publicSummary).toContain(runId);
       expect(publicSummary).toContain("executed");
       expect(queried.stdout).not.toContain(projectRoot);
@@ -478,7 +490,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       await writeFile(
         requestPath,
         `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "attempt.usage", locator },
         })}\n`,
         "utf8",
@@ -492,7 +504,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       expect(overviewQueried.exitCode, overviewQueried.diagnostic()).toBe(0);
       const runOverviewDocument = overviewQueried.querySuccess("attempt.usage");
       expect(runOverviewDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "attempt.usage",
         source: {
           kind: "project-record",
@@ -512,7 +524,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       await writeFile(
         requestPath,
         `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: { kind: "run.get", runId: carriedRunId },
         })}\n`,
         "utf8",
@@ -526,7 +538,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       expect(carriedSummary.exitCode, carriedSummary.diagnostic()).toBe(0);
       const carriedSummaryDocument = carriedSummary.querySuccess("run.get");
       expect(carriedSummaryDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: "run.get",
         issues: [],
       });
@@ -550,7 +562,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       ] as const;
       for (const operation of operations) {
         await writeFile(operationRequestPath, `${JSON.stringify({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation,
         })}\n`, "utf8");
         const result = await niceeval.run([
@@ -563,9 +575,26 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
         const operationDocument = result.querySuccess(operation.kind);
         expect(result.stdout).toBe(`${JSON.stringify(operationDocument)}\n`);
         expect(operationDocument).toMatchObject({
-          protocol: "niceeval.query/v2",
+          protocol: "niceeval.query/v3",
           operation: operation.kind,
         });
+
+        if (operation.kind === "experiment.get") {
+          const cell = only(result.querySuccess("experiment.get").experiment.cells, (entry) => entry.evalId === "inspection", result.diagnostic());
+          const member = only(cell.members, () => true, result.diagnostic());
+          expect(member).toMatchObject({
+            publication: { state: "published", action: "carried", attemptLocator: locator },
+            verdict: runMember.verdict,
+            score: runMember.score,
+            costUSD: runMember.costUSD,
+            durationMs: runMember.durationMs,
+            tokens: runMember.tokens,
+          });
+          expect(member).not.toHaveProperty("locator");
+          expect(Object.keys(member.publication).sort()).toEqual([
+            "action", "attemptId", "attemptLocator", "originPlannedAttemptId", "originRunId", "state",
+          ]);
+        }
 
         if (operation.kind === "attempt.get") {
           const attemptDocument = operationDocument;
@@ -576,7 +605,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
           );
           expect(matcherEntry.entryId).not.toMatch(/^(?:t\d+\.c\d+|cmd\d+)$/u);
           await writeFile(operationRequestPath, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v3",
             operation: {
               kind: "attempt.assertion.detail",
               locator,
@@ -593,7 +622,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
           const assertionDocument = assertionDetail.querySuccess("attempt.assertion.detail");
           expect(assertionDetail.stdout).toBe(`${JSON.stringify(assertionDocument)}\n`);
           expect(assertionDocument).toMatchObject({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v3",
             operation: "attempt.assertion.detail",
             assertion: {
               entryId: matcherEntry.entryId,
@@ -726,7 +755,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
           expect(toolCall.itemId).not.toMatch(/^(?:t\d+\.c\d+|cmd\d+)$/u);
           expect(toolResult.itemId).not.toMatch(/^(?:t\d+\.c\d+|cmd\d+)$/u);
           await writeFile(operationRequestPath, `${JSON.stringify({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v3",
             operation: {
               kind: "attempt.trace.detail",
               locator,
@@ -743,7 +772,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
           const detailDocument = detail.querySuccess("attempt.trace.detail");
           expect(detail.stdout).toBe(`${JSON.stringify(detailDocument)}\n`);
           expect(detailDocument).toMatchObject({
-            protocol: "niceeval.query/v2",
+            protocol: "niceeval.query/v3",
             operation: "attempt.trace.detail",
             detail: {
               kind: "tool-occurrence",
@@ -803,7 +832,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       }
 
       await writeFile(operationRequestPath, `${JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "run.get", runId: "missing-run" },
       })}\n`, "utf8");
       const missing = await niceeval.run([
@@ -816,7 +845,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const missingDocument = missing.queryFailure();
       expect(missing.stdout).toBe(`${JSON.stringify(missingDocument)}\n`);
       expect(missingDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         outcome: "failure",
         operation: "run.get",
         failure: {
@@ -837,7 +866,7 @@ test("machine consumer 发现固定 catalog，再从 project Run 读取 origin A
       const invalidDocument = invalid.queryFailure();
       expect(invalid.stdout).toBe(`${JSON.stringify(invalidDocument)}\n`);
       expect(invalidDocument).toMatchObject({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         outcome: "failure",
         operation: null,
         failure: {

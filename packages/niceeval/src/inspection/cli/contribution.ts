@@ -31,7 +31,8 @@ const help = (summary: string) => Object.freeze({ summary, visibility: "public" 
 const option = (value: CliOptionDefinition): CliOptionDefinition => Object.freeze(value);
 
 export const QUERY_CLI_OPTIONS = Object.freeze({
-  request: option({ type: "string", help: help("Read one niceeval.query/v2 request from a file or -.") }),
+  request: option({ type: "string", help: help("Read one niceeval.query/v3 request from a file or -.") }),
+  "request-json": option({ type: "string", help: help("Read one complete niceeval.query/v3 request from an argv value.") }),
   record: option({ type: "string", help: help("Read an external canonical SQLite Record.") }),
   help: option({ type: "boolean", short: "h", help: help("Print query help.") }),
 } satisfies Readonly<Record<string, CliOptionDefinition>>);
@@ -40,8 +41,8 @@ const QUERY_HELP = `niceeval query — execute one fixed Inspection operation
 
 Usage:
   niceeval query discover
-  niceeval query explain [--record <file>] --request <file|->
-  niceeval query run [--record <file>] --request <file|->
+  niceeval query explain [--record <file>] (--request <file|-> | --request-json <document>)
+  niceeval query run [--record <file>] (--request <file|-> | --request-json <document>)
 `;
 
 type Requirements = CliArguments | CliInvocationFacts | CliOutput | ProjectConfiguration;
@@ -80,7 +81,7 @@ function runQuery(argv: readonly string[]): Effect.Effect<number, Error, Require
       return yield* usage("niceeval query expects exactly one of discover, explain, or run.");
     }
     if (action === "discover") {
-      if (parsed.values.request !== undefined) return yield* usage("query discover does not accept --request.");
+      if (parsed.values.request !== undefined || parsed.values["request-json"] !== undefined) return yield* usage("query discover does not accept request options.");
       if (parsed.values.record !== undefined) return yield* usage("query discover does not accept --record.");
       const encoded = canonicalJsonValue(Object.freeze({
         protocol: QUERY_PROTOCOL,
@@ -91,11 +92,15 @@ function runQuery(argv: readonly string[]): Effect.Effect<number, Error, Require
       yield* write("stdout", encoded.success);
       return 0;
     }
-    if (typeof parsed.values.request !== "string") return yield* usage(`query ${action} requires --request <file|->.`);
+    const requestFile = parsed.values.request;
+    const requestJson = parsed.values["request-json"];
+    if ((requestFile === undefined) === (requestJson === undefined)) {
+      return yield* usage(`query ${action} requires exactly one of --request <file|-> or --request-json <document>.`);
+    }
     let operation: InspectionOperationId | undefined;
     const result = yield* Effect.gen(function* () {
       const facts = yield* invocationFacts();
-      const request = yield* readQueryRequest(parsed.values.request as string, facts.cwd);
+      const request = yield* readQueryRequest(requestFile as string | undefined, requestJson as string | undefined, facts.cwd);
       operation = request.operation.kind;
       const source = typeof parsed.values.record === "string"
         ? externalInspectionSource(facts.cwd, parsed.values.record)
@@ -133,12 +138,12 @@ function invocationFacts() {
   );
 }
 
-function readQueryRequest(pathname: string, cwd: string): Effect.Effect<InspectionRequest, Error> {
+function readQueryRequest(pathname: string | undefined, inline: string | undefined, cwd: string): Effect.Effect<InspectionRequest, Error> {
   return Effect.gen(function* () {
-    const text = yield* Effect.tryPromise({
-      try: () => pathname === "-" ? readStandardInput() : readFile(resolve(cwd, pathname), "utf8"),
+    const text = inline ?? (yield* Effect.tryPromise({
+      try: () => pathname === "-" ? readStandardInput() : readFile(resolve(cwd, pathname!), "utf8"),
       catch: (cause) => failure("read request", cause),
-    });
+    }));
     if (Buffer.byteLength(text, "utf8") > 1_048_576) return yield* Effect.fail(failure("read request", "request exceeds 1 MiB"));
     const value = yield* Effect.try({ try: () => JSON.parse(text) as unknown, catch: (cause) => failure("parse request JSON", cause) });
     const decoded = decodeInspectionRequest(value);
@@ -197,7 +202,7 @@ function queryFailureDocument(
 ): InspectionFailureDocument {
   const detail = queryFailureDetail(error);
   return Object.freeze({
-    protocol: "niceeval.query/v2" as const,
+    protocol: "niceeval.query/v3" as const,
     outcome: "failure" as const,
     operation: operation ?? null,
     failure: Object.freeze(detail),
@@ -279,7 +284,7 @@ function queryFailureDetail(error: Error): InspectionFailureDocument["failure"] 
     return Object.freeze({
       code: cause.code,
       reason: cause.code === "inspection-request-invalid"
-        ? "The query request does not match niceeval.query/v2."
+        ? "The query request does not match niceeval.query/v3."
         : "NiceEval could not encode the fixed Inspection result.",
       correction: cause.code === "inspection-request-invalid"
         ? "fix-request" as const
@@ -290,7 +295,7 @@ function queryFailureDetail(error: Error): InspectionFailureDocument["failure"] 
   return requestFailure
     ? Object.freeze({
       code: "inspection-request-invalid" as const,
-      reason: "The query request could not be read as niceeval.query/v2.",
+      reason: "The query request could not be read as niceeval.query/v3.",
       correction: "fix-request" as const,
     })
     : Object.freeze({

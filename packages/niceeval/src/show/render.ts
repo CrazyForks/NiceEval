@@ -503,7 +503,7 @@ export function renderRun(value: RunView): string {
             { key: "Verdict", value: member.verdict ?? "not-recorded" },
             {
               key: "Score",
-              value: member.score === null ? "not-recorded" : score(member.score, member.verdict),
+              value: `${metric(member.score)}${member.verdict === "passed" && member.score.state === "available" && member.score.value !== null ? " (scored)" : ""}`,
             },
           ],
         },
@@ -886,7 +886,7 @@ function displayDetailBlocks(block: ExecutionDisplayDetailBlock, locator: string
   const lines = displayLines(block, eventId, TERMINAL_OPTIONS.width);
   const blocks: TerminalBlock[] = [{ kind: "code", text: lines.join("\n") }];
   if (block.kind === "image") {
-    const request = JSON.stringify({ protocol: "niceeval.query/v2", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
+    const request = JSON.stringify({ protocol: "niceeval.query/v3", operation: { kind: "attempt.artifact", locator, artifactId: block.artifactId } });
     blocks.push({ kind: "code", text: `niceeval query run --request - <<'NICEEVAL_REQUEST'\n${request}\nNICEEVAL_REQUEST` });
   }
   return blocks;

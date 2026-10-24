@@ -32,7 +32,7 @@ test("createPiAgentEventStream 的 subscribe 回调经 Experiment 和公开 CLI 
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(summaryReceipt.exitCode, summaryReceipt.diagnostic()).toBe(0);
     const summary = summaryReceipt.run();
-    expect(summary).toMatchObject({ protocol: "niceeval.query/v2", operation: "run.get" });
+    expect(summary).toMatchObject({ protocol: "niceeval.query/v3", operation: "run.get" });
     expect(summary.selection).toMatchObject({ selectedRunIds: [receipt.createdRunIds[0]!], missingRunIds: [] });
     expect(JSON.stringify(summary.run)).toContain(event.locator);
 
@@ -53,7 +53,7 @@ test("createPiAgentEventStream 的 subscribe 回调经 Experiment 和公开 CLI 
     }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
     expect(traceReceipt.exitCode, traceReceipt.diagnostic()).toBe(0);
     const traceDocument = traceReceipt.attemptTrace();
-    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v2", operation: "attempt.trace" });
+    expect(traceDocument).toMatchObject({ protocol: "niceeval.query/v3", operation: "attempt.trace" });
     const trace = JSON.stringify(traceDocument.trace);
     expect(trace).toContain("pi-agent-subscribe-success-marker");
     expect(trace).toContain("inventory_lookup");

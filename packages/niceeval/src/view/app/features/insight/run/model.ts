@@ -33,10 +33,10 @@ export function closeRun(
       evalId: member.evalId,
       attemptOrdinal: member.attemptOrdinal,
       state: member.state,
-      locator: member.locator,
+      locator: member.publication.state === "published" ? member.publication.attemptLocator : null,
       outcome: member.outcome,
       verdict: member.verdict,
-      ...(member.score === null ? {} : { score: member.score }),
+      score: member.score,
     }))),
   });
 }

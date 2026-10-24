@@ -13,7 +13,7 @@ export async function writeInspectionRequest(
   const requestPath = join(projectRoot, `${name}.query-request.json`);
   await writeFile(
     requestPath,
-    `${JSON.stringify({ protocol: "niceeval.query/v2", operation })}\n`,
+    `${JSON.stringify({ protocol: "niceeval.query/v3", operation })}\n`,
     "utf8",
   );
   return requestPath;

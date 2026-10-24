@@ -34,7 +34,7 @@ export function RunPage({ model, locale }: {
         : {
             kind: "verdict",
             verdict: member.verdict,
-            ...(member.verdict === "passed" && member.score?.state === "complete"
+            ...(member.verdict === "passed" && member.score?.state === "available"
               ? { label: localizedMessage("verdict.scored") }
               : {}),
           },

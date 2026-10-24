@@ -35,6 +35,7 @@ export {
 } from "./query.ts";
 export { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.ts";
 export { decodeInspectionRequest, type InspectionCodecError, type InspectionJson } from "./codec.ts";
+export { PlannedAttemptMemberSchema, type PlannedAttemptMember } from "./results.ts";
 export {
   readScoreMatchAudit,
   type ScoreMatchAudit,

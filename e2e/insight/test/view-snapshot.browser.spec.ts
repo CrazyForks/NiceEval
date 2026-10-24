@@ -59,7 +59,7 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
 
       const scoreRequestPath = join(projectRoot, "verdict-scores.request.json");
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "run.get", runId: scoreRunId },
       }));
       const scoreSummary = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
@@ -71,11 +71,11 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
         ["verdict-scores/zero", 0, 200],
       ] as const) {
         expect(only(scoreMembers, (member) => member.evalId === evalId, scoreSummary.diagnostic()))
-          .toMatchObject({ verdict: "failed", score: { state: "complete", earned, possible } });
+          .toMatchObject({ verdict: "failed", score: { state: "available", value: earned, bounds: { min: 0, max: possible } } });
       }
 
       await writeFile(scoreRequestPath, JSON.stringify({
-        protocol: "niceeval.query/v2",
+        protocol: "niceeval.query/v3",
         operation: { kind: "overview.get", runIds: [scoreRunId] },
       }));
       const scoreOverview = await niceeval.run(["query", "run", "--request", scoreRequestPath]);
@@ -91,9 +91,8 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
           state: "available", value: earned, samples: 1, total: 1, basis: "planned-attempt",
           bounds: { min: 0, max: possible },
         });
-        expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({
-          state: "published",
-          attemptLocator: scoreLocators.get(evalId),
+        expect(only(cell.members, () => true, scoreOverview.diagnostic())).toMatchObject({
+          publication: { state: "published", attemptLocator: scoreLocators.get(evalId) },
           score: { state: "available", value: earned, samples: 1, total: 1, bounds: { min: 0, max: possible } },
         });
       }
@@ -103,8 +102,8 @@ test("读者从层级 Overview 在可恢复 overlay 中审阅完整 Attempt 证�
       ] as const) {
         const cell = only(scoreOverviewDocument.overview.cells, (item) => item.evalId === evalId, scoreOverview.diagnostic());
         expect(cell.score).toMatchObject({ state: "unavailable", value: null, samples: 0, total: 1 });
-        expect(only(cell.members, () => true, scoreOverview.diagnostic()).publication).toMatchObject({
-          state: "published", score: { state: memberState, value: memberValue, samples: 0, total: 1 },
+        expect(only(cell.members, () => true, scoreOverview.diagnostic())).toMatchObject({
+          publication: { state: "published" }, score: { state: memberState, value: memberValue, samples: 0, total: 1 },
         });
       }
       const completeSubtotal = {
