@@ -5,4 +5,4 @@ packages: []
 allowBuilds:
   esbuild: true
 overrides:
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0

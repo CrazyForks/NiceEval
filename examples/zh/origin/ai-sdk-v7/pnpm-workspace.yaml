@@ -2,11 +2,12 @@ packages: []
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.8'
+  - '@ai-sdk/gateway@4.0.8 || 4.0.126'
   - '@ai-sdk/openai@4.0.5'
   - '@ai-sdk/react@4.0.5'
-  - '@ai-sdk/provider-utils@5.0.3'
-  - ai@7.0.11
+  - '@ai-sdk/provider-utils@5.0.3 || 5.0.68'
+  - ai@7.0.11 || 7.0.153
+  - '@ai-sdk/provider@4.0.34'
 overrides:
-  shell-quote: 1.9.0
-  ai: 7.0.11
+  shell-quote: 1.11.0
+  ai: 7.0.153

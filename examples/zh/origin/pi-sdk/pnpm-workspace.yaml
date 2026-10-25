@@ -4,4 +4,4 @@ allowBuilds:
   esbuild: true
   protobufjs: false
 overrides:
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0
