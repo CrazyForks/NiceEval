@@ -16,17 +16,17 @@
       "from": "examples/zh/origin/pi-sdk",
       "to": "examples/zh/tier1/pi-sdk",
       "contract": "verbatim",
-      "baseTree": "dad4861b0eec2dc36f753f4a11dc5cfbdecf8f02",
-      "pending": {
-        "upstreamTree": "d2ce45784a35d2e7242e6a3a818cb0f5a2c82269",
-        "needsInstall": true
-      }
+      "baseTree": "d2ce45784a35d2e7242e6a3a818cb0f5a2c82269"
     },
     {
       "from": "examples/zh/origin/ai-sdk-v7",
       "to": "examples/zh/tier1/ai-sdk-v7",
       "contract": "verbatim",
-      "baseTree": "8358841ecfac714b9246a7be70d597064c7f3a25"
+      "baseTree": "8358841ecfac714b9246a7be70d597064c7f3a25",
+      "pending": {
+        "upstreamTree": "621cee9a197c7ab8f82629c53f994e89c280701e",
+        "needsInstall": true
+      }
     },
     {
       "from": "examples/zh/origin/langgraph",
