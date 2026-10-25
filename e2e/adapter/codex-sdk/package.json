@@ -17,13 +17,13 @@
   "dependencies": {
     "@openai/codex-sdk": "0.142.5",
     "effect": "4.0.0-rc.112",
-    "niceeval": "^0.4.6",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "niceeval": "0.19.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
   }
 }

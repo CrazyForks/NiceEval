@@ -7,18 +7,20 @@
   },
   "type": "module",
   "description": "SQLite Record collection and portable snapshot journey",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "e2e": "tsc --noEmit && vitest run",
     "test": "node -e \"console.error('场景目录不是正式测试入口：请从仓库根运行 pnpm e2e test --repo migrate'); process.exit(1)\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "niceeval": "0.4.6"
+    "niceeval": "0.19.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.19.2",
     "typescript": "5.7.2",
-    "vitest": "4.1.11"
+    "vitest": "^4.1.12"
   }
 }

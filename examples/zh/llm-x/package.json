@@ -13,19 +13,19 @@
     "smoke": "tsx test/smoke.ts"
   },
   "dependencies": {
-    "next": "16.3.3",
+    "next": "16.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "^4.1.8",
-    "zustand": "^5.0.15"
+    "zod": "^4.6.7",
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
+    "@types/node": "^24.19.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "niceeval": "file:../../../packages/niceeval",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "niceeval": "link:../../../packages/niceeval",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@11.18.0"
 }

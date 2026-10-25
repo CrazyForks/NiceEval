@@ -8,21 +8,21 @@
   "type": "module",
   "scripts": {
     "e2e": "vitest run",
-    "test": "node -e \"console.error('\u573a\u666f\u76ee\u5f55\u4e0d\u662f\u6b63\u5f0f\u6d4b\u8bd5\u5165\u53e3\uff1a\u8bf7\u4ece\u4ed3\u5e93\u6839\u8fd0\u884c pnpm e2e test --repo adapter/claude-code'); process.exit(1)\"",
+    "test": "node -e \"console.error('场景目录不是正式测试入口：请从仓库根运行 pnpm e2e test --repo adapter/claude-code'); process.exit(1)\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "dockerode": "^4.0.2",
+    "dockerode": "^4.0.12",
     "effect": "4.0.0-rc.112",
-    "niceeval": "^0.9.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "niceeval": "0.19.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/dockerode": "^3.3.31",
-    "@types/node": "^24.0.0",
-    "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "@types/dockerode": "^3.3.47",
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "overrides": {

@@ -6,6 +6,7 @@ allowBuilds:
   ssh2: true
 minimumReleaseAgeExclude:
   - niceeval@0.1.0-alpha.0
+  - zod@4.6.6
 overrides:
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0
   niceeval: link:../../..

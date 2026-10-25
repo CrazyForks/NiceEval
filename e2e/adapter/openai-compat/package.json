@@ -17,12 +17,12 @@
   },
   "dependencies": {
     "effect": "4.0.0-rc.112",
-    "niceeval": "0.4.6",
+    "niceeval": "0.19.0",
     "openai": "6.49.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.19.2",
     "typescript": "5.7.2",
-    "vitest": "4.1.11"
+    "vitest": "^4.1.12"
   }
 }

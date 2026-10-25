@@ -7,6 +7,12 @@ packages:
 
 trustPolicy: off
 
+# Security fixes for transitive dependencies pinned by upstream packages.
+overrides:
+  'dockerode@4>uuid': 11.1.1
+  'katex@<0.18.2': 0.18.2
+  'undici@>=7.0.0 <7.30.1': 7.30.1
+
 allowBuilds:
   autoevals: false
   '@parcel/watcher': false

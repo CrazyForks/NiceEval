@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "niceeval": "file:../../../..",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "@types/node": "^24.19.2",
+    "niceeval": "link:../../../..",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   }
 }
