@@ -34,19 +34,19 @@
       "from": "examples/zh/tier1/ai-sdk-v7",
       "to": "examples/zh/tier2/ai-sdk-v7",
       "contract": "overlay",
-      "baseTree": "0d9624ac561b0a50b7079dfd0a068fd2396339ff"
+      "baseTree": "a60f1c39989273dd4b0b4c572651c84883de58a2"
     },
     {
       "from": "examples/zh/tier1/codex-sdk",
       "to": "examples/zh/tier2/codex-sdk",
       "contract": "overlay",
-      "baseTree": "f4cdd7d97400eeb69b0acc770ead5ec7d96accdd"
+      "baseTree": "3189bf97f6d78c23bcc0192d2a9c8afaea82fca9"
     },
     {
       "from": "examples/zh/tier1/langgraph",
       "to": "examples/zh/tier2/langgraph",
       "contract": "overlay",
-      "baseTree": "ab22313bbb16294c91d7b31cbbd977d22a15894c"
+      "baseTree": "b2e368f597794e4b59979f6be656e70e8a1845ea"
     },
     {
       "from": "examples/zh/tier2/ai-sdk-v7",
