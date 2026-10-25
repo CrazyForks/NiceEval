@@ -58,25 +58,25 @@
       "from": "examples/zh/tier2/codex-sdk",
       "to": "examples/zh/tier3/codex-sdk",
       "contract": "overlay",
-      "baseTree": "1274881695b8678a54c300bbc4a8671573674930"
+      "baseTree": "b21d43a7ab0226ce8f5986b581912724c7bac95d"
     },
     {
       "from": "examples/zh/tier2/langgraph",
       "to": "examples/zh/tier3/langgraph",
       "contract": "overlay",
-      "baseTree": "c93e43f92775dbf9c9aa0d9d9badec4c8ef76891"
+      "baseTree": "6585fbd73fd525d75fc833a4339e2ead268ab4da"
     },
     {
       "from": "examples/zh/tier1/claude-sdk",
       "to": "examples/zh/tier3/claude-sdk",
       "contract": "overlay",
-      "baseTree": "851a8a5f0c9b983a3f93b064a8e6eb1f2b272aa5"
+      "baseTree": "9006be54e229bca38bb4cc24b2ce2c2c5562e770"
     },
     {
       "from": "examples/zh/tier1/pi-sdk",
       "to": "examples/zh/tier3/pi-sdk",
       "contract": "overlay",
-      "baseTree": "2e5c8baf86729ca560c6fad3b37eb9848ada6ac4"
+      "baseTree": "298eac27a05aff09065a43aa5e4a1ed1a34c2ca3"
     }
   ]
 }
