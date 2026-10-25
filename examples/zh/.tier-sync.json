@@ -22,11 +22,7 @@
       "from": "examples/zh/origin/ai-sdk-v7",
       "to": "examples/zh/tier1/ai-sdk-v7",
       "contract": "verbatim",
-      "baseTree": "8358841ecfac714b9246a7be70d597064c7f3a25",
-      "pending": {
-        "upstreamTree": "621cee9a197c7ab8f82629c53f994e89c280701e",
-        "needsInstall": true
-      }
+      "baseTree": "621cee9a197c7ab8f82629c53f994e89c280701e"
     },
     {
       "from": "examples/zh/origin/langgraph",
