@@ -5,7 +5,7 @@ packages: []
 allowBuilds:
   esbuild: true
 overrides:
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0
   niceeval: link:../../../..
 minimumReleaseAgeExclude:
   - niceeval@0.1.1

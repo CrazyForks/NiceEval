@@ -4,7 +4,11 @@
       "from": "examples/zh/origin/codex-sdk",
       "to": "examples/zh/tier1/codex-sdk",
       "contract": "verbatim",
-      "baseTree": "141771acfa44a72f8ba565d992442aa5ebfa2548"
+      "baseTree": "141771acfa44a72f8ba565d992442aa5ebfa2548",
+      "pending": {
+        "upstreamTree": "604c7d454b39dad49653f205e5882a1779fc5268",
+        "needsInstall": true
+      }
     },
     {
       "from": "examples/zh/origin/claude-sdk",
