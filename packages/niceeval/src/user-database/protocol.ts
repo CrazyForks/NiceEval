@@ -1,3 +1,4 @@
+import type { OpenSandboxCacheRequest, OpenSandboxCacheResult } from "../sandbox/opensandbox/repository.ts";
 import type {
   DockerCacheRepositoryRequest,
   DockerCacheRepositoryResult,
@@ -35,7 +36,8 @@ export type UserDatabaseRepositoryRequest =
   | DurableStateRequest
   | DockerCacheRepositoryRequest
   | E2BCacheRequest
-  | IncusRepositoryRequest;
+  | IncusRepositoryRequest
+  | OpenSandboxCacheRequest;
 
 export type UserDatabaseRepositoryResult =
   | { readonly repository: typeof DURABLE_STATE_REPOSITORY; readonly operation: "put"; readonly changes: number }
@@ -43,7 +45,8 @@ export type UserDatabaseRepositoryResult =
   | { readonly repository: typeof DURABLE_STATE_REPOSITORY; readonly operation: "list"; readonly entries: readonly DurableStateEntry[] }
   | DockerCacheRepositoryResult
   | E2BCacheResult
-  | IncusRepositoryResult;
+  | IncusRepositoryResult
+  | OpenSandboxCacheResult;
 
 export type UserDatabaseResultFor<Request extends UserDatabaseRepositoryRequest> =
   Request extends DurableStateRequest
@@ -57,7 +60,7 @@ export type UserDatabaseResultFor<Request extends UserDatabaseRepositoryRequest>
         ? E2BCacheResultFor<Request>
         : Request extends IncusRepositoryRequest
           ? IncusRepositoryResultFor<Request>
-          : never;
+          : Request extends OpenSandboxCacheRequest ? OpenSandboxCacheResult : never;
 
 export interface UserDatabaseMigrationReceipt {
   readonly version: number;

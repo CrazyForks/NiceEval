@@ -1,3 +1,4 @@
+import { OPEN_SANDBOX_CACHE_REPOSITORY, openSandboxCacheRepositoryHandler } from "../../sandbox/opensandbox/repository.ts";
 import {
   DOCKER_CACHE_REPOSITORY,
   dockerCacheRepositoryHandler,
@@ -22,6 +23,7 @@ export const userDatabaseRepositoryCatalog = Object.freeze([
   dockerCacheRepositoryHandler,
   e2bCacheRepositoryHandler,
   incusRepositoryHandler,
+  openSandboxCacheRepositoryHandler,
 ]);
 
 export function repositoryHandlerFor(request: UserDatabaseRepositoryRequest) {
@@ -32,6 +34,8 @@ export function repositoryHandlerFor(request: UserDatabaseRepositoryRequest) {
       return dockerCacheRepositoryHandler;
     case E2B_CACHE_REPOSITORY:
       return e2bCacheRepositoryHandler;
+    case OPEN_SANDBOX_CACHE_REPOSITORY:
+      return openSandboxCacheRepositoryHandler;
     case INCUS_REPOSITORY:
       return incusRepositoryHandler;
   }
@@ -48,6 +52,8 @@ export function dispatchUserDatabaseRepository(
       return dockerCacheRepositoryHandler.dispatch(database, request);
     case E2B_CACHE_REPOSITORY:
       return e2bCacheRepositoryHandler.dispatch(database, request);
+    case OPEN_SANDBOX_CACHE_REPOSITORY:
+      return openSandboxCacheRepositoryHandler.dispatch(database, request);
     case INCUS_REPOSITORY:
       return incusRepositoryHandler.dispatch(database, request);
   }

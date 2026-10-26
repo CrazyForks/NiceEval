@@ -1,5 +1,5 @@
 import { Sandbox as RemoteSandbox, SandboxApiException, SandboxManager } from "@alibaba-group/opensandbox";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CommandOptions, CommandResult, ManagedProcess, ManagedProcessStart } from "../types.ts";
@@ -10,6 +10,7 @@ import { shellQuote } from "../shell.ts";
 import { collectLocalFiles } from "../local-files.ts";
 import { resolveLocalPath, resolveSandboxPath } from "../paths.ts";
 import { downloadDirectoryByList } from "../download-directory.ts";
+import { makeOpenSandboxCacheCapability } from "./cache.ts";
 import { startOpenSandboxProcess } from "./managed-process.ts";
 
 interface ExecutionIdentity {
@@ -21,17 +22,52 @@ interface ExecutionIdentity {
 export class OpenSandboxBackend implements SandboxProviderBackend {
   readonly workdir = "/home/sandbox/workspace";
   readonly otlpHost = null;
-  readonly capabilities = {
+  readonly capabilities: SandboxProviderBackend["capabilities"] = {
     ...noSandboxBackendCapabilities,
     rootCommands: supportedBackendCapability(true as const),
     setCommandDeadline: supportedBackendCapability((deadlineAt?: number) => { this.deadlineAt = deadlineAt; }),
     managedProcess: supportedBackendCapability((input: ManagedProcessStart) => this.startManagedProcess(input)),
   };
   private stopped = false;
+  private remoteRetired = false;
+  private replacing?: Promise<void>;
+  private cacheRoot?: () => Promise<void>;
+  private baselineMounts = new Set<string>();
   private stopping?: Promise<void>;
   private readonly identities = new Map<string, Promise<ExecutionIdentity>>();
 
-  private constructor(private readonly remote: RemoteSandbox, private readonly options: OpenSandboxOptions, private deadlineAt?: number) {}
+  private constructor(private remote: RemoteSandbox, private readonly options: OpenSandboxOptions,
+    private readonly connectionConfig: { domain: string; apiKey?: string; useServerProxy: boolean; disableMetrics: boolean },
+    private deadlineAt?: number) {
+    const url = new URL(connectionConfig.domain);
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+    const domainId = createHash("sha256").update(url.href).update("\0").update(createHash("sha256").update(connectionConfig.apiKey ?? "").digest()).digest("hex");
+    this.capabilities = { ...this.capabilities, setupPrefixCache: supportedBackendCapability(makeOpenSandboxCacheCapability({
+      options, domainId, connectionConfig,
+      sandboxId: () => this.sandboxId,
+      deadlineAt: () => this.deadlineAt,
+      readManifest: (path) => this.remote.files.readFile(path),
+      writeManifest: (path, contents) => this.remote.files.writeFiles([{ path, data: contents, mode: 600, owner: "root" }]),
+      mountsSafe: async () => {
+        const mounts = await this.mountLines();
+        return mounts.every((line) => {
+          const fields = line.split(" ");
+          const path = fields[4]!;
+          if (path === "/") return true;
+          if (!this.baselineMounts.has(line)) return false;
+          return /^(\/proc|\/sys|\/dev)(\/|$)/.test(path) ||
+            ["/opt/opensandbox", "/etc/hosts", "/etc/hostname", "/etc/resolv.conf"].includes(path) || fields[5]!.split(",").includes("ro");
+        });
+      },
+      rebase: (snapshotId, signal) => this.rebase(snapshotId, signal),
+      retire: () => this.retireCurrent(),
+      cancel: () => this.stop(),
+      adoptRoot: (release) => {
+        if (this.stopped || this.cacheRoot) throw new Error("OpenSandbox cannot adopt a cache root in its current state");
+        this.cacheRoot = release;
+      },
+    })) };
+  }
   get sandboxId(): string { return this.remote.id; }
 
   static async create(options: OpenSandboxOptions, deadlineAt?: number): Promise<OpenSandboxBackend> {
@@ -40,10 +76,15 @@ export class OpenSandboxBackend implements SandboxProviderBackend {
     const url = new URL(domain);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error("OPEN_SANDBOX_DOMAIN must be an HTTP(S) URL without credentials, query or fragment");
     const connectionConfig = { domain, apiKey: process.env.OPEN_SANDBOX_API_KEY, useServerProxy: true, disableMetrics: true };
+    const remote = await OpenSandboxBackend.provision(options, connectionConfig);
+    return new OpenSandboxBackend(remote, options, connectionConfig, deadlineAt);
+  }
+
+  private static async provision(options: OpenSandboxOptions, connectionConfig: { domain: string; apiKey?: string; useServerProxy: boolean; disableMetrics: boolean }, snapshotId?: string): Promise<RemoteSandbox> {
     const metadata = { "niceeval-provision-token": randomUUID() };
     let remote: RemoteSandbox;
     try { remote = await RemoteSandbox.create({
-      image: options.image,
+      ...(snapshotId === undefined ? { image: options.image } : { snapshotId }),
       connectionConfig,
       metadata,
       timeoutSeconds: Math.ceil(options.lifetimeMs / 1000),
@@ -67,7 +108,7 @@ export class OpenSandboxBackend implements SandboxProviderBackend {
       } finally { await manager.close(); }
       throw cause;
     }
-    return new OpenSandboxBackend(remote, options, deadlineAt);
+    return remote;
   }
 
   async initialize(signal: AbortSignal): Promise<void> {
@@ -76,12 +117,21 @@ export class OpenSandboxBackend implements SandboxProviderBackend {
     if (identity.exitCode !== 0 || identity.logs.stdout.map((chunk) => chunk.text).join("").trim() !== "0") {
       throw new Error("OpenSandbox requires an image that starts execd as root; choose the Agent execution identity with openSandbox({ user })");
     }
+    this.baselineMounts = new Set(await this.mountLines());
     // The SDK serializes octal permission digits (755), not a JS octal integer.
     await this.remote.files.createDirectories([{ path: this.workdir, mode: 755 }]);
     if (this.options.user !== undefined) {
       const result = await this.runCommand("chown", [this.options.user, this.workdir], { user: "root", signal });
       if (result.exitCode !== 0) throw new Error(`Cannot initialize OpenSandbox workspace: ${result.stderr}`);
     }
+  }
+
+  private async mountLines(): Promise<string[]> {
+    // procfs files advertise zero size; execd's file download endpoint cannot
+    // read them reliably. Read through argv execution instead.
+    const result = await this.remote.commands.run(["cat", "/proc/self/mountinfo"]);
+    if (result.exitCode !== 0) throw new Error("Cannot inspect OpenSandbox rootfs mounts");
+    return result.logs.stdout.map((chunk) => chunk.text).join("").trim().split("\n");
   }
 
   private identity(user = this.options.user ?? "root"): Promise<ExecutionIdentity> {
@@ -198,14 +248,42 @@ export class OpenSandboxBackend implements SandboxProviderBackend {
     const remoteDir = resolveSandboxPath(this.workdir, source);
     await downloadDirectoryByList({ localDir: resolveLocalPath(undefined, target), ignore: options.ignore ?? [], runShell: (script) => this.runShell(script, { cwd: remoteDir }), readOne: (path) => this.readBytes(`${remoteDir}/${path}`) });
   }
-  async stop(): Promise<void> {
-    if (this.stopped) return;
-    if (this.stopping) return this.stopping;
-    this.stopping = (async () => {
+  private async retireCurrent(): Promise<void> {
+    if (!this.remoteRetired) {
       try { await this.remote.kill(); }
       catch (cause) { if (!(cause instanceof SandboxApiException && cause.statusCode === 404)) throw cause; }
       await this.remote.close();
-      this.stopped = true;
+      this.remoteRetired = true;
+    }
+    if (this.cacheRoot) {
+      await this.cacheRoot();
+      this.cacheRoot = undefined;
+    }
+  }
+
+  private async rebase(snapshotId: string | undefined, signal: AbortSignal): Promise<void> {
+    if (this.stopped || this.replacing) throw new Error("OpenSandbox cannot replace its active instance");
+    this.replacing = (async () => {
+      await this.retireCurrent();
+      signal.throwIfAborted();
+      if (this.stopped) throw new Error("OpenSandbox is stopped");
+      const replacement = await OpenSandboxBackend.provision(this.options, this.connectionConfig, snapshotId);
+      this.remote = replacement;
+      this.remoteRetired = false;
+      this.identities.clear();
+      signal.throwIfAborted();
+      if (this.stopped) throw new Error("OpenSandbox is stopped");
+    })();
+    try { await this.replacing; } finally { this.replacing = undefined; }
+    await this.initialize(signal);
+  }
+
+  async stop(): Promise<void> {
+    if (this.stopping) return this.stopping;
+    this.stopped = true;
+    this.stopping = (async () => {
+      await this.replacing?.catch(() => undefined);
+      await this.retireCurrent();
     })();
     try { await this.stopping; } finally { this.stopping = undefined; }
   }

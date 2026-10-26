@@ -1,3 +1,4 @@
+import { isOpenSandboxCacheResult } from "../sandbox/opensandbox/repository.ts";
 import { Worker } from "node:worker_threads";
 import { Effect, type Scope } from "effect";
 import { isDockerCacheRepositoryResult } from "../sandbox/docker-cache-repository.ts";
@@ -104,7 +105,7 @@ function isResult(value: unknown): value is UserDatabaseRepositoryResult | UserD
   if (Reflect.get(value, "kind") === "void") return true;
   if (["bootstrapped", "migrated", "current"].includes(String(Reflect.get(value, "status")))) return isMigrationResult(value);
   if (Reflect.get(value, "repository") !== DURABLE_STATE_REPOSITORY) {
-    return isDockerCacheRepositoryResult(value) || isE2BCacheResult(value) || isIncusRepositoryResult(value);
+    return isOpenSandboxCacheResult(value) || isDockerCacheRepositoryResult(value) || isE2BCacheResult(value) || isIncusRepositoryResult(value);
   }
   const operation = Reflect.get(value, "operation");
   if (operation === "put") return Number.isSafeInteger(Reflect.get(value, "changes"));

@@ -23,7 +23,7 @@ const providerModule: SandboxProviderModule<OpenSandboxOptions> = {
   capabilities: {
     retention: { _tag: "DestroyOnly" },
     reuse: { _tag: "Unsupported", reason: "OpenSandbox instances belong to one Attempt." },
-    setupPrefix: { _tag: "Unsupported", reason: "OpenSandbox setup actions are replayed." },
+    setupPrefix: { _tag: "Persistent", coverage: "all" },
     sessionLimit: { _tag: "ProviderValidated", reason: "The OpenSandbox service validates instance lifetime." },
   },
   collectBuildPreparation: () => Effect.succeed(Option.none()),

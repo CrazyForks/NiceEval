@@ -79,7 +79,11 @@ Docker、Kubernetes 等 runtime 由 OpenSandbox 服务端选择，NiceEval 无�
 
 镜像必须以 root 启动 execd，并提供 Bash 和 Git；用 `user` 让 Agent 以非 root 身份执行。交互 Coding Agent 还需要 Node.js 24。
 
-命令取消或超时会销毁整个实例。此 Provider 不支持保留现场、跨 Attempt 复用或准备缓存；运行中的 Sandbox 也不会自动获得 Docker daemon。
+命令取消或超时会销毁整个实例。此 Provider 不支持保留现场或跨 Attempt 复用；运行中的 Sandbox 也不会自动获得 Docker daemon。
+
+服务启用 rootfs 快照后，digest-pinned 镜像可使用 before 准备缓存。缓存保存文件系统内容，每个 Attempt 从快照创建独立实例。它不保存运行中的进程、卷或 tmpfs；需要运行中的服务放在不可缓存的 command 步骤里启动。新增挂载或已知敏感内容会使该 Attempt 继续执行而不发布缓存。
+
+用 `sandboxCache: { before: "bypass" }` 或 `--sandbox-before-cache bypass` 排障时，准备步骤会重新执行，并跳过缓存读取与发布。快照请求发出后若失败，当前 Attempt 会终止，已完成的准备步骤不会在该 Attempt 自动重跑。
 
 接入服务时，需要验证销毁成功响应代表实例及其进程已停止。仅受理异步删除的服务不能满足这项要求；填写 runtime 名称无法替代验证。
 

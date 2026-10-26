@@ -1,3 +1,4 @@
+import { OPEN_SANDBOX_CACHE_REPOSITORY, OPEN_SANDBOX_CACHE_SCHEMA_SQL, OPEN_SANDBOX_CACHE_SCHEMA_OBJECTS, isOpenSandboxCacheRequest } from "../sandbox/opensandbox/repository.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { access, link, mkdir, open as openFile, unlink } from "node:fs/promises";
@@ -43,7 +44,7 @@ const HostFormatIdentity = "niceeval-user-database/0.14.0";
 const UnsupportedPrereleaseIdentities = new Set(["niceeval-user-database/v2"]);
 const MigrationBaseline = "0.14.0";
 const CreateHostFormat = `CREATE TABLE ${HostFormatTable} (format_id TEXT PRIMARY KEY CHECK(format_id = '${HostFormatIdentity}')) STRICT`;
-const CurrentVersion = 3;
+const CurrentVersion = 4;
 
 function schemaObjectKey([type, name, table]: readonly string[]): string {
   return `${type}\u0000${name}\u0000${table}`;
@@ -51,6 +52,7 @@ function schemaObjectKey([type, name, table]: readonly string[]): string {
 
 /** UserDatabase is one static application format with one complete final schema. */
 const AllowedSchemaObjects = new Set<string>([
+  ...OPEN_SANDBOX_CACHE_SCHEMA_OBJECTS,
   ["table", HostFormatTable, HostFormatTable],
   ["table", LedgerTable, LedgerTable],
   ["table", "durable_state_entries", "durable_state_entries"],
@@ -126,7 +128,7 @@ const Migration1Digest = createHash("sha256")
   .update("\0")
   .update(CreateLedger)
   .update("\0")
-  .update(userDatabaseRepositoryCatalog.map((entry) => entry.id).join("\n"))
+  .update(userDatabaseRepositoryCatalog.filter((entry) => entry.id !== OPEN_SANDBOX_CACHE_REPOSITORY).map((entry) => entry.id).join("\n"))
   .digest("hex");
 
 function exactSql(sql: string): string {
@@ -222,6 +224,7 @@ const UserDatabaseMigrationCatalog = defineSqliteMigrationCatalog([
     digest: Migration1Digest,
     apply: (database: DatabaseSync): void => {
       for (const handler of userDatabaseRepositoryCatalog) {
+        if (handler.id === OPEN_SANDBOX_CACHE_REPOSITORY) continue;
         if (handler.id === E2B_CACHE_REPOSITORY) installE2BCacheSchemaV1(database);
         else if (handler.id === INCUS_REPOSITORY) installIncusSchemaV3(database);
         else handler.installCurrentSchema(database);
@@ -239,6 +242,11 @@ const UserDatabaseMigrationCatalog = defineSqliteMigrationCatalog([
     version: 3,
     digest: createHash("sha256").update(`niceeval.user-database/${MigrationBaseline}/migration/3\0`).update(INCUS_GC_SCHEMA_SQL).digest("hex"),
     apply: (database: DatabaseSync): void => { database.exec(INCUS_GC_SCHEMA_SQL); },
+  }),
+  Object.freeze({
+    version: 4,
+    digest: createHash("sha256").update(`niceeval.user-database/${MigrationBaseline}/migration/4\0`).update(OPEN_SANDBOX_CACHE_SCHEMA_SQL).digest("hex"),
+    apply: (database: DatabaseSync): void => { database.exec(OPEN_SANDBOX_CACHE_SCHEMA_SQL); },
   }),
 ], CurrentVersion);
 
@@ -384,6 +392,7 @@ function decodeRequest(value: unknown): UserDatabaseWorkerRequest | undefined {
     isDurableStateRequest(request) ||
     isDockerCacheRepositoryRequest(request) ||
     isE2BCacheRequest(request) ||
+    isOpenSandboxCacheRequest(request) ||
     isIncusRepositoryRequest(request)
   )
     ? Object.freeze({ id, kind, request })

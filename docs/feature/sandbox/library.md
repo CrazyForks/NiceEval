@@ -505,7 +505,9 @@ const sandbox = openSandbox({
 
 `OpenSandboxOptions` 接受必填 `image: string`、有限的 `lifetimeMs: number` 与 Linux `targetPlatform`，以及可选 `resources: { cpu?: string; memory?: string }`、`user: string`、`pathPrepend: readonly string[]`。正式实验使用 digest-pinned 镜像。工作目录为 `/home/sandbox/workspace`；默认以 execd 的 root 用户运行，`user` 接受 `/etc/passwd` 中的用户名或数字 uid，单条命令可另选身份。
 
-lifetimeMs 是作者显式选择的实例寿命，由服务校验，不能短于有界 Attempt 的剩余时限加 30 秒收尾预留。正常结束和取消均提前销毁，不等待寿命耗尽。命令超时或取消会销毁整个 Sandbox。保留、Sandbox 复用和 before artifact cache 不受支持，before 正常执行。普通容器不提供专用 kernel 或内部 Docker daemon，不能满足 Nested Docker requirement。
+lifetimeMs 是作者显式选择的实例寿命，由服务校验，不能短于有界 Attempt 的剩余时限加 30 秒收尾预留。正常结束和取消均提前销毁，不等待寿命耗尽。命令超时或取消会销毁整个 Sandbox。保留与 Sandbox 复用不受支持。digest-pinned 镜像可使用 rootfs before cache，服务须配置公开 Snapshot API 与持久镜像存储。普通容器不提供专用 kernel 或内部 Docker daemon，不能满足 Nested Docker requirement。
+
+rootfs 缓存不保存进程、卷或 tmpfs。捕获前发现新增挂载或已知敏感字节时，当前 Attempt 继续执行但不发布缓存。运行中的服务应在 command barrier 后启动；Docker 镜像可先导出为 rootfs 内归档，再在恢复后导入独立 daemon。`sandboxCache.before` 与 CLI bypass 同时控制 lookup 和 publication。快照请求发出后失败会终结 Attempt，不重复已执行的 action。
 
 镜像必须以 root 启动 execd，并提供 Bash 和 Git。`user` 控制命令与 Agent 的身份，HOME、USER、LOGNAME 从该用户的 `/etc/passwd` entry 取得；调用方可显式替换这些变量。
 
