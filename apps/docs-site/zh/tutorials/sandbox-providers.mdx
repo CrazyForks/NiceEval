@@ -192,7 +192,8 @@ Experiment、评估组、评估用例和 Sandbox Agent 的准备步骤排进同�
 | --- | --- | --- |
 | 本地单容器 Docker，所有改动都在外层容器的可写文件系统里 | `all` | 从头开始最长的一段没变的步骤直接沿用 |
 | Incus VM，完整准备状态通过核对 | `all` | 从头开始最长的一段没变的步骤直接沿用，包含根盘和 Docker 数据盘 |
-| Docker Compose、E2B、Vercel、OpenSandbox 或自定义 Provider | 无 | 显示 `Unsupported`，步骤真实执行 |
+| 启用 rootfs 快照的 OpenSandbox，镜像固定到 digest，准备内容不依赖卷或 tmpfs | `all`（rootfs 文件内容） | 沿用从头开始没变的步骤，每个 Attempt 创建独立实例；进程不保存 |
+| Docker Compose、E2B、Vercel 或自定义 Provider | 无 | 显示 `Unsupported`，步骤真实执行 |
 
 沿用只能从第一步开始连续往下。遇到第一个无法保存的步骤，比如默认 `all` 但 Provider 不支持、写了 `opaque` 的回调，或者 Provider 不支持的范围，这一步和它后面的所有步骤都会真实执行。后面的步骤也不能跳过，因为它依赖的前面状态没有被保存。
 

@@ -79,7 +79,11 @@ The OpenSandbox service chooses the runtime, such as Docker or Kubernetes; NiceE
 
 The image must start execd as root and provide Bash and Git. Use `user` to run the Agent as a non-root identity. Interactive Coding Agents also require Node.js 24.
 
-Cancelling or timing out a command destroys the entire instance. This Provider does not support retention, reuse across Attempts, or preparation caching. A running Sandbox does not automatically have a Docker daemon.
+Cancelling or timing out a command destroys the entire instance. This Provider does not support retention or reuse across Attempts. A running Sandbox does not automatically have a Docker daemon.
+
+When the service enables rootfs snapshots, images pinned to a digest can use before preparation caching. The cache saves filesystem contents, and each Attempt creates an independent instance from the snapshot. It does not save running processes, volumes, or tmpfs. Start services in a command step that cannot be cached. Added mounts or known sensitive content let the Attempt continue without publishing a cache entry.
+
+Use `sandboxCache: { before: "bypass" }` or `--sandbox-before-cache bypass` when troubleshooting to execute preparation again and skip cache reads and publication. If a snapshot request fails after it has been sent, the current Attempt ends. Completed preparation steps are not automatically replayed within that Attempt.
 
 When connecting a service, verify that a successful destruction response means the instance and its processes have stopped. A service that only acknowledges asynchronous deletion cannot meet this requirement; naming the runtime does not replace verification.
 
@@ -188,7 +192,8 @@ Providers can save different scopes:
 | --- | --- | --- |
 | Local single-container Docker, with all changes in the outer container's writable filesystem | `all` | The longest unchanged run of steps from the start is reused directly |
 | Incus VM with verified complete preparation state | `all` | Reuses the longest unchanged prefix, including the root disk and Docker data disk |
-| Docker Compose, E2B, Vercel, OpenSandbox, or a custom Provider | None | Shows `Unsupported`; steps really execute |
+| OpenSandbox with rootfs snapshots enabled, an image pinned to a digest, and preparation that does not depend on volumes or tmpfs | `all` (rootfs file contents) | Reuses unchanged steps from the start and creates an independent instance for each Attempt; processes are not saved |
+| Docker Compose, E2B, Vercel, or a custom Provider | None | Shows `Unsupported`; steps really execute |
 
 Reuse can only continue consecutively from the first step. At the first step that cannot be saved, such as a default `all` the Provider does not support, an `opaque` callback, or a scope the Provider does not support, this step and every step after it really execute. Later steps cannot be skipped because the earlier state they depend on was not saved.
 
