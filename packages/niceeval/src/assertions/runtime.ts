@@ -1580,12 +1580,14 @@ class AssertionsRuntimeImplementation {
 
   /**
    * A control barrier may force evaluation early, but it must not let a later
-   * Judge entry leapfrog an earlier declaration. `settle()` still memoizes the
-   * individual work, so the normal seal only observes these same results.
+   * Judge entry leapfrog an earlier author-phase declaration. Sandbox result
+   * entries wait for the frozen post-run diff and cannot be stop barriers.
+   * `settle()` memoizes the eligible work for the normal seal.
    */
   private settleThrough(entry: AssertionEntry): Effect.Effect<EntrySettlement> {
     return Effect.forEach(
-      this.entries.slice(0, entry.index + 1),
+      this.entries.slice(0, entry.index + 1)
+        .filter((candidate) => candidate.criterion.kind !== "sandbox-result"),
       (candidate) => this.settle(candidate),
     ).pipe(
       Effect.map((settlements) => {

@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_b261d80355d66158c01ab322627122e3": {
+      "memory/post-run-diff-settled-by-stop.md": {
+        "red": {
+          "path": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/red.json",
+          "digest": "sha256:6a88dbd1250f59747d22f2713fb8da967d34b0771a5571fc0423c1ceea3e0742"
+        },
+        "green": {
+          "path": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/green.json",
+          "digest": "sha256:af08bcaef1159bac5dfd5d44545c8136257fcf3197f76c7a2b4f57e3e64a99a0"
+        },
+        "certificate": {
+          "path": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/certificate.json",
+          "digest": "sha256:24e36a05aa5d6ff1d5c9e9b68b92a1ab7bafd35836d14fe8dbc41be22ee0fb6d"
+        },
+        "inventory": {
+          "path": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/inventory.json",
+          "digest": "sha256:da58367536471af436f5d6c86d5d4e48732534df3ae03237aae50047bebe6ec8"
+        }
+      }
+    }
+  }
+}

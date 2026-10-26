@@ -44,7 +44,7 @@ export default defineEval({
       const probe = await t.sandbox.runShell(
         "test -f fixture/changed.txt && test ! -e fixture/delete-me.txt",
       );
-      t.check(probe, commandSucceeded());
+      await t.check(probe, commandSucceeded()).orStop();
     });
   },
 });

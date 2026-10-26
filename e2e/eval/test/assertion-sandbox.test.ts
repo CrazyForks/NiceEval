@@ -6,6 +6,7 @@ import { expect, test } from "vitest";
 import { evalE2E } from "./context.ts";
 import { inspectAssertion, inspectAttempt } from "./inspection.ts";
 // @feature docs/feature/assertions/README.md
+// @regression memory/post-run-diff-settled-by-stop.md
 
 test("Sandbox Assertion Eval 以 passed 终态完成", async () => {
   await evalE2E.case(

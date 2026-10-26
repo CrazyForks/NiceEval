@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/eval/test/assertion-sandbox.test.ts#neref_b261d80355d66158c01ab322627122e3",
+  "caseId": "neref_b261d80355d66158c01ab322627122e3",
+  "candidateSha256": "e72f21d0347a969f6958888e900a7e147070dfd8e387ce7e46bd62861d9c84f5",
+  "sourceDigest": "sha256:52b1d3f4ca33551f9a25852a0942dced2ee3876c6f0f9148b2fd828ace01b47f",
+  "greenReceipt": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-1.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-2.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-4.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-6.json",
+    "singleCase": "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/green.json",
+    "cleanup": [
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/green.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-1.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-2.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-3.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-4.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-5.json",
+      "e2e/eval/test/assertion-sandbox.test.ts.case-evidence/neref_b261d80355d66158c01ab322627122e3/memory_post-run-diff-settled-by-stop.md/nered_HYW63HDH3GJ8N5NA-netake_Y6RY9KG69PR0MTBD/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "8debdfd0bf13f369bfdcab36b4c42c7a91bc7b32b00f9e5c8798a50792cb6785"
+}

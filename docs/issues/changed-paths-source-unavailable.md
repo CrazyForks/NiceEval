@@ -4,12 +4,22 @@ id: changed-paths-source-unavailable
 title: 范围断言证据 unavailable，但同 Attempt 的公开 diff 完整
 createdAt: 2026-10-26T06:28:03.811Z
 kind: issue
-state: draft
-memoryRelations: []
+state: closed
+memoryRelations:
+  - kind: root-cause
+    memory: memory/post-run-diff-settled-by-stop.md
 adoptions:
   current: []
   history: []
-history: []
+closure:
+  kind: fixed
+  memory: memory/post-run-diff-settled-by-stop.md
+  proof:
+    - e2e/eval/test/assertion-sandbox.test.ts#neref_b261d80355d66158c01ab322627122e3
+history:
+  - at: 2026-10-26T08:00:36.216Z
+    action: close
+    reason: fixed
 ---
 
 ## 观察与期望
