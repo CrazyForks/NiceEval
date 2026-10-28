@@ -80,6 +80,35 @@ Run 和当前结果的 `slots` 集合改为 `plannedAttempts`。Show 完整度�
 Adapter 的 `createSessionSlot` / `SessionSlot` 改为 `createSessionKey` / `SessionKey`；
 并发等待文案改为 `waiting for capacity`。
 
+## Query operation 与 Run 响应
+
+迁移时同时替换 operation 名称，不能只改 protocol：
+
+| 旧 operation | 替代 operation |
+| --- | --- |
+| `runs.list` | `run.list` |
+| `run.summary` | `run.get` |
+
+先运行 `niceeval query discover` 核对安装版本的协议与 operation。0.19.0 使用 `niceeval.query/v2`；下面示例使用当前 `niceeval.query/v3`，不要把当前协议字符串直接发送给旧安装。
+
+```sh
+pnpm exec niceeval query run --request - <<'JSON'
+{"protocol":"niceeval.query/v3","operation":{"kind":"run.list"}}
+JSON
+```
+
+从列表选择 exact Run ID，再读取该 Run：
+
+```sh
+pnpm exec niceeval query run --request - <<'JSON'
+{"protocol":"niceeval.query/v3","operation":{"kind":"run.get","runId":"<run-id>"}}
+JSON
+```
+
+成功响应中的 `run` 是完整结果对象。使用 `run.value` 读取 Run 身份与状态，使用 `run.plannedAttempts` 读取计划成员及其 publication。
+`run.denominator` 的 `expected`、`published`、`missing` 分别表示计划、已发布与缺失数量；不要把计划成员数当成已完成 Attempt 数。
+读取具体指标时保留该指标的 state 和分母，缺失值不按零计算。旧消费者若直接从 `run` 读取身份或使用 `slots`，需要同步修改取值路径。
+
 ## 命名收敛
 
 旧名字不再提供别名；定义和 CLI 解析会提示替代名字。

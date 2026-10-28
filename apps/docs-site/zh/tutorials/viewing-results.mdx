@@ -57,7 +57,8 @@ Next: niceeval exp my-agent --dry
 
 要补齐缺口，运行最后一行建议的 `niceeval exp <id> --dry` 看看会跑哪些，再去掉 `--dry` 正式运行。
 
-看到 `Attempts hidden` 时，用它建议的命令缩小范围；要显示全部 Attempt，加 `--all`。
+看到 `Attempts hidden` 时，用它建议的命令缩小范围。`--all` 只用于不带 selector 的 Results 查看：`niceeval show --all`。
+不要把它与 `--experiment`、`--run` 或 Attempt locator 组合；这些入口直接使用各自的选择参数。
 
 ## 缩小到一个 Experiment 或一次运行
 

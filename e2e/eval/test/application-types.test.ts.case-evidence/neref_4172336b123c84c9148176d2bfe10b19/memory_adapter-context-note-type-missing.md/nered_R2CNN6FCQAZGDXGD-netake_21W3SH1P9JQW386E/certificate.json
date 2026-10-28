@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/eval/test/application-types.test.ts#neref_4172336b123c84c9148176d2bfe10b19",
+  "caseId": "neref_4172336b123c84c9148176d2bfe10b19",
+  "candidateSha256": "13aa388faed6252b9585a78496ce6c066454a227c3322f676d695ef2b42c9dff",
+  "sourceDigest": "sha256:59214c6973d8b2847d8a28def9e6389db79aa9cb00fa1962e635be8da6add75a",
+  "greenReceipt": "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-1.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-2.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-4.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-6.json",
+    "singleCase": "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/green.json",
+    "cleanup": [
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/green.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-1.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-2.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-3.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-4.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-5.json",
+      "e2e/eval/test/application-types.test.ts.case-evidence/neref_4172336b123c84c9148176d2bfe10b19/memory_adapter-context-note-type-missing.md/nered_R2CNN6FCQAZGDXGD-netake_21W3SH1P9JQW386E/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "d8922953969d95970224f051ba870ee87481b70a051468df5bf3030d66b9d291"
+}

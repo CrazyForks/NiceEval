@@ -7,5 +7,15 @@ export default {
     "kind": "node-test",
     "sourceFiles": [],
     "timeoutMs": 60000
-  }
+  },
+  "feedbackConnections": [
+    {
+      "id": "niceeval-github",
+      "provider": "github",
+      "owner": "NiceEval",
+      "repo": "NiceEval",
+      "repositoryId": "1283126461",
+      "transport": "gh"
+    }
+  ]
 } as const;

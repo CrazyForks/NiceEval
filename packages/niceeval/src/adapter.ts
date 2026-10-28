@@ -26,7 +26,7 @@ import type { ScoreMatch } from "./assertions/match.ts";
 import { defineEvalForContext } from "./define.ts";
 import type { EvalDefinition, EvalInput, ScoreEvalInput } from "./runner/types.ts";
 import type { EvaluationKind } from "./shared/evaluation.ts";
-import type { JudgePresetMethods } from "./context/assert-first.ts";
+import type { AssertFirstCoreTestContext, JudgePresetMethods } from "./context/assert-first.ts";
 import type { DiagnosticInput, ProgressUpdate } from "./shared/types.ts";
 import type { AdapterIdentity } from "./record/model/run-context.ts";
 export type { AdapterIdentity } from "./record/model/run-context.ts";
@@ -224,6 +224,7 @@ export interface AdapterCreateContext<Flags = ExperimentFlags, Roles extends str
 }
 
 type EvalContextBase<Kind extends EvaluationKind, Flags, Context> = JudgePresetMethods<Kind, Context> & {
+  readonly note: AssertFirstCoreTestContext<Kind>["note"];
   readonly usage: EvalUsage;
   readonly elapsedMs: import("./assertions/match.ts").NumericMaterial;
   maxTokens(max: number): BooleanAssertionHandle<Kind, number>;

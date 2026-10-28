@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { evalE2E } from "./context.ts";
 // @use-case docs/feature/eval/use-case/eval-native-operations.md
+// @regression memory/adapter-context-note-type-missing.md
 
 test.concurrent("Adapter 上下文推导保留方法和 Post 类型并拒绝冲突与越界能力", async () => {
   await evalE2E.case("application-types", async ({ commands: { tsc } }) => {

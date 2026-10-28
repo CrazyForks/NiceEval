@@ -1,5 +1,5 @@
 import { defineAdapter, defineExperiment, type JsonValue, defineEval, defineConfig, type JudgeDefinition, defineAdapterContract, type AdapterCleanupContext, type AdapterImplementationInput, type AdapterAssertionsFactoryContext } from "niceeval";
-import { defineJudge } from "niceeval/expect";
+import { defineJudge, ms } from "niceeval/expect";
 import type { AdapterCleanupContext as AdapterCleanupContextFromSubpath } from "niceeval/adapter";
 import type { AdapterAssertionsFactoryContext as AssertionsContextFromSubpath } from "niceeval/adapter";
 import { satisfies, defineScoreMatch, defineMaterialMatch, defineContextMatch, type AgentMatchContext, type MaterialCollection, type CollectionValue, toolMatch, eventMatch, type BooleanMatch, countWhere, filterWhere, mapEach, mapValue, equals, not, inOrder, or, and } from "niceeval/expect";
@@ -53,6 +53,14 @@ const social = defineAdapter({
 
 social.defineEval({
   async test(t) {
+    const noteResult: void = t.note("diagnostic", { ok: true });
+    t.note("duration", ms(12));
+    t.note("missing", null);
+    void noteResult;
+    // @ts-expect-error Notes require a string label.
+    t.note(1, true);
+    // @ts-expect-error Functions are not note values.
+    t.note("invalid", () => true);
     const post = await t.post("hello");
     t.check(post, hasText);
     const id: string = post.id;
@@ -75,7 +83,12 @@ social.defineEval({
   },
 });
 
-social.defineScoreEval({ async test(t) { t.score(1); t.check(await t.post("hi"), hasText).score(2); } });
+social.defineScoreEval({ async test(t) {
+  t.note("diagnostic", { ok: true });
+  t.note("duration", ms(12));
+  t.score(1);
+  t.check(await t.post("hi"), hasText).score(2);
+} });
 
 const textQuality = defineScoreMatch<Post>({ name: "text quality", score: () => 0.75 });
 declare const assertionsFactoryContext: AdapterAssertionsFactoryContext<{ readPost(): Post }>;
