@@ -28,3 +28,16 @@ Docker Sandbox 串行运行成员；多个 Group 同时占用 Experiment 的并�
 
 Remem、Obelisk 等固定版本的文档型 Skill 随 MemoryBench vendored，Plugin identity 包含
 上游 revision。Agent Extension 使用 `kind: "local"` 上传，不在每条 Attempt 重新 clone。
+
+## 成员结束后保存 checkpoint {#save-checkpoint-after-members}
+
+记忆条件需要把 Sandbox 内状态保存到外部位置时，在 Sandbox cleanup 完成保存，并让该步骤发生在实例释放前。
+按 [Lifecycle](../lifecycle.md) 使用独立收尾预算；不要把最后一条成员的剩余执行时间作为保存命令的预算。
+
+验证时选择一个会耗尽执行时限的成员，再检查收尾诊断和实际保存结果。
+成员超时不应让 checkpoint 命令只剩 1ms；作者为命令显式设置的 timeout 仍然有效。
+同时检查受控中断路径，确认保存步骤使用收尾阶段的 signal。
+
+保存失败时，分别审阅已发布 Attempt 与收尾诊断。保留成员的真实结果，不把保存失败改写成所有成员失败。
+只有保存结果经过核对后，才把它作为后续实验的起点；成员完成本身不能证明 checkpoint 可用。
+从固定 Run 核对结果的步骤见[核对数据完整度](../../inspection/use-case/inspection-check-completeness.md#audit-interrupted-run)。

@@ -126,3 +126,35 @@ niceeval show @1K1P0VJAPVJ12
 消费者只读取 operation 的可比性与指标，不补配成员、不丢弃 unmatched，也不根据标量重新计算排名。
 `--rerun all` 只改变下一次执行动作；新 Run 实际创建后，其 pending 位置才成为当前读取的新屏障。
 当前可用结果不足也不等于 Invocation 未完成，early exit 与预算终态仍以固定 Run/receipt 为准。
+
+## 核对成本证据再比较 {#audit-cost-evidence}
+
+一次 Agent 执行包含多轮工具调用和重试。先从固定 Run 取得 Attempt locator，再读取其用量：
+
+```sh
+niceeval show @<locator> --usage
+```
+
+机器调用沿用 `query discover` 和 `query explain`，将下面的请求交给 `query run`：
+
+```json
+{
+  "protocol": "niceeval.query/v3",
+  "operation": { "kind": "attempt.usage", "locator": "@<locator>" }
+}
+```
+
+按[模型用途与费用读取](../architecture.md#模型用途与费用读取)检查证据口径：
+
+1. 先看 `modelGroups.basis` 与完整性。`reported-sends` 不能证明物理请求次数；
+   `physical-call-identity-not-recorded` 表示缺少逐调用身份，不能用 send 数补出请求数。
+2. 分别读取应用用量和 `judgeUsage`。Judge 的调用数与 token 不代表被评估 Agent 的开销。
+3. 核对 `totalCosts.state`、`values` 与 `missingSources`。有 token 但没有金额凭据时，不能把费用写成零。
+4. 比较时保留失败、取消与重试所产生的可用证据，同时保留缺失项。预览条数不作为调用总数。
+
+普通 Adapter 已完整登记的用量，应与相同 Attempt 的公开汇总口径一致。
+例如输入为 70、缓存读取为 30、含缓存输入为 100、输出为 20 时，先确认输入列的口径，再比较汇总。
+不能把互斥输入与含缓存输入相加，也不能把汇总缺失解释为实际零消耗。
+
+官方 Codex 的输入与缓存归一规则见 [Codex 用量与成本](../../adapters/sdk/codex-cli/cost.md)。
+只有完整性与金额凭据足以支持比较时，才用成本给实验排序；已知小计仍可审阅，但不能冒充完整账单。
