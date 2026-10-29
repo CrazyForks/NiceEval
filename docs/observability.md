@@ -38,6 +38,7 @@ RecordAttachment 只能由固定 query operation 或 View 读取。
 | `niceeval.sandbox-commands` | Attempt | Sandbox wrapper | command manifest、唯一终态与安全 stream |
 | `niceeval.runner-activities` | Attempt、Run | 对应 owner 的 Runner monotonic clock | activity、phase、anchor 与区间 |
 | `niceeval.runner-diagnostics` | Attempt、Run | 对应 owner 的 Runner diagnostic sink | advisory 与 execution error |
+| `niceeval.identity-manifests` | Run | Runner 在 Run 创建时 | 每个 Eval 的 identity manifest 与 domain 版本，只用于解释身份差异，见 [Cache · 差异说明](feature/experiments/cache.md#差异说明) |
 
 这些 source 与 `niceeval.assertions`、`niceeval.file-changes`、`niceeval.sources`、`niceeval.artifacts` 共同组成
 Record 的 fixed catalog；各自 owner 由 catalog 声明。

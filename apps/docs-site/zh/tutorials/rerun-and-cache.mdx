@@ -87,6 +87,7 @@ checkout  cart/remove-item  Attempt #1  will run — identity domain changed: op
 
 - `via` 后面是新版本对计算方式的一次具名调整。NiceEval 已经验证这道题的输入没有变化，直接沿用旧结果，不需要 `accept`。
 - `behavior-changing` 表示新版本实际执行的内容变了，例如 Sandbox 的准备步骤不同。旧结果只能在历史里查看，`accept` 也会拒绝。重跑前先估算这批题的费用。
+- 看到 `identity-manifest-missing` 时，说明旧结果来自还没有记录这些信息的版本。NiceEval 只能比较模型、flags 和评估用例文件，并列出能看到的差异；其余部分无法核对，需要你判断是否重跑。
 - 看到 `identity-domain-unregistered` 或 `unversioned-identity-change` 时，说明 NiceEval 改了计算方式却没有登记。这是 NiceEval 的缺陷，先报告问题，不要直接整批重跑。
 
 ## 跑完之后看结果

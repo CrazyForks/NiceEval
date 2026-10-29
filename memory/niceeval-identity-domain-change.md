@@ -10,11 +10,11 @@ epoch: 0
 promotions:
   - docs/feature/experiments/use-case/cache-niceeval-upgrade.md
 history:
-  - action: promote
-    at: 2026-10-29T01:32:56.700Z
+  - at: 2026-10-29T01:32:56.700Z
+    action: promote
     reason: promote
-    commit: 6703bfea5fd040f0eaa69cf80fa029dfe1311ab1
     ref: docs/feature/experiments/use-case/cache-niceeval-upgrade.md
+    commit: 6703bfea5fd040f0eaa69cf80fa029dfe1311ab1
 ---
 # NiceEval 身份计算变更用具名域变更证明沿用
 
@@ -34,5 +34,6 @@ history:
 - 让操作者用 `accept` 确认 NiceEval 升级后的等价：确认不能证明行为未变，与有限采用规则冲突。
 - 把旧输入迁移到新域：需要持久化旧计算原料并引入第二份资格事实；从当前输入重建旧 digest 与 `experiment-rename/v1` 同构，不需要新事实。
 - `encoding-only` 也要求 accepted 见证：重建相等与 digest 相等同等强度，多一步采用只增加升级成本。
+- 只靠现有 Run context 与 Sources 识别 domain：实现核对发现 Record 不保存 Eval manifest、domain 版本、完整 config、plan 与数据哈希，历史 Run 无从识别 domain。改为新增 Run 级 `niceeval.identity-manifests`，只用于解释与识别 domain；缺少它的历史 Run 给出 `identity-manifest-missing` 部分解释，不经域变更沿用。
 
 契约：[Cache · 差异说明与 NiceEval 身份域变更](../docs/feature/experiments/cache.md#niceeval-身份域变更)，用例：[升级 NiceEval 后沿用已有结果](../docs/feature/experiments/use-case/cache-niceeval-upgrade.md)。

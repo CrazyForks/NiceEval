@@ -217,10 +217,43 @@ fingerprint/config identity 由上游已求值 ProjectTarget 用来生成组合 
 
 ## 差异说明
 
-digest 回答“是否相同”，manifest 回答“哪里不同”。
-同一次指纹计算为每个 `Eval × Experiment` 产出一份 Eval manifest，其中包含 `algorithmVersion`、`coverageVersion`，
+digest 回答“是否相同”，identity manifest 回答“哪里不同”。
+同一次指纹计算为每个 `Eval × Experiment` 产出一份 identity manifest：身份各部分的 domain 版本，
 以及已求值配置、physical plan、Plugin、源码闭包与受管数据的条目。源码与数据只记内容哈希，凭据不进入 manifest。
-manifest 属于 Run 的不可变配置上下文，只解释差异，不成为第二份资格事实。
+
+Run 创建时把本 Run 全部 Eval 的 identity manifest 写入 Run 级固定 attachment `niceeval.identity-manifests`，
+写入后不可变。accept 与 rename 建立的 reference Run 同样写入当前目标的 manifest。
+它只解释差异与识别 domain，不参与 digest 相等判断，也不成为第二份资格事实。
+
+```ts
+// family niceeval.identity-manifests，owner Run，revision 1
+interface IdentityManifestsAttachment {
+  readonly entries: readonly IdentityManifestEntry[]; // 按 evalId 排序且唯一
+}
+
+interface IdentityManifestEntry {
+  readonly evalId: string;
+  readonly domains: IdentityDomains;
+  readonly config: Readonly<Record<string, JsonValue>>; // config identity 的展开路径与值
+  readonly plan?: JsonValue;                            // pair link 与 Provider physical plan
+  readonly plugins?: Readonly<Record<string, JsonValue>>;
+  readonly source: Readonly<Record<string, string>>;    // 项目相对路径 → sha256
+  readonly data: Readonly<Record<string, string>>;      // 受管数据路径 → sha256
+}
+
+interface IdentityDomains {
+  readonly fingerprintAlgorithm: number;
+  readonly fingerprintCoverage: number;
+  readonly inputIdentity: number;  // niceeval.input/fingerprint-v<n>
+  readonly configIdentity: number; // niceeval.config/identity-v<n>
+  readonly slotInput: number;      // 组合 slot 输入的 version
+}
+```
+
+没有该 attachment 的历史 Run 只能部分解释。比较只使用已持久化的事实：Run context 的 adapter、model、reasoningEffort、
+flags 与 Plugin identity，以及 Sources 中与当前源码闭包同路径文件的 sha256。结果为 `unexplained`，code `identity-manifest-missing`，
+`observedDeltas` 列出这些可比较差异，`limitations` 写明 plan、受管数据、其余配置与 domain 无法比较。
+这类结果不能经身份域变更沿用，因为 origin 的 domain 不可知。
 
 `recordedClaim` 为 `execution-identity` 且 `result` 为 `mismatch` 的 `ExecutionComparison` 必须带 `explanation`。
 `identity-mismatch` 与 `adoption-unproven` 因此总能说明差在哪里，不只给出 reason code。
@@ -262,13 +295,13 @@ Human `--dry` 在原因后列出 selector 与有界值，例如 `will run — co
 
 ## NiceEval 身份域变更
 
-身份由 NiceEval 计算的部分和 owner 声明的部分组成，两者各有自己的 domain：
+身份由 NiceEval 计算的部分和 owner 声明的部分组成，两者各有自己的 domain。origin 的 domain 一律从它的 identity manifest 读取：
 
-| 部分 | domain 的载体 | 历史 Run 如何识别 |
-|---|---|---|
-| Eval input 的指纹算法与纳入的输入集合 | manifest 的 `algorithmVersion` 与 `coverageVersion` | 读 origin manifest |
-| config identity 的配方与组合 slot 输入 | `niceeval.config/identity-v<n>` 与 slot 输入的 `version` | 读 origin Run 配置上下文中的 `{ domain, value }` |
-| Provider、Agent installer 等 owner 声明的 identity | owner 写入已求值配置的 domain 值，见 [Agent ensure](../adapters/architecture/agent-ensure.md) | 读 origin manifest 的 `config:` 条目 |
+| 部分 | domain 的载体 |
+|---|---|
+| Eval input 的指纹算法、纳入的输入集合与外层编码 | `domains.fingerprintAlgorithm`、`fingerprintCoverage` 与 `inputIdentity` |
+| config identity 的配方与组合 slot 输入 | `domains.configIdentity` 与 `slotInput` |
+| Provider、Agent installer 等 owner 声明的 identity | owner 写入已求值配置的 domain 值，即 manifest 的某条 `config:` 条目，见 [Agent ensure](../adapters/architecture/agent-ensure.md) |
 
 NiceEval 对身份稳定性作以下承诺：
 
@@ -282,7 +315,7 @@ type IdentityDomainChange =
   | {
       readonly kind: "core";
       readonly name: string; // 例如 "fingerprint-algorithm/3-to-4"
-      readonly revision: "fingerprint-algorithm" | "fingerprint-coverage" | "config-identity" | "slot-input";
+      readonly revision: keyof IdentityDomains;
       readonly from: number;
       readonly to: number;
       readonly effect: IdentityChangeEffect;
@@ -331,13 +364,15 @@ dry 不为这类缺口生成采用建议，因为 `accept` 同样拒绝它们。
 
 ### 发布校验
 
-每个 NiceEval 包导出当前 domain 集与完整 registry。发布校验对比上一个已发布版本，以下任一情况都阻断发布：
+当前 domain 集、registry 与固定样例 digest 一起签入仓库，作为上一个发布版本的快照。
+仓库校验按当前实现重算并对比快照，以下任一情况都失败：
 
-- 出现未登记的 domain 差异；
+- 当前 domain 与快照不同，且 registry 中没有对应登记；
 - 同一 domain 下，固定样例输入的 digest 发生漂移；
-- `encoding-only` 登记缺少旧域计算。
+- `encoding-only` 登记缺少旧域计算，或旧域计算不能从样例重建出快照 digest。
 
 固定样例包括 Eval input、config identity 与组合 slot 输入；Provider 与 installer owner 为各自 domain 提供样例。
+登记一次变更时同时更新快照；发布从已通过校验的提交构建，因此快照总等于上一个已发布版本。
 
 ## 错误与缺口作用域
 

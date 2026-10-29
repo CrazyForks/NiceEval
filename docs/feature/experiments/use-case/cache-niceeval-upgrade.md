@@ -43,6 +43,7 @@ compare/codex  memory/commit2  Attempt #1  will run — configuration changed: c
 | `via` 变更名 | `encoding-only` 变更，已沿用 | 无需操作 |
 | `identity-domain-changed` + `behavior-changing` | 新版本改变了执行 | 评估重跑成本后只补跑受影响位置 |
 | `identity-domain-unregistered` | 旧结果的 domain 不在当前包的 registry 中 | NiceEval 缺陷，先报告，不要直接重跑 |
+| `identity-manifest-missing` | 旧结果写入时还没有保存 identity manifest，只能比较模型、flags 与源码 | 输入未变的结果仍按 digest 正常沿用；digest 不同的按列出的差异决定是否重跑 |
 | `unversioned-identity-change` | NiceEval 改了身份计算却没有更换版本 | NiceEval 缺陷，先报告，不要直接重跑 |
 
 后两种不是用户输入变化。重跑虽然能得到当前身份的新结果，但掩盖了上游缺陷，也会让下一次升级重复同一笔花费。
