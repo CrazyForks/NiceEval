@@ -1,0 +1,25 @@
+{
+  "format": "concord.case-evidence-index/v1",
+  "current": {
+    "neref_199286d0ccc42d91e90b05585572a138": {
+      "memory/codex-app-server-usage-takes-only-last-response.md": {
+        "red": {
+          "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/red.json",
+          "digest": "sha256:1bf9d2869ee02e0d78c1c635e193029b801202f33ba2cb81cafd22c9a53ee30e"
+        },
+        "green": {
+          "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/green.json",
+          "digest": "sha256:c11be6a42ff0f47f3628166e203cefaf01be6bd23630d793f079f171189a7de6"
+        },
+        "certificate": {
+          "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/certificate.json",
+          "digest": "sha256:d014a58fcc261168fd5c88f06354d216c1b7aa5c94dea05ac16c21d96a79cacf"
+        },
+        "inventory": {
+          "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/inventory.json",
+          "digest": "sha256:5b95fdc40a11ad275aea869a6e56ef49c9ca259628455509b4c42e42aad03fb3"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "executor": {
+    "name": "vitest",
+    "version": "4.1.12"
+  },
+  "repo": "adapter-codex-cli",
+  "argv": [
+    "/nix/store/k3nz3s314bipvqbcbw3faq823hxpwbn1-nodejs-slim-24.19.0/bin/node",
+    "/tmp/niceeval-case-inventory-6XeShb/repos/adapter/codex-cli/node_modules/.pnpm/vitest@4.1.12_@types+node@24.19.2_vite@8.3.5_@types+node@24.19.2_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.15_yaml@2.9.1_/node_modules/vitest/vitest.mjs",
+    "list",
+    "--json"
+  ],
+  "checkout": "a2a4bd74586bac17ad1158feafbd5e30e81eb35c",
+  "files": [
+    "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+    "e2e/adapter/codex-cli/test/live-progress.test.ts"
+  ],
+  "cases": [
+    {
+      "executor": "vitest",
+      "repo": "adapter-codex-cli",
+      "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+      "titlePath": [
+        "attempt.trace 读回 Codex CLI 的代表性工具证据"
+      ],
+      "caseId": "neref_8902a85066fb9a53c54778fc351d5ade"
+    },
+    {
+      "executor": "vitest",
+      "repo": "adapter-codex-cli",
+      "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+      "titlePath": [
+        "attempt.usage 计入同一轮内全部模型请求"
+      ],
+      "caseId": "neref_199286d0ccc42d91e90b05585572a138"
+    },
+    {
+      "executor": "vitest",
+      "repo": "adapter-codex-cli",
+      "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+      "titlePath": [
+        "真实 Codex CLI adapter 的全部专用 Eval 得到预期 verdict"
+      ],
+      "caseId": "neref_37c470795446ee71db8b9e355a09bb63"
+    },
+    {
+      "executor": "vitest",
+      "repo": "adapter-codex-cli",
+      "path": "e2e/adapter/codex-cli/test/live-progress.test.ts",
+      "titlePath": [
+        "Codex CLI 的 coding-task 完成并可从公开 trace 读回 command tool"
+      ],
+      "caseId": "neref_ab406eee10c189df847de8680db694d2"
+    }
+  ],
+  "unassignedCases": [],
+  "bodyExecutions": 0,
+  "forbiddenSetupExecutions": 0,
+  "findings": [],
+  "digest": "sha256:5b95fdc40a11ad275aea869a6e56ef49c9ca259628455509b4c42e42aad03fb3",
+  "exit": 0,
+  "signal": null
+}

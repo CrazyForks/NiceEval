@@ -1,0 +1,31 @@
+{
+  "format": "concord.native-reliability/v1",
+  "selector": "e2e/adapter/codex-cli/test/codex-cli.test.ts#neref_199286d0ccc42d91e90b05585572a138",
+  "caseId": "neref_199286d0ccc42d91e90b05585572a138",
+  "candidateSha256": "aef91dbe37e69d800c0c821b14dcc3e7c07f92b3308dc168566f054566b0a7b4",
+  "sourceDigest": "sha256:21126c8f7fa1e3906259e0f65c1be4e47d5a58be687bec3ca7da7e3577855c80",
+  "greenReceipt": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/green.json",
+  "observations": {
+    "isolatedCopies": [
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-1.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-2.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-3.json"
+    ],
+    "sameCopy": [
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-4.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-5.json"
+    ],
+    "defaultParallel": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-6.json",
+    "singleCase": "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/green.json",
+    "cleanup": [
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/green.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-1.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-2.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-3.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-4.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-5.json",
+      "e2e/adapter/codex-cli/test/codex-cli.test.ts.case-evidence/neref_199286d0ccc42d91e90b05585572a138/memory_codex-app-server-usage-takes-only-last-response.md/nered_CNXNX3Z99WFTBW90-netake_56V1YGW1MRWK2YB7/reliability-6.json"
+    ]
+  },
+  "certificateSha256": "2e0b197919a88b0ff8896c30a4aa8144bd5a6f1b842dba52bea45352d5a6a208"
+}

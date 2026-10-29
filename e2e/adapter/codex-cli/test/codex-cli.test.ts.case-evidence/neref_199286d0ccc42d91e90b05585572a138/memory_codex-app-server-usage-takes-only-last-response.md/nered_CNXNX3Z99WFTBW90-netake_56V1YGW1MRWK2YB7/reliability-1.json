@@ -1,0 +1,253 @@
+{
+  "format": "concord.native-case-receipt/v1",
+  "mode": "formal",
+  "observation": "reliability",
+  "selector": "e2e/adapter/codex-cli/test/codex-cli.test.ts#neref_199286d0ccc42d91e90b05585572a138",
+  "caseId": "neref_199286d0ccc42d91e90b05585572a138",
+  "inventoryDigest": "sha256:5b95fdc40a11ad275aea869a6e56ef49c9ca259628455509b4c42e42aad03fb3",
+  "problem": {
+    "path": "memory/codex-app-server-usage-takes-only-last-response.md",
+    "epoch": 0
+  },
+  "candidate": {
+    "gitSha": "a2a4bd74586bac17ad1158feafbd5e30e81eb35c",
+    "sha256": "aef91dbe37e69d800c0c821b14dcc3e7c07f92b3308dc168566f054566b0a7b4",
+    "sri": "sha256-rvkdvjfmnYAMDIIbFNzD58B/krMwjcFoVm8FRWawp7Q="
+  },
+  "source": {
+    "format": "concord.repository-source-identity/v4",
+    "projection": {
+      "algorithm": "concord.repository-source-projection/v3",
+      "digest": "sha256:21126c8f7fa1e3906259e0f65c1be4e47d5a58be687bec3ca7da7e3577855c80",
+      "files": [
+        {
+          "path": "e2e/adapter/codex-cli/evals/coding-task.eval.ts",
+          "bytes": 4593,
+          "rawSha256": "f7acf6046dbdb50adc34827b78ebac751d810f4d926f68467375c3229dfeff1f",
+          "codeSha256": "f7acf6046dbdb50adc34827b78ebac751d810f4d926f68467375c3229dfeff1f"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/configfile.eval.ts",
+          "bytes": 1226,
+          "rawSha256": "afa2be042b8b72e13b6cccc26915709252e3d1bad0828cc4ce65b686c64ee796",
+          "codeSha256": "afa2be042b8b72e13b6cccc26915709252e3d1bad0828cc4ce65b686c64ee796"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/hitl-options.eval.ts",
+          "bytes": 1466,
+          "rawSha256": "0235611bde28ab42daa1b2e0d58ed6b108055200f66a2566e4949e5a6e943865",
+          "codeSha256": "0235611bde28ab42daa1b2e0d58ed6b108055200f66a2566e4949e5a6e943865"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/mcp.eval.ts",
+          "bytes": 3234,
+          "rawSha256": "113ca15e28917b25af496c3e797f9c59cbb2abcdf082cbb064f32429a4762f60",
+          "codeSha256": "113ca15e28917b25af496c3e797f9c59cbb2abcdf082cbb064f32429a4762f60"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/plugin-hook.eval.ts",
+          "bytes": 3270,
+          "rawSha256": "193efa5ffd30f42e6ecd12b298e4c735653a207080625efe04e6e52cc1c34c55",
+          "codeSha256": "193efa5ffd30f42e6ecd12b298e4c735653a207080625efe04e6e52cc1c34c55"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/repo-skill.eval.ts",
+          "bytes": 2856,
+          "rawSha256": "682a7b30b0a3e0096f0cb7a85280b9e3519c3edd927b066e4f03fb45a5da951e",
+          "codeSha256": "682a7b30b0a3e0096f0cb7a85280b9e3519c3edd927b066e4f03fb45a5da951e"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/session.eval.ts",
+          "bytes": 1100,
+          "rawSha256": "dcd13116236216344a79ecd77947073bfdc5ab3bb162e21908a3ebfbac7c973f",
+          "codeSha256": "dcd13116236216344a79ecd77947073bfdc5ab3bb162e21908a3ebfbac7c973f"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/skill-release-note.eval.ts",
+          "bytes": 3254,
+          "rawSha256": "e777076b3672c80eab8a379b599b0ab7a92cc85699bedd750c22e48534df457a",
+          "codeSha256": "e777076b3672c80eab8a379b599b0ab7a92cc85699bedd750c22e48534df457a"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/status-report.eval.ts",
+          "bytes": 4642,
+          "rawSha256": "551959c32f7f79391838f47110b8766009248ede0905b8f2b15198a02105675c",
+          "codeSha256": "551959c32f7f79391838f47110b8766009248ede0905b8f2b15198a02105675c"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/evals/usage.eval.ts",
+          "bytes": 1675,
+          "rawSha256": "777af3aa640f92c7539f3059d243ae33ca9bdf8a04e01480bd598950e700fa87",
+          "codeSha256": "777af3aa640f92c7539f3059d243ae33ca9bdf8a04e01480bd598950e700fa87"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/baseline.ts",
+          "bytes": 813,
+          "rawSha256": "ca9f6f7638ffa80e592227def4bfbc74c672a8a65788adb10713abe021edc487",
+          "codeSha256": "ca9f6f7638ffa80e592227def4bfbc74c672a8a65788adb10713abe021edc487"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/configfile.ts",
+          "bytes": 561,
+          "rawSha256": "7f91e9a70e13a8af3e287c8d4bd95317611a715d5775805779e50ab1cc9540d3",
+          "codeSha256": "7f91e9a70e13a8af3e287c8d4bd95317611a715d5775805779e50ab1cc9540d3"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/hitl-content.ts",
+          "bytes": 546,
+          "rawSha256": "c85dbd23ae0a31488fdecedfdfb4c411743960bdc64caaacc250df8049a8ee2d",
+          "codeSha256": "c85dbd23ae0a31488fdecedfdfb4c411743960bdc64caaacc250df8049a8ee2d"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/hitl.ts",
+          "bytes": 532,
+          "rawSha256": "1d0b40c70fe9ede41834253cb9938804e818f5d27908759d64c00896351e2728",
+          "codeSha256": "1d0b40c70fe9ede41834253cb9938804e818f5d27908759d64c00896351e2728"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/mcp.ts",
+          "bytes": 1281,
+          "rawSha256": "4398e344417b8601625c8d4800036f0fae4152ae78031447120e697a9f8ba8a7",
+          "codeSha256": "4398e344417b8601625c8d4800036f0fae4152ae78031447120e697a9f8ba8a7"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/plugin-reuse.ts",
+          "bytes": 2695,
+          "rawSha256": "30e21bed9d9dfe475eb95e5a76f76faca0857ae91fbb3b08100cf5e8c7c7c9a2",
+          "codeSha256": "30e21bed9d9dfe475eb95e5a76f76faca0857ae91fbb3b08100cf5e8c7c7c9a2"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/plugin.ts",
+          "bytes": 1073,
+          "rawSha256": "759a9c787608454e57442cb15c1e5b63267fdb5e685889d52e6ea87c10e56b8c",
+          "codeSha256": "759a9c787608454e57442cb15c1e5b63267fdb5e685889d52e6ea87c10e56b8c"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/repo-skill.ts",
+          "bytes": 778,
+          "rawSha256": "9817f8f7febf62fe54dd9bc3b46055db3aa837a5465c8a3d81accfc48e0b6218",
+          "codeSha256": "9817f8f7febf62fe54dd9bc3b46055db3aa837a5465c8a3d81accfc48e0b6218"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/experiments/skill.ts",
+          "bytes": 837,
+          "rawSha256": "b2ef1acc8aa062559f702a93bf21ac9dcee2634f0b535e1cd09f71f4cea89e8f",
+          "codeSha256": "b2ef1acc8aa062559f702a93bf21ac9dcee2634f0b535e1cd09f71f4cea89e8f"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/niceeval.config.ts",
+          "bytes": 443,
+          "rawSha256": "b508240c8bcf805fd2de660d6b8cd763b7171e3821ecdb9efb6c89a31de80002",
+          "codeSha256": "b508240c8bcf805fd2de660d6b8cd763b7171e3821ecdb9efb6c89a31de80002"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/sandbox.ts",
+          "bytes": 875,
+          "rawSha256": "3b62ce3bc36faf153f2d1e3744da6c43f55bcc3a1e700de0d2fc48cc932aa683",
+          "codeSha256": "3b62ce3bc36faf153f2d1e3744da6c43f55bcc3a1e700de0d2fc48cc932aa683"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+          "bytes": 9502,
+          "rawSha256": "3437ab37de2aa41ffc086dacc3037164da6d119d90018e392f9d9558269e4bee",
+          "codeSha256": "a52563ba59a2d4fb828fd7fe0be3aea6091444708f5bab64e8dfdd3afa2a67e9"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/test/live-progress.test.ts",
+          "bytes": 2359,
+          "rawSha256": "37e412baaad516e97266a0addb7e3e79bc7984990e4cd2f5d8bd694fe4dbc859",
+          "codeSha256": "9cb3335c49bf793f74db1812dffdce1e5d277f1b829d742a8df93fddd66e5de5"
+        },
+        {
+          "path": "e2e/adapter/codex-cli/vitest.config.ts",
+          "bytes": 360,
+          "rawSha256": "f309eb6daa17d3abf13268838fc59343f100b56f071bd7b33e8dd2c83f621d49",
+          "codeSha256": "f309eb6daa17d3abf13268838fc59343f100b56f071bd7b33e8dd2c83f621d49"
+        }
+      ]
+    },
+    "caseId": "neref_199286d0ccc42d91e90b05585572a138",
+    "nativeTestFile": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+    "declarationFile": "e2e/adapter/codex-cli/test/codex-cli.test.ts",
+    "binding": {
+      "kind": "direct-contract",
+      "suiteId": "adapter-codex-cli",
+      "contractRef": "docs/feature/adapters/README.md",
+      "contractSha256": "95f13a8238635de3ae40e4888efbb985bd593c7b948eeacc02253480a3dd07ca",
+      "policy": "concord.native-reliability/v1",
+      "configurationDigest": "sha256:05bb0e99260af058087389c6a13886bb97ffed8548d27c96959560ffe4c27c83",
+      "adapterSourceDigest": "sha256:17ca04620a51622ef17e1f4fab3926aecf1af2d15be97a230e84bdf93bb64498"
+    }
+  },
+  "runner": {
+    "executor": "vitest",
+    "version": "4.1.12",
+    "implementationDigest": "sha256:ab30a6efaaec2b50b929346e1f880eff35e508f7aabf377092e39484c533c719",
+    "argv": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run",
+      "--reporter=json",
+      "test/codex-cli.test.ts",
+      "--testNamePattern",
+      "^attempt\\.usage 计入同一轮内全部模型请求$"
+    ]
+  },
+  "result": {
+    "disposition": "pass",
+    "stage": "test",
+    "exitCode": 0,
+    "signal": null,
+    "timedOut": false,
+    "startupFailed": false
+  },
+  "native": {
+    "copyId": "isolated-copy-1",
+    "copyPath": "/tmp/niceeval-e2e-takeover-scratch-eapQiO/runs/takeover/isolated-copy-1/adapter/codex-cli",
+    "sequence": 1,
+    "mode": "isolated",
+    "caseCount": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "parallelism": 1
+  },
+  "cleanup": {
+    "ok": true,
+    "resources": [
+      {
+        "kind": "workdir",
+        "path": "/tmp/niceeval-e2e-takeover-scratch-eapQiO/runs/takeover/isolated-copy-1/adapter/codex-cli",
+        "ok": true
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 3175764 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "preflight",
+        "gone": true,
+        "detail": "owned process group 3175765 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "install",
+        "gone": true,
+        "detail": "owned process group 3176808 has no running members after leader close"
+      },
+      {
+        "kind": "owned-process-group",
+        "stage": "test",
+        "gone": true,
+        "detail": "owned process group 3183391 has no running members after leader close"
+      }
+    ]
+  },
+  "invocationId": "a498a3fe-445d-4000-9775-a2836c1f8dbc",
+  "receiptSha256": "eb96f72b5134e404683cf6f3f0ad05cf566b049fee76395fe1a029b4cab395ce"
+}

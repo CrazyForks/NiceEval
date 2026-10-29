@@ -44,6 +44,9 @@ Concord 的 suite id 只允许 `[a-z0-9]+(?:[-_.][a-z0-9]+)*`，不能改成路�
 - `pnpm e2e evidence red` 与 `pnpm e2e takeover` 先按 selector 路径解析 suite，拒绝 `--repo` 与 suite root 不一致的组合，再用 suite id 选取 inventory case；执行副本内的二次收集经 `CaseSelectionExpectation.suiteId` 使用同一身份。
 
 验证：修复后 `concord repo docs test inventory --repo adapter-codex-cli --json` 返回 `repo: adapter-codex-cli`。
+在 `a2a4bd745` 上，`e2e/adapter/codex-cli/test/codex-cli.test.ts#neref_199286d0ccc42d91e90b05585572a138` 用 `neinv_J35CR22ERVTPYWB5`、`nered_CNXNX3Z99WFTBW90`、`netake_56V1YGW1MRWK2YB7` 完成 `regression add`，这是迁移后首个成功登记的嵌套 suite。
+
+本 Problem 属于仓库工具，没有可挂的 E2E 用例，Concord 的 fixed 门禁（要求 current regression case）无法满足，因此保持 open；以上登记即修复已生效的证据。
 
 ## 排查陷阱
 

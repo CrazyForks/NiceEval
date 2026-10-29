@@ -164,6 +164,7 @@ it("attempt.trace 读回 Codex CLI 的代表性工具证据", async () => {
   });
 });
 // @feature docs/feature/adapters/README.md
+// @regression memory/codex-app-server-usage-takes-only-last-response.md
 
 it("attempt.usage 计入同一轮内全部模型请求", async () => {
   // coding-task 在同一轮里先 apply_patch 再运行命令，模型拿到工具结果后才能回复，
