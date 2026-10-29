@@ -152,25 +152,42 @@ function reportTurnProgress(value: unknown, threadId: string, turnId: string, ct
 }
 
 function appServerUsage(frames: readonly unknown[]): Usage | undefined {
-  for (let index = frames.length - 1; index >= 0; index -= 1) {
-    const frame = record(frames[index]);
+  // `tokenUsage.last` is one model response and `tokenUsage.total` is the thread's
+  // running sum, so every increase of `total` in this send window is one more
+  // response. Repeated notifications with an unchanged total are not new requests.
+  const number = (value: unknown): number =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  let previousTotal: number | undefined;
+  let requests = 0;
+  let rawInput = 0;
+  let cacheReadTokens = 0;
+  let outputTokens = 0;
+  let reasoningTokens = 0;
+  for (const value of frames) {
+    const frame = record(value);
     if (frame?.method !== "thread/tokenUsage/updated") continue;
-    const last = record(record(record(frame.params)?.tokenUsage)?.last);
+    const tokenUsage = record(record(frame.params)?.tokenUsage);
+    const last = record(tokenUsage?.last);
     if (!last) continue;
-    const number = (value: unknown): number =>
-      typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-    const rawInput = number(last.inputTokens);
-    const cacheReadTokens = number(last.cachedInputTokens);
-    const reasoningTokens = number(last.reasoningOutputTokens);
-    return {
-      inputTokens: Math.max(0, rawInput - cacheReadTokens),
-      outputTokens: number(last.outputTokens),
-      ...(cacheReadTokens > 0 ? { cacheReadTokens } : {}),
-      ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
-      requests: 1,
-    };
+    const total = record(tokenUsage?.total)?.totalTokens;
+    if (typeof total === "number") {
+      if (previousTotal !== undefined && total <= previousTotal) continue;
+      previousTotal = total;
+    }
+    requests += 1;
+    rawInput += number(last.inputTokens);
+    cacheReadTokens += number(last.cachedInputTokens);
+    outputTokens += number(last.outputTokens);
+    reasoningTokens += number(last.reasoningOutputTokens);
   }
-  return undefined;
+  if (requests === 0) return undefined;
+  return {
+    inputTokens: Math.max(0, rawInput - cacheReadTokens),
+    outputTokens,
+    ...(cacheReadTokens > 0 ? { cacheReadTokens } : {}),
+    ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
+    requests,
+  };
 }
 
 function protocolEvents(frames: readonly unknown[], reported: Set<string>): { events: StreamEvent[]; usage?: Usage } {
@@ -182,9 +199,8 @@ function protocolEvents(frames: readonly unknown[], reported: Set<string>): { ev
     return [{ type, ...params, ...(params.item === undefined ? {} : { item: normalizeItem(params.item) }) }];
   });
   const parsed = shared.parseCodex(normalized.map((frame) => JSON.stringify(frame)).join("\n"));
-  // app-server v2 streams per-turn usage separately from `turn/completed`.
-  // `last` is already the current turn's total, so take the latest notification
-  // in this send window instead of summing intermediate cumulative updates.
+  // app-server v2 streams usage separately from `turn/completed`, one
+  // notification per model response; appServerUsage sums the send window.
   const usage = appServerUsage(frames) ?? (Object.keys(parsed.usage).length === 0 ? undefined : parsed.usage);
   const events = parsed.events.filter((event) => {
     const key = eventKey(event);
