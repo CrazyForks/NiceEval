@@ -49,6 +49,9 @@ source 按每个逻辑位置的 Run create publication revision 选择，包含 
 Assertions/Observability 缺失、partial、损坏或不支持，或 timing 超过当前 timeout，都会形成带真实 issues
 的具名 gap。它不会猜成“从未运行”或 duration `0`。
 
+`identity-mismatch` 与 `adoption-unproven` 位置附带[具名差异或不可解释诊断](cache.md#差异说明)，例如 `config:judge.model`
+或 `identity-domain-changed`。NiceEval 升级引起的身份差异按[身份域变更](cache.md#niceeval-身份域变更)直接沿用，或说明必须重跑的变更名。
+
 `--dry` 不建立 Invocation 或 Run。它在一个固定 `PublicationCutoff` 下读取已发布 Attempt；已发布只表示可读，是否可沿用仍由当次 policy 判定。
 与相同目标的 `project.get` 相比，运行选项只能改变执行动作；`--rerun all` 不把 covered 位置改成当前 gap。
 

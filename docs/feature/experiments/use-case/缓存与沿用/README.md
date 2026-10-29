@@ -12,5 +12,6 @@
 | 审阅后采用单条、整 Run 或已改名实验的历史结果 | [审阅后采用历史结果](../cache-adopt-migrated-config.md) |
 | timeout 或 Attempt 数量 | [修改执行范围](../cache-modify-execution-scope.md) |
 | Sandbox 起点、镜像或准备命令 | [修改Sandbox起点](../cache-modify-sandbox-origin.md) |
+| 升级 NiceEval 本身 | [升级 NiceEval 后沿用已有结果](../cache-niceeval-upgrade.md) |
 | Agent CLI、被测服务或工厂内部参数 | [外部行为发生变化](../cache-external-behavior-change.md) |
 | 指纹没变但就是要重验 | [主动重新运行](../cache-explicit-rerun.md) |

@@ -137,6 +137,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ### 裁决
 
+- [niceeval-identity-domain-change](niceeval-identity-domain-change.md) — 裁决(2026-10-28):恢复 8 月 Record 重写时删掉的「差异说明」契约;NiceEval 更换身份 domain 必须登记具名变更,`encoding-only` 用旧算法从当前输入重建 origin digest 后直接沿用,`behavior-changing` 才重跑;否决用 accept 确认升级等价
 - [manual-carry-accept-decisions](manual-carry-accept-decisions.md) — 裁决(2026-07-30):手动复用标记定稿——放宽是重锚不是持久 tag(TTL 否决)、`--carry-ignoring-flag` 被 `--accept config:flags.<key>` 吸收、roadmap 的 `--rerun eval:` 因 CLI 两类输入模型砍掉、judge/sandbox 组内差异整组回滚才携带;config 差异从 run.json 算,缺 manifest 只降级源码/数据面;评审补裁:selector 按路径命中不按值转换、TTY 交互定性「拼 selector 的助手」保留
 - [carry-eligibility-and-fingerprint-scope-decisions](carry-eligibility-and-fingerprint-scope-decisions.md) — 裁决(2026-07-26):携带资格判据改 `executionMs`(deadline 钉在 sandbox.create,推翻「deadline 与 durationMs 同起点 sandbox.queue」——那会让超时变成并发的函数);loader 读入的数据文件**进**指纹,推翻「算指纹时还没读」(顶层 await loadYaml 在发现阶段的模块求值期就读完了,比解析期早一整个阶段);`--carry-ignoring-flag` 承认是一次重锚而非一次豁免,加两道启动期校验+条目侧 carriedIgnoringFlags;连带立规:进 configHash 的字段必须落进 run.json
 - [sandbox-carry-default-tolerant-identities](sandbox-carry-default-tolerant-identities.md) — 裁决(2026-08-03):未 pin / opaque provider 身份进入 fingerprint 但不再永久阻断历史 passed/failed 携带；同名外部内容暗变用 revision、声明变化或 `--rerun all` 表达

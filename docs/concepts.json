@@ -1286,6 +1286,21 @@
       }
     },
     {
+      "id": "identity-domain-change",
+      "definition": "NiceEval 更换某个身份 domain 时登记的具名变更；`encoding-only` 可由旧算法纯重建后沿用，`behavior-changing` 必须重跑\n\n契约：[Cache](feature/experiments/cache.md#niceeval-身份域变更)",
+      "names": {
+        "zh": {
+          "preferred": "身份域变更"
+        },
+        "en": {
+          "preferred": "Identity domain change",
+          "aliases": [
+            "IdentityDomainChange"
+          ]
+        }
+      }
+    },
+    {
       "id": "transcript",
       "definition": "Adapter 的临时逐事件输入；归一后可供本次 Attempt 消费，但不是持久 Run 格式\n\n契约：[Observability](observability.md)",
       "names": {

@@ -13,6 +13,8 @@ description: "配置变了、NiceEval 不敢沿用旧结果，而你确认它不
 
 模型、flags、Judge、任务、断言或分值的任何变化都会被拒绝，返回 `accept-ineligible`。这些变化可能真的改变结果，应该重跑。
 
+升级 NiceEval 引起的差异不用 `accept`：能验证输入没变的，NiceEval 会直接沿用；新版本改变了执行内容的，`accept` 同样拒绝。见[升级 NiceEval 之后](/zh/tutorials/rerun-and-cache#升级-niceeval-之后)。
+
 ## 从运行计划找到可以接受的旧结果
 
 先预览当前要跑的 Experiment：
@@ -21,7 +23,7 @@ description: "配置变了、NiceEval 不敢沿用旧结果，而你确认它不
 pnpm exec niceeval exp checkout --dry
 ```
 
-因为配置变化而不能自动沿用的旧结果，会显示完整的 Attempt locator，并附一条可以直接复制的 `accept` 命令。你写进命令的 locator 就是这次接受的全部范围；NiceEval 不会顺带接受同一个 Run 或同一个 Experiment 的其它结果。
+因为配置变化而不能自动沿用的旧结果，会显示完整的 Attempt locator 和具体哪一项变了。只有能通过上面验证的旧结果，才附一条可以直接复制的 `accept` 命令；不能接受的只显示原因。你写进命令的 locator 就是这次接受的全部范围；NiceEval 不会顺带接受同一个 Run 或同一个 Experiment 的其它结果。
 
 如果整批旧结果都来自同一个 Run、都能被接受，`--dry` 会改为建议 `niceeval accept --run <run-id> --dry`，一次预览整个 Run。
 

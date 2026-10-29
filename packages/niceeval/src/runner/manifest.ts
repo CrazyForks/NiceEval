@@ -4,7 +4,7 @@
 // 差异,`--dry` 拿它解释、`--accept` 拿它作授权单位。清单的落盘形状在 `record/manifest.ts`,
 // 算出在 `fingerprint.ts` 的 `fingerprintWithManifest`(与指纹同一份输入)。
 //
-// 契约单源:docs/feature/experiments/cache.md「manifest:哈希做索引,清单做解释」。
+// 契约单源:docs/feature/experiments/cache.md「差异说明」与「NiceEval 身份域变更」。
 
 import type { EvalManifest } from "../record/manifest.ts";
 import type { JsonValue } from "../types.ts";

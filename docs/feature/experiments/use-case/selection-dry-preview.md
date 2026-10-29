@@ -30,7 +30,7 @@ feature: docs/feature/experiments/README.md
    policy: attempts 1 · timeout 10m · reuse eligible
    compare/codex-gpt-5.6-luna             memory/commit0-cachetool  Attempt #1  will run
    compare/codex-gpt-5.6-luna--agents-md  memory/commit0-cachetool  Attempt #1  using result @1K1P0VJAPVJ12
-   compare/codex-gpt-5.6-luna--mempal     memory/commit0-cachetool  Attempt #1  will run — configuration changed
+   compare/codex-gpt-5.6-luna--mempal     memory/commit0-cachetool  Attempt #1  will run — configuration changed: config:flags.memory (mempal-v1 → mempal-v2)
    compare/codex-gpt-5.6-luna--nowledge   memory/commit0-cachetool  Attempt #1  will run
    4 targets · 1 reused · 3 to run
    ```

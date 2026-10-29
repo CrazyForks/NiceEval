@@ -18,13 +18,15 @@ pnpm exec niceeval exp checkout --dry
 
 ```text
 PLAN
-checkout  cart/add-item  ordinal 0  reuse @1K1P0VJAPVJ12
-checkout  cart/add-item  ordinal 1  execute: input-identity-changed
+checkout  cart/add-item     Attempt #1  using result @1K1P0VJAPVJ12
+checkout  cart/remove-item  Attempt #1  will run — configuration changed: source:evals/cart/remove-item.eval.ts
+2 targets · 1 reused · 1 to run
 ```
 
-每一行是一次 Attempt。`reuse` 后面是要沿用的旧结果 locator；`execute` 后面是要重跑的原因。上面第二行的 `input-identity-changed` 表示这道题的输入变了，例如你改了评估用例、Fixture 或模型。
+每一行是一次 Attempt。`using result` 后面是要沿用的旧结果 locator；`will run` 后面是要重跑的原因，以及具体哪一项变了。
+上面第二行表示这道题的评估用例文件内容变了。改模型会显示 `config:model`，改判分标准文件会显示 `data:` 开头的路径。
 
-结果和你预期的不一样时，先看原因。例如你只改了报告里的分组名，却看到整批 `execute`，说明某个会影响结果的输入也一起变了。
+结果和你预期的不一样时，先看这些具体差异。例如你只改了报告里的分组名，却看到整批要重跑，差异会指出一起变了的那项输入。
 
 ## 哪些结果会被沿用
 
@@ -57,7 +59,7 @@ pnpm exec niceeval exp checkout --rerun all
 
 ## 确认旧结果在新配置下仍然成立
 
-有时改动会让 NiceEval 判定旧结果不能沿用，但你知道它其实不受影响。例如你给 Agent 加了一个日志开关，这道题的行为完全没变。NiceEval 不会替你猜，需要你明确接受：
+有时改动会让 NiceEval 判定旧结果不能沿用，但你知道它其实不受影响。例如你把基础镜像迁到了新仓库，镜像内容一字节没变，只是地址换了。NiceEval 不会替你猜，需要你明确接受，它再自己验证这次变化确实不影响结果：
 
 ```sh
 pnpm exec niceeval accept @1K1P0VJAPVJ12
@@ -65,7 +67,27 @@ pnpm exec niceeval accept @1K1P0VJAPVJ12
 
 `accept` 会新建一个 Run 引用这个旧 Attempt，原 Attempt 保持不变。要接受多条时，把所有 locator 写进同一条命令，NiceEval 会先检查全部输入，不会只接受一半。
 
+只有少数几种可以验证的变化能被接受。模型、flags、Judge、任务或判分标准变了，`accept` 会拒绝，这时应该重跑。
 怎样取得候选 locator、接受前要核对什么，见[审阅并采用历史 Attempt](/zh/tutorials/accept-results)。
+
+## 升级 NiceEval 之后
+
+升级 NiceEval 本身不会让旧结果失效。升级后先看一次计划：
+
+```sh
+pnpm exec niceeval exp checkout --dry
+```
+
+```text
+PLAN
+checkout  cart/add-item     Attempt #1  using result @1K1P0VJAPVJ12 — via fingerprint-algorithm/3-to-4
+checkout  cart/remove-item  Attempt #1  will run — identity domain changed: opensandbox-prepare/1-to-2 (behavior-changing)
+2 targets · 1 reused · 1 to run
+```
+
+- `via` 后面是新版本对计算方式的一次具名调整。NiceEval 已经验证这道题的输入没有变化，直接沿用旧结果，不需要 `accept`。
+- `behavior-changing` 表示新版本实际执行的内容变了，例如 Sandbox 的准备步骤不同。旧结果只能在历史里查看，`accept` 也会拒绝。重跑前先估算这批题的费用。
+- 看到 `identity-domain-unregistered` 或 `unversioned-identity-change` 时，说明 NiceEval 改了计算方式却没有登记。这是 NiceEval 的缺陷，先报告问题，不要直接整批重跑。
 
 ## 跑完之后看结果
 
