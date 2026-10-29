@@ -1,10 +1,11 @@
 /** NiceEval-specific API-example and SVG guards; prose is checked by Concord. */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const RULES_FILE = "lint/docs/public-api-examples.json";
-const CONCEPTS_FILE = "docs/concepts.json";
+const CONCEPTS_FILE = "docs/concepts.md";
 // SVG 标签可以引用设计文档、公开站正文或概念目录中的正式写法。
 const USAGE_DIRS = ["docs", "apps/docs-site"];
 
@@ -49,11 +50,11 @@ export interface Hit {
   message: string;
 }
 
-/** 判「图里这个词有没有出处」的语料:正文加概念表——在概念表立过的词就是有出处。 */
+/** 判「图里这个词有没有出处」的语料:正文含 docs/concepts.md——在概念表立过的词就是有出处。 */
 function termCorpus(): string {
   return USAGE_DIRS.flatMap((dir) => walkDocs(dir, [".md", ".mdx"]))
     .map((file) => readFileSync(join(ROOT, file), "utf8"))
-    .join("\n") + readFileSync(join(ROOT, CONCEPTS_FILE), "utf8");
+    .join("\n");
 }
 
 function walkDocs(dir: string, extensions: string[] = [".md"]): string[] {
@@ -218,19 +219,25 @@ function countTermHits(prose: string, re: RegExp, allowIn?: string[]): number {
   return count;
 }
 
-/** SVG is outside Concord's Markdown/MDX scan. Reuse its JSON decisions. */
+/** Catalog 的 `## term {#id}` 标题给出写法，frontmatter 的 `deprecated` 给出弃用名；结构校验归 Concord。 */
+function conceptCatalog(): { conceptTerms: Map<string, string>; deprecated: Record<string, string[]> } {
+  const source = readFileSync(join(ROOT, CONCEPTS_FILE), "utf8");
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(source);
+  const metadata: { deprecated?: Record<string, string[]> } = frontmatter ? parseYaml(frontmatter[1]!) ?? {} : {};
+  const conceptTerms = new Map<string, string>();
+  for (const match of source.matchAll(/^## (.+) \{#([a-z0-9-]+)\}$/gmu)) conceptTerms.set(match[2]!, match[1]!);
+  return { conceptTerms, deprecated: metadata.deprecated ?? {} };
+}
+
+/** SVG is outside Concord's Markdown/MDX scan. Reuse its policy and catalog decisions. */
 function svgBannedMatchers(): Array<BannedTerm & { re: RegExp }> {
   const policy: { bannedTerms: Array<BannedTerm & { roots?: string[] }> } =
     JSON.parse(readFileSync(join(ROOT, "docs/concord-writing.json"), "utf8"));
-  const catalog: { concepts: Array<{ id: string; names: Record<string, {
-    preferred: string; deprecated?: string[];
-  }> }> } = JSON.parse(readFileSync(join(ROOT, CONCEPTS_FILE), "utf8"));
   const terms = policy.bannedTerms.filter((term) => !term.roots || term.roots.includes("docs"));
-  for (const concept of catalog.concepts) {
-    for (const names of Object.values(concept.names)) {
-      for (const term of names.deprecated ?? []) {
-        terms.push({ term, use: names.preferred, why: `${CONCEPTS_FILE}#${concept.id}` });
-      }
+  const { conceptTerms, deprecated } = conceptCatalog();
+  for (const [id, names] of Object.entries(deprecated)) {
+    for (const term of names) {
+      terms.push({ term, use: conceptTerms.get(id) ?? id, why: `${CONCEPTS_FILE}#${id}` });
     }
   }
   return terms.map((term) => ({ ...term, re: termMatcher(term.term) }));

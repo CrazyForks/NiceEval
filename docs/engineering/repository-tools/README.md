@@ -103,7 +103,7 @@ PR 正文入口 `pnpm pr:body` 拥有受模板约束的 Git-private 编辑状态
 缺少父 Feature 或既有用例索引时零写入失败，不隐式创建 package 或分组目录。
 dry-run 与实际 publication 使用相同的输入、路径与索引校验；命令不创建测试或反向关系。
 
-术语与写作政策由 Concord 基础 CLI 拥有：`concepts index/show/set` 管理 `docs/concepts.json`，
+术语与写作政策由 Concord 基础 CLI 拥有：`concepts index/show/set` 管理 `docs/concepts.md`，
 `writing index/show/set` 管理 `docs/concord-writing.json`。修改使用最新 owner digest，参数从各自 `--help` 发现。
 Markdown 只解释关系与案例；API 示例规则由 `lint/docs/public-api-examples.json` 拥有，SVG 守护读取 Concord 的词汇裁决。
 

@@ -1665,7 +1665,7 @@
     {
       "term": "准备前缀",
       "use": "before 缓存",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1679,7 +1679,7 @@
     {
       "term": "setup prefix",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1694,7 +1694,7 @@
     {
       "term": "SetupPrefix",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1709,7 +1709,7 @@
     {
       "term": "setupPrefixes",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1723,7 +1723,7 @@
     {
       "term": "setupPrefixPlan",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1737,7 +1737,7 @@
     {
       "term": "sandboxCache.setup",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1751,7 +1751,7 @@
     {
       "term": "SandboxSetupCache",
       "use": "Before cache",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1765,7 +1765,7 @@
     {
       "term": "SetupPrefixKey",
       "use": "BeforeCacheKey",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-cache-key；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-cache-key；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1779,7 +1779,7 @@
     {
       "term": "并发位",
       "use": "并发名额",
-      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#concurrency-capacity；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1793,7 +1793,7 @@
     {
       "term": "Concurrency slot",
       "use": "Concurrency capacity",
-      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#concurrency-capacity；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1807,7 +1807,7 @@
     {
       "term": "waiting for a slot",
       "use": "Concurrency capacity",
-      "why": "0.19 当前术语采用 docs/concepts.json#concurrency-capacity；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#concurrency-capacity；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1821,7 +1821,7 @@
     {
       "term": "执行槽位",
       "use": "计划 Attempt",
-      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#planned-attempt；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1835,7 +1835,7 @@
     {
       "term": "slotId",
       "use": "Planned attempt",
-      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#planned-attempt；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1849,7 +1849,7 @@
     {
       "term": "expectedSlots",
       "use": "Planned attempt",
-      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#planned-attempt；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1863,7 +1863,7 @@
     {
       "term": "originSlotId",
       "use": "Planned attempt",
-      "why": "0.19 当前术语采用 docs/concepts.json#planned-attempt；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#planned-attempt；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1877,7 +1877,7 @@
     {
       "term": "modelSlot",
       "use": "Model role",
-      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#model-role；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1891,7 +1891,7 @@
     {
       "term": "model slot",
       "use": "Model role",
-      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#model-role；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1905,7 +1905,7 @@
     {
       "term": "ModelSlotSelection",
       "use": "Model role",
-      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#model-role；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1919,7 +1919,7 @@
     {
       "term": "defineModelSlots",
       "use": "Model role",
-      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#model-role；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1933,7 +1933,7 @@
     {
       "term": "modelSlots",
       "use": "Model role",
-      "why": "0.19 当前术语采用 docs/concepts.json#model-role；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#model-role；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1947,7 +1947,7 @@
     {
       "term": "postSetup",
       "use": "before",
-      "why": "0.19 当前术语采用 docs/concepts.json#before-hook；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#before-hook；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1961,7 +1961,7 @@
     {
       "term": "preTeardown",
       "use": "after",
-      "why": "0.19 当前术语采用 docs/concepts.json#after-hook；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#after-hook；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1975,7 +1975,7 @@
     {
       "term": "AgentTeardown",
       "use": "after",
-      "why": "0.19 当前术语采用 docs/concepts.json#after-hook；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#after-hook；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -1989,7 +1989,7 @@
     {
       "term": "SessionSlot",
       "use": "SessionKey",
-      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#session-key；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2003,7 +2003,7 @@
     {
       "term": "createSessionSlot",
       "use": "SessionKey",
-      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#session-key；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2017,7 +2017,7 @@
     {
       "term": "session slot",
       "use": "SessionKey",
-      "why": "0.19 当前术语采用 docs/concepts.json#session-key；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#session-key；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2031,7 +2031,7 @@
     {
       "term": "recipe slot",
       "use": "recipe input",
-      "why": "0.19 当前术语采用 docs/concepts.json#recipe-input；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#recipe-input；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2045,7 +2045,7 @@
     {
       "term": "o11y",
       "use": "Observability",
-      "why": "0.19 当前术语采用 docs/concepts.json#observability；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#observability；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2059,7 +2059,7 @@
     {
       "term": "O11ySummary",
       "use": "Observability",
-      "why": "0.19 当前术语采用 docs/concepts.json#observability；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#observability；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2073,7 +2073,7 @@
     {
       "term": "apiBase",
       "use": "baseUrl",
-      "why": "0.19 当前术语采用 docs/concepts.json#base-url；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#base-url；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2087,7 +2087,7 @@
     {
       "term": "AgentSetupManifest",
       "use": "Agent installation",
-      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#agent-installation；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2101,7 +2101,7 @@
     {
       "term": "reportSetup",
       "use": "Agent installation",
-      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#agent-installation；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2115,7 +2115,7 @@
     {
       "term": "agentSetup",
       "use": "Agent installation",
-      "why": "0.19 当前术语采用 docs/concepts.json#agent-installation；历史存档保留当时用语。",
+      "why": "0.19 当前术语采用 docs/concepts.md#agent-installation；历史存档保留当时用语。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2129,7 +2129,7 @@
     {
       "term": "Experiment setup",
       "use": "Experiment before",
-      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "why": "0.19 生命周期字段采用 docs/concepts.md#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2143,7 +2143,7 @@
     {
       "term": "Experiment teardown",
       "use": "Experiment after",
-      "why": "0.19 生命周期字段采用 docs/concepts.json#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "why": "0.19 生命周期字段采用 docs/concepts.md#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2157,7 +2157,7 @@
     {
       "term": "setup / teardown",
       "use": "before / after",
-      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "why": "0.19 生命周期字段采用 docs/concepts.md#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2171,7 +2171,7 @@
     {
       "term": "setup 字段",
       "use": "before 字段",
-      "why": "0.19 生命周期字段采用 docs/concepts.json#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "why": "0.19 生命周期字段采用 docs/concepts.md#before-hook；普通英文动词与仓库安装名称不受此规则限制。",
       "exempt": [
         "docs/issues",
         "docs/design",
@@ -2185,7 +2185,7 @@
     {
       "term": "teardown 字段",
       "use": "after 字段",
-      "why": "0.19 生命周期字段采用 docs/concepts.json#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
+      "why": "0.19 生命周期字段采用 docs/concepts.md#after-hook；普通英文动词与仓库安装名称不受此规则限制。",
       "exempt": [
         "docs/issues",
         "docs/design",

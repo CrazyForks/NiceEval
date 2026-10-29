@@ -53,7 +53,6 @@ const RUNS_ROOT = ".repo-tools/docs-runs";
 const SHARED_FINALIZER_PATHS = [
   "docs/README.md",
   "docs/concepts.md",
-  "docs/concepts.json",
   "docs/concord-writing.json",
 ] as const;
 
