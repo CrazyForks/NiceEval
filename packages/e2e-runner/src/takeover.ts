@@ -294,8 +294,11 @@ export const runTakeover = (options: TakeoverOptions): Effect.Effect<TakeoverSum
   const repo = discovered.repos.find((entry) => entry.manifest.id === options.repoId);
   if (repo === undefined) return yield* Effect.fail(operationError("discovery", `takeover requested unknown repo ${JSON.stringify(options.repoId)}`));
   const inventory = yield* readManagedInventoryReceipt(repoRootDir(), options.inventoryId, options.selector).pipe(Effect.mapError((cause) => operationError("evidence", cause)));
+  const selectorPath = yield* Effect.try({ try: () => parseExactSelector(options.selector).path, catch: (cause) => operationError("evidence", cause) });
+  const suite = yield* governanceSuiteForFile(repoRootDir(), selectorPath).pipe(Effect.mapError((cause) => operationError("evidence", cause)));
+  if (suite.root !== `e2e/${repo.manifest.id}`) return yield* Effect.fail(operationError("evidence", `selector belongs to suite ${suite.id} at ${suite.root}, not repo ${repo.manifest.id}`));
   const selectedCase = yield* Effect.try({
-    try: () => selectInventoryCase(inventory, options.selector, options.repoId),
+    try: () => selectInventoryCase(inventory, options.selector, suite.id),
     catch: (cause) => operationError("evidence", cause),
   });
   const exactSelector = parseExactSelector(options.selector);
@@ -321,7 +324,6 @@ export const runTakeover = (options: TakeoverOptions): Effect.Effect<TakeoverSum
   );
   const scratchRoot = yield* fileSystem.realPath(declaredScratchRoot).pipe(Effect.mapError((cause) => operationError("snapshot", cause)));
   sourceSnapshotCleanup = { ok: true, detail: `removed ${scratchRoot}` };
-  const suite = yield* governanceSuiteForFile(root, selectedCase.path).pipe(Effect.mapError((cause) => operationError("evidence", cause)));
   const sourceSnapshotRoot = join(scratchRoot, "source");
   const sourceSnapshotDir = join(sourceSnapshotRoot, suite.root);
   const results: RepoRunResult[] = [];
@@ -341,7 +343,7 @@ export const runTakeover = (options: TakeoverOptions): Effect.Effect<TakeoverSum
     if (repo.manifest.harness?.testkit === true) testkit = yield* buildTestkitPackage(root, scratchRoot).pipe(Effect.mapError((cause) => operationError("snapshot", cause)));
     const allSecretNames = new Set(discovered.repos.flatMap((entry) => entry.manifest.secrets));
     for (const required of REQUIRED_TAKEOVER_RUNS) {
-      const result = yield* runRepoEffect(repo, materializedCandidate, scratchRoot, artifactRoot, allSecretNames, required.target ? targetNativeArgs : defaultNativeArgs, testkit, { caseSelection: { executor: inventory.executor.name, caseId: selectedCase.caseId, titlePath: selectedCase.titlePath, checkout: inventory.checkout, only: required.target }, caseCollectionNativeArgs: required.target ? targetSelectionArgs : options.nativeArgs, sourceDir: sourceSnapshotDir, sourceProjectionPrefix: suite.root, runLabel: required.label, workdirKey: `${required.label}/${repo.manifest.id}`, testRuns: required.attempts, copyId: required.copyId, sourceSnapshotDigest: sourceSnapshot.digest }).pipe(Effect.mapError((cause) => operationError("artifact", cause)));
+      const result = yield* runRepoEffect(repo, materializedCandidate, scratchRoot, artifactRoot, allSecretNames, required.target ? targetNativeArgs : defaultNativeArgs, testkit, { caseSelection: { executor: inventory.executor.name, caseId: selectedCase.caseId, titlePath: selectedCase.titlePath, checkout: inventory.checkout, only: required.target, suiteId: suite.id }, caseCollectionNativeArgs: required.target ? targetSelectionArgs : options.nativeArgs, sourceDir: sourceSnapshotDir, sourceProjectionPrefix: suite.root, runLabel: required.label, workdirKey: `${required.label}/${repo.manifest.id}`, testRuns: required.attempts, copyId: required.copyId, sourceSnapshotDigest: sourceSnapshot.digest }).pipe(Effect.mapError((cause) => operationError("artifact", cause)));
       results.push(result);
     }
     const after = yield* resolveRepositorySourceIdentity(root, options.selector).pipe(Effect.mapError((cause) => operationError("evidence", cause)));

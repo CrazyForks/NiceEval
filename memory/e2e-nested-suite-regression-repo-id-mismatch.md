@@ -7,9 +7,9 @@ kind: memory
 memoryKind: problem
 state: open
 epoch: 0
+evidenceRequirement: concord.native-reliability/v1
 promotions: []
 history: []
-evidenceRequirement: concord.native-reliability/v1
 ---
 ## 现象
 
@@ -35,6 +35,17 @@ concord repo docs test regression add 'e2e/adapter/codex-cli/test/codex-cli.test
 
 所有 `adapter/*` 场景的 bug 修复都无法完成 regression 登记，对应 Problem 也就无法按 fixed 正式关闭。
 
-## 修复方向（未定）
+## 修复
 
-让 runner 回执与 Concord suite 使用同一个 id：要么 runner 从 `concord.repository.json` 按 root 解析 suite id，要么 suite id 改用路径形式（需确认 Concord 是否允许 `/`）。这涉及 Concord 治理契约，需要与 Concord 侧一起定。
+Concord 的 suite id 只允许 `[a-z0-9]+(?:[-_.][a-z0-9]+)*`，不能改成路径形式；`inventory.repo` 必须等于 suite id 是 Concord 已定的契约，修复落在 NiceEval 的 e2e runner：
+
+- `collectCaseInventory` 拆开两个身份：`repo` 仍是 manifest id，只用来拼 `e2e/<repo>/` 路径；新增 `suiteId` 写进回执和每个 case 的 `repo`。
+- workspace inventory 用 Concord engine 的 `suite` 操作按 `e2e/<manifest id>` 解析 suite id。
+- `pnpm e2e evidence red` 与 `pnpm e2e takeover` 先按 selector 路径解析 suite，拒绝 `--repo` 与 suite root 不一致的组合，再用 suite id 选取 inventory case；执行副本内的二次收集经 `CaseSelectionExpectation.suiteId` 使用同一身份。
+
+验证：修复后 `concord repo docs test inventory --repo adapter-codex-cli --json` 返回 `repo: adapter-codex-cli`。
+
+## 排查陷阱
+
+- runner 源码任何改动都会改变 adapter 实现摘要，旧的 `neinv_` / `nered_` / `netake_` 一律变成 stale，必须在最终提交上重新收集与执行。
+- Concord CLI 把 adapter 失败折叠成 `RepositoryToolError: Repository command failed`，不显示 adapter stderr。runner 的错误类把原因放在 `detail`、`message` 为空，adapter 现在把 `detail` 写在 stderr 首行，但仍需 Concord 侧呈现才能在 CLI 看到。

@@ -319,6 +319,8 @@ export interface CaseSelectionExpectation {
   readonly titlePath: readonly string[];
   readonly checkout: string;
   readonly only: boolean;
+  /** Concord suite id that owns the selected case. */
+  readonly suiteId: string;
 }
 
 export interface RunRepoOptions {
@@ -675,7 +677,7 @@ export const runRepoEffect = (
                     if (sourceSnapshotDigest !== undefined) yield* verifyExecutionProjection(id, copy, sourceSnapshotDigest, `execution-copy-before-test-${attempt}`, sourceProjectionPrefix);
                     if (options.caseSelection !== undefined) {
                       const expected = options.caseSelection;
-                      const inventory = yield* collectCaseInventory({ executor: expected.executor, repo: id, cwd: copy, checkout: expected.checkout, nativeArgs: options.caseCollectionNativeArgs ?? nativeArgs }).pipe(
+                      const inventory = yield* collectCaseInventory({ executor: expected.executor, repo: id, suiteId: expected.suiteId, cwd: copy, checkout: expected.checkout, nativeArgs: options.caseCollectionNativeArgs ?? nativeArgs }).pipe(
                         Effect.mapError((cause) => problem(id, "run", `CaseSelectionInvalid: ${cause.detail}`)),
                       );
                       if (inventory.cases.filter((entry) => entry.caseId === expected.caseId).length !== 1 || (expected.only && inventory.cases.length !== 1) || inventory.unassignedCases.length > 0) {

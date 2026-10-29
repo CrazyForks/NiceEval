@@ -7,7 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import { discoverAllRepos, e2eRootDir, repoRootDir, type DiscoveredRepo } from "./discovery.js";
 import { collectCaseInventory, InventoryError, type CaseInventoryReceipt, type CollectedCase, type InventoryExecutor } from "./inventory.js";
 import { hasSuccessfulOwnedProcessResult, runOwnedProcess } from "./owned-process.js";
-import { engineCall } from "./concord-engine.ts";
+import { engineCall, governanceSuiteForFile } from "./concord-engine.ts";
 import { InventorySchema, WorkspaceInventorySchema } from "./bridge-wire.ts";
 import { packCandidate } from "./pack.js";
 import { copyRepoIsolated, pointAtCandidateTarball } from "./run-repo.js";
@@ -138,7 +138,8 @@ const prepareRepo = Effect.fn("prepareWorkspaceInventoryRepo")(function*(repo: D
   }
   yield* runRequired(["pnpm", "install", "--no-frozen-lockfile", "--prefer-offline"], copy, `${repo.manifest.id}: install`);
   const executors = yield* installedExecutors(copy);
-  const receipts = yield* Effect.forEach(executors, (executor) => collectCaseInventory({ executor, repo: repo.manifest.id, cwd: copy, checkout: spec.checkout, nativeArgs: [] }).pipe(
+  const suite = yield* governanceSuiteForFile(repoRootDir(), `e2e/${repo.manifest.id}`).pipe(Effect.mapError((cause) => new WorkspaceInventoryError({ detail: `${repo.manifest.id}: ${cause.detail}` })));
+  const receipts = yield* Effect.forEach(executors, (executor) => collectCaseInventory({ executor, repo: repo.manifest.id, suiteId: suite.id, cwd: copy, checkout: spec.checkout, nativeArgs: [] }).pipe(
     Effect.catchTag("InventoryError", (cause: InventoryError) => Effect.fail(new WorkspaceInventoryError({ detail: `${repo.manifest.id}/${executor}: ${cause.detail}` }))),
   ), { concurrency: "unbounded" });
   const prefix = `e2e/${repo.manifest.id}`;

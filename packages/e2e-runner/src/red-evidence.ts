@@ -13,6 +13,7 @@ import { nativeReporterArgs } from "./native-observation.ts";
 import { copyRepoIsolated } from "./run-repo.ts";
 import { hasConfirmedOwnedGroupCleanup, hasSuccessfulOwnedProcessResult, OwnedProcess, runOwnedProcess } from "./owned-process.ts";
 import {
+  parseExactSelector,
   selectInventoryCase,
   exactCaseNativeArgs,
   signFormalCaseReceipt,
@@ -92,7 +93,11 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   const fileSystem = yield* FileSystem.FileSystem;
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(options.candidateGitSha)) return yield* Effect.fail(new RedEvidenceError({ detail: "candidateGitSha must be a full Git object id" }));
   const inventory = yield* readManagedInventoryReceipt(repoRootDir(), options.inventoryId, options.selector).pipe(Effect.mapError(failure));
-  const selected = yield* Effect.try({ try: () => selectInventoryCase(inventory, options.selector, options.repoId), catch: failure });
+  const root = repoRootDir();
+  const selectorPath = yield* Effect.try({ try: () => parseExactSelector(options.selector).path, catch: failure });
+  const suite = yield* governanceSuiteForFile(root, selectorPath).pipe(Effect.mapError(failure));
+  if (suite.root !== "e2e/" + options.repoId) return yield* Effect.fail(new RedEvidenceError({ detail: `selector belongs to suite ${suite.id} at ${suite.root}, not repo ${options.repoId}` }));
+  const selected = yield* Effect.try({ try: () => selectInventoryCase(inventory, options.selector, suite.id), catch: failure });
   const head = yield* checkoutHead(repoRootDir());
   if (head !== inventory.checkout) return yield* Effect.fail(new RedEvidenceError({ detail: "inventory checkout does not match current checkout HEAD" }));
   const repoPrefix = "e2e/" + options.repoId + "/";
@@ -100,8 +105,6 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   const discovered = yield* discoverAllRepos(e2eRootDir()).pipe(Effect.mapError(failure));
   const repo = discovered.repos.find((entry) => entry.manifest.id === options.repoId);
   if (repo === undefined || discovered.errors.length > 0) return yield* Effect.fail(new RedEvidenceError({ detail: `cannot freeze source for ${options.repoId}: ${discovered.errors.join("; ")}` }));
-  const root = repoRootDir();
-  const suite = yield* governanceSuiteForFile(root, selected.path).pipe(Effect.mapError(failure));
   const declaredScratch = yield* Effect.acquireRelease(
     fileSystem.makeTempDirectory({ prefix: "niceeval-e2e-red-source-" }).pipe(Effect.mapError(failure)),
     (path) => fileSystem.remove(path, { recursive: true, force: true }).pipe(Effect.catch(() => Effect.void)),
@@ -114,7 +117,7 @@ export const runRedEvidence = (options: RedEvidenceOptions): Effect.Effect<RedEv
   if (copiedProjection.digest !== sourceIdentity.projection.digest) return yield* Effect.fail(new RedEvidenceError({ detail: "red execution copy projection differs from the current source identity" }));
   const exactArgs = exactCaseNativeArgs(inventory.executor.name, runnerPath, selected.titlePath);
   const nativeArgs = [...options.nativeArgs, ...nativeReporterArgs(inventory.executor.name), ...exactArgs];
-  const summary = yield* runEffect({ repoIds: [options.repoId], candidatePath: options.candidatePath, ...(options.artifactRoot === undefined ? {} : { artifactRoot: options.artifactRoot }), nativeArgs, keepWorkdir: false, repoConcurrency: 1, caseSelections: { [options.repoId]: { executor: inventory.executor.name, caseId: selected.caseId, titlePath: selected.titlePath, checkout: inventory.checkout, only: true } }, caseCollectionNativeArgs: { [options.repoId]: [...options.nativeArgs, ...exactArgs] }, sourceDirs: { [options.repoId]: sourceSnapshot }, sourceSnapshotDigests: { [options.repoId]: sourceIdentity.projection.digest }, sourceProjectionPrefixes: { [options.repoId]: suite.root }, copyIds: { [options.repoId]: "red-single" } }).pipe(Effect.mapError(failure));
+  const summary = yield* runEffect({ repoIds: [options.repoId], candidatePath: options.candidatePath, ...(options.artifactRoot === undefined ? {} : { artifactRoot: options.artifactRoot }), nativeArgs, keepWorkdir: false, repoConcurrency: 1, caseSelections: { [options.repoId]: { executor: inventory.executor.name, caseId: selected.caseId, titlePath: selected.titlePath, checkout: inventory.checkout, only: true, suiteId: suite.id } }, caseCollectionNativeArgs: { [options.repoId]: [...options.nativeArgs, ...exactArgs] }, sourceDirs: { [options.repoId]: sourceSnapshot }, sourceSnapshotDigests: { [options.repoId]: sourceIdentity.projection.digest }, sourceProjectionPrefixes: { [options.repoId]: suite.root }, copyIds: { [options.repoId]: "red-single" } }).pipe(Effect.mapError(failure));
   if (summary.runner.category !== "pass" || summary.results.length !== 1) return yield* Effect.fail(new RedEvidenceError({ detail: "runner infrastructure or scratch cleanup failed" }));
   const repoResult = summary.results[0]!;
   const repoReceiptText = yield* fileSystem.readFileString(repoResult.receiptPath).pipe(Effect.mapError(failure));

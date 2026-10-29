@@ -165,6 +165,7 @@ const declarationsInCopy = Effect.fn("declarationsInCopy")(function* (cwd: strin
 const validateCases = Effect.fn("validateCases")(function* (
   executor: InventoryExecutor,
   repo: string,
+  suiteId: string,
   cwd: string,
   rawCases: readonly RawCollectedCase[],
 ) {
@@ -198,7 +199,7 @@ const validateCases = Effect.fn("validateCases")(function* (
       continue;
     }
     seen.set(caseId, path);
-    cases.push({ executor, repo, path, ...(raw.project === undefined ? {} : { project: raw.project }), titlePath: raw.titlePath, caseId });
+    cases.push({ executor, repo: suiteId, path, ...(raw.project === undefined ? {} : { project: raw.project }), titlePath: raw.titlePath, caseId });
   }
   return {
     cases: cases.sort((left, right) => left.path.localeCompare(right.path) || (left.project ?? "").localeCompare(right.project ?? "") || left.titlePath.join("\0").localeCompare(right.titlePath.join("\0"))),
@@ -250,7 +251,10 @@ const versionFrom = (executor: InventoryExecutor, stdout: string): string => {
 
 export interface InventoryOptions {
   readonly executor: InventoryExecutor;
+  /** E2E manifest id: the scenario directory under `e2e/`, e.g. `adapter/codex-cli`. */
   readonly repo: string;
+  /** Concord suite id written as the receipt `repo`; Concord matches it against the configured suite. */
+  readonly suiteId: string;
   readonly cwd: string;
   readonly checkout: string;
   readonly nativeArgs: readonly string[];
@@ -265,7 +269,7 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     const unsigned = {
-      executor: { name: options.executor, version: "unknown" }, repo: options.repo,
+      executor: { name: options.executor, version: "unknown" }, repo: options.suiteId,
       argv: [process.execPath, `<unresolved-${options.executor}-cli>`], checkout: options.checkout,
       files: [], cases: [], unassignedCases: [], bodyExecutions: 0 as const, forbiddenSetupExecutions: 0 as const,
       findings: [detail], exit: null, signal: null,
@@ -307,11 +311,11 @@ export const collectCaseInventory = Effect.fn("collectCaseInventory")(function* 
       findings.push(`collection receipt decode failed: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
   }
-  const validated = yield* validateCases(options.executor, options.repo, cwd, rawCases);
+  const validated = yield* validateCases(options.executor, options.repo, options.suiteId, cwd, rawCases);
   findings.push(...validated.findings);
   const unsigned = {
     executor: { name: options.executor, version },
-    repo: options.repo,
+    repo: options.suiteId,
     argv,
     checkout: options.checkout,
     files: validated.files,

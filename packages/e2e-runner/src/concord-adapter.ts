@@ -57,6 +57,13 @@ const execute = Effect.fn("repositoryAdapter.execute")(function*(request: typeof
     }
   }
 });
+// Runner errors carry their reason in `detail` and leave `message` empty; Concord only sees this stderr.
+const failureText = (cause: Cause.Cause<unknown>): string => {
+  const pretty = Cause.pretty(cause);
+  const error = Cause.squash(cause);
+  const detail = typeof error === "object" && error !== null && "detail" in error && typeof error.detail === "string" ? error.detail : "";
+  return detail.length === 0 || pretty.includes(detail) ? pretty : `${detail}\n${pretty}`;
+};
 const program = Effect.gen(function*() {
   const request = decodeWire(RequestSchema, yield* readRequest);
   if (request.requestId.length === 0 || !/^sha256:[a-f0-9]{64}$/u.test(request.engine.implementationDigest) || request.engine.argv.some(arg => arg.length === 0)) throw new Error("invalid adapter request identity");
@@ -77,5 +84,5 @@ const program = Effect.gen(function*() {
   }).pipe(Effect.provideService(ConcordEngine, request.engine), Effect.provide(runtime), Effect.scoped);
   // Publish only after native Scope finalizers have completed.
   yield* Effect.tryPromise({ try: () => new Promise<void>((resolve, reject) => process.stdout.write(response + "\n", error => error ? reject(error) : resolve())), catch: engineError });
-}).pipe(Effect.catchCause(cause => Effect.sync(() => { process.stderr.write(Cause.pretty(cause) + "\n"); process.exitCode = 1; })));
+}).pipe(Effect.catchCause(cause => Effect.sync(() => { process.stderr.write(failureText(cause) + "\n"); process.exitCode = 1; })));
 NodeRuntime.runMain(program, { disableErrorReporting: true });

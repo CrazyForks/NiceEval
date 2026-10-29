@@ -78,9 +78,9 @@ export const readManagedInventoryReceipt = Effect.fn("readManagedInventoryReceip
   guards.finish();
   return matches[0]!;
 }, bridgeBoundary);
-export const selectInventoryCase = (receipt: CaseInventoryReceipt, selector: string, repo: string): CollectedCase => {
+export const selectInventoryCase = (receipt: CaseInventoryReceipt, selector: string, suiteId: string): CollectedCase => {
   const exact = parseExactSelector(selector);
-  if (receipt.repo !== repo) throw new Error("inventory repo does not match takeover repo");
+  if (receipt.repo !== suiteId) throw new Error(`inventory suite ${receipt.repo} does not match selected suite ${suiteId}`);
   const matches = receipt.cases.filter((entry) => entry.caseId === exact.caseId);
   if (matches.length !== 1) throw new Error("inventory must contain exactly one case " + exact.caseId + ", found " + matches.length);
   const selected = matches[0]!;

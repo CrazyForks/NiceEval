@@ -464,7 +464,7 @@ memory 的召回全靠这份索引:漏索引的条目等于不存在。维护规
 
 ## examples · tier-sync · e2e repos
 
-- [e2e-nested-suite-regression-repo-id-mismatch](e2e-nested-suite-regression-repo-id-mismatch.md) — 嵌套 suite(`adapter/*`)的 `regression add` 必然 NativeEvidenceInvalid:e2e runner 回执写 manifest id `adapter/codex-cli`,Concord 按 suite id `adapter-codex-cli` 校验;迁移后嵌套 suite 从未登记成功,修法涉及 Concord 治理契约未定
+- [e2e-nested-suite-regression-repo-id-mismatch](e2e-nested-suite-regression-repo-id-mismatch.md) — 嵌套 suite(`adapter/*`)的 `regression add` 必然 NativeEvidenceInvalid:e2e runner 回执写 manifest id `adapter/codex-cli`,Concord 按 suite id `adapter-codex-cli` 校验;迁移后嵌套 suite 从未登记成功;已修为回执 `repo` 写 Concord suite id(manifest id 只拼路径),codex regression 仍待在新提交上重跑 inventory/red/takeover
 - [tier-sync-merge-tree-pitfalls](tier-sync-merge-tree-pitfalls.md) — 动 `tiers:sync` 前必读:同 base 三方合并解冲突会死循环重报、链式 pair 脏树、lockfile 不能参与合并
 - [ai-sdk-usechat-typing-indicator-start-chunk](ai-sdk-usechat-typing-indicator-start-chunk.md) — useChat 收到 start chunk 就推空 assistant 消息,按 role 判断的"思考中"指示器立刻消失
 - [ai-sdk-weather-tool-empty-reply-flake](ai-sdk-weather-tool-empty-reply-flake.md) — weather-tool 全断言失败可能是上游模型瞬时空回复,不是采集问题
