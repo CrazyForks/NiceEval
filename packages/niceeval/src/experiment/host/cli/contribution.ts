@@ -22,6 +22,8 @@ import {
 } from "../../../runner/feedback/index.ts";
 import { renderSessionListText, renderSessionShowText } from "../../../runner/session.ts";
 import type { CurrentReuseReadbackSnapshot } from "../../../runner/reuse-readback.ts";
+import { formatIdentityExplanation } from "../../../runner/feedback/identity-explanation.ts";
+import type { ExperimentHostDryComparison, ExperimentHostError } from "../types.ts";
 import { browsableExperimentPaths } from "../../../shared/aggregate.ts";
 import {
   type ExperimentHostDebugPlan,
@@ -322,9 +324,20 @@ function acceptText(results: readonly { readonly runId: string; readonly sourceL
   return `${accepted}${commands}`;
 }
 
-function acceptRunPlanText(plan: { readonly sourceRunId: string; readonly members: readonly { readonly locator: string; readonly evalId: string; readonly attempt: number; readonly comparisons?: readonly unknown[] }[] }): string {
-  const members = plan.members.map((member) => `  ${member.evalId} #${String(member.attempt)} ${member.locator} eligible\n`).join("");
-  return `Accept source Run ${plan.sourceRunId}\n${members}${JSON.stringify({ members: plan.members }, null, 2)}\n${String(plan.members.length)} members eligible\nApply: niceeval accept --run ${plan.sourceRunId}\n`;
+function identityExplanationLines(comparisons: readonly ExperimentHostDryComparison[]): string[] {
+  return comparisons.flatMap((comparison) => comparison.recordedClaim === "execution-identity" && comparison.explanation !== undefined
+    ? formatIdentityExplanation(comparison.explanation) : []);
+}
+
+function acceptMembersText(members: readonly { readonly locator: string; readonly evalId: string; readonly attempt: number; readonly comparisons: readonly ExperimentHostDryComparison[] }[]): string {
+  return members.map((member) => [
+    `  ${member.evalId} #${String(member.attempt)} ${member.locator} eligible`,
+    ...identityExplanationLines(member.comparisons).map((line) => `    ${line}`),
+  ].join("\n")).join("\n") + "\n";
+}
+
+function acceptRunPlanText(plan: { readonly sourceRunId: string; readonly members: Parameters<typeof acceptMembersText>[0] }): string {
+  return `Accept source Run ${plan.sourceRunId}\n${acceptMembersText(plan.members)}${String(plan.members.length)} members eligible\nApply: niceeval accept --run ${plan.sourceRunId}\n`;
 }
 
 function acceptedRunText(sourceRunId: string, results: readonly { readonly runId: string; readonly sourceLocator: string; readonly locator: string; readonly fingerprint: string }[]): string {
@@ -392,7 +405,7 @@ function invocationText(result: { readonly receipt: { readonly invocationId: str
   return `Invocation ${result.receipt.invocationId} · ${result.receipt.completion}\nRuns: ${result.receipt.createdRunIds.join(", ") || "none"}\nResults: ${result.summary.passed} passed · ${result.summary.failed} failed · ${result.summary.errored} errored · ${result.summary.skipped} skipped\nBefore caches: ${result.summary.beforeCaches.hit} hit · ${result.summary.beforeCaches.prepared} prepared · ${result.summary.beforeCaches.failed} failed (${result.summary.beforeCaches.total} total)\n`;
 }
 
-function dryRows(plan: { readonly slots: readonly { readonly state: "reuse" | "gap"; readonly target: { readonly runId: string; readonly slotId: string; readonly experimentId: string; readonly evalId: string; readonly evalGroupId?: string; readonly evalGroupIndex?: number; readonly attempt: number }; readonly comparisons: readonly unknown[]; readonly reason?: string; readonly scope?: string }[]; readonly readbacks: readonly CurrentReuseReadbackSnapshot[]; readonly lockedPairs: readonly string[] }) {
+function dryRows(plan: { readonly slots: readonly { readonly state: "reuse" | "gap"; readonly target: { readonly runId: string; readonly slotId: string; readonly experimentId: string; readonly evalId: string; readonly evalGroupId?: string; readonly evalGroupIndex?: number; readonly attempt: number }; readonly comparisons: readonly ExperimentHostDryComparison[]; readonly reason?: string; readonly scope?: string }[]; readonly readbacks: readonly CurrentReuseReadbackSnapshot[]; readonly lockedPairs: readonly string[] }) {
   type ProjectedSlot = {
     readonly runId: string;
     readonly slotId: string;
@@ -400,7 +413,7 @@ function dryRows(plan: { readonly slots: readonly { readonly state: "reuse" | "g
     readonly evalId: string;
     readonly attempt: number;
     readonly state: "reused" | "gap";
-    readonly comparisons: readonly unknown[];
+    readonly comparisons: readonly ExperimentHostDryComparison[];
     readonly reason?: string;
     readonly scope?: string;
   };
@@ -450,12 +463,31 @@ function dryText(plan: Parameters<typeof dryRows>[0], shape: { readonly totalAtt
     const slots = row.slots;
     const reusedAttempts = slots.filter((slot) => slot.state === "reused").map((slot) => slot.attempt);
     const gaps = slots.filter((slot) => slot.state === "gap");
+    const explanations = new Map(slots.map((slot) => [slot.attempt, identityExplanationLines(slot.comparisons)]));
+    const reusedParts = reusedAttempts.some((attempt) => explanations.get(attempt)?.length)
+      ? reusedAttempts.map((attempt) => {
+        const summary = explanations.get(attempt)?.[0];
+        return `reused ${attempt}${summary === undefined ? "" : ` ${summary}`}`;
+      })
+      : reusedAttempts.length === 0 ? [] : [`reused ${reusedAttempts.join(",")}`];
     const parts = [
       ...(row.locked ? ["locked"] : []),
-      ...(reusedAttempts.length === 0 ? [] : [`reused ${reusedAttempts.join(",")}`]),
-      ...gaps.map((slot) => `gap ${slot.attempt}:${slot.reason ?? "unknown"}`),
+      ...reusedParts,
+      ...gaps.map((slot) => {
+        const summary = slot.reason === "identity-mismatch" || slot.reason === "adoption-unproven"
+          ? explanations.get(slot.attempt)?.[0] : undefined;
+        return `gap ${slot.attempt}:${slot.reason ?? "unknown"}${summary === undefined ? "" : `: ${summary}`}`;
+      }),
     ];
     lines.push(`${row.experimentId}  ${row.evalId}  ${parts.join(" · ") || "no slots"}`);
+    for (const slot of gaps) {
+      if (slot.reason !== "identity-mismatch" && slot.reason !== "adoption-unproven") continue;
+      const details = explanations.get(slot.attempt)?.slice(1) ?? [];
+      if (details.length > 0) {
+        if (slots.length > 1) lines.push(`  attempt ${slot.attempt}:`);
+        lines.push(...details.map((line) => `  ${line}`));
+      }
+    }
     for (const readback of row.readbacks) {
       const verdict = readback.state === "reused"
         ? readback.verdict
@@ -883,10 +915,13 @@ const debugCommand: CliCommandContribution<ExperimentCliRequirements, Experiment
   }),
 });
 
-function acceptFailure(cause: Error): ExperimentCliError {
-  const code = "code" in cause && typeof cause.code === "string" ? `${cause.code}: ` : "";
-  const comparisons = "comparisons" in cause && Array.isArray(cause.comparisons) ? `\n${JSON.stringify({ comparisons: cause.comparisons }, null, 2)}` : "";
-  return failure("accept", cause, 1, `error: could not accept result: ${code}${cause.message}${comparisons}\n`);
+function acceptFailure(cause: ExperimentHostError): ExperimentCliError {
+  const details = identityExplanationLines(cause.comparisons ?? []).map((line) => `  ${line}`);
+  return failure("accept", cause, 1, [
+    `error: could not accept result: ${cause.code}: ${cause.message}`,
+    ...details,
+    "",
+  ].join("\n"));
 }
 
 const acceptCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCliError> = Object.freeze({
@@ -919,7 +954,7 @@ const acceptCommand: CliCommandContribution<ExperimentCliRequirements, Experimen
     }
     if (input.values.dry === true) {
       const members = yield* planLocatorAccept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals) }).pipe(Effect.mapError(acceptFailure));
-      yield* write("stdout", `Accept preview\n${JSON.stringify({ members }, null, 2)}\n`);
+      yield* write("stdout", `Accept preview\n${acceptMembersText(members)}`);
       return 0;
     }
     const result = yield* experimentHost.accept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals) }).pipe(

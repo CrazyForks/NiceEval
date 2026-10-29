@@ -2,8 +2,8 @@
 // rerun: pnpm e2e test --repo runner -- --run test/accept-reanchor.test.ts
 
 import { only } from "@niceeval/testkit";
-import { decodeExecutionComparisons, decodeExpPlanDocument } from "niceeval/experiment/host";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { decodeExpPlanDocument } from "niceeval/experiment/host";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { runnerE2E, writeInspectionRequest } from "./context.ts";
@@ -12,7 +12,7 @@ import { runnerE2E, writeInspectionRequest } from "./context.ts";
 test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 verdict/evidence 与审计 provenance", async () => {
   await runnerE2E.case(
     "accept-reanchor",
-    { artifacts: [{ source: ".niceeval", target: ".niceeval", optional: true }, { source: "identity-plan.json", target: "identity-plan.json", optional: true }] },
+    { artifacts: [{ source: ".niceeval", target: ".niceeval", optional: true }, { source: "identity-plan.json", target: "identity-plan.json", optional: true }, { source: "human-output.txt", target: "human-output.txt", optional: true }] },
     async ({ commands: { niceeval }, paths }) => {
       const root = paths.projectRoot;
     const initial = await niceeval.run(["exp", "accept", "--json"]);
@@ -43,8 +43,11 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     writeFileSync(evalPath, evalSource.replace('await t.send("accept")', 'await t.send("accept after review")'), "utf8");
 
     const humanDry = await niceeval.run(["exp", "accept", "--dry"]);
+    writeFileSync(join(root, "human-output.txt"), `exp --dry\n${humanDry.stdout}`, "utf8");
     expect(humanDry.exitCode, humanDry.diagnostic()).toBe(0);
     expect(humanDry.stdout).toContain("gap 0:identity-mismatch");
+    expect(humanDry.stdout).toContain("source:evals/accept/accept-target.eval.ts");
+    expect(humanDry.stdout).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
     expect(humanDry.stdout).toContain(`source ${oldLocator} · prior · verdict passed`);
     expect(humanDry.stdout).not.toContain(`accept: niceeval accept ${oldLocator}`);
 
@@ -70,11 +73,11 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     const beforeRejected = await niceeval.run(["query", "run", "--request", listRequest]);
     expect(beforeRejected.exitCode, beforeRejected.diagnostic()).toBe(0);
     const rejectedDry = await niceeval.run(["accept", oldLocator, "--dry"]);
+    appendFileSync(join(root, "human-output.txt"), `\naccept --dry (rejected)\n${rejectedDry.stderr}`, "utf8");
     expect(rejectedDry.exitCode, rejectedDry.diagnostic()).not.toBe(0);
-    expect(rejectedDry.stderr).toContain("accept-ineligible");
-    const rejectionDocument = JSON.parse(rejectedDry.stderr.slice(rejectedDry.stderr.indexOf("\n{") + 1));
-    const rejectionComparisons = decodeExecutionComparisons(rejectionDocument.comparisons);
-    expect(rejectionComparisons[0]!.explanation).toEqual(changedTarget!.slots[0]!.comparisons[0]!.explanation);
+    expect(rejectedDry.stderr).toContain("error: could not accept result: accept-ineligible:");
+    expect(rejectedDry.stderr).toContain("\n  source:evals/accept/accept-target.eval.ts");
+    expect(rejectedDry.stderr).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
 
     const projectRequest = await writeInspectionRequest(root, "changed-project", { kind: "project.get" });
     const project = await niceeval.run(["query", "run", "--request", projectRequest]);
@@ -86,13 +89,47 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     if (projectGap!.state === "gap") expect(JSON.stringify(projectGap!.issues)).not.toContain("comparisons");
     const rejected = await niceeval.run(["accept", oldLocator]);
     expect(rejected.exitCode, rejected.diagnostic()).not.toBe(0);
-    expect(`${rejected.stdout}\n${rejected.stderr}`).toContain("accept-ineligible");
+    expect(rejected.stderr).toContain("error: could not accept result: accept-ineligible:");
+    expect(rejected.stderr).toContain("\n  source:evals/accept/accept-target.eval.ts");
+    expect(rejected.stderr).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
     const afterRejected = await niceeval.run(["query", "run", "--request", listRequest]);
     expect(afterRejected.exitCode, afterRejected.diagnostic()).toBe(0);
     expect(afterRejected.runsList().runs).toEqual(beforeRejected.runsList().runs);
     // A changed task is not made equivalent by operator confirmation. Restore
     // the exact task before exercising explicit adoption and subsequent carry.
     writeFileSync(evalPath, evalSource, "utf8");
+
+    // Timeout changes the combined identity without changing comparable manifest
+    // inputs. Exercise the public unexplained diagnostic without editing records.
+    const configPath = join(root, "niceeval.config.ts");
+    const configSource = readFileSync(configPath, "utf8");
+    expect(configSource).toContain("60_000");
+    writeFileSync(configPath, configSource.replace("60_000", "61_000"), "utf8");
+    const unexplained = await niceeval.run(["exp", "accept", "--dry"]);
+    appendFileSync(join(root, "human-output.txt"), `\nexp --dry (unexplained)\n${unexplained.stdout}`, "utf8");
+    expect(unexplained.exitCode, unexplained.diagnostic()).toBe(0);
+    expect(unexplained.stdout).toContain("unversioned-identity-change: Execution identity changed");
+    expect(unexplained.stdout).toContain("observed inputs: no differences in comparable manifest fields");
+    expect(unexplained.stdout).toContain("limitation:");
+    expect(unexplained.stdout).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
+    const unexplainedRejection = await niceeval.run(["accept", oldLocator]);
+    appendFileSync(join(root, "human-output.txt"), `\naccept (unexplained)\n${unexplainedRejection.stderr}`, "utf8");
+    expect(unexplainedRejection.exitCode, unexplainedRejection.diagnostic()).not.toBe(0);
+    expect(unexplainedRejection.stderr).toContain("\n  unversioned-identity-change: Execution identity changed");
+    expect(unexplainedRejection.stderr).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
+    writeFileSync(configPath, configSource, "utf8");
+
+    const locatorPreview = await niceeval.run(["accept", oldLocator, "--dry"]);
+    appendFileSync(join(root, "human-output.txt"), `\naccept --dry\n${locatorPreview.stdout}`, "utf8");
+    expect(locatorPreview.exitCode, locatorPreview.diagnostic()).toBe(0);
+    expect(locatorPreview.stdout).toContain(`  accept/accept-target #0 ${oldLocator} eligible`);
+    expect(locatorPreview.stdout).not.toMatch(/[{}]|"members"|"comparisons"/u);
+    const runPreview = await niceeval.run(["accept", "--run", initial.expReceipt().createdRunIds[0]!, "--dry"]);
+    appendFileSync(join(root, "human-output.txt"), `\naccept --run --dry\n${runPreview.stdout}`, "utf8");
+    expect(runPreview.exitCode, runPreview.diagnostic()).toBe(0);
+    expect(runPreview.stdout).toContain(`  accept/accept-target #0 ${oldLocator} eligible`);
+    expect(runPreview.stdout).toMatch(/accept\/accept-secondary #0 @1[0-9A-HJKMNP-TV-Z]{12} eligible/u);
+    expect(runPreview.stdout).not.toMatch(/[{}]|"members"|"comparisons"/u);
 
     // Explicit acceptance must keep resolving the requested immutable origin
     // after unrelated Experiments have added their own published Attempts.

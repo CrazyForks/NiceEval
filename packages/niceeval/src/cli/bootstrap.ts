@@ -59,6 +59,7 @@ type SignalOwnership =
   | "graceful-aborted";
 
 let signalOwnership: SignalOwnership = "root";
+let interruptedByClosedStdout = false;
 const invocationInterruption = new AbortController();
 let fiber: ReturnType<typeof Effect.runFork> | undefined;
 
@@ -106,6 +107,22 @@ const onInterrupt = (signal: NodeJS.Signals): void => {
 };
 process.on("SIGINT", onInterrupt);
 process.on("SIGTERM", onInterrupt);
+
+// A pipe consumer may exit before an asynchronous stdout write completes.
+// Keep this process-owned listener after the application fiber finishes so
+// Node can flush pending writes without an unhandled EPIPE. While work is
+// active, use its existing interruption owner so Scope finalizers still drain.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code !== "EPIPE") throw error;
+  if (signalOwnership === "root") {
+    interruptedByClosedStdout = true;
+    signalOwnership = "root-interrupted";
+    fiber?.interruptUnsafe();
+  } else if (signalOwnership === "graceful-dispatch") {
+    signalOwnership = "graceful-aborted";
+    invocationInterruption.abort();
+  }
+});
 
 type CliFeatureRequirements =
   | DockerCacheAdministration
@@ -196,7 +213,10 @@ fiber.addObserver((exit) => {
   if (Exit.isFailure(exit)) {
     // Scope finalizers have settled before an observer sees the Exit. Typed
     // CLI failures already became a successful numeric result above; only a
-    // real unhandled interruption receives 130, and defects remain exit 2.
-    process.exitCode = Cause.hasInterruptsOnly(exit.cause) ? 130 : 2;
+    // signal interruption receives 130; a closed output consumer is normal
+    // termination, and defects remain exit 2.
+    process.exitCode = Cause.hasInterruptsOnly(exit.cause)
+      ? interruptedByClosedStdout ? 0 : 130
+      : 2;
   }
 });

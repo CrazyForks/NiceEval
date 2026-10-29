@@ -42,6 +42,37 @@ export const ExpTerminalEventSchema = Schema.Struct({
   summary: ExpTerminalSummarySchema,
 });
 
+/** Bounded, transient snapshot; it does not assert Attempt publication. */
+export const ExpProgressEventSchema = Schema.Struct({
+  event: Schema.Literal("progress"),
+  elapsedMs: NonNegativeNumberSchema,
+  total: NonNegativeIntegerSchema,
+  reused: NonNegativeIntegerSchema,
+  running: NonNegativeIntegerSchema,
+  elsewhere: NonNegativeIntegerSchema,
+  queued: NonNegativeIntegerSchema,
+  passed: NonNegativeIntegerSchema,
+  failed: NonNegativeIntegerSchema,
+  errored: NonNegativeIntegerSchema,
+  skipped: NonNegativeIntegerSchema,
+  active: Schema.Array(Schema.Struct({
+    experimentId: Schema.optional(Schema.String),
+    evalId: Schema.String,
+    attempt: NonNegativeIntegerSchema,
+    phase: Schema.String,
+    elapsedMs: NonNegativeNumberSchema,
+  })).check(Schema.makeFilter((value) => value.length <= 64)),
+  activeOmitted: NonNegativeIntegerSchema,
+});
+export type ExpProgressEvent = Schema.Schema.Type<typeof ExpProgressEventSchema>;
+
+export function decodeExpProgressEvent(input: unknown): ExpProgressEvent {
+  return Schema.decodeUnknownSync(ExpProgressEventSchema, {
+    errors: "all",
+    onExcessProperty: "error",
+  })(input);
+}
+
 /** One Run-owned failure observed before any affected Attempt is dispatched. */
 export const ExpDiagnosticEventSchema = Schema.Struct({
   event: Schema.Literal("diagnostic"),

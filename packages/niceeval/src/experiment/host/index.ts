@@ -42,6 +42,8 @@ export {
 export { decodeExecutionComparisons, decodeExpPlanDocument, ExpPlanDocumentSchema, type ExpPlanDocument } from "./cli/plan-protocol.ts";
 export {
   decodeExpTerminalEvent,
+  decodeExpProgressEvent,
+  type ExpProgressEvent,
   ExpDiagnosticEventSchema,
   type ExpDiagnosticEvent,
   ExpInvocationReceiptSchema,

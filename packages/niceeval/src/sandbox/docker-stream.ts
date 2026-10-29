@@ -2,6 +2,7 @@
 // 不含任何容器编排逻辑,便于独立测试与复用。
 
 import * as tar from "tar-stream";
+import { StringDecoder } from "node:string_decoder";
 
 /**
  * Docker exec 复用流(8 字节头 + 载荷)的增量解析器。
@@ -13,32 +14,52 @@ import * as tar from "tar-stream";
  * 表现为 transcript 里随机损坏的行(曾导致 bub tape 的 tool_result/tool_call 被吞)。
  */
 export function createExecDemuxer(): {
-  push(chunk: Buffer): void;
+  push(chunk: Buffer): { stdout: string; stderr: string };
+  finish(): { stdout: string; stderr: string };
   stdout(): string;
   stderr(): string;
 } {
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
+  const stdoutChunks: string[] = [];
+  const stderrChunks: string[] = [];
+  const stdoutDecoder = new StringDecoder("utf8");
+  const stderrDecoder = new StringDecoder("utf8");
   let buffer: Buffer = Buffer.alloc(0); // 跨 data 累积的残帧;注解为 Buffer 以容纳 concat 的 ArrayBufferLike
 
   return {
-    push(chunk: Buffer): void {
+    push(chunk: Buffer): { stdout: string; stderr: string } {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
       buffer = buffer.length ? Buffer.concat([buffer, chunk]) : chunk;
       while (buffer.length >= 8) {
         const streamType = buffer[0];
         const size = buffer.readUInt32BE(4);
         if (buffer.length < 8 + size) break; // 载荷未到齐 → 等下个 chunk
         const payload = buffer.subarray(8, 8 + size);
-        if (streamType === 2) stderrChunks.push(payload);
-        else stdoutChunks.push(payload); // 1 / 0 / 未知 → 归 stdout
+        if (streamType === 2) {
+          const text = stderrDecoder.write(payload);
+          stderrChunks.push(text);
+          stderr.push(text);
+        } else {
+          const text = stdoutDecoder.write(payload); // 1 / 0 / 未知 → 归 stdout
+          stdoutChunks.push(text);
+          stdout.push(text);
+        }
         buffer = buffer.subarray(8 + size);
       }
+      return { stdout: stdout.join(""), stderr: stderr.join("") };
+    },
+    finish(): { stdout: string; stderr: string } {
+      const stdout = stdoutDecoder.end();
+      const stderr = stderrDecoder.end();
+      stdoutChunks.push(stdout);
+      stderrChunks.push(stderr);
+      return { stdout, stderr };
     },
     stdout(): string {
-      return Buffer.concat(stdoutChunks).toString("utf-8");
+      return stdoutChunks.join("");
     },
     stderr(): string {
-      return Buffer.concat(stderrChunks).toString("utf-8");
+      return stderrChunks.join("");
     },
   };
 }

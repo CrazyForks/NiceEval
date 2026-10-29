@@ -20,6 +20,8 @@ import {
 import {
   decodeExpTerminalEvent,
   ExpDiagnosticEventSchema,
+  decodeExpProgressEvent,
+  type ExpProgressEvent,
   type ExpTerminalEvent,
   type InvocationReceipt,
 } from "./exp-protocol.js";
@@ -57,14 +59,17 @@ export const ExpStartEventSchema = Schema.Struct({
 
 export type ExpStartEvent = Schema.Schema.Type<typeof ExpStartEventSchema>;
 
-const ExpProgressEventSchema = Schema.Struct({
-  event: Schema.Literal("progress"), elapsedMs: NonNegativeIntegerSchema,
-  total: NonNegativeIntegerSchema, reused: NonNegativeIntegerSchema,
-  running: NonNegativeIntegerSchema, elsewhere: NonNegativeIntegerSchema,
-  queued: NonNegativeIntegerSchema, passed: NonNegativeIntegerSchema,
-  failed: NonNegativeIntegerSchema, errored: NonNegativeIntegerSchema,
-  skipped: NonNegativeIntegerSchema,
-});
+// Decode with the product's runtime, as for terminal receipts. The installed
+// candidate may own a separate Effect instance; do not compose its filter AST
+// into the harness's Schema runtime.
+const ExpProgressEventSchema = Schema.declare<ExpProgressEvent>((input): input is ExpProgressEvent => {
+  try {
+    decodeExpProgressEvent(input);
+    return true;
+  } catch {
+    return false;
+  }
+}, { title: "niceeval.exp progress event" });
 
 const ExpFailureEventSchema = Schema.Struct({
   event: Schema.Literal("failure"), locator: Schema.String, evalId: Schema.String,

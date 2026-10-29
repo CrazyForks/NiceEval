@@ -15,7 +15,7 @@
 //   (locator/evalId/experimentId/phase/verdict),不为事件流发明第二套命名。
 //
 // 不实现 `clearDynamic`/`redrawDynamic`/`activity`/`onLifecycle`:JSON 流没有「动态区域」概念,
-// 不展示 active phase、不逐次输出 provisioning retry/backoff、不逐条打印 passed attempt —— 这些
+// active phase 仅随心跳给出快照，不逐次输出 provisioning retry/backoff、不逐条打印 passed attempt —— 这些
 // 目标行为由「不实现对应可选钩子」天然满足(见 renderer.ts 的接口注释)。
 //
 // 为什么 diagnostic/budget-exhausted/interrupted/reporter-error 仍然去重(只在首次出现时追加)
@@ -35,7 +35,7 @@ import type {
   RunFeedbackState,
 } from "../types.ts";
 import type { JsonValue, Verdict } from "../../shared/types.ts";
-import type { ExpTerminalSummary, ExpDiagnosticEvent } from "../../experiment/host/cli/output-protocol.ts";
+import type { ExpTerminalSummary, ExpDiagnosticEvent, ExpProgressEvent } from "../../experiment/host/cli/output-protocol.ts";
 import { evalConclusionRows, type EvalConclusionRow } from "./eval-conclusions.ts";
 
 /** `ExpEvent`/`ExpPlanDocument` 的 `format`/`schemaVersion` —— 只在破坏性形状变更时递增
@@ -64,19 +64,7 @@ export interface StartEvent {
   reused: number;
 }
 
-export interface ProgressEvent {
-  event: "progress";
-  elapsedMs: number;
-  total: number;
-  reused: number;
-  running: number;
-  elsewhere: number;
-  queued: number;
-  passed: number;
-  failed: number;
-  errored: number;
-  skipped: number;
-}
+export type ProgressEvent = ExpProgressEvent;
 
 export interface FailureEvent {
   event: "failure";
@@ -459,6 +447,14 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
       const idle = event.at - lastCheckpointAtMs;
       if (idle < JSON_HEARTBEAT_IDLE_MS) return;
       noteCheckpoint(event.at);
+      const active = [...state.active.values()].sort((left, right) => {
+        for (const key of ["experimentId", "evalId"] as const) {
+          const a = left.identity[key] ?? "";
+          const b = right.identity[key] ?? "";
+          if (a !== b) return a < b ? -1 : 1;
+        }
+        return left.identity.attempt - right.identity.attempt;
+      });
       writeEvent(io, {
         event: "progress",
         elapsedMs: event.elapsedMs,
@@ -473,11 +469,17 @@ export function createJsonRenderer(options: JsonRendererOptions): FeedbackRender
         failed: state.failed,
         errored: state.errored,
         skipped: state.skipped,
+        active: active.slice(0, 64).map((attempt) => ({
+          ...attempt.identity,
+          phase: attempt.phase,
+          elapsedMs: Math.max(0, event.at - attempt.startedAt),
+        })),
+        activeOmitted: Math.max(0, active.length - 64),
       });
     },
 
     // 没有 clearDynamic/redrawDynamic/activity/onLifecycle:见文件顶部注释——JSON 流不维护
-    // 动态区域、不逐次输出 provisioning retry/backoff、不逐条展示 active phase 或 passed attempt。
+    // 动态区域、不逐次输出 provisioning retry/backoff 或 passed attempt；active phase 由心跳快照给出。
   };
 }
 

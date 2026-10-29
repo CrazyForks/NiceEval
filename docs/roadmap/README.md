@@ -20,7 +20,7 @@ Roadmap 与 Feature、Design 候选共用 [Feature Design Package](../_template/
 
 - [Admission Health](admission-health/README.md) —— 在 Agent 进入前验证 producer occurrence，不为不可用资源创建 Attempt。
 - [发现边界](discovery-boundaries/README.md) —— 让目录入口明确拥有递归发现范围，并由 CLI 解释截止原因。
-- [Eval Trajectory](eval-trajectories/README.md) —— 让有依赖的 Eval DAG 按 immutable Run 与 exact Checkpoint 暂停和恢复。
+- [已采用的 Eval Trajectory](eval-trajectories/README.md) —— 当前契约入口转至 Feature。
 - [Experiment Authoring](experiment-authoring/README.md) —— 统一展示名与具名 Experiment 族的身份边界。
 - [Experiment Pilot 抽样](experiment-pilot-sampling/README.md) —— 用共同 Eval ID、固定 seed 与 non-final coverage 运行可复现小样本。
 - [Judge Runtimes](judge-runtimes/README.md) —— 收拢 Agent Judge 与原生 LLM Judge 的材料、权限和结果边界。
@@ -33,7 +33,7 @@ Roadmap 与 Feature、Design 候选共用 [Feature Design Package](../_template/
 - [Sandbox Prepare](sandbox-prepare/README.md) —— 收拢 checkout、Fixture 内容传输与官方命令的瞬时重试。
 - [Sandbox 默认停驻与回收](sandbox-retention/README.md) —— 失败类 Sandbox 的有界停驻、明确销毁、持久管理与安全 GC。
 - [Sandbox 复用反馈](sandbox-reuse-feedback/README.md) —— 补齐 Sandbox 物理复用的运行级摘要。
-- [持久状态](state/README.md) —— 用 provider-issued Cohort 与 exact Checkpoint 管理可比较状态。
+- [已采用的持久状态](state/README.md) —— 当前契约入口转至 Feature。
 - [Workspace 访问证据](workspace-access-evidence/README.md) —— 采集 Agent 进程树的可信文件操作，并提供 Attempt-scope Assertion。
 
 ## Adapter 准入目标

@@ -62,7 +62,7 @@ commit `indeterminate` 时，CLI 先发起同一 `commitId`、同一完整 `expe
 只有得到 accepted receipt 才能继续；`not-committed` 与 `StateCommitIndeterminate` 都以退出码 `1` 停止，不自动提交
 新的 checkpoint。
 
-本方向继承 [CLI 的统一 `niceeval exp` 退出码](../../cli.md#退出码)，不新增 State 专用状态码。
+本方向继承 [CLI 的统一退出码](../../cli.md#退出码)，不新增 State 专用状态码。
 
 ## 并发与审计边界
 

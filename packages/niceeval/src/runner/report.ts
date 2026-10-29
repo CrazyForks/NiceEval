@@ -13,6 +13,8 @@ import type {
 } from "../types.ts";
 import { firstLine, formatThrown } from "../util.ts";
 import { reportReporterError } from "./feedback/sink.ts";
+import { adapterUsageForResult } from "./adapter-usage.ts";
+import { adapterTokenMaterial } from "../o11y/adapter-usage-projection.ts";
 
 /**
  * reporter 调用的统一兜错。返回 void,永不 reject(供 Promise.all 安全聚合,单个 reporter
@@ -119,6 +121,24 @@ export function scopeReporter(r: Reporter, ids: ReadonlySet<string>, shape?: Inv
   return scoped;
 }
 
+/** Only complete observations can contribute to an exact invocation total. */
+function resultTokens(result: EvalResult, metric: "inputTokens" | "outputTokens"): number | undefined {
+  const captured = adapterUsageForResult(result);
+  if (captured !== undefined) {
+    if (captured.collection.state === "complete" && captured.calls.length === 0) return 0;
+    const material = adapterTokenMaterial(captured, metric);
+    return material.state === "exact" ? material.value : undefined;
+  }
+  const value = result.usage?.[metric];
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+function addTokens(total: number | undefined, value: number | undefined): number | undefined {
+  if (total === undefined || value === undefined) return undefined;
+  const sum = total + value;
+  return Number.isSafeInteger(sum) ? sum : undefined;
+}
+
 /** 全局汇总:verdict 计数 + token / cost 折叠。按 attempt 计(eval 级折叠见 shared/verdict.ts)。不接收 agent/model —— 一次 Invocation 可能横跨多个配置,身份从逐条 `EvalResult` 读取。 */
 export function summarize(
   results: EvalResult[],
@@ -129,14 +149,14 @@ export function summarize(
   beforeCaches: InvocationSummary["beforeCaches"] = Object.freeze({ total: 0, hit: 0, prepared: 0, failed: 0 }),
 ): InvocationSummary {
   const counts = { passed: 0, failed: 0, skipped: 0, errored: 0 };
-  let inTok = 0;
-  let outTok = 0;
+  let inTok: number | undefined = 0;
+  let outTok: number | undefined = 0;
   let cost = 0;
   let hasEstimatedCost = false;
   for (const r of results) {
     counts[r.verdict] += 1;
-    inTok += r.usage?.inputTokens ?? 0;
-    outTok += r.usage?.outputTokens ?? 0;
+    inTok = addTokens(inTok, resultTokens(r, "inputTokens"));
+    outTok = addTokens(outTok, resultTokens(r, "outputTokens"));
     if (r.estimatedCostUSD !== undefined) {
       cost += r.estimatedCostUSD;
       hasEstimatedCost = true;

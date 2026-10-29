@@ -659,3 +659,30 @@ Quantity 使用其单位格式显示，例如 `512 ms`、`61.2%` 和 `$0.031`。
 
 `show --exp <experiment-id>` 按 label 和 unit 分组展示数值 Note 的 count、min、median、p90、max。
 JSON 对象、字符串、布尔值与 `null` 不参与这些数值统计。旧 Record 没有 Note 时返回空列表。
+
+## 只读重计价历史成本
+
+用 `query discover` 查看 operation，将下面的请求写入 reprice.json。先用 `query explain --request reprice.json` 核对请求，
+再用 `query run --request reprice.json` 计算 exact locator 对应的只读估算：
+
+```json
+{
+  "protocol": "niceeval.query/v3",
+  "operation": {
+    "kind": "attempt.reprice",
+    "locator": "@<locator>",
+    "pricing": {
+      "provider/model": {
+        "inputPerMTok": 2,
+        "outputPerMTok": 8,
+        "cacheReadPerMTok": 0.2,
+        "cacheWritePerMTok": 2,
+        "source": { "id": "comparison-prices-2026-10" }
+      }
+    }
+  }
+}
+```
+
+结果是本次价格表下的假设估算，历史结果和金额不变。比较 application、judge 与 total 的完整性后再使用金额；
+partial 只代表已知小计。没有价格或调用证据不能按零费用比较。详细规则见[历史成本重计价](architecture.md#historical-repricing)。

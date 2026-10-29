@@ -158,3 +158,16 @@ niceeval show @<locator> --usage
 
 官方 Codex 的输入与缓存归一规则见 [Codex 用量与成本](../../adapters/sdk/codex-cli/cost.md)。
 只有完整性与金额凭据足以支持比较时，才用成本给实验排序；已知小计仍可审阅，但不能冒充完整账单。
+
+## 用相同价格比较历史结果
+
+价格版本变化时，先保留原 Attempt locator 和公开 usage 响应。按照[只读重计价入口](../cli.md#只读重计价历史成本)，
+将同一份显式价格表分别提交给两个 locator 的 attempt.reprice。原 Record 中的 provider 金额与历史估算仍可独立审阅。
+
+例如一个调用含 4 个互斥输入 token、1 个输出 token、零缓存，用输入 2、输出 8 美元每百万 token 的价格，
+本次估算为 0.000016 美元。把两个单价都翻倍，估算变为 0.000032 美元；原先报告的 0.25 美元不变。
+若 Judge 只登记输出和缓存读取而没有互斥输入，新价格仍不能补齐该桶，总额继续标为 partial。
+
+比较时使用相同 source.id 和价格表，并分别核对 application、judge 与 total 的完整性。
+未匹配模型的调用保留在 missingCallIds；不能把 unavailable 的金额当作零，也不能让已知小计冒充完整成本。
+完成比较后再次读取固定历史结果，Verdict、usage、execution 与 diff 应保持原值。

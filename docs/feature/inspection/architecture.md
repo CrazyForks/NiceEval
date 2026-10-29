@@ -216,3 +216,25 @@ revision 3 仍检查用途引用属于 origin Run 的配置。未声明的新账
 缺少 `attempt-note` family 的历史 Attempt 返回 `[]`。
 `experiment.get` 的 `notes` 按同一 label 与同一 unit 聚合当前选中 Attempt 的数值 Note，返回 count、min、median、p90、max。
 无单位与有单位分别统计；`null` 和非数值不进入聚合。Notes 不影响 Assertion、Verdict、score 与 coverage。
+
+## 历史成本重计价 {#historical-repricing}
+
+`attempt.reprice` 在固定 PublicationCutoff 上，以 exact Attempt locator 和显式 `pricing` 价格表计算只读估算。
+它读取完整的 Adapter 与 Judge 用量账本，不从展示预览、send 数或旧金额反推 token，也不写 Record。
+原 Verdict、usage、execution、diff、provider reported cost 与历史 price receipt 保持不变。
+
+价格表按请求模型精确匹配，找不到时使用同 provider 的 `provider/*`；不读取当前项目配置或内置价格目录。
+每项声明 USD 每百万 token 的 inputPerMTok、outputPerMTok，以及可选 cacheReadPerMTok、cacheWritePerMTok。
+价格必须是有限非负数；source.id 与可选 source.asOf 标识本次估算使用的价格版本。价格表最多 256 项。
+
+响应的 `repricing` 包含 application、judge 两个独立计价分项及 total。每个分项保留 collection、全账本 callCount、
+逐调用 estimates 与 missingCallIds；estimate 使用既有四个互斥 token 桶、精确十进制金额与价格 profile digest。
+即使调用已报告金额，也按显式价格产生独立的假设估算；原金额保持不变。
+
+账本缺失或无效时不生成零金额。缺模型、价格或 token 时保留缺口；已知零 token 可以贡献零费用。
+只有当前完整账本的每个调用都能完整计价，该分项才为 complete；历史 Adapter 账本不能升级完整性。
+两个分项均 complete 时 total 才为 complete，否则已知金额仅为 partial 小计；没有可计价金额时为 unavailable。
+完整空账本贡献精确零；不存在的 Judge 账本仍是缺口。金额不换汇、不外推未知调用。
+
+该 operation 使用与 attempt.usage 相同的 16 MiB 响应预算；超限明确失败，不通过删调用或价格证据伪装完整。
+验收从已安装 query 入口使用两个价格版本读取同一 Attempt，核对新估算与完整性，并比较读取前后的公开历史结果。

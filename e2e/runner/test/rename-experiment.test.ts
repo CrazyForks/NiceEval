@@ -1,6 +1,6 @@
 import { only } from "@niceeval/testkit";
 import { decodeExpPlanDocument } from "niceeval/experiment/host";
-import { rename, readFile, writeFile } from "node:fs/promises";
+import { appendFile, rename, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { runnerE2E, writeInspectionRequest } from "./context.ts";
@@ -8,7 +8,7 @@ import { runnerE2E, writeInspectionRequest } from "./context.ts";
 // @use-case docs/feature/experiments/use-case/cache-adopt-migrated-config.md
 
 test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持续沿用", async () => {
-  await runnerE2E.case("rename-exact-source", { artifacts: [{ source: "unproven-plan.json", target: "unproven-plan.json", optional: true }] }, async ({ commands: { niceeval }, paths }) => {
+  await runnerE2E.case("rename-exact-source", { artifacts: [{ source: "unproven-plan.json", target: "unproven-plan.json", optional: true }, { source: "human-output.txt", target: "human-output.txt", optional: true }] }, async ({ commands: { niceeval }, paths }) => {
     const first = await niceeval.run(["exp", "history", "--rerun", "all", "--json"]);
     expect(first.exitCode, first.diagnostic()).toBe(0);
     const sourceRunId = only(first.expReceipt().createdRunIds, () => true, first.diagnostic());
@@ -110,6 +110,11 @@ test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持�
     // The intermediate carried Run has the current target identity. The
     // explanation must still reach the original Run, which predates the rename.
     expect(unprovenPlan.matrix[0]!.readbacks[0]!.source.origin.runId).toBe(sourceRunId);
+    const humanUnproven = await niceeval.run(["exp", "renamed", "--dry"]);
+    await appendFile(join(paths.projectRoot, "human-output.txt"), `\nexp --dry (adoption-unproven)\n${humanUnproven.stdout}`, "utf8");
+    expect(humanUnproven.exitCode, humanUnproven.diagnostic()).toBe(0);
+    expect(humanUnproven.stdout).toContain("gap 0:adoption-unproven: plan:physical");
+    expect(humanUnproven.stdout).not.toMatch(/"comparisons"|"explanation"|\n\s*[{[]/u);
     const currentQuery = await writeInspectionRequest(paths.projectRoot, "unproven-project", { kind: "project.get" });
     const current = await niceeval.run(["query", "run", "--request", currentQuery]);
     expect(current.exitCode, current.diagnostic()).toBe(0);

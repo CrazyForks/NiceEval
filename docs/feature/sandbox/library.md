@@ -3,6 +3,10 @@
 `t.sandbox`(eval 作者)与 Eval / Experiment 的 `sandbox` layer 声明(选起点与 Provider)是这个功能的两个入口。
 声明面的完整契约见 [Sandbox Layer](layers.md);本篇讲运行中的 Sandbox 怎么调用,内部怎么实现见 [Architecture](architecture.md)。
 
+## 目录传输的排除规则
+
+`uploadDirectory` 与 `downloadDirectory` 的 `ignore` 按任意深度的文件或目录 basename 做字面量匹配；不把 `*`、`?` 或方括号解释为 glob。命中的目录整支排除，请求的目录根本身不参与匹配。Docker 下载在 Sandbox 内归档前排除这些条目，使被忽略内容不跨越宿主传输边界；可写与只读容器遵循相同规则。完整方法签名见[操作 Sandbox](library/operations.md)。
+
 ## 路径与 workdir:一个坐标系
 
 每个 provider 的 agent 默认工作目录不同——这是**provider 的知识,不是 eval 作者的负担**:

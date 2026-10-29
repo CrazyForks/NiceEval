@@ -14,6 +14,7 @@ import { isCommandId, isItemId, isToolOccurrenceId } from "../record/family/sour
 import { INSPECTION_BEHAVIOR_VERSION, QUERY_PROTOCOL } from "./protocol-values.ts";
 import { AssertionDetailResultSchema } from "./assertion-projection.ts";
 import { InspectionProjectResultSchema } from "./project-result.ts";
+import { InspectionRepricingInputSchema, InspectionRepricingResultSchema } from "./repricing.ts";
 import {
   InspectionAttemptDiffResultSchema, InspectionAttemptResultSchema,
   InspectionAttemptTimingResultSchema, InspectionAttemptUsageResultSchema,
@@ -131,6 +132,7 @@ export const inspectionProtocolRegistry = Object.freeze({
   ]) }), result: { detail: InspectionTraceDetailResultSchema }, factKinds: ["execution-traces", "agent-turns", "sandbox-commands", "artifacts"] }),
   "attempt.timing": spec({ request: operation("attempt.timing", { locator: AttemptLocatorSchema }), result: { timing: InspectionAttemptTimingResultSchema }, factKinds: ["runner-activities"] }),
   "attempt.usage": spec({ request: operation("attempt.usage", { locator: AttemptLocatorSchema }), result: { usage: InspectionAttemptUsageResultSchema }, factKinds: ["agent-turns", "adapter-usage", "judge-usage"] }),
+  "attempt.reprice": spec({ request: operation("attempt.reprice", { locator: AttemptLocatorSchema, pricing: InspectionRepricingInputSchema }), result: { repricing: InspectionRepricingResultSchema }, factKinds: ["adapter-usage", "judge-usage"] }),
   "attempt.diff": spec({ request: operation("attempt.diff", { locator: AttemptLocatorSchema }), result: { diff: InspectionAttemptDiffResultSchema }, factKinds: ["file-changes"] }),
   "attempt.sources": spec({ request: operation("attempt.sources", { locator: AttemptLocatorSchema }), result: { sources: InspectionSourcesResultSchema }, factKinds: ["assertions", "sources"] }),
   "attempt.artifacts": spec({ request: operation("attempt.artifacts", { locator: AttemptLocatorSchema, offset: Schema.optional(InspectionArtifactOffsetSchema), limit: Schema.optional(InspectionArtifactsPageLimitSchema) }), result: { artifacts: ArtifactsResultSchema }, factKinds: ["artifacts"] }),

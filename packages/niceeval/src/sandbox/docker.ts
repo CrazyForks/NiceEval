@@ -1612,17 +1612,13 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
       // Docker 的 demuxer 先保证帧边界完整，再把每帧即时送给调用方。回调串行化，避免
       // async consumer（如 JSONL 行缓冲）因后一个 chunk 先完成而乱序。
       let callbackChain = Promise.resolve();
-      stream.on("data", (chunk: Buffer) => {
-        const beforeStdout = demuxer.stdout().length;
-        const beforeStderr = demuxer.stderr().length;
-        demuxer.push(chunk);
-        const stdout = demuxer.stdout().slice(beforeStdout);
-        const stderr = demuxer.stderr().slice(beforeStderr);
+      const deliver = ({ stdout, stderr }: { stdout: string; stderr: string }): void => {
         const onStdout = opts.onStdout;
         const onStderr = opts.onStderr;
         if (stdout && onStdout !== undefined) callbackChain = callbackChain.then(() => onStdout(stdout));
         if (stderr && onStderr !== undefined) callbackChain = callbackChain.then(() => onStderr(stderr));
-      });
+      };
+      stream.on("data", (chunk: Buffer) => { deliver(demuxer.push(chunk)); });
 
       // 超时:杀流并 reject。上限从 attempt deadline 的剩余量派生(显式传 timeout 时按显式值),
       // 没有 deadline 就不挂这条 timer——provider 层不发明一条自己的线。
@@ -1672,6 +1668,7 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
         cleanup();
         stream.destroy();
         try {
+          deliver(demuxer.finish());
           await callbackChain;
           const inspection = known ?? await exec.inspect(
             opts.signal === undefined ? {} : { abortSignal: opts.signal },
@@ -1835,7 +1832,7 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
     if (!this.container) throw new Error(`Container not initialized`);
     const localDir = resolveLocalPath(undefined, targetDir);
     const absTargetDir = resolveSandboxPath(this.workdir, sourceDir);
-    const tarBuf = await this.readArchiveBytes(absTargetDir);
+    const tarBuf = await this.readArchiveBytes(absTargetDir, opts.ignore);
     const files = await extractFilesFromTar(tarBuf);
     const ignore = new Set(opts.ignore ?? []);
 
@@ -1864,18 +1861,26 @@ export class DockerSandbox implements SandboxProviderBackend, SandboxReuseCapabi
    * Docker getArchive 对 ReadonlyRootfs 容器中的 tmpfs 会错误返回 404，即使 exec 能看到文件。
    * readonly 模式改由容器内 tar，再把二进制归档编码成 ASCII 经 exec 流取回。
    */
-  private async readArchiveBytes(absPath: string): Promise<Buffer> {
+  private async readArchiveBytes(absPath: string, ignoredNames: readonly string[] = []): Promise<Buffer> {
     if (!this.container) throw new Error(`Container not initialized`);
-    if (this.resources.readOnlyRootfs !== true) {
+    const names = [...new Set(ignoredNames)].filter(name =>
+      name !== "" && name !== "." && name !== ".." && !name.includes("/") && !name.includes("\0"));
+    if (this.resources.readOnlyRootfs !== true && names.length === 0) {
       const stream = await (this.container as Docker.Container).getArchive({ path: absPath });
       return readableToBuffer(stream as NodeJS.ReadableStream);
     }
+    // Archive relative to the requested directory so its own basename is never
+    // excluded. Escape tar patterns: ignore contains literal names, not globs.
+    const archive = names.length === 0
+      ? `tar -C ${shellQuote(dirname(absPath))} -cf - -- ${shellQuote(basename(absPath))}`
+      : `tar -C ${shellQuote(absPath)} -cf - ${names.map(name =>
+          shellQuote(`--exclude=${name.replace(/[\\*?[\]]/gu, "\\$&")}`)).join(" ")} -- .`;
     const result = await this.runShell(
-      `tar -C ${shellQuote(dirname(absPath))} -cf - -- ${shellQuote(basename(absPath))} | base64`,
+      `set -o pipefail; ${archive} | base64`,
       { user: ROOT_USER },
     );
     if (result.exitCode !== 0) {
-      throw new Error(`failed to archive ${absPath} inside read-only Docker sandbox: ${result.stderr.trim()}`);
+      throw new Error(`failed to archive ${absPath} inside Docker sandbox: ${result.stderr.trim()}`);
     }
     return Buffer.from(result.stdout.replace(/\s+/g, ""), "base64");
   }

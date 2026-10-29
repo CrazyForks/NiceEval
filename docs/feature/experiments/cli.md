@@ -362,6 +362,13 @@ receipt 不复制 locator、Verdict、usage、cost 或 Attempt 计数。需要�
 `--json`，因为它不建立 Invocation 或 receipt，也没有 NDJSON 形状。完整形态见
 [NDJSON 输出案例](output/json-stream.md)。
 
+末尾 terminal envelope 的 `summary.inputTokens` 与 `summary.outputTokens` 只汇总本次真实执行的 Attempt，不重复计入沿用结果。
+输入采用不含缓存读取与缓存写入的互斥 token 桶。普通 Adapter 使用已登记的调用用量；只有全部贡献都完整且对应指标已知时才输出该总量。
+任一贡献缺失、部分采集或无效时省略对应字段，不补零、不把已知小计表示为完整总量。完整的零值仍输出为零。
+逐调用证据、缓存桶、完整性和 Judge 用量通过 `attempt.usage` 核对。
+
+连续 30 秒没有永久事件时输出 `progress` 心跳。它保留计数，并以 `active` 列出当前 Attempt 的 `experimentId`（存在时）、`evalId`、从零开始的 `attempt`、`phase` 与从派发开始的 `elapsedMs`。条目按 Experiment、Eval、ordinal 排序，最多 64 条；`activeOmitted` 给出省略数量。只输出正式阶段与身份，不复制 Adapter 自述、命令正文或凭据。
+
 progress 与 diagnostic 形状服务当前 Invocation，不是 Run 事实解码协议。机器调用方以进程退出状态和最后的 receipt 判断命令是否结束，再用 `createdRunIds` 与 `publicationCutoff` 读取业务数据。
 
 CI 用退出状态判断门禁，使用 `--junit` 输出平台注解。JUnit 由临时文件原子替换生成，不成为 Run 或 Attempt 事实 owner。

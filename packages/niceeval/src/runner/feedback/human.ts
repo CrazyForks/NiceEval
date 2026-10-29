@@ -21,6 +21,9 @@
 // 完成页(summary/receipt 两个永久事件)不再调用 `./reporters/table.ts` 的 `renderRunReport()`
 // 大表:失败优先摘要留在终端，完整证据始终由 receipt 中的真实 Run ID 打开。
 
+import { formatDryDelta, formatIdentityDiagnostic } from "./identity-explanation.ts";
+export { windowChangedDeltaValues } from "./identity-explanation.ts";
+
 import { formatCost } from "../../shared/format.ts";
 import { compactAssertionSummary, fitCompactAssertionSummary, stripControl } from "../../assertions/display.ts";
 import { boundedErrorText } from "../../shared/bounded-error-text.ts";
@@ -2024,132 +2027,6 @@ function formatFingerprintComparison(comparison: NonNullable<HumanDryPlanRow["di
   return comparison.diagnostic.summary;
 }
 
-const DELTA_COMMON_PREFIX_CAP = 24;
-const DELTA_DIFF_WINDOW = 56;
-const DELTA_SINGLE_SIDE_CAP = 80;
-
-/**
- * Changed 差异的双侧值对齐到第一处不同字符,而不是各自从头独立截断——独立截断在长公共前缀下
- * 会把两侧都截在差异点之前,读者看到的是两份相同的省略串,分不清到底哪里变了。差异点起两侧
- * 各留一个有界窗口,公共前缀过长时压缩显示但保留其尾部作为定位上下文。
- */
-export function windowChangedDeltaValues(from: string, to: string): [string, string] {
-  if (from === to) return [from, to];
-  const max = Math.min(from.length, to.length);
-  let shared = 0;
-  while (shared < max && from[shared] === to[shared]) shared += 1;
-  const prefix = shared > DELTA_COMMON_PREFIX_CAP
-    ? `…${from.slice(shared - DELTA_COMMON_PREFIX_CAP, shared)}`
-    : from.slice(0, shared);
-  return [
-    `${prefix}${boundedDiffTail(from.slice(shared))}`,
-    `${prefix}${boundedDiffTail(to.slice(shared))}`,
-  ];
-}
-
-function boundedDiffTail(text: string): string {
-  return text.length > DELTA_DIFF_WINDOW ? `${text.slice(0, DELTA_DIFF_WINDOW)}…` : text;
-}
-
-function boundedSingleSide(text: string): string {
-  return text.length > DELTA_SINGLE_SIDE_CAP ? `${text.slice(0, DELTA_SINGLE_SIDE_CAP - 1)}…` : text;
-}
-
-function formatDryDelta(delta: {
-  selector: string;
-  _tag?: "Added" | "Removed" | "Changed" | "Unknown";
-  kind?: "added" | "removed" | "changed" | "unknown";
-  from?: string;
-  to?: string;
-}): string {
-  const kind = delta.kind ?? (
-    delta._tag === "Added"
-      ? "added"
-      : delta._tag === "Removed"
-        ? "removed"
-        : delta._tag === "Unknown"
-          ? "unknown"
-          : delta._tag === "Changed"
-            ? "changed"
-            : undefined
-  );
-  switch (kind) {
-    case "added": return `${delta.selector} added (${boundedSingleSide(delta.to ?? "")})`;
-    case "removed": return `${delta.selector} removed (was ${boundedSingleSide(delta.from ?? "")})`;
-    case "unknown": return `${delta.selector}`;
-    case "changed":
-    default: {
-      if (delta.from === undefined && delta.to === undefined) return delta.selector;
-      const [from, to] = windowChangedDeltaValues(delta.from ?? "", delta.to ?? "");
-      return `${delta.selector} changed (${from} → ${to})`;
-    }
-  }
-}
-
-const DIAGNOSTIC_CAUSE_DEPTH_CAP = 4;
-const DIAGNOSTIC_NODE_CAP = 16;
-const DIAGNOSTIC_DELTA_CAP = 8;
-
 function renderFingerprintComparisonDetails(comparison: HumanFingerprintComparison, indent: string): string[] {
-  if (comparison.kind !== "unexplained") return [];
-  const budget = { nodes: 0 };
-  return renderFingerprintDiagnostic(comparison.diagnostic, indent, 0, budget);
-}
-
-function renderFingerprintDiagnostic(
-  diagnostic: Extract<HumanFingerprintComparison, { kind: "unexplained" }>["diagnostic"],
-  indent: string,
-  depth: number,
-  budget: { nodes: number },
-): string[] {
-  if (budget.nodes >= DIAGNOSTIC_NODE_CAP) return [];
-  budget.nodes += 1;
-  const lines = [`${indent}${diagnostic.code}: ${diagnostic.summary}`];
-  for (const fact of diagnostic.facts ?? []) {
-    if ("value" in fact) {
-      lines.push(`${indent}  ${fact.label}: ${formatDiagnosticValue(fact.value)}`);
-    } else {
-      lines.push(`${indent}  ${fact.label}: ${formatDiagnosticValue(fact.from)} → ${formatDiagnosticValue(fact.to)}`);
-    }
-  }
-  if (diagnostic.observedDeltas === undefined) {
-    lines.push(`${indent}  observed inputs: unavailable (comparable manifest inputs were not available)`);
-  } else if (diagnostic.observedDeltas.length === 0) {
-    lines.push(`${indent}  observed inputs: no differences in comparable manifest fields`);
-  } else {
-    lines.push(`${indent}  observed inputs:`);
-    const visible = diagnostic.observedDeltas.slice(0, DIAGNOSTIC_DELTA_CAP);
-    for (const delta of visible) lines.push(`${indent}    ${formatDryDelta(delta)}`);
-    if (diagnostic.observedDeltas.length > visible.length) {
-      lines.push(`${indent}    +${diagnostic.observedDeltas.length - visible.length} more observed deltas`);
-    }
-  }
-  for (const limitation of diagnostic.limitations ?? []) lines.push(`${indent}  limitation: ${limitation}`);
-  const causes = diagnostic.causes ?? [];
-  if (causes.length === 0) return lines;
-  if (depth >= DIAGNOSTIC_CAUSE_DEPTH_CAP) {
-    lines.push(`${indent}  +${causes.reduce((count, cause) => count + diagnosticNodeCount(cause), 0)} more diagnostic nodes suppressed`);
-    return lines;
-  }
-  for (let index = 0; index < causes.length; index++) {
-    const cause = causes[index];
-    if (cause === undefined) continue;
-    if (budget.nodes >= DIAGNOSTIC_NODE_CAP) {
-      const remaining = causes.slice(index).reduce((count, rest) => count + diagnosticNodeCount(rest), 0);
-      lines.push(`${indent}  +${remaining} more diagnostic nodes suppressed`);
-      break;
-    }
-    lines.push(`${indent}  cause:`);
-    lines.push(...renderFingerprintDiagnostic(cause, `${indent}    `, depth + 1, budget));
-  }
-  return lines;
-}
-
-function diagnosticNodeCount(diagnostic: Extract<HumanFingerprintComparison, { kind: "unexplained" }>["diagnostic"]): number {
-  return 1 + (diagnostic.causes ?? []).reduce((count, cause) => count + diagnosticNodeCount(cause), 0);
-}
-
-function formatDiagnosticValue(value: JsonValue): string {
-  if (typeof value === "string") return value;
-  return JSON.stringify(value) ?? String(value);
+  return comparison.kind === "unexplained" ? formatIdentityDiagnostic(comparison.diagnostic, indent) : [];
 }

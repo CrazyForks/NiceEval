@@ -2,6 +2,7 @@
 // @concord-implements docs/feature/inspection/README.md
 // @concord-implements docs/feature/insight/README.md
 import { projectLifecyclePhase } from "./lifecycle.ts";
+import { repriceRecordedUsage, type InspectionRepricingInput, type InspectionRepricingResult } from "./repricing.ts";
 import { effectiveCostTotals, effectiveUsageCalls, adapterTokenMaterial, projectAdapterModelUsage } from "../o11y/adapter-usage-projection.ts";
 import { projectJudgeUsage, projectTotalUsageCosts } from "../o11y/judge-usage-projection.ts";
 import type { ResolvedModelRoles } from "../model-roles.ts";
@@ -1348,6 +1349,24 @@ function projectConversationItem(
       summaryTruncated: boundedText(item.summary, MAX_CONVERSATION_TEXT_BYTES).truncated,
     }));
   }
+}
+
+export function projectAttemptRepricing(
+  attachments: AttemptTraceAttachments,
+  pricing: InspectionRepricingInput,
+): InspectionRepricingResult {
+  const application = readAdapterUsageAttachment(attachments.adapterUsage, attachments.models);
+  const judge = readCurrentAttachment(NiceEvalCurrentRecordAttachments.judgeUsage, attachments.judgeUsage);
+  return repriceRecordedUsage({
+    application: application.state === "available" ? application.value : undefined,
+    applicationCollection: application.state === "available"
+      ? attachments.adapterUsage?.physical.familyRevision === 4 ? application.value.collection.state : "partial"
+      : application.state === "invalid" ? "invalid" : "unavailable",
+    judge: judge.state === "available" ? judge.value : undefined,
+    judgeCollection: judge.state === "available" ? judge.value.collection.state
+      : judge.state === "invalid" ? "invalid" : "unavailable",
+    pricing,
+  });
 }
 
 export function projectAttemptUsage(
