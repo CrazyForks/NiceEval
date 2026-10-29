@@ -6,7 +6,7 @@ import { Clock, Data, Effect, Result } from "effect";
 import { recordHost } from "../../record/host/index.ts";
 import { makeRecordRoot, recordRootPaths, type RecordRoot } from "../../record/platform/root.ts";
 import { ProjectStateDatabase } from "../../record/sqlite/project-state-database.ts";
-import { acceptLocators, acceptRun, planAcceptRun } from "../../runner/accept.ts";
+import { acceptLocators, acceptRun, planAcceptRun, planAcceptLocators } from "../../runner/accept.ts";
 import { activateFeedbackSink, type FeedbackSink } from "../../runner/feedback/sink.ts";
 import { computeExitCode } from "../../runner/feedback/json.ts";
 import { discoverEvals, discoverExperiments } from "../../runner/discover.ts";
@@ -96,6 +96,7 @@ function operationError(
     code,
     message: closedFailureMessage(cause),
     cause,
+    ...(cause instanceof Error && "comparisons" in cause && Array.isArray(cause.comparisons) ? { comparisons: cause.comparisons } : {}),
   });
 }
 
@@ -626,6 +627,9 @@ export function planInvocation(
       experimentConcurrency,
     });
     const reuse = yield* prepareRunnerRecordReuse({
+      manifestsByKey: target.manifestsByKey,
+      preparedPairsByKey: target.preparedPairsByKey,
+      rebuildInputsByKey: target.rebuildInputsByKey,
       evals: prepared.selected.evals,
       runs: prepared.runs,
       config: { timeoutMs: config.timeoutMs },
@@ -958,6 +962,7 @@ export function planRunAccept(
         evalId: member.evalId,
         attempt: member.attempt,
         fingerprint: member.fingerprint,
+        comparisons: member.comparisons,
       }))),
     })),
   ));
@@ -976,4 +981,9 @@ export function applyRunAccept(
       fingerprint: receipt.fingerprint,
     })))),
   ));
+}
+
+/** Locator preview shares the exact frozen-reader preflight with formal acceptance. */
+export function planLocatorAccept(input: ExperimentHostAcceptRequest) {
+  return closeOperation("accept", planAcceptLocators(input));
 }

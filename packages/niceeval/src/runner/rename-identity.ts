@@ -1,4 +1,5 @@
 import { slotExecutionIdentityDigestHex } from "./execution-identity.ts";
+import { CURRENT_IDENTITY_DOMAINS } from "./identity-domains.ts";
 import type { RunContext } from "../record/model/run-context.ts";
 
 /** Absence must be captured by the producer, never inferred from missing activities. */
@@ -22,7 +23,8 @@ export interface RenameIdentityTarget {
 /** First-party experiment-rename/v1 proof, shared by explicit adoption and later reuse. */
 export function executionDigestForExperiment(target: RenameIdentityTarget, experimentId: string): string | undefined {
   if (experimentId === target.experimentId) return target.executionIdentityDigest;
-  if (target.inputIdentity.domain !== "niceeval.input/fingerprint-v1" || target.configIdentity.domain !== "niceeval.config/identity-v1") return undefined;
+  if (target.inputIdentity.domain !== `niceeval.input/fingerprint-v${CURRENT_IDENTITY_DOMAINS.inputIdentity}` ||
+      target.configIdentity.domain !== `niceeval.config/identity-v${CURRENT_IDENTITY_DOMAINS.configIdentity}`) return undefined;
   const fingerprint = target.renameFingerprint?.(experimentId);
   if (fingerprint === undefined) return undefined;
   return slotExecutionIdentityDigestHex({

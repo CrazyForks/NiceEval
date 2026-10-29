@@ -477,3 +477,8 @@ function closeJson(value: unknown): InspectionJson {
 function jsonByteLength(value: unknown): number {
   return utf8ByteLength(JSON.stringify(value));
 }
+
+/** Metadata-only projection; hydration verifies the family and content bindings without reading bytes. */
+export function sourceHashesForIdentity(attachment: SourcesAttachmentInput): Readonly<Record<string, string>> {
+  return Object.freeze(Object.fromEntries(hydrateSourceItems(attachment).map(({ item }) => [item.path, item.sha256])));
+}

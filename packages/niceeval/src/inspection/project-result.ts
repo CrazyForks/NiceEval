@@ -1,3 +1,4 @@
+import { IdentityExplanationSchema } from "../runner/manifest.ts";
 import { Schema } from "effect";
 import { ExperimentIdSchema, EvalIdSchema, RunIdSchema } from "../record/codec/identifiers.ts";
 import { NonNegativeSafeIntegerSchema } from "../record/family/common.ts";
@@ -25,19 +26,21 @@ export const InspectionProjectPlannedAttemptSchema = Schema.Union([
   Schema.Struct({
     ...PositionFields,
     state: Schema.Literal("reuse"),
+    explanation: Schema.optionalKey(IdentityExplanationSchema),
     sourceRunId: RunIdSchema,
     locator: LocatorSchema,
     relation: Schema.Literals(["origin", "reference"]),
     action: Schema.Literals(["executed", "carried", "accepted"]),
-  }),
+  }).check(Schema.makeFilter((value) => value.explanation === undefined || value.explanation.kind === "match")),
   Schema.Struct({
     ...PositionFields,
     state: Schema.Literal("gap"),
     reason: InspectionProjectGapReasonSchema,
+    explanation: Schema.optionalKey(IdentityExplanationSchema),
     issues: Schema.Array(ProjectIssueSchema),
     sourceRunId: Schema.NullOr(RunIdSchema),
     previous: Schema.NullOr(PreviousResultSchema),
-  }),
+  }).check(Schema.makeFilter((value) => value.reason !== "identity-mismatch" && value.reason !== "adoption-unproven" || value.explanation !== undefined)),
 ]);
 
 /** Current quality metrics retain the aggregate shapes owned by Inspection. */

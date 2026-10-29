@@ -3,6 +3,10 @@
 // @concord-implements docs/feature/experiments/use-case/cache-explicit-rerun.md
 // @concord-implements docs/feature/experiments/use-case/rerun-all.md
 
+import type { IdentityManifestEntry } from "../record/family/identity-manifests/schema.ts";
+import type { IdentityRebuildInput } from "./identity-domains.ts";
+import { executionDigestForManifestOrigin, classifyIdentityDomains, explainIdentityMismatch, type IdentityExplanation } from "./manifest.ts";
+import { readIdentityExplanation, type HistoricalIdentityComparison } from "./identity-explanation-read.ts";
 import { Effect, Result, Schema } from "effect";
 import { RecordIntegrityFailure } from "../record/reader/errors.ts";
 import { SqliteRecordError } from "../record/sqlite/errors.ts";
@@ -11,7 +15,7 @@ import { RunIdSchema, ExperimentIdSchema, UtcMillisSchema } from "../record/code
 import { RecordSlotIdentitySchema } from "../record/codec/core.ts";
 import type { ReadableRunResource } from "../run/storage/types.ts";
 import { foldRecordedAttemptScore } from "../eval/record/score.ts";
-import { executionDigestForExperiment, hasProvenNoExperimentHooks } from "./rename-identity.ts";
+import { hasProvenNoExperimentHooks } from "./rename-identity.ts";
 
 import type { RecordIssue } from "../record/errors/record-errors.ts";
 import { nonEmptyRecordIssues, recordIssue } from "../record/errors/record-errors.ts";
@@ -100,6 +104,7 @@ export type ExecutionComparisonResult = ComparisonResult;
 export type ExecutionRecordedClaim = RecordedAttemptClaim;
 
 export interface ExecutionComparison {
+  readonly explanation?: IdentityExplanation;
   readonly attachment: ExecutionComparisonAttachment;
   readonly recordedClaim: ExecutionRecordedClaim;
   readonly sourceState: ExecutionComparisonSourceState;
@@ -169,6 +174,9 @@ export interface TargetRun {
  * Attempt without an out-of-band provenance Attachment.
  */
 export interface TargetSlot {
+  readonly identityManifest?: IdentityManifestEntry;
+  readonly rebuildInput?: IdentityRebuildInput;
+  readonly renameRebuildInput?: (experimentId: string) => IdentityRebuildInput | undefined;
   readonly renameFingerprint?: (experimentId: string) => string | undefined;
   readonly runId: RunId;
   readonly slotId: SlotId;
@@ -520,6 +528,7 @@ function planTargetSlot(input: {
     })),
     readAssertions: (attempt) => planningAttachment(input.reader.read(attempt.owner, NiceEvalRecordAttachments.assertions), "assertions"),
     readActivities: (attempt) => planningAttachment(input.reader.read(attempt.owner, NiceEvalRecordAttachments.runnerActivities.attempt), "runner-activities"),
+    readIdentityComparison: (run, target) => readIdentityExplanation({ reader: input.reader, historical: input.byRunId.get(run.document.runId)!, evalId: target.evalId, ...(target.identityManifest === undefined ? {} : { current: target.identityManifest }) }),
     sourceFor: (attempt, sourceBarrier) => {
       if (!hasPublicationIdentity(attempt)) throw new Error("Expected a published Attempt");
       return candidateFor({ reader: input.reader, target: input.target, sourceBarrier, attempt, byRunId: input.byRunId })!.source;
@@ -544,6 +553,7 @@ export interface CurrentAssessmentInput<Ref, Attempt extends CurrentAssessmentAt
   readonly selectionHasProblem: boolean;
   readonly selectionProblemScope?: ExecutionGapScope;
   readonly coreIssues: readonly RecordIssue[];
+  readonly readIdentityComparison?: (run: CurrentAssessmentRun<Ref>, target: Target) => Effect.Effect<HistoricalIdentityComparison, Error>;
   readonly readAttempt: (ref: Ref) => Effect.Effect<RecordCoreRead<Attempt>, Error>;
   readonly readAssertions: (attempt: Attempt) => Effect.Effect<RecordAttachmentRead<AssertionsAttachment>, Error>;
   readonly readActivities: (attempt: Attempt) => Effect.Effect<RecordAttachmentRead<AttemptExecutionTimingFacts>, Error>;
@@ -639,35 +649,72 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
       });
     }
     const candidate = input.sourceFor(readAttempt.value, sourceBarrier);
-    const ordinaryIdentity = reusableSlotIdentityMatches({ target: input.target, sourceExpected: expected, originExpected });
-    if (!ordinaryIdentity) {
-      const originRun = input.byRunId.get(candidate.origin.runId)!;
-      const pureRename = targetMatchesLogicalIdentity(input.target, expected) &&
-        originExpected.evalId === input.target.evalId &&
-        originExpected.attemptOrdinal === input.target.attempt &&
-        executionDigestForExperiment(input.target, originRun.document.experimentId) === originExpected.executionIdentityDigest;
-      if (!pureRename) return gapSlot(input.target, {
+    let identityComparison = comparison("core", "execution-identity", "available", "match", "execution-identity-match");
+    const compareRun = (run: CurrentAssessmentRun<Ref>) => input.readIdentityComparison === undefined
+      ? Effect.succeed({ historical: undefined, explanation: explainIdentityMismatch({
+          ...(input.target.identityManifest === undefined ? {} : { current: input.target.identityManifest }),
+          ...(run.document.context === undefined ? {} : { context: run.document.context }),
+        }) })
+      : input.readIdentityComparison(run, input.target);
+    const classify = (identity: HistoricalIdentityComparison, digest: string) => classifyIdentityDomains({
+      historical: identity.historical, current: input.target.identityManifest, historicalDigest: digest,
+      ...(input.target.rebuildInput === undefined ? {} : { rebuildInput: input.target.rebuildInput }),
+      explanation: identity.explanation,
+    });
+    let sourceIdentity: HistoricalIdentityComparison | undefined;
+    if (input.target.executionIdentityDigest !== expected.executionIdentityDigest) {
+      sourceIdentity = yield* compareRun(sourceRun);
+      const explanation = classify(sourceIdentity, expected.executionIdentityDigest);
+      if (explanation.kind !== "match") return gapSlot(input.target, {
         reason: "identity-mismatch", scope: "slot", issues: [], sourceBarrier, candidate,
-        comparisons: [identityMismatchComparison()],
+        comparisons: [identityMismatchComparison(explanation)],
       });
-      if (sourceRun.document.context === undefined || originRun.document.context === undefined ||
-          !hasProvenNoExperimentHooks(sourceRun.document.context) ||
-          !hasProvenNoExperimentHooks(originRun.document.context)) return gapSlot(input.target, {
-        reason: "adoption-unproven", scope: "slot", issues: [], sourceBarrier, candidate, comparisons: [],
-      });
-      const witness = member.bindingRevision === undefined ? undefined : input.runs.find((run) => {
-        if (run.document.experimentId !== input.target.experimentId) return false;
-        const slot = run.document.expectedSlots.find((entry) => targetMatchesLogicalIdentity(input.target, entry));
-        if (slot === undefined) return false;
-        return run.members.some((entry) => entry.document.slotId === slot.slotId && entry.document.action === "accepted" &&
-          entry.document.attempt !== null && entry.document.attempt.originRunId === candidate.origin.runId &&
-          entry.document.attempt.attemptId === candidate.attemptId && entry.bindingRevision !== undefined &&
-          entry.bindingRevision <= member.bindingRevision!);
-      });
-      if (witness === undefined) return gapSlot(input.target, {
-        reason: "adoption-unproven", scope: "slot", issues: [], sourceBarrier, candidate, comparisons: [],
-      });
+      identityComparison = Object.freeze({ ...identityComparison, explanation });
     }
+    if (originExpected.executionIdentityDigest !== input.target.executionIdentityDigest) {
+      const originIdentity = originRun!.document.runId === sourceRun.document.runId && sourceIdentity !== undefined
+        ? sourceIdentity : yield* compareRun(originRun!);
+      const explanation = classify(originIdentity, originExpected.executionIdentityDigest);
+      if (explanation.kind === "match") {
+        identityComparison = Object.freeze({ ...identityComparison, explanation });
+      } else {
+        const mismatch = identityMismatchComparison(explanation);
+        const pureRename = originExpected.evalId === input.target.evalId &&
+          originExpected.attemptOrdinal === input.target.attempt &&
+          executionDigestForManifestOrigin(input.target, originRun!.document.experimentId, originIdentity.historical) === originExpected.executionIdentityDigest;
+        const domainBlocked = explanation.kind === "unexplained" && explanation.diagnostic.code.startsWith("identity-domain-");
+        if (!pureRename) return gapSlot(input.target, {
+          reason: domainBlocked ? "identity-mismatch" : "adoption-unproven",
+          scope: "slot", issues: [], sourceBarrier, candidate, comparisons: [mismatch],
+        });
+        if (sourceRun.document.context === undefined || originRun!.document.context === undefined ||
+            !hasProvenNoExperimentHooks(sourceRun.document.context) ||
+            !hasProvenNoExperimentHooks(originRun!.document.context)) return gapSlot(input.target, {
+          reason: "adoption-unproven", scope: "slot", issues: [], sourceBarrier, candidate, comparisons: [mismatch],
+        });
+        let witnessed = false;
+        if (member.bindingRevision !== undefined) for (const run of input.runs) {
+          if (run.document.experimentId !== input.target.experimentId) continue;
+          const witnessSlot = run.document.expectedSlots.find((slot) => slot.evalId === input.target.evalId && slot.attemptOrdinal === input.target.attempt);
+          if (witnessSlot === undefined || !run.members.some((entry) =>
+            entry.document.slotId === witnessSlot.slotId && entry.document.action === "accepted" &&
+            entry.document.attempt?.originRunId === candidate.origin.runId &&
+            entry.document.attempt.attemptId === candidate.attemptId && entry.bindingRevision !== undefined &&
+            entry.bindingRevision <= member.bindingRevision!)) continue;
+          if (witnessSlot.executionIdentityDigest === input.target.executionIdentityDigest ||
+              witnessSlot.executionIdentityDigest === expected.executionIdentityDigest && sourceIdentity !== undefined) {
+            witnessed = true; break;
+          }
+          const witnessIdentity = yield* compareRun(run);
+          if (classify(witnessIdentity, witnessSlot.executionIdentityDigest).kind === "match") { witnessed = true; break; }
+        }
+        if (!witnessed) return gapSlot(input.target, {
+          reason: "adoption-unproven", scope: "slot", issues: [], sourceBarrier, candidate, comparisons: [mismatch],
+        });
+        identityComparison = mismatch;
+      }
+    }
+    const explainedIdentity = identityComparison.explanation === undefined ? [] : [identityComparison];
     const assertions = yield* input.readAssertions(readAttempt.value);
     if (assertions.state !== "available") {
       const problem = attachmentProblem(assertions);
@@ -677,7 +724,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: problem.issues,
         sourceBarrier,
         candidate,
-        comparisons: [comparison(
+        comparisons: [...explainedIdentity, comparison(
           "niceeval.assertions",
           "assertion-verdict",
           problem.state,
@@ -698,6 +745,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         sourceBarrier,
         candidate,
         comparisons: [
+          ...explainedIdentity,
           comparison(
             "core",
             "attempt-outcome",
@@ -713,7 +761,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
       const score = foldRecordedAttemptScore({ outcome: readAttempt.value.document.outcome, assertions: assertions.value });
       if (Result.isFailure(score) || score.success.state !== "complete") return gapSlot(input.target, {
         reason: "score-incomplete", scope: "slot", issues: [], sourceBarrier, candidate,
-        comparisons: [comparison("niceeval.assertions", "assertion-verdict", "available", "ineligible", "score-incomplete")],
+        comparisons: [...explainedIdentity, comparison("niceeval.assertions", "assertion-verdict", "available", "ineligible", "score-incomplete")],
       });
     }
     if (verdict !== "passed" && verdict !== "failed") {
@@ -723,7 +771,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: [],
         sourceBarrier,
         candidate,
-        comparisons: [verdictComparison(verdict, "ineligible")],
+        comparisons: [...explainedIdentity, verdictComparison(verdict, "ineligible")],
       });
     }
     const activities = yield* input.readActivities(readAttempt.value);
@@ -735,7 +783,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: problem.issues,
         sourceBarrier,
         candidate,
-        comparisons: [comparison(
+        comparisons: [...explainedIdentity, comparison(
           "niceeval.runner-activities",
           "execution-duration",
           problem.state,
@@ -752,7 +800,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: [],
         sourceBarrier,
         candidate,
-        comparisons: [comparison(
+        comparisons: [...explainedIdentity, comparison(
           "niceeval.runner-activities",
           "execution-duration",
           "unavailable",
@@ -772,7 +820,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: [],
         sourceBarrier,
         candidate,
-        comparisons: [duration.comparison],
+        comparisons: [...explainedIdentity, duration.comparison],
       });
     }
     if (
@@ -785,7 +833,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: [],
         sourceBarrier,
         candidate,
-        comparisons: [verdictComparison(verdict, "match"), duration.comparison],
+        comparisons: [...explainedIdentity, verdictComparison(verdict, "match"), duration.comparison],
       });
     }
     if (input.policy.keepSandbox) {
@@ -795,7 +843,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
         issues: [],
         sourceBarrier,
         candidate,
-        comparisons: [verdictComparison(verdict, "match"), duration.comparison],
+        comparisons: [...explainedIdentity, verdictComparison(verdict, "match"), duration.comparison],
       });
     }
     return Object.freeze({
@@ -804,7 +852,7 @@ export function assessCurrentTargetSlot<Ref, Attempt extends CurrentAssessmentAt
       adoption: "carried" as const,
       source: candidate,
       comparisons: Object.freeze([
-        comparison("core", "execution-identity", "available", "match", "execution-identity-match"),
+        identityComparison,
         comparison("core", "attempt-outcome", "available", "match", "attempt-completed"),
         verdictComparison(verdict, "match"),
         duration.comparison,
@@ -877,43 +925,6 @@ function candidateFor(input: {
   });
 }
 
-function sameSlotIdentity(
-  left: RecordSlotIdentity,
-  right: RecordSlotIdentity,
-): boolean {
-  return left.slotId === right.slotId
-    && left.evalId === right.evalId
-    && left.attemptOrdinal === right.attemptOrdinal
-    && left.executionIdentityDigest === right.executionIdentityDigest;
-}
-
-/** Slot IDs are exact references within a Run, not cross-Run equivalence keys. */
-function targetMatchesLogicalIdentity(target: CurrentTargetSlot, slot: RecordSlotIdentity): boolean {
-  return target.evalId === slot.evalId
-    && target.attempt === slot.attemptOrdinal
-    && target.executionIdentityDigest === slot.executionIdentityDigest;
-}
-
-function targetMatchesSlotIdentity(
-  target: CurrentTargetSlot,
-  slot: RecordSlotIdentity,
-): boolean {
-  return (!("slotId" in target) || target.slotId === slot.slotId)
-    && target.evalId === slot.evalId
-    && target.attempt === slot.attemptOrdinal
-    && target.executionIdentityDigest === slot.executionIdentityDigest;
-}
-
-function reusableSlotIdentityMatches(input: {
-  readonly target: CurrentTargetSlot;
-  readonly sourceExpected: RecordSlotIdentity;
-  readonly originExpected: RecordSlotIdentity;
-}): boolean {
-  return sameSlotIdentity(input.sourceExpected, input.originExpected)
-    && targetMatchesSlotIdentity(input.target, input.sourceExpected)
-    && targetMatchesSlotIdentity(input.target, input.originExpected);
-}
-
 function issuesOf(read: RecordCoreRead<unknown>): readonly RecordIssue[] {
   return read.state === "core-invalid" ? read.issues : Object.freeze([]);
 }
@@ -962,14 +973,14 @@ function attachmentProblem(input: {
   }
 }
 
-function identityMismatchComparison(): ExecutionComparison {
-  return comparison(
+function identityMismatchComparison(explanation: IdentityExplanation): ExecutionComparison {
+  return Object.freeze({ ...comparison(
     "core",
     "execution-identity",
     "available",
     "mismatch",
     "identity-mismatch",
-  );
+  ), explanation });
 }
 
 function verdictComparison(

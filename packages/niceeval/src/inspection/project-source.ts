@@ -1,3 +1,5 @@
+import { sourceHashesForIdentity } from "./sources.ts";
+import { explainIdentityMismatch } from "../runner/manifest.ts";
 import { publicationCutoffIdentity } from "../run/storage/cutoff.ts";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,7 +15,7 @@ import type { CurrentAssessmentAttempt } from "../runner/reuse-plan.ts";
 import { mergeCurrentAssessmentRuns } from "../runner/reuse-plan.ts";
 import type { ReadableRunResource } from "../run/storage/types.ts";
 import type { ResolvedInspectionAttempt } from "./facts.ts";
-import { loadInspectionRuns, resolveInspectionMemberAttempt, readInspectionAssertions, attemptAttachment } from "./facts.ts";
+import { loadInspectionRuns, resolveInspectionMemberAttempt, readInspectionAssertions, attemptAttachment, runAttachment } from "./facts.ts";
 import { openInspectionSource, operationalInspectionSource, type InspectionFactSource } from "./source.ts";
 import { bindProjectInput, type CurrentResultSource } from "./project-input.ts";
 
@@ -94,6 +96,25 @@ export const openCurrentProjectSource = Effect.fn("openCurrentProjectSource")(fu
       if (read.state === "not-recorded") return { state: "not-recorded" as const };
       if (read.state === "unsupported") return { state: "unsupported" as const, family: NiceEvalRecordAttachments.assertions.family, revision: read.attachment!.physical.familyRevision };
       return { state: "invalid" as const, issues: [recordIssue("record-schema-invalid", ["assertions", "current-invalid"])] as const };
+    }),
+    readIdentityComparison: (run, current) => Effect.try(() => {
+      const loaded = runs.find((loaded) => loaded.run.runId === run.document.runId);
+      const definition = NiceEvalRecordAttachments.identityManifests;
+      const attachment = loaded === undefined ? undefined : runAttachment(loaded, definition.family);
+      const decoded = attachment?.physical.familyRevision !== NiceEvalCurrentRecordAttachments.identityManifests.revision
+        ? undefined : hydrateRecordAttachmentCurrent(definition, attachment.value, { content: () => Result.succeed(undefined), reference: () => Result.succeed(undefined) });
+      const historical = decoded !== undefined && Result.isSuccess(decoded) ? decoded.success.entries.find((entry) => entry.evalId === current.evalId) : undefined;
+      const sources = historical !== undefined || loaded === undefined ? undefined : runAttachment(loaded, NiceEvalRecordAttachments.sources.family);
+      let source: Readonly<Record<string, string>> | undefined;
+      if (sources !== undefined) {
+        try { source = sourceHashesForIdentity(sources); } catch { /* Unreadable Sources cannot explain a delta. */ }
+      }
+      return { historical, explanation: explainIdentityMismatch({
+        ...(historical === undefined ? {} : { historical }),
+        ...(current.identityManifest === undefined ? {} : { current: current.identityManifest }),
+        ...(run.document.context === undefined ? {} : { context: run.document.context }),
+        ...(source === undefined ? {} : { source }),
+      }) };
     }),
     readActivities: (attempt) => Effect.try(() => {
       const definition = NiceEvalRecordAttachments.runnerActivities.attempt;

@@ -1,3 +1,4 @@
+import type { ExecutionComparison } from "./reuse-plan.ts";
 /**
  * Explicit acceptance is a Record v1 reference-only producer. It deliberately
  * has no dependency on the retired result graph: locator resolution, planning
@@ -93,6 +94,7 @@ export interface AcceptedAttempt {
 }
 
 export interface AcceptedAttemptPreview {
+  readonly comparisons: readonly ExecutionComparison[];
   readonly locator: string;
   readonly sourceLocator: string;
   readonly experimentId: string;
@@ -259,6 +261,7 @@ function projectAcceptPreview(
       evalId: member.target.evalId,
       attempt: member.target.attempt,
       fingerprint: member.target.inputIdentity.value,
+      comparisons: member.comparisons,
     }))));
 }
 

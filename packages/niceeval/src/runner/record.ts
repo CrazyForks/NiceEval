@@ -440,6 +440,10 @@ export function openRunnerRecordCoordinator(input: {
     const runIdsByExperiment = new Map<string, string>();
     const targetRuns: TargetRun[] = [];
     for (const { plan, session, writerGeneration } of openedRuns) {
+      yield* session.attach(NiceEvalRecordAttachments.identityManifests, {
+        entries: [...new Map(plan.slotEntries.flatMap((entry) => entry.reuse.identityManifest === undefined ? [] : [[entry.evalDef.id, entry.reuse.identityManifest] as const])).values()]
+          .sort((a, b) => a.evalId < b.evalId ? -1 : a.evalId > b.evalId ? 1 : 0),
+      });
       const target = targetForRunnerRecordRun({
         planned: plan,
         runId: session.runId,

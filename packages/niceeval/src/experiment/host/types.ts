@@ -1,3 +1,4 @@
+import type { IdentityExplanation } from "../../runner/manifest.ts";
 import type { ResolvedModelRoles } from "../../model-roles.ts";
 import { Data, type Effect } from "effect";
 
@@ -37,6 +38,7 @@ export class ExperimentHostError extends Data.TaggedError("ExperimentHostError")
   readonly message: string;
   /** Structured typed failure retained for application/CLI attribution. */
   readonly cause?: unknown;
+  readonly comparisons?: readonly import("../../runner/reuse-plan.ts").ExecutionComparison[];
 }> {}
 
 /** Inputs shared by discovery, link checking, and invocation planning. */
@@ -156,6 +158,7 @@ export interface ExperimentHostDrySlotTarget {
 }
 
 export interface ExperimentHostDryComparison {
+  readonly explanation?: IdentityExplanation;
   readonly attachment: string;
   readonly recordedClaim: string;
   readonly sourceState: string;
@@ -354,6 +357,7 @@ export interface ExperimentHostAcceptRunPlan {
     readonly evalId: string;
     readonly attempt: number;
     readonly fingerprint: string;
+    readonly comparisons: readonly import("../../runner/reuse-plan.ts").ExecutionComparison[];
   }[];
 }
 

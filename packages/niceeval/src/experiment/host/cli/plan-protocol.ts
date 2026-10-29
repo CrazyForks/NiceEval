@@ -1,4 +1,15 @@
+import { IdentityExplanationSchema } from "../../../runner/manifest.ts";
 import { Schema } from "effect";
+
+/** Shared strict comparison shape for every dry-plan projection. */
+export const ExecutionComparisonSchema = Schema.Struct({
+  attachment: Schema.Literals(["core", "niceeval.assertions", "niceeval.runner-activities"]),
+  recordedClaim: Schema.Literals(["execution-identity", "attempt-outcome", "assertion-verdict", "execution-duration"]),
+  sourceState: Schema.Literals(["available", "unavailable", "unsupported", "invalid", "migration-required"]),
+  result: Schema.Literals(["match", "mismatch", "ineligible", "not-comparable"]),
+  reason: Schema.String,
+  explanation: Schema.optionalKey(IdentityExplanationSchema),
+}).check(Schema.makeFilter((comparison) => comparison.recordedClaim !== "execution-identity" || comparison.result !== "mismatch" || comparison.explanation !== undefined));
 
 const attachmentRead = <S extends Schema.ConstraintDecoder<unknown>>(value: S) => Schema.Union([
   Schema.Struct({ state: Schema.Literal("available"), value }),
@@ -69,7 +80,7 @@ export const ExpPlanDocumentSchema = Schema.Struct({
       executionIdentityDigest: Schema.String,
       attempt: Schema.Number,
       state: Schema.Literals(["reused", "gap"]),
-      comparisons: Schema.Array(Schema.Unknown),
+      comparisons: Schema.Array(ExecutionComparisonSchema),
       reason: Schema.optional(Schema.String),
       scope: Schema.optional(Schema.String),
     })),
@@ -84,4 +95,9 @@ export type ExpPlanDocument = Schema.Schema.Type<typeof ExpPlanDocumentSchema>;
 /** Strictly decode the single document written by `niceeval exp --dry --json`. */
 export function decodeExpPlanDocument(input: unknown): ExpPlanDocument {
   return Schema.decodeUnknownSync(ExpPlanDocumentSchema, { errors: "all", onExcessProperty: "error" })(input);
+}
+
+/** Strict decoder for comparisons printed by accept preflight diagnostics. */
+export function decodeExecutionComparisons(input: unknown) {
+  return Schema.decodeUnknownSync(Schema.Array(ExecutionComparisonSchema), { errors: "all", onExcessProperty: "error" })(input);
 }

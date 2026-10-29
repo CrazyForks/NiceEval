@@ -1,3 +1,7 @@
+import { captureRenameRebuildInput, identityManifestEntry } from "../identity-manifests.ts";
+import type { EvalManifest } from "../../record/manifest.ts";
+import type { IdentityManifestEntry } from "../../record/family/identity-manifests/schema.ts";
+import type { IdentityRebuildInput } from "../identity-domains.ts";
 import { createHash } from "node:crypto";
 
 import { Effect, Result, Schema } from "effect";
@@ -5,6 +9,7 @@ import { Effect, Result, Schema } from "effect";
 import { pluginInstanceDataOf } from "../../plugin/contracts.ts";
 import { adapterIdentity } from "../../adapter.ts";
 import { slotExecutionIdentityDigestHex } from "../execution-identity.ts";
+import { CURRENT_IDENTITY_DOMAINS } from "../identity-domains.ts";
 import { cacheKey } from "../fingerprint.ts";
 import { selectedEvalsForRun } from "../eval-selection.ts";
 import { resolveAttemptTimeout } from "../timeout.ts";
@@ -41,6 +46,9 @@ import type {
 
 /** Current facts supplied by physical planning; Record never reconstructs them from history. */
 export interface RunnerRecordReuseSlotInput {
+  readonly identityManifest?: IdentityManifestEntry;
+  readonly rebuildInput?: IdentityRebuildInput;
+  readonly renameRebuildInput?: (experimentId: string) => IdentityRebuildInput | undefined;
   readonly renameFingerprint?: (experimentId: string) => string | undefined;
   readonly inputIdentity: ExecutionIdentity;
   readonly configIdentity: ExecutionIdentity;
@@ -57,6 +65,9 @@ export interface RunnerRecordReusePreparationInput {
   readonly runs: readonly AgentRun[];
   readonly config: Pick<Config, "timeoutMs">;
   readonly plannedFingerprints: ReadonlyMap<string, string>;
+  readonly manifestsByKey?: ReadonlyMap<string, EvalManifest>;
+  readonly rebuildInputsByKey?: ReadonlyMap<string, IdentityRebuildInput>;
+  readonly preparedPairsByKey?: ReadonlyMap<string, import("../sandbox-selection.ts").PreparedRunPair>;
   readonly renameFingerprintsByKey?: ReadonlyMap<string, (experimentId: string) => string | undefined>;
   readonly plannedConfigHashes: ReadonlyMap<string, string>;
   readonly rerun?: "failed" | "all";
@@ -192,14 +203,20 @@ export function prepareRunnerRecordReuse(
         }
         const timeout = resolveAttemptTimeout(run, evalDef, input.config);
         const renameFingerprint = input.renameFingerprintsByKey?.get(key);
+        const manifest = input.manifestsByKey?.get(key);
+        const rebuildInput = input.rebuildInputsByKey?.get(key);
+        const pair = input.preparedPairsByKey?.get(key);
         slotsByKey.set(key, Object.freeze({
+          ...(manifest === undefined ? {} : { identityManifest: identityManifestEntry(evalDef.id, manifest) }),
+          ...(rebuildInput === undefined ? {} : { rebuildInput }),
+          ...(rebuildInput === undefined || pair === undefined ? {} : { renameRebuildInput: captureRenameRebuildInput(pair, rebuildInput, renameFingerprint) }),
           ...(renameFingerprint === undefined ? {} : { renameFingerprint }),
           inputIdentity: Object.freeze({
-            domain: "niceeval.input/fingerprint-v1",
+            domain: `niceeval.input/fingerprint-v${CURRENT_IDENTITY_DOMAINS.inputIdentity}`,
             value: fingerprint,
           }),
           configIdentity: Object.freeze({
-            domain: "niceeval.config/identity-v1",
+            domain: `niceeval.config/identity-v${CURRENT_IDENTITY_DOMAINS.configIdentity}`,
             value: configHash,
           }),
           ...(timeout === undefined ? {} : {
@@ -325,6 +342,9 @@ export function targetForRunnerRecordRun(input: {
       attempt: entry.attempt,
       evaluationKind: entry.evalDef.evaluationKind,
       executionIdentityDigest: entry.slot.executionIdentityDigest,
+      ...(entry.reuse.renameRebuildInput === undefined ? {} : { renameRebuildInput: entry.reuse.renameRebuildInput }),
+      ...(entry.reuse.identityManifest === undefined ? {} : { identityManifest: entry.reuse.identityManifest }),
+      ...(entry.reuse.rebuildInput === undefined ? {} : { rebuildInput: { ...entry.reuse.rebuildInput, attempt: entry.attempt, timeout: entry.reuse.timeout ?? null } }),
       inputIdentity: entry.reuse.inputIdentity,
       configIdentity: entry.reuse.configIdentity,
       ...(entry.reuse.renameFingerprint === undefined ? {} : { renameFingerprint: entry.reuse.renameFingerprint }),

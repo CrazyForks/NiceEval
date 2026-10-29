@@ -35,9 +35,11 @@ export function selectInspectionProject(input: FrozenProjectInput, experimentIds
     }
   }
   const currentPositions = new Set(input.target.slots.map((slot) => logicalKey(slot.experimentId, slot.evalId, slot.attempt)));
-  const plannedAttempts: InspectionProjectResult["plannedAttempts"] = assessments.map((slot) => {
+  const plannedAttempts = assessments.map((slot) => {
     const position = { experimentId: slot.experimentId as InspectionProjectResult["plannedAttempts"][number]["experimentId"], evalId: slot.evalId as InspectionProjectResult["plannedAttempts"][number]["evalId"], attemptOrdinal: slot.attempt };
-    if (slot.state === "reuse") return { ...position, state: "reuse" as const, ...{
+    const explanation = slot.comparisons.find((comparison) => comparison.recordedClaim === "execution-identity" && comparison.explanation !== undefined)?.explanation;
+    if (slot.state === "reuse") return { ...position, state: "reuse" as const,
+      ...(explanation?.kind === "match" ? { explanation } : {}), ...{
       sourceRunId: slot.source.sourceBarrier.runId, locator: slot.source.locator, relation: slot.source.relation, action: slot.source.action,
     } };
     const publishedPrevious = [...historical].reverse().flatMap((run) => {
@@ -51,7 +53,8 @@ export function selectInspectionProject(input: FrozenProjectInput, experimentIds
     const reason = slot.reason === "source-member-missing" && resource?.state === "active" ? "pending" : gapReason(slot.reason);
     return { ...position, state: "gap" as const, reason, sourceRunId: slot.sourceBarrier?.runId ?? null,
       previous: publishedPrevious,
-      issues: [...slot.issues.map((issue) => ({ code: issue.code, path: [...issue.path] })), { reason: slot.reason, scope: slot.scope, comparisons: slot.comparisons.map((comparison) => ({ ...comparison })) }],
+      ...(explanation === undefined ? {} : { explanation }),
+      issues: [...slot.issues.map((issue) => ({ code: issue.code, path: [...issue.path] })), { reason: slot.reason, scope: slot.scope }],
     };
   });
   const overview = aggregateInspectionCurrentSlots(assessments.map((slot) => {

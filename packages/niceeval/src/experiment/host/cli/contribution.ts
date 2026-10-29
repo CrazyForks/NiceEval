@@ -1,3 +1,4 @@
+import { planLocatorAccept } from "../operations.ts";
 import { rawExperimentHost as experimentHost } from "../runtime.ts";
 import type { ExperimentHostRequirements } from "../requirements.ts";
 import { Effect, Result } from "effect";
@@ -321,9 +322,9 @@ function acceptText(results: readonly { readonly runId: string; readonly sourceL
   return `${accepted}${commands}`;
 }
 
-function acceptRunPlanText(plan: { readonly sourceRunId: string; readonly members: readonly { readonly locator: string; readonly evalId: string; readonly attempt: number }[] }): string {
+function acceptRunPlanText(plan: { readonly sourceRunId: string; readonly members: readonly { readonly locator: string; readonly evalId: string; readonly attempt: number; readonly comparisons?: readonly unknown[] }[] }): string {
   const members = plan.members.map((member) => `  ${member.evalId} #${String(member.attempt)} ${member.locator} eligible\n`).join("");
-  return `Accept source Run ${plan.sourceRunId}\n${members}\n${String(plan.members.length)} members eligible\nApply: niceeval accept --run ${plan.sourceRunId}\n`;
+  return `Accept source Run ${plan.sourceRunId}\n${members}${JSON.stringify({ members: plan.members }, null, 2)}\n${String(plan.members.length)} members eligible\nApply: niceeval accept --run ${plan.sourceRunId}\n`;
 }
 
 function acceptedRunText(sourceRunId: string, results: readonly { readonly runId: string; readonly sourceLocator: string; readonly locator: string; readonly fingerprint: string }[]): string {
@@ -455,7 +456,6 @@ function dryText(plan: Parameters<typeof dryRows>[0], shape: { readonly totalAtt
       ...gaps.map((slot) => `gap ${slot.attempt}:${slot.reason ?? "unknown"}`),
     ];
     lines.push(`${row.experimentId}  ${row.evalId}  ${parts.join(" · ") || "no slots"}`);
-    const hasIdentityGap = gaps.some((slot) => slot.reason === "identity-mismatch");
     for (const readback of row.readbacks) {
       const verdict = readback.state === "reused"
         ? readback.verdict
@@ -463,7 +463,6 @@ function dryText(plan: Parameters<typeof dryRows>[0], shape: { readonly totalAtt
           ? readback.verdict.value
           : readback.verdict.state;
       lines.push(`  source ${readback.source.locator} · ${readback.state} · verdict ${verdict}`);
-      if (hasIdentityGap && readback.state === "prior") lines.push(`  accept: niceeval accept ${readback.source.locator}`);
     }
   }
   return `${lines.join("\n")}\n`;
@@ -884,6 +883,12 @@ const debugCommand: CliCommandContribution<ExperimentCliRequirements, Experiment
   }),
 });
 
+function acceptFailure(cause: Error): ExperimentCliError {
+  const code = "code" in cause && typeof cause.code === "string" ? `${cause.code}: ` : "";
+  const comparisons = "comparisons" in cause && Array.isArray(cause.comparisons) ? `\n${JSON.stringify({ comparisons: cause.comparisons }, null, 2)}` : "";
+  return failure("accept", cause, 1, `error: could not accept result: ${code}${cause.message}${comparisons}\n`);
+}
+
 const acceptCommand: CliCommandContribution<ExperimentCliRequirements, ExperimentCliError> = Object.freeze({
   name: "accept",
   summary: "accept exact historical Attempt locators",
@@ -894,29 +899,31 @@ const acceptCommand: CliCommandContribution<ExperimentCliRequirements, Experimen
     const sourceRunIds = Array.isArray(input.values.run) ? input.values.run : [];
     const sourceRunId = sourceRunIds.length === 1 ? sourceRunIds[0] : undefined;
     if (sourceRunIds.length > 1) return yield* write("stderr", "niceeval accept --run requires one exact Run ID.\n").pipe(Effect.as(1));
-    if ((sourceRunId === undefined && input.positionals.length === 0) || (sourceRunId !== undefined && input.positionals.length > 0) || (input.values.dry === true && sourceRunId === undefined)) {
+    if ((sourceRunId === undefined && input.positionals.length === 0) || (sourceRunId !== undefined && input.positionals.length > 0)) {
       return yield* write("stderr", "usage: niceeval accept @<locator>... | niceeval accept --run <exact-run-id> [--dry]\n").pipe(Effect.as(1));
     }
     const { invocation, config } = yield* factsAndConfig();
     if (sourceRunId !== undefined) {
       if (input.values.dry === true) {
         const plan = yield* experimentHost.acceptRun.plan({ cwd: invocation.cwd, config, runId: sourceRunId }).pipe(
-          Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
-`)),
+          Effect.mapError(acceptFailure),
         );
         yield* write("stdout", acceptRunPlanText(plan));
         return 0;
       }
       const accepted = yield* experimentHost.acceptRun.apply({ cwd: invocation.cwd, config, runId: sourceRunId }).pipe(
-        Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
-`)),
+        Effect.mapError(acceptFailure),
       );
       yield* write("stdout", acceptedRunText(sourceRunId, accepted));
       return 0;
     }
+    if (input.values.dry === true) {
+      const members = yield* planLocatorAccept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals) }).pipe(Effect.mapError(acceptFailure));
+      yield* write("stdout", `Accept preview\n${JSON.stringify({ members }, null, 2)}\n`);
+      return 0;
+    }
     const result = yield* experimentHost.accept({ cwd: invocation.cwd, config, locators: Object.freeze(input.positionals) }).pipe(
-      Effect.mapError((cause) => failure("accept", cause, 1, `error: could not accept result: ${cause.message}
-`)),
+      Effect.mapError(acceptFailure),
     );
     yield* write("stdout", acceptText(result));
     return 0;

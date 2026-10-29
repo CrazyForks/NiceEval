@@ -8,7 +8,7 @@ import { runnerE2E, writeInspectionRequest } from "./context.ts";
 // @use-case docs/feature/experiments/use-case/cache-adopt-migrated-config.md
 
 test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持续沿用", async () => {
-  await runnerE2E.case("rename-exact-source", {}, async ({ commands: { niceeval }, paths }) => {
+  await runnerE2E.case("rename-exact-source", { artifacts: [{ source: "unproven-plan.json", target: "unproven-plan.json", optional: true }] }, async ({ commands: { niceeval }, paths }) => {
     const first = await niceeval.run(["exp", "history", "--rerun", "all", "--json"]);
     expect(first.exitCode, first.diagnostic()).toBe(0);
     const sourceRunId = only(first.expReceipt().createdRunIds, () => true, first.diagnostic());
@@ -92,8 +92,32 @@ test.concurrent("删除旧实验后明确采用指定 Run，保留来源并持�
     const unproven = await niceeval.run(["exp", "renamed", "--dry", "--json"]);
     expect(unproven.exitCode, unproven.diagnostic()).toBe(0);
     const unprovenPlan = decodeExpPlanDocument(unproven.json());
+    await writeFile(join(paths.projectRoot, "unproven-plan.json"), unproven.stdout, "utf8");
     expect(unprovenPlan).toMatchObject({ total: 1, reused: 0 });
     expect(JSON.stringify(unprovenPlan.matrix[0]!.slots)).toContain("adoption-unproven");
+    const unprovenComparison = unprovenPlan.matrix[0]!.slots[0]!.comparisons.find((comparison) => comparison.recordedClaim === "execution-identity");
+    expect(unprovenComparison).toMatchObject({
+      result: "mismatch",
+      explanation: {
+        kind: "changed",
+        deltas: expect.arrayContaining([expect.objectContaining({
+          selector: "plan:physical", kind: "changed",
+          from: expect.stringContaining('"experimentId":"history"'),
+          to: expect.stringContaining('"experimentId":"renamed"'),
+        })]),
+      },
+    });
+    // The intermediate carried Run has the current target identity. The
+    // explanation must still reach the original Run, which predates the rename.
+    expect(unprovenPlan.matrix[0]!.readbacks[0]!.source.origin.runId).toBe(sourceRunId);
+    const currentQuery = await writeInspectionRequest(paths.projectRoot, "unproven-project", { kind: "project.get" });
+    const current = await niceeval.run(["query", "run", "--request", currentQuery]);
+    expect(current.exitCode, current.diagnostic()).toBe(0);
+    const unprovenCurrent = current.querySuccess("project.get").project.plannedAttempts.find((slot) => slot.evalId === "suite/stable");
+    expect(unprovenCurrent).toMatchObject({ state: "gap", reason: "adoption-unproven", explanation: unprovenComparison!.explanation });
+    expect(unprovenCurrent).not.toHaveProperty("comparisons");
+    if (unprovenCurrent!.state === "gap") expect(JSON.stringify(unprovenCurrent!.issues)).not.toContain("comparisons");
+
 
     const withHook = 'import { writeFile } from "node:fs/promises";\n' + definition.replace(
       "defineExperiment({",

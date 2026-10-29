@@ -6,14 +6,15 @@
 // docs/feature/experiments/cache.md「差异说明」与「NiceEval 身份域变更」。
 
 import type { JsonValue } from "../types.ts";
+import { CURRENT_IDENTITY_DOMAINS } from "../runner/identity-domains.ts";
 
 /** Run 记录根下清单文件的文件名。 */
 export const MANIFESTS_FILE = "manifests.json";
 
 /** 指纹算法与清单覆盖面的持久化版本；旧清单缺字段时按 legacy 0 读取。 */
 export const LEGACY_FINGERPRINT_VERSION = 0;
-export const FINGERPRINT_ALGORITHM_VERSION = 3;
-export const FINGERPRINT_COVERAGE_VERSION = 2;
+export const FINGERPRINT_ALGORITHM_VERSION = CURRENT_IDENTITY_DOMAINS.fingerprintAlgorithm;
+export const FINGERPRINT_COVERAGE_VERSION = CURRENT_IDENTITY_DOMAINS.fingerprintCoverage;
 
 /**
  * 一条 eval 的指纹输入清单。三块与指纹输入一一对应:

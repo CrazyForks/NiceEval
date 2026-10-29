@@ -39,7 +39,7 @@ export {
   SessionListDocumentSchema,
   SessionShowDocumentSchema,
 } from "./cli/session-protocol.ts";
-export { decodeExpPlanDocument, ExpPlanDocumentSchema, type ExpPlanDocument } from "./cli/plan-protocol.ts";
+export { decodeExecutionComparisons, decodeExpPlanDocument, ExpPlanDocumentSchema, type ExpPlanDocument } from "./cli/plan-protocol.ts";
 export {
   decodeExpTerminalEvent,
   ExpDiagnosticEventSchema,

@@ -2,8 +2,15 @@
 // @concord-implements docs/feature/experiments/cache.md
 // @concord-implements docs/feature/experiments/library.md
 
+import { readIdentityExplanation } from "./identity-explanation-read.ts";
+import { CURRENT_IDENTITY_DOMAINS } from "./identity-domains.ts";
+import { executionDigestForManifestOrigin, classifyIdentityDomains, type IdentityExplanation } from "./manifest.ts";
+import type { ExecutionComparison } from "./reuse-plan.ts";
+import { captureRenameRebuildInput, identityManifestEntry } from "./identity-manifests.ts";
+import type { IdentityManifestEntry, IdentityManifestsAttachment } from "../record/family/identity-manifests/schema.ts";
+import type { IdentityRebuildInput } from "./identity-domains.ts";
 import { foldRecordedAttemptScore } from "../eval/record/score.ts";
-import { executionDigestForExperiment, hasProvenNoExperimentHooks } from "./rename-identity.ts";
+import { hasProvenNoExperimentHooks } from "./rename-identity.ts";
 import { experimentHooksForRun } from "./record/context.ts";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -92,14 +99,15 @@ import type {
 
 /** Shared domains emitted by the current ProjectTarget producer. */
 export const ADOPTION_INPUT_IDENTITY_DOMAIN =
-  "niceeval.input/fingerprint-v1" as const;
+  `niceeval.input/fingerprint-v${CURRENT_IDENTITY_DOMAINS.inputIdentity}`;
 export const ADOPTION_CONFIG_IDENTITY_DOMAIN =
-  "niceeval.config/identity-v1" as const;
+  `niceeval.config/identity-v${CURRENT_IDENTITY_DOMAINS.configIdentity}`;
 const ADOPTION_TARGET_SLOT_SEPARATOR = "\u0000";
 
 export type ExplicitAdoptionIntent = "accept" | "rename";
 
 export type ExplicitAdoptionFailureCode =
+  | "accept-ineligible"
   | "rename-run-not-closed"
   | "rename-identity-mismatch"
   | "rename-behavior-unproven"
@@ -135,6 +143,7 @@ export class ExplicitAdoptionError extends Error {
   constructor(
     readonly code: ExplicitAdoptionFailureCode,
     message: string,
+    readonly comparisons?: readonly ExecutionComparison[],
   ) {
     super(message);
   }
@@ -195,6 +204,9 @@ export interface ResolvedAdoptionAttempt {
 }
 
 export interface CurrentAdoptionSlot {
+  readonly identityManifest?: IdentityManifestEntry;
+  readonly rebuildInput?: IdentityRebuildInput;
+  readonly renameRebuildInput?: (experimentId: string) => IdentityRebuildInput | undefined;
   readonly evaluationKind: "pass" | "score";
   readonly renameFingerprint?: (experimentId: string) => string | undefined;
   readonly slotId: SlotId;
@@ -210,6 +222,7 @@ export interface CurrentAdoptionSlot {
 }
 
 export interface CurrentAdoptionTarget {
+  readonly identityManifests?: IdentityManifestsAttachment;
   readonly experimentId: string;
   readonly startedAt: UtcMillis;
   readonly expectedSlots: readonly RecordSlotIdentity[];
@@ -223,7 +236,7 @@ export interface ExplicitAdoptionMember {
   readonly source: ResolvedAdoptionAttempt;
   readonly locator: string;
   readonly verdict: "passed" | "failed";
-  readonly comparisons: readonly ComparisonProvenance[];
+  readonly comparisons: readonly ExecutionComparison[];
   readonly operatorReason?: string;
 }
 
@@ -479,6 +492,9 @@ function currentTargetSlotIdentity(input: {
 }
 
 interface CurrentTargetPair {
+  readonly identityManifest: IdentityManifestEntry;
+  readonly rebuildInput?: IdentityRebuildInput;
+  readonly renameRebuildInput?: (experimentId: string) => IdentityRebuildInput | undefined;
   readonly renameFingerprint?: (experimentId: string) => string | undefined;
   readonly pair: PreparedRunPair;
   readonly inputIdentity: EqualityToken;
@@ -582,6 +598,8 @@ export function prepareCurrentAdoptionTarget(input: {
       }
       const renameFingerprint = projectPlan.renameFingerprintsByKey.get(pair.key);
       plannedPairs.push(Object.freeze({
+        identityManifest: identityManifestEntry(pair.evalDef.id, projectPlan.manifestsByKey.get(pair.key)!),
+        ...(projectPlan.rebuildInputsByKey.get(pair.key) === undefined ? {} : { rebuildInput: projectPlan.rebuildInputsByKey.get(pair.key)!, renameRebuildInput: captureRenameRebuildInput(pair, projectPlan.rebuildInputsByKey.get(pair.key)!, renameFingerprint) }),
         ...(renameFingerprint === undefined ? {} : { renameFingerprint }),
         pair,
         inputIdentity: Object.freeze({
@@ -642,6 +660,9 @@ export function prepareCurrentAdoptionTarget(input: {
         seenSlots.add(identity.slotId);
         const targetSlot = Object.freeze({
           evaluationKind: planned.pair.evalDef.evaluationKind,
+          identityManifest: planned.identityManifest,
+          ...(planned.renameRebuildInput === undefined ? {} : { renameRebuildInput: planned.renameRebuildInput }),
+          ...(planned.rebuildInput === undefined ? {} : { rebuildInput: { ...planned.rebuildInput, attempt, timeout: planned.timeout ?? null } }),
           ...(planned.renameFingerprint === undefined ? {} : { renameFingerprint: planned.renameFingerprint }),
           slotId: identity.slotId,
           experimentId: experiment.id,
@@ -667,6 +688,7 @@ export function prepareCurrentAdoptionTarget(input: {
       }))
       .sort((left, right) => left.slotId < right.slotId ? -1 : left.slotId > right.slotId ? 1 : 0));
     return Object.freeze({
+      identityManifests: { entries: plannedPairs.map((pair) => pair.identityManifest).sort((a, b) => a.evalId < b.evalId ? -1 : a.evalId > b.evalId ? 1 : 0) },
       experimentId: experiment.id,
       startedAt: input.startedAt,
       context,
@@ -867,7 +889,8 @@ export function readAdoptionExecutionDuration(
 function executionIdentityComparison(input: {
   readonly source: ExecutionIdentityDigest;
   readonly target: ExecutionIdentityDigest;
-}): ComparisonProvenance {
+  readonly explanation?: IdentityExplanation;
+}): ExecutionComparison {
   const reason = input.source === input.target
     ? "execution-identity-match"
     : "execution-identity-mismatch";
@@ -875,8 +898,9 @@ function executionIdentityComparison(input: {
     attachment: "core" as const,
     recordedClaim: "execution-identity" as const,
     sourceState: "available" as const,
-    result: reason.endsWith("-match") ? "match" as const : "mismatch" as const,
+    result: input.explanation?.kind === "match" || reason.endsWith("-match") ? "match" as const : "mismatch" as const,
     reason,
+    ...(input.explanation === undefined ? {} : { explanation: input.explanation }),
   });
 }
 
@@ -934,9 +958,8 @@ function durationComparison(input: {
 }
 
 /**
- * Builds one accepted reference intent. The Core combined execution identity
- * is compared exactly, but an explicit operator decision may accept a mismatch.
- * The folded Verdict and complete Runner Activity timing remain hard gates.
+ * Builds one accepted reference intent only when its immutable origin can be
+ * reused at the target. Operator confirmation cannot prove changed behavior.
  */
 // @concord-code
 // @concord-implements docs/feature/experiments/cache.md
@@ -957,6 +980,33 @@ export function prepareExplicitAdoptionMember(input: {
       return yield* Effect.fail(adoptionError(
         code,
         `Current target ${input.target.experimentId}/${input.evalId} does not contain ordinal ${String(input.attempt)}.`,
+      ));
+    }
+    const samePosition = input.source.originEvalId === target.evalId &&
+      input.source.originAttempt === target.attempt;
+    const sameIdentity = input.source.executionIdentityDigest === target.executionIdentityDigest;
+    let explanation: IdentityExplanation | undefined;
+    let historicalManifest: IdentityManifestEntry | undefined;
+    if (!sameIdentity) {
+      const selected = yield* input.reader.selectRuns({ runIds: [input.source.origin.runId] });
+      const origin = selected.runRefs[0] === undefined ? undefined : yield* input.reader.readRun(selected.runRefs[0]);
+      if (origin?.state !== "available") return yield* Effect.fail(sourceCoreInvalid("The exact origin Run is unavailable."));
+      const compared = yield* readIdentityExplanation({ reader: input.reader, historical: origin.value, evalId: target.evalId, ...(target.identityManifest === undefined ? {} : { current: target.identityManifest }) });
+      historicalManifest = compared.historical;
+      explanation = classifyIdentityDomains({
+        historical: compared.historical, current: target.identityManifest, historicalDigest: input.source.executionIdentityDigest,
+        ...(target.rebuildInput === undefined ? {} : { rebuildInput: target.rebuildInput }), explanation: compared.explanation,
+      });
+    }
+    const pureRename = input.source.originExperimentId !== target.experimentId &&
+      hasProvenNoExperimentHooks(input.target.context) &&
+      hasProvenNoExperimentHooks(input.source.originContext) &&
+      executionDigestForManifestOrigin(target, input.source.originExperimentId, historicalManifest) === input.source.executionIdentityDigest;
+    if (!samePosition || (!sameIdentity && explanation?.kind !== "match" && !pureRename)) {
+      return yield* Effect.fail(new ExplicitAdoptionError(
+        "accept-ineligible",
+        `Source locator "${input.source.locator.text}" has changed or unproven execution identity. Run the current target instead.`,
+        [executionIdentityComparison({ source: input.source.executionIdentityDigest, target: target.executionIdentityDigest, ...(explanation === undefined ? {} : { explanation }) })],
       ));
     }
     const facts = yield* readAdoptionAttemptFacts(input.reader, input.source);
@@ -1000,6 +1050,7 @@ export function prepareExplicitAdoptionMember(input: {
       executionIdentityComparison({
         source: input.source.executionIdentityDigest,
         target: target.executionIdentityDigest,
+        ...(explanation === undefined ? {} : { explanation }),
       }),
       Object.freeze({
         attachment: "niceeval.assertions" as const,
@@ -1142,6 +1193,7 @@ export function commitExplicitAdoptionRunPlans(
           })),
           deadlineEpochMs: Date.now() + 30_000,
         }).pipe(Effect.mapError(asRunStorageError));
+      if (plan.target.identityManifests !== undefined) yield* writer.attach(NiceEvalRecordAttachments.identityManifests, plan.target.identityManifests);
       for (const member of plan.members) {
         yield* stagePlanningReference(writer, {
           slotId: member.target.slotId,
@@ -1330,10 +1382,19 @@ export function prepareWholeRunAdoptionMembers(input: {
         `Source locator ${source.locator.text} has opaque or unknown Experiment hook declarations; pure rename cannot be proven.`,
       ));
       if (source.originEvalId !== sourceSlot.evalId || source.originAttempt !== sourceSlot.attemptOrdinal) return yield* Effect.fail(sourceCoreInvalid("Source Member does not retain its exact origin position."));
-      if (input.intent === "rename" && (executionDigestForExperiment(targetSlot, input.sourceRun.experimentId) !== sourceSlot.executionIdentityDigest ||
-          executionDigestForExperiment(targetSlot, source.originExperimentId) !== source.executionIdentityDigest)) return yield* Effect.fail(adoptionError(
-        "rename-identity-mismatch", `Source locator ${source.locator.text} has changed or unprovable execution identity; rename cannot adopt it.`,
-      ));
+      if (input.intent === "rename" && targetSlot.executionIdentityDigest !== sourceSlot.executionIdentityDigest) {
+        const identity = yield* readIdentityExplanation({ reader: input.reader, historical: run.value, evalId: targetSlot.evalId, ...(targetSlot.identityManifest === undefined ? {} : { current: targetSlot.identityManifest }) });
+        if (executionDigestForManifestOrigin(targetSlot, input.sourceRun.experimentId, identity.historical) !== sourceSlot.executionIdentityDigest) {
+          const explanation = classifyIdentityDomains({
+            historical: identity.historical, current: targetSlot.identityManifest, historicalDigest: sourceSlot.executionIdentityDigest,
+            ...(targetSlot.rebuildInput === undefined ? {} : { rebuildInput: targetSlot.rebuildInput }), explanation: identity.explanation,
+          });
+          return yield* Effect.fail(new ExplicitAdoptionError(
+            "rename-identity-mismatch", `Source locator ${source.locator.text} has changed or unprovable execution identity; rename cannot adopt it.`,
+            [executionIdentityComparison({ source: sourceSlot.executionIdentityDigest, target: targetSlot.executionIdentityDigest, explanation })],
+          ));
+        }
+      }
       if (input.intent === "rename" && targetSlot.evaluationKind === "score") {
         const facts = yield* readAdoptionAttemptFacts(input.reader, source);
         if (!facts.scoreComplete) return yield* Effect.fail(adoptionError("adoption-source-verdict-ineligible", `Source locator ${source.locator.text} has incomplete score.`));

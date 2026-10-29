@@ -1,10 +1,27 @@
 import { createHash } from "node:crypto";
+import { CURRENT_IDENTITY_DOMAINS } from "./identity-domains.ts";
+
+/** Stable object-key encoding shared by the fingerprint and config recipes. */
+export function stableIdentityJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
+  if (Array.isArray(value)) return `[${value.map(stableIdentityJson).join(",")}]`;
+  return `{${Object.entries(value)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, child]) => `${JSON.stringify(key)}:${stableIdentityJson(child)}`)
+    .join(",")}}`;
+}
+
+/** Exact hashing recipe for frozen Eval input and configuration payloads. */
+export function hashIdentityPayload(value: unknown): string {
+  return createHash("sha256").update(stableIdentityJson(value)).digest("hex");
+}
 
 /**
  * Stable JSON for one Slot's execution identity. Object-key order is fixed so
  * ambient insertion cannot change the Core digest.
  */
 export function slotExecutionIdentityInput(input: {
+  readonly version?: number;
   readonly experimentId: string;
   readonly evalId: string;
   readonly attempt: number;
@@ -13,7 +30,7 @@ export function slotExecutionIdentityInput(input: {
   readonly timeout: null | { readonly domain: string; readonly milliseconds: number };
 }): string {
   return JSON.stringify({
-    version: 1,
+    version: input.version ?? CURRENT_IDENTITY_DOMAINS.slotInput,
     experimentId: input.experimentId,
     evalId: input.evalId,
     attempt: input.attempt,
@@ -25,6 +42,7 @@ export function slotExecutionIdentityInput(input: {
 
 /** SHA-256 hex of {@link slotExecutionIdentityInput}. */
 export function slotExecutionIdentityDigestHex(input: {
+  readonly version?: number;
   readonly experimentId: string;
   readonly evalId: string;
   readonly attempt: number;

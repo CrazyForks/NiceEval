@@ -36,6 +36,10 @@ import {
   type ConfigIdentity,
 } from "./config-identity.ts";
 import { adapterIdentity } from "../adapter.ts";
+import { CURRENT_IDENTITY_DOMAINS, type IdentityRebuildInput } from "./identity-domains.ts";
+import { hashIdentityPayload as hash, stableIdentityJson as stableJson } from "./execution-identity.ts";
+import { EXECUTION_DURATION_DOMAIN } from "../eval/record/eligibility.ts";
+import { resolveAttemptTimeout } from "./timeout.ts";
 
 /** Files that participate in a fingerprint are an explicit planning boundary. */
 export class FingerprintFileError extends Data.TaggedError("FingerprintFileError")<{
@@ -133,6 +137,7 @@ export function fingerprintWithManifest(
     fingerprint: string;
     manifest: EvalManifest;
     renameFingerprint: (experimentId: string) => string | undefined;
+    rebuildInput: IdentityRebuildInput;
   },
   FingerprintPlanningFailure
 > {
@@ -147,6 +152,7 @@ function fingerprintPreparedPair(
   fingerprint: string;
   manifest: EvalManifest;
   renameFingerprint: (experimentId: string) => string | undefined;
+  rebuildInput: IdentityRebuildInput;
 }, FingerprintPlanningFailure> {
   return Effect.gen(function* () {
     const { evalDef } = pair;
@@ -249,7 +255,21 @@ function fingerprintPreparedPair(
           const pairPlan = pairPlanForExperiment(experimentId);
           return pairPlan === undefined ? undefined : hash({ ...frozenPayload, pairPlan });
         });
-        return { fingerprint, manifest, renameFingerprint };
+        const timeout = resolveAttemptTimeout(pair.run, evalDef, {});
+        const rebuildInput: IdentityRebuildInput = Object.freeze({
+          domains: CURRENT_IDENTITY_DOMAINS,
+          config: manifest.config,
+          experimentId: originalExperimentId,
+          evalId: evalDef.id,
+          attempt: 0,
+          timeout: timeout === undefined ? null : Object.freeze({
+            domain: EXECUTION_DURATION_DOMAIN,
+            milliseconds: timeout.timeoutMs,
+          }),
+          fingerprintPayload: frozenPayload,
+          configIdentity: identity,
+        });
+        return { fingerprint, manifest, renameFingerprint, rebuildInput };
       },
       catch: (cause) => fingerprintPlanningError("configuration", cause),
     });
@@ -390,6 +410,8 @@ export interface ProjectTargetPlan {
     (experimentId: string) => string | undefined
   >;
   readonly manifestsByKey: ReadonlyMap<string, EvalManifest>;
+  /** Pair-keyed frozen seeds; copy with the actual attempt ordinal before rebuilding. */
+  readonly rebuildInputsByKey: ReadonlyMap<string, IdentityRebuildInput>;
   /** 仅供本地 watcher；不会序列化进 Target/report。 */
   readonly watchInputs: readonly string[];
 }
@@ -412,7 +434,7 @@ export function planProjectTarget(
       ...(options.keepSandbox === undefined ? {} : { keepSandbox: options.keepSandbox }),
       ...(configTimeoutMs === undefined ? {} : { configTimeoutMs }),
     }),
-    (preparedPairs) => planPreparedProjectTarget(preparedPairs, options),
+    (preparedPairs) => planPreparedProjectTarget(preparedPairs, { ...options, configTimeoutMs }),
   );
 }
 
@@ -426,6 +448,7 @@ export function planPreparedProjectTarget(
   options: {
     readonly configJudge?: import("../judge/provider.ts").JudgeProvider;
     readonly keepSandbox?: "failed" | "all";
+    readonly configTimeoutMs?: number;
   },
 ): Effect.Effect<ProjectTargetPlan, FingerprintPlanningFailure> {
   return Effect.gen(function* () {
@@ -440,6 +463,7 @@ export function planPreparedProjectTarget(
       (experimentId: string) => string | undefined
     >();
     const manifestsByKey = new Map<string, EvalManifest>();
+    const rebuildInputsByKey = new Map<string, IdentityRebuildInput>();
     const plannedConfigHashes = new Map<string, string>();
     const resolvedJudgesByKey = new Map<string, ResolvedJudgeConfig | undefined>();
     const runConfigHashes = new Map<string, string>();
@@ -472,7 +496,7 @@ export function planPreparedProjectTarget(
           ));
         }
         runConfigHashes.set(pair.run.experimentId, runConfigHash);
-        const { fingerprint, manifest, renameFingerprint } = yield* fingerprintWithManifest(
+        const { fingerprint, manifest, renameFingerprint, rebuildInput } = yield* fingerprintWithManifest(
           pair,
           sourceCache,
           currentFingerprintProjection(pair, identity),
@@ -481,6 +505,14 @@ export function planPreparedProjectTarget(
         plannedFingerprints.set(pair.key, fingerprint);
         renameFingerprintsByKey.set(pair.key, renameFingerprint);
         manifestsByKey.set(pair.key, manifest);
+        const timeout = resolveAttemptTimeout(pair.run, pair.evalDef, { timeoutMs: options.configTimeoutMs });
+        rebuildInputsByKey.set(pair.key, Object.freeze({
+          ...rebuildInput,
+          timeout: timeout === undefined ? null : Object.freeze({
+            domain: EXECUTION_DURATION_DOMAIN,
+            milliseconds: timeout.timeoutMs,
+          }),
+        }));
         const bucket = targetEvals.get(pair.run.experimentId) ?? [];
         bucket.push(Object.freeze({
           id: pair.evalDef.id,
@@ -533,6 +565,7 @@ export function planPreparedProjectTarget(
       plannedFingerprints: readonlyMapSnapshot(plannedFingerprints),
       renameFingerprintsByKey: readonlyMapSnapshot(renameFingerprintsByKey),
       manifestsByKey: readonlyMapSnapshot(manifestsByKey),
+      rebuildInputsByKey: readonlyMapSnapshot(rebuildInputsByKey),
       watchInputs: Object.freeze([...watchInputs].sort()),
     });
   });
@@ -566,22 +599,8 @@ function freezeFingerprintInput<Value>(value: Value): Value {
   )) as Value;
 }
 
-function hash(value: unknown): string {
-  return createHash("sha256").update(stableJson(value)).digest("hex");
-}
-
 /** folder-local source 进指纹时只留纯数据面(brand 不参与)。 */
 /** 文本内容哈希:manifest 的源码面/数据面把「内容」换成「内容哈希」时用的唯一口径。 */
 function hashText(content: string): string {
   return createHash("sha256").update(content).digest("hex");
-}
-
-/** 键序稳定的 JSON 序列化(对象键排序),保证同一 payload 永远同一指纹。 */
-function stableJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  return `{${Object.entries(value)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`)
-    .join(",")}}`;
 }

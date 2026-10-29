@@ -57,8 +57,12 @@ Inspection 消费这个冻结输入并关闭当前指标；终端与浏览器不
 
 | `state` | 字段 |
 | --- | --- |
-| `reuse` | `sourceRunId`、`locator`、`relation`、`action`，均指向已发布 Member 及其 exact Attempt。 |
-| `gap` | `reason`、`issues`、可空 `sourceRunId`、`previous`；`previous` 为 `null` 或仅含 `sourceRunId`、`locator` 的历史入口。 |
+| `reuse` | `sourceRunId`、`locator`、`relation`、`action`，均指向已发布 Member 及其 exact Attempt；经身份域变更沿用时另有 `explanation`。 |
+| `gap` | `reason`、`issues`、可空 `sourceRunId`、`previous`；`previous` 为 `null` 或仅含 `sourceRunId`、`locator` 的历史入口。`reason` 为 `identity-mismatch` 或 `adoption-unproven` 时另有 `explanation`。 |
+
+`explanation` 是[差异说明](../experiments/cache.md#差异说明)的 `IdentityExplanation`，与 `exp --dry --json`、`accept --dry` 同一结构和同一比较对象。
+reuse 分支只在 `kind: "match"` 时出现，`via` 列出所用的身份域变更；digest 直接相等的沿用不带该字段。
+身份差异不进入 `issues`：`issues` 只保存 reader 与 planning 的具名问题。
 
 `reason` 只允许以下值：
 

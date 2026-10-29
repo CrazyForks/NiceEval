@@ -39,6 +39,9 @@ export const prepareCurrentTarget = Effect.fn("ExperimentHost.prepareCurrentTarg
     if (prepared.status !== "ready") return yield* Effect.fail(new Error(JSON.stringify(prepared.problem)));
     const planned = yield* planProjectTarget(prepared.selected.evals, prepared.runs, input.config.timeoutMs, { configJudge: input.config.judgeProvider });
     const reuse = yield* prepareRunnerRecordReuse({
+      manifestsByKey: planned.manifestsByKey,
+      preparedPairsByKey: planned.preparedPairsByKey,
+      rebuildInputsByKey: planned.rebuildInputsByKey,
       evals: prepared.selected.evals,
       runs: prepared.runs,
       config: input.config,
@@ -57,6 +60,7 @@ export const prepareCurrentTarget = Effect.fn("ExperimentHost.prepareCurrentTarg
           }));
           slots.push(Object.freeze({
             ...slotInput,
+            ...(slotInput.rebuildInput === undefined ? {} : { rebuildInput: { ...slotInput.rebuildInput, attempt, timeout: slotInput.timeout ?? null } }),
             experimentId: run.experimentId,
             evalId: definition.id,
             attempt,

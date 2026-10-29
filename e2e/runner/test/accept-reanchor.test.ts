@@ -2,7 +2,7 @@
 // rerun: pnpm e2e test --repo runner -- --run test/accept-reanchor.test.ts
 
 import { only } from "@niceeval/testkit";
-import { decodeExpPlanDocument } from "niceeval/experiment/host";
+import { decodeExecutionComparisons, decodeExpPlanDocument } from "niceeval/experiment/host";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -12,7 +12,7 @@ import { runnerE2E, writeInspectionRequest } from "./context.ts";
 test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 verdict/evidence 与审计 provenance", async () => {
   await runnerE2E.case(
     "accept-reanchor",
-    { artifacts: [{ source: ".niceeval", target: ".niceeval", optional: true }] },
+    { artifacts: [{ source: ".niceeval", target: ".niceeval", optional: true }, { source: "identity-plan.json", target: "identity-plan.json", optional: true }] },
     async ({ commands: { niceeval }, paths }) => {
       const root = paths.projectRoot;
     const initial = await niceeval.run(["exp", "accept", "--json"]);
@@ -46,18 +46,53 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
     expect(humanDry.exitCode, humanDry.diagnostic()).toBe(0);
     expect(humanDry.stdout).toContain("gap 0:identity-mismatch");
     expect(humanDry.stdout).toContain(`source ${oldLocator} · prior · verdict passed`);
-    expect(humanDry.stdout).toContain(`accept: niceeval accept ${oldLocator}`);
+    expect(humanDry.stdout).not.toContain(`accept: niceeval accept ${oldLocator}`);
 
     const jsonDry = await niceeval.run(["exp", "accept", "--dry", "--json"]);
     expect(jsonDry.exitCode, jsonDry.diagnostic()).toBe(0);
     const plan = decodeExpPlanDocument(jsonDry.json());
+    writeFileSync(join(root, "identity-plan.json"), jsonDry.stdout, "utf8");
     expect(plan).toMatchObject({ total: 2, reused: 1 });
     const changedTarget = plan.matrix.find((row) => row.evalId === "accept/accept-target");
     expect(changedTarget).toBeDefined();
     expect(changedTarget!.slots.map((slot) => slot.state)).toEqual(["gap"]);
+    expect(changedTarget!.slots[0]!.comparisons).toContainEqual(expect.objectContaining({
+      recordedClaim: "execution-identity", result: "mismatch",
+      explanation: expect.objectContaining({ kind: "changed", deltas: expect.arrayContaining([
+        expect.objectContaining({ selector: "source:evals/accept/accept-target.eval.ts", kind: "changed" }),
+      ]) }),
+    }));
     expect(changedTarget!.readbacks).toHaveLength(1);
     expect(changedTarget!.readbacks[0]!.source.locator).toBe(oldLocator);
     expect(changedTarget!.readbacks[0]!.verdict).toMatchObject({ state: "available", value: "passed" });
+
+    const listRequest = await writeInspectionRequest(root, "accept-preflight-runs", { kind: "run.list" });
+    const beforeRejected = await niceeval.run(["query", "run", "--request", listRequest]);
+    expect(beforeRejected.exitCode, beforeRejected.diagnostic()).toBe(0);
+    const rejectedDry = await niceeval.run(["accept", oldLocator, "--dry"]);
+    expect(rejectedDry.exitCode, rejectedDry.diagnostic()).not.toBe(0);
+    expect(rejectedDry.stderr).toContain("accept-ineligible");
+    const rejectionDocument = JSON.parse(rejectedDry.stderr.slice(rejectedDry.stderr.indexOf("\n{") + 1));
+    const rejectionComparisons = decodeExecutionComparisons(rejectionDocument.comparisons);
+    expect(rejectionComparisons[0]!.explanation).toEqual(changedTarget!.slots[0]!.comparisons[0]!.explanation);
+
+    const projectRequest = await writeInspectionRequest(root, "changed-project", { kind: "project.get" });
+    const project = await niceeval.run(["query", "run", "--request", projectRequest]);
+    expect(project.exitCode, project.diagnostic()).toBe(0);
+    const projectGap = project.querySuccess("project.get").project.plannedAttempts.find((slot) => slot.evalId === "accept/accept-target");
+    expect(projectGap).toMatchObject({ state: "gap", reason: "identity-mismatch" });
+    expect(projectGap!.explanation).toEqual(changedTarget!.slots[0]!.comparisons[0]!.explanation);
+    expect(projectGap).not.toHaveProperty("comparisons");
+    if (projectGap!.state === "gap") expect(JSON.stringify(projectGap!.issues)).not.toContain("comparisons");
+    const rejected = await niceeval.run(["accept", oldLocator]);
+    expect(rejected.exitCode, rejected.diagnostic()).not.toBe(0);
+    expect(`${rejected.stdout}\n${rejected.stderr}`).toContain("accept-ineligible");
+    const afterRejected = await niceeval.run(["query", "run", "--request", listRequest]);
+    expect(afterRejected.exitCode, afterRejected.diagnostic()).toBe(0);
+    expect(afterRejected.runsList().runs).toEqual(beforeRejected.runsList().runs);
+    // A changed task is not made equivalent by operator confirmation. Restore
+    // the exact task before exercising explicit adoption and subsequent carry.
+    writeFileSync(evalPath, evalSource, "utf8");
 
     // Explicit acceptance must keep resolving the requested immutable origin
     // after unrelated Experiments have added their own published Attempts.
@@ -131,19 +166,25 @@ export default defineExperiment({ adapter, evals: ["locator-background"] });
     expect(acceptedRun.stdout).toContain(`show: niceeval show --run ${acceptedWholeRunId}`);
     expect(acceptedRun.stdout.match(/show: niceeval show --run/gu)).toHaveLength(1);
 
-    // An accepted action explains this Run's membership; it is deliberately
-    // not a future eligibility grant for the immutable source Attempt.
+    // The same target still qualifies after adoption; the immutable origin is
+    // revalidated instead of turning the accepted action into a blanket grant.
     const nextDry = await niceeval.run(["exp", "accept", "--dry", "--json"]);
     expect(nextDry.exitCode, nextDry.diagnostic()).toBe(0);
     const nextPlan = decodeExpPlanDocument(nextDry.json());
-    expect(nextPlan).toMatchObject({ total: 2, reused: 1 });
+    expect(nextPlan).toMatchObject({ total: 2, reused: 2 });
     const nextTarget = nextPlan.matrix.find((row) => row.evalId === "accept/accept-target");
     expect(nextTarget).toBeDefined();
-    expect(nextTarget!.slots.map((slot) => slot.state)).toEqual(["gap"]);
+    expect(nextTarget!.slots.map((slot) => slot.state)).toEqual(["reused"]);
     expect(nextTarget!.readbacks[0]!.source.locator).toBe(newLocator);
     const nextSecondary = nextPlan.matrix.find((row) => row.evalId === "accept/accept-secondary");
     expect(nextSecondary).toBeDefined();
     expect(nextSecondary!.slots.map((slot) => slot.state)).toEqual(["reused"]);
+    const availableProject = await niceeval.run(["query", "run", "--request", projectRequest]);
+    expect(availableProject.exitCode, availableProject.diagnostic()).toBe(0);
+    const availableTarget = availableProject.querySuccess("project.get").project.plannedAttempts.find((slot) => slot.evalId === "accept/accept-target");
+    expect(availableTarget).toMatchObject({ state: "reuse" });
+    expect(availableTarget).not.toHaveProperty("explanation");
+
     },
   );
 });
