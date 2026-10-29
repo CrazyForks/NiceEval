@@ -163,3 +163,19 @@ it("attempt.trace 读回 Codex CLI 的代表性工具证据", async () => {
     output: expect.stringContaining("niceeval-e2e-run-914"),
   });
 });
+// @feature docs/feature/adapters/README.md
+
+it("attempt.usage 计入同一轮内全部模型请求", async () => {
+  // coding-task 在同一轮里先 apply_patch 再运行命令，模型拿到工具结果后才能回复，
+  // 所以这一轮至少有两次模型请求；只记最后一次请求的用量会把它报成 1。
+  const queried = await withInspectionRequest({
+    kind: "attempt.usage",
+    locator: locatorFor("coding-task"),
+  }, async (requestPath) => await niceeval.run(["query", "run", "--request", requestPath]));
+  expect(queried.exitCode, queried.diagnostic()).toBe(0);
+  const { usage } = queried.attemptUsage();
+  const requests = usage.observations.filter((observation) =>
+    observation.kind === "request" && observation.requestKind === "model"
+  );
+  expect(requests.length, JSON.stringify(usage.observations)).toBeGreaterThanOrEqual(2);
+});
