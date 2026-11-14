@@ -82,27 +82,7 @@ function inspectionFailureDetail(error: Error): InspectionFailureDocument["failu
       correction: "fix-record-source" as const,
     });
   }
-  if (cause instanceof InspectionSourceError) {
-    const recordError = cause.cause instanceof SqliteRecordError ? cause.cause : undefined;
-    const operationalFailure =
-      recordError?.code === "record-write-busy" || recordError?.code === "record-resource-limit-exceeded";
-    const diagnostic =
-      recordError?.code === "record-schema-unsupported"
-        ? "This Record was written by an older version of NiceEval. Rerun the experiment or remove this Record storage."
-        : recordError === undefined
-          ? cause.reason
-          : `[${recordError.code}; ${recordError.operation}] ${cause.reason}`;
-    return Object.freeze({
-      code: operationalFailure ? ("inspection-operation-failed" as const) : ("inspection-source-invalid" as const),
-      reason: `The selected Record source could not be opened: ${diagnostic}`,
-      correction:
-        recordError?.code === "record-write-busy"
-          ? ("retry" as const)
-          : recordError?.code === "record-resource-limit-exceeded" || recordError?.code === "record-runtime-unsupported"
-            ? ("upgrade-or-report" as const)
-            : ("fix-record-source" as const),
-    });
-  }
+  if (cause instanceof InspectionSourceError) return inspectionSourceFailureDetail(cause);
   if (isInspectionCodecFailure(cause)) {
     return Object.freeze({
       code: cause.code,
@@ -134,6 +114,27 @@ function inspectionFailureDetail(error: Error): InspectionFailureDocument["failu
         reason: "The fixed Inspection operation could not be completed.",
         correction: "retry" as const,
       });
+}
+
+export function inspectionSourceFailureDetail(cause: InspectionSourceError): InspectionFailureDocument["failure"] {
+  const recordError = cause.cause instanceof SqliteRecordError ? cause.cause : undefined;
+  const operationalFailure =
+    recordError?.code === "record-write-busy" || recordError?.code === "record-resource-limit-exceeded";
+  const reason =
+    recordError?.code === "record-schema-unsupported"
+      ? "This Record was written by an older version of NiceEval. Rerun the experiment and keep the original Record storage."
+      : cause.reason;
+  const diagnostic = recordError === undefined ? reason : `[${recordError.code}; ${recordError.operation}] ${reason}`;
+  return Object.freeze({
+    code: operationalFailure ? ("inspection-operation-failed" as const) : ("inspection-source-invalid" as const),
+    reason: `The selected Record source could not be opened: ${diagnostic}`,
+    correction:
+      recordError?.code === "record-write-busy"
+        ? ("retry" as const)
+        : recordError?.code === "record-resource-limit-exceeded" || recordError?.code === "record-runtime-unsupported"
+          ? ("upgrade-or-report" as const)
+          : ("fix-record-source" as const),
+  });
 }
 
 function isInspectionCodecFailure(

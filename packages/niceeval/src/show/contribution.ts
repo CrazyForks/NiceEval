@@ -1,7 +1,6 @@
 // @concord-file
 // @concord-implements docs/feature/inspection/cli.md
 import { InspectionSourceError } from "../inspection/source.ts";
-import { SqliteRecordError } from "../record/sqlite/errors.ts";
 import { inspectionByteOffset } from "../inspection/continuation.ts";
 import { inspectionShellWord } from "../inspection/addressing.ts";
 import { readFile, writeFile } from "node:fs/promises";
@@ -62,7 +61,11 @@ import {
 
 import { AssertionEntryIdSchema } from "../assertions/record/codec.ts";
 import { canonicalInspectionJson } from "../inspection/canonical.ts";
-import { INSPECTION_FAILURE_EXIT_CODE, inspectionFailureDocument } from "../inspection/cli/failure.ts";
+import {
+  INSPECTION_FAILURE_EXIT_CODE,
+  inspectionFailureDocument,
+  inspectionSourceFailureDetail,
+} from "../inspection/cli/failure.ts";
 import { explainInspectionOperation } from "../inspection/select.ts";
 import { inspectionTraceSelector, parseInspectionAddress } from "../inspection/addressing.ts";
 import {
@@ -111,14 +114,13 @@ const COMPARE_HELP = `niceeval compare <run>... -- <run>... [--mode paired|side-
 type Requirements = CliArguments | CliInvocationFacts | CliOutput | ProjectConfiguration;
 type Error = CliFeatureError;
 const failure = (operation: string, cause: unknown, exitCode = 1) => {
+  const sourceFailure = cause instanceof InspectionSourceError ? inspectionSourceFailureDetail(cause) : undefined;
   const detail =
     cause instanceof CurrentTargetUnavailable ||
     (cause instanceof InspectionOperationError && cause.code === "current-target-unavailable")
       ? `current-target-unavailable: ${cause.reason}\nRead fixed history: niceeval show run:<run-id>`
-      : cause instanceof InspectionSourceError &&
-          cause.cause instanceof SqliteRecordError &&
-          cause.cause.code === "record-schema-unsupported"
-        ? "This Record was written by an older version of NiceEval. Rerun the experiment or remove this Record storage."
+      : sourceFailure !== undefined
+        ? `${sourceFailure.code}: ${sourceFailure.reason}`
         : cause instanceof InspectionIntegrityError
           ? `Record integrity failure for sealed Run ${cause.runId}.`
           : cause instanceof InspectionOperationError && cause.code === "inspection-record-integrity-failure"
