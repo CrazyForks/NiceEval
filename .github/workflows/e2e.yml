@@ -545,6 +545,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          INSTABOX_API_KEY: ${{ secrets.INSTABOX_API_KEY }}
         run: |
           set -euo pipefail
           node <<'NODE_EOF'
@@ -556,6 +557,7 @@ jobs:
             "OPENCODE_API_KEY",
             "OPENAI_API_KEY",
             "OPENAI_BASE_URL",
+            "INSTABOX_API_KEY",
           ]);
           const cells = JSON.parse(fs.readFileSync(process.env.MANIFESTS_FILE, "utf8"));
           const declared = [...new Set(cells.flatMap(({ manifest }) =>
