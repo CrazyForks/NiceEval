@@ -47,6 +47,8 @@ test.concurrent.each([
   "large-session",
 ])("Simulated user answers within its Session and retains execution evidence: %s", async (mode) => {
   const bodies: string[] = [];
+  const requestTimesMs: number[] = [];
+  let invocationStartedAt = 0;
   let ordinary = 0;
   let overflowed = false;
   const server = createServer((request, response) => {
@@ -59,6 +61,7 @@ test.concurrent.each([
       const payload = JSON.parse(body);
       const summary = payload.messages[0]?.content?.includes("context summarization assistant") === true;
       bodies.push(body);
+      requestTimesMs.push(Date.now() - invocationStartedAt);
       if (mode === "timeout" || mode === "cancel") return;
       if (summary && mode === "compact-failed") {
         response.writeHead(400);
@@ -208,6 +211,10 @@ async send(input, ctx) {
         `
 import { defineEval, defineSimulatedUser } from "niceeval";
 import { readFile, writeFile } from "node:fs/promises";
+// Load the fixture's installed SDK during discovery. Cold module loading is
+// preparation, not the answer-generation or hung-request deadline under test.
+// The candidate still creates and owns the real pi session inside reply().
+await import("@earendil-works/pi-coding-agent");
 let prior;
 export default defineEval({ async test(t) {
   const user = t.simulatedUser(defineSimulatedUser({ instructions: "Choose allow and Tier 1. Do not invent other facts.", timeoutMs: ${mode === "timeout" ? 100 : 8000} }));
@@ -239,19 +246,37 @@ export default defineEval({ async test(t) {
 } });
 `,
       );
+      invocationStartedAt = Date.now();
       if (mode === "cancel") {
-        const controlled = niceeval.start(["exp", "simulated", "--json"], { timeoutMs: 30_000 });
+        // CI did not reach the HTTP barrier in 15s. This includes CLI discovery
+        // and SDK loading; keep that readiness budget outside the 8s reply limit.
+        const controlled = niceeval.start(["exp", "simulated", "--json"], { timeoutMs: 60_000 });
+        let ended: Awaited<typeof controlled.done> | undefined;
+        void controlled.done.then((result) => {
+          ended = result;
+        });
         try {
-          await pollUntil(async () => (bodies.length > 0 ? true : undefined), {
-            timeoutMs: 15_000,
-            intervalMs: 25,
-            label: "Simulated model request started",
-          });
+          const readiness = await pollUntil(
+            async () => (bodies.length > 0 ? "request" : ended ? "exited" : undefined),
+            {
+              timeoutMs: 45_000,
+              intervalMs: 25,
+              label: "Simulated model request started",
+            },
+          );
+          expect(readiness, ended?.diagnostic()).toBe("request");
           expect(controlled.signal("SIGINT")).toBe(true);
           const interrupted = await controlled.done;
           expect(interrupted.expReceipt().completion, interrupted.diagnostic()).toBe("interrupted");
           expect((await readFile(join(projectRoot, "drives.jsonl"), "utf8")).trim().split("\n")).toHaveLength(1);
           expect(bodies).toHaveLength(1);
+        } catch (error) {
+          await controlled.dispose();
+          const result = await controlled.done;
+          throw new Error(
+            `Cancellation readiness failed; requestTimesMs=${JSON.stringify(requestTimesMs)}\n${result.diagnostic()}`,
+            { cause: error },
+          );
         } finally {
           await controlled.dispose();
         }
@@ -263,11 +288,16 @@ export default defineEval({ async test(t) {
       const locator = defined(evaluation.locator);
       const attempt = await (async () =>
         (await niceeval.run(["show", locator, "--json"])).inspectionSuccess("attempt.get"))();
+      const trace = !guardModes.includes(mode)
+        ? (await niceeval.run(["show", locator, "execution", "--json"])).attemptTrace()
+        : undefined;
+      const diagnostic = () =>
+        `${run.diagnostic()}\nrequestTimesMs=${JSON.stringify(requestTimesMs)}\nexecution diagnostics=${JSON.stringify(trace?.trace.diagnostics)}`;
       expect(attempt.attempt.assertions.entries).toHaveLength(0);
       const failed = [...invalidModes, "no-answer", "typesafe", "timeout", "cancel", "compact-failed"].includes(mode);
-      expect(attempt.attempt.verdict, run.diagnostic()).toBe(failed ? "errored" : "passed");
+      expect(attempt.attempt.verdict, diagnostic()).toBe(failed ? "errored" : "passed");
       if ([...guardModes, "typesafe"].includes(mode)) expect(bodies).toHaveLength(0);
-      if (invalidModes.includes(mode) || mode === "no-answer") expect(ordinary).toBe(4);
+      if (invalidModes.includes(mode) || mode === "no-answer") expect(ordinary, diagnostic()).toBe(4);
       if (mode === "waiting") expect(ordinary).toBe(1);
       if (mode === "correct") expect(ordinary).toBe(2);
       if (mode === "message") {
@@ -275,9 +305,7 @@ export default defineEval({ async test(t) {
         expect(bodies[1]).toContain("CONTINUE_1");
         expect(bodies[1]).toContain("Agent question START");
       }
-      if (!guardModes.includes(mode)) {
-        const trace = await (async () =>
-          (await niceeval.run(["show", locator, "execution", "--json"])).attemptTrace())();
+      if (trace !== undefined) {
         if (failed) {
           const diagnostic = defined(
             trace.trace.diagnostics.items.find(
