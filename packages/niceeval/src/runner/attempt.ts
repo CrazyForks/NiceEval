@@ -107,6 +107,7 @@ import { createDirectAgentSandbox } from "./direct-agent-sandbox.ts";
 import { createSandboxCommandTarget, SandboxCommandExitError } from "../sandbox/operations.ts";
 import {
   inheritSandboxCapabilities,
+  providerBoundaryEffect,
   sandboxCapabilities,
   BeforeCacheAmbiguityError,
   type AttemptBeforeCache,
@@ -587,8 +588,8 @@ export function runAttemptEffect<SealRequirements, AttachmentError, AttachmentRe
         providerName: adapter?.name ?? "niceeval",
         sensitiveValues,
       });
-      const recordDiagnostic = (input: DiagnosticInput) => {
-        const phase = (sendActive ? "agent.run" : lastPhase) ?? "eval.run";
+      const recordDiagnostic = (input: DiagnosticInput, closingPhase?: LifecyclePhase) => {
+        const phase = closingPhase ?? (sendActive ? "agent.run" : lastPhase) ?? "eval.run";
         if (input.dedupeKey !== undefined) {
           const existing = dedupeIndex.get(input.dedupeKey);
           if (existing) {
@@ -643,11 +644,10 @@ export function runAttemptEffect<SealRequirements, AttachmentError, AttachmentRe
       };
       const recordSandboxCleanupFailure = (stage: SandboxCleanupFailure["stage"], cause: unknown): void => {
         if (onSandboxCleanupFailure === undefined) return;
-        const rawError = cause instanceof Error ? cause : new Error(String(cause));
         // The ledger is later surfaced as an Experiment diagnostic, outside this
         // Attempt's normal diagnostic sink. Preserve the real cleanup outcome, but
         // cross that boundary only after applying this Attempt's evidence redaction.
-        const error = new Error(redactSensitiveText(rawError.message, sensitiveValues));
+        const error = new Error(redactSensitiveText(describeError(cause).message, sensitiveValues));
         // This receiver runs inside the Scope finalizer path. It must not let a
         // bookkeeping failure replace the provider or lifecycle cleanup outcome.
         try {
@@ -1133,13 +1133,27 @@ ${recentLogs.map((l) => `  · ${l}`).join("\n")}`;
                             Effect.gen(function* () {
                               const sb = owned.sandbox;
                               if (disposition !== "keep") {
-                                return yield* tryPromiseAsDefect(() => owned.group.stop()).pipe(
+                                return yield* providerBoundaryEffect(() => owned.group.stop()).pipe(
                                   Effect.onExit((exit) =>
                                     Exit.isFailure(exit)
                                       ? Effect.sync(() => {
                                           recordSandboxCleanupFailure("sandbox.stop", Cause.squash(exit.cause));
                                         })
                                       : Effect.void,
+                                  ),
+                                  Effect.catch((cause) =>
+                                    Effect.sync(() => {
+                                      recordDiagnostic(
+                                        {
+                                          code: "sandbox-stop-failed",
+                                          level: "warning",
+                                          message: `Sandbox ${sb.sandboxId} provider cleanup failed: ${describeError(cause).message}`,
+                                          data: { provider: runtimeCapabilities.provider, sandboxId: sb.sandboxId },
+                                          dedupeKey: `sandbox-stop-failed:${sb.sandboxId}`,
+                                        },
+                                        "sandbox.stop",
+                                      );
+                                    }),
                                   ),
                                 );
                               }

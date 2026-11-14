@@ -115,7 +115,11 @@ async function createProviderStopSandbox(workdir = process.cwd()): Promise<Custo
         await mark("provider-group-stop-started");
         if (failProviderStop) {
           throw new AggregateError(
-            [new Error("provider-stop fixture cleanup refused", { cause: new Error("provider-stop fixture nested cause") })],
+            [
+              new Error("provider-stop fixture cleanup refused", {
+                cause: new Error("provider-stop fixture nested cause"),
+              }),
+            ],
             "deterministic Provider group.stop failure",
           );
         }
