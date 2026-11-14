@@ -123,7 +123,9 @@ export default defineExperiment({ evals: ["turn-material"], adapter: defineAgent
         expect(audit.audit.input).toContain("TAIL");
         expect(audit.audit.definition.limits).toMatchObject({ maxCalls: 4, contextWindow: 1800 });
         expect(audit.audit.input).toContain("FINAL_FIRST_INPUT");
-        expect(JSON.parse(audit.audit.definition.config)).toHaveProperty("conversationMaterialRevision", 1);
+        expect(JSON.parse(audit.audit.definition.config)).toMatchObject({
+          ordinaryJudge: { content: expect.stringMatching(/^[a-f0-9]{64}$/), behavior: 1 },
+        });
       }
       expect(materials).toHaveLength(3);
       expect(materials[0]).toBe(materials[1]);
@@ -323,18 +325,32 @@ export default defineExperiment({ evals: ["paged-audit"], adapter: deterministic
       const chunks: Buffer[] = [];
 
       let offset = 0;
+      let continuation: string | undefined;
       while (true) {
-        const read = await niceeval.run(["show", event.locator, reference.id, "--json"]);
-        const page = read.inspectionSuccess("attempt.trace.detail").detail;
+        const read = await niceeval.run([
+          "show",
+          event.locator,
+          reference.id,
+          ...(continuation === undefined ? [] : ["--continuation", continuation]),
+          "--json",
+        ]);
+        expect(read.exitCode, read.diagnostic()).toBe(0);
+        const document = read.inspectionSuccess("attempt.trace.detail");
+        const page = document.detail;
         if (page.kind !== "execution-evidence") throw new Error("Missing Assertion Content page");
         expect(page.offset).toBe(offset);
         expect(page.targetByteLength).toBe(reference.byteLength);
         expect(page.targetSha256).toBe(reference.sha256);
         const chunk = Buffer.from(page.base64, "base64");
+        expect(chunk.byteLength).toBe(Math.min(256 * 1024, reference.byteLength - offset));
         chunks.push(chunk);
         offset += chunk.byteLength;
         if (page.nextOffset === null) break;
         expect(page.nextOffset).toBe(offset);
+        continuation = document.links
+          .find((link) => link.rel === "next-page")
+          ?.command.match(/--continuation ([^ ]+)/)?.[1];
+        expect(continuation, read.diagnostic()).toBeDefined();
       }
       const bytes = Buffer.concat(chunks);
       expect(bytes.byteLength).toBe(reference.byteLength);

@@ -172,7 +172,7 @@ operation request 是 `{ kind: "attempt.assertion.detail", locator, entryId, pro
 省略完整工具调用行与原始材料全文，保证单次响应体积安全，避免外部脚本管道溢出。
 `show` 默认请求 `compact`，加 `--full` 请求 `full`。
 
-图片 Judge 的 detail 只交付图片元数据和已验证的 v3 审计，不重复内嵌原始图片或审计的 base64。
+图片 Judge 的 detail 只交付图片元数据和已验证的图片审计，不重复内嵌原始图片或审计的 base64。
 按稳定 `entryId` 与 `imageId` 使用 `attempt.assertion.image` 读取封存原图，CLI 写法是 `show @<locator> ae_<id> image <image-id> --output <file>`，`offset` 是原始字节偏移，
 `limit` 每页最多 256 KiB。响应交付 `mediaType`、`byteLength`、`sha256`、`base64` 与 `nextOffset`，
 最后一页的 `nextOffset` 为 `null`。这个固定 operation 同样支持 `--record` 搬迁读取，不访问作者路径或模型。
@@ -261,7 +261,8 @@ command detail 交付 invocation、outcome 与已封存 stdout/stderr。identity
 它的 selector 是 `{ kind: "execution-evidence", evidenceId, offset?, limit? }`。
 
 Evidence detail 返回该精确 JSON 值的规范 UTF-8 bytes，以 `base64` 编码；`targetSha256`、`targetByteLength`、
-`offset` 与可空 `nextOffset` 一起交付。默认每次 64 KiB，最大 256 KiB，调用方按 `nextOffset` 续读。
+`offset` 与可空 `nextOffset` 一起交付。operation 默认每次 64 KiB，最大 256 KiB。
+`show` 固定每页 256 KiB，减少大对象的命令调用次数；调用方按 `next-page` link 续读。
 这不是整局附件的下载入口，也不重新调用外部系统。
 
 `attempt.trace` 的可选 `traceId`、`sourceId`、`actorId`、`eventType` 精确筛选通用轨迹；每页最多 32 个事件且事件摘要至多 64 KiB。
