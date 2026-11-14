@@ -44,8 +44,8 @@ Testkit 与根 E2E harness 统一使用 Node 24，不维护独立的 Node 兼容
 metadata/exports，并在 install 前、install 后和副本 cleanup 后核对 snapshot
 SHA-256。这个 digest 只证明本次临时目录没有被改写，不是发布或 replay 身份。
 
-Testkit 不依赖根 runner 或 scenario，保持 bootstrap 无环。唯一产品运行时依赖是安装候选
-`niceeval/run` 的纯 decoder；它不加载 CLI、SQLite、writer 或 Host。
+Testkit 不依赖根 runner 或 scenario，保持 bootstrap 无环。产品运行时依赖限于安装候选公开入口提供的纯 decoder；
+它不加载 CLI、SQLite、writer 或 Host 执行逻辑。
 `niceeval` peer dependency 保证场景实际安装的候选仍是 authority。
 
 ## 准入边界
@@ -442,7 +442,9 @@ Node 没有可移植的“目录 `rename` 且禁止替换”原语，因此提�
 
 ## 构建与采用门禁
 
-1. `pnpm --filter @niceeval/testkit typecheck` 不使用 NiceEval；根 frozen install 必须能直接运行，Testkit 不设独立 Unit 命令。
+1. 根 frozen install 后必须能直接运行 `pnpm --filter @niceeval/testkit typecheck`，不要求预先构建 NiceEval。
+   该命令按产品声明配置在系统临时目录生成正式类型声明，再按 package exports 的类型入口检查 Testkit。
+   Testkit 保持自己的严格检查选项，不复制产品类型，不读写共享 dist，结束时删除临时声明；不设独立 Unit 命令。
 2. 每次根 runner invocation 只在确有 `harness.testkit: true` 消费者时，把当前 Testkit 编译成 scratch snapshot 一次；不 pack、不上传。
 3. runner 只在隔离副本中加入指向该 scratch snapshot 的绝对 `file:` 目录依赖。真实 `pnpm install` 必须产生唯一 directory
    resolution，安装后的包名与版本正确，realpath 位于副本自己的 virtual store，而不是 checkout 源目录。

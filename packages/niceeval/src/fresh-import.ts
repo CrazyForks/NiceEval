@@ -7,7 +7,6 @@ import { Effect, Semaphore, type Scope } from "effect";
 import { createJiti, type Jiti } from "jiti";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { ProjectModuleGraph, transformedImportSpecifiers } from "./runner/module-graph.ts";
 import { isCodeSource } from "./runner/source-normalization.ts";
 import { withSandboxScriptRoot } from "./sandbox/script.ts";
@@ -16,7 +15,7 @@ const generationGate = Semaphore.makeUnsafe(1);
 const nativeRequire = createRequire(import.meta.url);
 
 function sourceRuntimeModules(): Record<string, unknown> | undefined {
-  if (nativeRequire.resolve("niceeval") !== fileURLToPath(new URL("./index.ts", import.meta.url))) return undefined;
+  if (import.meta.resolve("niceeval") !== new URL("./index.ts", import.meta.url).href) return undefined;
   const manifest = nativeRequire("../package.json") as { exports: Record<string, unknown> };
   const modules: Record<string, unknown> = Object.create(null);
   for (const entry of Object.keys(manifest.exports)) {
