@@ -33,17 +33,23 @@ test.concurrent.each(["verify-only", "install-failed", "recheck-missed"])(
 test.concurrent("Sandbox 实际平台不符保留具名类别与计划及实际平台", async () => {
   await runnerE2E.case("sandbox-target-diagnostic", async ({ commands: { niceeval }, paths }) => {
     const provider = join(paths.projectRoot, "agents/controlled-exclusive-sandbox.ts");
-    await writeFile(
-      provider,
-      (await readFile(provider, "utf8")).replace(
-        'arch: process.arch === "arm64" ? "arm64" : "x64"',
-        'arch: process.arch === "arm64" ? "x64" : "arm64"',
-      ),
+    const providerSource = await readFile(provider, "utf8");
+    const mismatchedProvider = providerSource.replace(
+      'arch: process.arch === "arm64" ? "arm64" : "x64"',
+      'arch: process.arch === "arm64" ? "x64" : "arm64"',
     );
+    expect(mismatchedProvider).not.toBe(providerSource);
+    await writeFile(provider, mismatchedProvider);
     const source = join(paths.projectRoot, "experiments/diagnostic-fidelity.ts");
+    const experimentSource = await readFile(source, "utf8");
+    const controlledExperiment = experimentSource.replace(
+      /sandbox: dockerSandbox\(\{[\s\S]*?\n  \}\),/u,
+      "sandbox: controlledExclusiveSandbox,",
+    );
+    expect(controlledExperiment).not.toBe(experimentSource);
     await writeFile(
       source,
-      `import { controlledExclusiveSandbox } from "../agents/controlled-exclusive-sandbox.ts";\n${(await readFile(source, "utf8")).replace(/sandbox: dockerSandbox\([^\n]+\),/, "sandbox: controlledExclusiveSandbox,")}`,
+      `import { controlledExclusiveSandbox } from "../agents/controlled-exclusive-sandbox.ts";\n${controlledExperiment}`,
     );
     const result = await niceeval.run(["exp", "diagnostic-fidelity", "--json"], {
       env: { NICEEVAL_DIAGNOSTIC_SCENARIO: "target" },
@@ -52,13 +58,14 @@ test.concurrent("Sandbox 实际平台不符保留具名类别与计划及实际�
     const locator = only(result.expEvalEvents(), () => true).locator;
     const trace = await niceeval.run(["show", locator, "execution", "--json"]);
     expect(trace.exitCode, trace.diagnostic()).toBe(0);
-    expect(trace.attemptTrace().trace.diagnostics.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "sandbox-target-platform-mismatch",
-          summary: expect.stringMatching(/Sandbox platform .* does not match planned target/),
-        }),
-      ]),
+    const diagnostic = only(
+      trace.attemptTrace().trace.diagnostics.items,
+      (item) => item.code === "sandbox-target-platform-mismatch",
+    );
+    const actualArch = process.arch === "arm64" ? "arm64" : "x64";
+    const plannedArch = actualArch === "arm64" ? "x64" : "arm64";
+    expect(diagnostic.summary).toContain(
+      `Sandbox platform linux-${actualArch}-gnu does not match planned target linux-${plannedArch}-gnu`,
     );
   });
 });

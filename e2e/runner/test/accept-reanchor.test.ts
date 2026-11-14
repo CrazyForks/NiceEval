@@ -124,14 +124,17 @@ test("审阅变更后 accept 以 reference Member 采用旧 Attempt，保留 ver
       const unexplained = await niceeval.run(["exp", "accept", "--dry"]);
       appendFileSync(join(root, "human-output.txt"), `\nexp --dry (unexplained)\n${unexplained.stdout}`, "utf8");
       expect(unexplained.exitCode, unexplained.diagnostic()).toBe(0);
-      expect(unexplained.stdout).toContain("unversioned-identity-change: Execution identity changed");
+      expect(unexplained.stdout).toContain(
+        "niceeval-identity-changed: NiceEval identity calculation changed. Rerun the affected experiments.",
+      );
       expect(unexplained.stdout).toContain("observed inputs: no differences in comparable manifest fields");
-      expect(unexplained.stdout).toContain("limitation:");
       expect(unexplained.stdout).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
       const unexplainedRejection = await niceeval.run(["accept", oldLocator]);
       appendFileSync(join(root, "human-output.txt"), `\naccept (unexplained)\n${unexplainedRejection.stderr}`, "utf8");
       expect(unexplainedRejection.exitCode, unexplainedRejection.diagnostic()).not.toBe(0);
-      expect(unexplainedRejection.stderr).toContain("\n  unversioned-identity-change: Execution identity changed");
+      expect(unexplainedRejection.stderr).toContain(
+        "\n  niceeval-identity-changed: NiceEval identity calculation changed. Rerun the affected experiments.",
+      );
       expect(unexplainedRejection.stderr).not.toMatch(/[{}]|"comparisons"|"explanation"/u);
       writeFileSync(configPath, configSource, "utf8");
 
@@ -223,7 +226,7 @@ export default defineExperiment({ adapter, evals: ["locator-background"] });
       const acceptedWholeRunId = /into new Run ([0-9a-f-]{36})\./u.exec(acceptedRun.stdout)?.[1];
       expect(acceptedWholeRunId, acceptedRun.diagnostic()).toBeTruthy();
       expect(acceptedRun.stdout).toContain(`show: niceeval show run:${acceptedWholeRunId}`);
-      expect(acceptedRun.stdout.match(/show: niceeval show run:<id>/gu)).toHaveLength(1);
+      expect(acceptedRun.stdout.match(/show: niceeval show run:[0-9a-f-]{36}/gu)).toHaveLength(1);
 
       // The same target still qualifies after adoption; the immutable origin is
       // revalidated instead of turning the accepted action into a blanket grant.

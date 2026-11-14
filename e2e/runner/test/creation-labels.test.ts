@@ -47,10 +47,22 @@ test.concurrent("remote Provider creation metadata identifies its first Attempt 
           NICEEVAL_LABEL_PROVIDER: "e2b",
           NICEEVAL_LABEL_MODE: mode,
           NICEEVAL_LABEL_RECEIPT: receipt,
-          NODE_OPTIONS: `--import=${pathToFileURL(join(paths.projectRoot, "fixtures/labels-e2b-preload.mjs")).href}`,
+          NODE_OPTIONS:
+            `${process.env.NODE_OPTIONS ?? ""} --import=${pathToFileURL(join(paths.projectRoot, "fixtures/labels-e2b-preload.mjs")).href}`.trim(),
         },
       });
       expect(result.expEvalEvents(), result.diagnostic()).toEqual([expect.objectContaining({ verdict: "errored" })]);
+      expect(result.exitCode, result.diagnostic()).toBe(1);
+      const locator = result.expEvalEvents()[0]!.locator!;
+      const trace = await niceeval.run(["show", locator, "execution", "--json"]);
+      expect(trace.exitCode, trace.diagnostic()).toBe(0);
+      expect(trace.attemptTrace().trace.diagnostics.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            summary: expect.stringContaining("fixture refused allocation after recording Provider creation metadata"),
+          }),
+        ]),
+      );
       const labels = JSON.parse(await readFile(receipt, "utf8"));
       expect(labels["niceeval.run_id"]).toBe(result.expReceipt().createdRunIds[0]);
       if (mode === "run-only") {

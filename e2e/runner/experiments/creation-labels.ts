@@ -9,7 +9,7 @@ const lifecycleSandbox = dockerSandbox({
 const quickAgent = defineSandboxAgent({
   name: "creation-labels",
   evidenceCoverage: completeEvidenceCoverage,
-  ensure: { identity: { agent: "node", version: "24", revision: "1" }, probe: shell("node --version") },
+  install: { identity: { agent: "node", version: "24", revision: "1" }, probe: shell("node --version") },
   send: async () => ({ status: "completed", events: [] }),
 });
 

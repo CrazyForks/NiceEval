@@ -8,7 +8,7 @@ export default defineExperiment({
   adapter: defineSandboxAgent({
     name: "install-identity-fixture",
     evidenceCoverage: completeEvidenceCoverage,
-    ensure: { identity: { agent: "codex", version, revision: "1" }, probe: shell("true") },
+    install: { identity: { agent: "codex", version, revision: "1" }, probe: shell("true") },
     async send() {
       return { status: "completed", events: [] };
     },

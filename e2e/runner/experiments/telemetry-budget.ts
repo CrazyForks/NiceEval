@@ -11,7 +11,7 @@ const sandbox = dockerSandbox({
 const adapter = defineSandboxAgent({
   name: "telemetry-fixture",
   evidenceCoverage: completeEvidenceCoverage,
-  ensure: { identity: { agent: "node", version: "24", revision: "1" }, probe: shell("node --version") },
+  install: { identity: { agent: "node", version: "24", revision: "1" }, probe: shell("node --version") },
   tracing: { protocol: "http/json" },
   async send(_input, ctx) {
     const endpoint = ctx.telemetry!.endpoint;
