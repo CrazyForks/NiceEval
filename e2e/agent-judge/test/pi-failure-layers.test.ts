@@ -17,6 +17,10 @@ const scenario = createE2EContext({
 // Real SDK sessions run their real request/settlement loop. Only the public SDK
 // stream boundary or the specifically failing SDK operation is fault-injected.
 async function exercise(mode: string, simulated: boolean, state: string, code: string) {
+  // Judge cases acquire a real Docker Sandbox and SDK before reaching the fault.
+  // Default parallel source execution exhausted the old 30s readiness budget.
+  // Keep the 15s Judge deadline separate from setup and execution time.
+  const attemptTimeoutMs = simulated ? 30_000 : 60_000;
   await scenario.case(
     `failure-${simulated ? "user" : "judge"}-${mode}`,
     async ({ paths: { projectRoot }, commands: { niceeval } }) => {
@@ -82,7 +86,7 @@ if (mode === "unknown") AgentSession.prototype.setActiveToolsByName = () => { th
         `
 import { defineConfig } from "niceeval";
 import { OpenAIProvider } from "niceeval/judge";
-export default defineConfig({ timeoutMs: 30000, ${mode === "provider" ? "" : `judgeProvider: OpenAIProvider({ model: "failure-fixture", baseUrl: "http://127.0.0.1:1/v1", ${mode === "credential" ? 'apiKeyEnv: "NICEEVAL_FIXTURE_MISSING_CREDENTIAL"' : 'apiKey: "fixture-only"'}, contextWindow: 128000, maxOutputTokens: 128, headers: { "X-Fixture": "fixture-header-secret" } })`} });
+export default defineConfig({ timeoutMs: ${attemptTimeoutMs}, ${mode === "provider" ? "" : `judgeProvider: OpenAIProvider({ model: "failure-fixture", baseUrl: "http://127.0.0.1:1/v1", ${mode === "credential" ? 'apiKeyEnv: "NICEEVAL_FIXTURE_MISSING_CREDENTIAL"' : 'apiKey: "fixture-only"'}, contextWindow: 128000, maxOutputTokens: 128, headers: { "X-Fixture": "fixture-header-secret" } })`} });
 `,
       );
       await writeFile(
@@ -114,13 +118,18 @@ export default defineEval({ async test(t) {
 `,
       );
       if (mode === "cancel") {
-        const controlled = niceeval.start(["exp", "failure", "--json"], { timeoutMs: 60_000 });
+        const controlled = niceeval.start(["exp", "failure", "--json"], { timeoutMs: 90_000 });
         try {
-          await pollUntil(async () => readFile(join(projectRoot, "request-started"), "utf8").catch(() => undefined), {
-            timeoutMs: 30_000,
-            intervalMs: 25,
-            label: "pi request started",
-          });
+          await Promise.race([
+            pollUntil(async () => readFile(join(projectRoot, "request-started"), "utf8").catch(() => undefined), {
+              timeoutMs: 45_000,
+              intervalMs: 25,
+              label: "pi request started",
+            }),
+            controlled.done.then((result) => {
+              throw new Error(`Experiment ended before pi request started:\n${result.diagnostic()}`);
+            }),
+          ]);
           expect(controlled.signal("SIGINT")).toBe(true);
           expect((await controlled.done).expReceipt().completion).toBe("interrupted");
         } finally {
@@ -157,6 +166,12 @@ export default defineEval({ async test(t) {
       } else {
         const attempt = await (async () =>
           (await niceeval.run(["show", locator, "--json"])).inspectionSuccess("attempt.get"))();
+        if (attempt.attempt.assertions.entries.length !== 1) {
+          const trace = await niceeval.run(["show", locator, "execution", "--json"]);
+          throw new Error(
+            `Expected one Agent Judge Assertion; inspect execution failure:\n${run.diagnostic()}\n${trace.diagnostic()}`,
+          );
+        }
         const entry = only(attempt.attempt.assertions.entries, () => true);
         const detail = await (async () =>
           (await niceeval.run(["show", locator, entry.entryId, "--full", "--json"])).attemptAssertionDetail())();

@@ -251,21 +251,35 @@ test.concurrent.each([
           if (!traces.has(reference.id)) {
             const chunks: Buffer[] = [];
             let offset = 0;
+            let continuation: string | undefined;
             while (true) {
-              const page = await (async () => {
-                const read = await niceeval.run(["show", locator, reference.id, "--json"]);
-                expect(read.exitCode, read.diagnostic()).toBe(0);
-                return read.inspectionSuccess("attempt.trace.detail").detail;
-              })();
+              const read = await niceeval.run([
+                "show",
+                locator,
+                reference.id,
+                "--json",
+                ...(continuation === undefined ? [] : ["--continuation", continuation]),
+              ]);
+              expect(read.exitCode, read.diagnostic()).toBe(0);
+              const document = read.inspectionSuccess("attempt.trace.detail");
+              const page = document.detail;
               if (page.kind !== "execution-evidence") throw new Error("Missing Assertion Content page");
               expect(page.offset).toBe(offset);
               expect(page.targetSha256).toBe(reference.sha256);
               expect(page.targetByteLength).toBe(reference.byteLength);
               const chunk = Buffer.from(page.base64, "base64");
+              expect(chunk.byteLength).toBeGreaterThan(0);
               chunks.push(chunk);
               offset += chunk.byteLength;
-              if (page.nextOffset === null) break;
+              const next = document.links.find((link) => link.rel === "next-page");
+              if (page.nextOffset === null) {
+                expect(next).toBeUndefined();
+                break;
+              }
               expect(page.nextOffset).toBe(offset);
+              const token = defined(defined(next).command.match(/--continuation ([^ ]+)/u)?.[1]);
+              expect(token).not.toBe(continuation);
+              continuation = token;
             }
             const bytes = Buffer.concat(chunks);
             expect(bytes.byteLength).toBe(reference.byteLength);

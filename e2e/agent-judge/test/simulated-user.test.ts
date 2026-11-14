@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createE2EContext, defined, only, pollUntil } from "@niceeval/testkit";
@@ -312,15 +313,44 @@ export default defineEval({ async test(t) {
         )) {
           const evidence = defined(event.evidence[0]);
           const chunks: Buffer[] = [];
-          let offset: number | null = 0;
-          while (offset !== null) {
-            const part = await (async () =>
-              (await niceeval.run(["show", locator, evidence.evidenceId, "--json"])).attemptTraceDetail())();
+          let offset = 0;
+          let continuation: string | undefined;
+          let targetSha256: string | undefined;
+          let targetByteLength: number | undefined;
+          while (true) {
+            const read = await niceeval.run([
+              "show",
+              locator,
+              evidence.evidenceId,
+              "--json",
+              ...(continuation === undefined ? [] : ["--continuation", continuation]),
+            ]);
+            expect(read.exitCode, read.diagnostic()).toBe(0);
+            const part = read.attemptTraceDetail();
             if (part.detail.kind !== "execution-evidence") throw new Error("Expected sealed evidence");
-            chunks.push(Buffer.from(part.detail.base64, "base64"));
-            offset = part.detail.nextOffset;
+            targetSha256 ??= part.detail.targetSha256;
+            targetByteLength ??= part.detail.targetByteLength;
+            expect(part.detail.offset).toBe(offset);
+            expect(part.detail.targetSha256).toBe(targetSha256);
+            expect(part.detail.targetByteLength).toBe(targetByteLength);
+            const chunk = Buffer.from(part.detail.base64, "base64");
+            expect(chunk.byteLength).toBeGreaterThan(0);
+            chunks.push(chunk);
+            offset += chunk.byteLength;
+            const next = part.links.find((link) => link.rel === "next-page");
+            if (part.detail.nextOffset === null) {
+              expect(next).toBeUndefined();
+              break;
+            }
+            expect(part.detail.nextOffset).toBe(offset);
+            const token = defined(defined(next).command.match(/--continuation ([^ ]+)/u)?.[1]);
+            expect(token).not.toBe(continuation);
+            continuation = token;
           }
-          audits.push(decodeSimulatedUserActivity(JSON.parse(Buffer.concat(chunks).toString("utf8"))));
+          const bytes = Buffer.concat(chunks);
+          expect(bytes.byteLength).toBe(targetByteLength);
+          expect(createHash("sha256").update(bytes).digest("hex")).toBe(targetSha256);
+          audits.push(decodeSimulatedUserActivity(JSON.parse(bytes.toString("utf8"))));
         }
         if (!["timeout", "typesafe"].includes(mode))
           expect(
