@@ -13,7 +13,7 @@ export const executionTraceAdapter = defineAdapter({
           type: index === 0 ? "model.request" : index === 10_002 ? "operation.completed" : "position.observed",
           data:
             index === 0
-              ? { context: "request-evidence-sentinel", input: "large input ".repeat(14_000) }
+              ? { context: "request-evidence-sentinel", input: "large input ".repeat(50_000) }
               : { x: index, result: index === 10_002 ? "actual-movement-sentinel" : "observed" },
         }));
         const artifact = await ctx.attach({
@@ -25,7 +25,7 @@ export const executionTraceAdapter = defineAdapter({
           traceId: "sealed-session",
           schema: {
             id: "example.simulation",
-            // Only for creating historical Records with an old installed candidate.
+            // Deliberately invalid legacy field for the public rejection check.
             ...(process.env.NICEEVAL_E2E_LEGACY_TRACE_REVISION === undefined
               ? {}
               : {

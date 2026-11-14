@@ -231,8 +231,9 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
       const firstDetail = firstRange.inspectionSuccess("attempt.trace.detail").detail;
       expect(firstDetail.kind).toBe("execution-evidence");
       if (firstDetail.kind !== "execution-evidence") throw new Error(firstRange.diagnostic());
-      expect(firstDetail).toMatchObject({ pointer: "/events/0", offset: 0, nextOffset: 65536 });
-      expect(Buffer.from(firstDetail.base64, "base64").byteLength).toBe(65536);
+      const pageBytes = 256 * 1024;
+      expect(firstDetail).toMatchObject({ pointer: "/events/0", offset: 0, nextOffset: pageBytes });
+      expect(Buffer.from(firstDetail.base64, "base64").byteLength).toBe(pageBytes);
 
       const token = firstRange
         .inspectionSuccess("attempt.trace.detail")
@@ -253,8 +254,8 @@ test.concurrent("通用轨迹随 Record 搬迁后仍可精确展开摘要之外�
         kind: "execution-evidence",
         evidenceId,
         pointer: "/events/0",
-        offset: 65536,
-        nextOffset: 131072,
+        offset: pageBytes,
+        nextOffset: 2 * pageBytes,
         targetSha256: firstDetail.targetSha256,
         targetByteLength: firstDetail.targetByteLength,
       });
