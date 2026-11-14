@@ -17,7 +17,7 @@ test.concurrent("作者跨实验比较判据，保留重复身份、缺项和每
       `exp:${"assertion-matrix/base"}`,
       "assertions",
     ];
-    const result = await niceeval.run([...args, "-o", "json"]);
+    const result = await niceeval.run([...args, "--json"]);
     expect(result.exitCode, result.diagnostic()).toBe(0);
     const { matrix } = result.inspectionSuccess("experiments.assertions");
     expect(matrix).toMatchObject({
@@ -68,8 +68,9 @@ test.concurrent("作者跨实验比较判据，保留重复身份、缺项和每
     for (const column of evaluation.columns) expect(shown.stdout).toContain(column.locator);
     const filtered = await niceeval.run([...args, "--eval", "other", "--json"]);
     expect(filtered.inspectionSuccess("experiments.assertions").matrix.evals).toEqual([]);
-    const missing = await niceeval.run([...args, "--experiment", "does-not-exist", "--json"]);
-    expect(missing.exitCode).not.toBe(0);
+    const missing = await niceeval.run([...args.slice(0, -1), "exp:does-not-exist", "assertions", "--json"]);
+    expect(missing.exitCode, missing.diagnostic()).not.toBe(0);
+    expect(missing.inspectionFailure().failure.code).toBe("inspection-selection-missing");
     for (const flags of [
       ["--run", "invalid", "--assertions"],
       ["--eval", "assertion-matrix"],

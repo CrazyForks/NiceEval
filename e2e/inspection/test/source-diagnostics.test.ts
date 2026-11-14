@@ -12,22 +12,21 @@ test.concurrent("Record 读取失败保留具体原因且不凭空归因旧版�
     await writeFile(record, "This is not a SQLite Record.");
 
     const result = await niceeval.run(["show", "--record", record, "--json"]);
-    expect(result.exitCode, result.diagnostic()).toBe(2);
-    const failure = result.inspectionFailure().failure;
-    expect(failure.code).toBe("inspection-source-invalid");
-    expect(failure.reason).toContain("[record-sqlite-error; import-record]");
-    expect(failure.reason).toContain("file is not a database");
-    expect(failure.reason).not.toContain("older NiceEval");
-    expect(failure.reason).not.toContain("run a normal experiment");
+    expect(result.exitCode, result.diagnostic()).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("inspection-source-invalid");
+    expect(result.stderr).toContain("[record-sqlite-error; import-record]");
+    expect(result.stderr).toContain("file is not a database");
+    expect(result.stderr).not.toMatch(/older.*NiceEval/i);
+    expect(result.stderr).not.toContain("run a normal experiment");
 
     // The capture boundary reports its input-size limit separately from corruption.
     await writeFile(record, "");
     const limited = await niceeval.run(["show", "--record", record, "--json"]);
-    expect(limited.exitCode, limited.diagnostic()).toBe(2);
-    expect(limited.inspectionFailure().failure).toMatchObject({
-      code: "inspection-operation-failed",
-      correction: "upgrade-or-report",
-      reason: expect.stringContaining("record-resource-limit-exceeded"),
-    });
+    expect(limited.exitCode, limited.diagnostic()).toBe(1);
+    expect(limited.stdout).toBe("");
+    expect(limited.stderr).toContain("[record-resource-limit-exceeded; import-record]");
+    expect(limited.stderr).not.toContain("file is not a database");
+    expect(limited.stderr).not.toMatch(/older.*NiceEval/i);
   });
 });

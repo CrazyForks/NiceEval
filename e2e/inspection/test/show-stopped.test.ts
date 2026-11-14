@@ -52,8 +52,9 @@ export default defineExperiment({ evals: ["stopped"], adapter: defineAgent({ nam
       join(projectRoot, "fixtures/assertions-v4/record.sqlite"),
     ]);
     expect(old.exitCode, old.diagnostic()).not.toBe(0);
-    expect(old.stderr).toContain("unsupported-format");
-    expect(old.stderr).toContain("older NiceEval");
+    expect(old.stdout).toBe("");
+    expect(old.stderr).toContain("record-schema-unsupported");
+    expect(old.stderr).toContain("older version of NiceEval");
     expect(old.stderr).toContain("Rerun");
     const experiment = await niceeval.run(["show", `exp:${"stopped"}`]);
     expect(experiment.stdout).toContain("passed stopped");
