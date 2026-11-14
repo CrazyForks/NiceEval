@@ -56,3 +56,13 @@ export function rejectAttemptPublication(): void {
     database.close();
   }
 }
+
+/** Remove only this fixture's fault before observing the public read boundary. */
+export function clearAttemptPublicationFault(projectRoot: string): void {
+  const database = new DatabaseSync(join(projectRoot, ".niceeval", "record.sqlite"));
+  try {
+    database.exec("PRAGMA busy_timeout=5000; DROP TRIGGER reject_attempt_publication");
+  } finally {
+    database.close();
+  }
+}

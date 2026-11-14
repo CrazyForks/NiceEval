@@ -25,7 +25,9 @@ test.concurrent("Record 读取失败保留具体原因且不凭空归因旧版�
     const limited = await niceeval.run(["show", "--record", record, "--json"]);
     expect(limited.exitCode, limited.diagnostic()).toBe(1);
     expect(limited.stdout).toBe("");
-    expect(limited.stderr).toContain("[record-resource-limit-exceeded; import-record]");
+    expect(limited.stderr).toContain("inspection-operation-failed");
+    expect(limited.stderr).toContain("[record-resource-limit-exceeded; capture-record]");
+    expect(limited.stderr).toContain("Record source size must be between 1 and");
     expect(limited.stderr).not.toContain("file is not a database");
     expect(limited.stderr).not.toMatch(/older.*NiceEval/i);
   });
