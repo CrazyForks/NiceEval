@@ -70,7 +70,7 @@ test.concurrent("fresh custom Provider group.stop 失败保留 sharedState，普
           env: { NICEEVAL_SHARED_STATE_PROVIDER_STOP_BARRIER: barrierRoot },
         });
         expect(queried.exitCode, queried.diagnostic()).toBe(0);
-        expect(queried.json<{ readonly operation: "run.get"; readonly issues: readonly unknown[] }>()).toMatchObject({
+        expect(queried.runGetDocument()).toMatchObject({
           operation: "run.get",
           issues: [],
         });
@@ -103,6 +103,20 @@ test.concurrent("fresh custom Provider group.stop 失败保留 sharedState，普
         } finally {
           await waiter.dispose().catch(() => undefined);
         }
+
+        const failedEvaluations = failed.expEvalEvents();
+        expect.soft(failedEvaluations, failed.diagnostic()).toEqual([expect.objectContaining({ verdict: "passed" })]);
+        const execution = await niceeval.run(["show", failedEvaluations[0]!.locator!, "execution", "--json"]);
+        expect(execution.exitCode, execution.diagnostic()).toBe(0);
+        expect.soft(execution.attemptTrace().trace.diagnostics.items, execution.diagnostic()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              code: "sandbox-stop-failed",
+              summary: expect.stringContaining("provider-stop fixture nested cause"),
+            }),
+          ]),
+        );
+        expect(`${execution.stdout}\n${execution.stderr}`).not.toContain(ownerToken);
       });
     },
   );
