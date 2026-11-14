@@ -112,6 +112,7 @@ test.concurrent("fresh custom Provider group.stop 失败保留 sharedState，普
           expect.arrayContaining([
             expect.objectContaining({
               code: "sandbox-stop-failed",
+              phase: "attempt.after",
               summary: expect.stringContaining("provider-stop fixture nested cause"),
             }),
           ]),
