@@ -22,7 +22,7 @@ import {
   lstatPath,
   writeContainedUtf8File,
 } from "./durable-path.ts";
-import { inspectMaterializedHarnessAssets } from "./harness-assets.ts";
+import { copyMaterializedHarnessAssets, inspectMaterializedHarnessAssets } from "./harness-assets.ts";
 import { readCandidateTarball, verifyInjection } from "./injection.ts";
 import type { OwnedProcess } from "./owned-process.ts";
 import { appendNativeArgs, commandCaptureOk, copyRepoIsolated, runCommand, withInvocation } from "./run-repo.ts";
@@ -382,6 +382,9 @@ export const runDiagnostic = (
             return yield* Effect.fail(failure(`diagnostic copy already exists: ${fresh}`));
           yield* Effect.acquireRelease(Effect.succeed(fresh), (path) => cleanupFreshCopy(path, cleanupState));
           yield* copyRepoIsolated(trusted.copy, fresh).pipe(Effect.mapError((cause) => failure(cause.detail)));
+          yield* copyMaterializedHarnessAssets(trusted.copy, fresh, trusted.repo.manifest.harness?.assets ?? []).pipe(
+            Effect.mapError((cause) => failure(cause.detail)),
+          );
           yield* secure(assertContainedRealDirectory(trusted.scratch, fresh, "short-lived diagnostic copy"));
           const retainedNodeModules = yield* secure(
             assertContainedRealDirectory(

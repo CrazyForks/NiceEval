@@ -15,7 +15,9 @@ interface HarnessAssetDefinition {
 const HARNESS_ASSETS: Readonly<Record<HarnessAsset, HarnessAssetDefinition>> = {
   "docker-profile-host-scripts": {
     source: ["packaging", "docker-profile-host", "scripts"],
-    destination: [".niceeval-e2e-harness", "docker-profile-host-scripts"],
+    // Runner-injected runtime materials belong in the existing artifact area,
+    // so installing a harness leaves the scenario's source bytes unchanged.
+    destination: [".e2e-artifacts", "harness", "docker-profile-host-scripts"],
     environment: {
       NICEEVAL_E2E_DOCKER_PROFILE_HOST_SCRIPTS: ".",
     },
@@ -93,13 +95,12 @@ const copyAssetEntry = (
   });
 
 const materializeOne = (
-  checkoutRoot: string,
+  source: string,
   isolatedRepo: string,
   asset: HarnessAsset,
 ): Effect.Effect<Readonly<Record<string, string>>, HarnessAssetMaterializationError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const definition = HARNESS_ASSETS[asset];
-    const source = join(checkoutRoot, ...definition.source);
     const destination = join(isolatedRepo, ...definition.destination);
     const fileSystem = yield* FileSystem.FileSystem;
     const destinationExists = yield* fileSystem
@@ -148,14 +149,36 @@ export const materializeHarnessAssets = (
   assets: readonly HarnessAsset[],
 ): Effect.Effect<MaterializedHarnessAssets, HarnessAssetMaterializationError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
-    const environments = yield* Effect.forEach(assets, (asset) => materializeOne(checkoutRoot, isolatedRepo, asset), {
-      concurrency: 1,
-    });
+    const environments = yield* Effect.forEach(
+      assets,
+      (asset) => materializeOne(join(checkoutRoot, ...HARNESS_ASSETS[asset].source), isolatedRepo, asset),
+      { concurrency: 1 },
+    );
     return {
       assets,
       environment: Object.assign({}, ...environments),
     };
   });
+
+/** Preserve the retained run's exact harness bytes in a short-lived diagnostic copy. */
+export const copyMaterializedHarnessAssets = (
+  retainedRepo: string,
+  isolatedRepo: string,
+  assets: readonly HarnessAsset[],
+): Effect.Effect<void, HarnessAssetMaterializationError, FileSystem.FileSystem> =>
+  Effect.forEach(
+    assets,
+    (asset) =>
+      assertContainedRealDirectory(
+        retainedRepo,
+        join(retainedRepo, ...HARNESS_ASSETS[asset].destination),
+        `retained harness asset ${asset}`,
+      ).pipe(
+        Effect.mapError((cause) => failure(asset, "copy", retainedRepo, isolatedRepo, cause)),
+        Effect.flatMap((source) => materializeOne(source, isolatedRepo, asset)),
+      ),
+    { concurrency: 1 },
+  ).pipe(Effect.asVoid);
 
 /** Reconstruct the same environment for assets already present in a retained copy. */
 export const inspectMaterializedHarnessAssets = (
