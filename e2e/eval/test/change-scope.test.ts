@@ -33,14 +33,14 @@ test.concurrent("允许范围检查遵循组件边界并将独立 criterion 读�
         if (["allowed subtrees", "component boundary", "zero changes allowed"].includes(entry.display.label!)) {
           expect(entry.criterion).toMatchObject({
             state: "available",
-            value: { kind: "builtin", id: "sandbox-change-scope/v1" },
+            value: { kind: "builtin", id: "sandbox-change-scope" },
           });
         }
         if (entry.display.label === "component boundary") {
           const shown = await niceeval.run(["show", event.locator!, "--full", entry.entryId]);
           expect(shown.exitCode, shown.diagnostic()).toBe(0);
           expect(shown.stdout).toContain("agents-old/outside.ts");
-          expect(shown.stdout).toContain("sandbox-change-scope/v1");
+          expect(shown.stdout).toContain("sandbox-change-scope");
         }
       }
     }

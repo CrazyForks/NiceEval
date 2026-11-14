@@ -48,10 +48,10 @@ test.concurrent("变化内容正向匹配保留 witness，未知内容保持 una
             value: {
               kind: "builtin",
               id: entry.display.label?.startsWith("paths ")
-                ? "sandbox-diff-paths/v1"
+                ? "sandbox-diff-paths"
                 : ["legacy absence", "absence elided unavailable"].includes(entry.display.label!)
-                  ? "sandbox-result/v1"
-                  : "sandbox-in-diff/v1",
+                  ? "sandbox-result"
+                  : "sandbox-in-diff",
             },
           });
           if (entry.display.label?.startsWith("paths ")) {
@@ -59,7 +59,7 @@ test.concurrent("变化内容正向匹配保留 witness，未知内容保持 una
               state: "available",
               value: {
                 kind: "builtin",
-                id: "sandbox-diff-paths/v1",
+                id: "sandbox-diff-paths",
                 data: {
                   operation: ["paths absence", "paths forbidden", "paths unavailable absence"].includes(
                     entry.display.label,
@@ -80,14 +80,14 @@ test.concurrent("变化内容正向匹配保留 witness，未知内容保持 una
             });
             const shown = await niceeval.run(["show", event.locator!, "--full", entry.entryId]);
             expect(shown.exitCode, shown.diagnostic()).toBe(0);
-            expect(shown.stdout).toContain("sandbox-diff-paths/v1");
+            expect(shown.stdout).toContain("sandbox-diff-paths");
             expect(shown.stdout).toContain("none");
           }
           if (entry.display.label === "added witness") {
             expect(entry.materials.evidence.length).toBeGreaterThan(0);
             const shown = await niceeval.run(["show", event.locator!, "--full", entry.entryId]);
             expect(shown.exitCode, shown.diagnostic()).toBe(0);
-            expect(shown.stdout).toContain("sandbox-in-diff/v1");
+            expect(shown.stdout).toContain("sandbox-in-diff");
             expect(shown.stdout).toContain("fixture/content.txt");
             expect(shown.stdout).toContain("added-content-token");
           }

@@ -283,7 +283,8 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果", async () =>
         const inspected = await inspectAttempt(niceeval, projectRoot, outcomes.locator!, "attempt.get");
         await stage("outcome", "attempt.get");
         expect(inspected.receipt.exitCode, inspected.receipt.diagnostic()).toBe(0);
-        expect(inspected.receipt.stdout).toBe(`${JSON.stringify(inspected.document)}\n`);
+        const usage = inspected.receipt.inspectionSuccess("attempt.usage");
+        expect(inspected.receipt.stdout).toBe(`${JSON.stringify(inspected.document)}\n${JSON.stringify(usage)}\n`);
         expect(inspected.document).toMatchObject({
           operation: "attempt.get",
           attempt: { locator: outcomes.locator, core: { outcome: "completed" }, verdict: "failed" },
@@ -317,14 +318,14 @@ test.concurrent("值与连续 Match 登记可审阅的检查结果", async () =>
         expect(entries.find((entry) => entry.display.label === "units.ms:matched")).toMatchObject({
           criterion: {
             state: "available",
-            value: { id: "numeric-comparison/v1", data: { comparator: "at-most", threshold: 600, unit: "ms" } },
+            value: { id: "numeric-comparison", data: { comparator: "at-most", threshold: 600, unit: "ms" } },
           },
         });
         expect(entries.find((entry) => entry.display.label === "units.between:matched")).toMatchObject({
           criterion: {
             state: "available",
             value: {
-              id: "numeric-comparison/v1",
+              id: "numeric-comparison",
               data: { comparator: "between", threshold: 150, upperThreshold: 150, unit: "ms" },
             },
           },

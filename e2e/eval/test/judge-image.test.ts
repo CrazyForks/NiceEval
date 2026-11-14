@@ -2,7 +2,7 @@
 import { only } from "@niceeval/testkit";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { copyFile, rm } from "node:fs/promises";
+import { copyFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { screenshotBytes } from "../fixtures/judge-image.ts";

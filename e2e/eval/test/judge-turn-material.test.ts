@@ -368,4 +368,6 @@ export default defineExperiment({ evals: ["paged-audit"], adapter: deterministic
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
-});
+  // A 35 MB audit needs about 134 bounded CLI pages. Source startup measured
+  // about 2.8 seconds per page; include model fixture and final digest checks.
+}, 600_000);

@@ -143,8 +143,10 @@ export default defineExperiment({ evals: ["binary"], adapter: defineAgent({ name
         if (audit?.state !== "available") throw new Error("Missing binary audit");
         digests.add(audit.audit.definition.digest);
         expect(JSON.parse(audit.audit.definition.config)).toMatchObject({
-          algorithm: "binary-classification",
-          scores: { satisfied: 1, "not-satisfied": 0 },
+          definition: {
+            algorithm: "binary-classification",
+            scores: { satisfied: 1, "not-satisfied": 0 },
+          },
         });
         expect(audit.audit.calls).toHaveLength(1);
         expect(audit.audit.calls[0]?.operation).toBe("classify");

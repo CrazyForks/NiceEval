@@ -144,8 +144,10 @@ test.concurrent("Judge 与 check 共用质量门、连续计分及完整请求�
       const assertion = await inspectAssertion(niceeval, projectRoot, evaluation.locator!, judge.entryId);
       expect(assertion.receipt.exitCode, assertion.receipt.diagnostic()).toBe(0);
       expect(assertion.document.assertion.entryId).toBe(judge.entryId);
-      expect(JSON.stringify(assertion.document.assertion)).toContain("llm-measurement/v1");
-      expect(JSON.stringify(assertion.document.assertion)).toContain("niceeval.e2e.marker-quality/v1");
+      expect(assertionEntry(assertion.document, assertion.receipt.diagnostic()).criterion).toMatchObject({
+        state: "available",
+        value: { id: "llm-measurement", kind: "builtin", data: { name: "rubric-judge", scale: "unit-interval" } },
+      });
       expect(deliveredRequests[0]).toContain("Measure whether the reply satisfies the marker criterion.");
       expect(deliveredRequests[0]).toContain("LAST_MATERIAL_SENTINEL");
       expect(deliveredRequests[0]).not.toContain("MUTATED_AFTER_REGISTRATION");

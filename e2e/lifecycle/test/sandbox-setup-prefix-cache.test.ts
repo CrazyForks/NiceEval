@@ -335,7 +335,7 @@ async function assertBeforeCacheInventory(root: string, niceevalHome: string): P
     { cwd: root, env },
   );
   expect(apply.exitCode, apply.diagnostic()).toBe(0);
-  expect(JSON.parse(apply.stdout)).toMatchObject({ format: "niceeval.cache-gc-outcome", outcomes: [] });
+  expect(JSON.parse(apply.stdout)).toMatchObject({ outcomes: [] });
 }
 
 async function inspectCompletedInvocation(

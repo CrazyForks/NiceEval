@@ -807,10 +807,15 @@ export function selectTraceDetailByStableId(
   stableId: string,
   offset?: number,
 ): InspectionSuccessDocumentFor<"attempt.trace.detail"> {
+  const selector = inspectionTraceSelector(stableId, offset);
   const decoded = Schema.decodeUnknownResult(
     // Branded persisted identities are decoded at the operation boundary.
     inspectionProtocolRegistry["attempt.trace.detail"].request,
-  )({ kind: "attempt.trace.detail", locator, selector: inspectionTraceSelector(stableId, offset) });
+  )({
+    kind: "attempt.trace.detail",
+    locator,
+    selector: selector.kind === "execution-evidence" ? { ...selector, limit: 256 * 1024 } : selector,
+  });
   if (Result.isFailure(decoded))
     throw new InspectionOperationError({
       code: "inspection-request-invalid",

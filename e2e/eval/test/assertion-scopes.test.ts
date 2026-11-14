@@ -62,7 +62,7 @@ function labeled(assertions: readonly InspectedAssertion[], label: string, diagn
 }
 
 function expectNumeric(entry: InspectedAssertion, result: "matched" | "unavailable"): void {
-  expect(criterionId(entry)).toBe("numeric-comparison/v1");
+  expect(criterionId(entry)).toBe("numeric-comparison");
   expect(entry.decision.result).toBe(result);
   expect(entry.evaluation.kind).toBe("ordinary");
   expect(entry.evaluation.artifact).toBeUndefined();
@@ -74,7 +74,7 @@ function expectOccurrence(
   assertion: "present" | "absent" | "count" | "order",
   quantifierKind?: string,
 ): void {
-  expect(criterionId(entry)).toBe("occurrence/v2");
+  expect(criterionId(entry)).toBe("occurrence");
   expect(entry.decision.result).toBe(result);
   expect(entry.evaluation.kind).toBe("matcher-current");
   expect(dataString(entry, ["assertion"])).toBe(assertion);
@@ -178,7 +178,7 @@ test("大量真实工具事件的 scope Assertion 仍以 passed 终态发布", a
       const terminalWitness = only(
         assertions,
         (entry) =>
-          JSON.stringify(entry.criterion).includes("argsStart") && JSON.stringify(entry.criterion).includes("query"),
+          JSON.stringify(entry.criterion).includes("argsStart") && JSON.stringify(entry.criterion).includes("show"),
         inspected.receipt.diagnostic(),
       );
       expect(receiptOf(terminalWitness)).toMatchObject({
